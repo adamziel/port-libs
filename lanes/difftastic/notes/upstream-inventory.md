@@ -101,10 +101,10 @@ The required root test runner was run after this TypeScript member-alignment sli
 php tools/run-tests.php
 ```
 
-The exact required root test run after this TypeScript member-alignment slice is green:
+The exact required root test run after this JSX tag-list slice is green:
 
 ```text
-118 test files, 9,065 assertions, 0 failures
+118 test files, 9,081 assertions, 0 failures
 ```
 
 The difftastic-focused test file remains green with 70 tests, 328 assertions, and 0 failures via a direct `TestRunner` invocation.
