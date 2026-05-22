@@ -76,10 +76,6 @@ Targeted upstream files inspected for the current native slice:
 - `integration-tests/bats/conflict-detection.bats`: local data/schema conflict detection coverage.
 - `integration-tests/bats/sql-commit-diff.bats`: `DOLT_COMMIT_DIFF` range predicate coverage over `to_` and `from_` keys.
 - `integration-tests/bats/status.bats`: focused status coverage for conflict tables, renamed tables, and reset with a renamed table; full file exposed one stale fixed-width commit-hash helper.
-- `go/libraries/doltcore/sqle/dtables/status_table.go`: `dolt_status` row shape (`table_name`, staged byte, status), staged/unstaged table-delta collection, merge/schema/data conflict rows, constraint violation rows, merged rows, and status strings.
-- `go/libraries/doltcore/sqle/dtables/status_ignored_table.go`: `dolt_status_ignored` row shape plus the rule that only unstaged new tables are evaluated against ignore patterns; conflicting ignore rules leave the row visible.
-- `go/libraries/doltcore/sqle/dtables/merge_status_table.go` and `table_of_tables_in_conflict.go`: background for active merge and conflict table status labels.
-- `integration-tests/bats/sql-status.bats`: direct SQL assertions for staged new tables, unstaged renames, staged+unstaged duplicate rows, and conflict rows in `dolt_status`.
 
 ## Runner Status
 
@@ -117,7 +113,6 @@ The full upstream runners were not executed for this lane slice, but bounded ups
 - Broad local 13-file BATS attempt `bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats status.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats` exited 1 with `1..277` because `status: dolt reset works with commit hash ref` failed; the status helper uses fixed-width `cut -c 13-44` on `dolt log`, which returned a truncated commit-hash suffix with current output.
 - Clean local merge/conflict BATS extension `bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats` passed with `1..74`: 64 runnable tests passed and 10 upstream-declared skips remained.
 - Focused status BATS rerun `bats --filter 'status: (tables in conflict|renamed table|dolt reset with a renamed table)' status.bats` passed with `1..3`.
-- Native status-table source inventory for this slice inspected `status_table.go`, `status_ignored_table.go`, `merge_status_table.go`, `table_of_tables_in_conflict.go`, `sql-status.bats`, and `status.bats`.
 - Full `go test ./...` was not run because it would hydrate and compile the full Dolt workspace and broad dependency graph beyond this lane slice.
 - Full BATS directory was not run because upstream BATS also runs Python/parquet/Hadoop/server/compatibility/client integration dependencies.
 - Live-service, MySQL-server, cloud, Hadoop/parquet, and benchmark suites were intentionally skipped.
@@ -151,7 +146,4 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - More-specific true ignore patterns can override broader false patterns, mirroring upstream's specificity rule in the opposite direction from the existing false-override case.
 - Commit-to-commit summary rows remain visible when no working/staged ignore patterns are supplied, matching upstream's committed-history boundary.
 - `dolt_diff_stat()` rows now compute keyed row counts, unmodified rows, cell insert/delete counts via upstream `GetCellsAddedAndDeleted` arithmetic, modified-cell counts, table add/drop rows, and keyless table insert/delete-only rows.
-- `dolt_status` rows now project staged and unstaged table-delta rows as `new table`, `deleted`, `renamed`, and `modified`, with integer-like staged flags and `old -> new` names for renames.
-- `dolt_status_ignored` rows mark only unstaged new tables ignored; staged new tables and tracked modified tables stay visible even when names match ignore patterns.
-- Native status rows include upstream labels for conflict, schema conflict, constraint violation, and merged tables.
-- WordPress fixtures now cover `wp_posts` row-level migration changes, `wp_posts` -> `wp_content_posts` table rename summaries, a plugin table schema-drift projection, skinny post-review diffs, filtered publish-impacting review rows, aggregate migration-review diff stats, ignore-aware generated-table summaries, ambiguous scratch/cache ignore-rule conflict reporting, a `wp_postmeta` primary-key-change warning scenario, and a status-review queue that hides generated cache tables without shelling out to Dolt.
+- WordPress fixtures now cover `wp_posts` row-level migration changes, `wp_posts` -> `wp_content_posts` table rename summaries, a plugin table schema-drift projection, skinny post-review diffs, filtered publish-impacting review rows, aggregate migration-review diff stats, ignore-aware generated-table summaries, ambiguous scratch/cache ignore-rule conflict reporting, and a `wp_postmeta` primary-key-change warning scenario without shelling out to Dolt.

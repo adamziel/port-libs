@@ -14,7 +14,6 @@ Versioned content/data migrations and inspectable database change sets.
 - Native summary/stat primary-key-change boundaries: table-specific calls error, while unscoped calls warn and continue.
 - Native `dolt_diff_summary()` ignore-pattern filtering for working/staged comparisons, including wildcard patterns and false-pattern overrides.
 - Native `dolt_ignore` conflict reporting for ambiguous true/false scratch-table patterns, with upstream-shaped pattern details.
-- Native `dolt_status` and `dolt_status_ignored` row projection for staged/unstaged table changes, table renames, merge/conflict states, and ignored unstaged new tables.
 
 ## Scenario Fixtures
 
@@ -36,9 +35,7 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-ignore-conflict.php` returns the upstream-shaped conflict error so a migration UI can surface the exact rules that need operator cleanup.
 - `fixtures/wp-primary-key-warning.php` models a `wp_postmeta` key migration from `meta_id` to a composite content key.
 - `examples/wordpress-primary-key-warning.php` returns summary/stat warnings for that blocked table while still showing unaffected `wp_posts` review rows.
-- `fixtures/wp-status-review.php` models a migration review queue with staged post changes, unstaged option edits, a term relationship conflict, a visible import-review table, and a generated cache table ignored by `dolt_ignore`.
-- `examples/wordpress-status-review.php` returns both `dolt_status` rows and `dolt_status_ignored` rows, so a WordPress UI can show reviewable work while still explaining hidden generated tables.
 
 ## Next Task
 
-Port a narrow native merge-status/conflict-summary or schema-history table slice from the focused upstream BATS and sqle integration evidence.
+Port a narrow native merge/conflict or schema-history table slice from the focused upstream BATS and sqle integration evidence.
