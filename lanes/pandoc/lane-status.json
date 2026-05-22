@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native Markdown reader now maps bounded upstream HTML-reader table semantics from test/html-reader.html/native: first all-th rows without explicit table sections become table_head rows, body rows that consistently start with th cells record rowHeadColumns=1, omitted thead/tbody/tfoot end tags parse into distinct table sections, and the WordPress writer preserves body row headers as th cells while simple non-structured raw tables remain on the raw HTML path.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 101/0 with 721 assertions. The required repo-wide php tools/run-tests.php command passed on 2026-05-22 with 123 test files, 10716 assertions, and 0 failures in the current shared worktree. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "pending",
+    "latestCommit": "2f79a4f",
     "nextTask": "Map bounded HTML reader colspan/rowspan and attribute-carrying table cases from test/html-reader.html/native before broader HTML reader work."
 }
