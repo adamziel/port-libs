@@ -75,4 +75,16 @@ return [
         $t->same('committed-nougat-output-surrogate', $fixture['referenceKind']);
         $t->true($score >= $fixture['scoreThreshold'], 'Upstream-derived Think Python surrogate score did not clear threshold: ' . $score);
     },
+    'scores committed upstream thinkos surrogate pair above threshold' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-thinkos-surrogate.php';
+        $score = (new BenchmarkScorer())->scoreText(
+            $fixture['markerExcerpt'],
+            $fixture['referenceExcerpt'],
+            $fixture['chunkLength'],
+        );
+
+        $t->same('thinkos.pdf', $fixture['document']);
+        $t->same('committed-nougat-output-surrogate', $fixture['referenceKind']);
+        $t->true($score >= $fixture['scoreThreshold'], 'Upstream-derived Think OS surrogate score did not clear threshold: ' . $score);
+    },
 ];

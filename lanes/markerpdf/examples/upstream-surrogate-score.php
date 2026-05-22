@@ -10,6 +10,7 @@ $fixtures = [
     require dirname(__DIR__) . '/fixtures/upstream-multicolcnn-surrogate.php',
     require dirname(__DIR__) . '/fixtures/upstream-switch-transformers-surrogate.php',
     require dirname(__DIR__) . '/fixtures/upstream-thinkpython-surrogate.php',
+    require dirname(__DIR__) . '/fixtures/upstream-thinkos-surrogate.php',
 ];
 
 $scorer = new BenchmarkScorer();

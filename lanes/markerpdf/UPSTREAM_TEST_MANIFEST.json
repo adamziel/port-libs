@@ -12,10 +12,10 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "27 inspected upstream benchmark/test/cleanup artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, and 1 Markdown postprocessor",
-        "mapped": 18,
+        "mapped": 21,
         "mappedBenchmarkPairs": 0,
-        "mappedBenchmarkSurrogatePairs": 3,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, and thinkpython.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
+        "mappedBenchmarkSurrogatePairs": 4,
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
         "inventory": {
             "repositoryFiles": 78,
             "pythonFiles": 47,
@@ -29,8 +29,9 @@
             "scoreVerifierScripts": 1,
             "cleanerModules": 7,
             "cleanerFunctions": 16,
-            "mappedCleanerFunctions": 11,
+            "mappedCleanerFunctions": 12,
             "markdownPostprocessorFunctions": 8,
+            "mappedMarkdownPostprocessorFunctions": 4,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
             "committedNougatMarkdownExamples": 4
@@ -66,22 +67,25 @@
             "marker.benchmark.table score_table aggregate cell-alignment score with upstream verifier threshold applied to a WordPress table-import scenario.",
             "marker.cleaners.bullets replace_bullets converts upstream bullet glyphs to Markdown list markers.",
             "marker.cleaners.text cleanup_text collapses excessive blank space and normalizes non-breaking spaces.",
+            "marker.cleaners.fontstyle find_bold_italic detects bold/italic spans from font names and font weights while skipping heading font-name bias.",
+            "marker.postprocessors.markdown surround_text and the styled-span branch of merge_spans emit upstream-style Markdown emphasis markers with the first/last-span guard.",
             "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
             "README-linked switch_trans Marker/Nougat committed markdown outputs can be scored as a second upstream-derived surrogate pair and checked against the upstream switch_trans CI threshold boundary.",
             "marker.cleaners.headers filter_common_elements and filter_header_footer repeated edge-line detection remove common PDF page headers/footers after the upstream three-page minimum.",
             "marker.cleaners.headers replace_leading_trailing_digits, find_overlap_elements, and filter_common_titles remove repeated numbered titles before WordPress block rendering.",
             "README-linked thinkpython Marker/Nougat committed markdown outputs can be scored as a third upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
+            "README-linked thinkos Marker/Nougat committed markdown outputs can be scored as a fourth upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
             "marker.cleaners.code is_code_linelen and comment_count heuristics detect code-like PDF lines from short alphanumeric line ratios and upstream-supported comment prefixes.",
             "marker.cleaners.code identify_code_blocks indentation/comment majority and optional small-font checks classify code blocks before WordPress block rendering.",
             "marker.cleaners.code indent_blocks reconstructs indentation from PDF line geometry and suppresses repeated blank lines before code block output."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 18 focused upstream source semantics plus three committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 21 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, and thinkpython committed-output surrogate scoring, Marker cleaner bullet/text/code normalization, repeated header/footer/title cleanup, and code block classification/indent reconstruction for WordPress imports.",
-        "phpBehaviorTests": 35,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, and code block classification/indent reconstruction for WordPress imports.",
+        "phpBehaviorTests": 40,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -93,16 +97,19 @@
             "marker.benchmark.table score_table aggregate table quality scoring",
             "marker.cleaners.bullets replace_bullets Markdown list marker normalization",
             "marker.cleaners.text cleanup_text whitespace and non-breaking-space normalization",
+            "marker.cleaners.fontstyle find_bold_italic font-name and font-weight style detection",
+            "marker.postprocessors.markdown styled-span Markdown emphasis wrapping",
             "README-linked data/examples/marker and data/examples/nougat multicolcnn outputs as a committed benchmark surrogate pair",
             "README-linked data/examples/marker and data/examples/nougat switch_trans outputs as a committed benchmark surrogate pair",
             "marker.cleaners.headers common edge-line filtering for repeated headers and footers",
             "marker.cleaners.headers common title filtering with digit stripping and fuzzy overlap thresholding",
             "README-linked data/examples/marker and data/examples/nougat thinkpython outputs as a committed benchmark surrogate pair",
+            "README-linked data/examples/marker and data/examples/nougat thinkos outputs as a committed benchmark surrogate pair",
             "marker.cleaners.code code line-length and comment-prefix heuristics",
             "marker.cleaners.code code block classification from indentation/comment majority and small-font checks",
             "marker.cleaners.code code indentation reconstruction from line geometry"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, code-block classification before Gutenberg code output, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, and thinkpython surrogate score fixtures.",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map the remaining README-linked committed example surrogate such as thinkos before broadening layout/OCR behavior."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map a focused layout behavior such as heading-level inference/TOC output before broadening OCR behavior."
 }
