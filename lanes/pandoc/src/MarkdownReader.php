@@ -826,10 +826,12 @@ final class MarkdownReader
             $cursor = $definitionCursor;
             $definitions = [];
             $looseDefinition = false;
+            $blankBeforeLaterDefinition = false;
             while ($cursor < $count) {
                 if (trim($lines[$cursor]) === '') {
                     $next = $cursor + 1;
                     if ($next < $count && $this->isDefinitionMarker($lines[$next])) {
+                        $blankBeforeLaterDefinition = true;
                         $cursor = $next;
                         continue;
                     }
@@ -840,18 +842,25 @@ final class MarkdownReader
                     break;
                 }
 
-                $definitions[] = $this->readDefinition($lines, $cursor, $looseDefinition);
+                $blankBeforeNextDefinition = false;
+                $definitions[] = $this->readDefinition($lines, $cursor, $looseDefinition, $blankBeforeNextDefinition);
+                $blankBeforeLaterDefinition = $blankBeforeLaterDefinition || $blankBeforeNextDefinition;
                 $looseDefinition = false;
             }
 
             if ($looseFirstDefinition && $definitions !== []) {
-                $lastDefinitionIndex = array_key_last($definitions);
-                $definition = $definitions[$lastDefinitionIndex];
-                $definitions[$lastDefinitionIndex] = new AstNode(
-                    $definition->type,
-                    array_merge($definition->attrs, ['loose' => true]),
-                    $definition->children
-                );
+                $indexes = $blankBeforeLaterDefinition ? array_keys($definitions) : [array_key_last($definitions)];
+                foreach ($indexes as $definitionIndex) {
+                    if ($definitionIndex === null) {
+                        continue;
+                    }
+                    $definition = $definitions[$definitionIndex];
+                    $definitions[$definitionIndex] = new AstNode(
+                        $definition->type,
+                        array_merge($definition->attrs, ['loose' => true]),
+                        $definition->children
+                    );
+                }
             }
 
             $term = new AstNode('term', ['text' => $termText], $this->parseInlines($termText));
@@ -877,21 +886,34 @@ final class MarkdownReader
             return false;
         }
 
-        return !preg_match('/^(#{1,6})\s+|^[-*+]\s+|^\d+[.)]\s+|^\s{0,4}:/', $line);
+        return !preg_match('/^(#{1,6})\s+|^[-*+]\s+|^\d+[.)]\s+|^\s{0,4}[:~]/', $line);
     }
 
     private function isDefinitionMarker(string $line): bool
     {
-        return preg_match('/^\s{0,4}:\s*(.*)$/', $line) === 1;
+        return $this->matchDefinitionMarker($line) !== null;
+    }
+
+    /**
+     * @return array{marker:string, content:string}|null
+     */
+    private function matchDefinitionMarker(string $line): ?array
+    {
+        if (preg_match('/^\s{0,4}([:~])\s*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        return ['marker' => $m[1], 'content' => $m[2]];
     }
 
     /**
      * @param list<string> $lines
      */
-    private function readDefinition(array $lines, int &$cursor, bool $loose): AstNode
+    private function readDefinition(array $lines, int &$cursor, bool $loose, bool &$blankBeforeNextDefinition): AstNode
     {
-        preg_match('/^\s{0,4}:\s*(.*)$/', $lines[$cursor], $m);
-        $blocks = $this->parseDefinitionBlocks(trim($m[1] ?? ''));
+        $blankBeforeNextDefinition = false;
+        $marker = $this->matchDefinitionMarker($lines[$cursor]);
+        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks(trim($marker['content']));
         $cursor++;
         $count = count($lines);
 
@@ -900,13 +922,15 @@ final class MarkdownReader
             if (trim($line) === '') {
                 $next = $cursor + 1;
                 if ($next < $count && $this->isDefinitionMarker($lines[$next])) {
+                    $blankBeforeNextDefinition = true;
                     $cursor = $next;
                     break;
                 }
                 if ($next < $count && $this->isIndentedDefinitionContinuation($lines[$next])) {
                     $cursor = $next;
-                    $this->appendDefinitionParagraph($blocks, trim($this->stripDefinitionContinuationIndent($lines[$cursor])));
-                    $cursor++;
+                    foreach ($this->readDefinitionContinuationBlock($lines, $cursor) as $block) {
+                        $blocks[] = $block;
+                    }
                     continue;
                 }
                 break;
@@ -917,7 +941,10 @@ final class MarkdownReader
             }
 
             if ($this->isIndentedDefinitionContinuation($line)) {
-                $this->appendDefinitionParagraph($blocks, trim($this->stripDefinitionContinuationIndent($line)));
+                foreach ($this->readDefinitionContinuationBlock($lines, $cursor) as $block) {
+                    $blocks[] = $block;
+                }
+                continue;
             } else {
                 $this->appendLazyDefinitionLine($blocks, trim($line));
             }
@@ -925,6 +952,47 @@ final class MarkdownReader
         }
 
         return new AstNode('definition', ['loose' => $loose], $blocks);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>
+     */
+    private function readDefinitionContinuationBlock(array $lines, int &$cursor): array
+    {
+        $content = [];
+        $count = count($lines);
+
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $next = $cursor + 1;
+                if ($next < $count && $this->isIndentedDefinitionContinuation($lines[$next])) {
+                    $content[] = '';
+                    $cursor = $next;
+                    continue;
+                }
+
+                break;
+            }
+
+            if (!$this->isIndentedDefinitionContinuation($line)) {
+                break;
+            }
+
+            $content[] = $this->stripDefinitionContinuationIndent($line);
+            $cursor++;
+        }
+
+        while ($content !== [] && end($content) === '') {
+            array_pop($content);
+        }
+
+        if ($content === []) {
+            return [];
+        }
+
+        return $this->read(implode("\n", $content))->children;
     }
 
     private function isIndentedDefinitionContinuation(string $line): bool
@@ -939,20 +1007,6 @@ final class MarkdownReader
         }
 
         return substr($line, 4);
-    }
-
-    /**
-     * @param list<AstNode> $blocks
-     */
-    private function appendDefinitionParagraph(array &$blocks, string $text): void
-    {
-        if ($text === '') {
-            return;
-        }
-
-        foreach ($this->parseDefinitionBlocks($text) as $block) {
-            $blocks[] = $block;
-        }
     }
 
     /**
@@ -980,14 +1034,12 @@ final class MarkdownReader
      */
     private function parseDefinitionBlocks(string $content): array
     {
-        if (preg_match('/^[-*+]\s+(.+)$/', $content, $m)) {
-            $text = trim($m[1]);
+        if ($content === '') {
+            return [];
+        }
 
-            return [
-                new AstNode('bullet_list', [], [
-                    new AstNode('list_item', ['text' => $text], $this->parseInlines($text)),
-                ]),
-            ];
+        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.)\s+/', $content) === 1) {
+            return $this->read($content)->children;
         }
 
         return [new AstNode('paragraph', ['text' => $content], $this->parseInlines($content))];

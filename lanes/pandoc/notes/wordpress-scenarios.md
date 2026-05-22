@@ -25,6 +25,11 @@ grouped under the intended term.
 The remaining upstream `Tests.Readers.Markdown` definition-list case is now
 covered too: a definition list nested inside an HTML `<div>` becomes a `div`
 AST node containing the parsed definition list.
+The upstream `test/testsuite.txt` Definition Lists section is now represented
+for multiple-block bodies and alternate `~` markers: emphasized terms remain
+emphasized, additional indented paragraphs stay in the same definition, deeply
+indented lines become code blocks, quoted continuation bodies stay block quotes,
+and nested ordered review lists stay under the intended glossary term.
 Fenced code blocks map the upstream `test/command/indented-fences.md`
 indentation-stripping behavior and render as WordPress code blocks. Block quotes
 now map Pandoc's `test/testsuite.txt` block quote section, including quoted
@@ -45,8 +50,9 @@ list.
   sample with editorial emphasis, a source archive link, visible shortcode-like
   code spans, a reviewer quote, conversion steps with a multi-paragraph
   reviewer follow-up item, parenthesized source-ID steps with nested roman
-  reviewer checkpoints, definition-list import notes, a div-wrapped glossary
-  audit note, and a fenced PHP migration snippet.
+  reviewer checkpoints, definition-list import notes, an alternate-marker source
+  glossary with nested ordered review tasks, a div-wrapped glossary audit note,
+  and a fenced PHP migration snippet.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -64,6 +70,9 @@ list.
 - Fancy ordered-list support keeps imported source-ID sequences and nested
   roman reviewer checkpoints grouped as ordered WordPress list markup with the
   correct `start` values.
+- Alternate definition-marker support keeps older Pandoc-style `~` glossary
+  notes and their nested ordered review tasks inside one WordPress HTML `<dl>`
+  block.
 - Tab-indented legacy snippets render as core WordPress code blocks with the
   remaining tab indentation expanded to spaces, matching Pandoc's native AST.
 - Spaced-asterisk and underscore section dividers render as WordPress separator
@@ -72,5 +81,5 @@ list.
 
 ## Next Task
 
-Map alternate definition-list markers (`~`) and multiple-block definition
-bodies from the `test/testsuite.txt` Definition Lists section.
+Map raw HTML block boundaries from the `test/testsuite.txt` HTML Blocks section
+into safe WordPress HTML/div output.

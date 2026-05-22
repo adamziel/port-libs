@@ -324,6 +324,72 @@ return [
         $t->same('bullet_list', $list->children[0]->children[1]->children[0]->type);
         $t->same('bar', $list->children[0]->children[1]->children[0]->children[0]->children[0]->attr('text'));
     },
+    'maps upstream testsuite definition lists with multiple block bodies' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '*apple*',
+            '',
+            ':   red fruit',
+            '',
+            '    contains seeds,',
+            '    crisp, pleasant to taste',
+            '',
+            '*orange*',
+            '',
+            ':   orange fruit',
+            '',
+            '        { orange code block }',
+            '',
+            '    > orange block quote',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $apple = $list->children[0];
+        $orangeDefinition = $list->children[1]->children[1];
+
+        $t->same('definition_list', $list->type);
+        $t->same('emph', $apple->children[0]->children[0]->type);
+        $t->same('apple', $apple->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $apple->children[1]->children[0]->type);
+        $t->same('red fruit', $apple->children[1]->children[0]->attr('text'));
+        $t->same('contains seeds, crisp, pleasant to taste', $apple->children[1]->children[1]->attr('text'));
+        $t->same('paragraph', $orangeDefinition->children[0]->type);
+        $t->same('code_block', $orangeDefinition->children[1]->type);
+        $t->same('{ orange code block }', $orangeDefinition->children[1]->attr('text'));
+        $t->same('blockquote', $orangeDefinition->children[2]->type);
+        $t->same('orange block quote', $orangeDefinition->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite alternate definition markers with nested lists' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            'apple',
+            '',
+            '  ~ red fruit',
+            '',
+            '  ~ computer',
+            '',
+            'orange',
+            '',
+            '  ~ orange fruit',
+            '',
+            '    1. sublist',
+            '    2. sublist',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $apple = $list->children[0];
+        $orangeDefinition = $list->children[1]->children[1];
+        $sublist = $orangeDefinition->children[1];
+
+        $t->same('definition_list', $list->type);
+        $t->same('apple', $apple->attr('term'));
+        $t->true((bool) $apple->children[1]->attr('loose'));
+        $t->true((bool) $apple->children[2]->attr('loose'));
+        $t->same('computer', $apple->children[2]->children[0]->attr('text'));
+        $t->true((bool) $orangeDefinition->attr('loose'));
+        $t->same('orange fruit', $orangeDefinition->children[0]->attr('text'));
+        $t->same('ordered_list', $sublist->type);
+        $t->same(1, $sublist->attr('start'));
+        $t->same('sublist', $sublist->children[1]->children[0]->attr('text'));
+    },
     'maps upstream testsuite simple block quote paragraphs' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("> This is a block quote.\n> It is pretty short.");
         $quote = $document->children[0];
@@ -404,6 +470,12 @@ return [
         $t->contains('<dt>Import note</dt><dd>Keep the archive URL attached and mention reviewer follow-up.</dd>', $blocks);
         $t->contains('<dt>Cleanup pass</dt><dd><p>Check legacy shortcodes after block conversion.</p><p>Record manual remediation notes.</p></dd>', $blocks);
         $t->contains('<div><dl><dt>Migration audit</dt><dd><ul><li>Preserve div-wrapped glossary notes from legacy imports</li></ul></dd></dl></div>', $blocks);
+    },
+    'writes wordpress alternate definition marker notes with nested review tasks' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<dt>Source glossary</dt><dd><p>Preserve alternate marker notes from older Pandoc exports.</p></dd><dd><p>Verify nested review tasks</p><ol><li>Confirm block conversion</li><li>Attach media IDs</li></ol></dd>', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

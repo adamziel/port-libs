@@ -26,6 +26,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   suite: 36
 - `test/testsuite.txt` Lists section slice inspected in this run: 163 Markdown
   lines from `# Lists` through the start of `# Definition Lists`
+- `test/testsuite.txt` Definition Lists section slice inspected in this run: 93
+  Markdown lines through the start of `# HTML Blocks`
+- `test/testsuite.native` Definition Lists rendered native AST slice inspected
+  in this run: 163 lines
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
@@ -102,11 +106,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   continuation paragraphs, blank space before the second definition, first-line
   marker at column zero, a list inside a definition, and the definition list
   nested inside an HTML div.
+- Definition-list cases from the `# Definition Lists` section of
+  `test/testsuite.txt`, cross-checked against `test/testsuite.native`: terms can
+  contain emphasis, indented continuation blocks can add additional paragraphs,
+  eight-space-indented continuation lines become code blocks, continuation
+  block quotes remain block quotes inside the definition body, alternate `~`
+  markers are accepted after a blank term line, and an indented ordered list
+  stays nested inside the `orange` definition body.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-40 tests, 180 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 67 test files, 3,687 assertions, and
-0 failures after this lane batch in the shared worktree.
+43 tests, 202 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 71 test files, 3,951 assertions, and
+0 failures after this lane batch in the shared dirty worktree.

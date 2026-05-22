@@ -29,6 +29,15 @@ Cleanup pass
 
     Record manual remediation notes.
 
+Source glossary
+
+~ Preserve alternate marker notes from older Pandoc exports.
+
+~ Verify nested review tasks
+
+    1. Confirm block conversion
+    2. Attach media IDs
+
 <div>Migration audit
 :   - Preserve div-wrapped glossary notes from legacy imports
 </div>
