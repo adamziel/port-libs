@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\FilterRuleSet;
 use PortLibs\Rclone\Glob;
+use PortLibs\Rclone\RootedMemoryProvider;
 use PortLibs\Rclone\SyncPlan;
 
 return [
@@ -73,6 +74,93 @@ return [
         $t->same(strlen('<rss>updated from stream</rss>'), $updated->size);
         $t->same('<rss>streamed export</rss>', $provider->get('exports/piped-data.wxr'));
         $t->same('<rss>updated from stream</rss>', $provider->get('exports/site.wxr'));
+    },
+    'memory provider walks direct and bounded-depth listings like upstream fstest' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('file name.txt', 'root file');
+        $provider->put('nested/other.txt', 'nested file');
+        $provider->put('nested/second/deep/file.txt', 'deep file');
+
+        $level1 = $provider->walk('', 1);
+        $t->same(['file name.txt'], array_map(static fn ($info) => $info->path, $level1['objects']));
+        $t->same(['nested'], array_map(static fn ($info) => $info->path, $level1['directories']));
+
+        $level2 = $provider->walk('', 2);
+        $t->same(['file name.txt', 'nested/other.txt'], array_map(static fn ($info) => $info->path, $level2['objects']));
+        $t->same(['nested', 'nested/second'], array_map(static fn ($info) => $info->path, $level2['directories']));
+
+        $subdir = $provider->walk('nested', 1);
+        $t->same(['nested/other.txt'], array_map(static fn ($info) => $info->path, $subdir['objects']));
+        $t->same(['nested/second'], array_map(static fn ($info) => $info->path, $subdir['directories']));
+        $t->throws(RuntimeException::class, static fn () => $provider->walk('does not exist', 1));
+    },
+    'memory provider purges subtrees while preserving unrelated objects' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('file name.txt', 'root file');
+        $provider->put('dirToPurge/fileToPurge.txt', 'purge me');
+        $provider->mkdir('dirToPurge/empty-child');
+        $provider->put('kept/side.txt', 'keep me');
+
+        $purged = $provider->purge('dirToPurge');
+
+        $t->same(['dirToPurge/fileToPurge.txt'], array_map(static fn ($info) => $info->path, $purged['objects']));
+        $t->same(['dirToPurge/empty-child', 'dirToPurge'], array_map(static fn ($info) => $info->path, $purged['directories']));
+        $t->same(['file name.txt', 'kept/side.txt'], array_map(static fn ($info) => $info->path, $provider->list()));
+        $t->throws(RuntimeException::class, static fn () => $provider->purge('dirToPurge'));
+    },
+    'rooted memory provider rebases listings and purges through the shared backing provider' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('site/wp-content/uploads/2026/05/hero.jpg', 'hero image');
+        $provider->put('site/wp-content/uploads/2026/05/thumbs/hero-150x150.jpg', 'thumb image');
+        $provider->put('site/exports/site.wxr', '<rss></rss>');
+
+        $rooted = new RootedMemoryProvider($provider, 'site/wp-content/uploads/2026/05');
+        $rooted->put('gallery.jpg', 'gallery image');
+        $direct = $rooted->walk('', 1);
+
+        $t->same('site/wp-content/uploads/2026/05', $rooted->root());
+        $t->same(['gallery.jpg', 'hero.jpg'], array_map(static fn ($info) => $info->path, $direct['objects']));
+        $t->same(['thumbs'], array_map(static fn ($info) => $info->path, $direct['directories']));
+
+        $purgedThumbs = $rooted->purge('thumbs');
+        $t->same(['thumbs/hero-150x150.jpg'], array_map(static fn ($info) => $info->path, $purgedThumbs['objects']));
+        $t->throws(RuntimeException::class, static fn () => $provider->get('site/wp-content/uploads/2026/05/thumbs/hero-150x150.jpg'));
+        $t->same('gallery image', $provider->get('site/wp-content/uploads/2026/05/gallery.jpg'));
+
+        $rooted->purge('');
+        $t->throws(RuntimeException::class, static fn () => $provider->get('site/wp-content/uploads/2026/05/gallery.jpg'));
+        $t->same('<rss></rss>', $provider->get('site/exports/site.wxr'));
+    },
+    'memory provider public links map upstream fstest file directory and missing boundaries' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('file name.txt', 'root file');
+        $provider->put('nested/other.txt', 'nested file');
+
+        $fileLink = $provider->publicLink('file name.txt', 120);
+        $secondFileLink = $provider->publicLink('nested/other.txt', 120);
+        $directoryLink = $provider->publicLink('nested', 120);
+
+        $t->true(str_starts_with($fileLink, 'https://rclone.local/share/object/'));
+        $t->true(str_starts_with($directoryLink, 'https://rclone.local/share/directory/'));
+        $t->true($fileLink !== $secondFileLink);
+        $t->true($fileLink !== $directoryLink);
+        $t->same($fileLink, $provider->publicLink('file name.txt', 120));
+        $t->same('', $provider->publicLink('file name.txt', 120, true));
+        $t->same($fileLink, $provider->publicLink('file name.txt', 120));
+        $t->throws(RuntimeException::class, static fn () => $provider->publicLink('missing.txt', 120));
+    },
+    'rooted memory provider public link can share the subremote root' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('site/wp-content/uploads/2026/05/hero.jpg', 'hero image');
+        $provider->put('site/exports/site.wxr', '<rss></rss>');
+
+        $rooted = new RootedMemoryProvider($provider, 'site/wp-content/uploads/2026/05');
+        $rootLink = $rooted->publicLink('', 120);
+        $fileLink = $rooted->publicLink('hero.jpg', 120);
+
+        $t->true(str_starts_with($rootLink, 'https://rclone.local/share/directory/'));
+        $t->true(str_starts_with($fileLink, 'https://rclone.local/share/object/'));
+        $t->true($rootLink !== $fileLink);
     },
     'memory provider can model case-insensitive provider object lookup' => static function (TestRunner $t): void {
         $provider = new MemoryProvider(true);
@@ -220,5 +308,28 @@ return [
         $t->same(false, $example['ignoredSourceVisible']);
         $t->same(strlen('<rss version="2.0"><channel><item>post</item></channel></rss>'), $example['updatedSize']);
         $t->same(strlen('<rss version="2.0"></rss>'), $example['putStreamSize']);
+    },
+    'wordpress rooted uploads purge example exposes monthly provider listing boundaries' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-rooted-upload-purge.php';
+
+        $t->same('wp-content/uploads/2026/05', $example['root']);
+        $t->same(['gallery.jpg', 'hero.jpg'], $example['directObjects']);
+        $t->same(['thumbs'], $example['directDirectories']);
+        $t->same(['thumbs/hero-150x150.jpg'], $example['purgedObjects']);
+        $t->same(false, $example['thumbnailStillExists']);
+        $t->same('next month image', $example['nextMonthPreserved']);
+        $t->same('<rss version="2.0"></rss>', $example['exportPreserved']);
+    },
+    'wordpress public link example exposes share and unlink boundaries' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-public-link-share.php';
+
+        $t->true(str_starts_with($example['wxrLink'], 'https://rclone.local/share/object/'));
+        $t->true(str_starts_with($example['uploadsLink'], 'https://rclone.local/share/directory/'));
+        $t->same($example['wxrLink'], $example['repeatWxrLink']);
+        $t->true($example['wxrLink'] !== $example['uploadsLink']);
+        $t->same(true, $example['missingErrored']);
+        $t->same('', $example['unlinkResult']);
+        $t->same($example['wxrLink'], $example['relinkedWxr']);
+        $t->same('wp-content/uploads/2026/05', $example['root']);
     },
 ];

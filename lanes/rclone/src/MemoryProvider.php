@@ -50,6 +50,11 @@ final class MemoryProvider
      */
     private array $openLog = [];
 
+    /**
+     * @var array<string, string>
+     */
+    private array $publicLinks = [];
+
     private readonly HashSet $supportedHashes;
     private readonly bool $serverSideMove;
     private readonly bool $serverSideCopy;
@@ -589,6 +594,124 @@ final class MemoryProvider
         }
 
         return $info;
+    }
+
+    /**
+     * Model rclone's walk.GetAll/list.DirSorted provider contract. Returned
+     * paths are provider-absolute, sorted, and limited by depth relative to
+     * the requested directory. A max depth of -1 means recursive.
+     *
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>}
+     */
+    public function walk(
+        string $dir = '',
+        int $maxDepth = -1,
+        bool $includeObjects = true,
+        bool $includeDirectories = true,
+    ): array {
+        $dir = $this->canonicalDirectoryPath($dir);
+        if (!$this->directoryExists($dir)) {
+            throw new \RuntimeException("Directory not found: {$dir}");
+        }
+
+        $objects = [];
+        if ($includeObjects) {
+            foreach ($this->list($dir) as $object) {
+                if (!self::pathIsOrUnder($object->path, $dir)) {
+                    continue;
+                }
+                $depth = self::relativeDepth($object->path, $dir);
+                if ($depth > 0 && ($maxDepth < 0 || $depth <= $maxDepth)) {
+                    $objects[] = $object;
+                }
+            }
+        }
+
+        $directories = [];
+        if ($includeDirectories) {
+            foreach ($this->directories($dir) as $directory) {
+                if (!self::pathIsOrUnder($directory->path, $dir)) {
+                    continue;
+                }
+                $depth = self::relativeDepth($directory->path, $dir);
+                if ($depth > 0 && ($maxDepth < 0 || $depth <= $maxDepth)) {
+                    $directories[] = $directory;
+                }
+            }
+        }
+
+        return [
+            'objects' => $objects,
+            'directories' => $directories,
+        ];
+    }
+
+    /**
+     * Purge a directory and its contents. This is deliberately stronger than
+     * Rmdir: non-empty subtrees are removed, while a missing directory is an
+     * error like rclone's second purge of a non-root directory.
+     *
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>}
+     */
+    public function purge(string $dir = ''): array
+    {
+        $dir = $this->canonicalDirectoryPath($dir);
+        if (!$this->directoryExists($dir)) {
+            throw new \RuntimeException("Directory not found: {$dir}");
+        }
+
+        $objects = array_values(array_filter(
+            $this->list($dir),
+            static fn (ObjectInfo $object): bool => self::pathIsOrUnder($object->path, $dir),
+        ));
+        $directories = array_values(array_filter(
+            $this->directories($dir),
+            static fn (ObjectInfo $directory): bool => self::pathIsOrUnder($directory->path, $dir),
+        ));
+
+        foreach ($objects as $object) {
+            $this->forgetListedObject($object);
+        }
+
+        usort(
+            $directories,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathDepth($b->path) <=> self::pathDepth($a->path)
+                ?: $b->path <=> $a->path
+                ?: ($b->providerKey ?? '') <=> ($a->providerKey ?? ''),
+        );
+
+        foreach ($directories as $directory) {
+            $this->forgetListedDirectory($directory);
+        }
+
+        return [
+            'objects' => $objects,
+            'directories' => $directories,
+        ];
+    }
+
+    /**
+     * Model the optional rclone PublicLink provider feature. Links are stable
+     * per provider path until explicitly unlinked, and can target files,
+     * directories, or the provider root.
+     */
+    public function publicLink(string $path, int $expireSeconds = 0, bool $unlink = false): string
+    {
+        [$type, $remote] = $this->publicLinkTarget($path);
+        $key = $type . ':' . $remote;
+
+        if ($unlink) {
+            unset($this->publicLinks[$key]);
+
+            return '';
+        }
+
+        return $this->publicLinks[$key] ??= sprintf(
+            'https://rclone.local/share/%s/%s%s',
+            $type,
+            substr(hash('sha256', $type . "\0" . $remote), 0, 16),
+            $expireSeconds > 0 ? '?expires=' . $expireSeconds : '',
+        );
     }
 
     public function openReader(string $path, int $offset = 0, ?int $length = null): object
@@ -1225,6 +1348,26 @@ final class MemoryProvider
     }
 
     /**
+     * @return array{0: string, 1: string}
+     */
+    private function publicLinkTarget(string $path): array
+    {
+        $path = $this->normalize($path);
+        try {
+            $info = $this->info($path);
+
+            return ['object', $info->path];
+        } catch (\RuntimeException) {
+            $directory = $this->canonicalDirectoryPath($path);
+            if ($this->directoryExists($directory)) {
+                return ['directory', $directory];
+            }
+        }
+
+        throw new \RuntimeException("Object or directory not found: {$path}");
+    }
+
+    /**
      * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
      */
     private function putDuplicateEntry(string $path, array $entry): ObjectInfo
@@ -1547,7 +1690,19 @@ final class MemoryProvider
 
     private static function pathIsOrUnder(string $path, string $prefix): bool
     {
-        return $path === $prefix || str_starts_with($path, $prefix . '/');
+        return $prefix === '' || $path === $prefix || str_starts_with($path, $prefix . '/');
+    }
+
+    private static function relativeDepth(string $path, string $prefix): int
+    {
+        if ($path === $prefix) {
+            return 0;
+        }
+        if ($prefix !== '') {
+            $path = substr($path, strlen($prefix) + 1);
+        }
+
+        return $path === '' ? 0 : substr_count($path, '/') + 1;
     }
 
     private static function pathDepth(string $path): int
