@@ -61,6 +61,55 @@ final class GitTag
         return $this->tagger === null ? null : CommitSignature::parse($this->tagger);
     }
 
+    public function storageBytes(): string
+    {
+        self::validateWritableName($this->name);
+        self::validateTarget($this->target);
+
+        $out = "object {$this->target}\n"
+            . "type {$this->targetKind}\n"
+            . "tag {$this->name}\n";
+        if ($this->tagger !== null) {
+            CommitSignature::parse($this->tagger);
+            $out .= "tagger {$this->tagger}\n";
+        }
+
+        if (!self::isOnlyNewlines($this->message)) {
+            $out .= "\n";
+        }
+        $out .= $this->message;
+
+        if ($this->pgpSignature !== null) {
+            $out .= "\n" . $this->pgpSignature;
+        }
+
+        return $out;
+    }
+
+    public function size(): int
+    {
+        return strlen($this->storageBytes());
+    }
+
+    public function object(): GitObject
+    {
+        return new GitObject('tag', $this->storageBytes());
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function tokens(): array
+    {
+        return [
+            ['type' => 'target', 'id' => $this->target],
+            ['type' => 'targetKind', 'kind' => $this->targetKind],
+            ['type' => 'name', 'name' => $this->name],
+            ['type' => 'tagger', 'signature' => $this->tagger],
+            ['type' => 'body', 'message' => $this->message, 'pgpSignature' => $this->pgpSignature],
+        ];
+    }
+
     private static function readRequiredHeader(string $input, int &$offset, string $name): string
     {
         $newline = strpos($input, "\n", $offset);
@@ -121,6 +170,62 @@ final class GitTag
         }
 
         return null;
+    }
+
+    private static function validateTarget(string $target): void
+    {
+        if (preg_match('/^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/', $target) !== 1) {
+            throw new \InvalidArgumentException('Git tag target must be a SHA-1 or SHA-256 hex object id');
+        }
+    }
+
+    private static function validateWritableName(string $name): void
+    {
+        if ($name === '') {
+            throw new \InvalidArgumentException('Git tag name cannot be empty');
+        }
+        if ($name[0] === '-') {
+            throw new \InvalidArgumentException("Git tag name must not start with '-'");
+        }
+        if ($name[0] === '/') {
+            throw new \InvalidArgumentException("Git tag name must not start with '/'");
+        }
+        if (str_ends_with($name, '/')) {
+            throw new \InvalidArgumentException("Git tag name must not end with '/'");
+        }
+        if (str_ends_with($name, '.')) {
+            throw new \InvalidArgumentException("Git tag name must not end with '.'");
+        }
+        if (str_contains($name, '//')) {
+            throw new \InvalidArgumentException("Git tag name must not contain repeated '/'");
+        }
+        if (str_contains($name, '..')) {
+            throw new \InvalidArgumentException("Git tag name must not contain '..'");
+        }
+        if (str_contains($name, '@{')) {
+            throw new \InvalidArgumentException("Git tag name must not contain '@{'");
+        }
+        foreach (explode('/', $name) as $component) {
+            if ($component === '' || $component[0] === '.') {
+                throw new \InvalidArgumentException("Git tag name component must not start with '.'");
+            }
+            if (str_ends_with($component, '.lock')) {
+                throw new \InvalidArgumentException("Git tag name component must not end with '.lock'");
+            }
+        }
+
+        $length = strlen($name);
+        for ($index = 0; $index < $length; $index++) {
+            $ord = ord($name[$index]);
+            if ($ord <= 0x1f || $ord === 0x7f || str_contains('\\^:[? ~*', $name[$index])) {
+                throw new \InvalidArgumentException('Git tag name contains an invalid byte');
+            }
+        }
+    }
+
+    private static function isOnlyNewlines(string $value): bool
+    {
+        return strspn($value, "\n") === strlen($value);
     }
 
     /**

@@ -99,6 +99,59 @@ return [
         $t->same('', $withoutTimestamp->message);
         $t->same('', $withoutTimestamp->taggerSignature()?->time);
     },
+    'tag writer roundtrips upstream body shapes and exposes iterator tokens' => static function (TestRunner $t): void {
+        $signed = "object ffa700b4aca13b80cb6b98a078e7c96804f8e0ec\n"
+            . "type commit\n"
+            . "tag 1.0.0\n"
+            . "tagger Sebastian Thiel <byronimo@gmail.com> 1528473343 +0230\n"
+            . "\n"
+            . "for the signature\n"
+            . "-----BEGIN PGP SIGNATURE-----\n"
+            . "signed-release-tag\n"
+            . "-----END PGP SIGNATURE-----";
+        $tag = GitTag::parse($signed);
+
+        $t->same($signed, $tag->storageBytes());
+        $t->same(strlen($signed), $tag->size());
+        $t->same('tag', $tag->object()->type);
+        $t->same($signed, $tag->object()->body);
+        $t->same([
+            ['type' => 'target', 'id' => 'ffa700b4aca13b80cb6b98a078e7c96804f8e0ec'],
+            ['type' => 'targetKind', 'kind' => 'commit'],
+            ['type' => 'name', 'name' => '1.0.0'],
+            ['type' => 'tagger', 'signature' => 'Sebastian Thiel <byronimo@gmail.com> 1528473343 +0230'],
+            [
+                'type' => 'body',
+                'message' => 'for the signature',
+                'pgpSignature' => "-----BEGIN PGP SIGNATURE-----\nsigned-release-tag\n-----END PGP SIGNATURE-----",
+            ],
+        ], $tag->tokens());
+
+        $empty = "object 01dd4e2a978a9f5bd773dae6da7aa4a5ac1cdbbc\n"
+            . "type commit\n"
+            . "tag empty\n"
+            . "tagger Sebastian Thiel <sebastian.thiel@icloud.com> 1592381636 +0800\n"
+            . "\n";
+        $t->same($empty, GitTag::parse($empty)->storageBytes());
+
+        $emptyMissingNewline = "object 01dd4e2a978a9f5bd773dae6da7aa4a5ac1cdbbc\n"
+            . "type commit\n"
+            . "tag empty\n"
+            . "tagger Sebastian Thiel <sebastian.thiel@icloud.com> 1592381636 +0800\n";
+        $t->same($emptyMissingNewline, GitTag::parse($emptyMissingNewline)->storageBytes());
+    },
+    'tag writer follows gitoxide tag name validation' => static function (TestRunner $t): void {
+        $target = 'ffa700b4aca13b80cb6b98a078e7c96804f8e0ec';
+
+        foreach (['v1.0.0', '0.2.1', '0-alpha1', 'release/2026.05'] as $name) {
+            $tag = new GitTag($target, 'commit', $name, null, 'release notes');
+            $t->contains("tag {$name}\n", $tag->storageBytes());
+        }
+
+        foreach (['-', '-hello', '.hidden', 'bad..range', 'bad lock', 'bad.lock', 'bad/@{reflog', 'bad?name'] as $name) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new GitTag($target, 'commit', $name, null, 'release notes'))->storageBytes());
+        }
+    },
     'tag parser rejects malformed annotated tags' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitTag::parse("object 00000066666666666684666666666666666299297\n"
             . "type commit\n"
@@ -113,5 +166,22 @@ return [
             . "type commit\n"
             . "tag partial\n"
             . "message without separator"));
+    },
+    'wordpress fixture roundtrips signed annotated release tags' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-annotated-tag.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-annotated-tag.php';
+
+        $t->same($fixture['expectedName'], $summary['name']);
+        $t->same($fixture['expectedTarget'], $summary['target']);
+        $t->same($fixture['expectedKind'], $summary['targetKind']);
+        $t->same($fixture['expectedTagger'], $summary['tagger']['name']);
+        $t->same($fixture['expectedMessage'], $summary['message']);
+        $t->same($fixture['expectedSignature'], $summary['pgpSignature']);
+        $t->same($fixture['expectedStorageSha1'], $summary['storageSha1']);
+        $t->same($fixture['expectedObjectSha1'], $summary['objectSha1']);
+        $t->same($fixture['expectedSize'], $summary['size']);
+        $t->same(true, $summary['roundTripMatches']);
+        $t->same('body', $summary['tokens'][4]['type']);
+        $t->same($fixture['expectedSignature'], $summary['tokens'][4]['pgpSignature']);
     },
 ];

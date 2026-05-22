@@ -13,10 +13,33 @@ final class RepeatableReader
     private object $reader;
     private int $position = 0;
     private string $cache = '';
+    private ?int $sourceLimit = null;
+    private int $sourceRead = 0;
 
-    public function __construct(mixed $reader)
+    public function __construct(mixed $reader, ?int $sourceLimit = null)
     {
         $this->reader = self::reader($reader);
+        $this->sourceLimit = $sourceLimit;
+    }
+
+    public static function sized(mixed $reader, int $size): self
+    {
+        return new self($reader);
+    }
+
+    public static function limit(mixed $reader, int $size): self
+    {
+        return new self($reader, $size);
+    }
+
+    public static function buffer(mixed $reader, string $buffer): self
+    {
+        return new self($reader);
+    }
+
+    public static function limitBuffer(mixed $reader, string $buffer, int $size): self
+    {
+        return new self($reader, $size);
     }
 
     public function read(int $length): string
@@ -27,13 +50,30 @@ final class RepeatableReader
 
         $cacheLength = strlen($this->cache);
         if ($this->position === $cacheLength) {
-            $chunk = $this->reader->read($length);
+            $readLength = $this->limitedReadLength($length);
+            if ($readLength <= 0) {
+                return '';
+            }
+
+            $chunk = $this->reader->read($readLength);
             if (!is_string($chunk)) {
                 throw new \UnexpectedValueException('Reader read() must return a string');
             }
             if ($chunk !== '') {
+                if ($this->sourceLimit !== null) {
+                    $remaining = $this->sourceLimit - $this->sourceRead;
+                    if ($remaining <= 0) {
+                        return '';
+                    }
+                    if (strlen($chunk) > $remaining) {
+                        $chunk = substr($chunk, 0, $remaining);
+                    }
+                }
+
                 $this->cache .= $chunk;
-                $this->position += strlen($chunk);
+                $chunkLength = strlen($chunk);
+                $this->position += $chunkLength;
+                $this->sourceRead += $chunkLength;
             }
 
             return $chunk;
@@ -75,6 +115,15 @@ final class RepeatableReader
     public function cacheLength(): int
     {
         return strlen($this->cache);
+    }
+
+    private function limitedReadLength(int $length): int
+    {
+        if ($this->sourceLimit === null) {
+            return $length;
+        }
+
+        return min($length, max(0, $this->sourceLimit - $this->sourceRead));
     }
 
     private static function reader(mixed $reader): object

@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -32,6 +32,8 @@ The `../examples/wordpress-nonretry-reopen-failure.php` example models a permane
 
 The `../examples/wordpress-repeatable-artifact-scan.php` example models a restore preflight that reads the start of a WXR artifact to identify it, seeks back within the cached prefix, and then streams the full artifact. This maps the upstream repeatable reader behavior needed when a migration tool sniffs or hashes early bytes before handing the same download stream to an importer.
 
+The `../examples/wordpress-repeatable-limited-artifact-scan.php` example adds the upstream limit-buffer constructor behavior. It models a known-length WXR artifact read from a concatenated provider stream, confirms the sniffed header can be replayed, and verifies bytes after the artifact limit are not exposed to the importer.
+
 ## Next Task
 
-Map `lib/readers RepeatableReader` limit/buffer constructors or another bounded provider contract slice beyond the in-memory checksum/listing/download-check/reopen/repeatable-reader/unknown-size/no-low-level-retry slices.
+Map another bounded `lib/readers` provider-contract slice such as context cancellation, fake seeker/no-seeker behavior, or gzip/no-close helpers.

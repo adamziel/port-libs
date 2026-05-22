@@ -83,4 +83,43 @@ return [
         $t->same($tree['exports/site.wxr'], $readFull($reader, strlen($tree['exports/site.wxr'])));
         $t->same(true, $source->reads > 1);
     },
+    'repeatable limit reader stops at upstream bounded byte count' => static function (TestRunner $t) use ($readFull): void {
+        $reader = RepeatableReader::limit('Testbuffer-extra-bytes', 10);
+
+        $t->same('Testbuffer', $readFull($reader, 100));
+        $t->same('', $reader->read(1));
+        $t->same(10, $reader->cacheLength());
+        $t->same(0, $reader->seek(0, SEEK_SET));
+        $t->same('Testbuffer', $readFull($reader, 100));
+        $t->throws(RuntimeException::class, static fn () => $reader->seek(11, SEEK_SET));
+
+        $empty = RepeatableReader::limit('Testbuffer', 0);
+        $t->same('', $empty->read(1));
+        $t->same(0, $empty->cacheLength());
+    },
+    'repeatable buffer factories treat supplied bytes as capacity only' => static function (TestRunner $t): void {
+        $sized = RepeatableReader::sized('abcdef', 1024);
+        $t->same('ab', $sized->read(2));
+        $t->same(2, $sized->cacheLength());
+
+        $reader = RepeatableReader::buffer('abcdef', 'already cached?');
+
+        $t->same(0, $reader->cacheLength());
+        $t->throws(RuntimeException::class, static fn () => $reader->seek(1, SEEK_SET));
+        $t->same('abc', $reader->read(3));
+        $t->same(3, $reader->cacheLength());
+        $t->same(0, $reader->seek(0, SEEK_SET));
+        $t->same('abc', $reader->read(3));
+    },
+    'repeatable limit buffer bounds wordpress artifact preflight streams' => static function (TestRunner $t) use ($readFull): void {
+        $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
+        $artifact = $tree['exports/site.wxr'];
+        $reader = RepeatableReader::limitBuffer($artifact . 'next-archive-member', str_repeat("\0", 64), strlen($artifact));
+
+        $t->same('<rss ', $reader->read(5));
+        $t->same(0, $reader->seek(0, SEEK_SET));
+        $t->same($artifact, $readFull($reader, strlen($artifact) + 100));
+        $t->same(strlen($artifact), $reader->cacheLength());
+        $t->same('', $reader->read(1));
+    },
 ];
