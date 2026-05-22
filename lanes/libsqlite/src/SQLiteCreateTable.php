@@ -12,7 +12,7 @@ final class SQLiteCreateTable
     public static function uniqueAutoIndexFirstColumns(string $sql): array
     {
         return array_map(
-            static fn (array $columns): string => $columns[0],
+            static fn (array $columns): string => $columns[0]->columnName,
             self::automaticIndexColumns($sql, false),
         );
     }
@@ -23,13 +23,24 @@ final class SQLiteCreateTable
     public static function automaticIndexFirstColumns(string $sql): array
     {
         return array_map(
-            static fn (array $columns): string => $columns[0],
+            static fn (array $columns): string => $columns[0]->columnName,
             self::automaticIndexColumns($sql, true),
         );
     }
 
     /**
-     * @return list<list<string>>
+     * @return list<SQLiteIndexColumn>
+     */
+    public static function automaticIndexFirstColumnMetadata(string $sql): array
+    {
+        return array_map(
+            static fn (array $columns): SQLiteIndexColumn => $columns[0],
+            self::automaticIndexColumns($sql, true),
+        );
+    }
+
+    /**
+     * @return list<non-empty-list<SQLiteIndexColumn>>
      */
     private static function automaticIndexColumns(string $sql, bool $includePrimaryKey): array
     {
@@ -41,6 +52,7 @@ final class SQLiteCreateTable
         $withoutRowid = self::isWithoutRowidTable($sql);
         $definitions = self::splitTopLevel($body, ',');
         $columnTypes = self::columnDeclaredTypes($definitions);
+        $columnCollations = self::columnDeclaredCollations($definitions);
         $columns = [];
         $seen = [];
 
@@ -48,7 +60,10 @@ final class SQLiteCreateTable
             if ($constraintColumns === []) {
                 return;
             }
-            $key = implode("\0", array_map(static fn (string $column): string => strtolower($column), $constraintColumns));
+            $key = implode("\0", array_map(
+                static fn (SQLiteIndexColumn $column): string => strtolower($column->columnName) . "\1" . strtoupper($column->collation),
+                $constraintColumns,
+            ));
             if (isset($seen[$key])) {
                 return;
             }
@@ -66,12 +81,12 @@ final class SQLiteCreateTable
             $constraint = self::stripLeadingConstraint($definition);
             if (self::startsWithKeyword($constraint, 'UNIQUE')) {
                 $list = self::parenthesizedBodyAfterKeyword($constraint, 'UNIQUE');
-                $addConstraint($list === null ? [] : self::identifiersInList($list));
+                $addConstraint($list === null ? [] : self::indexedColumnsInList($list, $columnCollations));
                 continue;
             }
             if ($includePrimaryKey && self::startsWithPrimaryKey($constraint)) {
                 $list = self::parenthesizedBodyAfterPrimaryKey($constraint);
-                $primaryKeyColumns = $list === null ? [] : self::identifiersInList($list);
+                $primaryKeyColumns = $list === null ? [] : self::indexedColumnsInList($list, $columnCollations);
                 if (!$withoutRowid && !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
                     $addConstraint($primaryKeyColumns);
                 }
@@ -93,7 +108,7 @@ final class SQLiteCreateTable
             }
 
             $tail = substr($definition, $column[1]);
-            $constraintColumns = [$column[0]];
+            $constraintColumns = [self::indexedColumnForDeclaredColumn($column[0], $columnCollations)];
             if (self::containsTopLevelKeyword($tail, 'UNIQUE')) {
                 $addConstraint($constraintColumns);
             }
@@ -103,7 +118,13 @@ final class SQLiteCreateTable
                 && self::containsTopLevelPrimaryKey($tail)
                 && !self::isRowidAliasColumnPrimaryKey($definition, $column[1], $tail)
             ) {
-                $addConstraint($constraintColumns);
+                $addConstraint([
+                    self::indexedColumnForDeclaredColumn(
+                        $column[0],
+                        $columnCollations,
+                        self::topLevelPrimaryKeyDirection($tail) === 'DESC',
+                    ),
+                ]);
             }
         }
 
@@ -212,20 +233,85 @@ final class SQLiteCreateTable
     }
 
     /**
-     * @return list<string>
+     * @param array<string, string> $columnCollations
+     * @return list<SQLiteIndexColumn>
      */
-    private static function identifiersInList(string $list): array
+    private static function indexedColumnsInList(string $list, array $columnCollations): array
     {
         $columns = [];
         foreach (self::splitTopLevel($list, ',') as $item) {
-            $identifier = self::readIdentifier(trim($item), 0);
-            if ($identifier === null) {
+            $column = self::indexedColumnInListItem($item, $columnCollations);
+            if ($column === null) {
                 return [];
             }
-            $columns[] = $identifier[0];
+            $columns[] = $column;
         }
 
         return $columns;
+    }
+
+    /**
+     * @param array<string, string> $columnCollations
+     */
+    private static function indexedColumnInListItem(string $item, array $columnCollations): ?SQLiteIndexColumn
+    {
+        $item = trim($item);
+        $identifier = self::readIdentifier($item, 0);
+        if ($identifier === null) {
+            return null;
+        }
+
+        $columnName = $identifier[0];
+        $collation = $columnCollations[strtolower($columnName)] ?? 'BINARY';
+        $descending = false;
+        $offset = $identifier[1];
+        while (trim(substr($item, $offset)) !== '') {
+            $token = self::readIdentifier($item, $offset);
+            if ($token === null) {
+                return null;
+            }
+
+            $keyword = strtoupper($token[0]);
+            $offset = $token[1];
+            if ($keyword === 'COLLATE') {
+                $collationToken = self::readIdentifier($item, $offset);
+                if ($collationToken === null) {
+                    return null;
+                }
+
+                $collation = strtoupper($collationToken[0]);
+                $offset = $collationToken[1];
+                continue;
+            }
+            if ($keyword === 'ASC') {
+                $descending = false;
+                continue;
+            }
+            if ($keyword === 'DESC') {
+                $descending = true;
+                continue;
+            }
+
+            return null;
+        }
+
+        return new SQLiteIndexColumn($columnName, $collation, $descending, false);
+    }
+
+    /**
+     * @param array<string, string> $columnCollations
+     */
+    private static function indexedColumnForDeclaredColumn(
+        string $columnName,
+        array $columnCollations,
+        bool $descending = false,
+    ): SQLiteIndexColumn {
+        return new SQLiteIndexColumn(
+            $columnName,
+            $columnCollations[strtolower($columnName)] ?? 'BINARY',
+            $descending,
+            false,
+        );
     }
 
     private static function containsTopLevelKeyword(string $text, string $keyword): bool
@@ -423,6 +509,86 @@ final class SQLiteCreateTable
         return trim(preg_replace('/\s+/', ' ', $tail) ?? $tail);
     }
 
+    /**
+     * @param list<string> $definitions
+     * @return array<string, string>
+     */
+    private static function columnDeclaredCollations(array $definitions): array
+    {
+        $collations = [];
+        foreach ($definitions as $definition) {
+            $definition = trim($definition);
+            if ($definition === '') {
+                continue;
+            }
+            $constraint = self::stripLeadingConstraint($definition);
+            if (
+                self::startsWithKeyword($constraint, 'PRIMARY')
+                || self::startsWithKeyword($constraint, 'UNIQUE')
+                || self::startsWithKeyword($constraint, 'CHECK')
+                || self::startsWithKeyword($constraint, 'FOREIGN')
+            ) {
+                continue;
+            }
+
+            $column = self::readIdentifier($definition, 0);
+            if ($column === null) {
+                continue;
+            }
+
+            $collation = self::columnDeclaredCollation($definition, $column[1]);
+            if ($collation !== null) {
+                $collations[strtolower($column[0])] = $collation;
+            }
+        }
+
+        return $collations;
+    }
+
+    private static function columnDeclaredCollation(string $definition, int $offset): ?string
+    {
+        $collation = null;
+        $depth = 0;
+        $length = strlen($definition);
+        $keyword = 'COLLATE';
+        $keywordLength = strlen($keyword);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $definition[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuoted($definition, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $i = self::skipBracketQuoted($definition, $i);
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if (
+                $depth === 0
+                && strncasecmp(substr($definition, $i, $keywordLength), $keyword, $keywordLength) === 0
+                && ($i === 0 || !self::isIdentifierChar($definition[$i - 1]))
+                && (!isset($definition[$i + $keywordLength]) || !self::isIdentifierChar($definition[$i + $keywordLength]))
+            ) {
+                $token = self::readIdentifier($definition, $i + $keywordLength);
+                if ($token === null) {
+                    return $collation;
+                }
+
+                $collation = strtoupper($token[0]);
+                $i = $token[1] - 1;
+            }
+        }
+
+        return $collation;
+    }
+
     private static function isRowidAliasColumnPrimaryKey(string $definition, int $columnNameEnd, string $tail): bool
     {
         if (!self::isExactIntegerType(self::columnDeclaredType($definition, $columnNameEnd))) {
@@ -433,7 +599,7 @@ final class SQLiteCreateTable
     }
 
     /**
-     * @param list<string> $primaryKeyColumns
+     * @param list<SQLiteIndexColumn> $primaryKeyColumns
      * @param array<string, string> $columnTypes
      */
     private static function isRowidAliasTablePrimaryKey(array $primaryKeyColumns, array $columnTypes): bool
@@ -442,7 +608,7 @@ final class SQLiteCreateTable
             return false;
         }
 
-        return self::isExactIntegerType($columnTypes[strtolower($primaryKeyColumns[0])] ?? '');
+        return self::isExactIntegerType($columnTypes[strtolower($primaryKeyColumns[0]->columnName)] ?? '');
     }
 
     private static function isExactIntegerType(string $type): bool

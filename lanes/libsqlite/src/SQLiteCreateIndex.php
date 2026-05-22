@@ -180,7 +180,7 @@ final class SQLiteCreateIndex
         if (count($orTerms) > 1) {
             $predicates = [];
             foreach ($orTerms as $term) {
-                $predicate = self::parseSinglePartialPredicate($term);
+                $predicate = self::parsePartialPredicate($term);
                 if ($predicate === null) {
                     return null;
                 }
@@ -188,6 +188,20 @@ final class SQLiteCreateIndex
             }
 
             return new SQLiteIndexPredicate('', SQLiteIndexPredicate::OR, $predicates);
+        }
+
+        $andTerms = self::splitTopLevelKeyword($where, 'AND');
+        if (count($andTerms) > 1) {
+            $predicates = [];
+            foreach ($andTerms as $term) {
+                $predicate = self::parseSinglePartialPredicate($term);
+                if ($predicate === null) {
+                    return null;
+                }
+                $predicates[] = $predicate;
+            }
+
+            return new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, $predicates);
         }
 
         return self::parseSinglePartialPredicate($where);

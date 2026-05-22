@@ -299,11 +299,11 @@ final class SQLiteDatabase
                 }
                 $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
                 $autoIndexOrdinal++;
-                if ($firstColumn !== null && strcasecmp($firstColumn, $columnName) === 0) {
+                if ($firstColumn !== null && strcasecmp($firstColumn->columnName, $columnName) === 0) {
                     return [
                         'rootPage' => $record->rootPage,
-                        'collation' => 'BINARY',
-                        'descending' => false,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
                     ];
                 }
             }
@@ -979,6 +979,48 @@ final class SQLiteDatabase
         array $columnValues,
         bool $allowEqualityPredicate,
     ): bool {
+        if ($predicate->operator === SQLiteIndexPredicate::AND) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    !$subPredicate instanceof SQLiteIndexPredicate
+                    || !self::partialPredicateIsImpliedByEqualityConstraints(
+                        $subPredicate,
+                        $columnValues,
+                        $allowEqualityPredicate,
+                    )
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    $subPredicate instanceof SQLiteIndexPredicate
+                    && self::partialPredicateIsImpliedByEqualityConstraints(
+                        $subPredicate,
+                        $columnValues,
+                        $allowEqualityPredicate,
+                    )
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         if (!$allowEqualityPredicate && $predicate->operator === SQLiteIndexPredicate::EQUALS) {
             return false;
         }
@@ -996,7 +1038,7 @@ final class SQLiteDatabase
     {
         foreach ($this->schemaRecords() as $record) {
             if ($record->isTable($tableName) && $record->sql !== null) {
-                return SQLiteCreateTable::automaticIndexFirstColumns($record->sql);
+                return SQLiteCreateTable::automaticIndexFirstColumnMetadata($record->sql);
             }
         }
 

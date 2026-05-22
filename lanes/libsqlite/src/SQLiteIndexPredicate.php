@@ -8,6 +8,7 @@ final class SQLiteIndexPredicate
 {
     public const IS_NOT_NULL = 'IS_NOT_NULL';
     public const EQUALS = 'EQUALS';
+    public const AND = 'AND';
     public const OR = 'OR';
 
     public function __construct(
@@ -19,6 +20,20 @@ final class SQLiteIndexPredicate
 
     public function isImpliedByPointLookup(string $columnName, mixed $value): bool
     {
+        if ($this->operator === self::AND) {
+            if (!is_array($this->value)) {
+                return false;
+            }
+
+            foreach ($this->value as $predicate) {
+                if (!$predicate instanceof self || !$predicate->isImpliedByPointLookup($columnName, $value)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         if ($this->operator === self::OR) {
             if (!is_array($this->value)) {
                 return false;

@@ -556,6 +556,7 @@ return [
         $isNotNullIndex = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_present_name ON wp_options(option_name) WHERE (main.wp_options."option_name" IS NOT NULL)');
         $autoloadedIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes'");
         $autoloadOrIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes' OR autoload='on'");
+        $autoloadAndIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_present_name ON wp_options(option_name) WHERE autoload='yes' AND option_name IS NOT NULL");
 
         $t->same('option_name', $index?->columnName);
         $t->same('NOCASE', $index?->collation);
@@ -571,6 +572,11 @@ return [
         $t->same(['yes', 'on'], array_map(
             static fn (SQLiteIndexPredicate $predicate): mixed => $predicate->value,
             $autoloadOrIndex?->partialPredicate?->value ?? [],
+        ));
+        $t->same(SQLiteIndexPredicate::AND, $autoloadAndIndex?->partialPredicate?->operator);
+        $t->same([SQLiteIndexPredicate::EQUALS, SQLiteIndexPredicate::IS_NOT_NULL], array_map(
+            static fn (SQLiteIndexPredicate $predicate): string => $predicate->operator,
+            $autoloadAndIndex?->partialPredicate?->value ?? [],
         ));
     },
     'parses explicit sqlite composite index column metadata' => static function (TestRunner $t): void {
@@ -717,6 +723,37 @@ return [
         $t->true($home instanceof SQLiteWordPressOption);
         $t->same('https://example.test/blog', $home->optionValue);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedNameForAutoload('blogname', 'no'));
+    },
+    'uses and equality partial option_name index only when every wordpress predicate is known' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoloaded_present_name', 'wp_options', 3, "CREATE INDEX wp_options_autoloaded_present_name ON wp_options(option_name) WHERE autoload='yes' AND option_name IS NOT NULL"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'no'], 2),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 3]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedNameForAutoload('home', 'yes');
+
+        $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'home'));
+        $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'home', [
+            'autoload' => 'yes',
+        ]));
+        $t->same(null, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'home', [
+            'autoload' => 'no',
+        ]));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same('home', $option->optionName);
+        $t->same('https://example.test/blog', $option->optionValue);
+        $t->same('yes', $option->autoload);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedNameForAutoload('home', 'no'));
     },
     'uses nonunique composite autoload index to scan duplicate wordpress options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -958,6 +995,15 @@ return [
             'autoload',
         ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_name text PRIMARY KEY, autoload text UNIQUE) WITHOUT ROWID'));
     },
+    'infers sqlite automatic index collation metadata from create table sql' => static function (TestRunner $t): void {
+        $columns = SQLiteCreateTable::automaticIndexFirstColumnMetadata(
+            'CREATE TABLE wp_options(option_id integer primary key, option_name text COLLATE binary COLLATE nocase UNIQUE, slug text COLLATE binary, UNIQUE(slug COLLATE rtrim DESC))',
+        );
+
+        $t->same(['option_name', 'slug'], array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $columns));
+        $t->same(['NOCASE', 'RTRIM'], array_map(static fn (SQLiteIndexColumn $column): string => $column->collation, $columns));
+        $t->same([false, true], array_map(static fn (SQLiteIndexColumn $column): bool => $column->descending, $columns));
+    },
     'uses sqlite automatic unique index rows with null sql to fetch a wordpress option' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, autoload text)'], 1),
@@ -983,6 +1029,31 @@ return [
         $t->same(1, $option->optionId);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
+    },
+    'uses sqlite automatic unique index collation and direction for wordpress option lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text, UNIQUE(option_name COLLATE NOCASE DESC))'], 1),
+            $schemaCell(['index', 'sqlite_autoindex_wp_options_1', 'wp_options', 3, null], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['siteurl', 1]),
+            $indexCell(['home', 2]),
+            $indexCell(['blogname', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedName('BLOGNAME');
+
+        $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(3, $option->optionId);
+        $t->same('blogname', $option->optionName);
+        $t->same('Ported SQLite', $option->optionValue);
     },
     'uses sqlite automatic primary key index rows after earlier unique autoindexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

@@ -21,14 +21,17 @@ lookup path now handles automatic `UNIQUE` indexes where SQLite records
 first indexed column from the owning table's `CREATE TABLE` statement. It also
 handles automatic non-rowid `PRIMARY KEY` indexes, preserving earlier UNIQUE
 autoindex slots so a WordPress-shaped `PRIMARY KEY(option_name)` lookup still
-finds the correct `sqlite_autoindex_wp_options_*` root page. Explicit
-`CREATE INDEX` definitions now carry first-column `COLLATE` and `ASC`/`DESC`
-metadata into lookup, so a descending `option_name COLLATE NOCASE` index can
-serve case-insensitive option recovery. Partial `option_name` indexes are
-detected and skipped for unconstrained lookup instead of returning incomplete
-results; the safe `WHERE option_name IS NOT NULL` partial-index form is usable
-for non-null option-name point lookup. Non-unique first-column indexes can now
-be scanned for duplicate matches, allowing a `wp_options(autoload,
+finds the correct `sqlite_autoindex_wp_options_*` root page. Automatic indexes
+now inherit first-column `COLLATE` and `DESC` metadata from `CREATE TABLE`
+constraints, so a WordPress-shaped `UNIQUE(option_name COLLATE NOCASE DESC)`
+autoindex can serve case-insensitive option recovery. Explicit `CREATE INDEX`
+definitions also carry first-column `COLLATE` and `ASC`/`DESC` metadata into
+lookup, so a descending `option_name COLLATE NOCASE` index can serve the same
+recovery path. Partial `option_name` indexes are detected and skipped for
+unconstrained lookup instead of returning incomplete results; the safe
+`WHERE option_name IS NOT NULL` partial-index form is usable for non-null
+option-name point lookup. Non-unique first-column indexes can now be scanned
+for duplicate matches, allowing a `wp_options(autoload,
 option_name)` index to return all autoloaded options for a requested value.
 Explicit composite index metadata is now parsed far enough to constrain both
 `autoload` and `option_name`, including second-column `NOCASE` comparison and
@@ -45,7 +48,11 @@ autoloaded single-option lookups can avoid both a whole-table scan and a wider
 composite index requirement. OR equality partial predicates such as
 `WHERE autoload='yes' OR autoload='on'` are also usable when the caller
 supplies one matching autoload value, which helps migration/recovery tools read
-WordPress databases with mixed legacy autoload state encodings.
+WordPress databases with mixed legacy autoload state encodings. AND-connected
+partial predicates such as
+`WHERE autoload='yes' AND option_name IS NOT NULL` are now accepted only when
+every term is implied by caller-supplied constraints, so narrowed autoloaded
+option indexes can be used without risking incomplete generic lookups.
 
 ## Example
 
@@ -61,7 +68,7 @@ import/export and recovery tooling on hosts where `sqlite3` is unavailable.
 SQLite database file, resolves an explicit `wp_options(option_name)` index,
 an automatic `UNIQUE` option-name autoindex, or an automatic non-rowid
 `PRIMARY KEY` option-name autoindex, and returns one option by name using
-native index and rowid b-tree traversal. Explicit first-column
+native index and rowid b-tree traversal. Explicit and automatic first-column
 `COLLATE NOCASE`, `COLLATE RTRIM`, and `DESC` index metadata are honored for
 point lookups. Unsupported partial indexes are not used for unconstrained
 option lookup, while `WHERE option_name IS NOT NULL` indexes can serve normal
@@ -79,10 +86,11 @@ SQLite database file, resolves either an explicit composite
 `wp_options(autoload, option_name)` index or an equality partial
 `wp_options(option_name) WHERE autoload='yes'` index. The same path now accepts
 OR equality partial predicates such as `autoload='yes' OR autoload='on'` when
-the requested autoload value matches one branch, and returns a single option
-when both the autoload value and option name are known. This is useful for
-recovery tools that need to inspect one autoloaded option while avoiding a
-whole-table scan on constrained hosts.
+the requested autoload value matches one branch, and AND-connected partial
+predicates such as `autoload='yes' AND option_name IS NOT NULL` when all terms
+are implied. It returns a single option when both the autoload value and option
+name are known. This is useful for recovery tools that need to inspect one
+autoloaded option while avoiding a whole-table scan on constrained hosts.
 
 `examples/wordpress-option-name-range.php` reads a WordPress-oriented SQLite
 database file, resolves an explicit or safe partial `wp_options(option_name)`
@@ -99,6 +107,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: optimized b-tree seek bounds, expression indexes, comparison/range/AND
-partial-index predicate implication, custom collations, automatic-index
-collation metadata, and full composite-key range scans.
+slice: optimized b-tree seek bounds, expression indexes, comparison/range
+partial-index predicate implication, custom collations, and full composite-key
+range scans.

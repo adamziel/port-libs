@@ -119,9 +119,8 @@ index b-tree traversal that preserves interior index records, index local
 payload calculations, explicit `CREATE INDEX ... ON wp_options(option_name)`
 schema discovery, option-name index lookup, rowid-backed table retrieval, and
 automatic `PRIMARY KEY` index inference for simple first-column lookups.
-Expression indexes, broader predicate-aware partial-index use, custom collations,
-automatic-index collation metadata, and full composite-key scans remain
-unported.
+Expression indexes, broader predicate-aware partial-index use, custom
+collations, and full composite-key scans remain unported.
 
 ## Focused Native Mapping: Automatic UNIQUE Autoindexes
 
@@ -148,8 +147,8 @@ The native PHP tests cover column-level `option_name text UNIQUE`, table-level
 `sqlite_autoindex_wp_options_1` row whose `sql` is `NULL`. The lookup then uses
 the automatic index root page, decodes the index record's rowid tail, and reads
 the target `wp_options` row through the table b-tree. Full composite-key scans,
-custom collations, automatic-index collation metadata, expression indexes, and
-broader predicate-aware partial-index use remain unported.
+custom collations, expression indexes, and broader predicate-aware partial-index
+use remain unported.
 
 ## Focused Native Mapping: Automatic PRIMARY KEY Autoindexes
 
@@ -187,9 +186,48 @@ when `sqlite_autoindex_wp_options_1` belongs to an earlier `autoload UNIQUE`
 constraint and `PRIMARY KEY(option_name)` backs the option-name lookup.
 
 Optimized composite duplicate scans with secondary constraints, custom
-collations, automatic-index collation metadata, expression indexes, broader
-predicate-aware partial-index use, and full WITHOUT ROWID table reads remain
-unported.
+collations, expression indexes, broader predicate-aware partial-index use, and
+full WITHOUT ROWID table reads remain unported.
+
+## Focused Native Mapping: Automatic Index Collation And DESC Metadata
+
+SQLite automatic indexes created for `UNIQUE` or non-rowid `PRIMARY KEY`
+constraints inherit per-column collations from explicit constraint terms or
+from the table column declaration. They also preserve `DESC` terms for the
+index key order. The native PHP reader now carries that metadata for the first
+automatic-index column instead of assuming `BINARY ASC` for every
+`sqlite_autoindex_*` row whose `sql` is `NULL`.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index3.test collate1.test descidx1.test
+```
+
+Result: 5 Tcl script/permutation runs, 0 errors out of 166 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index3.test` creates `UNIQUE('b' COLLATE nocase DESC)`, verifies the
+  resulting `sqlite_autoindex_*` row, and searches through that autoindex using
+  `COLLATE nocase`.
+- `test/collate1.test` verifies column default collation precedence, including
+  SQLite's compatibility behavior where repeated `COLLATE` clauses leave the
+  last collation in effect.
+- `src/build.c` stores explicit index-term collations first, otherwise the
+  owning column default collation, and records requested sort order for each
+  index term.
+
+The native PHP tests now cover parsing automatic-index first-column metadata
+from `CREATE TABLE` SQL, repeated column `COLLATE` declarations with last-token
+precedence, table-level `UNIQUE(... COLLATE RTRIM DESC)` metadata, and a
+WordPress-shaped `wp_options` recovery lookup through
+`sqlite_autoindex_wp_options_1` where `UNIQUE(option_name COLLATE NOCASE DESC)`
+requires both case-insensitive comparison and descending b-tree search.
+Remaining automatic-index gaps include full composite-key range scans and
+custom collation callbacks.
 
 ## Focused Native Mapping: Explicit Index Collation And DESC Order
 
@@ -223,9 +261,9 @@ The native PHP tests cover parsing quoted first-column index identifiers,
 case-insensitive lookup through a descending `wp_options(option_name)` index,
 and refusal to use unsupported partial `option_name` indexes for unconstrained
 lookup. Built-in `RTRIM` comparison is implemented for text point lookups, but
-custom collations, broader predicate-aware partial-index use, automatic-index
-collation metadata, composite keys, expression indexes, and range variants
-beyond the bounded first-column slice below remain unported.
+custom collations, broader predicate-aware partial-index use, composite keys,
+expression indexes, and range variants beyond the bounded first-column slice
+below remain unported.
 
 ## Focused Native Mapping: IS NOT NULL Partial Index Point Lookup
 
@@ -292,8 +330,45 @@ Focused upstream fixture boundary:
 The native PHP tests now parse `WHERE autoload='yes' OR autoload='on'`, expose
 the OR predicate tree, use the partial option-name index when the caller
 supplies either matching autoload equality, and reject `autoload='no'`.
-Comparison OR terms, AND predicate conjunctions, and custom collation-aware
-predicate comparison remain outside this slice.
+Comparison OR terms and custom collation-aware predicate comparison remain
+outside this slice.
+
+## Focused Native Mapping: AND-Connected Partial Predicates
+
+SQLite uses a partial index with AND-connected WHERE terms only when all terms
+are implied by the query. The native PHP reader now maps that bounded rule for
+AND predicates composed of simple equality and `IS NOT NULL` terms, which
+covers narrowed WordPress recovery indexes such as
+`WHERE autoload='yes' AND option_name IS NOT NULL`.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index6.test index7.test indexA.test
+```
+
+Result: 6 Tcl script/permutation runs, 0 errors out of 300 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index6.test` section `index6-10.*` creates
+  `CREATE INDEX t10x ON t10(d) WHERE a=1 AND b=2 AND c=3`, verifies use when
+  all equality terms are present, and verifies non-use when a term is missing.
+- `test/indexA.test` includes a partial index with `WHERE b='abc' AND i=5`
+  used through `INDEXED BY`, anchoring the same conjunction shape in a
+  rowid-table scenario.
+- `src/where.c` `whereUsablePartialIndex()` and `src/expr.c`
+  `sqlite3ExprImpliesExpr()` are the focused source boundaries: every
+  AND-connected partial-index term must be implied before the index is safe.
+
+The native PHP tests now parse AND predicate trees, use a
+`wp_options(option_name)` partial index only when both `autoload='yes'` and
+`option_name IS NOT NULL` are implied by supplied point constraints, and reject
+the same index for `autoload='no'` or unconstrained option-name lookups.
+Inequality/range implication, expression predicates, and custom
+collation-aware predicate comparison remain outside this slice.
 
 ## Focused Native Mapping: Duplicate First-Column Index Scans
 
@@ -329,8 +404,8 @@ scan that returns duplicate `autoload='yes'` options in index order, honors a
 result limit, returns an empty list for missing first-column values, and also
 uses a safe `WHERE autoload IS NOT NULL` partial index for non-null autoload
 point scans. Remaining index work includes optimized range seeks instead of
-full index traversal, expression indexes, custom collations, automatic-index
-collation metadata, and full composite-key range scans.
+full index traversal, expression indexes, custom collations, and full
+composite-key range scans.
 
 ## Focused Native Mapping: Composite Index Prefix Constraints
 
@@ -370,8 +445,7 @@ second-column `COLLATE NOCASE` metadata, accepting an implied
 WordPress option through `wp_options(autoload, option_name)` without scanning
 the whole `wp_options` table. Remaining index work includes b-tree seek bounds
 for composite prefixes, composite range constraints, expression indexes, custom
-collations, automatic-index collation metadata, and broader partial-predicate
-implication.
+collations, and comparison/range partial-predicate implication.
 
 ## Focused Native Mapping: First-Column Range Constraints
 
@@ -406,8 +480,8 @@ The native PHP tests now cover a WordPress-shaped transient recovery range
 empty ranges, rowid resolution back through the table b-tree, and safe use of a
 partial `WHERE option_name IS NOT NULL` index for non-null range bounds.
 Remaining range work includes true b-tree lower/upper seek bounds instead of
-full native index traversal, composite-key ranges, and broader partial-predicate
-implication.
+full native index traversal, composite-key ranges, and comparison/range
+partial-predicate implication.
 
 ## Focused Native Mapping: Open-Ended And Inclusive Range Variants
 
@@ -443,8 +517,7 @@ the predicate, rejection of unconstrained partial ranges, and descending
 `wp_options(option_name DESC)` index traversal for inclusive bounded scans.
 Remaining range work includes true b-tree lower/upper seek bounds instead of
 full native index traversal, composite-key ranges, expression indexes, custom
-collations, automatic-index collation metadata, and broader partial-predicate
-implication.
+collations, and comparison/range partial-predicate implication.
 
 ## Focused Native Mapping: Equality Partial Predicates
 
@@ -477,6 +550,6 @@ The native PHP tests now cover parsing equality partial predicates, rejecting
 the partial index for unconstrained `option_name` lookups, accepting it only
 when `autoload='yes'` is supplied as an equality constraint, resolving matching
 rowids back through the table b-tree, and refusing to use the index for a
-non-implying autoload value. Remaining partial-index work includes OR
-predicates, inequality/range implication, richer expression handling, and
-planner-style combinations across more query terms.
+non-implying autoload value. Remaining partial-index work includes
+inequality/range implication, richer expression handling, and planner-style
+combinations across more query terms.
