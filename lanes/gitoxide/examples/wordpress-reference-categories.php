@@ -23,6 +23,10 @@ foreach ($fixture['references'] as $name) {
 }
 
 $namespacedHead = ReferenceName::prefixNamespace($fixture['defaultBranch'], $fixture['namespace']);
+$namespacedRefIterationPrefix = ReferenceName::intoNamespacedPrefix(
+    $fixture['namespace'],
+    $fixture['refIterationPrefix'],
+);
 $joinedPluginReviewBranch = ReferenceName::joinPartial(
     $fixture['pluginReviewBranchBase'],
     $fixture['pluginReviewBranchComponent'],
@@ -43,6 +47,7 @@ return [
     'remoteTrackingBranch' => ReferenceName::toFullName(ReferenceName::CATEGORY_REMOTE_BRANCH, ReferenceName::shorten($fixture['remoteBranch'])),
     'namespacedHead' => $namespacedHead,
     'namespaceStrippedHead' => ReferenceName::stripNamespace($namespacedHead, $fixture['namespace']),
+    'namespacedRefIterationPrefix' => $namespacedRefIterationPrefix,
     'joinedPluginReviewBranch' => $joinedPluginReviewBranch,
     'joinedRemoteReviewBranch' => $joinedRemoteReviewBranch,
     'sanitizedPluginReviewComponent' => $sanitizedPluginReviewComponent,

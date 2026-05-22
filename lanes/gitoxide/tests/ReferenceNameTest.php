@@ -103,10 +103,25 @@ return [
             'refs/heads/main',
             ReferenceName::stripNamespace('refs/heads/main', 'site-a'),
         );
+        $t->same(
+            'refs/namespaces/foo/prefix',
+            ReferenceName::intoNamespacedPrefix('foo', 'prefix'),
+        );
+        $t->same(
+            'refs/namespaces/foo/prefix/',
+            ReferenceName::intoNamespacedPrefix('foo', 'prefix/'),
+        );
+        $t->same(
+            'refs/namespaces/site-a/refs/heads/review/',
+            ReferenceName::intoNamespacedPrefix('site-a', 'refs/heads/review/'),
+        );
 
         $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::expandNamespace(''));
         $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::expandNamespace('foo/'));
         $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::expandNamespace('foo//bar'));
+        $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::intoNamespacedPrefix('foo', '/refs'));
+        $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::intoNamespacedPrefix('foo', '.git/refs'));
+        $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::intoNamespacedPrefix('foo', 'refs\\heads'));
     },
     'partial reference names join components using upstream validation' => static function (TestRunner $t): void {
         $t->same('refs/heads/main', ReferenceName::joinPartial('refs/heads', 'main'));
@@ -171,6 +186,7 @@ return [
         $t->same($fixture['expectedRemoteTracking'], array_column($summary['references'], 'remoteTracking', 'name'));
         $t->same($fixture['expectedWorktreePrivate'], array_column($summary['references'], 'worktreePrivate', 'name'));
         $t->same($fixture['expectedNamespacedHead'], $summary['namespacedHead']);
+        $t->same($fixture['expectedNamespacedRefIterationPrefix'], $summary['namespacedRefIterationPrefix']);
         $t->same($fixture['defaultBranch'], $summary['activeBranch']);
         $t->same($fixture['remoteBranch'], $summary['remoteTrackingBranch']);
         $t->same($fixture['expectedJoinedPluginReviewBranch'], $summary['joinedPluginReviewBranch']);

@@ -36,6 +36,8 @@ The same example now uses `ReferenceName::joinPartial()` to compose plugin revie
 
 The example now also checks complete reference-name validity with `ReferenceName::isValid()`: slash-containing relative deployment refs such as `review/plugins/gutenberg` are valid complete names, while lowercase standalone names such as `main` are rejected unless expanded under `refs/heads/`. This follows `gix_validate::reference::name()` and helps WordPress deployment tooling distinguish valid relative ref paths from invalid pseudo refs before fetch/push planning.
 
+The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` to build a namespaced ref-iteration prefix such as `refs/namespaces/site-a/refs/heads/review/` while preserving the trailing slash. This follows `gix_ref::namespace::Namespace::into_namespaced_prefix()` and models multisite deployment tooling that iterates only a tenant's review branches without invoking `git for-each-ref`.
+
 ## WordPress Packed Reference Example
 
 `examples/wordpress-packed-refs.php` parses a compacted `packed-refs` buffer with a WordPress deployment branch, remote-tracking branch, and peeled release tag. This models a PHP deployment or package manager inspecting compacted repository state on shared hosting without invoking `git show-ref` or `git for-each-ref`.
@@ -136,4 +138,4 @@ The example now also checks complete reference-name validity with `ReferenceName
 
 ## Next Task
 
-Broaden commit trailer/message edge cases from upstream fixtures, run another controlled `gix-object` integration-test subset, add broader directory rename conflict cases, broaden proxy credential persistence, or add bounded pack-output parity around delta reuse/search heuristics.
+Materialize the focused `gix-ref/tests/fixtures/make_namespaced_packed_ref_repository.sh` fixture and run the broader namespaced store-iteration subset, or run another controlled `gix-object` message/tag integration subset.

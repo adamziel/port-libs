@@ -339,6 +339,14 @@ final class ReferenceName
         return str_starts_with($name, $expanded) ? substr($name, strlen($expanded)) : $name;
     }
 
+    public static function intoNamespacedPrefix(string $namespace, string $prefix): string
+    {
+        self::assertValidPartial($namespace);
+        self::assertRelativePathPrefix($prefix);
+
+        return self::expandNamespace($namespace) . $prefix;
+    }
+
     private static function assertCommonShape(string $name): void
     {
         if ($name === '') {
@@ -407,6 +415,38 @@ final class ReferenceName
         self::assertValidPartial($worktreeName);
 
         return $shortName;
+    }
+
+    private static function assertRelativePathPrefix(string $prefix): void
+    {
+        if ($prefix === '') {
+            return;
+        }
+        if ($prefix[0] === '/') {
+            throw new \InvalidArgumentException('Namespaced prefix must be relative');
+        }
+        if (str_contains($prefix, '\\')) {
+            throw new \InvalidArgumentException('Namespaced prefix must use slash separators');
+        }
+
+        $parts = explode('/', $prefix);
+        foreach ($parts as $index => $component) {
+            if ($component === '' && $index === count($parts) - 1) {
+                continue;
+            }
+            if ($component === '' || $component === '.' || $component === '..') {
+                throw new \InvalidArgumentException('Namespaced prefix contains an invalid path component');
+            }
+            if (preg_match('/[\x00-\x1f:<>\"|?*]/', $component) === 1) {
+                throw new \InvalidArgumentException('Namespaced prefix contains an invalid byte');
+            }
+            if (str_ends_with($component, '.') || str_ends_with($component, ' ')) {
+                throw new \InvalidArgumentException('Namespaced prefix contains a Windows-incompatible component');
+            }
+            if (strcasecmp($component, '.git') === 0) {
+                throw new \InvalidArgumentException('Namespaced prefix must not contain .git components');
+            }
+        }
     }
 
     private static function trimRepeatedSuffix(string $input, string $suffix): string

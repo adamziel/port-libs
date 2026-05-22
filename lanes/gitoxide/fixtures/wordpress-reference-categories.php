@@ -22,6 +22,8 @@ return [
     'remoteBranch' => $remoteBranch,
     'namespace' => 'site-a',
     'expectedNamespacedHead' => 'refs/namespaces/site-a/refs/heads/main',
+    'refIterationPrefix' => 'refs/heads/review/',
+    'expectedNamespacedRefIterationPrefix' => 'refs/namespaces/site-a/refs/heads/review/',
     'pluginReviewBranchBase' => 'refs/heads/review',
     'pluginReviewBranchComponent' => 'plugins/gutenberg',
     'expectedJoinedPluginReviewBranch' => 'refs/heads/review/plugins/gutenberg',
