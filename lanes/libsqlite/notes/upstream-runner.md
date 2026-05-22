@@ -1068,3 +1068,47 @@ stored option names, and skips an intentionally invalid out-of-range index
 branch. The new `examples/wordpress-option-name-length-list.php` script maps
 multi-bucket option-name audits on hosts where the PHP SQLite extension is
 unavailable.
+
+## Focused Native Mapping: CAST AS INTEGER Expression Indexes
+
+This slice adds a bounded expression-index family for
+`CAST(column AS INTEGER)`. The native PHP reader parses first-term
+`CAST(option_value AS INTEGER)` expression indexes, keeps `DESC` metadata,
+rejects the expression as an ordinary column index, accepts only the safe
+`option_value IS NOT NULL` partial-predicate family, and searches stored
+integer expression keys before resolving rowids through `wp_options`. It now
+supports both exact point lookup and bounded `IN (...)` lookup over integer
+cast buckets.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr2.test where2.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 219 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr2.test` creates `CREATE INDEX x1i ON x1( CAST(b AS INTEGER) )`
+  and verifies `CAST(b AS INTEGER)=123` matches integer, text, mixed text
+  such as `123abc`, and real storage-class values.
+- The same file covers nearby expression-index planner boundaries and
+  expression collation behavior.
+- `test/where2.test` covers indexed `IN (...)` lookup behavior, including
+  duplicate RHS values not producing duplicate output rows.
+
+The native PHP tests now cover parsing `CAST(option_value AS INTEGER)` with a
+qualified/quoted column, `DESC`, and a safe `WHERE option_value IS NOT NULL`
+predicate; rejecting `CAST(... AS TEXT)` and constant casts for this bounded
+slice; and a WordPress-shaped numeric option-value lookup that finds
+`db_version`-style rows through SQLite's text-prefix integer cast semantics.
+The IN-list tests read multiple integer cast buckets in one index pass, ignore
+`NULL` RHS values, suppress duplicate RHS output, reject non-integer terms for
+this bounded API, and skip an intentionally invalid out-of-range index branch.
+The new `examples/wordpress-option-value-integer.php` and
+`examples/wordpress-option-value-integer-list.php` scripts map recovery or
+audit tools that need one or more numeric option values without a full table
+scan or the PHP SQLite extension.

@@ -320,6 +320,23 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForIntegerCastPointLookup(string $tableName, string $columnName, int $value): ?int
+    {
+        $lookup = $this->indexLookupForIntegerCastExpressionColumn($tableName, $columnName, $value);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    public function indexRootPageForIntegerCastInLookup(string $tableName, string $columnName, array $values): ?int
+    {
+        $lookup = $this->indexLookupForIntegerCastExpressionColumnInList($tableName, $columnName, $values);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     /**
      * @param list<mixed> $lengths
      */
@@ -677,6 +694,103 @@ final class SQLiteDatabase
             }
 
             $firstExpression = SQLiteCreateIndex::firstLengthExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForIntegerCastExpressionColumn(
+        string $tableName,
+        string $columnName,
+        int $pointLookupValue,
+    ): ?array {
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstIntegerCastExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForIntegerCastExpressionColumnInList(
+        string $tableName,
+        string $columnName,
+        array $values,
+    ): ?array {
+        $hasNonNullValue = false;
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (!is_int($value)) {
+                throw new \InvalidArgumentException('SQLite CAST AS INTEGER expression index IN lookup values must be integers or null');
+            }
+            $hasNonNullValue = true;
+        }
+        if (!$hasNonNullValue) {
+            return null;
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstIntegerCastExpression($record->sql);
             if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
                 continue;
             }
@@ -1472,6 +1586,112 @@ final class SQLiteDatabase
 
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($option->optionName), $indexLookup['collation'])) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedIntegerOptionValue(int $value, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumn('wp_options', 'option_value', $value);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) expression index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $value,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::sqliteCastAsInteger($option->optionValue) === $value) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<?int> $values
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedIntegerOptionValues(array $values, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) IN-list lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $values === []) {
+            return [];
+        }
+
+        foreach ($values as $value) {
+            if ($value !== null && !is_int($value)) {
+                throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) IN-list values must be integers or null');
+            }
+        }
+        if (!self::containsNonNullValue($values)) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumnInList('wp_options', 'option_value', $values);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) expression IN-list index is not present');
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByFirstValueList(
+            $indexLookup['rootPage'],
+            $values,
+            $indexLookup['collation'],
+            $indexLookup['descending'],
+        ) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($option->optionValue), $indexLookup['collation'])) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
                     break;
@@ -3252,6 +3472,50 @@ final class SQLiteDatabase
         }
 
         return strlen($value);
+    }
+
+    private static function sqliteCastAsInteger(mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_float($value)) {
+            return (int) $value;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('SQLite CAST AS INTEGER value must be scalar text, numeric, or null');
+        }
+
+        $text = ltrim($value);
+        if (!preg_match('/^[+-]?\d+/', $text, $matches)) {
+            return 0;
+        }
+
+        $integer = $matches[0];
+        $negative = str_starts_with($integer, '-');
+        if ($integer[0] === '-' || $integer[0] === '+') {
+            $integer = substr($integer, 1);
+        }
+
+        $digits = ltrim($integer, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return $negative ? PHP_INT_MIN : PHP_INT_MAX;
+        }
+        if ($negative && $digits === '9223372036854775808') {
+            return PHP_INT_MIN;
+        }
+
+        $parsed = (int) $digits;
+
+        return $negative ? -$parsed : $parsed;
     }
 
     private static function sqliteScalarRank(mixed $value): int

@@ -85,6 +85,38 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstIntegerCastExpression(string $sql): ?SQLiteIndexColumn
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $column = self::parseIntegerCastExpressionColumn($term);
+        if ($column === null) {
+            return null;
+        }
+
+        return new SQLiteIndexColumn(
+            $column['name'],
+            $column['collation'],
+            $column['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     public static function firstSubstringExpression(string $sql): ?SQLiteSubstringIndexExpression
     {
         $index = self::indexedTermsAndTail($sql);
@@ -352,6 +384,58 @@ final class SQLiteCreateIndex
 
         $column = self::readPossiblyQualifiedIdentifier($argument, 0);
         if ($column === null || trim(substr($argument, $column[1])) !== '') {
+            return null;
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $close + 1);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $column[0],
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
+    /**
+     * @return null|array{name:string,collation:string,descending:bool}
+     */
+    private static function parseIntegerCastExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $function = self::readIdentifier($term, 0);
+        if ($function === null || strcasecmp($function[0], 'cast') !== 0) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $function[1]);
+        if (!isset($term[$offset]) || $term[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($term, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $argument = trim(substr($term, $offset + 1, $close - $offset - 1));
+        $column = self::readPossiblyQualifiedIdentifier($argument, 0);
+        if ($column === null) {
+            return null;
+        }
+
+        $as = self::readIdentifier($argument, $column[1]);
+        if ($as === null || strcasecmp($as[0], 'as') !== 0) {
+            return null;
+        }
+
+        $type = self::readIdentifier($argument, $as[1]);
+        if ($type === null || strcasecmp($type[0], 'integer') !== 0) {
+            return null;
+        }
+        if (trim(substr($argument, $type[1])) !== '') {
             return null;
         }
 

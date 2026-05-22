@@ -106,6 +106,17 @@ The same length-expression path now supports bounded `IN (...)` reads for
 multiple integer buckets. Recovery and audit tools can request lengths such as
 `4,10` in one index pass, ignore `NULL` RHS values, reject invalid length
 terms before lookup, and skip unrelated length subtrees before page decoding.
+First-term `CAST(option_value AS INTEGER)` expression indexes are now parsed
+for exact integer lookups. Recovery and audit tools can find numeric-looking
+option values such as `db_version` through SQLite's integer cast behavior,
+including text prefixes like `58796abc` and non-numeric text casting to `0`,
+without treating the expression index as a normal `option_value` column index.
+This slice accepts only safe `option_value IS NOT NULL` partial predicates.
+The same CAST-expression path now supports bounded `IN (...)` reads for
+multiple integer buckets. Recovery and audit tools can request values such as
+`58796,0` in one index pass, ignore `NULL` RHS values, reject invalid
+non-integer terms before lookup, suppress duplicate RHS output, and skip
+unrelated integer-key subtrees before page decoding.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -131,14 +142,14 @@ when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
 First-column range, lower-expression IN-list/range, length-expression IN-list,
-first-column IN-list, and composite equality-prefix range scans now use
-bounded index b-tree traversal instead of
+CAST-expression IN-list, first-column IN-list, and composite equality-prefix
+range scans now use bounded index b-tree traversal instead of
 decoding every index page. This matters for WordPress recovery and import tools
 that inspect a narrow option-name range or a small known option-name set from a
 large or partially damaged database image: an unrelated out-of-range index
 branch no longer has to be readable before constrained `wp_options(option_name)`,
-`wp_options(lower(option_name))`, or `wp_options(autoload, option_name)` lookups
-can return matching rows.
+`wp_options(lower(option_name))`, `wp_options(CAST(option_value AS INTEGER))`,
+or `wp_options(autoload, option_name)` lookups can return matching rows.
 
 The reader now also exposes `sqlite_sequence` records for AUTOINCREMENT tables.
 WordPress import, recovery, or Data Liberation tooling can inspect sequence
@@ -272,6 +283,21 @@ expression index, and returns options whose name lengths are in a caller
 supplied list such as `4,10`. This maps multi-bucket option-name audits and
 preload checks without scanning every `wp_options` row.
 
+`examples/wordpress-option-value-integer.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term
+`wp_options(CAST(option_value AS INTEGER))` expression index, and returns
+options whose values cast to a requested integer. This maps recovery and audit
+checks for numeric-looking options such as `db_version`, plugin counters, or
+legacy values like `58796abc` that SQLite casts by their leading integer text
+without requiring the PHP SQLite extension.
+
+`examples/wordpress-option-value-integer-list.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term
+`wp_options(CAST(option_value AS INTEGER))` expression index, and returns
+options whose cast values are in a caller supplied integer list such as
+`58796,0`. This maps multi-value numeric option audits and recovery checks
+without scanning every `wp_options` row.
+
 `examples/wordpress-sequence-counters.php` reads a WordPress-oriented SQLite
 database file, resolves the internal `sqlite_sequence` table, and reports all
 AUTOINCREMENT rows plus selected counters such as `wp_posts`, `wp_comments`,
@@ -292,7 +318,9 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 
 Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, literal-start
-`substr(column,...)`, and `length(column)` point buckets; expression
+`substr(column,...)`, `length(column)`, and `CAST(column AS INTEGER)` point/list
+buckets; `CAST` expression range families; broader expression
 `IN (...)` lookup families beyond `lower(column)` and literal-start
-`substr(column,1,N)` plus `length(column)` buckets; custom collations; and
-composite-key ranges beyond one equality prefix plus one range column.
+`substr(column,1,N)` plus `length(column)` and `CAST(column AS INTEGER)`
+buckets; custom collations; and composite-key ranges beyond one equality prefix
+plus one range column.
