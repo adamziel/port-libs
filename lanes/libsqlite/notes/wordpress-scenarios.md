@@ -82,6 +82,13 @@ indexes and exact-order `WHERE option_name IN ('siteurl','home')` partial
 indexes, matching the bounded SQLite planner behavior instead of treating every
 logical subset as usable.
 
+First-column point and range scans now use bounded index b-tree traversal
+instead of decoding every index page. This matters for WordPress recovery and
+import tools that inspect a narrow option-name range from a large or partially
+damaged database image: an unrelated out-of-range index branch no longer has to
+be readable before a constrained `wp_options(option_name)` range lookup can
+return matching rows.
+
 ## Example
 
 `examples/wordpress-options-root-page.php` reads a WordPress-oriented SQLite
@@ -158,6 +165,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: optimized b-tree seek bounds, expression indexes beyond `lower(column)`,
-custom collations, and composite-key ranges beyond one equality prefix plus one
-range column.
+slice: seek bounds for composite, expression, and IN-list scans, expression
+indexes beyond `lower(column)`, custom collations, and composite-key ranges
+beyond one equality prefix plus one range column.

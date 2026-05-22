@@ -615,7 +615,14 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options option_name index matching the autoload constraint is not present');
         }
 
-        foreach ($this->indexCellsByFirstValue($indexLookup['rootPage'], $optionName, $indexLookup['collation']) as $indexCell) {
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $optionName,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
@@ -647,7 +654,14 @@ final class SQLiteDatabase
         }
 
         $lookupValue = self::asciiLower($optionName);
-        foreach ($this->indexCellsByFirstValue($indexLookup['rootPage'], $lookupValue, $indexLookup['collation']) as $indexCell) {
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $lookupValue,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
@@ -979,7 +993,14 @@ final class SQLiteDatabase
         }
 
         $options = [];
-        foreach ($this->indexCellsByFirstValue($indexLookup['rootPage'], $value, $indexLookup['collation']) as $indexCell) {
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $value,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
@@ -1036,6 +1057,7 @@ final class SQLiteDatabase
                 $upperBound,
                 $indexLookup['collation'],
                 $upperInclusive,
+                $indexLookup['descending'],
             ) as $indexCell
         ) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
@@ -1179,20 +1201,21 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteIndexCell>
      */
-    private function indexCellsByFirstValue(int $rootPageNumber, mixed $value, string $collation): array
+    private function indexCellsByFirstValue(
+        int $rootPageNumber,
+        mixed $value,
+        string $collation,
+        bool $descending = false,
+    ): array
     {
-        $matches = [];
-        foreach ($this->indexCells($rootPageNumber) as $cell) {
-            $record = $cell->record($this->header->textEncoding);
-            if ($record->values === []) {
-                throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
-            }
-            if (self::compareSQLiteScalar($record->values[0], $value, $collation) === 0) {
-                $matches[] = $cell;
-            }
-        }
-
-        return $matches;
+        return $this->indexCellsByFirstValueRange(
+            $rootPageNumber,
+            $value,
+            $value,
+            $collation,
+            true,
+            $descending,
+        );
     }
 
     /**
@@ -1224,32 +1247,203 @@ final class SQLiteDatabase
         mixed $upperBound,
         string $collation,
         bool $upperInclusive = false,
+        bool $descending = false,
     ): array {
         $matches = [];
-        foreach ($this->indexCells($rootPageNumber) as $cell) {
+        $visited = [];
+        $this->collectIndexCellsByFirstValueRange(
+            $rootPageNumber,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $collation,
+            $descending,
+            $visited,
+            $matches,
+            false,
+            null,
+            false,
+            null,
+        );
+
+        return $matches;
+    }
+
+    /**
+     * @param array<int, true> $visited
+     * @param list<SQLiteIndexCell> $matches
+     */
+    private function collectIndexCellsByFirstValueRange(
+        int $pageNumber,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        string $collation,
+        bool $descending,
+        array &$visited,
+        array &$matches,
+        bool $hasIntervalLower,
+        mixed $intervalLower,
+        bool $hasIntervalUpper,
+        mixed $intervalUpper,
+    ): void {
+        if (
+            !self::firstValueRangeIntersectsInterval(
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $hasIntervalLower,
+                $intervalLower,
+                $hasIntervalUpper,
+                $intervalUpper,
+                $collation,
+            )
+        ) {
+            return;
+        }
+        if (isset($visited[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite index b-tree bounded lookup reached page {$pageNumber} more than once");
+        }
+        $visited[$pageNumber] = true;
+
+        $page = $this->page($pageNumber);
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $pageNumber === 1 ? 100 : 0,
+        );
+        if ($header->pageType !== 'index-leaf' && $header->pageType !== 'index-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not an index b-tree page");
+        }
+
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        $cells = SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader);
+        if ($header->pageType === 'index-leaf') {
+            foreach ($cells as $cell) {
+                $record = $cell->record($this->header->textEncoding);
+                if ($record->values === []) {
+                    throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+                }
+                if (self::firstValueIsInRange($record->values[0], $lowerInclusive, $upperBound, $upperInclusive, $collation)) {
+                    $matches[] = $cell;
+                }
+            }
+
+            return;
+        }
+
+        if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+            throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        $hasPrevious = false;
+        $previousValue = null;
+        foreach ($cells as $cell) {
+            if ($cell->leftChildPage === null || $cell->leftChildPage < 1) {
+                throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
+            }
+
             $record = $cell->record($this->header->textEncoding);
             if ($record->values === []) {
                 throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
             }
+            $currentValue = $record->values[0];
 
-            $value = $record->values[0];
-            if (($lowerInclusive !== null || $upperBound !== null) && $value === null) {
-                continue;
-            }
-            if ($lowerInclusive !== null && self::compareSQLiteScalar($value, $lowerInclusive, $collation) < 0) {
-                continue;
-            }
-            if ($upperBound !== null) {
-                $upperComparison = self::compareSQLiteScalar($value, $upperBound, $collation);
-                if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
-                    continue;
-                }
+            $childHasLower = $descending ? true : $hasPrevious;
+            $childLower = $descending ? $currentValue : $previousValue;
+            $childHasUpper = $descending ? $hasPrevious : true;
+            $childUpper = $descending ? $previousValue : $currentValue;
+            $this->collectIndexCellsByFirstValueRange(
+                $cell->leftChildPage,
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $collation,
+                $descending,
+                $visited,
+                $matches,
+                $childHasLower,
+                $childLower,
+                $childHasUpper,
+                $childUpper,
+            );
+
+            if (self::firstValueIsInRange($currentValue, $lowerInclusive, $upperBound, $upperInclusive, $collation)) {
+                $matches[] = $cell;
             }
 
-            $matches[] = $cell;
+            $hasPrevious = true;
+            $previousValue = $currentValue;
         }
 
-        return $matches;
+        $rightHasLower = $descending ? false : $hasPrevious;
+        $rightLower = $descending ? null : $previousValue;
+        $rightHasUpper = $descending ? $hasPrevious : false;
+        $rightUpper = $descending ? $previousValue : null;
+        $this->collectIndexCellsByFirstValueRange(
+            $header->rightMostPointer,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $collation,
+            $descending,
+            $visited,
+            $matches,
+            $rightHasLower,
+            $rightLower,
+            $rightHasUpper,
+            $rightUpper,
+        );
+    }
+
+    private static function firstValueIsInRange(
+        mixed $value,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        string $collation,
+    ): bool {
+        if (($lowerInclusive !== null || $upperBound !== null) && $value === null) {
+            return false;
+        }
+        if ($lowerInclusive !== null && self::compareSQLiteScalar($value, $lowerInclusive, $collation) < 0) {
+            return false;
+        }
+        if ($upperBound !== null) {
+            $upperComparison = self::compareSQLiteScalar($value, $upperBound, $collation);
+            if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function firstValueRangeIntersectsInterval(
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        bool $hasIntervalLower,
+        mixed $intervalLower,
+        bool $hasIntervalUpper,
+        mixed $intervalUpper,
+        string $collation,
+    ): bool {
+        if (
+            $lowerInclusive !== null
+            && $hasIntervalUpper
+            && self::compareSQLiteScalar($intervalUpper, $lowerInclusive, $collation) < 0
+        ) {
+            return false;
+        }
+        if ($upperBound !== null && $hasIntervalLower) {
+            $lowerToUpper = self::compareSQLiteScalar($intervalLower, $upperBound, $collation);
+            if ($lowerToUpper > 0 || ($lowerToUpper === 0 && !$upperInclusive)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

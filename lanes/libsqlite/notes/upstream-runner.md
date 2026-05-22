@@ -716,3 +716,40 @@ bulk option preload/recovery workflows on hosts without the PHP SQLite
 extension. Remaining work includes optimized b-tree seek bounds for these
 scans, expression-index `IN` lookups, custom collations, and broader composite
 `IN` constraints.
+
+## Focused Native Mapping: First-Column B-Tree Seek Bounds
+
+SQLite range and equality probes over an index move a b-tree cursor to the
+bounded key interval rather than decoding unrelated branches. The native PHP
+reader now maps that bounded read-side behavior for first-column point and
+range scans by deriving conservative first-key intervals for index interior
+children. Out-of-range subtrees are skipped before their pages are parsed, while
+matching leaf and interior records still use the existing SQLite scalar
+comparison rules and rowid resolution.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test wherelimit3.test where.test
+```
+
+Result: 5 Tcl script/permutation runs, 0 errors out of 593 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` section `index-14.*` covers indexed first-column comparison
+  boundaries for `>`, `>=`, `<`, and `<=`.
+- `test/wherelimit3.test` records planner output such as
+  `SEARCH ... USING INDEX ... (a>? AND a<?)`, anchoring the same lower/upper
+  index-search shape used by this native slice.
+- `test/where.test` covers equality and range constraints against indexed first
+  columns and composite index boundaries.
+
+The native PHP test adds a WordPress-shaped `wp_options(option_name)` range
+lookup where the requested lower bound is in the index root's right-hand
+subtree and the left-hand child page is intentionally invalid. The lookup now
+returns `siteurl` without reading that out-of-range branch. Remaining seek work
+includes applying the same bounded traversal to composite prefix/range scans,
+expression indexes beyond the first `lower(column)` slice, and IN-list probes.
