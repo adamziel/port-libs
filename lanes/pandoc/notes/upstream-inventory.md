@@ -178,6 +178,19 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   map to DefaultStyle, LowerRoman via `type="i"`, LowerRoman via class,
   DefaultStyle for bare `style="lower-roman"`, and LowerRoman via
   `list-style` and `list-style-type` declarations.
+- `test/html-reader.html` Nested/Tabs/Fancy list slice inspected in this run:
+  upstream lines 199-302 cover the `Nested`, `Tabs and spaces`, and
+  `Fancy list markers` sections immediately after the top-level list-style
+  examples. The slice includes three HTML headings, nested `ul` levels, ordered
+  lists with nested unordered children, paragraph-bearing list items, nested
+  decimal/lower-roman/upper-alpha/upper-roman/lower-alpha ordered-list styles,
+  and a nested default-style autonumbering shape.
+- `test/html-reader.native` Nested/Tabs/Fancy list rendered native AST slice
+  inspected in this run: upstream lines 542-764 show three `Header` nodes,
+  seven `BulletList` nodes, and 11 `OrderedList` nodes. The bounded PHP mapping
+  now preserves Pandoc's tight `Plain` shape for list items whose only block
+  child is a nested list, keeps paragraph-bearing HTML list items loose, and
+  preserves start/style metadata through the nested ordered-list chain.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -468,6 +481,15 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `list-style-type` metadata preserve ordered-list styles while the upstream
   bare `style="lower-roman"` case remains default. The WordPress writer emits
   safe `type` attributes for roman/alpha ordered lists.
+- The next HTML-reader list shape from `test/html-reader.html` is now mapped
+  for the `Nested`, `Tabs and spaces`, and `Fancy list markers` sections:
+  top-level HTML headings become native heading nodes with generated or
+  preserved Pandoc-style identifiers, nested-list-only items remain tight
+  `Plain`-shaped list items, paragraph-wrapped items remain paragraph-shaped,
+  and decimal/lower-roman/upper-alpha/upper-roman/lower-alpha ordered-list
+  styles and starts survive through nested list chains. The WordPress writer
+  emits heading anchors and nested ordered-list `start`/`type` attributes
+  without invoking Pandoc.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.

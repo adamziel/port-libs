@@ -148,6 +148,27 @@ HTML reader list import:
 <li><p>Publish reviewed batch</p></li>
 </ol>
 
+<h2>HTML reader nested checklist</h2>
+<ul>
+<li>Audit source sections<ul>
+<li>Posts<ul>
+<li>Confirm nested review note</li>
+</ul></li>
+</ul></li>
+</ul>
+<p>HTML reader fancy queue:</p>
+<ol start="2" class="decimal">
+<li>Import source batch</li>
+<li><p>Review media mapping</p><p>Record continuation note</p>
+<ol start="4" class="lower-roman">
+<li>Check roman subqueue</li>
+<li>Escalate captions<ol class="upper-alpha">
+<li>Alt text</li>
+<li>Credit line</li>
+</ol></li>
+</ol></li>
+</ol>
+
 Empty import audit table:
 
 <table>

@@ -73,6 +73,11 @@ final class MarkdownReader
                 $blocks[] = $htmlBlockQuote;
                 continue;
             }
+            $htmlHeading = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHeadingBlock($lines, $index) : null;
+            if ($htmlHeading !== null) {
+                $blocks[] = $htmlHeading;
+                continue;
+            }
             $htmlList = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlListBlock($lines, $index) : null;
             if ($htmlList !== null) {
                 $blocks[] = $htmlList;
@@ -1035,10 +1040,90 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadHtmlHeadingBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<h([1-6])\b/i', $line, $m) !== 1) {
+            return null;
+        }
+
+        $level = (int) $m[1];
+        $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'h' . $level);
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $heading = $this->parseHtmlHeadingElement($html, $level);
+        if ($heading === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $heading;
+    }
+
+    private function parseHtmlHeadingElement(string $html, int $level): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $heading = $this->firstChildElement($body, 'h' . $level);
+        if (!$heading instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->buildHtmlHeadingNode($heading, $level);
+    }
+
+    private function buildHtmlHeadingNode(\DOMElement $heading, int $level): AstNode
+    {
+        $children = $this->parseHtmlInlineChildren($heading);
+        $text = trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($children)) ?? '');
+        $attrs = array_merge($this->htmlElementPandocAttrs($heading), [
+            'level' => $level,
+            'text' => $text,
+        ]);
+        if (!isset($attrs['id'])) {
+            $identifier = $this->htmlHeadingIdentifier($text);
+            if ($identifier !== '') {
+                $attrs['id'] = $identifier;
+            }
+        }
+
+        return new AstNode('heading', $attrs, $children);
+    }
+
+    private function htmlHeadingIdentifier(string $text): string
+    {
+        $identifier = strtolower($text);
+        $identifier = preg_replace('/[^a-z0-9]+/', '-', $identifier) ?? '';
+
+        return trim($identifier, '-');
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function tryReadHtmlListBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<(ol|ul)(?:\s+[^>]*)?>/i', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}<(ol|ul)\b/i', $line, $m) !== 1) {
             return null;
         }
 
@@ -1260,13 +1345,7 @@ final class MarkdownReader
             return new AstNode('horizontal_rule');
         }
         if (preg_match('/^h([1-6])$/', $name, $m) === 1) {
-            $children = $this->parseHtmlInlineChildren($element);
-
-            return new AstNode(
-                'heading',
-                ['level' => (int) $m[1], 'text' => $this->plainTextFromInlines($children)],
-                $children
-            );
+            return $this->buildHtmlHeadingNode($element, (int) $m[1]);
         }
 
         $children = $this->parseHtmlInlineChildren($element);
@@ -1365,7 +1444,11 @@ final class MarkdownReader
     private function htmlListItemIsLoose(array $children): bool
     {
         foreach ($children as $child) {
-            if (!$this->htmlListChildIsInline($child)) {
+            if ($child->type === 'paragraph') {
+                return true;
+            }
+
+            if (!$this->htmlListChildIsInline($child) && !in_array($child->type, ['bullet_list', 'ordered_list'], true)) {
                 return true;
             }
         }
@@ -1543,38 +1626,46 @@ final class MarkdownReader
     private function collectBalancedHtmlElementBlock(array $lines, int $index, string $tag): ?array
     {
         $content = [];
-        $depth = 0;
-        $started = false;
         $count = count($lines);
-        $pattern = '/<\/?' . preg_quote($tag, '/') . '\b[^>]*>/i';
 
         for ($cursor = $index; $cursor < $count; $cursor++) {
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
             $content[] = $line;
-
-            preg_match_all($pattern, $line, $matches);
-            foreach ($matches[0] as $matchedTag) {
-                $matchedTag = strtolower(trim($matchedTag));
-                if (str_starts_with($matchedTag, '</')) {
-                    if (!$started) {
-                        continue;
-                    }
-
-                    $depth--;
-                    if ($depth === 0) {
-                        return [implode("\n", $content), $cursor];
-                    }
-                    continue;
-                }
-
-                $started = true;
-                if (!str_ends_with(rtrim($matchedTag), '/>')) {
-                    $depth++;
-                }
+            [$started, $depth] = $this->htmlElementBalance(implode("\n", $content), $tag);
+            if ($started && $depth === 0) {
+                return [implode("\n", $content), $cursor];
             }
         }
 
         return null;
+    }
+
+    /**
+     * @return array{0:bool, 1:int}
+     */
+    private function htmlElementBalance(string $html, string $tag): array
+    {
+        $depth = 0;
+        $started = false;
+        $pattern = '/<\/?' . preg_quote($tag, '/') . '\b[^>]*>/i';
+
+        preg_match_all($pattern, $html, $matches);
+        foreach ($matches[0] as $matchedTag) {
+            $matchedTag = strtolower(trim($matchedTag));
+            if (str_starts_with($matchedTag, '</')) {
+                if ($started) {
+                    $depth--;
+                }
+                continue;
+            }
+
+            $started = true;
+            if (!str_ends_with(rtrim($matchedTag), '/>')) {
+                $depth++;
+            }
+        }
+
+        return [$started, $depth];
     }
 
     private function htmlTableBlockIsEmpty(string $html): bool

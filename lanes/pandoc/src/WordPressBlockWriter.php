@@ -26,7 +26,7 @@ final class WordPressBlockWriter
             if ($node->type === 'heading') {
                 $level = (int) $node->attr('level', 2);
                 $blocks[] = '<!-- wp:heading {"level":' . $level . '} -->'
-                    . "\n" . '<h' . $level . '>' . $this->renderInlines($node) . '</h' . $level . '>'
+                    . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
                     . "\n" . '<!-- /wp:heading -->';
             } elseif ($node->type === 'paragraph') {
                 $blocks[] = '<!-- wp:paragraph -->'
@@ -142,6 +142,16 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function renderHeadingAttrs(AstNode $node): string
+    {
+        $id = (string) $node->attr('id', '');
+        if ($id === '') {
+            return '';
+        }
+
+        return ' id="' . $this->esc($id) . '"';
     }
 
     private function orderedListHtmlType(string $style): string

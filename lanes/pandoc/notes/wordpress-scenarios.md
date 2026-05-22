@@ -123,6 +123,12 @@ The bounded HTML-reader top-level list slice is now represented too: imported
 paragraph-wrapped list items stay paragraph-wrapped, multi-paragraph ordered
 items stay attached to one item, and ordered-list `type`, class, and
 `list-style` metadata render as safe WordPress ordered-list `type` attributes.
+The next HTML-reader nested-list slice is now represented as well: HTML
+headings around imported list sections keep generated or explicit anchors,
+nested `<ul>` audit checklists stay tight when they only contain text plus a
+nested list, paragraph-bearing source queues stay loose, and nested decimal,
+roman, and alphabetic ordered-list styles render with WordPress-safe
+`start`/`type` attributes.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -252,6 +258,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   reviewer checklist `<ul>` with nested media-review bullets plus a roman
   ordered review queue that preserves start/style metadata in WordPress list
   output without shelling out to Pandoc.
+- The fixture now includes nested/fancy HTML reader list imports, exercising a
+  heading-anchored source checklist, a three-level nested unordered audit list,
+  paragraph-bearing ordered items, and nested decimal, roman, and alphabetic
+  review queues without shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -319,6 +329,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - HTML reader top-level lists render as core WordPress list blocks while
   preserving nested media-review bullets, paragraph-bearing ordered items,
   start values, and roman ordered-list style metadata without invoking Pandoc.
+- HTML reader nested/fancy lists render as core WordPress heading and list
+  blocks while preserving generated heading anchors, tight nested checklist
+  items, paragraph continuations, decimal starts, and nested roman/alpha queue
+  styles without invoking Pandoc.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -371,7 +385,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader nested-list slice from `test/html-reader.html`,
-starting with the `Nested`, `Tabs and spaces`, and `Fancy list markers` cases
-after the top-level list-style section, then expose it through WordPress
-blocks.
+Map the next bounded HTML-reader definition-list slice from
+`test/html-reader.html`, starting with the `Definition` section immediately
+after the Fancy list markers cases.

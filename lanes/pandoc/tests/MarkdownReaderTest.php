@@ -1428,6 +1428,122 @@ HTML);
         $t->contains('<ol><li><p>Item 1, graf one.</p><p>Item 1. graf two. The quick brown fox jumped over the lazy dog&#039;s back.</p></li><li><p>Item 2.</p></li><li><p>Item 3.</p></li></ol>', $blocks);
         $t->contains('<ol type="i"></ol>', $blocks);
     },
+    'maps upstream html reader nested tabs and fancy list markers' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<h2>Nested</h2>
+<ul>
+<li>Tab<ul>
+<li>Tab<ul>
+<li>Tab</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>Here's another:</p>
+<ol>
+<li>First</li>
+<li>Second:<ul>
+<li>Fee</li>
+<li>Fie</li>
+<li>Foe</li>
+</ul>
+</li>
+<li>Third</li>
+</ol>
+<p>Same thing but with paragraphs:</p>
+<ol>
+<li><p>First</p></li>
+<li><p>Second:</p>
+<ul>
+<li>Fee</li>
+<li>Fie</li>
+<li>Foe</li>
+</ul>
+</li>
+<li><p>Third</p></li>
+</ol>
+<h2>Tabs and spaces</h2>
+<ul>
+<li><p>this is a list item indented with tabs</p></li>
+<li><p>this is a list item indented with spaces</p>
+<ul>
+<li><p>this is an example list item indented with tabs</p></li>
+<li><p>this is an example list item indented with spaces</p></li>
+</ul>
+</li>
+</ul>
+<h2 id="fancy-list-markers">Fancy list markers</h2>
+<ol start="2" class="decimal">
+<li>begins with 2</li>
+<li><p>and now 3</p><p>with a continuation</p>
+<ol start="4" class="lower-roman">
+<li>sublist with roman numerals, starting with 4</li>
+<li>more items<ol class="upper-alpha">
+<li>a subsublist</li>
+<li>a subsublist</li>
+</ol></li>
+</ol></li>
+</ol>
+<p>Nesting:</p>
+<ol type="A">
+<li>Upper Alpha<ol class="upper-roman">
+<li>Upper Roman.<ol start="6" class="decimal">
+<li>Decimal start with 6<ol start="3" type="a">
+<li>Lower alpha with paren</li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol>
+<p>Autonumbering:</p>
+<ol>
+<li>Autonumber.</li>
+<li>More.<ol>
+<li>Nested.</li>
+</ol></li>
+</ol>
+HTML);
+        $nestedHeading = $document->children[0];
+        $nestedBullet = $document->children[1];
+        $secondOrdered = $document->children[3];
+        $paragraphOrdered = $document->children[5];
+        $tabsList = $document->children[7];
+        $fancyOrdered = $document->children[9];
+        $nestingOrdered = $document->children[11];
+        $autoOrdered = $document->children[13];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('heading', $nestedHeading->type);
+        $t->same('nested', $nestedHeading->attr('id'));
+        $t->same('bullet_list', $nestedBullet->type);
+        $t->same(false, $nestedBullet->attr('loose'));
+        $t->same('text', $nestedBullet->children[0]->children[0]->type);
+        $t->same('bullet_list', $nestedBullet->children[0]->children[1]->type);
+        $t->same('bullet_list', $nestedBullet->children[0]->children[1]->children[0]->children[1]->type);
+        $t->same('ordered_list', $secondOrdered->type);
+        $t->same('Second:', $secondOrdered->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $secondOrdered->children[1]->children[1]->type);
+        $t->same('Foe', $secondOrdered->children[1]->children[1]->children[2]->children[0]->attr('text'));
+        $t->same('paragraph', $paragraphOrdered->children[1]->children[0]->type);
+        $t->same('bullet_list', $paragraphOrdered->children[1]->children[1]->type);
+        $t->same('paragraph', $tabsList->children[0]->children[0]->type);
+        $t->same('paragraph', $tabsList->children[1]->children[1]->children[1]->children[0]->type);
+        $t->same(2, $fancyOrdered->attr('start'));
+        $t->same('decimal', $fancyOrdered->attr('style'));
+        $t->same('paragraph', $fancyOrdered->children[1]->children[0]->type);
+        $t->same('lower_roman', $fancyOrdered->children[1]->children[2]->attr('style'));
+        $t->same('upper_alpha', $fancyOrdered->children[1]->children[2]->children[1]->children[1]->attr('style'));
+        $t->same('upper_alpha', $nestingOrdered->attr('style'));
+        $t->same('upper_roman', $nestingOrdered->children[0]->children[1]->attr('style'));
+        $t->same(6, $nestingOrdered->children[0]->children[1]->children[0]->children[1]->attr('start'));
+        $t->same('lower_alpha', $nestingOrdered->children[0]->children[1]->children[0]->children[1]->children[0]->children[1]->attr('style'));
+        $t->same('default', $autoOrdered->attr('style'));
+        $t->same('ordered_list', $autoOrdered->children[1]->children[1]->type);
+        $t->contains('<h2 id="nested">Nested</h2>', $blocks);
+        $t->contains('<ul><li>Tab<ul><li>Tab<ul><li>Tab</li></ul></li></ul></li></ul>', $blocks);
+        $t->contains('<ol start="2"><li>begins with 2</li><li><p>and now 3</p><p>with a continuation</p><ol start="4" type="i"><li>sublist with roman numerals, starting with 4</li><li>more items<ol type="A"><li>a subsublist</li><li>a subsublist</li></ol></li></ol></li></ol>', $blocks);
+        $t->contains('<ol type="A"><li>Upper Alpha<ol type="I"><li>Upper Roman.<ol start="6"><li>Decimal start with 6<ol start="3" type="a"><li>Lower alpha with paren</li></ol></li></ol></li></ol></li></ol>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -2948,9 +3064,26 @@ XML;
         $t->same('bullet_list', $htmlList->children[1]->children[1]->type);
         $t->same('Verify captions', $htmlList->children[1]->children[1]->children[1]->children[0]->attr('text'));
         $t->same('paragraph', $styledOrdered->children[0]->children[0]->type);
+        $nestedHeading = null;
+        $fancyQueue = null;
+        foreach ($document->children as $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'HTML reader nested checklist') {
+                $nestedHeading = $node;
+            }
+            if ($node->type === 'ordered_list' && $node->attr('start') === 2 && $node->attr('style') === 'decimal') {
+                $fancyQueue = $node;
+            }
+        }
+        $t->true($nestedHeading !== null, 'HTML reader h2 import should stay on the native heading path');
+        $t->true($fancyQueue !== null, 'HTML reader fancy nested queue should preserve ordered-list metadata');
+        $t->same('ordered_list', $fancyQueue->children[1]->children[2]->type);
+        $t->same('upper_alpha', $fancyQueue->children[1]->children[2]->children[1]->children[1]->attr('style'));
         $t->contains('<p>HTML reader list import:</p>', $blocks);
         $t->contains('<ul><li>Review imported posts</li><li>Attach media audit<ul><li>Confirm alt text</li><li>Verify captions</li></ul></li></ul>', $blocks);
         $t->contains('<ol start="4" type="i"><li><p>Queue editorial pass</p></li><li><p>Publish reviewed batch</p></li></ol>', $blocks);
+        $t->contains('<h2 id="html-reader-nested-checklist">HTML reader nested checklist</h2>', $blocks);
+        $t->contains('<ul><li>Audit source sections<ul><li>Posts<ul><li>Confirm nested review note</li></ul></li></ul></li></ul>', $blocks);
+        $t->contains('<ol start="2"><li>Import source batch</li><li><p>Review media mapping</p><p>Record continuation note</p><ol start="4" type="i"><li>Check roman subqueue</li><li>Escalate captions<ol type="A"><li>Alt text</li><li>Credit line</li></ol></li></ol></li></ol>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
