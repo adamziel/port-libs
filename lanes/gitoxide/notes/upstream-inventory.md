@@ -94,12 +94,20 @@ Focused fetch negotiation inventory inspected on 2026-05-22:
 - `gix-protocol/src/command.rs` defines the mapped fetch feature selection semantics: protocol v1 chooses the best `multi_ack` and sideband variant, leaves `no-progress` disabled by default, and protocol v2 derives features from the advertised `fetch=` values.
 - `gix-protocol/src/fetch/arguments/mod.rs` defines the mapped argument-builder semantics: protocol v2 begins with `thin-pack` and `ofs-delta`, adds `sideband-all` only when advertised, keeps `packfile-uris` out of default arguments, bakes protocol v1 features into the first `want`, treats protocol v2 as stateless, and exposes support flags for shallow, filter, ref-in-want, deepen, and include-tag behavior.
 
+Focused fetch response and sideband inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol/src/fetch/response/mod.rs`, `gix-protocol/src/fetch/response/blocking_io.rs`, `gix-protocol/tests/protocol/fetch/response.rs`, `gix-packetline/src/lib.rs`, `gix-packetline/src/blocking_io/sidebands.rs`, and `gix-packetline/tests/read/sideband.rs` with targeted `git show` and `git grep`.
+- 14 fetch response reader tests counted across the V1/V2 `from_line_reader` sections of `gix-protocol/tests/protocol/fetch/response.rs`; 6 packetline sideband tests counted in `gix-packetline/tests/read/sideband.rs`.
+- `gix-protocol/src/fetch/response/blocking_io.rs` defines the mapped protocol v2 section semantics: parse `acknowledgments`, `shallow-info`, and `wanted-refs` sections until a delimiter or flush, stop with `has_pack=false` on message end, and stop with `has_pack=true` when the `packfile` section starts.
+- `gix-protocol/src/fetch/response/mod.rs` defines the mapped line semantics: `ACK <id>`, `ACK <id> common`, `ACK <id> ready`, `ready`, `NAK`, `shallow <id>`, `unshallow <id>`, and wanted-ref `<id> <path>` lines are parsed into typed response values.
+- `gix-packetline/src/lib.rs` and `blocking_io/sidebands.rs` define the mapped sideband semantics: sideband channel 1 carries pack bytes, channel 2 carries progress text with one trailing newline trimmed, and channel 3 carries error text with one trailing newline trimmed.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, or continue with fetch response section and sideband pack semantics.
+- The next inventory slice should either materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, or continue with sparse/partial clone filter semantics.
 
 Current PHP mapping:
 
@@ -115,3 +123,4 @@ Current PHP mapping:
 - `MultiPackIndexTest.php` maps `gix-pack` multi-index v1 header and chunk-table parsing, SHA-1/SHA-256 hash-kind recognition, sorted pack index names, fanout and chunk size validation, full object ID lookup, prefix missing/ambiguous/found outcomes, high-bit raw offsets without `LOFF`, large 64-bit offsets through `LOFF`, checksum verification, fast object-order and pack-id integrity checks, and a WordPress content/template/media multi-pack-index fixture.
 - `ProtocolV2Test.php` maps `gix-transport` v1/v2 capability parsing and capability value support, `gix-protocol` `ls-refs` default arguments, `unborn` negotiation, first-seen ref-prefix de-duplication, unknown argument/capability validation errors, v2 remote ref parsing for direct/symbolic/unborn/peeled/symbolic-peeled lines, malformed ref-line errors, and a WordPress protocol v2 `ls-refs` fixture for active branch/release tag/unborn staging ref discovery.
 - `FetchNegotiationTest.php` maps `gix-protocol` fetch feature defaults, protocol v2 initial fetch arguments, protocol v1 first-want feature baking, stateless protocol v2 request argument construction, guarded shallow/filter/ref-in-want/deepen/include-tag support, unknown argument/capability validation, and a WordPress shallow blobless ref-in-want fetch fixture.
+- `FetchResponseTest.php` maps `gix-protocol` fetch acknowledgements, shallow updates, wanted-ref response lines, required V1 response features, protocol v2 response section parsing, no-pack responses, unknown section errors, sideband channel decoding for pack/progress/error bytes, and a WordPress protocol v2 fetch response fixture.

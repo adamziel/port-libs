@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, protocol v2 fetch response section and sideband parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.
 
 ## WordPress Deploy Tree Example
 
@@ -30,6 +30,10 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 `examples/wordpress-protocol-v2-fetch.php` parses a deterministic protocol v2 capability advertisement and builds a shallow blobless `fetch` request using `want-ref refs/heads/main`, `deepen 1`, `filter blob:none`, and local `have` negotiation state. This models a PHP deployment or package manager requesting only the WordPress branch metadata and reachable pack data it needs before object database reads.
 
+## WordPress Protocol V2 Fetch Response Example
+
+`examples/wordpress-protocol-v2-fetch-response.php` parses deterministic protocol v2 fetch response packet lines, including `acknowledgments`, `shallow-info`, `wanted-refs`, and `packfile` sections. It extracts the wanted WordPress branch object, shallow boundary update, sideband progress text, and sideband pack bytes that can be passed to the native pack/object database layer.
+
 ## WordPress Pack Index Example
 
 `examples/wordpress-pack-index.php` parses a deterministic v2 pack index fixture for a WordPress repository and locates compacted object offsets, including a large 64-bit media object offset. This models a PHP object database finding packed content objects on shared hosting without invoking `git`.
@@ -52,4 +56,4 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## Next Task
 
-Map protocol v2 fetch response sections and sideband pack handling, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear.
+Map sparse/partial clone filter semantics into fetch/object-database behavior, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear.
