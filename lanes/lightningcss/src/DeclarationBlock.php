@@ -31,6 +31,11 @@ final class DeclarationBlock
         'background-repeat',
     ];
 
+    private const BORDER_SIDES = ['top', 'right', 'bottom', 'left'];
+    private const BORDER_COMPONENTS = ['width', 'style', 'color'];
+    private const BORDER_STYLES = ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
+    private const BORDER_WIDTH_KEYWORDS = ['thin', 'medium', 'thick'];
+
     private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
     private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
 
@@ -103,6 +108,13 @@ final class DeclarationBlock
         if ($property === 'background' || in_array($property, self::BACKGROUND_LONGHANDS, true)) {
             return null;
         }
+        $borderValue = $this->getBorderProperty($entries, $property);
+        if ($borderValue !== null) {
+            return $borderValue;
+        }
+        if ($this->isBorderProperty($property)) {
+            return null;
+        }
         $flexValue = $this->getFlexProperty($entries, $property);
         if ($flexValue !== null) {
             return $flexValue;
@@ -167,6 +179,251 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getBorderProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isBorderProperty($property)) {
+            return null;
+        }
+
+        $sides = $this->resolveBorderSides($entries);
+        if ($property === 'border') {
+            return $this->composeBorderShorthand($sides);
+        }
+
+        if (preg_match('/^border-(width|style|color)$/', $property, $matches) === 1) {
+            return $this->composeBorderComponentShorthand($sides, $matches[1]);
+        }
+
+        if (preg_match('/^border-(top|right|bottom|left)$/', $property, $matches) === 1) {
+            return $this->composeBorderSideShorthand($sides[$matches[1]]);
+        }
+
+        if (preg_match('/^border-(top|right|bottom|left)-(width|style|color)$/', $property, $matches) === 1) {
+            return $sides[$matches[1]][$matches[2]];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array<string, array<string, array{value:string, important:bool}|null>>
+     */
+    private function resolveBorderSides(array $entries): array
+    {
+        $sides = [];
+        foreach (self::BORDER_SIDES as $side) {
+            $sides[$side] = array_fill_keys(self::BORDER_COMPONENTS, null);
+        }
+
+        foreach ($entries as $entry) {
+            $property = $entry['property'];
+            $important = $entry['important'];
+
+            if ($property === 'border') {
+                $components = $this->parseBorderValue($entry['value']);
+                foreach (self::BORDER_SIDES as $side) {
+                    $this->applyBorderComponents($sides[$side], $components, $important);
+                }
+                continue;
+            }
+
+            if (preg_match('/^border-(width|style|color)$/', $property, $matches) === 1) {
+                $component = $matches[1];
+                $expanded = $this->expandBoxShorthand($entry['value']);
+                if ($expanded === null) {
+                    continue;
+                }
+                foreach (self::BORDER_SIDES as $side) {
+                    $sides[$side][$component] = [
+                        'value' => $expanded[$side],
+                        'important' => $important,
+                    ];
+                }
+                continue;
+            }
+
+            if (preg_match('/^border-(top|right|bottom|left)$/', $property, $matches) === 1) {
+                $components = $this->parseBorderValue($entry['value']);
+                $this->applyBorderComponents($sides[$matches[1]], $components, $important);
+                continue;
+            }
+
+            if (preg_match('/^border-(top|right|bottom|left)-(width|style|color)$/', $property, $matches) === 1) {
+                $sides[$matches[1]][$matches[2]] = [
+                    'value' => $entry['value'],
+                    'important' => $important,
+                ];
+            }
+        }
+
+        return $sides;
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}|null> $side
+     * @param array{width:?string, style:?string, color:?string} $components
+     */
+    private function applyBorderComponents(array &$side, array $components, bool $important): void
+    {
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if ($components[$component] === null) {
+                continue;
+            }
+
+            $side[$component] = [
+                'value' => $components[$component],
+                'important' => $important,
+            ];
+        }
+    }
+
+    /**
+     * @return array{width:?string, style:?string, color:?string}
+     */
+    private function parseBorderValue(string $value): array
+    {
+        $components = [
+            'width' => null,
+            'style' => null,
+            'color' => null,
+        ];
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($components['style'] === null && in_array($lower, self::BORDER_STYLES, true)) {
+                $components['style'] = $token;
+                continue;
+            }
+
+            if ($components['width'] === null && $this->isBorderWidthToken($token)) {
+                $components['width'] = $token;
+                continue;
+            }
+
+            if ($components['color'] === null) {
+                $components['color'] = $token;
+                continue;
+            }
+
+            $components['color'] .= ' ' . $token;
+        }
+
+        return $components;
+    }
+
+    private function isBorderWidthToken(string $token): bool
+    {
+        $lower = strtolower($token);
+        if (in_array($lower, self::BORDER_WIDTH_KEYWORDS, true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+)?|calc\(|var\()/i', $token) === 1;
+    }
+
+    /**
+     * @param array<string, array<string, array{value:string, important:bool}|null>> $sides
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeBorderShorthand(array $sides): ?array
+    {
+        $top = $sides['top'];
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if ($top[$component] === null) {
+                return null;
+            }
+        }
+
+        foreach (self::BORDER_SIDES as $side) {
+            foreach (self::BORDER_COMPONENTS as $component) {
+                if ($sides[$side][$component] === null || $sides[$side][$component] !== $top[$component]) {
+                    return null;
+                }
+            }
+        }
+
+        return [
+            'value' => $this->composeBorderValue($top),
+            'important' => $top['width']['important'],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, array{value:string, important:bool}|null>> $sides
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeBorderComponentShorthand(array $sides, string $component): ?array
+    {
+        $values = [];
+        $important = null;
+        foreach (self::BORDER_SIDES as $side) {
+            $part = $sides[$side][$component];
+            if ($part === null) {
+                return null;
+            }
+            if ($important === null) {
+                $important = $part['important'];
+            } elseif ($part['important'] !== $important) {
+                return null;
+            }
+            $values[$side] = $part['value'];
+        }
+
+        return [
+            'value' => $this->compressBoxShorthand($values),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}|null> $side
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeBorderSideShorthand(array $side): ?array
+    {
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if ($side[$component] === null) {
+                return null;
+            }
+        }
+
+        $important = $side['width']['important'];
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if ($side[$component]['important'] !== $important) {
+                return null;
+            }
+        }
+
+        return [
+            'value' => $this->composeBorderValue($side),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}|null> $components
+     */
+    private function composeBorderValue(array $components): string
+    {
+        return implode(' ', [
+            $components['width']['value'],
+            $components['style']['value'],
+            $components['color']['value'],
+        ]);
+    }
+
+    private function isBorderProperty(string $property): bool
+    {
+        return $property === 'border'
+            || preg_match('/^border-(?:width|style|color)$/', $property) === 1
+            || preg_match('/^border-(?:top|right|bottom|left)(?:-(?:width|style|color))?$/', $property) === 1;
     }
 
     /**

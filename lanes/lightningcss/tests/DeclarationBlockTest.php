@@ -108,6 +108,37 @@ return [
             )
         );
     },
+    'declaration block reads upstream border cssom shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '1px solid green', 'important' => false],
+            $block->getProperty('border: 1px solid red; border-color: green', 'border')
+        );
+        $t->same(null, $block->getProperty('border: 1px solid red; border-left-color: green', 'border'));
+        $t->same(
+            ['value' => 'green', 'important' => false],
+            $block->getProperty('border: 1px solid red; border-color: green', 'border-color')
+        );
+        $t->same(
+            ['value' => '2px solid var(--wp--preset--color--primary)', 'important' => false],
+            $block->getProperty(
+                'border: 2px solid var(--wp--preset--color--contrast); border-color: var(--wp--preset--color--primary)',
+                'border'
+            )
+        );
+        $t->same(
+            ['value' => 'var(--wp--preset--color--primary)', 'important' => false],
+            $block->getProperty(
+                'border: 2px solid var(--wp--preset--color--contrast); border-color: var(--wp--preset--color--primary)',
+                'border-top-color'
+            )
+        );
+        $t->same(
+            ['value' => 'solid', 'important' => true],
+            $block->getProperty('border: 1px solid red !important', 'border-style')
+        );
+    },
     'declaration block reads upstream flex flow cssom properties' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -151,6 +182,18 @@ return [
         $t->same(
             'background: linear-gradient(red, green) 20px 10px',
             $block->setProperty('background: linear-gradient(red, green)', 'background-position', '20px 10px')
+        );
+    },
+    'declaration block sets upstream border side longhands without decomposing' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border: 1px solid red; border-right: 1px solid green',
+            $block->setProperty('border: 1px solid red', 'border-right', '1px solid green')
+        );
+        $t->same(
+            'border: 1px solid red; border-right-color: green',
+            $block->setProperty('border: 1px solid red', 'border-right-color', 'green')
         );
     },
     'declaration block sets upstream flex flow cssom longhands' => static function (TestRunner $t): void {
