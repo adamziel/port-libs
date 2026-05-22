@@ -1,0 +1,22 @@
+[
+  {
+    "key": 1,
+    "value": "wp_options:siteurl=https://example.test"
+  },
+  {
+    "key": 2,
+    "value": "wp_options:home=https://example.test"
+  },
+  {
+    "key": 3,
+    "value": "wp_posts:1=Hello world"
+  },
+  {
+    "key": 4,
+    "value": "wp_postmeta:1:_thumbnail_id=42"
+  },
+  {
+    "key": 5,
+    "value": "wp_posts:2=About"
+  }
+]

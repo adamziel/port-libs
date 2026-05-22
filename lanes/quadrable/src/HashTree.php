@@ -27,7 +27,15 @@ final class HashTree
     {
         $this->assertHash($keyHashHex);
 
-        return hash('sha256', hex2bin($keyHashHex) . hex2bin($this->valueHash($value)) . "\0");
+        return $this->leafHashForKeyHashAndValueHash($keyHashHex, $this->valueHash($value));
+    }
+
+    public function leafHashForKeyHashAndValueHash(string $keyHashHex, string $valueHashHex): string
+    {
+        $this->assertHash($keyHashHex);
+        $this->assertHash($valueHashHex);
+
+        return hash('sha256', hex2bin($keyHashHex) . hex2bin($valueHashHex) . "\0");
     }
 
     public function branchHash(string $leftHex, string $rightHex): string

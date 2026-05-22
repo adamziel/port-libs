@@ -13,6 +13,11 @@ final class SparseTree
      */
     private array $values = [];
 
+    /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $partialRoot = null;
+
     public function __construct(?HashTree $hashTree = null)
     {
         $this->hashTree = $hashTree ?? new HashTree();
@@ -47,12 +52,50 @@ final class SparseTree
     {
         self::assertNonEmptyKey($key);
 
+        if ($this->partialRoot !== null) {
+            return $this->getPartialByKeyHash($this->hashTree->keyHash($key));
+        }
+
         return $this->values[$this->hashTree->keyHash($key)] ?? null;
     }
 
     public function getKey(Key $key): ?string
     {
+        if ($this->partialRoot !== null) {
+            return $this->getPartialByKeyHash($key->hex());
+        }
+
         return $this->values[$key->hex()] ?? null;
+    }
+
+    public function iterate(Key $target, bool $reverse = false): SparseTreeIterator
+    {
+        $entries = $this->orderedEntries();
+        $targetHex = $target->hex();
+
+        if ($reverse) {
+            $position = -1;
+            foreach ($entries as $index => $entry) {
+                if (strcmp($entry->keyHex(), $targetHex) <= 0) {
+                    $position = $index;
+                    continue;
+                }
+
+                break;
+            }
+
+            return new SparseTreeIterator($entries, $position, true);
+        }
+
+        $position = count($entries);
+        foreach ($entries as $index => $entry) {
+            if (strcmp($entry->keyHex(), $targetHex) >= 0) {
+                $position = $index;
+                break;
+            }
+        }
+
+        return new SparseTreeIterator($entries, $position, false);
     }
 
     /**
@@ -78,8 +121,82 @@ final class SparseTree
         return $results;
     }
 
+    /**
+     * @param list<string> $keys
+     */
+    public function exportProof(array $keys): Proof
+    {
+        $keyHashes = [];
+        foreach ($keys as $key) {
+            if (!is_string($key)) {
+                throw new \InvalidArgumentException('exportProof expects string keys');
+            }
+            self::assertNonEmptyKey($key);
+            $keyHashes[$this->hashTree->keyHash($key)] = $key;
+        }
+        ksort($keyHashes, SORT_STRING);
+
+        return $this->exportProofForKeyHashes($keyHashes);
+    }
+
+    /**
+     * @param list<Key> $keys
+     */
+    public function exportRawProof(array $keys): Proof
+    {
+        $keyHashes = [];
+        foreach ($keys as $key) {
+            if (!$key instanceof Key) {
+                throw new \InvalidArgumentException('exportRawProof expects Key instances');
+            }
+            $keyHashes[$key->hex()] = '';
+        }
+        ksort($keyHashes, SORT_STRING);
+
+        return $this->exportProofForKeyHashes($keyHashes);
+    }
+
+    public function exportProofRange(Key $begin, Key $end): Proof
+    {
+        if (strcmp($begin->hex(), $end->hex()) > 0) {
+            throw new \InvalidArgumentException('proof range begin must be <= end');
+        }
+
+        [$root, $nodesById] = $this->fullProofTree();
+        $items = [];
+        $reverseMap = [];
+        $currentPath = Key::null();
+
+        $this->exportProofRangeAux($root, 0, $begin, $end, $currentPath, $items, $reverseMap);
+
+        return new Proof(
+            array_map(static fn (array $item): ProofStrand => $item['strand'], $items),
+            $this->exportProofCommands($items, $reverseMap, $nodesById, $root['id'])
+        );
+    }
+
+    public static function importProof(Proof $proof, string $expectedRoot = ''): self
+    {
+        if ($expectedRoot !== '') {
+            self::assertHash($expectedRoot);
+        }
+
+        $tree = new self();
+        $tree->partialRoot = self::importProofRoot($proof, $tree->hashTree);
+
+        if ($expectedRoot !== '' && $tree->partialRoot['hash'] !== $expectedRoot) {
+            throw new \RuntimeException('proof invalid');
+        }
+
+        return $tree;
+    }
+
     public function rootHash(): string
     {
+        if ($this->partialRoot !== null) {
+            return $this->partialRoot['hash'];
+        }
+
         return $this->buildTree($this->leafRecords(), 0)['hash'];
     }
 
@@ -110,11 +227,30 @@ final class SparseTree
     }
 
     /**
+     * @return list<SparseTreeEntry>
+     */
+    public function orderedEntries(): array
+    {
+        $entries = [];
+        foreach ($this->entries() as $keyHashHex => $value) {
+            $entries[] = new SparseTreeEntry(Key::fromHex($keyHashHex), $value);
+        }
+
+        return $entries;
+    }
+
+    /**
      * @param array<string, array{delete: bool, value: string}> $updates
      */
     public function applyRawUpdates(array $updates): self
     {
         ksort($updates, SORT_STRING);
+        if ($this->partialRoot !== null) {
+            $this->partialRoot = $this->applyPartialUpdates($this->partialRoot, $updates)['node'];
+
+            return $this;
+        }
+
         foreach ($updates as $keyHashHex => $update) {
             self::assertHash($keyHashHex);
             if (!isset($update['delete'], $update['value']) || !is_bool($update['delete']) || !is_string($update['value'])) {
@@ -139,6 +275,751 @@ final class SparseTree
         if ($key === '') {
             throw new \InvalidArgumentException('zero-length keys not allowed');
         }
+    }
+
+    /**
+     * @param array<string, string> $keyHashes
+     */
+    private function exportProofForKeyHashes(array $keyHashes): Proof
+    {
+        [$root, $nodesById] = $this->fullProofTree();
+        $items = [];
+        $reverseMap = [];
+
+        $this->exportProofAux($root, 0, $keyHashes, $items, $reverseMap);
+
+        return new Proof(
+            array_map(static fn (array $item): ProofStrand => $item['strand'], $items),
+            $this->exportProofCommands($items, $reverseMap, $nodesById, $root['id'])
+        );
+    }
+
+    /**
+     * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>}
+     */
+    private function fullProofTree(): array
+    {
+        $records = [];
+        foreach ($this->values as $keyHashHex => $value) {
+            $records[] = [
+                'keyHash' => $keyHashHex,
+                'value' => $value,
+            ];
+        }
+        usort($records, static fn (array $a, array $b): int => $a['keyHash'] <=> $b['keyHash']);
+
+        $nodesById = [];
+        $nextId = 1;
+
+        return [$this->buildFullNode($records, 0, $nextId, $nodesById), $nodesById];
+    }
+
+    /**
+     * @param list<array{keyHash: string, value: string}> $records
+     * @param array<int, array<string, mixed>> $nodesById
+     *
+     * @return array<string, mixed>
+     */
+    private function buildFullNode(array $records, int $depth, int &$nextId, array &$nodesById): array
+    {
+        $count = count($records);
+        if ($count === 0) {
+            return [
+                'id' => 0,
+                'type' => 'empty',
+                'depth' => $depth,
+                'hash' => HashTree::EMPTY_HASH,
+            ];
+        }
+
+        if ($count === 1) {
+            $id = $nextId++;
+            $node = [
+                'id' => $id,
+                'type' => 'leaf',
+                'depth' => $depth,
+                'keyHash' => $records[0]['keyHash'],
+                'value' => $records[0]['value'],
+                'hash' => $this->hashTree->leafHashForKeyHash($records[0]['keyHash'], $records[0]['value']),
+            ];
+            $nodesById[$id] = $node;
+
+            return $node;
+        }
+
+        if ($depth > 255) {
+            throw new \RuntimeException('Sparse tree key collision exceeded 256 bits');
+        }
+
+        $leftRecords = [];
+        $rightRecords = [];
+        foreach ($records as $record) {
+            if ($this->hashTree->bitAt($record['keyHash'], $depth) === 0) {
+                $leftRecords[] = $record;
+            } else {
+                $rightRecords[] = $record;
+            }
+        }
+
+        $left = $this->buildFullNode($leftRecords, $depth + 1, $nextId, $nodesById);
+        $right = $this->buildFullNode($rightRecords, $depth + 1, $nextId, $nodesById);
+        $id = $nextId++;
+        $node = [
+            'id' => $id,
+            'type' => 'branch',
+            'depth' => $depth,
+            'left' => $left,
+            'right' => $right,
+            'hash' => $this->hashTree->branchHash($left['hash'], $right['hash']),
+        ];
+        $nodesById[$id] = $node;
+
+        return $node;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, string> $keyHashes
+     * @param list<array{nodeId: int, parentNodeId: int, strand: ProofStrand}> $items
+     * @param array<int, int> $reverseMap
+     */
+    private function exportProofAux(array $node, int $parentNodeId, array $keyHashes, array &$items, array &$reverseMap): void
+    {
+        if ($keyHashes === []) {
+            return;
+        }
+
+        if ($node['type'] === 'empty') {
+            $key = Key::fromHex(array_key_first($keyHashes));
+            $key->keepPrefixBits($node['depth']);
+            $items[] = [
+                'nodeId' => 0,
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::WITNESS_EMPTY, $node['depth'], $key->hex()),
+            ];
+            return;
+        }
+
+        if ($node['type'] === 'leaf') {
+            if (array_key_exists($node['keyHash'], $keyHashes)) {
+                $items[] = [
+                    'nodeId' => $node['id'],
+                    'parentNodeId' => $parentNodeId,
+                    'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value'], $keyHashes[$node['keyHash']]),
+                ];
+                return;
+            }
+
+            $items[] = [
+                'nodeId' => $node['id'],
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::WITNESS_LEAF, $node['depth'], $node['keyHash'], $this->hashTree->valueHash($node['value'])),
+            ];
+            return;
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('encountered witness node: incomplete tree');
+        }
+
+        if ($node['left']['id'] !== 0) {
+            $reverseMap[$node['left']['id']] = $node['id'];
+        }
+        if ($node['right']['id'] !== 0) {
+            $reverseMap[$node['right']['id']] = $node['id'];
+        }
+
+        $leftKeys = [];
+        $rightKeys = [];
+        foreach ($keyHashes as $keyHashHex => $key) {
+            if ($this->hashTree->bitAt($keyHashHex, $node['depth']) === 0) {
+                $leftKeys[$keyHashHex] = $key;
+            } else {
+                $rightKeys[$keyHashHex] = $key;
+            }
+        }
+
+        if ($node['left']['id'] !== 0 || $rightKeys === []) {
+            $this->exportProofAux($node['left'], $node['id'], $leftKeys, $items, $reverseMap);
+        }
+        if ($node['right']['id'] !== 0 || $leftKeys === []) {
+            $this->exportProofAux($node['right'], $node['id'], $rightKeys, $items, $reverseMap);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param list<array{nodeId: int, parentNodeId: int, strand: ProofStrand}> $items
+     * @param array<int, int> $reverseMap
+     */
+    private function exportProofRangeAux(array $node, int $parentNodeId, Key $begin, Key $end, Key $currentPath, array &$items, array &$reverseMap): void
+    {
+        if ($node['type'] === 'empty') {
+            $items[] = [
+                'nodeId' => 0,
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::WITNESS_EMPTY, $node['depth'], $currentPath->hex()),
+            ];
+            return;
+        }
+
+        if ($node['type'] === 'leaf') {
+            $items[] = [
+                'nodeId' => $node['id'],
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value']),
+            ];
+            return;
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('encountered witness node: incomplete tree');
+        }
+
+        if ($node['left']['id'] !== 0) {
+            $reverseMap[$node['left']['id']] = $node['id'];
+        }
+        if ($node['right']['id'] !== 0) {
+            $reverseMap[$node['right']['id']] = $node['id'];
+        }
+
+        $boundary = clone $currentPath;
+        $boundary->setBit($node['depth'], 1);
+        $doLeft = strcmp($begin->hex(), $boundary->hex()) < 0;
+        $doRight = strcmp($end->hex(), $boundary->hex()) >= 0;
+
+        $currentPath->setBit($node['depth'], 0);
+        if ($doLeft) {
+            $this->exportProofRangeAux($node['left'], $node['id'], $begin, $end, $currentPath, $items, $reverseMap);
+        }
+
+        $currentPath->setBit($node['depth'], 1);
+        if ($doRight) {
+            $this->exportProofRangeAux($node['right'], $node['id'], $begin, $end, $currentPath, $items, $reverseMap);
+        }
+
+        $currentPath->setBit($node['depth'], 0);
+    }
+
+    /**
+     * @param list<array{nodeId: int, parentNodeId: int, strand: ProofStrand}> $items
+     * @param array<int, int> $reverseMap
+     * @param array<int, array<string, mixed>> $nodesById
+     *
+     * @return list<ProofCommand>
+     */
+    private function exportProofCommands(array $items, array $reverseMap, array $nodesById, int $headNodeId, int $startDepth = 0): array
+    {
+        if ($items === []) {
+            return [];
+        }
+
+        $accums = [];
+        $maxDepth = 0;
+        foreach ($items as $index => $item) {
+            $maxDepth = max($maxDepth, $item['strand']->depth);
+            $accums[] = [
+                'index' => $index,
+                'depth' => $item['strand']->depth,
+                'nodeId' => $item['nodeId'],
+                'next' => $index + 1,
+                'mergedOrder' => 0,
+                'commands' => [],
+            ];
+        }
+        $accums[array_key_last($accums)]['next'] = -1;
+
+        $mergeOrder = 0;
+        for ($currentDepth = $maxDepth; $currentDepth > $startDepth; $currentDepth--) {
+            for ($i = 0; $i !== -1; $i = $accums[$i]['next']) {
+                if ($accums[$i]['depth'] !== $currentDepth) {
+                    continue;
+                }
+
+                $currentParent = $accums[$i]['nodeId'] !== 0
+                    ? $reverseMap[$accums[$i]['nodeId']]
+                    : $items[$i]['parentNodeId'];
+
+                if ($accums[$i]['next'] !== -1) {
+                    $nextIndex = $accums[$i]['next'];
+                    $nextParent = $accums[$nextIndex]['nodeId'] !== 0
+                        ? $reverseMap[$accums[$nextIndex]['nodeId']]
+                        : $items[$nextIndex]['parentNodeId'];
+
+                    if ($currentParent === $nextParent) {
+                        $accums[$i]['commands'][] = new ProofCommand(ProofCommand::MERGE, $i);
+                        $accums[$nextIndex]['mergedOrder'] = $mergeOrder++;
+                        $accums[$i]['next'] = $accums[$nextIndex]['next'];
+                        $accums[$i]['nodeId'] = $currentParent;
+                        $accums[$i]['depth']--;
+                        continue;
+                    }
+                }
+
+                if (!isset($nodesById[$currentParent])) {
+                    throw new \RuntimeException('proof command generation reached a missing parent node');
+                }
+
+                $parentNode = $nodesById[$currentParent];
+                $siblingNode = $parentNode['left']['id'] === $accums[$i]['nodeId'] ? $parentNode['right'] : $parentNode['left'];
+
+                if ($siblingNode['id'] !== 0) {
+                    $accums[$i]['commands'][] = new ProofCommand(ProofCommand::HASH_PROVIDED, $i, $siblingNode['hash']);
+                } else {
+                    $accums[$i]['commands'][] = new ProofCommand(ProofCommand::HASH_EMPTY, $i);
+                }
+
+                $accums[$i]['nodeId'] = $currentParent;
+                $accums[$i]['depth']--;
+            }
+        }
+
+        if ($accums[0]['depth'] !== $startDepth || $accums[0]['nodeId'] !== $headNodeId || $accums[0]['next'] !== -1) {
+            throw new \RuntimeException('proof command generation did not reach the root');
+        }
+        $accums[0]['mergedOrder'] = $mergeOrder;
+
+        usort($accums, static fn (array $a, array $b): int => $a['mergedOrder'] <=> $b['mergedOrder']);
+
+        $commands = [];
+        foreach ($accums as $accum) {
+            foreach ($accum['commands'] as $command) {
+                $commands[] = $command;
+            }
+        }
+
+        return $commands;
+    }
+
+    private function getPartialByKeyHash(string $keyHashHex): ?string
+    {
+        self::assertHash($keyHashHex);
+        if ($this->partialRoot === null) {
+            return null;
+        }
+
+        return $this->queryPartialNode($this->partialRoot, $keyHashHex);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function queryPartialNode(array $node, string $keyHashHex): ?string
+    {
+        if ($node['type'] === 'empty') {
+            return null;
+        }
+
+        if ($node['type'] === 'leaf') {
+            return $node['keyHash'] === $keyHashHex ? $node['value'] : null;
+        }
+
+        if ($node['type'] === 'witnessLeaf') {
+            if ($node['keyHash'] === $keyHashHex) {
+                throw new \RuntimeException('encountered witness node: incomplete tree');
+            }
+
+            return null;
+        }
+
+        if ($node['type'] === 'witness') {
+            throw new \RuntimeException('encountered witness node: incomplete tree');
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('unrecognized partial tree node type');
+        }
+
+        return $this->queryPartialNode(
+            $this->hashTree->bitAt($keyHashHex, $node['depth']) === 0 ? $node['left'] : $node['right'],
+            $keyHashHex
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, array{delete: bool, value: string}> $updates
+     *
+     * @return array{node: array<string, mixed>, bubble: bool}
+     */
+    private function applyPartialUpdates(array $node, array $updates): array
+    {
+        foreach ($updates as $keyHashHex => $update) {
+            self::assertHash($keyHashHex);
+            if (!isset($update['delete'], $update['value']) || !is_bool($update['delete']) || !is_string($update['value'])) {
+                throw new \InvalidArgumentException('Malformed sparse tree update');
+            }
+        }
+
+        if ($updates === []) {
+            return ['node' => $node, 'bubble' => false];
+        }
+
+        if ($node['type'] === 'witness') {
+            throw new \RuntimeException('encountered witness during update: partial tree');
+        }
+
+        if ($node['type'] === 'empty') {
+            $kept = array_filter($updates, static fn (array $update): bool => !$update['delete']);
+
+            if ($kept === []) {
+                return ['node' => $node, 'bubble' => false];
+            }
+
+            return [
+                'node' => $this->buildPartialNodeFromUpdates($kept, $node['depth']),
+                'bubble' => false,
+            ];
+        }
+
+        if ($node['type'] === 'leaf' || $node['type'] === 'witnessLeaf') {
+            return $this->applyPartialLeafUpdates($node, $updates);
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('unrecognized partial tree node type');
+        }
+
+        $leftUpdates = [];
+        $rightUpdates = [];
+        foreach ($updates as $keyHashHex => $update) {
+            if ($this->hashTree->bitAt($keyHashHex, $node['depth']) === 0) {
+                $leftUpdates[$keyHashHex] = $update;
+            } else {
+                $rightUpdates[$keyHashHex] = $update;
+            }
+        }
+
+        $leftResult = $this->applyPartialUpdates($node['left'], $leftUpdates);
+        $rightResult = $this->applyPartialUpdates($node['right'], $rightUpdates);
+        $bubble = $leftResult['bubble'] || $rightResult['bubble'];
+
+        if ($bubble) {
+            if ($leftResult['node']['type'] === 'witness' || $rightResult['node']['type'] === 'witness') {
+                throw new \RuntimeException("can't bubble a witness node");
+            }
+            if ($leftResult['node']['type'] === 'empty' && $rightResult['node']['type'] === 'empty') {
+                return [
+                    'node' => $this->emptyPartialNode($node['depth']),
+                    'bubble' => true,
+                ];
+            }
+            if ($this->isPartialLeaf($leftResult['node']) && $rightResult['node']['type'] === 'empty') {
+                return [
+                    'node' => $leftResult['node'],
+                    'bubble' => true,
+                ];
+            }
+            if ($leftResult['node']['type'] === 'empty' && $this->isPartialLeaf($rightResult['node'])) {
+                return [
+                    'node' => $rightResult['node'],
+                    'bubble' => true,
+                ];
+            }
+        }
+
+        return [
+            'node' => $this->branchPartialNode($node['depth'], $leftResult['node'], $rightResult['node']),
+            'bubble' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, array{delete: bool, value: string}> $updates
+     *
+     * @return array{node: array<string, mixed>, bubble: bool}
+     */
+    private function applyPartialLeafUpdates(array $node, array $updates): array
+    {
+        $nodeKeyHash = $node['keyHash'];
+
+        if (count($updates) === 1 && array_key_exists($nodeKeyHash, $updates)) {
+            $update = $updates[$nodeKeyHash];
+            if ($update['delete']) {
+                return [
+                    'node' => $this->emptyPartialNode($node['depth']),
+                    'bubble' => true,
+                ];
+            }
+
+            if ($node['type'] === 'leaf' && $node['value'] === $update['value']) {
+                return ['node' => $node, 'bubble' => false];
+            }
+
+            return [
+                'node' => $this->leafPartialNode($nodeKeyHash, $update['value'], $node['depth']),
+                'bubble' => false,
+            ];
+        }
+
+        $nextUpdates = $updates;
+        $deleteThisLeaf = false;
+        foreach ($nextUpdates as $keyHashHex => $update) {
+            if (!$update['delete']) {
+                continue;
+            }
+
+            if ($keyHashHex === $nodeKeyHash) {
+                $deleteThisLeaf = true;
+            }
+            unset($nextUpdates[$keyHashHex]);
+        }
+
+        if ($nextUpdates === []) {
+            if ($deleteThisLeaf) {
+                return [
+                    'node' => $this->emptyPartialNode($node['depth']),
+                    'bubble' => true,
+                ];
+            }
+
+            return ['node' => $node, 'bubble' => false];
+        }
+
+        if (!$deleteThisLeaf && !array_key_exists($nodeKeyHash, $nextUpdates)) {
+            $nextUpdates[$nodeKeyHash] = [
+                'delete' => false,
+                'value' => $node,
+            ];
+        }
+        ksort($nextUpdates, SORT_STRING);
+
+        return [
+            'node' => $this->buildPartialNodeFromUpdates($nextUpdates, $node['depth']),
+            'bubble' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, array{delete: bool, value: string|array<string, mixed>}> $updates
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPartialNodeFromUpdates(array $updates, int $depth): array
+    {
+        if ($updates === []) {
+            return $this->emptyPartialNode($depth);
+        }
+
+        if (count($updates) === 1) {
+            $keyHashHex = array_key_first($updates);
+            $update = $updates[$keyHashHex];
+            if (is_array($update['value'])) {
+                return $update['value'];
+            }
+
+            return $this->leafPartialNode($keyHashHex, $update['value'], $depth);
+        }
+
+        if ($depth > 255) {
+            throw new \RuntimeException('Sparse tree key collision exceeded 256 bits');
+        }
+
+        $leftUpdates = [];
+        $rightUpdates = [];
+        foreach ($updates as $keyHashHex => $update) {
+            if ($this->hashTree->bitAt($keyHashHex, $depth) === 0) {
+                $leftUpdates[$keyHashHex] = $update;
+            } else {
+                $rightUpdates[$keyHashHex] = $update;
+            }
+        }
+
+        return $this->branchPartialNode(
+            $depth,
+            $this->buildPartialNodeFromUpdates($leftUpdates, $depth + 1),
+            $this->buildPartialNodeFromUpdates($rightUpdates, $depth + 1)
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function leafPartialNode(string $keyHashHex, string $value, int $depth): array
+    {
+        self::assertHash($keyHashHex);
+
+        return [
+            'type' => 'leaf',
+            'depth' => $depth,
+            'keyHash' => $keyHashHex,
+            'value' => $value,
+            'hash' => $this->hashTree->leafHashForKeyHash($keyHashHex, $value),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyPartialNode(int $depth): array
+    {
+        return [
+            'type' => 'empty',
+            'depth' => $depth,
+            'hash' => HashTree::EMPTY_HASH,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     *
+     * @return array<string, mixed>
+     */
+    private function branchPartialNode(int $depth, array $left, array $right): array
+    {
+        return [
+            'type' => 'branch',
+            'depth' => $depth,
+            'left' => $left,
+            'right' => $right,
+            'hash' => $this->hashTree->branchHash($left['hash'], $right['hash']),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isPartialLeaf(array $node): bool
+    {
+        return $node['type'] === 'leaf' || $node['type'] === 'witnessLeaf';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function importProofRoot(Proof $proof, HashTree $hashTree, int $expectedDepth = 0): array
+    {
+        $accums = [];
+
+        foreach ($proof->strands as $index => $strand) {
+            self::assertHash($strand->keyHash);
+            $next = $index + 1;
+
+            if ($strand->type === ProofStrand::LEAF) {
+                $node = [
+                    'type' => 'leaf',
+                    'depth' => $strand->depth,
+                    'keyHash' => $strand->keyHash,
+                    'value' => $strand->value,
+                    'hash' => $hashTree->leafHashForKeyHash($strand->keyHash, $strand->value),
+                ];
+            } elseif ($strand->type === ProofStrand::WITNESS_LEAF) {
+                self::assertHash($strand->value);
+                $node = [
+                    'type' => 'witnessLeaf',
+                    'depth' => $strand->depth,
+                    'keyHash' => $strand->keyHash,
+                    'valueHash' => $strand->value,
+                    'hash' => $hashTree->leafHashForKeyHashAndValueHash($strand->keyHash, $strand->value),
+                ];
+            } elseif ($strand->type === ProofStrand::WITNESS_EMPTY) {
+                $node = [
+                    'type' => 'empty',
+                    'depth' => $strand->depth,
+                    'keyHash' => $strand->keyHash,
+                    'hash' => HashTree::EMPTY_HASH,
+                ];
+            } elseif ($strand->type === ProofStrand::WITNESS) {
+                self::assertHash($strand->value);
+                $node = [
+                    'type' => 'witness',
+                    'depth' => $strand->depth,
+                    'keyHash' => $strand->keyHash,
+                    'hash' => $strand->value,
+                ];
+            } else {
+                throw new \RuntimeException('unrecognized ProofItem type: ' . $strand->type);
+            }
+
+            $accums[] = [
+                'depth' => $strand->depth,
+                'node' => $node,
+                'next' => $next,
+                'keyHash' => $strand->keyHash,
+                'merged' => false,
+            ];
+        }
+
+        if ($accums === []) {
+            throw new \RuntimeException('empty proof');
+        }
+        $accums[array_key_last($accums)]['next'] = -1;
+
+        foreach ($proof->commands as $command) {
+            if ($command->nodeOffset >= count($proof->strands)) {
+                throw new \RuntimeException('nodeOffset in cmd is out of range');
+            }
+
+            if ($accums[$command->nodeOffset]['merged']) {
+                throw new \RuntimeException('strand already merged');
+            }
+            if ($accums[$command->nodeOffset]['depth'] === 0) {
+                throw new \RuntimeException('node depth underflow');
+            }
+
+            $accum = &$accums[$command->nodeOffset];
+
+            if ($command->operation === ProofCommand::HASH_PROVIDED) {
+                self::assertHash($command->hash);
+                $sibling = [
+                    'type' => 'witness',
+                    'depth' => $accum['depth'],
+                    'hash' => $command->hash,
+                ];
+            } elseif ($command->operation === ProofCommand::HASH_EMPTY) {
+                $sibling = [
+                    'type' => 'empty',
+                    'depth' => $accum['depth'],
+                    'hash' => HashTree::EMPTY_HASH,
+                ];
+            } elseif ($command->operation === ProofCommand::MERGE) {
+                if ($accum['next'] < 0) {
+                    throw new \RuntimeException('no nodes left to merge with');
+                }
+
+                $nextIndex = $accum['next'];
+                if ($accum['depth'] !== $accums[$nextIndex]['depth']) {
+                    throw new \RuntimeException('merge depth mismatch');
+                }
+
+                $accum['next'] = $accums[$nextIndex]['next'];
+                $accums[$nextIndex]['merged'] = true;
+                $sibling = $accums[$nextIndex]['node'];
+            } else {
+                throw new \RuntimeException('unrecognized ProofCmd op: ' . $command->operation);
+            }
+
+            $accumNode = $accum['node'];
+            if ($command->operation === ProofCommand::MERGE || $hashTree->bitAt($accum['keyHash'], $accum['depth'] - 1) === 0) {
+                $left = $accumNode;
+                $right = $sibling;
+            } else {
+                $left = $sibling;
+                $right = $accumNode;
+            }
+
+            $accum['depth']--;
+            $accum['node'] = [
+                'type' => 'branch',
+                'depth' => $accum['depth'],
+                'left' => $left,
+                'right' => $right,
+                'hash' => $hashTree->branchHash($left['hash'], $right['hash']),
+            ];
+
+            unset($accum);
+        }
+
+        if ($accums[0]['next'] !== -1) {
+            throw new \RuntimeException('not all proof strands were merged');
+        }
+        if ($accums[0]['depth'] !== $expectedDepth) {
+            throw new \RuntimeException("proof didn't reach expected depth");
+        }
+
+        return $accums[0]['node'];
     }
 
     /**

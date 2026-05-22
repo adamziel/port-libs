@@ -10,20 +10,20 @@
         "architecture": "Header-only C++ sparse binary Merkle tree, compact proofs, sync, copy-on-write LMDB-backed store, MemStore, and quadb CLI."
     },
     "benchmarkDenominator": {
-        "status": "static-upstream-inventory",
-        "total": "34 top-level check.cpp scenarios; 29 equivHeads subcases; 136 verify checks; 20 verifyThrow checks",
-        "mapped": 15,
-        "source": "Static inventory of upstream check.cpp and Makefile at commit 4f44437dc9b951a91986ad69e2856938387be614.",
+        "status": "cloned-static-upstream-inventory",
+        "total": "55 tracked upstream paths; check.cpp has 34 top-level scenarios, 29 equivHeads subcases, 136 verify checks, and 20 verifyThrow checks; focused markers include 10 proof/range scenarios, 5 iterator-touching scenarios, and 1 sync fuzz scenario",
+        "mapped": 24,
+        "source": "Local cloned upstream inventory of check.cpp, Makefile, include/quadrable headers, docs, and submodule gitlinks at commit 4f44437dc9b951a91986ad69e2856938387be614.",
         "runner": "make test",
-        "runnerStatus": "not executed in this lane slice; upstream runner requires LMDB, BLAKE2, and initialized submodules",
+        "runnerStatus": "attempted 2026-05-22: make test fails immediately with `make: g++: No such file or directory`; c++/g++/clang++ are absent, upstream submodules external/docopt.cpp, external/hoytech-cpp, and external/lmdbxx are uninitialized gitlinks, and LMDB/BLAKE2 headers/libs are not present under /usr/include",
         "inventoryPath": "lanes/quadrable/notes/upstream-inventory.md",
-        "warning": "The denominator is now counted from upstream sources, but parity is still partial. Native PHP tests map hashing/key behavior and focused in-memory sparse tree update/get/delete scenarios."
+        "warning": "The denominator is counted from cloned upstream sources, but parity is still partial. Native PHP tests map hashing/key behavior, focused in-memory sparse tree update/get/delete scenarios, iterator lower/upper-bound windows, compact proof encoding/decoding, selected proof import/export, integer proof sizing, and range proofs. PHP roots/proofs currently use the lane HashTree SHA-256 surrogate because this PHP build lacks BLAKE2s."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, and delete bubbling equivalence."
+        "currentSlice": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, delete bubbling equivalence, raw-key iterator windows, compact proof transport encoding/decoding, selected proof import/export, proof-size checks, and raw-key range proofs."
     },
-    "wordpressScenario": "Authenticated local-first state sync for Playground snapshots and content databases; current fixture maps ordered WordPress option/post records through raw integer keys.",
-    "nextTask": "Port iterator windows or compact proof export/import for selected check.cpp proof and range scenarios."
+    "wordpressScenario": "Authenticated local-first state sync for Playground snapshots and content databases; current fixtures/examples map ordered WordPress option/post records through raw integer keys, iterator windows, and compact authenticated range proofs.",
+    "nextTask": "Port proof-backed update/merge semantics from the upstream update proof scenarios, including witness-leaf mutation guards and partial-tree mergeProof expansion."
 }

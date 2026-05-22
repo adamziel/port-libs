@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "quadrable",
-    "estimatedProgress": 5,
-    "suiteProgress": "static upstream check.cpp inventory counted; 15 PHP tests mapped to hashing/key plus in-memory sparse tree update behavior",
-    "phpPass": 15,
+    "estimatedProgress": 8,
+    "suiteProgress": "cloned static upstream inventory counted; 24 PHP tests mapped to hashing/key, in-memory sparse tree updates, raw-key iterator windows, compact proof transport, selected proof import/export, integer proof sizing, and range proofs",
+    "phpPass": 24,
     "phpFail": 0,
-    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases; current fixture maps ordered WordPress option/post records through raw integer keys.",
-    "phase": "upstream inventory plus key primitive and in-memory sparse tree slices",
+    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases; current fixtures/examples map ordered WordPress option/post records through raw integer keys, iterator windows, and compact authenticated range proofs.",
+    "phase": "cloned inventory plus key, sparse tree, iterator window, and compact proof/range slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, and delete bubbling equivalence.",
-    "blocker": "C++ runner not executed yet; upstream build requires LMDB, BLAKE2, and initialized submodules. Most tree/proof/sync scenarios remain unported.",
-    "latestCommit": "1241807",
-    "nextTask": "Port iterator windows or compact proof export/import for selected check.cpp proof and range scenarios."
+    "currentWork": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, delete bubbling equivalence, raw-key iterator lower/upper-bound windows, compact proof encode/decode, selected proof import/export, integer proof sizing, and raw-key range proofs.",
+    "blocker": "C++ runner attempted 2026-05-22 but `make test` fails immediately because g++ is missing; c++/g++/clang++ are absent, upstream submodules are uninitialized gitlinks, and LMDB/BLAKE2 headers/libs are absent. PHP HashTree still uses a SHA-256 surrogate because this PHP build lacks BLAKE2s, so roots/proof bytes are not digest-compatible with upstream yet. Proof-backed updates/mergeProof/sync and persisted LMDB node-id behavior remain unported.",
+    "latestCommit": "uncommitted",
+    "nextTask": "Port proof-backed update/merge semantics from upstream update proof scenarios, including witness-leaf mutation guards and partial-tree mergeProof expansion."
 }
