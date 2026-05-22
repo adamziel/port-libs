@@ -952,7 +952,7 @@ final class MarkdownReader
             return null;
         }
 
-        $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'p');
+        $collected = $this->collectHtmlParagraphBlock($lines, $index);
         if ($collected === null) {
             return null;
         }
@@ -966,6 +966,42 @@ final class MarkdownReader
         $index = $endIndex;
 
         return $paragraph;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectHtmlParagraphBlock(array $lines, int $index): ?array
+    {
+        $content = [];
+        $count = count($lines);
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && $this->htmlLineStartsImplicitParagraphClose($line)) {
+                return [implode("\n", $content), $cursor - 1];
+            }
+
+            $content[] = $line;
+            if (preg_match('/<\/p\s*>/i', $line) === 1) {
+                return [implode("\n", $content), $cursor];
+            }
+        }
+
+        if ($content === []) {
+            return null;
+        }
+
+        return [implode("\n", $content), $count - 1];
+    }
+
+    private function htmlLineStartsImplicitParagraphClose(string $line): bool
+    {
+        return preg_match(
+            '/^ {0,3}<(?:p|h[1-6]|ul|ol|dl|blockquote|pre|table|div|hr)\b/i',
+            $line
+        ) === 1;
     }
 
     /**

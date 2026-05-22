@@ -1579,6 +1579,40 @@ HTML);
         $t->contains('<h2 id="definition">Definition</h2>', $blocks);
         $t->contains('<dl><dt>Violin</dt><dd>Stringed musical instrument.</dd><dd>Torture device.</dd><dt>Cello<br/>Violoncello</dt><dd>Low-voiced stringed instrument.</dd></dl>', $blocks);
     },
+    'maps upstream html reader inline markup empty emphasis and emphasized links' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<h1>Inline Markup</h1>
+<p>This is <em>emphasized</em>, and so <em>is this</em>.</p>
+<p>This is <strong>strong</strong>, and so <strong>is this</strong>.</p>
+<p>Empty <strong></strong> and <em></em>.
+<p>An <em><a href="/url">emphasized link</a></em>.</p>
+HTML);
+        $heading = $document->children[0];
+        $emphasis = $document->children[1];
+        $strong = $document->children[2];
+        $empty = $document->children[3];
+        $linked = $document->children[4];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(5, count($document->children));
+        $t->same('heading', $heading->type);
+        $t->same('inline-markup', $heading->attr('id'));
+        $t->same(['text', 'emph', 'text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $emphasis->children));
+        $t->same('emphasized', $emphasis->children[1]->children[0]->attr('text'));
+        $t->same('is this', $emphasis->children[3]->children[0]->attr('text'));
+        $t->same(['text', 'strong', 'text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $strong->children));
+        $t->same('strong', $strong->children[1]->children[0]->attr('text'));
+        $t->same('is this', $strong->children[3]->children[0]->attr('text'));
+        $t->same(['text', 'strong', 'text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $empty->children));
+        $t->same(0, count($empty->children[1]->children));
+        $t->same(0, count($empty->children[3]->children));
+        $t->same(['text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $linked->children));
+        $t->same('link', $linked->children[1]->children[0]->type);
+        $t->same('/url', $linked->children[1]->children[0]->attr('url'));
+        $t->same('emphasized link', $linked->children[1]->children[0]->children[0]->attr('text'));
+        $t->contains('<p>Empty <strong></strong> and <em></em>.</p>', $blocks);
+        $t->contains('<p>An <em><a href="/url">emphasized link</a></em>.</p>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -3142,6 +3176,35 @@ XML;
         $t->same('linebreak', $htmlDefinitionList->children[1]->children[0]->children[1]->type);
         $t->contains('<p>HTML reader definition import:</p>', $blocks);
         $t->contains('<dl><dt>Migration glossary</dt><dd>Source term list.</dd><dd>Reviewer FAQ entry.</dd><dt>Reusable block<br/>Synced pattern</dt><dd>Shared block-era naming stays linked.</dd></dl>', $blocks);
+    },
+    'writes wordpress html reader empty emphasis and emphasized link imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $emptyMarkup = null;
+        $emphasizedLink = null;
+        foreach ($document->children as $node) {
+            if ($node->type !== 'paragraph') {
+                continue;
+            }
+            if (str_contains((string) $node->attr('text', ''), 'Empty importer marks')) {
+                $emptyMarkup = $node;
+            }
+            if (str_contains((string) $node->attr('text', ''), 'emphasized edit link')) {
+                $emphasizedLink = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($emptyMarkup !== null, 'HTML reader empty strong/emphasis paragraph should stay on the native path');
+        $t->true($emphasizedLink !== null, 'HTML reader emphasized link paragraph should not be swallowed by implicit paragraph close handling');
+        $t->same(['text', 'strong', 'text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $emptyMarkup->children));
+        $t->same(0, count($emptyMarkup->children[1]->children));
+        $t->same(0, count($emptyMarkup->children[3]->children));
+        $t->same('emph', $emphasizedLink->children[1]->type);
+        $t->same('link', $emphasizedLink->children[1]->children[0]->type);
+        $t->same('/wp-admin/post.php?post=42&action=edit', $emphasizedLink->children[1]->children[0]->attr('url'));
+        $t->contains('<p>Empty importer marks <strong></strong> and <em></em>.</p>', $blocks);
+        $t->contains('<p>An <em><a href="/wp-admin/post.php?post=42&amp;action=edit">emphasized edit link</a></em> stays attached to review copy.</p>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

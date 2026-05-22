@@ -180,6 +180,11 @@ HTML reader definition import:
 <dd>Shared block-era naming stays linked.</dd>
 </dl>
 
+HTML reader inline markup import:
+
+<p>Empty importer marks <strong></strong> and <em></em>.
+<p>An <em><a href="/wp-admin/post.php?post=42&action=edit">emphasized edit link</a></em> stays attached to review copy.</p>
+
 Empty import audit table:
 
 <table>

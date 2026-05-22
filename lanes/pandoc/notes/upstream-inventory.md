@@ -199,6 +199,16 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   three definition bodies, and a `LineBreak` between the consecutive
   `Cello`/`Violoncello` terms. The bounded PHP mapping now preserves that term
   grouping and emits WordPress-safe `<dl>` output.
+- `test/html-reader.html` initial Inline Markup slice inspected in this run:
+  upstream lines 313-317 cover the `Inline Markup` heading, two emphasis nodes,
+  two strong nodes, an implicitly closed paragraph with empty `<strong>` and
+  `<em>` nodes, and an emphasized link paragraph immediately after it.
+- `test/html-reader.native` initial Inline Markup rendered native AST slice
+  inspected in this run: upstream lines 792-846 show the `inline-markup`
+  header, two `Emph` nodes, two non-empty `Strong` nodes, empty `Strong []` and
+  `Emph []` nodes, and an `Emph [ Link ... ]` shape. The bounded PHP mapping
+  now preserves those nodes and handles the implicit paragraph close without
+  swallowing the following emphasized-link paragraph.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header

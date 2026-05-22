@@ -129,6 +129,11 @@ nested `<ul>` audit checklists stay tight when they only contain text plus a
 nested list, paragraph-bearing source queues stay loose, and nested decimal,
 roman, and alphabetic ordered-list styles render with WordPress-safe
 `start`/`type` attributes.
+The initial HTML-reader Inline Markup slice is now represented too: ordinary
+HTML `<em>` and `<strong>` spans stay semantic, empty strong/emphasis markers
+are preserved as empty inline nodes, emphasized links stay nested under the
+emphasis node, and the upstream implicit paragraph close before a following
+`<p>` no longer swallows the next paragraph.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -266,6 +271,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   glossary/FAQ `<dl>` content with multiple definitions and consecutive term
   aliases that need to stay grouped in WordPress output without shelling out to
   Pandoc.
+- The fixture now includes an HTML reader inline-markup import, exercising
+  empty strong/emphasis markers and an emphasized WordPress edit link after an
+  implicitly closed paragraph without shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -340,6 +348,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - HTML reader definition lists render as WordPress-safe glossary/FAQ `<dl>`
   markup while preserving consecutive `<dt>` aliases and multiple `<dd>` bodies
   without invoking Pandoc.
+- HTML reader inline emphasis/strong markup renders as normal WordPress inline
+  HTML, preserving empty source markers and emphasized edit links without
+  invoking Pandoc.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -392,6 +403,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader inline-markup slice from
-`test/html-reader.html/native`, starting with the empty strong/emphasis and
-emphasized-link paragraphs immediately after the `Definition` section.
+Map the remaining bounded HTML-reader Inline Markup slice from
+`test/html-reader.html/native`, starting with the nested strong-emphasis
+paragraphs and HTML code-span paragraph after the emphasized-link case.
