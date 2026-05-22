@@ -156,6 +156,91 @@ return [
         $t->same("Dashes between numbers: 5\u{2013}7, 255\u{2013}66, 1987\u{2013}1999.", $document->children[1]->children[0]->attr('text'));
         $t->same("Ellipses\u{2026}and\u{2026}and\u{2026}.", $document->children[2]->children[0]->attr('text'));
     },
+    'maps upstream testsuite latex raw inline and math list items' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '- \cite[22-23]{smith.1899}',
+            '- $2+2=4$',
+            '- $x \in y$',
+            '- $\alpha \wedge \omega$',
+            '- $223$ ',
+            '- $p$-Tree',
+            '- Here\'s some display math:',
+            '  $$\frac{d}{dx}f(x)=\lim_{h\to 0}\frac{f(x+h)-f(x)}{h}$$',
+            '- Here\'s one that has a line break in it:  $\alpha + \omega \times x^2$.  ',
+        ]));
+        $list = $document->children[0];
+
+        $t->same('bullet_list', $list->type);
+        $t->same('raw_tex', $list->children[0]->children[0]->type);
+        $t->same('\cite[22-23]{smith.1899}', $list->children[0]->children[0]->attr('tex'));
+        $t->same('math', $list->children[1]->children[0]->type);
+        $t->same('2+2=4', $list->children[1]->children[0]->attr('text'));
+        $t->same(false, $list->children[1]->children[0]->attr('display'));
+        $t->same('x \in y', $list->children[2]->children[0]->attr('text'));
+        $t->same('\alpha \wedge \omega', $list->children[3]->children[0]->attr('text'));
+        $t->same('223', $list->children[4]->children[0]->attr('text'));
+        $t->same('math', $list->children[5]->children[0]->type);
+        $t->same('p', $list->children[5]->children[0]->attr('text'));
+        $t->same('-Tree', $list->children[5]->children[1]->attr('text'));
+        $t->same('math', $list->children[6]->children[1]->type);
+        $t->same(true, $list->children[6]->children[1]->attr('display'));
+        $t->same('\frac{d}{dx}f(x)=\lim_{h\to 0}\frac{f(x+h)-f(x)}{h}', $list->children[6]->children[1]->attr('text'));
+        $t->same('\alpha + \omega \times x^2', $list->children[7]->children[1]->attr('text'));
+        $t->same('.', $list->children[7]->children[2]->attr('text'));
+    },
+    'keeps upstream testsuite non math dollar examples as text' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '- To get the famous equation, write `$e = mc^2$`.',
+            '- $22,000 is a *lot* of money.  So is $34,000.',
+            '  (It worked if "lot" is emphasized.)',
+            '- Shoes ($20) and socks ($5).',
+            '- Escaped `$`:  $73 *this should be emphasized* 23\$.',
+        ]));
+        $list = $document->children[0];
+        $codeItem = $list->children[0];
+        $moneyItem = $list->children[1];
+        $escapedItem = $list->children[3];
+        $moneyTypes = array_map(static fn ($node): string => $node->type, $moneyItem->children);
+
+        $t->same('code', $codeItem->children[1]->type);
+        $t->same('$e = mc^2$', $codeItem->children[1]->attr('text'));
+        $t->same(false, in_array('math', $moneyTypes, true));
+        $t->same('emph', $moneyItem->children[1]->type);
+        $t->same('lot', $moneyItem->children[1]->children[0]->attr('text'));
+        $t->same('Shoes ($20) and socks ($5).', $list->children[2]->children[0]->attr('text'));
+        $t->same('code', $escapedItem->children[1]->type);
+        $t->same('$', $escapedItem->children[1]->attr('text'));
+        $t->same(' 23$.', $escapedItem->children[4]->attr('text'));
+    },
+    'maps upstream markdown apostrophe after math' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("The value of the \$x\$'s and the systems' condition.");
+        $paragraph = $document->children[0];
+
+        $t->same('math', $paragraph->children[1]->type);
+        $t->same('x', $paragraph->children[1]->attr('text'));
+        $t->same("\u{2019}s and the systems\u{2019} condition.", $paragraph->children[2]->attr('text'));
+    },
+    'maps upstream testsuite latex tabular block as raw tex' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Here\'s a LaTeX table:',
+            '',
+            '\begin{tabular}{|l|l|}\hline',
+            'Animal & Number \\\\ \hline',
+            'Dog    & 2      \\\\',
+            'Cat    & 1      \\\\ \hline',
+            '\end{tabular}',
+            '',
+            '* * * * *',
+        ]));
+        $table = $document->children[1];
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('raw_tex', $table->type);
+        $t->same('tabular', $table->attr('environment'));
+        $t->contains('\begin{tabular}{|l|l|}\hline', $table->attr('tex'));
+        $t->contains('Cat    & 1      \\\\ \hline', $table->attr('tex'));
+        $t->same('horizontal_rule', $document->children[2]->type);
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -724,6 +809,16 @@ return [
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains("<p>Migration editor said, \u{201C}Don\u{2019}t flatten \u{2018}legacy\u{2019} captions\u{2026}\u{201D} Keep dates 1987\u{2013}1999 and one\u{2014}two review notes.</p>", $blocks);
+    },
+    'writes wordpress math and raw tex preservation markup from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<span class="math inline">\(x \in y\)</span>', $blocks);
+        $t->contains('<span class="pandoc-raw-tex">\cite[22-23]{smith.1899}</span>', $blocks);
+        $t->contains('<span class="math display">\[\alpha + \omega \times x^2\]</span>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-tex">\begin{tabular}{|l|l|}\hline', $blocks);
+        $t->contains('Field &amp; Value \\\\ \hline', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

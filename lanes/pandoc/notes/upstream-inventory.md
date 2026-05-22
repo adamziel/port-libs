@@ -45,8 +45,15 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` Smart quotes, ellipses, dashes rendered native AST
   slice inspected in this run: 154 lines, including 14 `Quoted` markers plus
   smart apostrophe, em-dash, en-dash, and ellipsis code points in `Str` nodes
+- `test/testsuite.txt` LaTeX section slice inspected in this run: 30 Markdown
+  lines through the start of `# Special Characters`
+- `test/testsuite.native` LaTeX rendered native AST slice inspected in this
+  run: 152 lines, including 6 `InlineMath` markers, 1 `DisplayMath` marker,
+  1 TeX `RawInline`, and 1 TeX `RawBlock`
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
+- `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
+  case, now mapped by a PHP test
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
   checks covering parenthesized decimal starts, lower/upper roman numerals,
   upper/lower alphabetic markers, and Pandoc autonumbering
@@ -153,12 +160,22 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   code, quoted one-line reference links resolve through collected definitions,
   `---` becomes an em dash, numeric `--` ranges become en dashes, and `...`
   becomes an ellipsis while preserving a fourth trailing dot.
+- LaTeX cases from the `# LaTeX` section of `test/testsuite.txt`,
+  cross-checked against `test/testsuite.native`: raw TeX citation commands
+  become `raw_tex` inline nodes, `$...$` spans become inline `math` nodes,
+  `$$...$$` spans become display `math` nodes, `$p$-Tree` keeps the trailing
+  word text outside math, currency-like dollar examples and escaped dollars stay
+  non-math text, and `\begin{tabular}` through the matching `\end{tabular}`
+  becomes a raw TeX block.
+- The `Tests.Readers.Markdown` apostrophe-after-math regression is mapped:
+  `$x$'s` parses as inline math followed by a right apostrophe text node, and
+  the trailing possessive apostrophe in `systems' condition` normalizes to
+  Pandoc's right single quotation mark.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-56 tests, 301 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 85 test files, 5,757 assertions, and
-0 failures after this smart-punctuation lane batch in the shared dirty
-worktree.
+61 tests, 341 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 89 test files, 6,056 assertions, and
+0 failures after this LaTeX lane batch in the shared dirty worktree.

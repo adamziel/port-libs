@@ -43,6 +43,11 @@ final class MarkdownReader
                 $blocks[] = $rawHtmlBlock;
                 continue;
             }
+            $rawTexBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawTexBlock($lines, $index) : null;
+            if ($rawTexBlock !== null) {
+                $blocks[] = $rawTexBlock;
+                continue;
+            }
             if ($this->isHorizontalRule($line)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -362,6 +367,38 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadRawTexBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}\\\\begin\{([^}\s]+)\}/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $environment = $m[1];
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        $closingPattern = '/\\\\end\{' . preg_quote($environment, '/') . '\}/';
+
+        while ($cursor < $count) {
+            $content[] = rtrim($lines[$cursor]);
+            if (preg_match($closingPattern, $lines[$cursor]) === 1) {
+                $index = $cursor;
+
+                return new AstNode('raw_tex', [
+                    'tex' => implode("\n", $content),
+                    'environment' => $environment,
+                ]);
+            }
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function readHtmlCommentBlock(array $lines, int &$index): AstNode
     {
         $content = [];
@@ -435,6 +472,8 @@ final class MarkdownReader
                 'superscript' => '<sup>' . $this->renderInlineHtml($node->children) . '</sup>',
                 'subscript' => '<sub>' . $this->renderInlineHtml($node->children) . '</sub>',
                 'quoted' => $this->renderQuotedInlineHtml($node),
+                'math' => $this->renderMathInlineHtml($node),
+                'raw_tex' => '<span class="pandoc-raw-tex">' . $this->escapeHtml((string) $node->attr('tex', '')) . '</span>',
                 'code' => '<code>' . $this->escapeHtml((string) $node->attr('text', '')) . '</code>',
                 'link' => '<a href="' . $this->escapeHtml((string) $node->attr('url', '')) . '">'
                     . $this->renderInlineHtml($node->children) . '</a>',
@@ -443,6 +482,17 @@ final class MarkdownReader
         }
 
         return $html;
+    }
+
+    private function renderMathInlineHtml(AstNode $node): string
+    {
+        $open = $node->attr('display') === true ? '\\[' : '\\(';
+        $close = $node->attr('display') === true ? '\\]' : '\\)';
+        $class = $node->attr('display') === true ? 'display' : 'inline';
+
+        return '<span class="math ' . $class . '">'
+            . $this->escapeHtml($open . (string) $node->attr('text', '') . $close)
+            . '</span>';
     }
 
     private function renderQuotedInlineHtml(AstNode $node): string
@@ -1416,6 +1466,22 @@ final class MarkdownReader
                 }
             }
 
+            $math = $this->tryParseMath($text, $offset);
+            if ($math !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $math['node'];
+                $offset = $math['next'];
+                continue;
+            }
+
+            $rawTex = $this->tryParseRawTexInline($text, $offset);
+            if ($rawTex !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $rawTex['node'];
+                $offset = $rawTex['next'];
+                continue;
+            }
+
             $strikeout = $this->tryParseStrikeout($text, $offset);
             if ($strikeout !== null) {
                 $this->flushText($buffer, $nodes);
@@ -1481,6 +1547,13 @@ final class MarkdownReader
                 continue;
             }
 
+            $escaped = $this->tryReadBackslashEscape($text, $offset);
+            if ($escaped !== null) {
+                $buffer .= $escaped['text'];
+                $offset = $escaped['next'];
+                continue;
+            }
+
             $buffer .= $text[$offset];
             $offset++;
         }
@@ -1488,6 +1561,116 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseMath(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (substr($text, $offset, 2) === '$$') {
+            $end = $this->findClosingDisplayMath($text, $offset + 2);
+            if ($end === null || $end === $offset + 2) {
+                return null;
+            }
+
+            return [
+                'node' => new AstNode('math', [
+                    'text' => trim(substr($text, $offset + 2, $end - $offset - 2)),
+                    'display' => true,
+                ]),
+                'next' => $end + 2,
+            ];
+        }
+
+        $next = $text[$offset + 1] ?? '';
+        if ($next === '' || ctype_space($next)) {
+            return null;
+        }
+
+        $end = $this->findClosingInlineMath($text, $offset + 1);
+        if ($end === null || $end === $offset + 1) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('math', [
+                'text' => trim(substr($text, $offset + 1, $end - $offset - 1)),
+                'display' => false,
+            ]),
+            'next' => $end + 1,
+        ];
+    }
+
+    private function findClosingDisplayMath(string $text, int $offset): ?int
+    {
+        $position = strpos($text, '$$', $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, '$$', $position + 2);
+        }
+
+        return null;
+    }
+
+    private function findClosingInlineMath(string $text, int $offset): ?int
+    {
+        $position = strpos($text, '$', $offset);
+        while ($position !== false) {
+            if (
+                substr($text, $position, 2) !== '$$'
+                && !$this->isEscapedInlinePosition($text, $position)
+                && !$this->isInvalidClosingInlineMathDollar($text, $position)
+            ) {
+                return $position;
+            }
+
+            $position = strpos($text, '$', $position + 1);
+        }
+
+        return null;
+    }
+
+    private function isInvalidClosingInlineMathDollar(string $text, int $offset): bool
+    {
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        $next = $text[$offset + 1] ?? '';
+
+        return $previous === '' || ctype_space($previous) || ctype_digit($next);
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseRawTexInline(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (
+            preg_match(
+                '/\G\\\\([A-Za-z]+)(?:\[[^\]\r\n]*\])?(?:\{[^{}\r\n]*\})+/',
+                $text,
+                $m,
+                0,
+                $offset
+            ) !== 1
+        ) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+            'next' => $offset + strlen($m[0]),
+        ];
     }
 
     /**
@@ -1584,19 +1767,51 @@ final class MarkdownReader
             return ['text' => "\u{2013}", 'next' => $offset + 2];
         }
 
-        if (($text[$offset] ?? '') === "'" && $this->isApostrophe($text, $offset)) {
+        if (($text[$offset] ?? '') === "'" && $this->isRightSingleQuoteReplacement($text, $offset)) {
             return ['text' => "\u{2019}", 'next' => $offset + 1];
         }
 
         return null;
     }
 
+    private function isRightSingleQuoteReplacement(string $text, int $offset): bool
+    {
+        if ($this->isApostrophe($text, $offset)) {
+            return true;
+        }
+
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        $next = $text[$offset + 1] ?? '';
+
+        return $this->isAsciiAlnum($previous) && !$this->isAsciiAlnum($next);
+    }
+
     private function isApostrophe(string $text, int $offset): bool
     {
         $previous = $offset > 0 ? $text[$offset - 1] : '';
         $next = $text[$offset + 1] ?? '';
+        if ($previous === '$' && $offset > 1 && $this->isAsciiAlnum($text[$offset - 2])) {
+            $previous = $text[$offset - 2];
+        }
 
         return $this->isAsciiAlnum($previous) && $this->isAsciiAlnum($next);
+    }
+
+    /**
+     * @return array{text:string, next:int}|null
+     */
+    private function tryReadBackslashEscape(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $next = $text[$offset + 1] ?? '';
+        if ($next === '' || preg_match('/[A-Za-z0-9\s]/', $next) === 1) {
+            return null;
+        }
+
+        return ['text' => $next, 'next' => $offset + 2];
     }
 
     /**

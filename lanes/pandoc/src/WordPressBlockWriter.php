@@ -39,6 +39,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderDefinitionList($node);
             } elseif ($node->type === 'raw_html') {
                 $blocks[] = $this->renderRawHtmlBlock($node);
+            } elseif ($node->type === 'raw_tex') {
+                $blocks[] = $this->renderRawTexBlock($node);
             } elseif ($node->type === 'code_block') {
                 $blocks[] = $this->renderCodeBlock($node);
             } elseif ($node->type === 'blockquote') {
@@ -156,6 +158,13 @@ final class WordPressBlockWriter
             . "\n" . '<!-- /wp:html -->';
     }
 
+    private function renderRawTexBlock(AstNode $node): string
+    {
+        return '<!-- wp:code -->'
+            . "\n" . $this->renderRawTexBlockHtml($node)
+            . "\n" . '<!-- /wp:code -->';
+    }
+
     private function renderDefinitionListHtml(AstNode $node): string
     {
         $html = '<dl>';
@@ -197,6 +206,13 @@ final class WordPressBlockWriter
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
 
         return '<pre class="wp-block-code"><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    private function renderRawTexBlockHtml(AstNode $node): string
+    {
+        return '<pre class="wp-block-code"><code class="language-tex">'
+            . $this->esc((string) $node->attr('tex', ''))
+            . '</code></pre>';
     }
 
     private function renderBlockQuote(AstNode $node): string
@@ -254,6 +270,10 @@ final class WordPressBlockWriter
                 $html .= (string) $child->attr('html', '');
                 continue;
             }
+            if ($child->type === 'raw_tex') {
+                $html .= $this->renderRawTexBlockHtml($child);
+                continue;
+            }
 
             $html .= $this->renderInlineNode($child);
         }
@@ -309,6 +329,10 @@ final class WordPressBlockWriter
                 $html .= (string) $block->attr('html', '');
                 continue;
             }
+            if ($block->type === 'raw_tex') {
+                $html .= $this->renderRawTexBlockHtml($block);
+                continue;
+            }
             if ($block->type === 'div') {
                 $html .= '<div>' . $this->renderBlocksAsHtml($block->children) . '</div>';
             }
@@ -341,10 +365,23 @@ final class WordPressBlockWriter
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
             'quoted' => $this->renderQuotedInline($node),
+            'math' => $this->renderMathInline($node),
+            'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
             'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
             'link' => '<a href="' . $this->esc((string) $node->attr('url', '')) . '">' . $this->renderInlines($node) . '</a>',
             default => $this->renderInlines($node),
         };
+    }
+
+    private function renderMathInline(AstNode $node): string
+    {
+        $open = $node->attr('display') === true ? '\\[' : '\\(';
+        $close = $node->attr('display') === true ? '\\]' : '\\)';
+        $class = $node->attr('display') === true ? 'display' : 'inline';
+
+        return '<span class="math ' . $class . '">'
+            . $this->esc($open . (string) $node->attr('text', '') . $close)
+            . '</span>';
     }
 
     private function renderQuotedInline(AstNode $node): string

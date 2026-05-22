@@ -8,6 +8,11 @@ Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.
 
 Migration editor said, "Don't flatten 'legacy' captions..." Keep dates 1987--1999 and one---two review notes.
 
+Migration math note: $x \in y$ and \cite[22-23]{smith.1899} stay visible for reviewer checks.
+
+Display math for import proof:
+$$\alpha + \omega \times x^2$$
+
 - Preserve editorial emphasis in imported paragraphs
 - Keep source links clickable for reviewer audits
 
@@ -60,6 +65,13 @@ Raw import table:
 <!-- Preserve migration audit marker -->
 
 <hr class="legacy-import-divider" />
+
+Raw TeX table:
+
+\begin{tabular}{|l|l|}\hline
+Field & Value \\ \hline
+Post ID & 42 \\
+\end{tabular}
 
 ```php
 do_shortcode('[legacy-gallery]');

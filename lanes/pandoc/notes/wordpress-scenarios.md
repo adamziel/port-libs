@@ -62,6 +62,11 @@ single and double quote spans render as typographic quotes, contractions and
 date possessives keep Pandoc's right-apostrophe behavior, quoted code and
 one-line reference links stay semantic, `---` becomes an em dash, numeric `--`
 ranges become en dashes, and `...` becomes an ellipsis.
+The bounded LaTeX section is now mapped for import-safe preservation: raw TeX
+citations render as escaped inline TeX spans, `$...$` and `$$...$$` math render
+as WordPress-safe math spans, currency-like dollar examples and escaped dollars
+stay plain text, and raw `tabular` blocks render as escaped TeX code blocks
+instead of shelling out to Pandoc.
 
 ## Scenario Fixture
 
@@ -74,7 +79,8 @@ ranges become en dashes, and `...` becomes an ellipsis.
   underscore-delimited reviewer emphasis, nested urgent cleanup emphasis,
   strikeout cleanup notes, superscript draft status, subscript chemical/media
   labels, smart import-editor quotes, apostrophes, ellipses, date-range en
-  dashes, em-dash review notes, and a fenced PHP migration snippet.
+  dashes, em-dash review notes, raw TeX citations, inline/display math notes,
+  a raw TeX table source block, and a fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -115,7 +121,12 @@ ranges become en dashes, and `...` becomes an ellipsis.
 - Smart quotes, apostrophes, dashes, and ellipses render as WordPress-safe
   inline text, preserving editor comments and import date ranges without
   shelling out to Pandoc.
+- Inline math, display math, raw TeX citation commands, and raw TeX table
+  source render as escaped WordPress-safe markup, preserving technical import
+  notes for later MathJax/KaTeX or citation-processing passes without shelling
+  out to Pandoc.
 
 ## Next Task
 
-Map a bounded `test/testsuite.txt` LaTeX inline math/raw TeX slice.
+Map a bounded `test/testsuite.txt` Special Characters entity/unicode/escape
+slice.
