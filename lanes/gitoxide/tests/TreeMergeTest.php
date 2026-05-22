@@ -1922,6 +1922,55 @@ return [
             $result->worktreeConflictFiles($read),
         ));
     },
+    'maps upstream gix-merge tree-baseline both-modify-file-with-binary-attr fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "not binary\n")]))]);
+        $ours = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "A binary\n")]))]);
+        $theirs = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "B binary\n")]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $a = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $x = $a->entryNamed('x.f');
+        $mergedBody = $read($x?->oid ?? '')->body;
+
+        $t->same(false, $result->isClean());
+        $t->same(['a'], $names($result->tree));
+        $t->same(['x.f'], $names($a));
+        $t->contains('<<<<<<< ours/a/x.f', $mergedBody);
+        $t->contains("A binary\n", $mergedBody);
+        $t->contains("B binary\n", $mergedBody);
+        $t->same([
+            ['path' => 'a/x.f', 'reason' => 'content-conflict', 'base' => 'x.f', 'ours' => 'x.f', 'theirs' => 'x.f'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'a/x.f', 'body' => "not binary\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a/x.f', 'body' => "A binary\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a/x.f', 'body' => "B binary\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([
+            ['path' => 'a/x.f', 'body' => $mergedBody],
+        ], array_map(
+            static fn ($file): array => ['path' => $file->path, 'body' => $file->content],
+            $result->worktreeConflictFiles($read),
+        ));
+    },
     'maps upstream gix-merge tree-baseline conflicting-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";
