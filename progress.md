@@ -227,7 +227,7 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor/session status: latest independent audit is recorded in `audits/latest.md`, did not launch agents or tmux sessions, and recorded the latest sampled `php tools/run-tests.php` as `143` test files, `12828` assertions, `0` failures. This is not an accepted integration checkpoint because the worktree still has broad uncommitted lane batches, the latest post-commit `git status --short` sample still reports 189 entries, and `porting.html`, `porting-summary.json`, lane statuses, and the Active Lanes table remain stale against current manifests and recent commits.
+- Auditor/session status: latest independent audit is recorded in `audits/latest.md`, did not launch agents or tmux sessions, and recorded the latest sampled `php tools/run-tests.php` as `145` test files, `12959` assertions, `0` failures. This is not an accepted integration checkpoint because the worktree still has broad uncommitted lane batches, the latest sampled `git status --short` still reports 162 entries, and `porting.html`, `porting-summary.json`, lane statuses, and the Active Lanes table remain stale against current manifests and recent commits.
 - Worker sessions: not inspected in the latest audit; coordinate any active writers before treating `progress.md`, `porting.html`, or any root test result as a stable integration snapshot.
 
 ## Next Best Step
