@@ -33,16 +33,20 @@ final class PackBuilder
      * @param list<GitObject> $objects Objects to include in the pack.
      * @param list<GitObject> $baseObjects Objects the receiver already has; using them produces a thin pack.
      */
-    public static function buildWithRefDeltas(array $objects, array $baseObjects = []): PackBuildResult
+    public static function buildWithRefDeltas(array $objects, array $baseObjects = [], ?int $maxBaseCandidates = null): PackBuildResult
     {
-        return self::buildInternal($objects, $baseObjects, true);
+        self::assertDeltaBaseCandidateLimit($maxBaseCandidates);
+
+        return self::buildInternal($objects, $baseObjects, true, $maxBaseCandidates);
     }
 
     /**
      * @param list<GitObject> $objects Objects to include in the pack, with later objects allowed to delta against earlier ones.
      */
-    public static function buildWithOffsetDeltas(array $objects): PackBuildResult
+    public static function buildWithOffsetDeltas(array $objects, ?int $maxBaseCandidates = null): PackBuildResult
     {
+        self::assertDeltaBaseCandidateLimit($maxBaseCandidates);
+
         $pack = 'PACK' . pack('N2', self::VERSION, count($objects));
         $entries = [];
         $availableBases = [];
@@ -51,7 +55,7 @@ final class PackBuilder
             self::assertGitObject($object);
 
             $offset = strlen($pack);
-            $encoded = self::encodeBestOffsetEntry($object, $availableBases, $offset);
+            $encoded = self::encodeBestOffsetEntry($object, $availableBases, $offset, $maxBaseCandidates);
             $entryBytes = $encoded['bytes'];
             $pack .= $entryBytes;
 
@@ -84,7 +88,7 @@ final class PackBuilder
      * @param list<GitObject> $objects
      * @param list<GitObject> $baseObjects
      */
-    private static function buildInternal(array $objects, array $baseObjects, bool $allowRefDeltas): PackBuildResult
+    private static function buildInternal(array $objects, array $baseObjects, bool $allowRefDeltas, ?int $maxBaseCandidates = null): PackBuildResult
     {
         $pack = 'PACK' . pack('N2', self::VERSION, count($objects));
         $entries = [];
@@ -99,7 +103,7 @@ final class PackBuilder
             self::assertGitObject($object);
 
             $offset = strlen($pack);
-            $encoded = $allowRefDeltas ? self::encodeBestEntry($object, $availableBases) : self::encodeWholeEntry($object);
+            $encoded = $allowRefDeltas ? self::encodeBestEntry($object, $availableBases, $maxBaseCandidates) : self::encodeWholeEntry($object);
             $entryBytes = $encoded['bytes'];
             $pack .= $entryBytes;
 
@@ -132,20 +136,23 @@ final class PackBuilder
         }
     }
 
+    private static function assertDeltaBaseCandidateLimit(?int $maxBaseCandidates): void
+    {
+        if ($maxBaseCandidates !== null && $maxBaseCandidates < 0) {
+            throw new \InvalidArgumentException('Pack delta base candidate limit cannot be negative');
+        }
+    }
+
     /**
      * @param array<string,GitObject> $availableBases
      * @return array{bytes:string,storage:string,baseOid:?string}
      */
-    private static function encodeBestEntry(GitObject $object, array $availableBases): array
+    private static function encodeBestEntry(GitObject $object, array $availableBases, ?int $maxBaseCandidates): array
     {
         $best = self::encodeWholeEntry($object);
         $bestLength = strlen($best['bytes']);
 
-        foreach ($availableBases as $baseOid => $baseObject) {
-            if ($baseObject->type !== $object->type || $baseObject->oid() === $object->oid()) {
-                continue;
-            }
-
+        foreach (self::deltaBaseCandidates($object, $availableBases, $maxBaseCandidates) as $baseOid => $baseObject) {
             $delta = self::encodeDelta($baseObject->body, $object->body);
             $baseOidBytes = hex2bin($baseOid);
             if ($baseOidBytes === false) {
@@ -172,17 +179,14 @@ final class PackBuilder
      * @param array<string,array{object:GitObject,offset:int}> $availableBases
      * @return array{bytes:string,storage:string,baseOid:?string,baseOffset:?int,baseDistance:?int}
      */
-    private static function encodeBestOffsetEntry(GitObject $object, array $availableBases, int $offset): array
+    private static function encodeBestOffsetEntry(GitObject $object, array $availableBases, int $offset, ?int $maxBaseCandidates): array
     {
         $best = self::encodeWholeEntry($object) + ['baseOffset' => null, 'baseDistance' => null];
         $bestLength = strlen($best['bytes']);
 
-        foreach ($availableBases as $baseOid => $base) {
+        foreach (self::deltaOffsetBaseCandidates($object, $availableBases, $maxBaseCandidates) as $baseOid => $base) {
             $baseObject = $base['object'];
             $baseOffset = $base['offset'];
-            if ($baseObject->type !== $object->type || $baseObject->oid() === $object->oid()) {
-                continue;
-            }
 
             $baseDistance = $offset - $baseOffset;
             if ($baseDistance <= 0) {
@@ -207,6 +211,58 @@ final class PackBuilder
         }
 
         return $best;
+    }
+
+    /**
+     * @param array<string,GitObject> $availableBases
+     * @return array<string,GitObject>
+     */
+    private static function deltaBaseCandidates(GitObject $object, array $availableBases, ?int $maxBaseCandidates): array
+    {
+        $candidates = [];
+        foreach ($availableBases as $baseOid => $baseObject) {
+            if ($baseObject->type !== $object->type || $baseObject->oid() === $object->oid()) {
+                continue;
+            }
+            $candidates[(string) $baseOid] = $baseObject;
+        }
+
+        return self::limitDeltaBaseCandidates($candidates, $maxBaseCandidates);
+    }
+
+    /**
+     * @param array<string,array{object:GitObject,offset:int}> $availableBases
+     * @return array<string,array{object:GitObject,offset:int}>
+     */
+    private static function deltaOffsetBaseCandidates(GitObject $object, array $availableBases, ?int $maxBaseCandidates): array
+    {
+        $candidates = [];
+        foreach ($availableBases as $baseOid => $base) {
+            $baseObject = $base['object'];
+            if ($baseObject->type !== $object->type || $baseObject->oid() === $object->oid()) {
+                continue;
+            }
+            $candidates[(string) $baseOid] = $base;
+        }
+
+        return self::limitDeltaBaseCandidates($candidates, $maxBaseCandidates);
+    }
+
+    /**
+     * @template T
+     * @param array<string,T> $candidates
+     * @return array<string,T>
+     */
+    private static function limitDeltaBaseCandidates(array $candidates, ?int $maxBaseCandidates): array
+    {
+        if ($maxBaseCandidates === null || count($candidates) <= $maxBaseCandidates) {
+            return $candidates;
+        }
+        if ($maxBaseCandidates === 0) {
+            return [];
+        }
+
+        return array_slice($candidates, -$maxBaseCandidates, $maxBaseCandidates, true);
     }
 
     /**

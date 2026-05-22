@@ -57,6 +57,16 @@ $buildSimilarBlobs = static function (): array {
     ];
 };
 
+$findPackEntry = static function (PackBuildResult $result, string $oid): array {
+    foreach ($result->entries() as $entry) {
+        if ($entry['oid'] === $oid) {
+            return $entry;
+        }
+    }
+
+    throw new RuntimeException("Pack entry not found for {$oid}");
+};
+
 return [
     'builds v2 pack data and index for native git objects' => static function (TestRunner $t) use ($buildDeploymentObjects): void {
         $objects = $buildDeploymentObjects();
@@ -157,8 +167,47 @@ return [
         $t->same($base->oid(), $entry->baseObjectId);
         $t->throws(RuntimeException::class, static fn () => $pack->readObject($index, $target->oid()));
     },
+    'bounds ref-delta base search to recent same-type candidates' => static function (TestRunner $t) use ($buildSimilarBlobs, $findPackEntry): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $scratch = new GitObject('blob', str_repeat('temporary unrelated import scratch row' . "\n", 8));
+
+        $unbounded = PackBuilder::buildWithRefDeltas([$scratch, $target], [$base]);
+        $bounded = PackBuilder::buildWithRefDeltas([$scratch, $target], [$base], 1);
+        $boundedPack = PackData::fromBytes($bounded->packBytes());
+        $boundedIndex = PackIndex::fromBytes($bounded->indexBytes());
+        $unboundedTarget = $findPackEntry($unbounded, $target->oid());
+        $boundedTarget = $findPackEntry($bounded, $target->oid());
+
+        $t->same(true, $unbounded->isThin());
+        $t->same('ref-delta', $unboundedTarget['storage']);
+        $t->same($base->oid(), $unboundedTarget['baseOid']);
+        $t->same(false, $bounded->isThin());
+        $t->same('whole', $boundedTarget['storage']);
+        $t->same($target->body, $boundedPack->readObject($boundedIndex, $target->oid())->body);
+    },
+    'bounds ofs-delta base search to earlier in-window candidates' => static function (TestRunner $t) use ($buildSimilarBlobs, $findPackEntry): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $scratch = new GitObject('blob', str_repeat('temporary unrelated import scratch row' . "\n", 8));
+
+        $unbounded = PackBuilder::buildWithOffsetDeltas([$base, $scratch, $target]);
+        $windowOne = PackBuilder::buildWithOffsetDeltas([$base, $scratch, $target], 1);
+        $windowTwo = PackBuilder::buildWithOffsetDeltas([$base, $scratch, $target], 2);
+        $unboundedTarget = $findPackEntry($unbounded, $target->oid());
+        $windowOneTarget = $findPackEntry($windowOne, $target->oid());
+        $windowTwoTarget = $findPackEntry($windowTwo, $target->oid());
+
+        $t->same('ofs-delta', $unboundedTarget['storage']);
+        $t->same($base->oid(), $unboundedTarget['baseOid']);
+        $t->same('whole', $windowOneTarget['storage']);
+        $t->same('ofs-delta', $windowTwoTarget['storage']);
+        $t->same($base->oid(), $windowTwoTarget['baseOid']);
+        $t->same(false, $windowOne->hasDeltaEntries());
+        $t->same(true, $windowTwo->hasDeltaEntries());
+    },
     'guards invalid pack builder inputs and result metadata' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::build(['not an object']));
+        $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::buildWithRefDeltas([], [], -1));
+        $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::buildWithOffsetDeltas([], -1));
         $t->throws(InvalidArgumentException::class, static fn () => new PackBuildResult('bad', 'bad', 'nope', 'nope', []));
     },
     'push command can append a generated pack after update commands' => static function (TestRunner $t) use ($readPacketSequence): void {
@@ -212,5 +261,20 @@ return [
         $t->contains('post_status=publish', $read->body);
         $t->same($fixture['packChecksum'], $summary['packChecksum']);
         $t->same($fixture['updatedBlob'], $summary['updatedBlob']);
+    },
+    'wordpress fixture bounds pack delta base search for export payloads' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-delta-window.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-pack-delta-window.php';
+        $boundedPack = PackData::fromBytes($fixture['boundedPackBytes']);
+        $boundedIndex = PackIndex::fromBytes($fixture['boundedIndexBytes']);
+        $updated = $boundedPack->readObject($boundedIndex, $fixture['newExport']);
+
+        $t->same('ofs-delta', $fixture['unboundedTargetEntry']['storage']);
+        $t->same($fixture['oldExport'], $fixture['unboundedTargetEntry']['baseOid']);
+        $t->same('whole', $fixture['boundedTargetEntry']['storage']);
+        $t->same(false, $fixture['boundedHasDelta']);
+        $t->contains('post_status=publish', $updated->body);
+        $t->same($fixture['boundedPackChecksum'], $summary['boundedPackChecksum']);
+        $t->same($fixture['boundedTargetEntry']['storage'], $summary['boundedTargetStorage']);
     },
 ];
