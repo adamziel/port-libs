@@ -37,6 +37,16 @@ final class SQLiteDatabase
         return intdiv(strlen($this->bytes), $this->header->pageSize);
     }
 
+    public function usablePageSize(): int
+    {
+        $usableSize = $this->header->pageSize - $this->header->reservedSpace;
+        if ($usableSize < 480) {
+            throw new \InvalidArgumentException('SQLite usable page size is too small');
+        }
+
+        return $usableSize;
+    }
+
     public function page(int $pageNumber): string
     {
         if ($pageNumber < 1) {
@@ -97,19 +107,70 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteTableLeafCell>
      */
-    public function tableLeafCells(int $rootPageNumber): array
+    public function tableLeafCells(int $rootPageNumber, ?int $limit = null): array
     {
         $visited = [];
+        $cells = [];
+        $this->collectTableLeafCells($rootPageNumber, $visited, $cells, $limit);
 
-        return $this->collectTableLeafCells($rootPageNumber, $visited);
+        return $cells;
+    }
+
+    /**
+     * @return list<SQLiteTableRow>
+     */
+    public function tableRows(int $rootPageNumber, ?int $limit = null): array
+    {
+        $rows = [];
+        foreach ($this->tableLeafCells($rootPageNumber, $limit) as $cell) {
+            $rows[] = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<SQLiteTableRow>
+     */
+    public function tableRowsByName(string $tableName, ?int $limit = null): array
+    {
+        $rootPage = $this->tableRootPage($tableName);
+        if ($rootPage === null) {
+            return [];
+        }
+
+        return $this->tableRows($rootPage, $limit);
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptions(int $limit = 100): array
+    {
+        if ($limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options limit cannot be negative');
+        }
+
+        $options = [];
+        foreach ($this->tableRowsByName('wp_options', $limit) as $row) {
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+        }
+
+        return $options;
     }
 
     /**
      * @param array<int, true> $visited
-     * @return list<SQLiteTableLeafCell>
+     * @param list<SQLiteTableLeafCell> $cells
      */
-    private function collectTableLeafCells(int $pageNumber, array &$visited): array
+    private function collectTableLeafCells(int $pageNumber, array &$visited, array &$cells, ?int $limit): void
     {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite table leaf cell limit cannot be negative');
+        }
+        if ($limit !== null && count($cells) >= $limit) {
+            return;
+        }
         if (isset($visited[$pageNumber])) {
             throw new \InvalidArgumentException("SQLite table b-tree traversal reached page {$pageNumber} more than once");
         }
@@ -123,7 +184,14 @@ final class SQLiteDatabase
         );
 
         if ($header->pageType === 'table-leaf') {
-            return SQLiteTableLeafCell::parsePageCells($page, $header);
+            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $this->usablePageSize()) as $cell) {
+                if ($limit !== null && count($cells) >= $limit) {
+                    return;
+                }
+                $cells[] = $cell;
+            }
+
+            return;
         }
         if ($header->pageType !== 'table-interior') {
             throw new \InvalidArgumentException("SQLite page {$pageNumber} is not a table b-tree page");
@@ -132,12 +200,12 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException("SQLite table interior page {$pageNumber} has an invalid right-most pointer");
         }
 
-        $cells = [];
         foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $interiorCell) {
-            array_push($cells, ...$this->collectTableLeafCells($interiorCell->leftChildPage, $visited));
+            $this->collectTableLeafCells($interiorCell->leftChildPage, $visited, $cells, $limit);
+            if ($limit !== null && count($cells) >= $limit) {
+                return;
+            }
         }
-        array_push($cells, ...$this->collectTableLeafCells($header->rightMostPointer, $visited));
-
-        return $cells;
+        $this->collectTableLeafCells($header->rightMostPointer, $visited, $cells, $limit);
     }
 }

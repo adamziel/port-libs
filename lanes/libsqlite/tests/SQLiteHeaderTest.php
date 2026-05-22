@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
+use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteVarint;
 
 $makeFirstPage = static function (int $pageSize = 512, int $databaseSizePages = 1): string {
@@ -336,11 +337,66 @@ return [
         $t->same(null, $database->tableRootPage('wp_missing'));
         $t->same('table-leaf', $database->tablePageHeader('wp_options')?->pageType);
     },
+    'reads bounded wordpress options from a resolved table root page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 2));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 2),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2);
+
+        $rows = $database->tableRowsByName('wp_options');
+        $options = $database->wordpressOptions(1);
+
+        $t->same(2, count($rows));
+        $t->same(1, $rows[0]->rowId);
+        $t->same([null, 'siteurl', 'https://example.test', 'yes'], $rows[0]->values());
+        $t->same(1, count($options));
+        $t->true($options[0] instanceof SQLiteWordPressOption);
+        $t->same([
+            'option_id' => 1,
+            'option_name' => 'siteurl',
+            'option_value' => 'https://example.test',
+            'autoload' => 'yes',
+            'rowid' => 1,
+        ], $options[0]->toArray());
+    },
+    'walks interior wp_options table pages while respecting row limits' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 4));
+        $page2 = $tableInteriorPage([[3, 1]], 4);
+        $page3 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+
+        $options = $database->wordpressOptions(2);
+        $bounded = $database->wordpressOptions(1);
+
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same('https://example.test/blog', $options[1]->optionValue);
+        $t->same(1, count($bounded));
+        $t->same('siteurl', $bounded[0]->optionName);
+    },
     'database reader rejects missing pages during btree traversal' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
         $page1 = $tableInteriorPage([[2, 1]], 3, 512, 100, $makeFirstPage(512, 1));
         $database = SQLiteDatabase::fromBytes($page1);
 
         $t->throws(InvalidArgumentException::class, static fn () => $database->schemaRecords());
+    },
+    'table leaf cells reject overflow payloads until overflow pages are ported' => static function (TestRunner $t) use ($varint): void {
+        $page = str_repeat("\0", 512);
+        $cell = $varint(478) . $varint(1) . str_repeat('x', 8);
+        $offset = 512 - strlen($cell);
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafCell::parse($page, $offset, 512));
     },
     'sqlite record parser rejects reserved serial types' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse("\x02\x0a"));
