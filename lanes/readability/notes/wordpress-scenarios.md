@@ -4,7 +4,7 @@ Migration-aware article cleanup into clean WordPress blocks with page-builder na
 
 ## Current Native Slice
 
-Native DOM extractor removes chrome and upstream-style unlikely candidates, removes ad wrappers such as `ad-container`, `ad-mobile`, `dfp-slot`, and `js_ad`, scores semantic content containers and article-body containers, parses UTF-8 HTML safely, implements Mozilla-style `isProbablyReaderable` thresholds, extracts document titles before in-article headings, gives entity-decoded plain meta descriptions precedence for excerpts, exposes byline/site/published/dir/lang metadata fields from meta tags and JSON-LD, preserves allowed video embeds while removing generic embedded widgets, promotes lazy `data-src`/`data-srcset` images including short base64 placeholder cases, removes post-article recommendation/signup chrome after selected article wrappers, maps Mozilla fixture pages including `normalize-spaces`, `embedded-videos`, `videos-2`, `lazy-image-1`, `lazy-image-2`, and `lazy-image-3`, and emits simple WordPress blocks.
+Native DOM extractor removes chrome and upstream-style unlikely candidates, removes ad wrappers such as `ad-container`, `ad-mobile`, `dfp-slot`, and `js_ad`, scores semantic content containers and article-body containers, parses UTF-8 HTML safely, implements Mozilla-style `isProbablyReaderable` thresholds, extracts document titles before in-article headings, removes duplicate title headings from content, demotes remaining `h1` body headings to `h2` before block serialization, gives entity-decoded plain meta descriptions precedence for excerpts, exposes byline/site/published/dir/lang metadata fields from meta tags and JSON-LD, preserves allowed video embeds while removing generic embedded widgets, promotes lazy `data-src`/`data-srcset` images including short base64 placeholder cases, removes post-article recommendation/signup chrome after selected article wrappers, maps Mozilla fixture pages including `normalize-spaces`, `embedded-videos`, `videos-2`, `lazy-image-1`, `lazy-image-2`, and `lazy-image-3`, and emits simple WordPress blocks.
 
 ## Scenario Fixture
 
@@ -16,7 +16,8 @@ Native DOM extractor removes chrome and upstream-style unlikely candidates, remo
 - `lanes/readability/fixtures/mozilla/lazy-image-2/` copies Mozilla's Kinja lazy image fixture to keep entity-decoded excerpts, in-article ad cleanup, and 56 responsive image rows tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/lazy-image-3/` copies Mozilla's small lazy image fixture to keep JavaScript-free `data-src` image promotion tied to a named upstream page.
 - `lanes/readability/examples/wordpress-migration-blocks.php` extracts that fixture and emits core block comments for migration workflows.
+- The focused WordPress test covers migration output where `post_title` stores the article title separately: duplicate source `h1` content is removed, while real body section headings remain as `h2` block headings.
 
 ## Next Task
 
-Tighten Mozilla `lazy-image-1` exact expected-HTML parity, then broaden exact structural HTML parity for copied lazy-image fixtures.
+Tighten Mozilla `lazy-image-1` exact expected-HTML parity by removing remaining out-of-band Medium image wrappers, then broaden exact structural HTML parity for copied lazy-image fixtures.

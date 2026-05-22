@@ -38,6 +38,8 @@ final class ArticleExtractor
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
         if ($best instanceof \DOMElement) {
             $this->removePlatformArticleChrome($best);
+            $this->removeDuplicateTitleHeader($best, $title);
+            $this->demoteHeadingOnes($best);
         }
         $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
@@ -781,6 +783,94 @@ final class ArticleExtractor
         }
 
         return false;
+    }
+
+    private function removeDuplicateTitleHeader(\DOMElement $scope, string $title): void
+    {
+        if (trim($title) === '') {
+            return;
+        }
+
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        foreach ($xpath->query('.//h1|.//h2', $scope) ?: [] as $heading) {
+            if (!$heading instanceof \DOMElement || !$this->headerDuplicatesTitle($heading, $title)) {
+                continue;
+            }
+
+            $heading->parentNode?->removeChild($heading);
+            return;
+        }
+    }
+
+    private function headerDuplicatesTitle(\DOMElement $heading, string $title): bool
+    {
+        $tag = strtolower($heading->tagName);
+        if ($tag !== 'h1' && $tag !== 'h2') {
+            return false;
+        }
+
+        return $this->textSimilarity($title, $this->normalizeWhitespace($heading->textContent)) > 0.75;
+    }
+
+    private function textSimilarity(string $textA, string $textB): float
+    {
+        $tokensA = $this->tokenizeComparableText($textA);
+        $tokensB = $this->tokenizeComparableText($textB);
+        if ($tokensA === [] || $tokensB === []) {
+            return 0.0;
+        }
+
+        $uniqueTokensB = array_values(array_filter(
+            $tokensB,
+            static fn (string $token): bool => !in_array($token, $tokensA, true),
+        ));
+        $tokensBText = implode(' ', $tokensB);
+        if ($tokensBText === '') {
+            return 0.0;
+        }
+
+        return 1.0 - (mb_strlen(implode(' ', $uniqueTokensB)) / mb_strlen($tokensBText));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokenizeComparableText(string $text): array
+    {
+        $tokens = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($text)) ?: [];
+
+        return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+    }
+
+    private function demoteHeadingOnes(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        $headings = [];
+        foreach ($xpath->query('.//h1', $scope) ?: [] as $heading) {
+            if ($heading instanceof \DOMElement) {
+                $headings[] = $heading;
+            }
+        }
+
+        foreach ($headings as $heading) {
+            $this->replaceElementTag($heading, 'h2');
+        }
+    }
+
+    private function replaceElementTag(\DOMElement $element, string $tagName): \DOMElement
+    {
+        $replacement = $element->ownerDocument->createElement($tagName);
+        foreach ($element->attributes ?: [] as $attribute) {
+            $replacement->setAttribute($attribute->name, $attribute->value);
+        }
+
+        while ($element->firstChild instanceof \DOMNode) {
+            $replacement->appendChild($element->firstChild);
+        }
+
+        $element->parentNode?->replaceChild($replacement, $element);
+
+        return $replacement;
     }
 
     private function normalizedNodeText(\DOMNode $node): string

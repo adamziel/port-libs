@@ -128,9 +128,27 @@ return [
         $article = $extractor->extract((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-page-builder.html'));
         $blocks = $extractor->toWordPressBlocks($article);
 
-        $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
+        $t->true(!str_contains($blocks, '<h1>Reusable Blocks After Migration</h1>'), 'post title heading should not be duplicated in imported block content');
         $t->contains('<!-- wp:paragraph -->', $blocks);
         $t->contains('canonical article paragraph', $blocks);
+    },
+    'removes duplicate post title headings and demotes body h1s for WordPress blocks' => static function (TestRunner $t): void {
+        $extractor = new ArticleExtractor();
+        $html = '<html><head><meta property="og:title" content="Migration Playbook"></head><body><article>'
+            . '<h1>Migration Playbook</h1>'
+            . '<p>' . str_repeat('The post title is stored separately during WordPress imports. ', 4) . '</p>'
+            . '<h1>Reviewer Notes</h1>'
+            . '<p>' . str_repeat('A section heading inside the body should remain available to block serialization. ', 4) . '</p>'
+            . '</article></body></html>';
+
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Migration Playbook', $article->title);
+        $t->true(!str_contains($article->contentHtml, '<h1'), 'remaining content headings should be demoted from h1');
+        $t->true(!str_contains($article->text, 'Migration Playbook'), 'duplicate post title should be removed from article body text');
+        $t->contains('<h2>Reviewer Notes</h2>', $article->contentHtml);
+        $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
     },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';

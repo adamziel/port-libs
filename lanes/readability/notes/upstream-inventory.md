@@ -52,6 +52,13 @@ npm test
 1984 passing (35s)
 ```
 
+It was rerun again on 2026-05-22 after the native title-heading cleanup slice and still passed:
+
+```text
+npm test
+1984 passing (35s)
+```
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -76,7 +83,8 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
+- Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 
 ## Next Slice
 
-Tighten `lazy-image-1` exact expected-HTML parity by removing duplicate title/byline header and extra no-caption Medium images, then broaden exact structural HTML parity for the copied lazy-image fixtures.
+Tighten `lazy-image-1` exact expected-HTML parity by removing the remaining out-of-band Medium images and structural wrappers around full-width figures, then broaden exact structural HTML parity for the copied lazy-image fixtures.
