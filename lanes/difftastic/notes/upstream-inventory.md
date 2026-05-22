@@ -91,7 +91,7 @@ The latest required root test run after the YAML block-scalar display slice pass
 
 ```text
 php tools/run-tests.php
-98 test files, 6,539 assertions, 0 failures
+99 test files, 6,638 assertions, 0 failures
 ```
 
 The difftastic-focused test file remains green with 47 tests, 202 assertions, and 0 failures.
