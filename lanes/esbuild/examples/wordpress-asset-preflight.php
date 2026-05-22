@@ -17,6 +17,10 @@ printf("WordPress asset tokens: %d\n", count($tokens));
 printf("WordPress package imports: %d\n", count($analysis->wordpressPackageImports()));
 printf("WordPress TypeScript runtime imports: %d\n", count($typeScriptAnalysis->runtimeImports()));
 printf("WordPress TypeScript type-only imports: %d\n", count($typeScriptAnalysis->typeOnlyImports()));
+printf("WordPress TypeScript namespaces: %d\n", count($typeScriptAnalysis->typeScriptNamespaces));
+printf("WordPress TypeScript namespace runtime exports: %d\n", count(
+    $typeScriptAnalysis->typeScriptNamespace('CardBlock')?->runtimeExportedMembers() ?? []
+));
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()

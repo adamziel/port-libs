@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-make-test-runner-evidence",
         "total": "2,567 counted upstream test entry points: 1,391 Go func Test* functions, 331 JS API async cases, 97 plugin async cases, and 748 end-to-end CLI cases",
-        "mapped": 20,
+        "mapped": 22,
         "source": "Shallow blob-filtered upstream clone in .upstream-cache/esbuild at 6a794dff68e6a43539f6da671e3080efdf11ca70; counted paths with git ls-tree and hydrated only targeted metadata/test files with git show. A separate detached runner worktree in .upstream-cache/esbuild-runner was materialized at the same commit so the dirty/no-checkout inventory cache did not need destructive restoration. With Go, Node, npm, and OpenSSL supplied by nix-shell, upstream `make test` passes locally.",
         "inventory": {
             "repositoryPaths": 349,
@@ -94,17 +94,18 @@
             "Selected `TestTSImportEquals` and `TestTSExportEquals` semantics are mapped: `import x = require(\"...\")`, qualified import-equals aliases, and `export =` are classified as TypeScript/CommonJS forms instead of ESM syntax.",
             "Selected `TestTSTypeOnlyImport` forms are mapped: top-level `import type`, mixed `import { value, type Type }`, and malformed combined default type imports are classified without turning erased type dependencies into runtime imports.",
             "Selected `TestTSTypeOnlyExport` forms are mapped: `export type { ... } from`, mixed value/type export clauses, type-only star exports, and invalid local `export type { default }` are distinguished.",
-            "A WordPress TypeScript block fixture separates runtime `@wordpress/dom-ready` and `./block.json` dependencies from erased `@wordpress/blocks`/`@wordpress/element` type imports and a legacy `wp.blocks` import-equals alias."
+            "Selected `TestTSNamespaceExports` semantics are mapped: namespace declarations, exported namespace members, declared namespace exports, nested namespace names, and namespace-local import-equals aliases are recorded separately from top-level module exports.",
+            "A WordPress TypeScript block fixture separates runtime `@wordpress/dom-ready` and `./block.json` dependencies from erased `@wordpress/blocks`/`@wordpress/element` type imports, a legacy `wp.blocks` import-equals alias, and namespace-backed block registration metadata."
         ],
         "inventoryPath": "lanes/esbuild/notes/upstream-inventory.md",
-        "warning": "The core upstream esbuild `make test` runner now passes locally against the upstream Go/Node implementation at this checkout. Native PHP progress still maps 20 focused lane tests against the 2,567-entry upstream test inventory; this is not full native PHP parity yet. Release-extra `make test-all` coverage remains separate."
+        "warning": "The core upstream esbuild `make test` runner now passes locally against the upstream Go/Node implementation at this checkout. Native PHP progress still maps 22 focused lane tests against the 2,567-entry upstream test inventory; this is not full native PHP parity yet. Release-extra `make test-all` coverage remains separate."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native JavaScript lexer plus module analyzer for static imports, expression/direct-string dynamic imports, exports, re-exports, import assertions/attributes, import.meta ESM markers, new URL(import.meta.url) asset references, TypeScript import-equals/export-equals/type-only import/export forms, package/relative source classification, WordPress package imports, and WordPress block metadata JSON imports.",
-        "phpBehaviorTests": 20
+        "currentSlice": "Native JavaScript lexer plus module analyzer for static imports, expression/direct-string dynamic imports, exports, re-exports, import assertions/attributes, import.meta ESM markers, new URL(import.meta.url) asset references, TypeScript import-equals/export-equals/type-only import/export forms, TypeScript namespace/export namespace metadata, package/relative source classification, WordPress package imports, and WordPress block metadata JSON imports.",
+        "phpBehaviorTests": 22
     },
-    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixtures preflight a WordPress block view script importing @wordpress/dom-ready, block metadata via `./block.json` with `{ type: \"json\" }`, relative stylesheet/worker assets via `new URL(..., import.meta.url)`, and a TypeScript block script that keeps erased @wordpress type imports out of runtime dependency lists.",
-    "nextTask": "Map TypeScript namespace/export namespace forms and import-use elision from `TestTSNamespaceExports` plus bundled TS namespace cases."
+    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixtures preflight a WordPress block view script importing @wordpress/dom-ready, block metadata via `./block.json` with `{ type: \"json\" }`, relative stylesheet/worker assets via `new URL(..., import.meta.url)`, and a TypeScript block script that keeps erased @wordpress type imports out of runtime dependency lists while recording namespace-backed block registration metadata.",
+    "nextTask": "Map TypeScript import-use elision/tree-shaking behavior from `TestTSImportEquals` and adjacent import pruning cases, including side-effect-only downgrade for unused runtime imports."
 }

@@ -163,6 +163,84 @@ $runLocalTcpServer = static function (callable $serverHandler, callable $clientH
     return ['result' => $result, 'log' => $payload['log']];
 };
 
+$temporaryTlsCertificate = static function (string $commonName): array {
+    if (!extension_loaded('openssl')) {
+        throw new RuntimeException('openssl extension is required for local TLS transport tests');
+    }
+
+    $dir = sys_get_temp_dir() . '/gitoxide-socks-tls-' . bin2hex(random_bytes(4));
+    if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+        throw new RuntimeException("Unable to create TLS test directory: {$dir}");
+    }
+
+    $configPath = $dir . '/openssl.cnf';
+    file_put_contents($configPath, <<<CFG
+[req]
+distinguished_name = dn
+req_extensions = v3_req
+prompt = no
+[dn]
+CN = {$commonName}
+[v3_req]
+subjectAltName = DNS:{$commonName}
+basicConstraints = critical,CA:TRUE
+keyUsage = digitalSignature,keyEncipherment,keyCertSign
+extendedKeyUsage = serverAuth
+CFG);
+
+    $key = openssl_pkey_new([
+        'private_key_bits' => 2048,
+        'private_key_type' => OPENSSL_KEYTYPE_RSA,
+    ]);
+    if ($key === false) {
+        throw new RuntimeException('Unable to generate TLS test private key');
+    }
+
+    $csr = openssl_csr_new(
+        ['commonName' => $commonName],
+        $key,
+        ['config' => $configPath, 'digest_alg' => 'sha256', 'req_extensions' => 'v3_req']
+    );
+    if ($csr === false) {
+        throw new RuntimeException('Unable to generate TLS test CSR');
+    }
+
+    $cert = openssl_csr_sign(
+        $csr,
+        null,
+        $key,
+        2,
+        ['config' => $configPath, 'digest_alg' => 'sha256', 'x509_extensions' => 'v3_req']
+    );
+    if ($cert === false) {
+        throw new RuntimeException('Unable to sign TLS test certificate');
+    }
+    if (!openssl_x509_export($cert, $certPem) || !openssl_pkey_export($key, $keyPem, null, ['config' => $configPath])) {
+        throw new RuntimeException('Unable to export TLS test certificate');
+    }
+
+    $caPath = $dir . '/ca.pem';
+    $serverPath = $dir . '/server.pem';
+    file_put_contents($caPath, $certPem);
+    file_put_contents($serverPath, $certPem . $keyPem);
+
+    return ['dir' => $dir, 'ca' => $caPath, 'server' => $serverPath];
+};
+
+$removeDirectory = static function (string $directory) use (&$removeDirectory): void {
+    if (!is_dir($directory)) {
+        return;
+    }
+    foreach (scandir($directory) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $path = $directory . '/' . $entry;
+        is_dir($path) ? $removeDirectory($path) : @unlink($path);
+    }
+    @rmdir($directory);
+};
+
 return [
     'stream receive-pack transport reads advertisement writes request and reads sideband response' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -736,6 +814,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslCaInfo' => __DIR__ . '/missing-ca.pem']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVerify' => 'no']));
     },
     'smart http default requester performs socks5h handshake with proxy credentials' => static function (TestRunner $t) use ($packet, $flush, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $runLocalTcpServer): void {
         $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status side-band-64k object-format=sha1\n")
@@ -811,6 +891,80 @@ return [
         $t->contains("Host: git.example.test\r\n", $result['log']['httpRequest']);
         $t->contains("User-Agent: port-libs-socks-test/1\r\n", $result['log']['httpRequest']);
         $t->same(false, str_contains($result['log']['httpRequest'], 'Proxy-Authorization:'));
+    },
+    'smart http default requester performs https through socks5h with trusted ca' => static function (TestRunner $t) use ($packet, $flush, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $runLocalTcpServer, $temporaryTlsCertificate, $removeDirectory): void {
+        $tls = $temporaryTlsCertificate('git.example.test');
+        try {
+            $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status side-band-64k object-format=sha1\n")
+                . $flush;
+            $result = $runLocalTcpServer(
+                static function (mixed $connection) use ($packet, $flush, $advertisement, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $tls): array {
+                    $greeting = $readExactFromStream($connection, 2);
+                    $methods = $readExactFromStream($connection, ord($greeting[1]));
+                    $writeAllToStream($connection, "\x05\x00");
+
+                    $connectHeader = $readExactFromStream($connection, 4);
+                    $hostLength = ord($readExactFromStream($connection, 1));
+                    $host = $readExactFromStream($connection, $hostLength);
+                    $port = unpack('n', $readExactFromStream($connection, 2))[1];
+                    $writeAllToStream($connection, "\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00");
+
+                    stream_context_set_option($connection, 'ssl', 'local_cert', $tls['server']);
+                    stream_context_set_option($connection, 'ssl', 'allow_self_signed', true);
+                    $enabled = @stream_socket_enable_crypto($connection, true, STREAM_CRYPTO_METHOD_TLS_SERVER);
+                    if ($enabled !== true) {
+                        throw new RuntimeException('Unable to enable local TLS server stream');
+                    }
+
+                    $httpRequest = $readHttpRequestHeader($connection);
+                    $body = $packet("# service=git-receive-pack\n") . $flush . $advertisement;
+                    $writeAllToStream(
+                        $connection,
+                        "HTTP/1.1 200 OK\r\n"
+                        . "Content-Type: application/x-git-receive-pack-advertisement\r\n"
+                        . 'Content-Length: ' . strlen($body) . "\r\n"
+                        . "Connection: close\r\n\r\n"
+                        . $body,
+                    );
+
+                    return [
+                        'greeting' => bin2hex($greeting . $methods),
+                        'connectVersion' => ord($connectHeader[0]),
+                        'connectCommand' => ord($connectHeader[1]),
+                        'connectAddressType' => ord($connectHeader[3]),
+                        'connectHost' => $host,
+                        'connectPort' => $port,
+                        'httpRequest' => $httpRequest,
+                    ];
+                },
+                static function (int $port) use ($tls): string {
+                    $transport = new SmartHttpReceivePackTransport(
+                        'https://git.example.test/wp-content.git',
+                        null,
+                        [],
+                        5.0,
+                        ['User-Agent' => 'port-libs-socks-tls-test/1'],
+                        ['proxy' => "socks5h://127.0.0.1:{$port}", 'sslCaInfo' => $tls['ca']],
+                    );
+
+                    return $transport->readAdvertisement();
+                },
+            );
+
+            $t->same($advertisement, $result['result']);
+            $t->same('050100', $result['log']['greeting']);
+            $t->same(5, $result['log']['connectVersion']);
+            $t->same(1, $result['log']['connectCommand']);
+            $t->same(3, $result['log']['connectAddressType']);
+            $t->same('git.example.test', $result['log']['connectHost']);
+            $t->same(443, $result['log']['connectPort']);
+            $t->contains("GET /wp-content.git/info/refs?service=git-receive-pack HTTP/1.1\r\n", $result['log']['httpRequest']);
+            $t->contains("Host: git.example.test\r\n", $result['log']['httpRequest']);
+            $t->contains("User-Agent: port-libs-socks-tls-test/1\r\n", $result['log']['httpRequest']);
+            $t->same(false, str_contains($result['log']['httpRequest'], 'Proxy-Authorization:'));
+        } finally {
+            $removeDirectory($tls['dir']);
+        }
     },
     'smart http default requester performs socks4a remote host handshake' => static function (TestRunner $t) use ($packet, $flush, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $runLocalTcpServer): void {
         $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status\n")
@@ -994,5 +1148,17 @@ return [
         $t->same('Basic ' . base64_encode('wp-proxy-user:wp-proxy-pass'), $fixture['proxyAuthorizationSent']);
         $t->same(false, $fixture['originProxyHeaderLeaked']);
         $t->contains('refs/heads/main', $fixture['advertisementBytes']);
+    },
+    'wordpress fixture documents smart http socks tls receive-pack discovery' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-socks-tls.php';
+
+        $t->same('https://git.example.test/wp-content.git', $fixture['repositoryUrl']);
+        $t->same('socks5h://wp-proxy.example.test:1080', $fixture['proxyUrl']);
+        $t->same('git.example.test', $fixture['tlsPeerName']);
+        $t->same('sslCaInfo', $fixture['caOption']);
+        $t->same('sslVerify', $fixture['verifyOption']);
+        $t->same(443, $fixture['connectPort']);
+        $t->same('/wp-content.git/info/refs?service=git-receive-pack', $fixture['requestTarget']);
+        $t->contains('WordPress deployment tool', $fixture['wordpressUse']);
     },
 ];

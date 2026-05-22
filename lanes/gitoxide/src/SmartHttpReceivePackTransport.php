@@ -20,7 +20,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable} */
+    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool} */
     private readonly array $httpOptions;
 
     /**
@@ -465,17 +465,25 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private function httpOptionsForUrl(string $url): array
     {
+        $options = [];
+        if ($this->httpOptions['sslCaInfo'] !== null) {
+            $options['sslCaInfo'] = $this->httpOptions['sslCaInfo'];
+        }
+        if (!$this->httpOptions['sslVerify']) {
+            $options['sslVerify'] = false;
+        }
+
         $proxy = $this->httpOptions['proxy'];
         if ($proxy === null) {
-            return [[], null];
+            return [$options, null];
         }
 
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
         if (self::matchesNoProxy($request['host'], $this->httpOptions['noProxy'])) {
-            return [[], null];
+            return [$options, null];
         }
 
-        $options = [
+        $options += [
             'proxyType' => $proxy['type'],
             'proxy' => $proxy['stream'],
             'proxyUrl' => $proxy['url'],
@@ -645,11 +653,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable}
+     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase'];
+        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
@@ -708,6 +716,29 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $erase = $httpOptions['proxyCredentialErase'];
         }
 
+        $sslCaInfo = null;
+        if (array_key_exists('sslCaInfo', $httpOptions) && $httpOptions['sslCaInfo'] !== null && $httpOptions['sslCaInfo'] !== '') {
+            if (!is_string($httpOptions['sslCaInfo'])
+                || str_contains($httpOptions['sslCaInfo'], "\0")
+                || str_contains($httpOptions['sslCaInfo'], "\r")
+                || str_contains($httpOptions['sslCaInfo'], "\n")
+            ) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack sslCaInfo must be a path string without control bytes');
+            }
+            if (!is_file($httpOptions['sslCaInfo']) || !is_readable($httpOptions['sslCaInfo'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack sslCaInfo must point to a readable CA file');
+            }
+            $sslCaInfo = $httpOptions['sslCaInfo'];
+        }
+
+        $sslVerify = true;
+        if (array_key_exists('sslVerify', $httpOptions)) {
+            if (!is_bool($httpOptions['sslVerify'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack sslVerify must be a boolean');
+            }
+            $sslVerify = $httpOptions['sslVerify'];
+        }
+
         return [
             'proxy' => $proxy,
             'noProxy' => self::normalizeNoProxy($httpOptions['noProxy'] ?? null),
@@ -716,6 +747,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'proxyCredentialHelper' => $helper,
             'proxyCredentialStore' => $store,
             'proxyCredentialErase' => $erase,
+            'sslCaInfo' => $sslCaInfo,
+            'sslVerify' => $sslVerify,
         ];
     }
 
@@ -1036,6 +1069,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $options['http']['proxy'] = (string) $httpOptions['proxy'];
             $options['http']['request_fulluri'] = !empty($httpOptions['requestFullUri']);
         }
+        $sslOptions = self::sslStreamContextOptions(self::httpUrlParts($url, 'smart HTTP receive-pack request URL'), $httpOptions);
+        if ($sslOptions !== []) {
+            $options['ssl'] = $sslOptions;
+        }
 
         $context = stream_context_create($options);
         $responseBody = @file_get_contents($url, false, $context);
@@ -1087,11 +1124,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             throw new \RuntimeException('smart HTTP receive-pack SOCKS proxy options are incomplete');
         }
 
-        $context = stream_context_create([
-            'ssl' => [
-                'peer_name' => trim($target['host'], '[]'),
-            ],
-        ]);
+        $context = stream_context_create(['ssl' => self::sslStreamContextOptions($target, $httpOptions)]);
         $stream = @stream_socket_client($proxy, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
         if (!is_resource($stream)) {
             throw new \RuntimeException("smart HTTP receive-pack SOCKS proxy connection failed for {$proxy}: {$errstr}", $errno);
@@ -1119,6 +1152,31 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $stream;
+    }
+
+    /**
+     * @param array{scheme: string, host: string, port: ?int, path?: string, query?: string, user?: string, pass?: string, fragment?: string} $target
+     * @param array<string, mixed> $httpOptions
+     * @return array<string, mixed>
+     */
+    private static function sslStreamContextOptions(array $target, array $httpOptions): array
+    {
+        if ($target['scheme'] !== 'https') {
+            return [];
+        }
+
+        $verify = !array_key_exists('sslVerify', $httpOptions) || $httpOptions['sslVerify'] !== false;
+        $options = [
+            'peer_name' => trim($target['host'], '[]'),
+            'verify_peer' => $verify,
+            'verify_peer_name' => $verify,
+            'allow_self_signed' => !$verify,
+        ];
+        if (isset($httpOptions['sslCaInfo'])) {
+            $options['cafile'] = (string) $httpOptions['sslCaInfo'];
+        }
+
+        return $options;
     }
 
     /**
