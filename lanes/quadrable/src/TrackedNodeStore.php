@@ -19,6 +19,11 @@ final class TrackedNodeStore
      */
     private array $branches = [];
 
+    /**
+     * @var array<string, int>
+     */
+    private array $heads = [];
+
     private int $nextLeafNodeId = 1;
     private int $nextBranchNodeId = self::FIRST_INTERIOR_NODE_ID;
     private int $nextMemStoreNodeId = self::FIRST_MEMSTORE_NODE_ID;
@@ -45,6 +50,23 @@ final class TrackedNodeStore
         ];
 
         return $nodeId;
+    }
+
+    public function headNodeId(string $head): int
+    {
+        self::assertHeadName($head);
+
+        return $this->heads[$head] ?? 0;
+    }
+
+    public function setHeadNodeId(string $head, int $nodeId): void
+    {
+        self::assertHeadName($head);
+        if ($nodeId < 0) {
+            throw new \InvalidArgumentException('head node id must be non-negative');
+        }
+
+        $this->heads[$head] = $nodeId;
     }
 
     /**
@@ -94,5 +116,12 @@ final class TrackedNodeStore
         }
 
         throw new \InvalidArgumentException('unknown tracked node id');
+    }
+
+    private static function assertHeadName(string $head): void
+    {
+        if ($head === '') {
+            throw new \InvalidArgumentException('head name must be non-empty');
+        }
     }
 }

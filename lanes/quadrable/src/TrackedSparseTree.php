@@ -24,10 +24,13 @@ final class TrackedSparseTree
         private readonly TrackedNodeStore $nodeStore = new TrackedNodeStore(),
         ?HashTree $hashTree = null,
         int $headNodeId = 0,
-        private readonly bool $writeToMemStore = false
+        private readonly bool $writeToMemStore = false,
+        private readonly ?string $headName = null
     ) {
         $this->hashTree = $hashTree ?? new HashTree();
-        if ($headNodeId !== 0) {
+        if ($this->headName !== null) {
+            $this->loadHeadNode($this->nodeStore->headNodeId($this->headName));
+        } elseif ($headNodeId !== 0) {
             $this->loadHeadNode($headNodeId);
         }
     }
@@ -42,19 +45,50 @@ final class TrackedSparseTree
         return $this->checkout();
     }
 
-    public function checkout(int $nodeId = 0): self
+    public function checkout(int|string $nodeId = 0): self
     {
+        if (is_string($nodeId)) {
+            return new self($this->nodeStore, $this->hashTree, 0, $this->writeToMemStore, $nodeId);
+        }
+
         return new self($this->nodeStore, $this->hashTree, $nodeId, $this->writeToMemStore);
     }
 
     public function withMemStoreWrites(bool $enabled = true): self
     {
-        return new self($this->nodeStore, $this->hashTree, $this->headNodeId, $enabled);
+        return new self($this->nodeStore, $this->hashTree, $this->headNodeId, $enabled, $this->headName);
     }
 
     public function writesToMemStore(): bool
     {
         return $this->writeToMemStore;
+    }
+
+    public function isDetachedHead(): bool
+    {
+        return $this->headName === null;
+    }
+
+    public function headName(): string
+    {
+        if ($this->headName === null) {
+            throw new \RuntimeException('in detached head mode');
+        }
+
+        return $this->headName;
+    }
+
+    public function fork(?string $newHead = null): self
+    {
+        if ($newHead === null) {
+            return $this->checkout($this->headNodeId);
+        }
+
+        $fork = new self($this->nodeStore, $this->hashTree, 0, $this->writeToMemStore, $newHead);
+        $fork->loadHeadNode($this->headNodeId);
+        $fork->persistNamedHead();
+
+        return $fork;
     }
 
     public function change(): TrackedChangeSet
@@ -237,6 +271,8 @@ final class TrackedSparseTree
     {
         ksort($updates, SORT_STRING);
         $oldHeadNodeId = $this->headNodeId;
+        $oldValues = $this->values;
+        $oldLeafNodeIds = $this->leafNodeIds;
 
         foreach ($updates as &$update) {
             if (!array_key_exists('outputNodeId', $update)) {
@@ -304,6 +340,14 @@ final class TrackedSparseTree
 
         if ($changed) {
             $this->refreshHeadNodeId($oldHeadNodeId);
+            if ($this->headName !== null && $this->headNodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID) {
+                $this->values = $oldValues;
+                $this->leafNodeIds = $oldLeafNodeIds;
+                $this->headNodeId = $oldHeadNodeId;
+                throw new \RuntimeException('attempted to store MemStore node into LMDB');
+            }
+
+            $this->persistNamedHead();
         }
 
         return $this;
@@ -410,6 +454,8 @@ final class TrackedSparseTree
     private function loadHeadNode(int $nodeId): void
     {
         if ($nodeId === 0) {
+            $this->values = [];
+            $this->leafNodeIds = [];
             $this->headNodeId = 0;
             return;
         }
@@ -420,6 +466,17 @@ final class TrackedSparseTree
         ksort($this->values, SORT_STRING);
         ksort($this->leafNodeIds, SORT_STRING);
         $this->headNodeId = $nodeId;
+    }
+
+    private function persistNamedHead(): void
+    {
+        if ($this->headName !== null) {
+            if ($this->headNodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID) {
+                throw new \RuntimeException('attempted to store MemStore node into LMDB');
+            }
+
+            $this->nodeStore->setHeadNodeId($this->headName, $this->headNodeId);
+        }
     }
 
     private function loadNode(int $nodeId): void

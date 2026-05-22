@@ -184,6 +184,43 @@ return [
         $stats = $overlay->stats();
         $t->same(3, $stats['numLeafNodes']);
     },
+    'maps upstream memStore named head guard and explicit fork escape' => static function (TestRunner $t): void {
+        $db = (new TrackedSparseTree())->checkout('memStore-test');
+        $db->change()
+            ->put('A', 'res1')
+            ->put('B', 'res2')
+            ->apply();
+
+        $origNode = $db->headNodeId();
+        $origRoot = $db->rootHash();
+        $t->true(!$db->isDetachedHead());
+        $t->same('memStore-test', $db->headName());
+
+        $guarded = $db->checkout('memStore-test')->withMemStoreWrites();
+        $t->throws(RuntimeException::class, static fn () => $guarded->change()->put('C', 'res3')->apply());
+        $t->same($origNode, $guarded->headNodeId());
+        $t->same($origRoot, $guarded->rootHash());
+        $t->same(null, $guarded->get('C'));
+
+        $fork = $guarded->fork();
+        $nodeIdC = 0;
+        $fork->put('C', 'res3', $nodeIdC);
+
+        $t->true($fork->isDetachedHead());
+        $t->throws(RuntimeException::class, static fn () => $fork->headName());
+        $t->true($fork->headNodeId() >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->true($nodeIdC >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->same('res1', $fork->get('A'));
+        $t->same('res2', $fork->get('B'));
+        $t->same('res3', $fork->get('C'));
+        $t->same(3, $fork->stats()['numLeafNodes']);
+
+        $namedCheckout = $fork->checkout('memStore-test');
+        $t->same($origNode, $namedCheckout->headNodeId());
+        $t->same($origRoot, $namedCheckout->rootHash());
+        $t->same(null, $namedCheckout->get('C'));
+        $t->same(2, $namedCheckout->stats()['numLeafNodes']);
+    },
     'copy-on-write updates preserve unchanged branch node ids' => static function (TestRunner $t): void {
         $tree = new TrackedSparseTree();
         $tree->change()
