@@ -140,11 +140,30 @@ final class PackData
         if ($entry === null) {
             throw new \RuntimeException("Object id not found in pack index: {$oid}");
         }
+
+        return $this->readObjectAtVerifiedOffset($index, $oid, $entry->packOffset);
+    }
+
+    public function readObjectAtOffset(PackIndex $index, string $oid, int $packOffset): GitObject
+    {
+        $entry = $index->lookup($oid);
+        if ($entry === null) {
+            throw new \RuntimeException("Object id not found in pack index: {$oid}");
+        }
+        if ($entry->packOffset !== $packOffset) {
+            throw new \RuntimeException('Multi-pack-index offset does not match pack index lookup');
+        }
+
+        return $this->readObjectAtVerifiedOffset($index, $oid, $packOffset);
+    }
+
+    private function readObjectAtVerifiedOffset(PackIndex $index, string $oid, int $packOffset): GitObject
+    {
         if ($index->packChecksum() !== $this->checksum) {
             throw new \RuntimeException('Pack index checksum does not match pack data checksum');
         }
 
-        $packEntry = $this->entryAtOffset($entry->packOffset, $this->nextOffset($index, $entry->packOffset));
+        $packEntry = $this->entryAtOffset($packOffset, $this->nextOffset($index, $packOffset));
         $object = $this->resolveEntry($index, $packEntry);
         if ($object->oid() !== strtolower($oid)) {
             throw new \RuntimeException('Pack entry object id does not match index lookup');

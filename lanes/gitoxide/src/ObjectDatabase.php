@@ -10,9 +10,13 @@ final class ObjectDatabase
     public const ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL = 'pack-offset-then-loose-lexicographical';
 
     /**
-     * @var null|list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string}>
+     * @var null|list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>
      */
     private ?array $packs = null;
+    /**
+     * @var null|list<array{index:MultiPackIndex,path:string,packDirectory:string,bundlesByIndexName:array<string,array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>}>
+     */
+    private ?array $multiPacks = null;
     /**
      * @var null|list<string>
      */
@@ -39,7 +43,14 @@ final class ObjectDatabase
         self::assertObjectId($oid);
         $oid = strtolower($oid);
 
-        foreach ($this->packBundles() as $bundle) {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $entry = $multiPack['index']->lookup($oid);
+            if ($entry !== null) {
+                return $this->bundleForMultiPackEntry($multiPack, $entry) !== null;
+            }
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
                 return true;
             }
@@ -60,7 +71,21 @@ final class ObjectDatabase
         $oid = strtolower($oid);
         $oid = $this->replacementFor($oid) ?? $oid;
 
-        foreach ($this->packBundles() as $bundle) {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $entry = $multiPack['index']->lookup($oid);
+            if ($entry === null) {
+                continue;
+            }
+
+            $bundle = $this->bundleForMultiPackEntry($multiPack, $entry);
+            if ($bundle === null) {
+                throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
+            }
+
+            return $bundle['data']->readObjectAtOffset($bundle['index'], $oid, $entry->packOffset);
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
                 return $bundle['data']->readObject($bundle['index'], $oid);
             }
@@ -79,7 +104,10 @@ final class ObjectDatabase
     public function packedObjectCount(): int
     {
         $count = 0;
-        foreach ($this->packBundles() as $bundle) {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $count += $multiPack['index']->count();
+        }
+        foreach ($this->standalonePackBundles() as $bundle) {
             $count += $bundle['index']->count();
         }
 
@@ -97,7 +125,18 @@ final class ObjectDatabase
         }
 
         $matches = [];
-        foreach ($this->packBundles() as $bundle) {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $result = $multiPack['index']->lookupPrefix($prefix);
+            if ($result['status'] === 'found') {
+                $matches[$result['entry']->oid] = true;
+            } elseif ($result['status'] === 'ambiguous') {
+                foreach ($result['matches'] as $entryIndex) {
+                    $matches[$multiPack['index']->entryAt($entryIndex)->oid] = true;
+                }
+            }
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
             $result = $bundle['index']->lookupPrefix($prefix);
             if ($result['status'] === 'found') {
                 $matches[$result['entry']->oid] = true;
@@ -141,7 +180,22 @@ final class ObjectDatabase
         }
 
         $ids = [];
-        foreach ($this->packBundles() as $bundle) {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $entries = $multiPack['index']->entries();
+            if ($ordering === self::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL) {
+                usort(
+                    $entries,
+                    static fn (MultiPackIndexEntry $a, MultiPackIndexEntry $b): int => $a->packIndex <=> $b->packIndex
+                        ?: $a->packOffset <=> $b->packOffset
+                        ?: strcmp($a->oid, $b->oid)
+                );
+            }
+            foreach ($entries as $entry) {
+                $ids[] = $entry->oid;
+            }
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
             $entries = $bundle['index']->entries();
             if ($ordering === self::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL) {
                 usort(
@@ -188,7 +242,7 @@ final class ObjectDatabase
     }
 
     /**
-     * @return list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string}>
+     * @return list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>
      */
     private function packBundles(): array
     {
@@ -221,11 +275,98 @@ final class ObjectDatabase
                     'data' => $data,
                     'indexPath' => $indexPath,
                     'packPath' => $packPath,
+                    'indexName' => basename($indexPath),
+                    'packDirectory' => $packDirectory,
                 ];
             }
         }
 
         return $this->packs;
+    }
+
+    /**
+     * @return list<array{index:MultiPackIndex,path:string,packDirectory:string,bundlesByIndexName:array<string,array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>}>
+     */
+    private function multiPackIndexes(): array
+    {
+        if ($this->multiPacks !== null) {
+            return $this->multiPacks;
+        }
+
+        $bundlesByDirectory = [];
+        foreach ($this->packBundles() as $bundle) {
+            $bundlesByDirectory[$bundle['packDirectory']][$bundle['indexName']] = $bundle;
+        }
+
+        $this->multiPacks = [];
+        foreach ($this->objectDirectories() as $objectsDirectory) {
+            $packDirectory = $objectsDirectory . '/pack';
+            $path = $packDirectory . '/multi-pack-index';
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $index = MultiPackIndex::open($path);
+            $index->verifyIntegrityFast();
+            $bundlesByIndexName = $bundlesByDirectory[$packDirectory] ?? [];
+            foreach ($index->indexNames() as $indexName) {
+                if (!isset($bundlesByIndexName[$indexName])) {
+                    throw new \RuntimeException("Pack index referenced by multi-pack-index not found: {$packDirectory}/{$indexName}");
+                }
+            }
+
+            $this->multiPacks[] = [
+                'index' => $index,
+                'path' => $path,
+                'packDirectory' => $packDirectory,
+                'bundlesByIndexName' => $bundlesByIndexName,
+            ];
+        }
+
+        return $this->multiPacks;
+    }
+
+    /**
+     * @param array{index:MultiPackIndex,path:string,packDirectory:string,bundlesByIndexName:array<string,array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>} $multiPack
+     * @return null|array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}
+     */
+    private function bundleForMultiPackEntry(array $multiPack, MultiPackIndexEntry $entry): ?array
+    {
+        $indexName = $multiPack['index']->indexNames()[$entry->packIndex] ?? null;
+        if ($indexName === null) {
+            return null;
+        }
+
+        return $multiPack['bundlesByIndexName'][$indexName] ?? null;
+    }
+
+    /**
+     * @return list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>
+     */
+    private function standalonePackBundles(): array
+    {
+        $referencedIndexPaths = [];
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            foreach ($multiPack['index']->indexNames() as $indexName) {
+                $bundle = $multiPack['bundlesByIndexName'][$indexName] ?? null;
+                if ($bundle !== null) {
+                    $referencedIndexPaths[$bundle['indexPath']] = true;
+                }
+            }
+        }
+
+        if ($referencedIndexPaths === []) {
+            return $this->packBundles();
+        }
+
+        $standalone = [];
+        foreach ($this->packBundles() as $bundle) {
+            if (!isset($referencedIndexPaths[$bundle['indexPath']])) {
+                $standalone[] = $bundle;
+            }
+        }
+
+        return $standalone;
     }
 
     /**

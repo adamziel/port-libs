@@ -36,6 +36,26 @@ $writePackFixtureToObjectsDirectory = static function (string $objectsDirectory)
     return $fixture;
 };
 
+$writeWordPressMultiPackFixture = static function (bool $omitMediaPack = false): array {
+    $fixture = require dirname(__DIR__) . '/fixtures/wordpress-object-database-multi-pack.php';
+    $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-midx-' . bin2hex(random_bytes(4)) . '/.git';
+    $packDir = $gitDir . '/objects/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create multi-pack fixture directory: {$packDir}");
+    }
+
+    foreach ($fixture['packs'] as $pack) {
+        if ($omitMediaPack && $pack['indexName'] === 'pack-1b-media.idx') {
+            continue;
+        }
+        file_put_contents($packDir . '/' . $pack['packName'], $pack['packBytes']);
+        file_put_contents($packDir . '/' . $pack['indexName'], $pack['indexBytes']);
+    }
+    file_put_contents($packDir . '/multi-pack-index', $fixture['multiIndexBytes']);
+
+    return [$gitDir, $fixture];
+};
+
 return [
     'object database reads packed delta and loose objects' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
@@ -191,5 +211,39 @@ return [
         ];
         usort($expected, static fn (array $a, array $b): int => strcmp($a['from'], $b['from']));
         $t->same($expected, $database->replacements());
+    },
+    'object database uses multi-pack-index for packed counts reads prefixes and iteration' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $rawPackIndexObjects = array_sum(array_map(static fn (array $pack): int => count($pack['objects']), $fixture['packs']));
+
+        $t->same(4, $rawPackIndexObjects);
+        $t->same(3, $database->packedObjectCount());
+        $t->same(true, $database->contains($fixture['objectsByRole']['shared']['oid']));
+
+        $content = $database->read($fixture['objectsByRole']['content']['oid']);
+        $media = $database->read($fixture['objectsByRole']['media']['oid']);
+        $shared = $database->read($fixture['objectsByRole']['shared']['oid']);
+        $t->contains('wp_posts export chunk', $content->body);
+        $t->contains('Large media attachment metadata', $media->body);
+        $t->contains('Shared plugin package object', $shared->body);
+
+        $expectedLexicographic = array_column($fixture['multiIndexObjects'], 'oid');
+        $t->same($expectedLexicographic, $database->objectIds());
+        $t->same([
+            $fixture['objectsByRole']['content']['oid'],
+            $fixture['objectsByRole']['shared']['oid'],
+            $fixture['objectsByRole']['media']['oid'],
+        ], $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL));
+
+        $prefix = $database->lookupPrefix(strtoupper(substr($fixture['objectsByRole']['media']['oid'], 0, 8)));
+        $t->same('found', $prefix['status']);
+        $t->same($fixture['objectsByRole']['media']['oid'], $prefix['oid']);
+    },
+    'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+        [$gitDir] = $writeWordPressMultiPackFixture(true);
+        $database = new ObjectDatabase($gitDir);
+
+        $t->throws(RuntimeException::class, static fn () => $database->packedObjectCount());
     },
 ];
