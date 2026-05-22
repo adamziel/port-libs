@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmark text/table scoring, committed multicolcnn, switch_trans, thinkpython, and thinkos Marker-vs-Nougat surrogate score fixtures from README-linked upstream examples, upstream bullet/text/header/code/font-style cleaners, styled-span Markdown emphasis reconstruction, and code-block indentation reconstruction for WordPress imports.",
     "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required. Native text scoring, table scoring, cleaner/font-style slices, and four committed upstream-derived surrogate pairs are mapped, but no external benchmark PDF/reference archive pair is mapped yet.",
-    "latestCommit": "pending-markerpdf-lane-commit",
+    "latestCommit": "706d622",
     "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map a focused layout behavior such as heading-level inference/TOC output before broadening OCR behavior."
 }
