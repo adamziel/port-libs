@@ -4,7 +4,7 @@ Authenticated local-first state sync for Playground snapshots and content databa
 
 ## Current Native Slice
 
-Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/put/delete, update batching, path-independent roots, `getMulti`, empty-head restoration, delete bubbling equivalence, ordered raw integer keys for WordPress option/post records, an exact upstream-digest snapshot root, iterator windows for incremental sync chunks, compact authenticated range proofs for partial snapshot verification, proof-backed partial-tree updates for narrow content changes, merged partial proofs for independently requested records, bounded sync proof fragments with diff reconstruction, scan-time diff callbacks that match the final authenticated diff, and tracked leaf node-id reuse for compact rebuilds of unchanged snapshot records.
+Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/put/delete, update batching, path-independent roots, `getMulti`, empty-head restoration, delete bubbling equivalence, ordered raw integer keys for WordPress option/post records, an exact upstream-digest snapshot root, iterator windows for incremental sync chunks, compact authenticated range proofs for partial snapshot verification, proof-backed partial-tree updates for narrow content changes, merged partial proofs for independently requested records, bounded sync proof fragments with diff reconstruction, scan-time diff callbacks that match the final authenticated diff, tracked leaf node-id reuse for compact rebuilds of unchanged snapshot records, saved branch-head checkout for old/new snapshot forks, tracked scan/final diffs that report identical leaf node ids for changed/deleted/added records, and memStore-range detached overlays for volatile preview edits.
 
 ## Fixture And Example
 
@@ -16,7 +16,10 @@ Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/p
 - `examples/wordpress-sync-diff.php` uses upstream-shaped sync request/response transport round trips to fetch bounded proof fragments from a changed snapshot, diff the authenticated shadow tree, and reconstruct updated/deleted/added WordPress records locally.
 - `examples/wordpress-sync-scan-diff.php` streams scan-time diff callbacks while sync requests converge, then shows that those callbacks match the final authenticated WordPress option/post diff.
 - `examples/wordpress-node-id-reuse.php` rebuilds the ordered snapshot from reused leaf node ids, preserving unchanged record node ids while producing the same trusted root and a new branch head id.
+- `examples/wordpress-snapshot-fork.php` saves the branch head id for an ordered snapshot, applies a post update on a fork, then checks out both old and new branch heads to read the authenticated record versions.
+- `examples/wordpress-node-id-diff.php` compares a saved snapshot with a changed fork and reports matching scan-time and final diff leaf node ids for changed, deleted, and added records.
+- `examples/wordpress-memstore-overlay.php` starts from an authenticated ordered snapshot, writes preview-only post changes into upstream's memStore node-id range, and leaves the base snapshot root unchanged.
 
 ## Next Task
 
-Broaden node-id parity from leaf output/reuse into branch/interior node identity, full upstream 500-trial randomized scan/diff node-id checks, and persisted LMDB-style store behavior.
+Broaden bounded tracked scan/diff node-id parity into full upstream 500-trial randomized sync fuzz with imported shadow node ids, then port the remaining named-head LMDB/MemStore guard from upstream `memStore forking from lmdb`.

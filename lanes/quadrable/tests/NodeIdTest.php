@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use PortLibs\Quadrable\DiffEntry;
 use PortLibs\Quadrable\Key;
+use PortLibs\Quadrable\TrackedNodeStore;
 use PortLibs\Quadrable\TrackedSparseTree;
 
 return [
@@ -102,6 +104,148 @@ return [
         $t->same($sampleLeafNodeId, $newSampleNodeId);
         $t->same('N = 6', $rebuilt->getKey(Key::fromInteger(6)));
     },
+    'maps upstream fork checkout by saved branch node id' => static function (TestRunner $t): void {
+        $tree = new TrackedSparseTree();
+        $tree->change()
+            ->put('a', 'A')
+            ->put('b', 'B')
+            ->put('c', 'C')
+            ->put('d', 'D')
+            ->apply();
+
+        $originalHeadNodeId = $tree->headNodeId();
+        $originalRoot = $tree->rootHash();
+        $t->true($originalHeadNodeId >= TrackedNodeStore::FIRST_INTERIOR_NODE_ID);
+
+        $fork = $tree->checkout($originalHeadNodeId);
+        $fork->put('e', 'E');
+        $newHeadNodeId = $fork->headNodeId();
+
+        $t->true($newHeadNodeId !== $originalHeadNodeId);
+        $t->same('A', $fork->get('a'));
+        $t->same('E', $fork->get('e'));
+
+        $oldCheckout = $fork->checkout($originalHeadNodeId);
+        $t->same($originalRoot, $oldCheckout->rootHash());
+        $t->same('A', $oldCheckout->get('a'));
+        $t->same(null, $oldCheckout->get('e'));
+
+        $newCheckout = $fork->checkout($newHeadNodeId);
+        $t->same($fork->rootHash(), $newCheckout->rootHash());
+        $t->same('E', $newCheckout->get('e'));
+    },
+    'maps upstream memStore basic with high detached node ids' => static function (TestRunner $t): void {
+        $tree = TrackedSparseTree::memoryOnly();
+        $nodeIdA = 0;
+        $nodeIdB = 0;
+
+        $tree->change()
+            ->put('A', 'res1', $nodeIdA)
+            ->put('B', 'res2', $nodeIdB)
+            ->apply();
+
+        $t->true($tree->writesToMemStore());
+        $t->true($tree->headNodeId() >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->true($nodeIdA >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->true($nodeIdB >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->same('res1', $tree->get('A'));
+        $t->same('res2', $tree->get('B'));
+
+        $stats = $tree->stats();
+        $t->same(2, $stats['numLeafNodes']);
+    },
+    'maps upstream memStore overlay fork from an existing tracked head' => static function (TestRunner $t): void {
+        $base = new TrackedSparseTree();
+        $nodeIdA = 0;
+        $nodeIdB = 0;
+        $base->change()
+            ->put('A', 'res1', $nodeIdA)
+            ->put('B', 'res2', $nodeIdB)
+            ->apply();
+
+        $baseHeadNodeId = $base->headNodeId();
+        $baseRoot = $base->rootHash();
+
+        $overlay = $base->withMemStoreWrites();
+        $nodeIdC = 0;
+        $overlay->put('C', 'res3', $nodeIdC);
+
+        $t->true($nodeIdA < TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->true($nodeIdB < TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->true($nodeIdC >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->true($overlay->headNodeId() >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->same($baseHeadNodeId, $base->headNodeId());
+        $t->same($baseRoot, $base->rootHash());
+        $t->same(null, $base->get('C'));
+        $t->same('res1', $overlay->get('A'));
+        $t->same('res2', $overlay->get('B'));
+        $t->same('res3', $overlay->get('C'));
+
+        $stats = $overlay->stats();
+        $t->same(3, $stats['numLeafNodes']);
+    },
+    'copy-on-write updates preserve unchanged branch node ids' => static function (TestRunner $t): void {
+        $tree = new TrackedSparseTree();
+        $tree->change()
+            ->putKey(Key::fromHex('00' . str_repeat('00', 31)), 'left-0')
+            ->putKey(Key::fromHex('40' . str_repeat('00', 31)), 'left-1')
+            ->putKey(Key::fromHex('80' . str_repeat('00', 31)), 'right-0')
+            ->putKey(Key::fromHex('c0' . str_repeat('00', 31)), 'right-1')
+            ->apply();
+
+        $originalHeadNodeId = $tree->headNodeId();
+        $originalChildren = $tree->branchChildren($originalHeadNodeId);
+        $rightBranchNodeId = $originalChildren['rightNodeId'];
+        $leftBranchNodeId = $originalChildren['leftNodeId'];
+
+        $tree->putKey(Key::fromHex('00' . str_repeat('00', 31)), 'left-0-updated');
+
+        $newChildren = $tree->branchChildren($tree->headNodeId());
+        $t->true($tree->headNodeId() !== $originalHeadNodeId);
+        $t->true($newChildren['leftNodeId'] !== $leftBranchNodeId);
+        $t->same($rightBranchNodeId, $newChildren['rightNodeId']);
+        $t->same($tree->nodeHash($rightBranchNodeId), $tree->nodeHash($newChildren['rightNodeId']));
+        $t->same('right-0', $tree->getKey(Key::fromHex('80' . str_repeat('00', 31))));
+    },
+    'tracked diffs emit upstream sync leaf node ids for changed added and deleted leaves' => static function (TestRunner $t): void {
+        $local = new TrackedSparseTree();
+        $local->change()
+            ->putKey(Key::fromInteger(1), 'one')
+            ->putKey(Key::fromInteger(2), 'two')
+            ->putKey(Key::fromInteger(3), 'three')
+            ->apply();
+
+        $oldTwoNodeId = 0;
+        $oldThreeNodeId = 0;
+        $t->same('two', $local->getKey(Key::fromInteger(2), $oldTwoNodeId));
+        $t->same('three', $local->getKey(Key::fromInteger(3), $oldThreeNodeId));
+
+        $remote = $local->checkout($local->headNodeId());
+        $newTwoNodeId = 0;
+        $deletedThreeNodeId = 0;
+        $newFourNodeId = 0;
+        $remote->change()
+            ->putKey(Key::fromInteger(2), 'two updated', $newTwoNodeId)
+            ->deleteKey(Key::fromInteger(3), $deletedThreeNodeId)
+            ->putKey(Key::fromInteger(4), 'four', $newFourNodeId)
+            ->apply();
+
+        $scanDiffs = [];
+        $diffs = $local->diffTo($remote, static function (DiffEntry $diff) use (&$scanDiffs): void {
+            $scanDiffs[] = $diff;
+        });
+        $diffsByKey = quadrableTrackedDiffsByInteger($diffs);
+
+        $t->same(quadrableTrackedDiffSignature($diffs), quadrableTrackedDiffSignature($scanDiffs));
+        $t->same(DiffEntry::CHANGED, $diffsByKey[2]->type);
+        $t->same(DiffEntry::DELETED, $diffsByKey[3]->type);
+        $t->same(DiffEntry::ADDED, $diffsByKey[4]->type);
+        $t->same($newTwoNodeId, $diffsByKey[2]->nodeId);
+        $t->same($oldThreeNodeId, $diffsByKey[3]->nodeId);
+        $t->same($deletedThreeNodeId, $diffsByKey[3]->nodeId);
+        $t->same($newFourNodeId, $diffsByKey[4]->nodeId);
+        $t->true($oldTwoNodeId !== $newTwoNodeId);
+    },
     'wordpress tracked snapshot can reuse leaves during a compact rebuild' => static function (TestRunner $t): void {
         $records = json_decode((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-ordered-snapshot.json'), true, flags: JSON_THROW_ON_ERROR);
 
@@ -137,4 +281,107 @@ return [
         $t->same($siteUrlNodeId, $reusedSiteUrlNodeId);
         $t->same('wp_options:siteurl=https://example.test', $rebuilt->getKey(Key::fromInteger(1)));
     },
+    'wordpress tracked snapshot forks can restore old and updated branch heads' => static function (TestRunner $t): void {
+        $records = json_decode((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-ordered-snapshot.json'), true, flags: JSON_THROW_ON_ERROR);
+
+        $snapshot = new TrackedSparseTree();
+        $changes = $snapshot->change();
+        foreach ($records as $record) {
+            $changes->putKey(Key::fromInteger((int) $record['key']), (string) $record['value']);
+        }
+        $changes->apply();
+
+        $oldHeadNodeId = $snapshot->headNodeId();
+        $oldRoot = $snapshot->rootHash();
+        $postKey = Key::fromInteger(3);
+
+        $updated = $snapshot->checkout($oldHeadNodeId);
+        $updated->putKey($postKey, 'wp_posts:1=Forked authenticated update');
+
+        $restoredOld = $updated->checkout($oldHeadNodeId);
+        $restoredNew = $updated->checkout($updated->headNodeId());
+
+        $t->same($oldRoot, $restoredOld->rootHash());
+        $t->same('wp_posts:1=Hello world', $restoredOld->getKey($postKey));
+        $t->same('wp_posts:1=Forked authenticated update', $restoredNew->getKey($postKey));
+        $t->true($restoredNew->rootHash() !== $oldRoot);
+    },
+    'wordpress tracked diff scan and final diff report identical node ids' => static function (TestRunner $t): void {
+        $local = quadrableTrackedWordPressSnapshot();
+        $remote = $local->checkout($local->headNodeId());
+
+        $oldMetaNodeId = 0;
+        $t->same('wp_postmeta:1:_thumbnail_id=42', $local->getKey(Key::fromInteger(4), $oldMetaNodeId));
+
+        $updatedPostNodeId = 0;
+        $deletedMetaNodeId = 0;
+        $addedPostNodeId = 0;
+        $remote->change()
+            ->putKey(Key::fromInteger(3), 'wp_posts:1=Tracked node-id import')
+            ->deleteKey(Key::fromInteger(4), $deletedMetaNodeId)
+            ->putKey(Key::fromInteger(6), 'wp_posts:3=Node id scan diff', $addedPostNodeId)
+            ->apply();
+
+        $t->same('wp_posts:1=Tracked node-id import', $remote->getKey(Key::fromInteger(3), $updatedPostNodeId));
+
+        $scanDiffs = [];
+        $finalDiffs = $local->diffTo($remote, static function (DiffEntry $diff) use (&$scanDiffs): void {
+            $scanDiffs[] = $diff;
+        });
+        $diffsByKey = quadrableTrackedDiffsByInteger($finalDiffs);
+
+        $t->same(quadrableTrackedDiffSignature($finalDiffs), quadrableTrackedDiffSignature($scanDiffs));
+        $t->same($updatedPostNodeId, $diffsByKey[3]->nodeId);
+        $t->same($oldMetaNodeId, $diffsByKey[4]->nodeId);
+        $t->same($deletedMetaNodeId, $diffsByKey[4]->nodeId);
+        $t->same($addedPostNodeId, $diffsByKey[6]->nodeId);
+        $t->same(DiffEntry::DELETED, $diffsByKey[4]->type);
+        $t->true($remote->rootHash() !== $local->rootHash());
+    },
 ];
+
+function quadrableTrackedWordPressSnapshot(): TrackedSparseTree
+{
+    $records = json_decode((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-ordered-snapshot.json'), true, flags: JSON_THROW_ON_ERROR);
+
+    $snapshot = new TrackedSparseTree();
+    $changes = $snapshot->change();
+    foreach ($records as $record) {
+        $changes->putKey(Key::fromInteger((int) $record['key']), (string) $record['value']);
+    }
+    $changes->apply();
+
+    return $snapshot;
+}
+
+/**
+ * @param list<DiffEntry> $diffs
+ *
+ * @return array<int, DiffEntry>
+ */
+function quadrableTrackedDiffsByInteger(array $diffs): array
+{
+    $byKey = [];
+    foreach ($diffs as $diff) {
+        $byKey[$diff->key()->toInteger()] = $diff;
+    }
+    ksort($byKey, SORT_NUMERIC);
+
+    return $byKey;
+}
+
+/**
+ * @param list<DiffEntry> $diffs
+ *
+ * @return list<string>
+ */
+function quadrableTrackedDiffSignature(array $diffs): array
+{
+    $signature = array_map(
+        static fn (DiffEntry $diff): string => $diff->type . ':' . $diff->key()->toInteger() . ':' . $diff->value . ':' . $diff->nodeId,
+        $diffs
+    );
+    sort($signature, SORT_STRING);
+
+    return $signature;
+}
