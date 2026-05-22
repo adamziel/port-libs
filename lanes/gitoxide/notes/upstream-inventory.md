@@ -410,7 +410,7 @@ Runner status:
 - Bounded `gix-validate` runner evidence now includes `timeout 120 cargo test -p gix-validate --test validate reference::name:: -- --nocapture`, which passed 54/54 filtered upstream complete-name tests, `timeout 120 cargo test -p gix-validate --test validate reference::name_partial::invalid -- --nocapture`, which passed 22/22 filtered upstream partial-name validation/sanitization tests, plus `timeout 120 cargo test -p gix-validate --test validate reference::branch_name -- --nocapture`, which passed 4/4 filtered upstream branch-name tests.
 - Bounded `gix-transport` runner evidence now includes `timeout 180 cargo test -p gix-transport --lib blocking_io::http::redirect --features blocking-client,http-client-curl -- --nocapture`, which passed 5/5 filtered redirect helper tests with 30 tests filtered out.
 - Gitoxide-only PHP verification after this slice passes 27 test files, 2,082 assertions, and 0 failures.
-- Required root PHP verification after this slice passes 135 test files, 12,069 assertions, and 0 failures in the current dirty worktree.
+- Required root PHP verification after this slice passes 138 test files, 12,193 assertions, and 0 failures in the current dirty worktree after stale generated `/tmp` test directories were cleaned.
 - The next inventory slice should either run another controlled `gix-object` message integration-test subset, broaden proxy credential persistence, add bounded delta reuse/search heuristics, add broader directory rename conflict cases, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
