@@ -425,6 +425,7 @@
   - Required rerun after native `dolt_log()` merge/min-parent filtering passed: 116 test files, 8,955 assertions, 0 failures.
   - Final current-HEAD rerun after intervening lane commits passed: 116 test files, 8,974 assertions, 0 failures.
   - Required rerun after native `dolt_log()` `--all` branch traversal passed: 120 test files, 9,245 assertions, 0 failures.
+  - Final current-HEAD rerun after concurrent lane additions passed: 120 test files, 9,276 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
