@@ -78,6 +78,17 @@ stable `HEAD`. Only after focused libsqlite inspection, `php tools/run-tests.php
 green, and `git diff --check` should that batch be committed. Regenerate
 dashboard artifacts only after the accepted green state is committed.
 
+Post-write drift note: by 2026-05-22T20:55:20Z, `HEAD` had advanced to
+`ccdaf9c` (`Record integration hold status`) on top of concurrent lane commits
+`3ebd87b` (`Port sqlite autoincrement allocation state`) and `72a7445` (`Stamp
+gitoxide packed reference status`). The branch line was
+`main...origin/main [ahead 37, behind 28]`, `git diff --cached --name-only`
+reported no staged paths, and `git diff --check` still passed. The root PHP
+harness was not rerun after those post-snapshot commits; the latest recorded
+root result from this pass remains the red `123 test files, 10732 assertions, 2
+failures` markerPDF run above. Treat the libsqlite staged-batch note as a
+historical observation, not the current index state.
+
 ## Integration Worker Snapshot - 2026-05-22T20:48:36Z
 
 No lane implementation, dashboard, or generated status batch was accepted,
