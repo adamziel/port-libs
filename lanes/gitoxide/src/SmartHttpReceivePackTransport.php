@@ -20,7 +20,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string} */
+    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool} */
     private readonly array $httpOptions;
 
     /**
@@ -207,7 +207,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private function request(string $method, string $url, array $headers, ?string $body, bool $followInitialRedirects): array
     {
-        $redirectsRemaining = $this->redirectLimit($followInitialRedirects);
+        $redirectsRemaining = $followInitialRedirects ? self::MAX_INITIAL_REDIRECTS : 0;
 
         while (true) {
             $effectiveUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, $url);
@@ -252,15 +252,6 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $this->effectiveRepositoryUrl = self::redirectedBaseUrl($redirectUrl, $this->repositoryUrl, $url);
             $redirectsRemaining--;
         }
-    }
-
-    private function redirectLimit(bool $initialRequest): int
-    {
-        return match ($this->httpOptions['followRedirects']) {
-            'all' => self::MAX_INITIAL_REDIRECTS,
-            'initial' => $initialRequest ? self::MAX_INITIAL_REDIRECTS : 0,
-            default => 0,
-        };
     }
 
     /**
@@ -676,11 +667,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string}
+     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify', 'followRedirects'];
+        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase', 'sslCaInfo', 'sslVerify'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
@@ -772,29 +763,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'proxyCredentialErase' => $erase,
             'sslCaInfo' => $sslCaInfo,
             'sslVerify' => $sslVerify,
-            'followRedirects' => self::normalizeFollowRedirects($httpOptions['followRedirects'] ?? null),
         ];
-    }
-
-    private static function normalizeFollowRedirects(mixed $followRedirects): string
-    {
-        if ($followRedirects === null || $followRedirects === '') {
-            return 'initial';
-        }
-        if (is_bool($followRedirects)) {
-            return $followRedirects ? 'all' : 'none';
-        }
-        if (!is_string($followRedirects)) {
-            throw new \InvalidArgumentException('smart HTTP receive-pack followRedirects must be initial, true, or false');
-        }
-
-        $normalized = strtolower(trim($followRedirects));
-        return match ($normalized) {
-            'initial' => 'initial',
-            'true', '1', 'yes', 'on', 'all' => 'all',
-            'false', '0', 'no', 'off', 'none' => 'none',
-            default => throw new \InvalidArgumentException('smart HTTP receive-pack followRedirects must be initial, true, or false'),
-        };
     }
 
     /**
