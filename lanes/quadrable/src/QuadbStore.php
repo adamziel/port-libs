@@ -14,7 +14,11 @@ final class QuadbStore
         private ?string $currentHead,
         private int $detachedHeadNodeId,
         /** @var array<string, string> */
-        private array $trackedKeys = []
+        private array $trackedKeys = [],
+        /** @var array<string, array{rootHash: string, proofs: list<string>}> */
+        private array $partialProofHeads = [],
+        /** @var array{rootHash: string, proofs: list<string>}|null */
+        private ?array $partialDetachedHead = null
     ) {
     }
 
@@ -87,12 +91,34 @@ final class QuadbStore
             $trackedKeys[$keyHashHex] = $key;
         }
 
+        $partialProofHeadsRaw = $quadbState['partialProofHeads'] ?? [];
+        if (!is_array($partialProofHeadsRaw)) {
+            throw new \InvalidArgumentException('partial proof heads must be an object');
+        }
+
+        $partialProofHeads = [];
+        foreach ($partialProofHeadsRaw as $head => $partialState) {
+            if (!is_string($head)) {
+                throw new \InvalidArgumentException('partial proof head names must be strings');
+            }
+            self::assertHeadNameValue($head);
+            $partialProofHeads[$head] = self::parsePartialProofState($partialState, 'partial proof head');
+        }
+        ksort($partialProofHeads, SORT_STRING);
+
+        $partialDetachedHead = null;
+        if (array_key_exists('partialDetachedHead', $quadbState) && $quadbState['partialDetachedHead'] !== null) {
+            $partialDetachedHead = self::parsePartialProofState($quadbState['partialDetachedHead'], 'partial detached head');
+        }
+
         return new self(
             $directory,
             $nodeStore,
             $currentHead,
             $detachedHeadNodeId,
-            $trackedKeys
+            $trackedKeys,
+            $partialProofHeads,
+            $partialDetachedHead
         );
     }
 
@@ -118,6 +144,10 @@ final class QuadbStore
 
     public function tree(): TrackedSparseTree
     {
+        if ($this->currentPartialProofState() !== null) {
+            throw new \RuntimeException('current head is a proof-backed partial tree');
+        }
+
         $tree = new TrackedSparseTree($this->nodeStore);
 
         if ($this->currentHead === null) {
@@ -132,6 +162,7 @@ final class QuadbStore
         if ($head === null) {
             $this->currentHead = null;
             $this->detachedHeadNodeId = 0;
+            $this->partialDetachedHead = null;
         } else {
             $this->assertHeadName($head);
             $this->currentHead = $head;
@@ -145,6 +176,13 @@ final class QuadbStore
 
     public function fork(?string $head = null, ?string $from = null): TrackedSparseTree
     {
+        $partialSource = $from !== null
+            ? ($this->partialProofHeads[$from] ?? null)
+            : $this->currentPartialProofState();
+        if ($partialSource !== null) {
+            throw new \RuntimeException('forking proof-backed partial trees is not yet supported');
+        }
+
         if ($from !== null) {
             $this->assertHeadName($from);
             $base = (new TrackedSparseTree($this->nodeStore))->checkout($from);
@@ -174,6 +212,7 @@ final class QuadbStore
     public function put(string $key, string $value): void
     {
         SparseTree::assertNonEmptyKey($key);
+        $this->assertWritableFullHead();
 
         $tree = $this->tree();
         $tree->put($key, $value);
@@ -184,6 +223,7 @@ final class QuadbStore
     public function delete(string $key): void
     {
         SparseTree::assertNonEmptyKey($key);
+        $this->assertWritableFullHead();
 
         $tree = $this->tree();
         $tree->delete($key);
@@ -194,7 +234,12 @@ final class QuadbStore
     {
         SparseTree::assertNonEmptyKey($key);
 
-        $value = $this->tree()->get($key);
+        $partial = $this->currentPartialTree();
+        if ($partial !== null) {
+            $value = $partial->get($key);
+        } else {
+            $value = $this->tree()->get($key);
+        }
         if ($value === null) {
             throw new \RuntimeException('key not found in db');
         }
@@ -204,17 +249,16 @@ final class QuadbStore
 
     public function rootText(): string
     {
-        return '0x' . $this->tree()->rootHash() . "\n";
+        return '0x' . $this->currentRootHash() . "\n";
     }
 
     public function statusText(): string
     {
-        $tree = $this->tree();
         $head = $this->isDetachedHead()
             ? "Detached head\n"
             : 'Head: ' . $this->currentHead . "\n";
 
-        return $head . 'Root: ' . $this->renderNode($tree->headNodeId()) . "\n";
+        return $head . 'Root: ' . $this->renderCurrentRootNode() . "\n";
     }
 
     public function headText(): string
@@ -224,6 +268,15 @@ final class QuadbStore
             $heads[] = [
                 'head' => $head,
                 'nodeId' => $nodeId,
+                'rootHash' => $this->nodeStore->nodeHash($nodeId),
+            ];
+        }
+        foreach ($this->partialProofHeads as $head => $_partialState) {
+            $partialTree = $this->partialTreeForHead($head);
+            $heads[] = [
+                'head' => $head,
+                'nodeId' => $partialTree->partialRootNodeId(),
+                'rootHash' => $partialTree->rootHash(),
             ];
         }
 
@@ -237,12 +290,12 @@ final class QuadbStore
 
         $output = '';
         if ($this->isDetachedHead()) {
-            $output .= 'D> [detached] : ' . $this->renderNode($this->detachedHeadNodeId) . "\n";
+            $output .= 'D> [detached] : ' . $this->renderCurrentRootNode() . "\n";
         }
 
         foreach ($heads as $head) {
             $prefix = !$this->isDetachedHead() && $this->currentHead === $head['head'] ? '=> ' : '   ';
-            $output .= $prefix . $head['head'] . ' : ' . $this->renderNode($head['nodeId']) . "\n";
+            $output .= $prefix . $head['head'] . ' : ' . $this->renderRootNode($head['rootHash'], $head['nodeId']) . "\n";
         }
 
         return $output;
@@ -253,6 +306,7 @@ final class QuadbStore
         if ($head !== null) {
             $this->assertHeadName($head);
             $this->nodeStore->deleteHead($head);
+            unset($this->partialProofHeads[$head]);
             $this->persist();
 
             return;
@@ -260,12 +314,14 @@ final class QuadbStore
 
         if ($this->isDetachedHead()) {
             $this->detachedHeadNodeId = 0;
+            $this->partialDetachedHead = null;
             $this->persist();
 
             return;
         }
 
         $this->nodeStore->deleteHead((string) $this->currentHead);
+        unset($this->partialProofHeads[(string) $this->currentHead]);
         $this->persist();
     }
 
@@ -283,6 +339,7 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
+        $this->assertWritableFullHead();
 
         $tree = $this->tree();
         $changes = $tree->change();
@@ -311,6 +368,9 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
+        if ($this->currentPartialProofState() !== null) {
+            throw new \RuntimeException('cannot export all records from a proof-backed partial tree');
+        }
 
         $output = '';
         foreach ($this->tree()->orderedEntries() as $entry) {
@@ -325,6 +385,9 @@ final class QuadbStore
         $this->assertHeadName($head);
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
+        }
+        if ($this->currentPartialProofState() !== null || isset($this->partialProofHeads[$head])) {
+            throw new \RuntimeException('cannot diff proof-backed partial trees');
         }
 
         $base = (new TrackedSparseTree($this->nodeStore))->checkout($head);
@@ -364,6 +427,7 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
+        $this->assertWritableFullHead();
 
         $tree = $this->tree();
         $changes = $tree->change();
@@ -409,6 +473,7 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
+        $this->assertWritableFullHead();
 
         $normalized = str_replace(["\r\n", "\r"], "\n", $input);
         $lines = explode("\n", $normalized);
@@ -452,6 +517,9 @@ final class QuadbStore
     {
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
+        }
+        if ($this->currentPartialProofState() !== null) {
+            throw new \RuntimeException('cannot export all records from a proof-backed partial tree');
         }
 
         $output = '';
@@ -519,23 +587,75 @@ final class QuadbStore
         return '0x' . bin2hex($this->exportIntegerProofBytes($integers, $encodingType)) . "\n";
     }
 
+    public function importProofHex(string $proofHex, ?string $expectedRoot = null): string
+    {
+        return $this->importProofBytes(self::decodeProofHexText($proofHex), $expectedRoot);
+    }
+
+    public function importProofBytes(string $encodedProof, ?string $expectedRoot = null): string
+    {
+        if ($this->currentPartialProofState() !== null || $this->tree()->rootHash() !== HashTree::EMPTY_HASH) {
+            throw new \RuntimeException('current head must be empty before importing a proof');
+        }
+
+        $root = $this->normalizeOptionalRoot($expectedRoot);
+        $proof = Proof::decode($encodedProof);
+        $partial = SparseTree::importProof($proof, $root ?? '');
+        $state = [
+            'rootHash' => $partial->rootHash(),
+            'proofs' => [bin2hex($encodedProof)],
+        ];
+
+        $this->storeCurrentPartialProofState($state);
+        $this->persist();
+
+        return $state['rootHash'];
+    }
+
+    public function mergeProofHex(string $proofHex): string
+    {
+        return $this->mergeProofBytes(self::decodeProofHexText($proofHex));
+    }
+
+    public function mergeProofBytes(string $encodedProof): string
+    {
+        $state = $this->currentPartialProofState();
+        if ($state === null) {
+            throw new \RuntimeException('current head is not a proof-backed partial tree');
+        }
+
+        $partial = $this->partialTreeFromState($state);
+        $partial->mergeProof(Proof::decode($encodedProof));
+
+        $state['proofs'][] = bin2hex($encodedProof);
+        $this->storeCurrentPartialProofState($state);
+        $this->persist();
+
+        return $partial->rootHash();
+    }
+
     /**
      * @return array{detached: bool, head: ?string, rootHash: string, headNodeId: int}
      */
     public function status(): array
     {
-        $tree = $this->tree();
+        $partial = $this->currentPartialTree();
 
         return [
             'detached' => $this->isDetachedHead(),
             'head' => $this->currentHead,
-            'rootHash' => $tree->rootHash(),
-            'headNodeId' => $tree->headNodeId(),
+            'rootHash' => $partial?->rootHash() ?? $this->tree()->rootHash(),
+            'headNodeId' => $partial?->partialRootNodeId() ?? $this->tree()->headNodeId(),
         ];
     }
 
     private function sparseTreeForProofs(): SparseTree
     {
+        $partial = $this->currentPartialTree();
+        if ($partial !== null) {
+            return $partial;
+        }
+
         $sparse = new SparseTree();
         $changes = $sparse->change();
 
@@ -565,6 +685,8 @@ final class QuadbStore
                 'currentHead' => $this->currentHead,
                 'detachedHeadNodeId' => $this->detachedHeadNodeId,
                 'trackedKeys' => $trackedKeys,
+                'partialProofHeads' => $this->partialProofHeads,
+                'partialDetachedHead' => $this->partialDetachedHead,
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 
@@ -585,6 +707,11 @@ final class QuadbStore
     }
 
     private function assertHeadName(string $head): void
+    {
+        self::assertHeadNameValue($head);
+    }
+
+    private static function assertHeadNameValue(string $head): void
     {
         if ($head === '') {
             throw new \InvalidArgumentException('head name must be non-empty');
@@ -616,6 +743,178 @@ final class QuadbStore
     private function keyHash(string $key): string
     {
         return (new HashTree())->keyHash($key);
+    }
+
+    private function assertWritableFullHead(): void
+    {
+        if ($this->currentPartialProofState() !== null) {
+            throw new \RuntimeException('current head is a proof-backed partial tree');
+        }
+    }
+
+    /**
+     * @return array{rootHash: string, proofs: list<string>}|null
+     */
+    private function currentPartialProofState(): ?array
+    {
+        if ($this->currentHead === null) {
+            return $this->partialDetachedHead;
+        }
+
+        return $this->partialProofHeads[$this->currentHead] ?? null;
+    }
+
+    /**
+     * @param array{rootHash: string, proofs: list<string>} $state
+     */
+    private function storeCurrentPartialProofState(array $state): void
+    {
+        if ($this->currentHead === null) {
+            $this->detachedHeadNodeId = 0;
+            $this->partialDetachedHead = $state;
+
+            return;
+        }
+
+        $this->partialProofHeads[$this->currentHead] = $state;
+        $this->nodeStore->deleteHead($this->currentHead);
+    }
+
+    private function currentPartialTree(): ?SparseTree
+    {
+        $state = $this->currentPartialProofState();
+        if ($state === null) {
+            return null;
+        }
+
+        return $this->partialTreeFromState($state);
+    }
+
+    private function partialTreeForHead(string $head): SparseTree
+    {
+        if (!isset($this->partialProofHeads[$head])) {
+            throw new \RuntimeException('head is not proof-backed');
+        }
+
+        return $this->partialTreeFromState($this->partialProofHeads[$head]);
+    }
+
+    /**
+     * @param array{rootHash: string, proofs: list<string>} $state
+     */
+    private function partialTreeFromState(array $state): SparseTree
+    {
+        $proofs = $state['proofs'];
+        if ($proofs === []) {
+            throw new \RuntimeException('partial proof state has no proofs');
+        }
+
+        $first = Proof::decode((string) hex2bin($proofs[0]));
+        $partial = SparseTree::importProof($first, $state['rootHash']);
+
+        for ($i = 1; $i < count($proofs); $i++) {
+            $partial->mergeProof(Proof::decode((string) hex2bin($proofs[$i])));
+        }
+
+        return $partial;
+    }
+
+    private function currentRootHash(): string
+    {
+        $partial = $this->currentPartialTree();
+        if ($partial !== null) {
+            return $partial->rootHash();
+        }
+
+        return $this->tree()->rootHash();
+    }
+
+    private function renderCurrentRootNode(): string
+    {
+        $partial = $this->currentPartialTree();
+        if ($partial !== null) {
+            return $this->renderRootNode($partial->rootHash(), $partial->partialRootNodeId());
+        }
+
+        if ($this->currentHead === null) {
+            return $this->renderNode($this->detachedHeadNodeId);
+        }
+
+        $tree = $this->tree();
+
+        return $this->renderNode($tree->headNodeId());
+    }
+
+    private function normalizeOptionalRoot(?string $root): ?string
+    {
+        if ($root === null) {
+            return null;
+        }
+
+        $root = trim($root);
+        if (str_starts_with($root, '0x') || str_starts_with($root, '0X')) {
+            $root = substr($root, 2);
+        }
+        if (!preg_match('/^[0-9a-f]{64}$/', $root)) {
+            throw new \InvalidArgumentException('expected root must be lowercase 32-byte hex');
+        }
+
+        return $root;
+    }
+
+    private static function decodeProofHexText(string $proofHex): string
+    {
+        $hex = preg_replace('/\s+/', '', $proofHex);
+        if (!is_string($hex)) {
+            throw new \InvalidArgumentException('invalid hex proof text');
+        }
+        if (str_starts_with($hex, '0x') || str_starts_with($hex, '0X')) {
+            $hex = substr($hex, 2);
+        }
+        if ($hex === '' || strlen($hex) % 2 !== 0 || !preg_match('/^[0-9a-fA-F]+$/', $hex)) {
+            throw new \InvalidArgumentException('expected hexadecimal proof');
+        }
+
+        $decoded = hex2bin($hex);
+        if ($decoded === false) {
+            throw new \InvalidArgumentException('expected hexadecimal proof');
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @return array{rootHash: string, proofs: list<string>}
+     */
+    private static function parsePartialProofState(mixed $state, string $label): array
+    {
+        if (!is_array($state)
+            || !isset($state['rootHash'], $state['proofs'])
+            || !is_string($state['rootHash'])
+            || !preg_match('/^[0-9a-f]{64}$/', $state['rootHash'])
+            || !is_array($state['proofs'])
+            || $state['proofs'] === []
+        ) {
+            throw new \InvalidArgumentException($label . ' is malformed');
+        }
+
+        $proofs = [];
+        foreach ($state['proofs'] as $proofHex) {
+            if (!is_string($proofHex)
+                || $proofHex === ''
+                || strlen($proofHex) % 2 !== 0
+                || !preg_match('/^[0-9a-f]+$/', $proofHex)
+            ) {
+                throw new \InvalidArgumentException($label . ' has malformed proof bytes');
+            }
+
+            $proofs[] = $proofHex;
+        }
+
+        return [
+            'rootHash' => $state['rootHash'],
+            'proofs' => $proofs,
+        ];
     }
 
     /**
@@ -679,6 +978,11 @@ final class QuadbStore
 
     private function renderNode(int $nodeId): string
     {
-        return '0x' . $this->nodeStore->nodeHash($nodeId) . ' (' . $nodeId . ')';
+        return $this->renderRootNode($this->nodeStore->nodeHash($nodeId), $nodeId);
+    }
+
+    private function renderRootNode(string $rootHash, int $nodeId): string
+    {
+        return '0x' . $rootHash . ' (' . $nodeId . ')';
     }
 }
