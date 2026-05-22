@@ -24,6 +24,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-list-import.php` maps Marker's upstream bullet/text cleaners into a Gutenberg list import path. It extracts PDF text lines containing Marker-supported bullet glyphs, normalizes them to Markdown `- ` markers with `TextCleaner`, and emits a core list block.
 
+`examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
+
 ## Next Task
 
-Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map another README-linked committed example surrogate before broadening layout/table/OCR behavior.
+Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map another README-linked committed example surrogate such as `switch_transformers` before broadening layout/OCR behavior.

@@ -13,7 +13,7 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 - Cleaner/postprocessor source inspected: 7 cleaner modules with 16 functions under `marker/cleaners/`, plus 8 functions in `marker/postprocessors/markdown.py`.
 - Cleaner functions mapped: `marker/cleaners/bullets.py::replace_bullets` and `marker/cleaners/text.py::cleanup_text`.
 - Published benchmark documents in the README accuracy table: 6 (`multicolcnn.pdf`, `switch_trans.pdf`, `thinkpython.pdf`, `thinkos.pdf`, `thinkdsp.pdf`, `crowd.pdf`).
-- CI score assertions: 2 marker thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`).
+- CI score assertions: 3 thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`, and average table report score `>= 0.7`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
 
 The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashboard purposes: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, and 1 Markdown postprocessor. This is a static inventory, not upstream pass parity.
@@ -31,6 +31,8 @@ The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashb
 - `marker/postprocessors/markdown.py` hyphenated line dewrapping is mapped by `MarkdownPostProcessor::mergeLines`.
 - `marker/postprocessors/markdown.py` heading/list/text wrapping and hash escaping are mapped by `MarkdownPostProcessor::surroundBlock`.
 - `marker/benchmark/scoring.py` chunking, local-window overlap, and text score aggregation are mapped by `BenchmarkScorer`.
+- `marker/benchmark/table.py` pipe-cell splitting, best-row fuzzy alignment, and aggregate table scoring are mapped by `TableScorer`.
+- `scripts/verify_benchmark_scores.py` table-score threshold is covered by `examples/wordpress-table-score.php`, which scores an OCR-noisy WordPress table import above `0.7`.
 - `marker/cleaners/bullets.py` bullet glyph normalization is mapped by `TextCleaner::replaceBullets`.
 - `marker/cleaners/text.py` excessive whitespace and non-breaking-space cleanup is mapped by `TextCleaner::cleanupText`.
 - README-linked committed Marker/Nougat `multicolcnn` markdown outputs are mapped as an upstream-derived surrogate benchmark pair.
