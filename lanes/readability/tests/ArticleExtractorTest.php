@@ -261,6 +261,23 @@ return [
         $t->true(!str_contains($article->contentHtml, 'display: none'), 'display:none source content should be removed');
         $t->true(!str_contains($article->contentHtml, 'hidden="hidden"'), 'hidden-attribute source content should be removed');
     },
+    'maps Mozilla rtl direction fixtures from article ancestors' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $extractor = new ArticleExtractor();
+
+        foreach (['rtl-1', 'rtl-2', 'rtl-3', 'rtl-4'] as $name) {
+            $fixture = __DIR__ . '/../fixtures/mozilla/' . $name;
+            $source = (string) file_get_contents($fixture . '/source.html');
+            $expected = (string) file_get_contents($fixture . '/expected.html');
+            $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+            $article = $extractor->extract($source);
+
+            $t->same($metadata['title'], $article->title);
+            $t->same($metadata['dir'], $article->dir, $name . ' should match upstream article direction');
+            $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+            $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+            $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        }
+    },
     'maps Mozilla visibility-hidden fixture to the visible section only' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/visibility-hidden';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -383,6 +400,22 @@ return [
         $t->true(!str_contains($article->text, 'Display none tracking'), 'display:none content should be removed');
         $t->true(!str_contains($article->text, 'Visibility hidden share'), 'visibility:hidden content should be removed');
         $t->true(!str_contains($article->text, 'Cookie consent modal'), 'aria-modal dialogs should be removed like upstream');
+    },
+    'preserves WordPress RTL article direction metadata from migrated wrappers' => static function (TestRunner $t): void {
+        $html = '<html dir="ltr"><head><title>RTL Import Direction</title></head><body dir="rtl"><main><article>'
+            . '<h1>RTL Import Direction</h1>'
+            . '<p>' . str_repeat('A WordPress importer should keep right-to-left direction metadata from source wrappers while dropping duplicate title headings. ', 3) . '</p>'
+            . '<p>' . str_repeat('The extracted block content remains portable, and the import layer can apply the direction to the post or block wrapper. ', 3) . '</p>'
+            . '</article></main></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('RTL Import Direction', $article->title);
+        $t->same('rtl', $article->dir);
+        $t->contains('right-to-left direction metadata', $blocks);
+        $t->same(false, str_contains($article->text, 'RTL Import Direction'), 'duplicate source title heading should not become block text');
     },
     'removes inline WordPress stylesheet links and fieldset controls before block output' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Legacy Inline Junk"></head><body><article>'
@@ -874,6 +907,28 @@ return [
         $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
         $t->same(false, str_contains((string) $article->byline, 'FAIL'), 'fallback author meta should not beat dc:creator metadata');
     },
+    'maps Mozilla metadata preferred and space separated property fixtures' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $extractor = new ArticleExtractor();
+
+        foreach (['003-metadata-preferred', '004-metadata-space-separated-properties'] as $name) {
+            $fixture = __DIR__ . '/../fixtures/mozilla/' . $name;
+            $source = (string) file_get_contents($fixture . '/source.html');
+            $expected = (string) file_get_contents($fixture . '/expected.html');
+            $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+            $article = $extractor->extract($source);
+
+            $t->same($metadata['title'], $article->title);
+            $t->same($metadata['byline'], $article->byline);
+            $t->same($metadata['siteName'], $article->siteName);
+            $t->same($metadata['publishedTime'], $article->publishedTime);
+            $t->same($metadata['dir'], $article->dir);
+            $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+            $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+            $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+            $t->same(false, str_contains($article->title, 'Title Element'), $name . ' should not fall back to document title');
+            $t->same(false, str_contains((string) $article->byline, 'FAIL'), $name . ' should not use lower-priority author metadata');
+        }
+    },
     'uses Dublin Core metadata for WordPress import titles bylines and excerpts' => static function (TestRunner $t): void {
         $html = '<html><head><title>Theme Fallback Title</title>'
             . '<meta property="x:title dc:title" content="Canonical Import Title">'
@@ -1322,5 +1377,44 @@ return [
         $t->contains('Second migrated paragraph keeps a soft<br>line break', $blocks);
         $t->true(!str_contains($article->contentHtml, '<br><br>'), 'hard break chains should not survive into migration markup');
         $t->true(!str_contains($blocks, '<div><p>'), 'layout div wrappers created during br cleanup should flatten before block output');
+    },
+    'maps Mozilla replace-font-tags fixture to span markup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/replace-font-tags';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//span')), count($attributeValues($article->contentHtml, '//span')));
+        $t->same($attributeValues($expected, '//span/@face'), $attributeValues($article->contentHtml, '//span/@face'));
+        $t->same($attributeValues($expected, '//span/@size'), $attributeValues($article->contentHtml, '//span/@size'));
+        $t->same([], $attributeValues($article->contentHtml, '//font'));
+    },
+    'normalizes legacy WordPress font tags before block output' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Classic Editor Font Cleanup</title></head><body><article>'
+            . '<h1>Classic Editor Font Cleanup</h1>'
+            . '<p><font face="Georgia" size="4">Classic editor exports can preserve editorial emphasis</font> without keeping obsolete font elements.</p>'
+            . '<p>' . str_repeat('The WordPress importer should keep the text and attributes needed for review while avoiding invalid source markup in blocks. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Classic Editor Font Cleanup', $article->title);
+        $t->contains('<span face="Georgia" size="4">Classic editor exports can preserve editorial emphasis</span>', $article->contentHtml);
+        $t->same(false, str_contains($article->contentHtml, '<font'), 'legacy font elements should be replaced with spans during document preparation');
+        $t->same(false, str_contains($blocks, '<font'), 'legacy font elements should not survive into WordPress block output');
+        $t->contains('Classic editor exports can preserve editorial emphasis', $blocks);
     },
 ];

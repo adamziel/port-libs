@@ -73,6 +73,7 @@ final class ArticleExtractor
 
         $title = $this->title($xpath, $dom, $metaValues, $jsonLdMetadata);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
+        $articleDir = $best instanceof \DOMElement ? $this->articleDirection($best) : null;
         if ($best instanceof \DOMElement) {
             $best = $this->promoteSingleArticleCandidate($best);
             $this->removePlatformArticleChrome($best);
@@ -116,7 +117,7 @@ final class ArticleExtractor
                     '//time[@datetime]/@datetime',
                 ]),
             ]),
-            $this->documentAttribute($dom, 'dir'),
+            $articleDir,
             $this->documentAttribute($dom, 'lang'),
         );
     }
@@ -862,6 +863,18 @@ final class ArticleExtractor
         $value = trim($element->getAttribute($attribute));
 
         return $value === '' ? null : $value;
+    }
+
+    private function articleDirection(\DOMElement $candidate): ?string
+    {
+        for ($node = $candidate->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            $dir = trim($node->getAttribute('dir'));
+            if ($dir !== '') {
+                return $dir;
+            }
+        }
+
+        return null;
     }
 
     private function effectiveBaseUri(\DOMXPath $xpath, ?string $documentUri): ?string
