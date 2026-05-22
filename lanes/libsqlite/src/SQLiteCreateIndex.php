@@ -53,6 +53,38 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstUpperExpression(string $sql): ?SQLiteIndexColumn
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $column = self::parseUpperExpressionColumn($term);
+        if ($column === null) {
+            return null;
+        }
+
+        return new SQLiteIndexColumn(
+            $column['name'],
+            $column['collation'],
+            $column['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     public static function firstLengthExpression(string $sql): ?SQLiteIndexColumn
     {
         $index = self::indexedTermsAndTail($sql);
@@ -260,9 +292,25 @@ final class SQLiteCreateIndex
      */
     private static function parseLowerExpressionColumn(string $term): ?array
     {
+        return self::parseUnaryColumnFunctionExpression($term, 'lower');
+    }
+
+    /**
+     * @return null|array{name:string,collation:string,descending:bool}
+     */
+    private static function parseUpperExpressionColumn(string $term): ?array
+    {
+        return self::parseUnaryColumnFunctionExpression($term, 'upper');
+    }
+
+    /**
+     * @return null|array{name:string,collation:string,descending:bool}
+     */
+    private static function parseUnaryColumnFunctionExpression(string $term, string $functionName): ?array
+    {
         $term = trim($term);
         $function = self::readIdentifier($term, 0);
-        if ($function === null || strcasecmp($function[0], 'lower') !== 0) {
+        if ($function === null || strcasecmp($function[0], $functionName) !== 0) {
             return null;
         }
 

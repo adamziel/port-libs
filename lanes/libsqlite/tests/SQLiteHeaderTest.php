@@ -616,6 +616,22 @@ return [
         $t->same(null, $otherExpression);
         $t->same(null, $ordinaryColumn);
     },
+    'parses sqlite upper expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
+        $upperIndex = SQLiteCreateIndex::firstUpperExpression('CREATE INDEX idx_upper_name ON wp_options(upper(main.wp_options."option_name") COLLATE nocase DESC) WHERE option_name IS NOT NULL');
+        $constantExpression = SQLiteCreateIndex::firstUpperExpression("CREATE INDEX idx_constant ON wp_options(upper('option_name'))");
+        $otherExpression = SQLiteCreateIndex::firstUpperExpression('CREATE INDEX idx_lower ON wp_options(lower(option_name))');
+        $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_upper_name ON wp_options(upper(option_name))');
+
+        $t->same('option_name', $upperIndex?->columnName);
+        $t->same('NOCASE', $upperIndex?->collation);
+        $t->same(true, $upperIndex?->descending);
+        $t->same(true, $upperIndex?->partial);
+        $t->same('option_name', $upperIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $upperIndex?->partialPredicate?->operator);
+        $t->same(null, $constantExpression);
+        $t->same(null, $otherExpression);
+        $t->same(null, $ordinaryColumn);
+    },
     'parses sqlite length expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $lengthIndex = SQLiteCreateIndex::firstLengthExpression('CREATE INDEX idx_name_length ON wp_options(length(main.wp_options."option_name") DESC) WHERE option_name IS NOT NULL');
         $constantExpression = SQLiteCreateIndex::firstLengthExpression("CREATE INDEX idx_constant ON wp_options(length('option_name'))");
@@ -869,6 +885,68 @@ return [
         $t->same(['HOME'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedLowercaseNames([123]));
+    },
+    'uses upper expression index for ascii folded wordpress option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_upper_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_upper_option_name ON wp_options(upper(option_name) COLLATE NOCASE DESC) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'HOME', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['SITEURL', 1]),
+            $indexCell(['HOME', 2]),
+            $indexCell(['BLOGNAME', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedUppercaseName('blogname');
+        $missing = $database->wordpressOptionByIndexedUppercaseName('missing');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'blogname'));
+        $t->same(3, $database->indexRootPageForUppercasePointLookup('wp_options', 'option_name', 'blogname'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(3, $option->optionId);
+        $t->same('blogname', $option->optionName);
+        $t->same('Ported SQLite', $option->optionValue);
+        $t->same(null, $missing);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('blogname'));
+    },
+    'uses upper expression index for ascii folded wordpress option_name IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_upper_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_upper_option_name ON wp_options(upper(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'HOME', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 3),
+            $schemaCell([null, 'café', 'unicode-name', 'no'], 4),
+            $schemaCell([null, null, 'draft option without name', 'no'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['BLOGNAME', 3]),
+            $indexCell(['CAFé', 4]),
+            $indexCell(['HOME', 2]),
+            $indexCell(['SITEURL', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedUppercaseNames(['siteurl', 'home', 'HOME', 'café', null]);
+        $limited = $database->wordpressOptionsByIndexedUppercaseNames(['siteurl', 'home', 'café'], 2);
+        $nullOnly = $database->wordpressOptionsByIndexedUppercaseNames([null]);
+
+        $t->same(3, $database->indexRootPageForUppercaseInLookup('wp_options', 'option_name', ['siteurl', 'home']));
+        $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'home']));
+        $t->same(['café', 'HOME', 'SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['unicode-name', 'https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['café', 'HOME'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $nullOnly);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedUppercaseNames([123]));
     },
     'uses lower expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([

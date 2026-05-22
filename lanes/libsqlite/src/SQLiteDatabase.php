@@ -292,6 +292,16 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param list<mixed> $values
+     */
+    public function indexRootPageForUppercaseInLookup(string $tableName, string $columnName, array $values): ?int
+    {
+        $lookup = $this->indexLookupForUpperExpressionColumnInList($tableName, $columnName, $values);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
      * @param array<string, mixed> $equalityConstraints
      */
     public function indexRootPageForPointLookupWithConstraints(
@@ -309,6 +319,13 @@ final class SQLiteDatabase
     public function indexRootPageForLowercasePointLookup(string $tableName, string $columnName, string $value): ?int
     {
         $lookup = $this->indexLookupForLowerExpressionColumn($tableName, $columnName, $value);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    public function indexRootPageForUppercasePointLookup(string $tableName, string $columnName, string $value): ?int
+    {
+        $lookup = $this->indexLookupForUpperExpressionColumn($tableName, $columnName);
 
         return $lookup['rootPage'] ?? null;
     }
@@ -670,6 +687,56 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param list<mixed> $values
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForUpperExpressionColumnInList(string $tableName, string $columnName, array $values): ?array
+    {
+        $hasNonNullValue = false;
+        foreach ($values as $value) {
+            if ($value !== null) {
+                $hasNonNullValue = true;
+                break;
+            }
+        }
+        if (!$hasNonNullValue) {
+            return null;
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstUpperExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
     private function indexLookupForLowerExpressionColumn(
@@ -696,6 +763,46 @@ final class SQLiteDatabase
                         [$columnName => $pointLookupValue],
                         [],
                         true,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForUpperExpressionColumn(
+        string $tableName,
+        string $columnName,
+    ): ?array {
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstUpperExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
                     )
                 )
             ) {
@@ -1331,6 +1438,65 @@ final class SQLiteDatabase
         return $options;
     }
 
+    /**
+     * @param list<?string> $optionNames
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedUppercaseNames(array $optionNames, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options upper expression indexed IN lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $optionNames === []) {
+            return [];
+        }
+
+        $lookupValues = [];
+        foreach ($optionNames as $optionName) {
+            if ($optionName !== null && !is_string($optionName)) {
+                throw new \InvalidArgumentException('SQLite wp_options upper expression indexed IN lookup names must be strings or null');
+            }
+            $lookupValues[] = $optionName === null ? null : self::asciiUpper($optionName);
+        }
+        if (!self::containsNonNullValue($lookupValues)) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForUpperExpressionColumnInList('wp_options', 'option_name', $lookupValues);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options upper(option_name) expression IN-list index is not present');
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByFirstValueList(
+            $indexLookup['rootPage'],
+            $lookupValues,
+            $indexLookup['collation'],
+            $indexLookup['descending'],
+        ) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiUpper($option->optionName), $indexLookup['collation'])) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
     public function wordpressOptionByIndexedNameForAutoload(string $optionName, string $autoload): ?SQLiteWordPressOption
     {
         $tableRootPage = $this->tableRootPage('wp_options');
@@ -1400,6 +1566,42 @@ final class SQLiteDatabase
 
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::compareSQLiteScalar(self::asciiLower($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
+                return $option;
+            }
+        }
+
+        return null;
+    }
+
+    public function wordpressOptionByIndexedUppercaseName(string $optionName): ?SQLiteWordPressOption
+    {
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return null;
+        }
+
+        $indexLookup = $this->indexLookupForUpperExpressionColumn('wp_options', 'option_name');
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options upper(option_name) expression index is not present');
+        }
+
+        $lookupValue = self::asciiUpper($optionName);
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $lookupValue,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::compareSQLiteScalar(self::asciiUpper($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
                 return $option;
             }
         }
@@ -3709,6 +3911,20 @@ final class SQLiteDatabase
             $ord = ord($bytes[$i]);
             if ($ord >= 0x41 && $ord <= 0x5a) {
                 $bytes[$i] = chr($ord + 0x20);
+            }
+        }
+
+        return $bytes;
+    }
+
+    private static function asciiUpper(string $value): string
+    {
+        $bytes = $value;
+        $length = strlen($bytes);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($bytes[$i]);
+            if ($ord >= 0x61 && $ord <= 0x7a) {
+                $bytes[$i] = chr($ord - 0x20);
             }
         }
 

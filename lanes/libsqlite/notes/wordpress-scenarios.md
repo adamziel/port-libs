@@ -76,6 +76,13 @@ through `wp_options(lower(option_name))`, avoid duplicate rows for duplicate
 RHS names, ignore `NULL` RHS terms, and skip out-of-range index branches before
 page decoding when a large or partially damaged options database contains
 unrelated lower-key subtrees.
+First-term `upper(option_name)` expression indexes are now parsed for
+ASCII-folded point and `IN (...)` reads. This maps databases or recovery tools
+that stored an uppercase expression index instead of a lowercase one: callers
+can request `siteurl,home`, the native reader probes the stored uppercase keys
+using SQLite's built-in bytewise ASCII `upper()` semantics, rejects the
+expression index as an ordinary `option_name` index, and accepts only safe
+`option_name IS NOT NULL` partial predicates for this path.
 First-term `substr(option_name,start,length)` expression indexes are now
 parsed for non-zero integer start and optional non-negative length literals. A
 WordPress recovery tool can use a `substr(option_name,1,N)` expression index to read prefix
@@ -83,8 +90,8 @@ buckets such as `_transient_` through native index traversal, including
 `COLLATE NOCASE` comparison and safe `option_name IS NOT NULL` partial
 predicate checks. This remains intentionally narrower than SQLite's full
 expression engine: variable-start substrings, expression `IN` lookup families
-beyond `lower(column)` and this literal-start prefix-list path, and arbitrary
-functions are still future slices.
+beyond `lower(column)`, `upper(column)`, and this literal-start prefix-list
+path, and arbitrary functions are still future slices.
 The literal-start prefix path now also supports bounded `IN (...)` reads for
 same-length prefixes. Recovery tools can read `_transient_` and `_site_trans`
 cache buckets from one `substr(option_name,1,N)` expression index, avoid
@@ -259,6 +266,13 @@ case-folded names such as `SITEURL,HOME` without scanning the whole table. This
 maps plugin/theme preload and recovery workflows where option names may have
 unexpected case and a plain `option_name` index is not available.
 
+`examples/wordpress-uppercase-options-by-name-list.php` reads a
+WordPress-oriented SQLite database file, resolves a first-term
+`wp_options(upper(option_name))` expression index, and returns a bounded set of
+ASCII-folded names such as `siteurl,home` without scanning the whole table.
+This maps recovery workflows where an uppercase expression index exists and the
+PHP SQLite extension is unavailable.
+
 `examples/wordpress-option-name-prefix.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(substr(option_name,1,N))` expression index, and returns options
@@ -340,9 +354,9 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: expression indexes beyond `lower(column)`, literal-start
+slice: expression indexes beyond `lower(column)`, `upper(column)`, literal-start
 `substr(column,...)`, `length(column)`, and `CAST(column AS INTEGER)`
 point/list/range buckets; broader expression `IN (...)` lookup families beyond
-`lower(column)` and literal-start `substr(column,1,N)` plus `length(column)`
-and `CAST(column AS INTEGER)` buckets; custom collations; and composite-key
-ranges beyond one equality prefix plus one range column.
+`lower(column)`, `upper(column)`, and literal-start `substr(column,1,N)` plus
+`length(column)` and `CAST(column AS INTEGER)` buckets; custom collations; and
+composite-key ranges beyond one equality prefix plus one range column.

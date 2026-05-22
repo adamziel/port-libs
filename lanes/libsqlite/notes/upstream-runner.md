@@ -847,6 +847,45 @@ The new `examples/wordpress-lowercase-options-by-name-list.php` script maps
 case-folded bulk option preload/recovery workflows on hosts without the PHP
 SQLite extension.
 
+## Focused Native Mapping: Upper Expression Option Lookups
+
+This slice adds first-term `upper(option_name)` expression-index discovery and
+lookup. SQLite's built-in `upper()` function is bytewise ASCII-only without the
+ICU extension, so the native PHP reader now applies the same ASCII uppercase
+mapping to caller-supplied option names and to row verification after the index
+points back to the `wp_options` table row. The implementation intentionally
+accepts only safe `option_name IS NOT NULL` partial expression indexes for this
+new path.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  func.test indexexpr1.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 15138 tests in 00:01.
+
+Focused upstream fixture boundary:
+
+- `src/func.c` implements `upper()` and `lower()` by applying
+  `sqlite3Toupper()`/`sqlite3Tolower()` byte by byte.
+- `test/func.test` section `func-5.*` verifies `upper()`/`lower()` behavior
+  and argument-count boundaries.
+- `test/indexexpr1.test` verifies deterministic expression-index lookup and
+  planner use for scalar expression keys, including the existing `lower(a)`
+  expression-index family.
+
+The native PHP tests now cover parsing `upper(option_name)` metadata without
+mistaking it for an ordinary column index, point lookup through
+`wp_options(upper(option_name))`, IN-list lookup with duplicate RHS
+suppression and `NULL` non-matching behavior, SQLite-style ASCII-only folding
+for a non-ASCII option name such as `café`, and rejection as a plain
+`option_name` index. The new
+`examples/wordpress-uppercase-options-by-name-list.php` script maps bulk
+ASCII-folded option recovery on hosts without the PHP SQLite extension.
+
 ## Focused Native Mapping: First-Column B-Tree Seek Bounds
 
 SQLite range and equality probes over an index move a b-tree cursor to the
@@ -881,7 +920,7 @@ The native PHP test adds a WordPress-shaped `wp_options(option_name)` range
 lookup where the requested lower bound is in the index root's right-hand
 subtree and the left-hand child page is intentionally invalid. The lookup now
 returns `siteurl` without reading that out-of-range branch. Remaining seek work
-includes expression indexes beyond the first `lower(column)` slice and
+includes expression indexes beyond the first `lower(column)`/`upper(column)` slices and
 expression seek bounds.
 
 ## Focused Native Mapping: Substr Expression Index Prefixes
