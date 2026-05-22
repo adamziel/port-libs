@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native Markdown reader now detects balanced nested HTML table blocks from upstream test/command/nested-table-to-asciidoc-6942.md and parses nested tables as block-child table AST nodes inside table_cell children, while leaving simple non-nested raw HTML tables on the existing raw_html path. The WordPress writer renders table-cell block children as nested table HTML in the containing core table block. The WordPress import fixture now includes a nested legacy audit table scenario.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 94/0 with 660 assertions. The required repo-wide php tools/run-tests.php command passed on 2026-05-22 with 118 test files, 9081 assertions, and 0 failures in the current shared worktree. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and ghc, cabal, and stack are not on PATH; installing Haskell tools alone would still leave a broad dependency build outside this modest lane run.",
-    "latestCommit": "pending pandoc nested-table batch",
+    "latestCommit": "4cf20f7",
     "nextTask": "Map the third-level nested-table warning/degradation case from test/command/nested-table-to-asciidoc-6942.md, documenting the WordPress writer policy separately from Pandoc's AsciiDoc two-level table limit."
 }
