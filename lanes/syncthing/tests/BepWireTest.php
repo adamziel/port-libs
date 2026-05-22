@@ -7,7 +7,9 @@ use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\ClusterConfig;
 use PortLibs\Syncthing\Device;
+use PortLibs\Syncthing\DownloadProgress;
 use PortLibs\Syncthing\FileInfo;
+use PortLibs\Syncthing\FileDownloadProgressUpdate;
 use PortLibs\Syncthing\Folder;
 use PortLibs\Syncthing\Hello;
 use PortLibs\Syncthing\Index;
@@ -319,6 +321,54 @@ return [
         $t->same([101 => 1700000500], $decodedUpdate->files[0]->version->toArray());
         $t->same($file->blocksHash, $decodedUpdate->files[0]->blocksHash);
     },
+    'maps download progress append and forget protobuf payloads and frame type' => static function (TestRunner $t): void {
+        $version = VersionVector::fromCounters([101 => 1700000800]);
+        $progress = (new DownloadProgress('wordpress-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content\\uploads\\2026\\hero.jpg',
+                version: $version,
+                blockIndexes: [0, 1, 4],
+                blockSize: BlockList::MIN_BLOCK_SIZE,
+            ),
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_FORGET,
+                name: 'wp-content\\uploads\\2026\\old-hero.jpg',
+                version: $version,
+            ),
+        ]))->normalizedForWire('\\');
+
+        $payloadHex = bin2hex(BepWire::encodeDownloadProgressPayload($progress));
+        $t->contains('200020012004', $payloadHex);
+        $t->contains('28808008', $payloadHex);
+
+        $frame = BepWire::encodeDownloadProgressMessage($progress);
+        $t->same('00020805', bin2hex(substr($frame, 0, 4)));
+
+        $decoded = BepWire::decodeDownloadProgressMessage($frame);
+        $t->same('wordpress-media', $decoded->folder);
+        $t->same(2, count($decoded->updates));
+        $t->same(FileDownloadProgressUpdate::TYPE_APPEND, $decoded->updates[0]->updateType);
+        $t->same('wp-content/uploads/2026/hero.jpg', $decoded->updates[0]->name);
+        $t->same([101 => 1700000800], $decoded->updates[0]->version->toArray());
+        $t->same([0, 1, 4], $decoded->updates[0]->blockIndexes);
+        $t->same(BlockList::MIN_BLOCK_SIZE, $decoded->updates[0]->blockSize);
+        $t->same(FileDownloadProgressUpdate::TYPE_FORGET, $decoded->updates[1]->updateType);
+        $t->same([], $decoded->updates[1]->blockIndexes);
+    },
+    'maps upstream old file download progress update fixtures' => static function (TestRunner $t): void {
+        $v01416 = '08cda1e2e3011278f3918787f3b89b8af2958887f0aa9389f3a08588f3aa8f96f39aa8a5f48b9188f19286a0f3848da4f3aba799f3beb489f0a285b9f487b684f2a3bda2f48598b4f2938a89f2a28badf187a0a2f2aebdbdf4849494f4808fbbf2b3a2adf2bb95bff0a6ada4f198ab9af29a9c8bf1abb793f3baabb2f188a6ba1a0020bb9390f60220f6d9e42220b0c7e2b2fdffffffff0120fdb2dfcdfbffffffff0120cedab1d50120bd8784c0feffffffff0120ace99591fdffffffff0120eed7d09af9ffffffff01';
+        $v01417 = '0880f1969905128401f099b192f0abb1b9f3b280aff19e9aa2f3b89e84f484b39df1a7a6b0f1aea4b1f0adac94f3b39caaf1939281f1928a8af0abb1b0f0a8b3b3f3a88e94f2bd85acf29c97a9f2969da6f0b7a188f1908ea2f09a9c9bf19d86a6f29aada8f389bb95f0bf9d88f1a09d89f1b1a4b5f29b9eabf298a59df1b2a589f2979ebdf0b69880f18986b21a440a1508c7d8fb8897ca93d90910e8c4d8e8f2f8f0ccee010a1508afa8ffd8c085b393c50110e5bdedc3bddefe9b0b0a1408a1bedddba4cac5da3c10b8e5d9958ca7e3ec19225ae2f88cb2f8ffffffff018ceda99cfbffffffff01b9c298a407e295e8e9fcffffffff01f3b9ade5fcffffffff01c08bfea9fdffffffff01a2c2e5e1ffffffffff0186dcc5dafdffffffff01e9ffc7e507c9d89db8fdffffffff01';
+
+        $decoded16 = BepWire::decodeFileDownloadProgressUpdatePayload(hex2bin($v01416));
+        $decoded17 = BepWire::decodeFileDownloadProgressUpdatePayload(hex2bin($v01417));
+
+        $t->true($decoded16->updateType > FileDownloadProgressUpdate::TYPE_FORGET);
+        $t->true(strlen($decoded16->name) > 0);
+        $t->true(count($decoded16->blockIndexes) > 0);
+        $t->true($decoded17->updateType > FileDownloadProgressUpdate::TYPE_FORGET);
+        $t->true(strlen($decoded17->name) > 0);
+    },
     'maps deleted and symlink file info wire fields' => static function (TestRunner $t): void {
         $deleted = (new FileInfo(
             name: 'wp-content/uploads/2025/old-hero.jpg',
@@ -356,8 +406,12 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new Folder(id: 'default', type: 99));
         $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodeRequestMessage(BepWire::encodeClusterConfigMessage(new ClusterConfig())));
         $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodeIndexUpdateMessage(BepWire::encodeIndexMessage(new Index('default'))));
+        $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodeDownloadProgressMessage(BepWire::encodeResponseMessage(new Response())));
         $t->throws(InvalidArgumentException::class, static fn () => new Index('default', lastSequence: -1));
         $t->throws(InvalidArgumentException::class, static fn () => new IndexUpdate('default', prevSequence: -1));
+        $t->throws(InvalidArgumentException::class, static fn () => new DownloadProgress('default', [new stdClass()]));
+        $t->throws(InvalidArgumentException::class, static fn () => BepWire::encodeFileDownloadProgressUpdatePayload(new FileDownloadProgressUpdate(blockIndexes: [-1])));
+        $t->throws(InvalidArgumentException::class, static fn () => new FileDownloadProgressUpdate(blockSize: -1));
     },
     'rejects malformed compressed and post-auth frames' => static function (TestRunner $t): void {
         $unknownCompressionHeader = "\x00\x04\x08\x03\x10\x02" . pack('N', 0);

@@ -144,6 +144,25 @@ final class FileInfo
         return ($this->localFlags & self::FLAG_LOCAL_RECEIVE_ONLY) !== 0;
     }
 
+    public function isDirectory(): bool
+    {
+        return $this->type === self::TYPE_DIRECTORY;
+    }
+
+    public function isSymlink(): bool
+    {
+        return in_array($this->type, [
+            self::TYPE_SYMLINK_FILE,
+            self::TYPE_SYMLINK_DIRECTORY,
+            self::TYPE_SYMLINK,
+        ], true);
+    }
+
+    public function blockSize(): int
+    {
+        return max($this->rawBlockSize, BlockList::MIN_BLOCK_SIZE);
+    }
+
     public function shouldConflict(): bool
     {
         return ($this->localFlags & self::LOCAL_CONFLICT_FLAGS) !== 0;

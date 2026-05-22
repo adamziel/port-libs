@@ -152,6 +152,25 @@ final class BepWire
         return self::decodeIndexUpdatePayload($message['payload']);
     }
 
+    public static function encodeDownloadProgressMessage(DownloadProgress $progress, int $compressionMode = Device::COMPRESSION_NEVER): string
+    {
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_DOWNLOAD_PROGRESS,
+            self::encodeDownloadProgressPayload($progress),
+            $compressionMode,
+        );
+    }
+
+    public static function decodeDownloadProgressMessage(string $frame): DownloadProgress
+    {
+        $message = self::decodeMessageFrame($frame);
+        if ($message['type'] !== self::MESSAGE_TYPE_DOWNLOAD_PROGRESS) {
+            throw new \UnexpectedValueException('expected download progress message');
+        }
+
+        return self::decodeDownloadProgressPayload($message['payload']);
+    }
+
     public static function encodeMessageFrame(int $messageType, string $payload, int $compression = self::MESSAGE_COMPRESSION_NONE): string
     {
         if ($messageType < self::MESSAGE_TYPE_CLUSTER_CONFIG || $messageType > self::MESSAGE_TYPE_CLOSE) {
@@ -580,6 +599,58 @@ final class BepWire
         );
     }
 
+    public static function encodeDownloadProgressPayload(DownloadProgress $progress): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $progress->folder);
+        foreach ($progress->updates as $update) {
+            $payload .= self::fieldBytes(2, self::encodeFileDownloadProgressUpdatePayload($update));
+        }
+
+        return $payload;
+    }
+
+    public static function decodeDownloadProgressPayload(string $payload): DownloadProgress
+    {
+        $fields = self::decodeFields($payload);
+        $updates = [];
+        foreach (self::allBytes($fields, 2) as $updatePayload) {
+            $updates[] = self::decodeFileDownloadProgressUpdatePayload($updatePayload);
+        }
+
+        return new DownloadProgress(
+            folder: self::lastBytes($fields, 1),
+            updates: $updates,
+        );
+    }
+
+    public static function encodeFileDownloadProgressUpdatePayload(FileDownloadProgressUpdate $update): string
+    {
+        $payload = '';
+        $payload .= self::fieldVarint(1, $update->updateType);
+        $payload .= self::fieldBytes(2, $update->name);
+        $payload .= self::fieldBytes(3, self::encodeVersionPayload($update->version));
+        foreach ($update->blockIndexes as $blockIndex) {
+            $payload .= self::fieldVarintAlways(4, $blockIndex);
+        }
+        $payload .= self::fieldVarint(5, $update->blockSize);
+
+        return $payload;
+    }
+
+    public static function decodeFileDownloadProgressUpdatePayload(string $payload): FileDownloadProgressUpdate
+    {
+        $fields = self::decodeFields($payload);
+
+        return new FileDownloadProgressUpdate(
+            updateType: self::lastIntOrZero($fields, 1),
+            name: self::lastBytesOrEmpty($fields, 2),
+            version: self::decodeVersionPayload(self::lastBytesOrEmpty($fields, 3), tolerateOutOfRange: true),
+            blockIndexes: self::allIntValues($fields, 4),
+            blockSize: self::lastIntOrZero($fields, 5),
+        );
+    }
+
     public static function encodeFileInfoPayload(FileInfo $file): string
     {
         $payload = '';
@@ -675,7 +746,7 @@ final class BepWire
         return $payload;
     }
 
-    private static function decodeVersionPayload(string $payload): VersionVector
+    private static function decodeVersionPayload(string $payload, bool $tolerateOutOfRange = false): VersionVector
     {
         if ($payload === '') {
             return new VersionVector();
@@ -684,7 +755,12 @@ final class BepWire
         $fields = self::decodeFields($payload);
         $counters = [];
         foreach (self::allBytes($fields, 1) as $counterPayload) {
-            $counters[] = self::decodeCounterPayload($counterPayload);
+            [$id, $value] = self::decodeCounterPayload($counterPayload);
+            if ($tolerateOutOfRange) {
+                $id = $id < 0 ? PHP_INT_MAX : $id;
+                $value = $value < 0 ? PHP_INT_MAX : $value;
+            }
+            $counters[] = [$id, $value];
         }
 
         return VersionVector::fromCounters($counters);
@@ -896,6 +972,15 @@ final class BepWire
         return self::encodeVarint(($field << 3) | 0) . self::encodeVarint($value);
     }
 
+    private static function fieldVarintAlways(int $field, int $value): string
+    {
+        if ($value < 0) {
+            throw new \InvalidArgumentException('Protobuf int fields must not be negative in this slice');
+        }
+
+        return self::encodeVarint(($field << 3) | 0) . self::encodeVarint($value);
+    }
+
     private static function fieldBytes(int $field, string|false $value): string
     {
         if ($value === false) {
@@ -1033,6 +1118,21 @@ final class BepWire
     /**
      * @param array<int, list<int|string>> $fields
      */
+    private static function lastIntOrZero(array $fields, int $field): int
+    {
+        $values = $fields[$field] ?? [];
+        for ($i = count($values) - 1; $i >= 0; $i--) {
+            if (is_int($values[$i])) {
+                return $values[$i] < 0 ? 0 : $values[$i];
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<int, list<int|string>> $fields
+     */
     private static function lastBytes(array $fields, int $field): string
     {
         $values = $fields[$field] ?? null;
@@ -1050,6 +1150,21 @@ final class BepWire
 
     /**
      * @param array<int, list<int|string>> $fields
+     */
+    private static function lastBytesOrEmpty(array $fields, int $field): string
+    {
+        $values = $fields[$field] ?? [];
+        for ($i = count($values) - 1; $i >= 0; $i--) {
+            if (is_string($values[$i])) {
+                return $values[$i];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<int, list<int|string>> $fields
      *
      * @return list<string>
      */
@@ -1062,6 +1177,24 @@ final class BepWire
                 throw new \UnexpectedValueException('expected protobuf bytes field');
             }
             $out[] = $value;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int, list<int|string>> $fields
+     *
+     * @return list<int>
+     */
+    private static function allIntValues(array $fields, int $field): array
+    {
+        $values = $fields[$field] ?? [];
+        $out = [];
+        foreach ($values as $value) {
+            if (is_int($value)) {
+                $out[] = $value;
+            }
         }
 
         return $out;

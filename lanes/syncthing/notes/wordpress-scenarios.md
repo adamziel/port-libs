@@ -38,7 +38,23 @@ types, repeated FileInfo payloads, last/previous sequence fields, block
 offset/size/hash payloads, sorted version vector counters, invalid flag
 projection from local flags, no-permission and deleted bits, modified_by, raw
 block size, symlink targets, blocks_hash and previous_blocks_hash, and Unix
-owner/group UID/GID platform data.
+owner/group UID/GID platform data. The DownloadProgress slice now maps focused
+upstream `bep_download_progress.go`, `proto/bep/bep.proto`,
+`TestUnmarshalFDPUv16v17`, and `lib/model/devicedownloadstate.go` behavior:
+message type 5 frames, folder/update payloads, append and forget update types,
+version vector payloads, unpacked repeated block indexes including index zero,
+block size byte accounting with the upstream minimum-block fallback, same-version
+append accumulation, version replacement, and version-matched forget deletion.
+The old v0.14.16/v0.14.17 update fixtures are decoded without rejecting legacy
+enum/string/index shapes that Go protobuf unmarshalling accepts. The outgoing
+sent-download slice now maps focused upstream `sentdownloadstate.go`,
+`progressemitter.go`, `progressemitter_test.go`, and `sharedpullerstate.go`
+behavior: active puller filtering by folder, file kind, and `TempIndexMinBlocks`;
+no update for new files with no temporary blocks; new-block-only append deltas
+when `AvailableUpdated` advances; no update when block lists change without the
+timestamp invariant; forget+append replacement when the version or puller
+creation identity changes, including empty append updates that clear old
+temporary availability; and versioned forgets for completed or errored pulls.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -68,10 +84,20 @@ BEP message type and protobuf payload semantics.
 a WordPress media upload, preserving normalized wire paths, FileInfo sequence
 metadata, version counters, block hashes, and aggregate blocks_hash values
 across the protobuf and post-auth frame boundary.
+`examples/wordpress-download-progress-frame.php` sends a native BEP
+DownloadProgress append update for a partially downloaded WordPress media file,
+decodes it back, applies it to the remote temporary-download state, and shows
+that the advertised temporary block and byte count can be used before a later
+forget update clears the remote state.
+`examples/wordpress-sent-download-progress.php` shows the inverse outgoing
+state: a WordPress media pull first advertises temporary blocks 0 and 1, then
+emits only the newly available block 4, and finally sends the versioned forget
+that clears the remote peer's temporary availability when the pull completes or
+errors.
 
 ## Next Task
 
-Port native DownloadProgress append/forget payloads and frames from focused
-upstream `proto/bep/bep.proto` and protocol inbox handling, including version
-vectors, block indexes, and block size fields for resumable WordPress media
-transfers.
+Port the connection-level ProgressEmitter boundary around sent-download state:
+per-device temporary-index subscriptions, per-folder grouping of
+DownloadProgress sends, disconnect state cleanup, and event-style byte progress
+summaries.

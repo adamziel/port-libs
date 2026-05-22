@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 42,
+        "mapped": 50,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
@@ -56,6 +56,15 @@
             "targetClusterConfigWireConversionMethods": 6,
             "targetIndexFileInfoWireMethods": 10,
             "targetFileInfoProtoFieldsMapped": 18,
+            "targetDownloadProgressWireConversionMethods": 4,
+            "targetDownloadProgressProtoMessages": 2,
+            "targetDownloadProgressUpdateTypes": 2,
+            "targetDownloadProgressCompatibilityFixtures": 2,
+            "targetDeviceDownloadStateTestCases": 10,
+            "targetSentDownloadStateMethods": 5,
+            "targetProgressEmitterTemporaryIndexMethods": 4,
+            "targetProgressEmitterSendDownloadProgressTestFunction": 1,
+            "targetProgressEmitterSendDownloadProgressCases": 15,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -99,6 +108,14 @@
                 {
                     "command": "targeted git show reads of lib/protocol/bep_index_updates.go, lib/protocol/bep_fileinfo.go, lib/protocol/vector.go, and proto/bep/bep.proto",
                     "result": "inspected Index/IndexUpdate toWire/fromWire conversion, FileInfo ToWire invalid/local_flags behavior, BlockInfo field mapping, Vector/Counter wire mapping, and Unix PlatformData field numbers without hydrating the full checkout"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_download_progress.go, proto/bep/bep.proto, focused TestUnmarshalFDPUv16v17 in lib/protocol/protocol_test.go, and lib/model/devicedownloadstate.go plus devicedownloadstate_test.go",
+                    "result": "inspected DownloadProgress/FileDownloadProgressUpdate protobuf fields, append/forget enum values, unpacked repeated block_indexes, block_size, legacy FDPU unmarshal fixtures, and remote temporary-download append/forget/version replacement semantics without hydrating the full checkout"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/sentdownloadstate.go, lib/model/progressemitter.go, lib/model/progressemitter_test.go, and lib/model/sharedpullerstate.go",
+                    "result": "inspected outgoing temporary-index state, active puller filtering, new-block-only append deltas, version or puller-recreation forget+append replacement, completed/errored cleanup forgets, and upstream SendDownloadProgress test cases without hydrating broad blobs"
                 }
             ]
         },
@@ -145,15 +162,26 @@
             "IndexUpdate protobuf payloads preserve folder, repeated FileInfo entries, last_sequence, prev_sequence, and upstream `MESSAGE_TYPE_INDEX_UPDATE` post-auth frames.",
             "FileInfo protobuf payloads preserve name, type, size, permissions, modified time, modified_by, version, sequence, raw block size, symlink target, deleted, no_permissions, blocks_hash, and previous_blocks_hash fields.",
             "FileInfo wire invalidity follows upstream ToWire/FromWire behavior: outgoing local invalid flags become the protocol invalid bool, internal local_flags are not sent, and incoming invalid files become remote-invalid local entries.",
-            "BlockInfo, Vector, Counter, and Unix PlatformData payloads preserve upstream field numbers for block offsets/sizes/hashes, sorted version counters, and owner/group UID/GID metadata."
+            "BlockInfo, Vector, Counter, and Unix PlatformData payloads preserve upstream field numbers for block offsets/sizes/hashes, sorted version counters, and owner/group UID/GID metadata.",
+            "DownloadProgress protobuf payloads preserve folder plus repeated FileDownloadProgressUpdate messages and use upstream `MESSAGE_TYPE_DOWNLOAD_PROGRESS` post-auth frames.",
+            "FileDownloadProgressUpdate payloads preserve append/forget update types, names, version vectors, unpacked repeated block indexes including block index zero, and block_size.",
+            "Legacy v0.14.16/v0.14.17 FileDownloadProgressUpdate fixtures from upstream `TestUnmarshalFDPUv16v17` decode without rejecting unknown enum/string/index shapes accepted by Go protobuf unmarshalling.",
+            "Remote temporary download state follows upstream append/forget behavior: same-version appends accumulate block indexes, a new version replaces old indexes, and forget only deletes matching versions.",
+            "Download-progress byte accounting follows upstream `BytesDownloaded`: explicit block_size is used when present and `MinBlockSize` is the fallback for older messages.",
+            "Outgoing sent-download state does not advertise new active files until a puller has at least one temporary block available.",
+            "Outgoing DownloadProgress diffs send only appended block indexes when `AvailableUpdated` advances and version/created identity is unchanged.",
+            "Available block list changes without an updated timestamp are ignored, matching upstream's append-only sharedPullerState invariant.",
+            "Version changes or reconstructed pullers emit a forget for the previous version followed by an append for the current version, including empty append updates that clear older temporary availability.",
+            "Temporary-index filtering excludes wrong folders, directories, symlinks, and files whose total block count is at or below `TempIndexMinBlocks`.",
+            "Completed or errored pulls emit a versioned forget exactly once, and explicit folder cleanup returns forget messages for all tracked outgoing temporary files."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 42 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 50 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, and Index/IndexUpdate FileInfo protobuf payloads with blocks, version counters, invalid/no-permission flags, hashes, modified_by, and Unix platform ownership."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads, DownloadProgress append/forget protobuf frames plus remote temporary-download state, and outgoing sent-download progress diff computation."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, and sending a WordPress media IndexUpdate frame with FileInfo block hashes, version counters, and sequence metadata.",
-    "nextTask": "Port native DownloadProgress append/forget payloads and frames from focused upstream `proto/bep/bep.proto` and protocol inbox handling, including version vectors, block indexes, and block size fields for resumable WordPress media transfers."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, and computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull.",
+    "nextTask": "Port the connection-level ProgressEmitter boundary around sent-download state: per-device temporary-index subscriptions, per-folder grouping of DownloadProgress sends, disconnect state cleanup, and event-style byte progress summaries."
 }
