@@ -8,6 +8,30 @@ final class ReferenceName
 {
     public static function assertValid(string $name): void
     {
+        self::assertCommonShape($name);
+
+        if (
+            !str_starts_with($name, 'refs/')
+            && !str_starts_with($name, 'worktrees/')
+            && !str_starts_with($name, 'main-worktree/')
+            && !self::isPseudoRef($name)
+        ) {
+            throw new \InvalidArgumentException('Reference name must be a full ref name or pseudo ref');
+        }
+    }
+
+    public static function isPseudoRef(string $name): bool
+    {
+        return preg_match('/^[A-Z_]+$/', $name) === 1;
+    }
+
+    public static function assertValidPartial(string $name): void
+    {
+        self::assertCommonShape($name);
+    }
+
+    private static function assertCommonShape(string $name): void
+    {
         if ($name === '') {
             throw new \InvalidArgumentException('Reference name cannot be empty');
         }
@@ -44,19 +68,5 @@ final class ReferenceName
                 throw new \InvalidArgumentException("Reference name cannot end with '.lock'");
             }
         }
-
-        if (
-            !str_starts_with($name, 'refs/')
-            && !str_starts_with($name, 'worktrees/')
-            && !str_starts_with($name, 'main-worktree/')
-            && !self::isPseudoRef($name)
-        ) {
-            throw new \InvalidArgumentException('Reference name must be a full ref name or pseudo ref');
-        }
-    }
-
-    public static function isPseudoRef(string $name): bool
-    {
-        return preg_match('/^[A-Z_]+$/', $name) === 1;
     }
 }
