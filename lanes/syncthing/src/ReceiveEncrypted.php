@@ -259,6 +259,34 @@ final class ReceiveEncrypted
         return self::requestFromEncryptedPeer($request, $plainName, $plainHashHex);
     }
 
+    public static function serveEncryptedRequestFromPeer(
+        RequestServer $server,
+        string $deviceId,
+        Request $encryptedRequest,
+        string $folderKey,
+        ?string $paddingBytes = null,
+        ?string $nonce = null,
+    ): RequestServingResult {
+        try {
+            $plainRequest = self::decryptRequestFromEncryptedPeer($encryptedRequest, $folderKey);
+        } catch (\InvalidArgumentException | \LengthException | \RuntimeException) {
+            return new RequestServingResult(
+                new Response($encryptedRequest->id, '', Response::CODE_GENERIC),
+                RequestServingResult::SOURCE_NONE,
+                'decrypting encrypted request failed',
+            );
+        }
+
+        $served = $server->serve($deviceId, $plainRequest);
+        $fileKey = self::fileKey($plainRequest->name, $folderKey);
+
+        return new RequestServingResult(
+            self::encryptResponseForEncryptedPeer($served->response, $fileKey, $paddingBytes, $nonce),
+            $served->source,
+            $served->reason,
+        );
+    }
+
     public static function requestToEncryptedPeer(
         Request $request,
         string $encryptedName,
@@ -427,6 +455,76 @@ final class ReceiveEncrypted
         }
 
         return true;
+    }
+
+    /**
+     * @return array{file:?FileInfo, syntheticParent:bool, removedEmptyParent:bool}
+     */
+    public static function receiveEncryptedScanUpdate(FileInfo $file, string $rootPath): array
+    {
+        if (!$file->isDirectory() || !self::isEncryptedParent($file->name)) {
+            return [
+                'file' => $file,
+                'syntheticParent' => false,
+                'removedEmptyParent' => false,
+            ];
+        }
+
+        return [
+            'file' => null,
+            'syntheticParent' => true,
+            'removedEmptyParent' => self::removeEmptySyntheticParentDirectory($rootPath, $file->name),
+        ];
+    }
+
+    /**
+     * @return array{parent:string, created:bool, scanAfterPull:bool}
+     */
+    public static function ensureReceiveEncryptedParentDirectory(string $rootPath, string $encryptedName): array
+    {
+        ProtocolValidation::checkFilename($encryptedName);
+        self::deslashifyBase32HexPath($encryptedName);
+
+        $parent = dirname($encryptedName);
+        if ($parent === '.' || $parent === '' || !self::isEncryptedParent($parent)) {
+            throw new \InvalidArgumentException('Encrypted file parent is not a synthetic parent directory');
+        }
+
+        $root = self::existingDirectoryRoot($rootPath);
+        self::assertNoSymlinkInExistingPath($root, $parent);
+        $path = self::absoluteRelativePath($root, $parent);
+        $created = !is_dir($path);
+
+        if ($created && !mkdir($path, 0755, true) && !is_dir($path)) {
+            throw new \RuntimeException('Failed to create receive-encrypted parent directory');
+        }
+
+        return [
+            'parent' => $parent,
+            'created' => $created,
+            'scanAfterPull' => false,
+        ];
+    }
+
+    public static function removeEmptySyntheticParentDirectory(string $rootPath, string $relativeName): bool
+    {
+        ProtocolValidation::checkFilename($relativeName);
+        if (!self::isEncryptedParent($relativeName)) {
+            throw new \InvalidArgumentException('Path is not a synthetic encrypted parent directory');
+        }
+
+        $root = self::existingDirectoryRoot($rootPath);
+        $path = self::absoluteRelativePath($root, $relativeName);
+        if (is_link($path) || !is_dir($path)) {
+            return false;
+        }
+
+        $iterator = new \FilesystemIterator($path, \FilesystemIterator::SKIP_DOTS);
+        if ($iterator->valid()) {
+            return false;
+        }
+
+        return rmdir($path);
     }
 
     public static function encryptionTrailer(FileInfo $file, string $directorySeparator = DIRECTORY_SEPARATOR): string
@@ -607,6 +705,35 @@ final class ReceiveEncrypted
     {
         if (strlen($key) !== EncryptionKey::KEY_SIZE) {
             throw new \LengthException('Syncthing file keys must be 32 bytes');
+        }
+    }
+
+    private static function existingDirectoryRoot(string $rootPath): string
+    {
+        $root = realpath($rootPath);
+        if ($root === false || !is_dir($root)) {
+            throw new \InvalidArgumentException('Receive-encrypted root path must be an existing directory');
+        }
+
+        return rtrim($root, DIRECTORY_SEPARATOR);
+    }
+
+    private static function absoluteRelativePath(string $root, string $relativeName): string
+    {
+        return $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeName);
+    }
+
+    private static function assertNoSymlinkInExistingPath(string $root, string $relativeName): void
+    {
+        $path = $root;
+        foreach (explode('/', $relativeName) as $component) {
+            $path .= DIRECTORY_SEPARATOR . $component;
+            if (is_link($path)) {
+                throw new \RuntimeException('Receive-encrypted parent directory traverses a symlink');
+            }
+            if (file_exists($path) && !is_dir($path)) {
+                throw new \RuntimeException('Receive-encrypted parent path is not a directory');
+            }
         }
     }
 

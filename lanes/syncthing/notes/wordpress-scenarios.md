@@ -115,6 +115,12 @@ padding back to the original requested WordPress media block size. Inbound
 receive-encrypted requests decrypt the name/hash/geometry before model serving,
 then pad short plaintext responses to 1024 bytes before XChaCha20-Poly1305
 encryption.
+The encrypted request-serving integration now maps the adjacent
+`encryptedModel.Request` to the native disk boundary: an untrusted encrypted BEP
+request is decrypted to the plaintext WordPress media name, hash, offset, and
+size; `RequestServer` performs the normal shared-folder, path, and hash checks;
+successful bytes are padded and encrypted for the peer; and stale-hash errors
+remain no-such-file responses without encrypted payload data.
 The cluster-config encryption consistency slice maps focused upstream
 `model.ccCheckEncryption`, `TestCcCheckEncryption`, and adjacent
 `TestClusterConfigEncrypted` behavior: untrusted devices cannot share plain
@@ -176,6 +182,12 @@ temporary-block progress for folders with registered encryption keys is
 intentionally dropped instead of translated to encrypted temporary files, while
 plain WordPress media folders still forward unchanged to the normal progress
 connection and model-level temporary-download state.
+The receive-encrypted scan cleanup slice maps upstream `folder.go` and
+`folder_sendrecv.go` boundaries for synthetic encrypted parent directories:
+missing `.syncthing-enc` parent trees are created for pulled encrypted files
+without scheduling a follow-up scan, scanned synthetic parent directories are
+never written into the local index, and empty synthetic parent directories are
+removed while non-empty parents remain on disk as container paths only.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -252,6 +264,11 @@ encrypted size, block size, metadata byte count, decrypted plaintext name, and a
 full encrypted IndexUpdate collection round trip. The same example now includes
 an encrypted response block, showing 1024-byte padded plaintext, 40-byte
 nonce/tag overhead, and trusted-side trimming back to the requested media block.
+`examples/wordpress-encrypted-request-server.php` runs that encrypted request
+through the native request server: the encrypted BEP request is decoded,
+plaintext media bytes are served only when the decrypted hash matches disk, the
+wire response stays encrypted for the untrusted peer, and a stale encrypted hash
+token becomes a no-such-file response.
 `examples/wordpress-receive-encrypted-finalization.php` shows the completed
 receive-encrypted file boundary for a private WordPress export: native encrypted
 block bytes are finalized with a metadata trailer, the local index keeps the
@@ -268,9 +285,13 @@ boundary for that same WordPress media folder: a plain untrusted peer is
 rejected, a receive-encrypted peer's real Syncthing password token is accepted
 and marked for cluster-config resend, and a stale local token produces the
 upstream different-password error.
+`examples/wordpress-receive-encrypted-parent-cleanup.php` shows the scanned
+parent-directory boundary: a private WordPress media object creates its
+synthetic encrypted parent path without a scan event, the non-empty parent is
+not indexed, and an abandoned empty synthetic parent is removed.
 
 ## Next Task
 
-Map receive-encrypted folder scanning/index cleanup for synthetic encrypted
-parent directories from `folder.go`, then broaden encrypted request serving
-integration beyond the focused finalization and trailer verification path.
+Broaden encrypted request serving into temporary-source encrypted-file reads and
+raw connection request/response error mapping, then reassess whether a bounded
+upstream Go package runner is affordable.

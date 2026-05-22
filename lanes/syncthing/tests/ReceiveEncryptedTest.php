@@ -16,6 +16,8 @@ use PortLibs\Syncthing\ProtocolValidation;
 use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\RemoteDownloadProgressTracker;
 use PortLibs\Syncthing\Request;
+use PortLibs\Syncthing\RequestServer;
+use PortLibs\Syncthing\RequestServingResult;
 use PortLibs\Syncthing\Response;
 use PortLibs\Syncthing\VersionVector;
 use PortLibs\Syncthing\WireProgressConnection;
@@ -177,6 +179,76 @@ return [
         $t->same($error, ReceiveEncrypted::encryptResponseForEncryptedPeer($error, $fileKey));
         $t->same($error, ReceiveEncrypted::decryptResponseFromEncryptedPeer($error, $fileKey, $request->size));
     },
+    'serves encryptedModel requests through native request server' => static function (TestRunner $t): void {
+        $root = syncthing_receive_encrypted_request_root();
+        try {
+            $bytes = 'private WordPress media block served through encryptedModel.Request';
+            $name = 'wp-content/uploads/2026/private/encrypted-request.jpg';
+            syncthing_receive_encrypted_request_write($root, $name, $bytes);
+
+            $folderKey = EncryptionKey::folderKeyFromPassword('wordpress-media', 'wordpress media sync secret');
+            $fileKey = ReceiveEncrypted::fileKey($name, $folderKey);
+            $plainRequest = new Request(
+                id: 51,
+                folder: 'wordpress-media',
+                name: $name,
+                offset: 0,
+                size: strlen($bytes),
+                hashHex: hash('sha256', $bytes),
+                blockNo: 0,
+            );
+            $encryptedRequest = BepWire::decodeRequestMessage(
+                BepWire::encodeRequestMessage(ReceiveEncrypted::encryptRequestForEncryptedPeer($plainRequest, $folderKey)),
+            );
+            $server = new RequestServer('wordpress-media', $root, ['untrusted-peer']);
+
+            $result = ReceiveEncrypted::serveEncryptedRequestFromPeer(
+                $server,
+                'untrusted-peer',
+                $encryptedRequest,
+                $folderKey,
+                str_repeat('P', ReceiveEncrypted::MIN_PADDED_SIZE),
+                str_repeat(chr(13), ReceiveEncrypted::NONCE_SIZE),
+            );
+            $decodedFrame = BepWire::decodeResponseMessage(BepWire::encodeResponseMessage($result->response));
+            $trustedResponse = ReceiveEncrypted::decryptResponseFromEncryptedPeer($decodedFrame, $fileKey, strlen($bytes));
+            $paddedPlaintext = ReceiveEncrypted::decryptBytes($decodedFrame->data, $fileKey);
+
+            $t->true($result->successful());
+            $t->same(RequestServingResult::SOURCE_FINAL, $result->source);
+            $t->same(Response::CODE_NO_ERROR, $decodedFrame->code);
+            $t->same(ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD, strlen($decodedFrame->data));
+            $t->same($bytes, $trustedResponse->data);
+            $t->same(ReceiveEncrypted::MIN_PADDED_SIZE, strlen($paddedPlaintext));
+            $t->same($bytes, substr($paddedPlaintext, 0, strlen($bytes)));
+
+            $wrongHashRequest = ReceiveEncrypted::encryptRequestForEncryptedPeer(new Request(
+                id: 52,
+                folder: 'wordpress-media',
+                name: $name,
+                offset: 0,
+                size: strlen($bytes),
+                hashHex: hash('sha256', 'not the bytes on disk'),
+                blockNo: 0,
+            ), $folderKey);
+            $mismatch = ReceiveEncrypted::serveEncryptedRequestFromPeer($server, 'untrusted-peer', $wrongHashRequest, $folderKey);
+            $t->same(Response::CODE_NO_SUCH_FILE, $mismatch->response->code);
+            $t->same(RequestServingResult::SOURCE_NONE, $mismatch->source);
+            $t->same('hash mismatch', $mismatch->reason);
+            $t->same('', $mismatch->response->data);
+
+            $invalid = ReceiveEncrypted::serveEncryptedRequestFromPeer(
+                $server,
+                'untrusted-peer',
+                new Request(id: 53, folder: 'wordpress-media', name: 'T.wrong-extension/OD', size: ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD),
+                $folderKey,
+            );
+            $t->same(Response::CODE_GENERIC, $invalid->response->code);
+            $t->same('decrypting encrypted request failed', $invalid->reason);
+        } finally {
+            syncthing_receive_encrypted_request_rm($root);
+        }
+    },
     'maps upstream deterministic encrypted name fixtures and invalid cases' => static function (TestRunner $t): void {
         $key = str_repeat("\0", EncryptionKey::KEY_SIZE);
         $pattern = '/^[0-9A-V]\.syncthing-enc\/[0-9A-V]{2}\/(?:[0-9A-V]{200}\/)*[0-9A-V]{1,199}$/';
@@ -298,6 +370,76 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::deslashifyBase32HexPath('T.wrong-extension/OD'));
         $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::slashifyBase32Hex('not-base32'));
+    },
+    'maps receive-encrypted synthetic parent scan cleanup' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/syncthing-recvenc-scan-' . bin2hex(random_bytes(6));
+        $cleanup = static function (string $path) use (&$cleanup): void {
+            if (is_link($path) || is_file($path)) {
+                unlink($path);
+                return;
+            }
+            if (!is_dir($path)) {
+                return;
+            }
+            foreach (scandir($path) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $cleanup($path . DIRECTORY_SEPARATOR . $entry);
+            }
+            rmdir($path);
+        };
+
+        mkdir($root, 0777, true);
+        try {
+            $folderKey = EncryptionKey::folderKeyFromPassword('wordpress-private-media', 'wordpress media sync secret');
+            $encryptedName = ReceiveEncrypted::encryptName('wp-content/uploads/private/parent-cleanup.jpg', $folderKey);
+            $parent = dirname($encryptedName);
+            $created = ReceiveEncrypted::ensureReceiveEncryptedParentDirectory($root, $encryptedName);
+
+            $t->same($parent, $created['parent']);
+            $t->true($created['created']);
+            $t->true(!$created['scanAfterPull']);
+            $t->true(is_dir($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $parent)));
+
+            $again = ReceiveEncrypted::ensureReceiveEncryptedParentDirectory($root, $encryptedName);
+            $t->true(!$again['created']);
+            $t->true(!$again['scanAfterPull']);
+
+            file_put_contents($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $encryptedName), 'encrypted media bytes');
+            $nonEmpty = ReceiveEncrypted::receiveEncryptedScanUpdate(new FileInfo(
+                name: $parent,
+                type: FileInfo::TYPE_DIRECTORY,
+                localFlags: FileInfo::FLAG_LOCAL_RECEIVE_ONLY,
+            ), $root);
+            $t->same(null, $nonEmpty['file']);
+            $t->true($nonEmpty['syntheticParent']);
+            $t->true(!$nonEmpty['removedEmptyParent']);
+            $t->true(is_dir($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $parent)));
+
+            $emptyParent = '2.syncthing-enc/AA/' . str_repeat('B', ReceiveEncrypted::MAX_PATH_COMPONENT);
+            mkdir($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $emptyParent), 0777, true);
+            $empty = ReceiveEncrypted::receiveEncryptedScanUpdate(new FileInfo(
+                name: $emptyParent,
+                type: FileInfo::TYPE_DIRECTORY,
+                localFlags: FileInfo::FLAG_LOCAL_RECEIVE_ONLY,
+            ), $root);
+            $t->same(null, $empty['file']);
+            $t->true($empty['syntheticParent']);
+            $t->true($empty['removedEmptyParent']);
+            $t->true(!is_dir($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $emptyParent)));
+
+            $realDirectory = new FileInfo(name: 'wp-content/uploads/private', type: FileInfo::TYPE_DIRECTORY);
+            $real = ReceiveEncrypted::receiveEncryptedScanUpdate($realDirectory, $root);
+            $t->same($realDirectory, $real['file']);
+            $t->true(!$real['syntheticParent']);
+            $t->true(!$real['removedEmptyParent']);
+
+            $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::removeEmptySyntheticParentDirectory($root, 'wp-content/uploads'));
+            $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::ensureReceiveEncryptedParentDirectory($root, 'wp-content/uploads/plain.jpg'));
+        } finally {
+            $cleanup($root);
+        }
     },
     'writes and extracts upstream receive-encrypted file trailers' => static function (TestRunner $t): void {
         $bytes = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-media-upload.bin');
@@ -635,3 +777,45 @@ return [
         $t->same(FileInfo::FLAG_LOCAL_REMOTE_INVALID, $decrypted->localFlags);
     },
 ];
+
+function syncthing_receive_encrypted_request_root(): string
+{
+    $root = sys_get_temp_dir() . '/syncthing-recvenc-request-' . bin2hex(random_bytes(6));
+    if (!mkdir($root, 0777, true) && !is_dir($root)) {
+        throw new RuntimeException('Failed to create temporary test root');
+    }
+
+    return $root;
+}
+
+function syncthing_receive_encrypted_request_write(string $root, string $name, string $bytes): void
+{
+    $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+    $dir = dirname($path);
+    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+        throw new RuntimeException('Failed to create test directory');
+    }
+    if (file_put_contents($path, $bytes) === false) {
+        throw new RuntimeException('Failed to write test file');
+    }
+}
+
+function syncthing_receive_encrypted_request_rm(string $path): void
+{
+    if (!is_dir($path)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST,
+    );
+    foreach ($iterator as $entry) {
+        if ($entry->isDir() && !$entry->isLink()) {
+            rmdir($entry->getPathname());
+        } else {
+            unlink($entry->getPathname());
+        }
+    }
+    rmdir($path);
+}
