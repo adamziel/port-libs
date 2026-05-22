@@ -31,6 +31,11 @@ $joinedRemoteReviewBranch = ReferenceName::joinPartial(
     $fixture['remoteReviewBranchBase'],
     $fixture['remoteReviewBranchComponent'],
 );
+$sanitizedPluginReviewComponent = ReferenceName::sanitizePartial($fixture['unsafePluginReviewComponent']);
+$sanitizedPluginReviewBranch = ReferenceName::joinPartial(
+    $fixture['pluginReviewBranchBase'],
+    $sanitizedPluginReviewComponent,
+);
 
 return [
     'references' => $references,
@@ -40,4 +45,9 @@ return [
     'namespaceStrippedHead' => ReferenceName::stripNamespace($namespacedHead, $fixture['namespace']),
     'joinedPluginReviewBranch' => $joinedPluginReviewBranch,
     'joinedRemoteReviewBranch' => $joinedRemoteReviewBranch,
+    'sanitizedPluginReviewComponent' => $sanitizedPluginReviewComponent,
+    'sanitizedPluginReviewComponentValid' => ReferenceName::isValidPartial($sanitizedPluginReviewComponent),
+    'sanitizedPluginReviewBranch' => $sanitizedPluginReviewBranch,
+    'sanitizedPluginReviewBranchAllowed' => ReferenceName::isValidBranchName($sanitizedPluginReviewBranch),
+    'reservedHeadBranchAllowed' => ReferenceName::isValidBranchName('refs/heads/HEAD'),
 ];

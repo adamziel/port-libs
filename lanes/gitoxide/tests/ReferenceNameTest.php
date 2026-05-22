@@ -104,6 +104,46 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::joinPartial('refs/heads', '.hidden'));
         $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::joinPartial('refs/heads', 'main.lock'));
     },
+    'partial reference names sanitize with gix validate byte rules' => static function (TestRunner $t): void {
+        $cases = [
+            'refs/heads/main' => 'refs/heads/main',
+            'main-worktree/HEAD' => 'main-worktree/HEAD',
+            'worktrees/id/refs/bisect/good' => 'worktrees/id/refs/bisect/good',
+            'heads/你好吗' => 'heads/你好吗',
+            '(null)' => '(null)',
+            '@' => '@',
+            'refs/../somewhere' => 'refs/-/somewhere',
+            '.refs/somewhere' => '-refs/somewhere',
+            '..refs/somewhere' => '-refs/somewhere',
+            'refs/./still-inside-but-not-cool' => 'refs/-/still-inside-but-not-cool',
+            '/refs/heads/main' => 'refs/heads/main',
+            'refs/heads/main/' => 'refs/heads/main',
+            'refs/heads/main///' => 'refs/heads/main',
+            'refs//heads////name with spaces' => 'refs/heads/name-with-spaces',
+            'refs\\heads/name with spaces' => 'refs-heads/name-with-spaces',
+            'refs/heads/main.lock' => 'refs/heads/main',
+            'refs/heads/main.lock.lock' => 'refs/heads/main',
+            'refs/heads/bad@{reflog}' => 'refs/heads/bad@-reflog}',
+            'refs/heads/feature*review' => 'refs/heads/feature-review',
+            '' => '-',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $actual = ReferenceName::sanitizePartial($input);
+            $t->same($expected, $actual, "sanitize {$input}");
+            $t->same(true, ReferenceName::isValidPartial($actual), "sanitized partial is valid for {$input}");
+        }
+    },
+    'branch reference validation rejects upstream reserved HEAD branch' => static function (TestRunner $t): void {
+        $t->same(true, ReferenceName::isValidBranchName('refs/heads/main'));
+        $t->same(true, ReferenceName::isValidBranchName('refs/heads/HEAd'));
+        ReferenceName::assertValidBranchName('refs/heads/main');
+
+        $t->same(false, ReferenceName::isValidBranchName('refs/heads/HEAD'));
+        $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::assertValidBranchName('refs/heads/HEAD'));
+        $t->same(false, ReferenceName::isValidBranchName('refs//heads/main'));
+        $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::assertValidBranchName('refs//heads/main'));
+    },
     'wordpress fixture classifies deployment refs without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-reference-categories.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-reference-categories.php';
@@ -117,5 +157,10 @@ return [
         $t->same($fixture['remoteBranch'], $summary['remoteTrackingBranch']);
         $t->same($fixture['expectedJoinedPluginReviewBranch'], $summary['joinedPluginReviewBranch']);
         $t->same($fixture['expectedJoinedRemoteReviewBranch'], $summary['joinedRemoteReviewBranch']);
+        $t->same($fixture['expectedSanitizedPluginReviewComponent'], $summary['sanitizedPluginReviewComponent']);
+        $t->same($fixture['expectedSanitizedPluginReviewBranch'], $summary['sanitizedPluginReviewBranch']);
+        $t->same(true, $summary['sanitizedPluginReviewComponentValid']);
+        $t->same(true, $summary['sanitizedPluginReviewBranchAllowed']);
+        $t->same(false, $summary['reservedHeadBranchAllowed']);
     },
 ];
