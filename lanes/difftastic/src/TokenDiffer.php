@@ -1469,6 +1469,17 @@ final class TokenDiffer
                 $declarations[$key] = $declaration;
             }
         }
+        foreach ($this->typeScriptDynamicImportDeclarations($nodes) as $declaration) {
+            $keyBase = $this->typeScriptModuleDeclarationKey($declaration);
+            $key = $keyBase;
+            $index = 1;
+            while (isset($declarations[$key])) {
+                $key = $keyBase . "\0" . $index;
+                $index++;
+            }
+
+            $declarations[$key] = $declaration;
+        }
 
         return $declarations;
     }
@@ -1765,7 +1776,7 @@ final class TokenDiffer
             return;
         }
 
-        if ($newDeclaration['variant'] === 'attributes') {
+        if (in_array($newDeclaration['variant'], ['attributes', 'dynamic-attributes'], true)) {
             if ($oldDeclaration['name'] !== $newDeclaration['name']) {
                 $changes[] = [
                     'op' => '~',
@@ -1808,6 +1819,145 @@ final class TokenDiffer
     {
         return ($declaration['synthetic'] ?? false) === true
             && ($declaration['specifierSignature'] ?? '') === '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function typeScriptDynamicImportDeclarations(array $nodes): array
+    {
+        $declarations = [];
+        $this->collectTypeScriptDynamicImportDeclarations($nodes, $declarations);
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param list<array<string, mixed>> $declarations
+     */
+    private function collectTypeScriptDynamicImportDeclarations(array $nodes, array &$declarations): void
+    {
+        $count = count($nodes);
+        for ($index = 0; $index < $count; $index++) {
+            $node = $nodes[$index];
+            if (
+                ($node['type'] ?? '') === 'atom'
+                && $node['token'] instanceof Token
+                && $node['token']->text === 'import'
+            ) {
+                $callList = $this->nextNonCommentList($nodes, $index + 1);
+                if ($callList !== null && ($callList['open'] ?? '') === '(') {
+                    $declaration = $this->typeScriptDynamicImportDeclaration($callList);
+                    if ($declaration !== null) {
+                        $declarations[] = $declaration;
+                    }
+                }
+            }
+
+            if (($node['type'] ?? '') === 'list') {
+                $this->collectTypeScriptDynamicImportDeclarations($node['children'] ?? [], $declarations);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return ?array<string, mixed>
+     */
+    private function nextNonCommentList(array $nodes, int $offset): ?array
+    {
+        for ($index = $offset; $index < count($nodes); $index++) {
+            $node = $nodes[$index];
+            if (
+                ($node['type'] ?? '') === 'atom'
+                && $node['token'] instanceof Token
+                && $node['token']->kind === 'comment'
+            ) {
+                continue;
+            }
+
+            return ($node['type'] ?? '') === 'list' ? $node : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $callList
+     * @return ?array<string, mixed>
+     */
+    private function typeScriptDynamicImportDeclaration(array $callList): ?array
+    {
+        $items = $this->listItems($callList, ['language' => 'typescript']);
+        if (count($items) < 2) {
+            return null;
+        }
+
+        $sourceText = $this->itemText($items[0]);
+        if (!$this->isQuotedAtom($sourceText)) {
+            return null;
+        }
+
+        $attributes = $this->typeScriptDynamicImportAttributeList($items[1]);
+        if ($attributes === null) {
+            return null;
+        }
+
+        return $this->typeScriptModuleDeclarationRecord(
+            'import',
+            null,
+            $this->unquoteAtom($sourceText),
+            'dynamic-attributes',
+            $attributes['list'],
+            $attributes['keyword'],
+            $attributes['keyword'] . $this->nodeText($attributes['list']),
+        );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return ?array{keyword:string, list:array<string, mixed>}
+     */
+    private function typeScriptDynamicImportAttributeList(array $nodes): ?array
+    {
+        foreach ($this->directLists($nodes) as $optionsList) {
+            if (($optionsList['open'] ?? '') !== '{') {
+                continue;
+            }
+
+            $keyword = null;
+            foreach ($optionsList['children'] ?? [] as $child) {
+                if (($child['type'] ?? '') === 'atom' && $child['token'] instanceof Token) {
+                    if ($child['token']->kind === 'comment') {
+                        continue;
+                    }
+
+                    $text = $child['token']->text;
+                    if (in_array($text, ['assert', 'with'], true)) {
+                        $keyword = $text;
+                        continue;
+                    }
+                    if ($text === ':' && $keyword !== null) {
+                        continue;
+                    }
+                    if ($text === ',') {
+                        $keyword = null;
+                    }
+                    continue;
+                }
+
+                if (($child['type'] ?? '') === 'list' && ($child['open'] ?? '') === '{' && $keyword !== null) {
+                    return [
+                        'keyword' => $keyword,
+                        'list' => $child,
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2128,6 +2278,8 @@ final class TokenDiffer
             $path .= '.star';
         } elseif ($declaration['variant'] === 'attributes') {
             $path .= '.attributes';
+        } elseif ($declaration['variant'] === 'dynamic-attributes') {
+            $path .= '.dynamic.attributes';
         }
         if ($declaration['source'] === null) {
             return $path . '.local';
@@ -2356,7 +2508,7 @@ final class TokenDiffer
             $matchedNewIndexes[$matchIndex] = true;
             $newCall = $newCalls[$matchIndex];
             if ($this->nodeText($oldCall['list']) !== $this->nodeText($newCall['list'])) {
-                $this->diffJavaScriptCallArguments($oldCall['list'], $newCall['list'], $path, $options, $changes);
+                $this->diffJavaScriptCallArguments($oldCall['list'], $newCall['list'], $path, $options, $changes, $oldCall['callee']);
             }
         }
 
@@ -2429,13 +2581,17 @@ final class TokenDiffer
      * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
      */
-    private function diffJavaScriptCallArguments(array $oldList, array $newList, string $path, array $options, array &$changes): void
+    private function diffJavaScriptCallArguments(array $oldList, array $newList, string $path, array $options, array &$changes, ?string $callee = null): void
     {
         $oldItems = $this->listItems($oldList, $options);
         $newItems = $this->listItems($newList, $options);
         $pairs = min(count($oldItems), count($newItems));
 
         for ($index = 0; $index < $pairs; $index++) {
+            if ($this->shouldSkipJavaScriptCallArgumentForTypeScript($callee, $index, $oldItems[$index], $newItems[$index], $options)) {
+                continue;
+            }
+
             $oldText = $this->itemText($oldItems[$index]);
             $newText = $this->itemText($newItems[$index]);
             if ($oldText === $newText) {
@@ -2458,11 +2614,34 @@ final class TokenDiffer
         }
 
         for ($index = $pairs; $index < count($oldItems); $index++) {
+            if ($this->shouldSkipJavaScriptCallArgumentForTypeScript($callee, $index, $oldItems[$index], null, $options)) {
+                continue;
+            }
+
             $changes[] = ['op' => '-', 'path' => $path . '[' . $index . ']', 'text' => $this->itemText($oldItems[$index])];
         }
         for ($index = $pairs; $index < count($newItems); $index++) {
+            if ($this->shouldSkipJavaScriptCallArgumentForTypeScript($callee, $index, null, $newItems[$index], $options)) {
+                continue;
+            }
+
             $changes[] = ['op' => '+', 'path' => $path . '[' . $index . ']', 'text' => $this->itemText($newItems[$index])];
         }
+    }
+
+    /**
+     * @param ?list<array<string, mixed>> $oldItem
+     * @param ?list<array<string, mixed>> $newItem
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     */
+    private function shouldSkipJavaScriptCallArgumentForTypeScript(?string $callee, int $index, ?array $oldItem, ?array $newItem, array $options): bool
+    {
+        if ($callee !== 'import' || $index !== 1 || !$this->isTypeScriptLanguage($options)) {
+            return false;
+        }
+
+        return ($oldItem !== null && $this->typeScriptDynamicImportAttributeList($oldItem) !== null)
+            || ($newItem !== null && $this->typeScriptDynamicImportAttributeList($newItem) !== null);
     }
 
     /**

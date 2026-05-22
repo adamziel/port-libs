@@ -299,6 +299,21 @@ return [
         $t->true(!str_contains($encoded, '$ts.export.star["./frontend"]'), 'Unchanged export-star declarations should stay out of the change stream.');
         $t->true(!str_contains($encoded, '- $ts.export.type.star["./types"]'), 'Export-star source changes should not delete the retained star shape.');
     },
+    'maps typescript dynamic import attributes as module metadata' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-dynamic-metadata-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-dynamic-metadata-after.ts');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'typescript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $ts.import.dynamic.attributes["./block.json"]/keyword assert with', $encoded);
+        $t->contains('~ $ts.import.dynamic.attributes["./view.js"][0] type:"javascript" type:"module"', $encoded);
+        $t->contains('+ $ts.import.dynamic.attributes["./supports.json"] with{type:"json"}', $encoded);
+        $t->true(!str_contains($encoded, '- $js.call["import"][1]/{0}[0] assert'), 'Retained dynamic import attributes should not only render as broad JavaScript call argument churn.');
+        $t->true(!str_contains($encoded, '+ $js.call["import"][1]/{0}[0] with'), 'Retained dynamic import attributes should use TypeScript module metadata paths.');
+    },
     'maps upstream jsx sample as tag list changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-1.jsx');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-2.jsx');
@@ -1044,6 +1059,39 @@ return [
         $t->contains('"viewScriptModule"', $joined);
         $t->contains('"full"', $joined);
         $t->contains('true', $joined);
+    },
+    'wordpress dynamic metadata import display emits typescript review chunks' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-dynamic-metadata-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-dynamic-metadata-after.ts');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/assets.ts',
+            'TypeScript',
+            ['language' => 'typescript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('wp-content/plugins/acme-card/assets.ts', $decoded['path']);
+        $t->same('TypeScript', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']));
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' line ' . $line[$side]['line_number'] . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs line 0 assert:normal', $encoded);
+        $t->contains('rhs line 0 with:normal', $encoded);
+        $t->contains('lhs line 1 "javascript":string', $encoded);
+        $t->contains('rhs line 1 "module":string', $encoded);
+        $t->contains('rhs line 2 "./supports.json":string', $encoded);
     },
     'wordpress block copy display reports description string word changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-copy-before.json');
