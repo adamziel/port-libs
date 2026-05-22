@@ -344,6 +344,43 @@ return [
         $t->true(!str_contains($article->text, 'Subscribe to unrelated site updates'), 'surrounding body chrome should not be imported');
         $t->true(!str_contains($blocks, "<p></p>"), 'empty paragraphs should not become blank WordPress blocks');
     },
+    'unwraps single-cell layout tables while retaining real data tables' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Legacy Table Layout"></head><body><article>'
+            . '<h1>Legacy Table Layout</h1>'
+            . '<p>' . str_repeat('Older WordPress themes often used tables as layout wrappers around article copy. ', 3) . '</p>'
+            . '<table class="layout-table"><tbody><tr><td class="layout-cell">A migrated paragraph <a href="/docs/table-cleanup">with a relative link</a> should not stay inside a layout table.</td></tr></tbody></table>'
+            . '<table id="specs"><tbody><tr><td>Setting</td><td>Value</td></tr><tr><td>Mode</td><td>Native import</td></tr></tbody></table>'
+            . '<p>' . str_repeat('Actual tabular data should remain available for later table-block serialization. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html, 'https://example.com/import/post.html');
+        $blocks = (new ArticleExtractor())->toWordPressBlocks($article);
+
+        $t->same('Legacy Table Layout', $article->title);
+        $t->contains('A migrated paragraph', $article->contentHtml);
+        $t->contains('href="https://example.com/docs/table-cleanup"', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, '<td>A migrated paragraph'), 'single-cell layout table should be unwrapped like upstream _prepArticle');
+        $t->contains('<table id="specs">', $article->contentHtml);
+        $t->contains('<td>Setting</td>', $article->contentHtml);
+        $t->contains('<td>Value</td>', $article->contentHtml);
+        $t->contains('Actual tabular data should remain', $article->text);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="specs">', $blocks);
+    },
+    'turns single-cell block layout tables into div wrappers for WordPress imports' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Layout Table Media</title></head><body><article>'
+            . '<p>' . str_repeat('Some migration sources place a whole article section inside one table cell. ', 3) . '</p>'
+            . '<table class="wp-layout"><tbody><tr><td class="legacy-cell"><p>Keep this nested section copy.</p><figure><img src="/uploads/table-media.jpg" alt="Table media"></figure></td></tr></tbody></table>'
+            . '<p>' . str_repeat('The native extractor should remove table markup without dropping editorial media. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+
+        $t->contains('Keep this nested section copy.', $article->contentHtml);
+        $t->contains('/uploads/table-media.jpg', $article->contentHtml);
+        $t->true(preg_match('/<\/?(?:table|tbody|tr|td)\b/i', $article->contentHtml) !== 1, 'one-cell block layout table markup should be removed');
+        $t->contains('remove table markup without dropping editorial media', $article->text);
+    },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
         $source = (string) file_get_contents($fixture . '/source.html');

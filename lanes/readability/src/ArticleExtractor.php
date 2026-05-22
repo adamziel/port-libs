@@ -166,6 +166,8 @@ final class ArticleExtractor
                 $blocks[] = '<!-- wp:heading {"level":' . $m[1] . '} -->' . "\n" . $html . "\n" . '<!-- /wp:heading -->';
             } elseif ($tag === 'img') {
                 $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
+            } elseif ($tag === 'table') {
+                $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
             } else {
                 $blocks[] = '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
             }
@@ -1119,6 +1121,7 @@ final class ArticleExtractor
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->removeEmptyParagraphs($scope);
+        $scope = $this->unwrapSingleCellTables($scope);
         $this->cleanClasses($scope);
 
         return $scope;
@@ -1602,6 +1605,86 @@ final class ArticleExtractor
         }
 
         return false;
+    }
+
+    private function unwrapSingleCellTables(\DOMElement $scope): \DOMElement
+    {
+        foreach ($this->tableCandidates($scope) as $table) {
+            if (!$table->parentNode instanceof \DOMNode && $table !== $scope) {
+                continue;
+            }
+
+            $body = $this->hasSingleTagInsideElement($table, 'tbody')
+                ? $this->firstElementChild($table)
+                : $table;
+            if (!$body instanceof \DOMElement || !$this->hasSingleTagInsideElement($body, 'tr')) {
+                continue;
+            }
+
+            $row = $this->firstElementChild($body);
+            if (!$row instanceof \DOMElement || !$this->hasSingleTagInsideElement($row, 'td')) {
+                continue;
+            }
+
+            $cell = $this->firstElementChild($row);
+            if (!$cell instanceof \DOMElement) {
+                continue;
+            }
+
+            $replacement = $this->singleCellTableReplacement($cell);
+            $table->parentNode?->replaceChild($replacement, $table);
+            if ($table === $scope) {
+                $scope = $replacement;
+            }
+        }
+
+        return $scope;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function tableCandidates(\DOMElement $scope): array
+    {
+        $nodes = [];
+        if (strtolower($scope->tagName) === 'table') {
+            $nodes[] = $scope;
+        }
+
+        foreach ($scope->getElementsByTagName('table') as $node) {
+            if ($node instanceof \DOMElement) {
+                $nodes[] = $node;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function singleCellTableReplacement(\DOMElement $cell): \DOMElement
+    {
+        $document = $cell->ownerDocument;
+        $tagName = $this->allChildrenArePhrasingContent($cell) ? 'p' : 'div';
+        $replacement = $document->createElement($tagName);
+        foreach ($cell->attributes ?: [] as $attribute) {
+            $replacement->setAttribute($attribute->name, $attribute->value);
+        }
+
+        while ($cell->firstChild instanceof \DOMNode) {
+            $replacement->appendChild($cell->firstChild);
+        }
+
+        return $replacement;
+    }
+
+    private function allChildrenArePhrasingContent(\DOMElement $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$this->isPhrasingContent($child)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function simplifyNestedElements(\DOMElement $scope): \DOMElement
