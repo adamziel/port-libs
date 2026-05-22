@@ -219,6 +219,30 @@ CSS;
             '.foo{-webkit-filter:var(--foo);filter:var(--foo)}',
             $prefixer->prefixLegacySafari('.foo { filter: var(--foo) }')
         );
+        $t->same(
+            '.foo{backdrop-filter:blur(5px)}',
+            $prefixer->prefixForTargets('.foo { backdrop-filter: blur(5px) }', ['chrome' => 80])
+        );
+    },
+    'transition prefixer maps upstream backdrop-filter supports conditions' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@supports ((-webkit-backdrop-filter:blur(10px)) or (backdrop-filter:blur(10px))){div{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}}',
+            $prefixer->prefixForTargets('@supports (backdrop-filter: blur(10px)) { div { backdrop-filter: blur(10px); } }', ['safari' => 14])
+        );
+        $t->same(
+            '@supports (-webkit-backdrop-filter:blur(10px)) or (backdrop-filter:blur(10px)){div{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) { div { backdrop-filter: blur(10px); } }', ['safari' => 14])
+        );
+        $t->same(
+            '@supports (-webkit-backdrop-filter:blur(20px)) or ((-webkit-backdrop-filter:blur(10px)) or (backdrop-filter:blur(10px))){div{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-backdrop-filter: blur(20px)) or (backdrop-filter: blur(10px))) { div { backdrop-filter: blur(10px); } }', ['safari' => 14])
+        );
+        $t->same(
+            '@supports (backdrop-filter:blur(10px)){div{backdrop-filter:blur(10px)}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) { div { backdrop-filter: blur(10px); } }', ['chrome' => 80])
+        );
     },
     'transition prefixer maps upstream filter advanced color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

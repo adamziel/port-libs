@@ -62,6 +62,7 @@ final class TransitionPrefixer
             $prelude = trim(substr($css, $cursor, $open - $cursor));
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
+                $prelude = $this->rewriteSupportsBackdropFilterPrelude($prelude, $targetOptions);
                 $output .= $prelude . '{' . $this->rewriteRuleList(
                     $body,
                     $insideAdvancedColorSupports || $this->isAdvancedColorSupportsPrelude($prelude),
@@ -107,7 +108,7 @@ final class TransitionPrefixer
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
-        $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules);
+        $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $textShadowChanged = $insideAdvancedColorSupports
             ? false
@@ -133,6 +134,299 @@ final class TransitionPrefixer
         }
 
         return $selectors . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteSupportsBackdropFilterPrelude(string $prelude, array $targetOptions): string
+    {
+        if (preg_match('/^@supports\b/i', $prelude) !== 1) {
+            return $prelude;
+        }
+
+        $condition = trim(substr($prelude, strlen('@supports')));
+        if ($condition === '' || stripos($condition, 'backdrop-filter') === false) {
+            return $prelude;
+        }
+
+        $rewritten = ($targetOptions['backdropFilterNeedsWebkit'] ?? false)
+            ? $this->addWebkitBackdropFilterSupports($condition, $condition)
+            : $this->dropWebkitBackdropFilterSupports($condition, $condition);
+
+        return '@supports ' . $rewritten;
+    }
+
+    private function addWebkitBackdropFilterSupports(string $condition, string $rootCondition): string
+    {
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $parts = [];
+            foreach ($logical as $item) {
+                $parts[] = $item['type'] === 'operator'
+                    ? $item['value']
+                    : $this->addWebkitBackdropFilterSupports($item['value'], $rootCondition);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration === null || $declaration['property'] !== 'backdrop-filter') {
+            return $condition;
+        }
+
+        if ($this->supportsConditionHasDeclaration($rootCondition, '-webkit-backdrop-filter', $declaration['value'])) {
+            return $this->supportsDeclarationCondition($declaration['property'], $declaration['value']);
+        }
+
+        return '('
+            . $this->supportsDeclarationCondition('-webkit-backdrop-filter', $declaration['value'])
+            . ' or '
+            . $this->supportsDeclarationCondition('backdrop-filter', $declaration['value'])
+            . ')';
+    }
+
+    private function dropWebkitBackdropFilterSupports(string $condition, string $rootCondition): string
+    {
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $operators = array_values(array_unique(array_map(
+                static fn (array $item): string => $item['type'] === 'operator' ? $item['value'] : '',
+                $logical
+            )));
+            $operators = array_values(array_filter($operators, static fn (string $operator): bool => $operator !== ''));
+
+            if ($operators === ['or'] && $this->supportsConditionHasProperty($rootCondition, 'backdrop-filter')) {
+                $conditions = [];
+                foreach ($logical as $item) {
+                    if ($item['type'] === 'operator') {
+                        continue;
+                    }
+
+                    $declaration = $this->parseSupportsDeclarationCondition($item['value']);
+                    if ($declaration !== null && $declaration['property'] === '-webkit-backdrop-filter') {
+                        continue;
+                    }
+
+                    $conditions[] = $this->dropWebkitBackdropFilterSupports($item['value'], $rootCondition);
+                }
+
+                return $conditions === [] ? $condition : implode(' or ', $conditions);
+            }
+
+            $parts = [];
+            foreach ($logical as $item) {
+                $parts[] = $item['type'] === 'operator'
+                    ? $item['value']
+                    : $this->dropWebkitBackdropFilterSupports($item['value'], $rootCondition);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        return $condition;
+    }
+
+    /**
+     * @return array{property:string,value:string}|null
+     */
+    private function parseSupportsDeclarationCondition(string $condition): ?array
+    {
+        $condition = trim($condition);
+        $inner = $this->unwrapSingleSupportsParentheses($condition);
+        if ($inner !== null) {
+            $condition = trim($inner);
+        }
+
+        if ($this->splitSupportsConditionByLogicalOperator($condition) !== null) {
+            return null;
+        }
+
+        $colon = $this->findTopLevelColon($condition);
+        if ($colon === null) {
+            return null;
+        }
+
+        $property = strtolower(trim(substr($condition, 0, $colon)));
+        $value = trim(substr($condition, $colon + 1));
+        if ($property === '' || $value === '' || preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*$/', $property) !== 1) {
+            return null;
+        }
+
+        return [
+            'property' => $property,
+            'value' => $value,
+        ];
+    }
+
+    private function supportsConditionHasDeclaration(string $condition, string $property, string $value): bool
+    {
+        foreach ($this->collectSupportsDeclarationConditions($condition) as $declaration) {
+            if ($declaration['property'] === $property && $declaration['value'] === $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function supportsConditionHasProperty(string $condition, string $property): bool
+    {
+        foreach ($this->collectSupportsDeclarationConditions($condition) as $declaration) {
+            if ($declaration['property'] === $property) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{property:string,value:string}>
+     */
+    private function collectSupportsDeclarationConditions(string $condition): array
+    {
+        $declaration = $this->parseSupportsDeclarationCondition($condition);
+        if ($declaration !== null) {
+            return [$declaration];
+        }
+
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $declarations = [];
+            foreach ($logical as $item) {
+                if ($item['type'] === 'condition') {
+                    array_push($declarations, ...$this->collectSupportsDeclarationConditions($item['value']));
+                }
+            }
+
+            return $declarations;
+        }
+
+        $inner = $this->unwrapSingleSupportsParentheses($condition);
+        if ($inner !== null) {
+            return $this->collectSupportsDeclarationConditions($inner);
+        }
+
+        return [];
+    }
+
+    private function supportsDeclarationCondition(string $property, string $value): string
+    {
+        return '(' . $property . ':' . $value . ')';
+    }
+
+    /**
+     * @return list<array{type:string,value:string}>|null
+     */
+    private function splitSupportsConditionByLogicalOperator(string $condition): ?array
+    {
+        $items = [];
+        $current = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($condition);
+        $found = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $condition[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                $current .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $current .= $char;
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                $current .= $char;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                $current .= $char;
+                continue;
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && (ctype_alpha($char) || $char === '_' || $char === '-')) {
+                $start = $i;
+                while ($i < $length && $this->isIdentifierChar($condition[$i])) {
+                    $i++;
+                }
+                $identifier = substr($condition, $start, $i - $start);
+                $lower = strtolower($identifier);
+                $previous = $condition[$start - 1] ?? '';
+                $next = $condition[$i] ?? '';
+                if (in_array($lower, ['and', 'or'], true)
+                    && ($previous === '' || !$this->isIdentifierChar($previous))
+                    && ($next === '' || !$this->isIdentifierChar($next))
+                ) {
+                    if (trim($current) === '') {
+                        return null;
+                    }
+                    $items[] = ['type' => 'condition', 'value' => trim($current)];
+                    $items[] = ['type' => 'operator', 'value' => $lower];
+                    $current = '';
+                    $found = true;
+                    while (isset($condition[$i]) && ctype_space($condition[$i])) {
+                        $i++;
+                    }
+                    $i--;
+                    continue;
+                }
+
+                $current .= $identifier;
+                $i--;
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (!$found || trim($current) === '') {
+            return null;
+        }
+
+        $items[] = ['type' => 'condition', 'value' => trim($current)];
+
+        return $items;
+    }
+
+    private function unwrapSingleSupportsParentheses(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || $value[0] !== '(') {
+            return null;
+        }
+
+        [, $offset] = $this->readFunctionRaw($value, 0);
+        if ($offset !== strlen($value) - 1) {
+            return null;
+        }
+
+        return substr($value, 1, -1);
     }
 
     private function isAdvancedColorSupportsPrelude(string $prelude): bool
@@ -174,6 +468,9 @@ final class TransitionPrefixer
             'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
+            'filterNeedsWebkit' => ($chrome !== null && $chrome <= 20.0)
+                || ($safari !== null && $safari <= 14.0),
+            'backdropFilterNeedsWebkit' => $safari !== null && $safari <= 15.0,
             'textDecorationNeedsWebkit' => ($safari !== null && $safari <= 16.0) || ($chrome !== null && $chrome <= 4.0),
             'textDecorationNeedsMoz' => $firefox !== null && $firefox <= 36.0,
             'textEmphasisNeedsWebkit' => $chrome !== null && $chrome <= 99.0,
@@ -384,20 +681,43 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
      */
-    private function rewriteFilterPrefixEntries(array &$entries, string $selectors, array &$supportRules): bool
+    private function rewriteFilterPrefixEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
     {
         $changed = false;
         $rewritten = [];
         $hasWebkitFilter = false;
         $hasWebkitBackdropFilter = false;
+        $unprefixedValues = [
+            'filter' => [],
+            'backdrop-filter' => [],
+        ];
 
         foreach ($entries as $entry) {
             $hasWebkitFilter = $hasWebkitFilter || $entry['property'] === '-webkit-filter';
             $hasWebkitBackdropFilter = $hasWebkitBackdropFilter || $entry['property'] === '-webkit-backdrop-filter';
+            if (isset($unprefixedValues[$entry['property']])) {
+                $unprefixedValues[$entry['property']][$entry['value']] = true;
+            }
         }
 
         foreach ($entries as $entry) {
+            if ($entry['property'] === '-webkit-filter'
+                && !($targetOptions['filterNeedsWebkit'] ?? false)
+                && isset($unprefixedValues['filter'][$entry['value']])
+            ) {
+                $changed = true;
+                continue;
+            }
+            if ($entry['property'] === '-webkit-backdrop-filter'
+                && !($targetOptions['backdropFilterNeedsWebkit'] ?? false)
+                && isset($unprefixedValues['backdrop-filter'][$entry['value']])
+            ) {
+                $changed = true;
+                continue;
+            }
+
             if ($entry['important'] || !in_array($entry['property'], ['filter', 'backdrop-filter'], true)) {
                 $rewritten[] = $entry;
                 continue;
@@ -405,9 +725,12 @@ final class TransitionPrefixer
 
             $prefixedProperty = $entry['property'] === 'filter' ? '-webkit-filter' : '-webkit-backdrop-filter';
             $hasPrefixed = $entry['property'] === 'filter' ? $hasWebkitFilter : $hasWebkitBackdropFilter;
+            $needsPrefixed = $entry['property'] === 'filter'
+                ? ($targetOptions['filterNeedsWebkit'] ?? false)
+                : ($targetOptions['backdropFilterNeedsWebkit'] ?? false);
             $fallback = $this->advancedColorFallbackValue($entry['value']);
             if ($fallback === null) {
-                if (!$hasPrefixed) {
+                if ($needsPrefixed && !$hasPrefixed) {
                     $rewritten[] = $this->declarationEntry($prefixedProperty, $entry['value']);
                     $changed = true;
                 }
@@ -415,7 +738,7 @@ final class TransitionPrefixer
                 continue;
             }
 
-            if (!$hasPrefixed) {
+            if ($needsPrefixed && !$hasPrefixed) {
                 $rewritten[] = $this->declarationEntry($prefixedProperty, $fallback);
             }
             $rewritten[] = $this->entryWithValue($entry, $fallback);
@@ -425,7 +748,7 @@ final class TransitionPrefixer
             $labFallback = $this->advancedColorLabFallbackValue($entry['value'], $hasCustomPropertyReference);
             if ($labFallback !== null && $hasCustomPropertyReference) {
                 $supportEntries = [];
-                if (!$hasPrefixed) {
+                if ($needsPrefixed && !$hasPrefixed) {
                     $supportEntries[] = $this->declarationEntry($prefixedProperty, $labFallback);
                 }
                 $supportEntries[] = $this->entryWithValue($entry, $labFallback);
