@@ -2976,7 +2976,8 @@ final class ArticleExtractor
             $weight += 3000;
         }
 
-        if (preg_match('/\b(content|main-content)\b/', $matchString) === 1) {
+        if (preg_match('/\b(content|main-content)\b/', $matchString) === 1
+            && preg_match('/(?:^|\s)section-content(?:\s|$)/', $matchString) !== 1) {
             $weight += 1500;
         }
 

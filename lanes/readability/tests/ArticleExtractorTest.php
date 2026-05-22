@@ -1332,7 +1332,7 @@ return [
         $t->true(str_starts_with($rows[4]['src'] ?? '', 'data:image/jpeg;base64,'), 'real JPEG data URI should be preserved');
         $t->same(4, count($attributeValues($article->contentHtml, '//p')), 'expected editorial paragraphs should remain around data URI images');
     },
-    'maps Mozilla keep-images fixture full-width editorial media retention' => static function (TestRunner $t) use ($attributeValues, $imageAttributeRows, $normalizedText): void {
+    'maps Mozilla keep-images fixture full-width editorial media retention' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/keep-images';
         $source = (string) file_get_contents($fixture . '/source.html');
         $expected = (string) file_get_contents($fixture . '/expected.html');
@@ -1348,6 +1348,21 @@ return [
         $t->same($metadata['dir'], $article->dir);
         $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            $elementChildTags($expected, '//div[@id="readability-page-1"]'),
+            $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]'),
+            'the upstream readability-page wrapper should keep the named Medium section boundary',
+        );
+        $t->same(
+            $attributeValues($expected, '//div[@id="readability-page-1"]/*[1]/@name'),
+            $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/@name'),
+            'the copied Medium section name should survive oracle serialization',
+        );
+        $t->same(
+            $elementChildTags($expected, '//div[@id="readability-page-1"]/*[1]'),
+            $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]/*[1]'),
+            'the named Medium section wrapper should retain its child section layout divs',
+        );
         $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
         $t->same(16, count($imageAttributeRows($article->contentHtml)), 'all expected image payloads should remain');
         $t->same(count($attributeValues($expected, '//figure')), count($attributeValues($article->contentHtml, '//figure')));
@@ -1355,6 +1370,29 @@ return [
         $t->contains('Cristina Gil Lladanosa, at the Barcelona testing lab', $article->text);
         $t->contains('Photo by Joan Bardeletti', $article->text);
         $t->same(false, str_contains($article->text, 'Ready to publish?'), 'Medium editor chrome should not survive the keep-images fixture extraction');
+    },
+    'preserves named Medium section wrappers for oracle output while flattening WordPress blocks' => static function (TestRunner $t) use ($attributeValues, $elementChildTags): void {
+        $source = '<html><head><meta property="og:title" content="Medium Section Import"></head><body>'
+            . '<article><div class="postField postField--body"><section name="wpsec" class="section--first section--last"><div class="section-content">'
+            . '<div><p>' . str_repeat('Migration reviewers need source section boundaries when comparing upstream oracle output. ', 3) . '</p></div>'
+            . '<div><figure class="postField--fillWidthImage"><div><img src="/uploads/section-photo.jpg" alt="Section photo"></div><figcaption>Section photo</figcaption></figure></div>'
+            . '<div><p>' . str_repeat('The block serializer should still avoid importing opaque Medium section shells. ', 3) . '</p></div>'
+            . '</div></section></div></article>'
+            . '<aside>Related source chrome should not be selected for import.</aside>'
+            . '</body></html>';
+
+        $extractor = new ArticleExtractor();
+        $oracleArticle = $extractor->extract($source, 'https://example.com/imports/post.html', true);
+        $wordpressArticle = $extractor->extract($source, 'https://example.com/imports/post.html');
+        $blocks = $extractor->toWordPressBlocks($wordpressArticle);
+
+        $t->same(['div'], $elementChildTags($oracleArticle->contentHtml, '//div[@id="readability-page-1"]'));
+        $t->same(['wpsec'], $attributeValues($oracleArticle->contentHtml, '//div[@id="readability-page-1"]/*[1]/@name'));
+        $t->contains('Section photo', $blocks);
+        $t->contains('src="https://example.com/uploads/section-photo.jpg"', $blocks);
+        $t->same(false, str_contains($blocks, 'name="wpsec"'), 'WordPress blocks should flatten source section boundaries');
+        $t->same(false, str_contains($blocks, 'section-content'), 'source Medium layout classes should remain stripped');
+        $t->same(false, str_contains($wordpressArticle->text, 'Related source chrome'), 'surrounding source chrome should not enter the migrated article');
     },
     'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
