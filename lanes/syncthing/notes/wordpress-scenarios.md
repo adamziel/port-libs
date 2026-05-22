@@ -55,6 +55,14 @@ when `AvailableUpdated` advances; no update when block lists change without the
 timestamp invariant; forget+append replacement when the version or puller
 creation identity changes, including empty append updates that clear old
 temporary availability; and versioned forgets for completed or errored pulls.
+The progress-emitter boundary now maps the adjacent upstream
+`ProgressEmitter.computeProgressUpdates`, temporary-index subscribe/unsubscribe,
+`clearLocked`, `Deregister`, `BytesCompleted`, and `sharedPullerState.Progress`
+semantics: per-device folder subscriptions receive grouped DownloadProgress
+messages; disconnected devices have sent state discarded without forget traffic;
+unshared folders are silently removed from sent state; disabling the emitter
+returns cleanup forget updates before clearing state; and event-style progress
+summaries expose Syncthing's block-to-byte estimate for WordPress import UI.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -94,10 +102,13 @@ state: a WordPress media pull first advertises temporary blocks 0 and 1, then
 emits only the newly available block 4, and finally sends the versioned forget
 that clears the remote peer's temporary availability when the pull completes or
 errors.
+`examples/wordpress-progress-emitter.php` coordinates two subscribed WordPress
+peers, grouping native DownloadProgress frames per device/folder, emitting only
+the newly available media block on the second pass, and exposing completed-byte
+progress for an import status surface.
 
 ## Next Task
 
-Port the connection-level ProgressEmitter boundary around sent-download state:
-per-device temporary-index subscriptions, per-folder grouping of
-DownloadProgress sends, disconnect state cleanup, and event-style byte progress
-summaries.
+Port the live scheduling/connection edge around ProgressEmitter: timer-driven
+event emission, real protocol connection adapters, and back-pressure/error
+behavior when DownloadProgress sends block or fail.

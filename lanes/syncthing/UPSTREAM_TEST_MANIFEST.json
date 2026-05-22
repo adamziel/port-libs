@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 50,
+        "mapped": 55,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
@@ -65,6 +65,10 @@
             "targetProgressEmitterTemporaryIndexMethods": 4,
             "targetProgressEmitterSendDownloadProgressTestFunction": 1,
             "targetProgressEmitterSendDownloadProgressCases": 15,
+            "targetProgressEmitterConnectionBoundaryMethods": 7,
+            "targetProgressEmitterEventSummaryMethods": 2,
+            "targetSharedPullerProgressMethods": 2,
+            "targetPullerProgressFields": 8,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -116,6 +120,10 @@
                 {
                     "command": "targeted git show reads of lib/model/sentdownloadstate.go, lib/model/progressemitter.go, lib/model/progressemitter_test.go, and lib/model/sharedpullerstate.go",
                     "result": "inspected outgoing temporary-index state, active puller filtering, new-block-only append deltas, version or puller-recreation forget+append replacement, completed/errored cleanup forgets, and upstream SendDownloadProgress test cases without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/progressemitter.go, lib/model/progressemitter_test.go, and lib/model/sharedpullerstate.go",
+                    "result": "inspected ProgressEmitter subscription grouping, deregister behavior, disconnected-device sent-state cleanup, silent unshared-folder state cleanup, disable clear cleanup, BytesCompleted, PullerProgress fields, and blocksToSize byte estimation without hydrating broad blobs"
                 }
             ]
         },
@@ -173,15 +181,21 @@
             "Available block list changes without an updated timestamp are ignored, matching upstream's append-only sharedPullerState invariant.",
             "Version changes or reconstructed pullers emit a forget for the previous version followed by an append for the current version, including empty append updates that clear older temporary availability.",
             "Temporary-index filtering excludes wrong folders, directories, symlinks, and files whose total block count is at or below `TempIndexMinBlocks`.",
-            "Completed or errored pulls emit a versioned forget exactly once, and explicit folder cleanup returns forget messages for all tracked outgoing temporary files."
+            "Completed or errored pulls emit a versioned forget exactly once, and explicit folder cleanup returns forget messages for all tracked outgoing temporary files.",
+            "ProgressEmitter groups DownloadProgress updates per subscribed device and folder, and multiple subscribed devices receive independent sent-download state.",
+            "Deregistered pullers leave their folder registry present long enough to emit the upstream versioned forget exactly once.",
+            "Unsubscribed devices have local sent-download state discarded without emitting forget messages, matching upstream disconnected-device cleanup.",
+            "Folders removed from a device subscription are silently cleaned from sent state instead of sending forget traffic, matching the upstream commented-out unshare path.",
+            "Disabling the progress emitter returns connected-peer cleanup forget batches before clearing registry, subscriptions, and sent state.",
+            "Event-style progress summaries and BytesCompleted use upstream PullerProgress fields and the sharedPullerState blocksToSize estimate."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 50 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 55 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads, DownloadProgress append/forget protobuf frames plus remote temporary-download state, and outgoing sent-download progress diff computation."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads, DownloadProgress append/forget protobuf frames plus remote temporary-download state, outgoing sent-download progress diff computation, and connection-level ProgressEmitter subscription grouping/cleanup/event-summary behavior."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, and computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull.",
-    "nextTask": "Port the connection-level ProgressEmitter boundary around sent-download state: per-device temporary-index subscriptions, per-folder grouping of DownloadProgress sends, disconnect state cleanup, and event-style byte progress summaries."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull, and grouping those deltas per subscribed WordPress peer with event-style completed-byte summaries.",
+    "nextTask": "Port the live scheduling/connection edge around ProgressEmitter: timer-driven event emission, real protocol connection adapters, and back-pressure/error behavior when DownloadProgress sends block or fail."
 }
