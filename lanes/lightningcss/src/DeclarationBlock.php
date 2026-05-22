@@ -31,6 +31,9 @@ final class DeclarationBlock
         'background-repeat',
     ];
 
+    private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
+    private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
+
     /**
      * @return array<string, string>
      */
@@ -100,6 +103,10 @@ final class DeclarationBlock
         if ($property === 'background' || in_array($property, self::BACKGROUND_LONGHANDS, true)) {
             return null;
         }
+        $flexValue = $this->getFlexProperty($entries, $property);
+        if ($flexValue !== null) {
+            return $flexValue;
+        }
 
         $match = null;
         foreach ($entries as $entry) {
@@ -112,6 +119,166 @@ final class DeclarationBlock
         }
 
         return $match;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getFlexProperty(array $entries, string $property): ?array
+    {
+        $prefix = $this->flexPrefixForProperty($property);
+        $base = $this->baseFlexProperty($property);
+        if ($prefix === null || $base === null) {
+            return null;
+        }
+
+        $components = $this->resolveFlexComponents($entries, $prefix);
+        if ($base === 'flex-flow') {
+            $direction = $components['direction'];
+            $wrap = $components['wrap'];
+            if ($direction === null && $wrap === null) {
+                return null;
+            }
+            if (!$components['flow'] && ($direction === null || $wrap === null)) {
+                return null;
+            }
+
+            $important = ($direction ?? $wrap)['important'];
+            if ($direction !== null && $direction['important'] !== $important) {
+                return null;
+            }
+            if ($wrap !== null && $wrap['important'] !== $important) {
+                return null;
+            }
+
+            return [
+                'value' => $this->composeFlexFlow($direction['value'] ?? null, $wrap['value'] ?? null),
+                'important' => $important,
+            ];
+        }
+
+        if ($base === 'flex-direction') {
+            return $components['direction'];
+        }
+
+        if ($base === 'flex-wrap') {
+            return $components['wrap'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{
+     *     direction:array{value:string, important:bool}|null,
+     *     wrap:array{value:string, important:bool}|null,
+     *     flow:bool
+     * }
+     */
+    private function resolveFlexComponents(array $entries, string $prefix): array
+    {
+        $components = [
+            'direction' => null,
+            'wrap' => null,
+            'flow' => false,
+        ];
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $this->flexProperty($prefix, 'flex-flow')) {
+                $components['flow'] = true;
+                $expanded = $this->expandFlexFlow($entry['value']);
+                foreach ($expanded as $component => $value) {
+                    if ($value !== null) {
+                        $components[$component] = [
+                            'value' => $value,
+                            'important' => $entry['important'],
+                        ];
+                    }
+                }
+                continue;
+            }
+
+            if ($entry['property'] === $this->flexProperty($prefix, 'flex-direction')) {
+                $components['direction'] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if ($entry['property'] === $this->flexProperty($prefix, 'flex-wrap')) {
+                $components['wrap'] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $components;
+    }
+
+    private function flexPrefixForProperty(string $property): ?string
+    {
+        if (str_starts_with($property, '-webkit-flex-')) {
+            return '-webkit-';
+        }
+
+        if (str_starts_with($property, 'flex-')) {
+            return '';
+        }
+
+        return null;
+    }
+
+    private function baseFlexProperty(string $property): ?string
+    {
+        if (str_starts_with($property, '-webkit-')) {
+            $property = substr($property, strlen('-webkit-'));
+        }
+
+        return in_array($property, ['flex-flow', 'flex-direction', 'flex-wrap'], true)
+            ? $property
+            : null;
+    }
+
+    private function flexProperty(string $prefix, string $base): string
+    {
+        return $prefix . $base;
+    }
+
+    /**
+     * @return array{direction:?string, wrap:?string}
+     */
+    private function expandFlexFlow(string $value): array
+    {
+        $components = [
+            'direction' => null,
+            'wrap' => null,
+        ];
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if (in_array($lower, self::FLEX_DIRECTIONS, true)) {
+                $components['direction'] = $token;
+                continue;
+            }
+
+            if (in_array($lower, self::FLEX_WRAPS, true)) {
+                $components['wrap'] = $token;
+            }
+        }
+
+        return $components;
+    }
+
+    private function composeFlexFlow(?string $direction, ?string $wrap): string
+    {
+        return implode(' ', array_values(array_filter(
+            [$direction, $wrap],
+            static fn (?string $part): bool => $part !== null && $part !== ''
+        )));
     }
 
     /**
@@ -570,6 +737,10 @@ final class DeclarationBlock
         if ($backgroundValue !== null) {
             return $backgroundValue;
         }
+        $flexValue = $this->setFlexLonghand($entries, $property, $value, $important);
+        if ($flexValue !== null) {
+            return $flexValue;
+        }
 
         $lastMatch = null;
         foreach ($entries as $index => $entry) {
@@ -639,6 +810,70 @@ final class DeclarationBlock
         return null;
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setFlexLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $prefix = $this->flexPrefixForProperty($property);
+        $base = $this->baseFlexProperty($property);
+        if ($prefix === null || !in_array($base, ['flex-direction', 'flex-wrap'], true)) {
+            return null;
+        }
+
+        $component = $base === 'flex-direction' ? 'direction' : 'wrap';
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] === $this->flexProperty($prefix, 'flex-flow')) {
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                $components = $this->expandFlexFlow($entries[$index]['value']);
+                $components[$component] = $value;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->composeFlexFlow($components['direction'], $components['wrap']),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($this->baseFlexProperty($entries[$index]['property']) === 'flex-flow') {
+                $components = $this->expandFlexFlow($entries[$index]['value']);
+                if ($components[$component] === null) {
+                    continue;
+                }
+
+                $components[$component] = null;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->composeFlexFlow($components['direction'], $components['wrap']),
+                    'important' => $entries[$index]['important'],
+                ];
+                $entries[] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+        }
+
+        return null;
+    }
+
     public function removeProperty(string $block, string $property): string
     {
         $property = $this->normalizeProperty($property);
@@ -653,6 +888,10 @@ final class DeclarationBlock
         if ($this->isBoxLonghand($property)) {
             return $this->removeBoxLonghand($this->parseEntries($block), $property);
         }
+        $flexValue = $this->removeFlexLonghand($this->parseEntries($block), $property);
+        if ($flexValue !== null) {
+            return $flexValue;
+        }
 
         $entries = array_values(array_filter(
             $this->parseEntries($block),
@@ -660,6 +899,47 @@ final class DeclarationBlock
         ));
 
         return $this->serializeEntries($entries);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeFlexLonghand(array $entries, string $property): ?string
+    {
+        $prefix = $this->flexPrefixForProperty($property);
+        $base = $this->baseFlexProperty($property);
+        if ($prefix === null || !in_array($base, ['flex-direction', 'flex-wrap'], true)) {
+            return null;
+        }
+
+        $component = $base === 'flex-direction' ? 'direction' : 'wrap';
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== $this->flexProperty($prefix, 'flex-flow')) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->expandFlexFlow($entry['value']);
+            $components[$component] = null;
+            foreach (['direction' => 'flex-direction', 'wrap' => 'flex-wrap'] as $name => $longhand) {
+                if ($components[$name] === null) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $this->flexProperty($prefix, $longhand),
+                    'value' => $components[$name],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
     }
 
     /**

@@ -108,6 +108,26 @@ return [
             )
         );
     },
+    'declaration block reads upstream flex flow cssom properties' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'row wrap', 'important' => false],
+            $block->getProperty('flex-direction: row; flex-wrap: wrap', 'flex-flow')
+        );
+        $t->same(
+            ['value' => 'row wrap', 'important' => false],
+            $block->getProperty('-webkit-flex-direction: row; -webkit-flex-wrap: wrap', '-webkit-flex-flow')
+        );
+        $t->same(null, $block->getProperty('flex-direction: row; flex-wrap: wrap', '-webkit-flex-flow'));
+        $t->same(null, $block->getProperty('-webkit-flex-direction: row; flex-wrap: wrap', '-webkit-flex-flow'));
+        $t->same(null, $block->getProperty('-webkit-flex-direction: row; flex-wrap: wrap', 'flex-flow'));
+        $t->same(
+            ['value' => 'row', 'important' => false],
+            $block->getProperty('-webkit-flex-flow: row', '-webkit-flex-direction')
+        );
+        $t->same(null, $block->getProperty('-webkit-flex-flow: row', 'flex-direction'));
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -133,6 +153,22 @@ return [
             $block->setProperty('background: linear-gradient(red, green)', 'background-position', '20px 10px')
         );
     },
+    'declaration block sets upstream flex flow cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'flex-flow: column wrap',
+            $block->setProperty('flex-flow: row wrap', 'flex-direction', 'column')
+        );
+        $t->same(
+            '-webkit-flex-flow: column wrap',
+            $block->setProperty('-webkit-flex-flow: row wrap', '-webkit-flex-direction', 'column')
+        );
+        $t->same(
+            'flex-flow: wrap; -webkit-flex-direction: column',
+            $block->setProperty('flex-flow: row wrap', '-webkit-flex-direction', 'column')
+        );
+    },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -149,5 +185,12 @@ return [
             'padding-top: 1rem !important; padding-right: 2rem !important; padding-bottom: 3rem !important',
             $block->removeProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding-left')
         );
+    },
+    'declaration block removes upstream flex flow cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
+        $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
+        $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
     },
 ];
