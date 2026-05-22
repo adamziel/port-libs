@@ -173,6 +173,30 @@ final class Commit
     /**
      * @return list<CommitTrailer>
      */
+    public function ackedByTrailers(): array
+    {
+        return $this->parsedMessage()->ackedByTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function reviewedByTrailers(): array
+    {
+        return $this->parsedMessage()->reviewedByTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function testedByTrailers(): array
+    {
+        return $this->parsedMessage()->testedByTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
     public function authorTrailers(): array
     {
         return $this->parsedMessage()->authorTrailers();

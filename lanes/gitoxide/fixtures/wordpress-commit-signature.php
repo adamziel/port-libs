@@ -21,7 +21,10 @@ $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "Source: wp-content/uploads/export.wxr\n\n"
     . "Signed-off-by: WordPress Importer <importer@example.test>\n"
     . "Co-authored-by: Content Reviewer <reviewer@example.test>\n"
-    . "Reviewed-by: Deployment Reviewer <deploy-review@example.test>\n";
+    . "Acked-by: Plugin Maintainer <plugin-maintainer@example.test>\n"
+    . "Reviewed-by: Deployment Reviewer <deploy-review@example.test>\n"
+    . "Tested-by: QA Runner <qa@example.test>\n"
+    . " staged import dry-run\n";
 
 return [
     'commitBody' => $body,
@@ -33,6 +36,9 @@ return [
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
     'expectedSignedOffBy' => ['WordPress Importer <importer@example.test>'],
     'expectedCoAuthors' => ['Content Reviewer <reviewer@example.test>'],
+    'expectedAckedBy' => ['Plugin Maintainer <plugin-maintainer@example.test>'],
+    'expectedReviewedBy' => ['Deployment Reviewer <deploy-review@example.test>'],
+    'expectedTestedBy' => ['QA Runner <qa@example.test> staged import dry-run'],
     'expectedSignatureHeaderPosition' => 0,
     'expectedMergeTagCount' => 1,
     'expectedMergeTagName' => 'wp-release-2026.05',

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\Commit;
+use PortLibs\Gitoxide\CommitMessage;
 use PortLibs\Gitoxide\CommitSignature;
 use PortLibs\Gitoxide\GitObject;
 
@@ -132,7 +133,10 @@ return [
             . "Signed-off-by: Alice <alice@example.test>\n"
             . "Co-authored-by : Bob <bob@example.test>\n"
             . " continued metadata\n"
-            . "Reviewed-by: Carol <carol@example.test>\n";
+            . "Acked-by: Dana <dana@example.test>\n"
+            . "Reviewed-by: Carol <carol@example.test>\n"
+            . "Tested-by: Eli <eli@example.test>\n"
+            . " continued lab\n";
 
         $commit = Commit::parse($body);
         $trailers = $commit->messageTrailers();
@@ -140,15 +144,43 @@ return [
         $t->same('Import WordPress export  from WXR', $commit->messageSummary());
         $t->same("Import WordPress export \t\r\n from WXR", $commit->messageTitle());
         $t->same("Normalize block markup before import.", $commit->messageBodyWithoutTrailers());
-        $t->same(3, count($trailers));
+        $t->same(5, count($trailers));
         $t->same('Signed-off-by', $trailers[0]->token);
         $t->same('Alice <alice@example.test>', $trailers[0]->value);
         $t->same('Co-authored-by', $trailers[1]->token);
         $t->same('Bob <bob@example.test> continued metadata', $trailers[1]->value);
+        $t->same('Acked-by', $trailers[2]->token);
+        $t->same('Dana <dana@example.test>', $trailers[2]->value);
+        $t->same('Reviewed-by', $trailers[3]->token);
+        $t->same('Carol <carol@example.test>', $trailers[3]->value);
+        $t->same('Tested-by', $trailers[4]->token);
+        $t->same('Eli <eli@example.test> continued lab', $trailers[4]->value);
         $t->same(1, count($commit->signedOffByTrailers()));
         $t->same(1, count($commit->coAuthoredByTrailers()));
+        $t->same(['Dana <dana@example.test>'], array_map(static fn ($trailer): string => $trailer->value, $commit->ackedByTrailers()));
+        $t->same(['Carol <carol@example.test>'], array_map(static fn ($trailer): string => $trailer->value, $commit->reviewedByTrailers()));
+        $t->same(['Eli <eli@example.test> continued lab'], array_map(static fn ($trailer): string => $trailer->value, $commit->testedByTrailers()));
         $t->same(2, count($commit->authorTrailers()));
-        $t->same(3, count($commit->attributionTrailers()));
+        $t->same(5, count($commit->attributionTrailers()));
+    },
+    'commit message parsing uses gitoxide ascii byte classes' => static function (TestRunner $t): void {
+        $t->same("\0Import WordPress export\0", CommitMessage::summaryOf("\0Import WordPress export\0"));
+        $t->same("\vImport WordPress export\v", CommitMessage::summaryOf("\vImport WordPress export\v"));
+        $t->same('Import WordPress export', CommitMessage::summaryOf(" \t\r\n\fImport WordPress export\f\r\n\t "));
+
+        $message = new CommitMessage('Subject', "Signed-off-by: Alice <alice@example.test>\n\vnot a continuation");
+        $trailers = $message->trailers();
+
+        $t->same('', $message->bodyWithoutTrailers());
+        $t->same(1, count($trailers));
+        $t->same('Alice <alice@example.test>', $trailers[0]->value);
+
+        $valueBytes = new CommitMessage('Subject', "Tested-by: \0QA Runner\0\v");
+        $t->same("\0QA Runner\0\v", $valueBytes->trailers()[0]->value);
+
+        $invalidToken = new CommitMessage('Subject', "🤗: 🎉");
+        $t->same("🤗: 🎉", $invalidToken->bodyWithoutTrailers());
+        $t->same([], $invalidToken->trailers());
     },
     'commit trailer parser follows gitoxide footer block heuristics' => static function (TestRunner $t): void {
         $generic = Commit::parse("tree 0123456789abcdef0123456789abcdef01234567\n"
@@ -234,6 +266,9 @@ return [
         $t->same($fixture['expectedBodyWithoutTrailers'], $summary['bodyWithoutTrailers']);
         $t->same($fixture['expectedSignedOffBy'], $summary['signedOffBy']);
         $t->same($fixture['expectedCoAuthors'], $summary['coAuthoredBy']);
+        $t->same($fixture['expectedAckedBy'], $summary['ackedBy']);
+        $t->same($fixture['expectedReviewedBy'], $summary['reviewedBy']);
+        $t->same($fixture['expectedTestedBy'], $summary['testedBy']);
         $t->same(false, $summary['signedDataHasSignatureHeader']);
     },
 ];

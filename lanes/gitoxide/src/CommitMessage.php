@@ -45,7 +45,7 @@ final class CommitMessage
 
     public static function summaryOf(string $message): string
     {
-        $message = trim($message);
+        $message = self::trimGitoxideWhitespace($message);
         $position = strpos($message, "\n");
         if ($position === false) {
             return $message;
@@ -108,6 +108,30 @@ final class CommitMessage
     public function coAuthoredByTrailers(): array
     {
         return array_values(array_filter($this->trailers(), static fn (CommitTrailer $trailer): bool => $trailer->isCoAuthoredBy()));
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function ackedByTrailers(): array
+    {
+        return array_values(array_filter($this->trailers(), static fn (CommitTrailer $trailer): bool => $trailer->isAckedBy()));
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function reviewedByTrailers(): array
+    {
+        return array_values(array_filter($this->trailers(), static fn (CommitTrailer $trailer): bool => $trailer->isReviewedBy()));
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function testedByTrailers(): array
+    {
+        return array_values(array_filter($this->trailers(), static fn (CommitTrailer $trailer): bool => $trailer->isTestedBy()));
     }
 
     /**
@@ -189,7 +213,7 @@ final class CommitMessage
                 continue;
             }
 
-            if ($line['text'] !== '' && ctype_space($line['text'][0])) {
+            if ($line['text'] !== '' && self::isGitoxideWhitespace($line['text'][0])) {
                 $possibleContinuationLines++;
                 continue;
             }
@@ -287,7 +311,7 @@ final class CommitMessage
             $peek = $nextOffset;
             while ($peek < $length) {
                 [, $nextText, $afterNext] = self::lineWithTerminatorAt($cursor, $peek);
-                if (self::isBlankLine($nextText) || $nextText === '' || !ctype_space($nextText[0])) {
+                if (self::isBlankLine($nextText) || $nextText === '' || !self::isGitoxideWhitespace($nextText[0])) {
                     break;
                 }
                 $trailerEnd = $afterNext;
@@ -316,9 +340,9 @@ final class CommitMessage
         for ($index = 0; $index < $length; $index++) {
             $byte = $line[$index];
             if ($byte === ':') {
-                return $index > 0 ? [trim(substr($line, 0, $index)), $index] : null;
+                return $index > 0 ? [self::trimGitoxideWhitespace(substr($line, 0, $index)), $index] : null;
             }
-            if (!$whitespaceFound && (ctype_alnum($byte) || $byte === '-')) {
+            if (!$whitespaceFound && (self::isAsciiAlphaNumeric($byte) || $byte === '-')) {
                 continue;
             }
             if ($index !== 0 && ($byte === ' ' || $byte === "\t")) {
@@ -333,7 +357,18 @@ final class CommitMessage
 
     private static function isBlankLine(string $line): bool
     {
-        return trim($line) === '';
+        if ($line === '') {
+            return true;
+        }
+
+        $length = strlen($line);
+        for ($index = 0; $index < $length; $index++) {
+            if (!self::isGitoxideWhitespace($line[$index])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function isRecognizedPrefix(string $line): bool
@@ -354,12 +389,12 @@ final class CommitMessage
             return '';
         }
         if (count($lines) === 1) {
-            return trim($lines[0]);
+            return self::trimGitoxideWhitespace($lines[0]);
         }
 
-        $out = trim((string) array_shift($lines));
+        $out = self::trimGitoxideWhitespace((string) array_shift($lines));
         foreach ($lines as $line) {
-            $line = trim($line);
+            $line = self::trimGitoxideWhitespace($line);
             if ($line === '') {
                 continue;
             }
@@ -370,5 +405,28 @@ final class CommitMessage
         }
 
         return $out;
+    }
+
+    private static function trimGitoxideWhitespace(string $input): string
+    {
+        return trim($input, " \t\n\f\r");
+    }
+
+    private static function isGitoxideWhitespace(string $byte): bool
+    {
+        return $byte === ' '
+            || $byte === "\t"
+            || $byte === "\n"
+            || $byte === "\f"
+            || $byte === "\r";
+    }
+
+    private static function isAsciiAlphaNumeric(string $byte): bool
+    {
+        $ord = ord($byte);
+
+        return ($ord >= 48 && $ord <= 57)
+            || ($ord >= 65 && $ord <= 90)
+            || ($ord >= 97 && $ord <= 122);
     }
 }
