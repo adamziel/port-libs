@@ -8,12 +8,15 @@ final class ModuleImport
 {
     /**
      * @param list<array{imported:string, local:?string}> $specifiers
+     * @param array<string, string> $attributes
      */
     public function __construct(
         public readonly string $kind,
         public readonly string $source,
         public readonly array $specifiers,
         public readonly int $offset,
+        public readonly ?string $attributesKeyword = null,
+        public readonly array $attributes = [],
     ) {
     }
 
@@ -33,5 +36,10 @@ final class ModuleImport
     public function isWordPressPackage(): bool
     {
         return str_starts_with($this->source, '@wordpress/');
+    }
+
+    public function hasJsonTypeAttribute(): bool
+    {
+        return ($this->attributes['type'] ?? null) === 'json';
     }
 }

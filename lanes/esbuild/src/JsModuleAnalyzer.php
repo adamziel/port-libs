@@ -52,24 +52,21 @@ final class JsModuleAnalyzer
         }
 
         if ($next->text === '(') {
-            $end = $this->findMatchingPunctuator($index + 1, '(', ')');
-            $source = $this->firstStringValueBetween($index + 2, $end);
-            if ($source === null) {
-                throw new \InvalidArgumentException('Dynamic import must include a string source in this native slice');
-            }
-
-            return new ModuleImport('dynamic', $source, [], $this->tokens[$index]->offset);
+            return $this->parseDynamicImport($index);
         }
 
         $end = $this->findStatementEnd($index);
         if ($next->kind === 'string') {
-            return new ModuleImport('side-effect', $this->stringValue($next), [], $this->tokens[$index]->offset);
+            [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($index + 2, $end);
+
+            return new ModuleImport('side-effect', $this->stringValue($next), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
         }
 
         $from = $this->findIdentifierBetween('from', $index + 1, $end);
         if ($from === null || !isset($this->tokens[$from + 1]) || $this->tokens[$from + 1]->kind !== 'string') {
             throw new \InvalidArgumentException('Static import must include a string source');
         }
+        [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
 
         $specifiers = [];
         $kind = 'named';
@@ -98,7 +95,7 @@ final class JsModuleAnalyzer
             $kind = $kind === 'default' ? 'default-named' : 'named';
         }
 
-        return new ModuleImport($kind, $this->stringValue($this->tokens[$from + 1]), $specifiers, $this->tokens[$index]->offset);
+        return new ModuleImport($kind, $this->stringValue($this->tokens[$from + 1]), $specifiers, $this->tokens[$index]->offset, $attributesKeyword, $attributes);
     }
 
     private function parseExport(int $index): ModuleExport
@@ -118,6 +115,7 @@ final class JsModuleAnalyzer
             if ($from === null || ($this->tokens[$from + 1] ?? null)?->kind !== 'string') {
                 throw new \InvalidArgumentException('Export star must include a string source');
             }
+            [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
 
             $specifiers = [];
             $kind = 'star';
@@ -130,24 +128,45 @@ final class JsModuleAnalyzer
                 $kind = 'star-as';
             }
 
-            return new ModuleExport($kind, $this->stringValue($this->tokens[$from + 1]), $specifiers, $this->tokens[$index]->offset);
+            return new ModuleExport($kind, $this->stringValue($this->tokens[$from + 1]), $specifiers, $this->tokens[$index]->offset, $attributesKeyword, $attributes);
         }
 
         if ($next->text === '{') {
             $braceEnd = $this->findMatchingPunctuator($index + 1, '{', '}');
             $from = $this->findIdentifierBetween('from', $braceEnd + 1, $end);
             $source = null;
+            $attributesKeyword = null;
+            $attributes = [];
             if ($from !== null) {
                 if (($this->tokens[$from + 1] ?? null)?->kind !== 'string') {
                     throw new \InvalidArgumentException('Re-export must include a string source');
                 }
                 $source = $this->stringValue($this->tokens[$from + 1]);
+                [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
             }
 
-            return new ModuleExport($source === null ? 'named' : 're-export-named', $source, $this->parseExportSpecifiers($index + 2, $braceEnd), $this->tokens[$index]->offset);
+            return new ModuleExport($source === null ? 'named' : 're-export-named', $source, $this->parseExportSpecifiers($index + 2, $braceEnd), $this->tokens[$index]->offset, $attributesKeyword, $attributes);
         }
 
         return new ModuleExport('declaration', null, [], $this->tokens[$index]->offset);
+    }
+
+    private function parseDynamicImport(int $index): ModuleImport
+    {
+        $end = $this->findMatchingPunctuator($index + 1, '(', ')');
+        $source = $this->tokens[$index + 2] ?? null;
+        if ($source === null || $source->kind !== 'string') {
+            throw new \InvalidArgumentException('Dynamic import must include a direct string source in this native slice');
+        }
+
+        $attributesKeyword = null;
+        $attributes = [];
+        $comma = $this->findTopLevelPunctuator(',', $index + 3, $end);
+        if ($comma !== null) {
+            [$attributesKeyword, $attributes] = $this->parseDynamicImportOptions($comma + 1, $end);
+        }
+
+        return new ModuleImport('dynamic', $this->stringValue($source), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
     }
 
     /**
@@ -214,20 +233,125 @@ final class JsModuleAnalyzer
         return $specifiers;
     }
 
-    private function tokenName(Token $token): string
-    {
-        return $token->kind === 'string' ? $this->stringValue($token) : $token->text;
-    }
-
-    private function firstStringValueBetween(int $start, int $end): ?string
+    /**
+     * @return array{0:?string, 1:array<string, string>}
+     */
+    private function parseImportAttributesClause(int $start, int $end): array
     {
         for ($i = $start; $i < $end; $i++) {
-            if (($this->tokens[$i] ?? null)?->kind === 'string') {
-                return $this->stringValue($this->tokens[$i]);
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null || $token->kind !== 'identifier' || !in_array($token->text, ['assert', 'with'], true)) {
+                continue;
+            }
+
+            if (($this->tokens[$i + 1] ?? null)?->text !== '{') {
+                throw new \InvalidArgumentException('Expected import attribute object after "' . $token->text . '"');
+            }
+
+            $braceEnd = $this->findMatchingPunctuator($i + 1, '{', '}');
+            if ($braceEnd > $end) {
+                throw new \InvalidArgumentException('Import attribute object crosses the current statement boundary');
+            }
+
+            return [$token->text, $this->parseImportAttributesObject($i + 2, $braceEnd, $token->text)];
+        }
+
+        return [null, []];
+    }
+
+    /**
+     * @return array{0:?string, 1:array<string, string>}
+     */
+    private function parseDynamicImportOptions(int $start, int $end): array
+    {
+        for ($i = $start; $i < $end; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== '{') {
+                continue;
+            }
+
+            $objectEnd = $this->findMatchingPunctuator($i, '{', '}');
+            for ($property = $i + 1; $property < $objectEnd; $property++) {
+                $token = $this->tokens[$property] ?? null;
+                if ($token === null || ($token->kind !== 'identifier' && $token->kind !== 'string')) {
+                    continue;
+                }
+
+                $name = $this->tokenName($token);
+                if (!in_array($name, ['assert', 'with'], true)
+                    || ($this->tokens[$property + 1] ?? null)?->text !== ':'
+                    || ($this->tokens[$property + 2] ?? null)?->text !== '{'
+                ) {
+                    continue;
+                }
+
+                $attributesEnd = $this->findMatchingPunctuator($property + 2, '{', '}');
+
+                return [$name, $this->parseImportAttributesObject($property + 3, $attributesEnd, $name)];
             }
         }
 
-        return null;
+        return [null, []];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseImportAttributesObject(int $start, int $end, string $keyword): array
+    {
+        $attributes = [];
+        $expectKey = true;
+        for ($i = $start; $i < $end; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                break;
+            }
+
+            if ($token->text === ',') {
+                if ($expectKey) {
+                    throw new \InvalidArgumentException('Expected import ' . $this->attributeLabel($keyword) . ' key before comma');
+                }
+                $expectKey = true;
+                continue;
+            }
+
+            if (!$expectKey) {
+                throw new \InvalidArgumentException('Expected comma between import ' . $this->attributeLabel($keyword) . ' entries');
+            }
+
+            if ($token->kind !== 'identifier' && $token->kind !== 'string') {
+                throw new \InvalidArgumentException('Expected import ' . $this->attributeLabel($keyword) . ' key');
+            }
+
+            $key = $this->tokenName($token);
+            if (($this->tokens[$i + 1] ?? null)?->text !== ':') {
+                throw new \InvalidArgumentException('Expected ":" after import ' . $this->attributeLabel($keyword) . ' key "' . $key . '"');
+            }
+
+            $value = $this->tokens[$i + 2] ?? null;
+            if ($value === null || $value->kind !== 'string') {
+                throw new \InvalidArgumentException('Expected string value for import ' . $this->attributeLabel($keyword) . ' "' . $key . '"');
+            }
+
+            if (array_key_exists($key, $attributes)) {
+                throw new \InvalidArgumentException('Duplicate import ' . $this->attributeLabel($keyword) . ' "' . $key . '"');
+            }
+
+            $attributes[$key] = $this->stringValue($value);
+            $i += 2;
+            $expectKey = false;
+        }
+
+        return $attributes;
+    }
+
+    private function attributeLabel(string $keyword): string
+    {
+        return $keyword === 'assert' ? 'assertion' : 'attribute';
+    }
+
+    private function tokenName(Token $token): string
+    {
+        return $token->kind === 'string' ? $this->stringValue($token) : $token->text;
     }
 
     private function findIdentifierBetween(string $text, int $start, int $end): ?int
@@ -257,6 +381,23 @@ final class JsModuleAnalyzer
         }
 
         return $count;
+    }
+
+    private function findTopLevelPunctuator(string $punctuator, int $start, int $end): ?int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(' || $text === '{' || $text === '[') {
+                $depth++;
+            } elseif ($text === ')' || $text === '}' || $text === ']') {
+                $depth--;
+            } elseif ($text === $punctuator && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function findMatchingPunctuator(int $start, string $open, string $close): int

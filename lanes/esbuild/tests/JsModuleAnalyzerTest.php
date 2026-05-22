@@ -29,6 +29,33 @@ JS);
         $t->same('dynamic', $analysis->imports[3]->kind);
         $t->same('dyn', $analysis->imports[3]->source);
     },
+    'maps upstream import assertion and attribute clauses' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import data from "./data.json" assert { type: "json" };
+import bytes from "./asset.bin" with { type: "bytes", loader: "file" };
+export { default } from "./data.json" with { type: "json" };
+export * from "./legacy.json" assert { type: "json" };
+import("./lazy.json", { with: { type: "json" } });
+JS);
+
+        $t->same('assert', $analysis->imports[0]->attributesKeyword);
+        $t->same(['type' => 'json'], $analysis->imports[0]->attributes);
+        $t->true($analysis->imports[0]->hasJsonTypeAttribute());
+        $t->same('with', $analysis->imports[1]->attributesKeyword);
+        $t->same(['type' => 'bytes', 'loader' => 'file'], $analysis->imports[1]->attributes);
+        $t->same('with', $analysis->imports[2]->attributesKeyword);
+        $t->same(['type' => 'json'], $analysis->imports[2]->attributes);
+        $t->same('with', $analysis->exports[0]->attributesKeyword);
+        $t->same(['type' => 'json'], $analysis->exports[0]->attributes);
+        $t->same('assert', $analysis->exports[1]->attributesKeyword);
+        $t->same(['type' => 'json'], $analysis->exports[1]->attributes);
+    },
+    'rejects malformed upstream import attribute objects' => static function (TestRunner $t): void {
+        $analyzer = new JsModuleAnalyzer();
+        $t->throws(InvalidArgumentException::class, static fn () => $analyzer->analyze('import "x" with { type: "json", type: "json" }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $analyzer->analyze('import "x" assert { type: json }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $analyzer->analyze('import "x" with {,}'));
+    },
     'maps upstream export and re-export forms' => static function (TestRunner $t): void {
         $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
 export {};
@@ -61,8 +88,9 @@ JS);
 
         $t->same(['@wordpress/dom-ready', '@wordpress/api-fetch'], array_map(static fn ($import): string => $import->source, $analysis->wordpressPackageImports()));
         $t->same(['@wordpress/dom-ready', '@wordpress/api-fetch'], array_map(static fn ($import): string => $import->source, $analysis->packageImports()));
-        $t->same(['./style.css', '../images/hero.png'], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
-        $t->true(!$analysis->imports[4]->isPackage());
+        $t->same(['./block.json', './style.css', '../images/hero.png'], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
+        $t->same(['type' => 'json'], $analysis->relativeImports()[0]->attributes);
+        $t->true(!$analysis->imports[count($analysis->imports) - 1]->isPackage());
     },
     'rejects upstream invalid namespace import without as' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => (new JsModuleAnalyzer())->analyze('import * from "foo"'));

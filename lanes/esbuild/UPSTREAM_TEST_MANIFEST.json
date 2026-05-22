@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-make-test-runner-evidence",
         "total": "2,567 counted upstream test entry points: 1,391 Go func Test* functions, 331 JS API async cases, 97 plugin async cases, and 748 end-to-end CLI cases",
-        "mapped": 10,
+        "mapped": 13,
         "source": "Shallow blob-filtered upstream clone in .upstream-cache/esbuild at 6a794dff68e6a43539f6da671e3080efdf11ca70; counted paths with git ls-tree and hydrated only targeted metadata/test files with git show. A separate detached runner worktree in .upstream-cache/esbuild-runner was materialized at the same commit so the dirty/no-checkout inventory cache did not need destructive restoration. With Go, Node, npm, and OpenSSL supplied by nix-shell, upstream `make test` passes locally.",
         "inventory": {
             "repositoryPaths": 349,
@@ -84,17 +84,20 @@
             "Selected `TestImport` static import forms are analyzed: side-effect imports, named imports with aliases/trailing commas, default+namespace imports, and dynamic import string sources.",
             "Selected export/re-export forms are analyzed: empty/named exports, named re-exports, star-as re-exports, and export default declarations.",
             "Invalid namespace imports without `as` are rejected, matching the upstream `import * from` parse error edge.",
-            "WordPress package imports are distinguished from relative asset imports and URL imports without invoking Node/npm."
+            "WordPress package imports are distinguished from relative asset imports and URL imports without invoking Node/npm.",
+            "Selected `TestImportAssertions` static import/export `assert { type: \"json\" }` clauses are preserved as native module metadata.",
+            "Selected `TestImportAttributes` static import/export `with { ... }` clauses and direct-string dynamic import options are preserved, including duplicate-key and non-string-value rejection.",
+            "A WordPress `block.json` metadata import using `with { type: \"json\" }` is classified as a relative JSON metadata dependency without invoking Node/npm."
         ],
         "inventoryPath": "lanes/esbuild/notes/upstream-inventory.md",
-        "warning": "The core upstream esbuild `make test` runner now passes locally against the upstream Go/Node implementation at this checkout. Native PHP progress still maps 10 focused lane tests against the 2,567-entry upstream test inventory; this is not full native PHP parity yet. Release-extra `make test-all` coverage remains separate."
+        "warning": "The core upstream esbuild `make test` runner now passes locally against the upstream Go/Node implementation at this checkout. Native PHP progress still maps 13 focused lane tests against the 2,567-entry upstream test inventory; this is not full native PHP parity yet. Release-extra `make test-all` coverage remains separate."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, package/relative source classification, and WordPress package imports.",
-        "phpBehaviorTests": 10
+        "currentSlice": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, import assertions/attributes, package/relative source classification, WordPress package imports, and WordPress block metadata JSON imports.",
+        "phpBehaviorTests": 13
     },
-    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights and classifies a WordPress block view script importing @wordpress/dom-ready.",
-    "nextTask": "Map additional parser/printer syntax such as import attributes, import.meta/new URL asset references, or TypeScript import/export forms."
+    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights a WordPress block view script importing @wordpress/dom-ready plus block metadata via `./block.json` with `{ type: \"json\" }`.",
+    "nextTask": "Map additional parser/printer syntax such as import.meta/new URL asset references or TypeScript import/export forms."
 }

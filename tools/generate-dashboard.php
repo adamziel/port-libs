@@ -147,6 +147,10 @@ foreach ($laneDirs as $dir) {
     $mappedSummary = $metricSummary($mapped);
     $coverage = $mappedSummary . ' / ' . $denominator;
     $manifestStatus = $stringValue($manifest['benchmarkDenominator']['status'] ?? null, 'pending');
+    $currentWork = $stringValue(
+        $status['currentWork'] ?? $manifest['nativeImplementation']['currentSlice'] ?? null,
+        'none'
+    );
     $nextTask = $stringValue(
         $status['nextTask'] ?? $manifest['nextTask'] ?? $status['currentWork'] ?? null,
         'none'
@@ -165,7 +169,8 @@ foreach ($laneDirs as $dir) {
         'wp' => $scenarioSummary($manifest['wordpressScenario'] ?? null, $status['wordpressScenarios'] ?? null),
         'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 58),
         'audit' => $auditSummary($stringValue($status['audit'] ?? null, 'not started')),
-        'work' => $shorten($nextTask, 92),
+        'work' => $shorten($currentWork, 92),
+        'next' => $shorten($nextTask, 92),
         'blocker' => $blockerSummary($stringValue($status['blocker'] ?? null, 'none')),
         'commit' => $shortCommit($stringValue($status['latestCommit'] ?? null, 'none')),
         'progress' => $progress,
@@ -198,7 +203,8 @@ foreach ($rows as $row) {
         'wordpressScenarios' => $row['wp'],
         'phase' => $row['phase'],
         'audit' => $row['audit'],
-        'nextTarget' => $row['work'],
+        'currentWork' => $row['work'],
+        'nextTarget' => $row['next'],
         'blocker' => $row['blocker'],
         'commit' => $row['commit'],
     ];
@@ -263,7 +269,7 @@ $html = <<<HTML
         <th>WordPress Scenarios</th>
         <th>Phase</th>
         <th>Audit</th>
-        <th>Next Target</th>
+        <th>Current Work</th>
         <th>Blocker</th>
         <th>Commit</th>
       </tr>

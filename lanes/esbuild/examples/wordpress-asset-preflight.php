@@ -13,3 +13,7 @@ $analysis = (new JsModuleAnalyzer())->analyze($source);
 
 printf("WordPress asset tokens: %d\n", count($tokens));
 printf("WordPress package imports: %d\n", count($analysis->wordpressPackageImports()));
+printf("JSON metadata imports: %d\n", count(array_filter(
+    $analysis->relativeImports(),
+    static fn ($import): bool => $import->hasJsonTypeAttribute()
+)));

@@ -62,4 +62,7 @@ deno 2.2.12
 - `TestComment`: unterminated block comments now raise a native PHP lexer error.
 - `TestHashbang`: file-start hashbangs produce a `hashbang` token.
 - `TestNumericLiteral`: binary, octal, hexadecimal-with-separators, decimal-leading-dot, exponent, and trailing-dot number literals produce `number` tokens with numeric values.
-- WordPress fixture: a block view script using `@wordpress/dom-ready` tokenizes without Node/npm.
+- `TestImport`/export forms: selected static imports, dynamic direct-string imports, named/default/namespace imports, and named/star/default exports are analyzed.
+- `TestImportAssertions`: selected static import/export `assert { type: "json" }` clauses are preserved as module metadata.
+- `TestImportAttributes`: selected static import/export `with { ... }` clauses and direct-string dynamic import options are preserved, with duplicate keys and non-string values rejected.
+- WordPress fixture: a block view script using `@wordpress/dom-ready` and a `block.json` import with `with { type: "json" }` tokenizes and analyzes without Node/npm.
