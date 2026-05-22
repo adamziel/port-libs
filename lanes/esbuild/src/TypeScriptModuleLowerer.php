@@ -15,12 +15,14 @@ final class TypeScriptModuleLowerer
      * @var array<string, array<string, array{value:string, comment:string, numericValue:?float}>>
      */
     private array $enumConstants = [];
+    private bool $useDefineForClassFields = true;
 
-    public function lower(string $source): string
+    public function lower(string $source, bool $useDefineForClassFields = true): string
     {
         $this->source = $source;
         $this->tokens = (new JsLexer())->tokenize($source);
         $this->enumConstants = $this->collectEnumConstants();
+        $this->useDefineForClassFields = $useDefineForClassFields;
 
         $lines = [];
         $exportAssignments = [];
@@ -402,7 +404,11 @@ final class TypeScriptModuleLowerer
         }
 
         $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
-        [$members, $hasTypeScriptMemberSyntax] = $this->lowerClassMembers($bodyOpen + 1, $bodyClose);
+        [$members, $hasTypeScriptMemberSyntax] = $this->lowerClassMembers(
+            $bodyOpen + 1,
+            $bodyClose,
+            $this->classHeaderHasExtends($cursor, $bodyOpen),
+        );
         if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax) {
             return null;
         }
@@ -434,12 +440,25 @@ final class TypeScriptModuleLowerer
         return false;
     }
 
+    private function classHeaderHasExtends(int $classIndex, int $bodyOpen): bool
+    {
+        for ($i = $classIndex + 1; $i < $bodyOpen; $i++) {
+            if (($this->tokens[$i] ?? null)?->text === 'extends') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return array{0:list<string>, 1:bool}
      */
-    private function lowerClassMembers(int $start, int $end): array
+    private function lowerClassMembers(int $start, int $end, bool $hasExtends): array
     {
         $members = [];
+        $instanceAssignments = [];
+        $staticAssignments = [];
         $hasTypeScriptMemberSyntax = false;
         for ($cursor = $start; $cursor < $end; $cursor++) {
             if (($this->tokens[$cursor] ?? null)?->text === ';') {
@@ -447,9 +466,15 @@ final class TypeScriptModuleLowerer
             }
 
             $memberEnd = $this->classMemberEnd($cursor, $end);
-            [$loweredMembers, $transformed] = $this->lowerClassMember($cursor, $memberEnd);
+            [$loweredMembers, $transformed, $memberInstanceAssignments, $memberStaticAssignments] = $this->lowerClassMember($cursor, $memberEnd);
             if ($transformed) {
                 $hasTypeScriptMemberSyntax = true;
+            }
+            foreach ($memberInstanceAssignments as $assignment) {
+                $instanceAssignments[] = $assignment;
+            }
+            foreach ($memberStaticAssignments as $assignment) {
+                $staticAssignments[] = $assignment;
             }
             foreach ($loweredMembers as $member) {
                 if ($member !== '') {
@@ -459,11 +484,19 @@ final class TypeScriptModuleLowerer
             $cursor = $memberEnd;
         }
 
+        if ($this->useDefineForClassFields === false && $instanceAssignments !== []) {
+            $members = $this->injectInstanceFieldAssignments($members, $instanceAssignments, $hasExtends);
+        }
+
+        if ($this->useDefineForClassFields === false && $staticAssignments !== []) {
+            $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
+        }
+
         return [$members, $hasTypeScriptMemberSyntax];
     }
 
     /**
-     * @return array{0:list<string>, 1:bool}
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}
      */
     private function lowerClassMember(int $start, int $end): array
     {
@@ -485,23 +518,30 @@ final class TypeScriptModuleLowerer
 
         if (!in_array('declare', $modifiers, true)) {
             if ($cursor > $end) {
-                return [[$this->printClassMemberRange($start, $end)], false];
+                return [[$this->printClassMemberRange($start, $end)], false, [], []];
             }
 
             $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor);
             if ($constructor !== null) {
-                return $constructor;
+                return [$constructor[0], $constructor[1], [], []];
+            }
+
+            if ($this->useDefineForClassFields === false) {
+                $assignSemanticsField = $this->lowerAssignSemanticsClassField($start, $end, $cursor, $modifiers);
+                if ($assignSemanticsField !== null) {
+                    return $assignSemanticsField;
+                }
             }
 
             if (in_array('abstract', $modifiers, true) && !$this->classMemberHasBody($cursor, $end)) {
-                return [[], true];
+                return [[], true, [], []];
             }
 
             if ($this->containsClassMemberTypeScriptSyntax($start, $end, $modifiers)) {
-                return [[$this->printClassMemberRuntimeRange($start, $end)], true];
+                return [[$this->printClassMemberRuntimeRange($start, $end)], true, [], []];
             }
 
-            return [[$this->printClassMemberRange($start, $end)], false];
+            return [[$this->printClassMemberRange($start, $end)], false, [], []];
         }
 
         if ($decorated) {
@@ -533,7 +573,210 @@ final class TypeScriptModuleLowerer
             throw new \InvalidArgumentException('"declare" cannot be used with a method');
         }
 
-        return [[], true];
+        return [[], true, [], []];
+    }
+
+    /**
+     * @param list<string> $modifiers
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}|null
+     */
+    private function lowerAssignSemanticsClassField(int $start, int $end, int $memberNameIndex, array $modifiers): ?array
+    {
+        if (in_array('accessor', $modifiers, true)) {
+            return null;
+        }
+
+        $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
+        if ($effectiveEnd < $memberNameIndex) {
+            return null;
+        }
+
+        $field = $this->classFieldTarget($memberNameIndex, $effectiveEnd);
+        if ($field === null) {
+            return null;
+        }
+
+        [$target, $nameEnd, $erasableIndexSignature] = $field;
+        if ($target === null && !$erasableIndexSignature) {
+            return null;
+        }
+
+        $cursor = $nameEnd + 1;
+        if (($this->tokens[$cursor] ?? null)?->text === '?' || ($this->tokens[$cursor] ?? null)?->text === '!') {
+            if ($this->tokens[$cursor]->text === '!' && $this->classMemberMarkerStartsMethod($cursor, $memberNameIndex, $effectiveEnd)) {
+                throw new \InvalidArgumentException('Expected ";" but found "' . (($this->tokens[$cursor + 1] ?? null)?->text ?? '') . '"');
+            }
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === '<') {
+            $typeParametersEnd = $this->typeParameterListEnd($cursor, $effectiveEnd);
+            if ($typeParametersEnd > $cursor && ($this->tokens[$typeParametersEnd + 1] ?? null)?->text === '(') {
+                return null;
+            }
+            throw new \InvalidArgumentException('Expected "(" after TypeScript class method type parameters');
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === '(') {
+            return null;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+            $cursor = $this->skipTypeExpression($cursor + 1, $effectiveEnd, ['=', ';']);
+        }
+
+        if ($erasableIndexSignature) {
+            return [[], true, [], []];
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== '=') {
+            return [[], true, [], []];
+        }
+
+        if ($target === null || $cursor + 1 > $effectiveEnd) {
+            throw new \InvalidArgumentException('Expected initializer after TypeScript class field');
+        }
+
+        $value = $this->printTokenRange($cursor + 1, $effectiveEnd);
+        if ($value === '') {
+            throw new \InvalidArgumentException('Expected initializer after TypeScript class field');
+        }
+
+        $assignment = $target . ' = ' . $value . ';';
+
+        return in_array('static', $modifiers, true)
+            ? [[], true, [], [$assignment]]
+            : [[], true, [$assignment], []];
+    }
+
+    /**
+     * @return array{0:?string, 1:int, 2:bool}|null
+     */
+    private function classFieldTarget(int $start, int $end): ?array
+    {
+        $name = $this->tokens[$start] ?? null;
+        if ($name === null) {
+            return null;
+        }
+
+        if ($name->kind === 'private_identifier') {
+            return [null, $start, false];
+        }
+
+        if ($name->kind === 'identifier') {
+            $next = $this->tokens[$start + 1] ?? null;
+            if ($next !== null
+                && $next->kind === 'identifier'
+                && !in_array($next->text, ['as', 'satisfies'], true)
+            ) {
+                return null;
+            }
+
+            return ['this.' . $name->text, $start, false];
+        }
+
+        if ($name->kind === 'string') {
+            return ['this[' . $this->quoteJsString($this->stringTokenValue($name)) . ']', $start, false];
+        }
+
+        if ($name->text !== '[') {
+            return null;
+        }
+
+        $close = $this->findMatchingPunctuator($start, '[', ']');
+        if ($close > $end) {
+            return null;
+        }
+
+        $colon = $this->findTopLevelTokenInRange(':', $start + 1, $close - 1);
+        if ($colon !== null) {
+            return [null, $close, true];
+        }
+
+        if ($close === $start + 2 && ($this->tokens[$start + 1] ?? null)?->kind === 'string') {
+            return ['this[' . $this->quoteJsString($this->stringTokenValue($this->tokens[$start + 1])) . ']', $close, false];
+        }
+
+        $computed = $this->printTokenRange($start + 1, $close - 1);
+        if ($computed === '') {
+            throw new \InvalidArgumentException('Expected TypeScript computed class field name');
+        }
+
+        return ['this[' . $computed . ']', $close, false];
+    }
+
+    /**
+     * @param list<string> $members
+     * @param list<string> $assignments
+     * @return list<string>
+     */
+    private function injectInstanceFieldAssignments(array $members, array $assignments, bool $hasExtends): array
+    {
+        foreach ($members as $index => $member) {
+            if (!str_starts_with($member, 'constructor(')) {
+                continue;
+            }
+
+            $members[$index] = $this->injectAssignmentsIntoConstructor($member, $assignments, $hasExtends);
+
+            return $members;
+        }
+
+        array_unshift($members, $this->syntheticConstructorForAssignments($assignments, $hasExtends));
+
+        return $members;
+    }
+
+    /**
+     * @param list<string> $assignments
+     */
+    private function injectAssignmentsIntoConstructor(string $member, array $assignments, bool $hasExtends): string
+    {
+        $lines = explode("\n", $member);
+        $insertAt = 1;
+        if ($hasExtends) {
+            foreach ($lines as $index => $line) {
+                if (str_contains($line, 'super(')) {
+                    $insertAt = $index + 1;
+                    break;
+                }
+            }
+        }
+
+        array_splice($lines, $insertAt, 0, array_map(static fn (string $assignment): string => '  ' . $assignment, $assignments));
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param list<string> $assignments
+     */
+    private function syntheticConstructorForAssignments(array $assignments, bool $hasExtends): string
+    {
+        $lines = ['constructor() {'];
+        if ($hasExtends) {
+            $lines[] = '  super(...arguments);';
+        }
+        foreach ($assignments as $assignment) {
+            $lines[] = '  ' . $assignment;
+        }
+        $lines[] = '}';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param list<string> $assignments
+     */
+    private function staticFieldAssignmentBlock(array $assignments): string
+    {
+        $lines = ['static {'];
+        foreach ($assignments as $assignment) {
+            $lines[] = '  ' . $assignment;
+        }
+        $lines[] = '}';
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -952,11 +1195,19 @@ final class TypeScriptModuleLowerer
             if (($token->text === '?' || $token->text === '!')
                 && $this->isClassMemberOptionalOrDefiniteMarker($i, $start, $effectiveEnd)
             ) {
+                if ($token->text === '!' && $this->classMemberMarkerStartsMethod($i, $start, $effectiveEnd)) {
+                    throw new \InvalidArgumentException('Expected ";" but found "' . (($this->tokens[$i + 1] ?? null)?->text ?? '') . '"');
+                }
                 continue;
             }
 
             if ($token->text === ':' && $this->isClassMemberTypeColon($i, $start, $effectiveEnd)) {
                 $i = $this->skipTypeExpression($i + 1, $effectiveEnd, ['=', '{', ';']) - 1;
+                continue;
+            }
+
+            if ($token->text === ':' && $this->isClassMethodParameterTypeColon($i, $start, $effectiveEnd)) {
+                $i = $this->skipTypeExpression($i + 1, $effectiveEnd, ['=', ',', ')']) - 1;
                 continue;
             }
 
@@ -1006,6 +1257,56 @@ final class TypeScriptModuleLowerer
             || in_array($previousToken->text, [')', ']'], true);
     }
 
+    private function isClassMethodParameterTypeColon(int $index, int $start, int $end): bool
+    {
+        $bodyOpen = $this->classMemberBodyOpen($start, $end);
+        if ($bodyOpen !== null && $index > $bodyOpen) {
+            return false;
+        }
+
+        $open = $this->enclosingOpenPunctuator($index, '(', ')', $start);
+        if ($open === null) {
+            return false;
+        }
+
+        $close = $this->findMatchingPunctuator($open, '(', ')');
+        if ($bodyOpen !== null && $close > $bodyOpen) {
+            return false;
+        }
+
+        $previous = $this->previousSignificantTokenIndex($index - 1);
+        if ($previous !== null && in_array(($this->tokens[$previous] ?? null)?->text, ['?', '!'], true)) {
+            $previous = $this->previousSignificantTokenIndex($previous - 1);
+        }
+
+        $previousToken = $previous === null ? null : $this->tokens[$previous];
+
+        return $previousToken !== null
+            && ($previousToken->kind === 'identifier' || in_array($previousToken->text, [')', ']'], true));
+    }
+
+    private function classMemberBodyOpen(int $start, int $end): ?int
+    {
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($parenDepth === 0 && $bracketDepth === 0 && $text === '{') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
     private function isClassMemberOptionalOrDefiniteMarker(int $index, int $start, int $end): bool
     {
         if (!$this->isTopLevelInRange($start, $index)) {
@@ -1034,6 +1335,20 @@ final class TypeScriptModuleLowerer
         $close = $this->typeParameterListEnd($index, $end);
 
         return $close > $index && ($this->tokens[$close + 1] ?? null)?->text === '(';
+    }
+
+    private function classMemberMarkerStartsMethod(int $index, int $start, int $end): bool
+    {
+        $next = $this->tokens[$index + 1] ?? null;
+        if ($next?->text === '(') {
+            return true;
+        }
+
+        if ($next?->text !== '<') {
+            return false;
+        }
+
+        return $this->isClassMemberTypeParameterList($index + 1, $start, $end);
     }
 
     private function isTopLevelInRange(int $start, int $index): bool
@@ -1085,6 +1400,33 @@ final class TypeScriptModuleLowerer
 
             if ($parenDepth === 0 && $bracketDepth === 0 && $this->hasLineBreakBetween($i, $i + 1)) {
                 return null;
+            }
+        }
+
+        return null;
+    }
+
+    private function findTopLevelTokenInRange(string $text, int $start, int $end): ?int
+    {
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $tokenText = $this->tokens[$i]->text;
+            if ($tokenText === '(') {
+                $parenDepth++;
+            } elseif ($tokenText === ')') {
+                $parenDepth--;
+            } elseif ($tokenText === '{') {
+                $braceDepth++;
+            } elseif ($tokenText === '}') {
+                $braceDepth--;
+            } elseif ($tokenText === '[') {
+                $bracketDepth++;
+            } elseif ($tokenText === ']') {
+                $bracketDepth--;
+            } elseif ($parenDepth === 0 && $braceDepth === 0 && $bracketDepth === 0 && $tokenText === $text) {
+                return $i;
             }
         }
 
