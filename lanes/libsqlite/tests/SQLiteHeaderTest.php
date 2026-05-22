@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
+use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
+use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteVarint;
 
-$makeFirstPage = static function (int $pageSize = 512): string {
+$makeFirstPage = static function (int $pageSize = 512, int $databaseSizePages = 1): string {
     $page = str_repeat("\0", $pageSize);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', $pageSize === 65536 ? 1 : $pageSize), 16, 2);
@@ -19,7 +21,7 @@ $makeFirstPage = static function (int $pageSize = 512): string {
     $page[21] = "\x40";
     $page[22] = "\x20";
     $page[23] = "\x20";
-    $page = substr_replace($page, pack('N', 1), 28, 4);
+    $page = substr_replace($page, pack('N', $databaseSizePages), 28, 4);
     $page = substr_replace($page, pack('N', 1), 56, 4);
 
     return $page;
@@ -75,6 +77,72 @@ $recordPayload = static function (array $values) use ($varint): string {
     $headerSize = strlen($serialHeader) + 1;
 
     return $varint($headerSize) . $serialHeader . $body;
+};
+
+$schemaCell = static function (array $values, int $rowId) use ($varint, $recordPayload): string {
+    $payload = $recordPayload($values);
+
+    return $varint(strlen($payload)) . $varint($rowId) . $payload;
+};
+
+$tableLeafPage = static function (array $cells, int $pageSize = 512, int $headerOffset = 0, ?string $basePage = null): string {
+    $page = $basePage ?? str_repeat("\0", $pageSize);
+    $cellCount = count($cells);
+    $offset = $pageSize;
+    $pointers = [];
+
+    foreach ($cells as $cell) {
+        $offset -= strlen($cell);
+        if ($offset < $headerOffset + 8 + ($cellCount * 2)) {
+            throw new RuntimeException('Fixture table leaf page has overlapping cells');
+        }
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+        $pointers[] = $offset;
+    }
+
+    $page[$headerOffset] = "\x0d";
+    $page = substr_replace($page, pack('n', 0), $headerOffset + 1, 2);
+    $page = substr_replace($page, pack('n', $cellCount), $headerOffset + 3, 2);
+    $contentStart = $cellCount === 0 ? $pageSize : min($pointers);
+    $page = substr_replace($page, pack('n', $contentStart === 65536 ? 0 : $contentStart), $headerOffset + 5, 2);
+    $page[$headerOffset + 7] = "\x00";
+
+    foreach ($pointers as $index => $pointer) {
+        $page = substr_replace($page, pack('n', $pointer), $headerOffset + 8 + ($index * 2), 2);
+    }
+
+    return $page;
+};
+
+$tableInteriorPage = static function (array $cells, int $rightMostPage, int $pageSize = 512, int $headerOffset = 0, ?string $basePage = null) use ($varint): string {
+    $page = $basePage ?? str_repeat("\0", $pageSize);
+    $cellCount = count($cells);
+    $offset = $pageSize;
+    $pointers = [];
+
+    foreach ($cells as [$leftChildPage, $key]) {
+        $cell = pack('N', $leftChildPage) . $varint($key);
+        $offset -= strlen($cell);
+        if ($offset < $headerOffset + 12 + ($cellCount * 2)) {
+            throw new RuntimeException('Fixture table interior page has overlapping cells');
+        }
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+        $pointers[] = $offset;
+    }
+
+    $page[$headerOffset] = "\x05";
+    $page = substr_replace($page, pack('n', 0), $headerOffset + 1, 2);
+    $page = substr_replace($page, pack('n', $cellCount), $headerOffset + 3, 2);
+    $contentStart = $cellCount === 0 ? $pageSize : min($pointers);
+    $page = substr_replace($page, pack('n', $contentStart === 65536 ? 0 : $contentStart), $headerOffset + 5, 2);
+    $page[$headerOffset + 7] = "\x00";
+    $page = substr_replace($page, pack('N', $rightMostPage), $headerOffset + 8, 4);
+
+    foreach ($pointers as $index => $pointer) {
+        $page = substr_replace($page, pack('n', $pointer), $headerOffset + 12 + ($index * 2), 2);
+    }
+
+    return $page;
 };
 
 return [
@@ -142,6 +210,18 @@ return [
         $t->same(1234, $btree->rightMostPointer);
         $t->same(5, $btree->fragmentedFreeBytes);
         $t->same([500, 506], $btree->cellPointers($page));
+    },
+    'parses sqlite table interior cells with child page and rowid separator' => static function (TestRunner $t) use ($tableInteriorPage): void {
+        $page = $tableInteriorPage([[2, 200]], 3);
+        $header = SQLiteBTreePageHeader::parsePage($page, 512);
+        $cells = SQLiteTableInteriorCell::parsePageCells($page, $header);
+
+        $t->same('table-interior', $header->pageType);
+        $t->same(3, $header->rightMostPointer);
+        $t->same(1, count($cells));
+        $t->same(2, $cells[0]->leftChildPage);
+        $t->same(200, $cells[0]->key);
+        $t->same(6, $cells[0]->bytesRead);
     },
     'parses sqlite 65536 byte page zero cell content start' => static function (TestRunner $t): void {
         $page = str_repeat("\0", 65536);
@@ -228,6 +308,39 @@ return [
         $t->true($schema->isTable('wp_options'));
         $t->same(2, $schema->rootPage);
         $t->contains('option_value text', $schema->sql ?? '');
+    },
+    'walks sqlite_schema interior pages to resolve wordpress table roots' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage): void {
+        $page1 = $tableInteriorPage(
+            [[2, 2]],
+            3,
+            512,
+            100,
+            $makeFirstPage(512, 5),
+        );
+        $page2 = $tableLeafPage([
+            $schemaCell(['table', 'wp_posts', 'wp_posts', 4, 'CREATE TABLE wp_posts(ID integer primary key, post_title text)'], 1),
+        ]);
+        $page3 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 5, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text)'], 3),
+        ]);
+        $page4 = $tableLeafPage([]);
+        $page5 = $tableLeafPage([]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $records = $database->schemaRecords();
+
+        $t->same(5, $database->pageCount());
+        $t->same(['wp_posts', 'wp_options'], array_map(static fn (SQLiteSchemaRecord $record): string => $record->name, $records));
+        $t->same(4, $database->tableRootPage('wp_posts'));
+        $t->same(5, $database->tableRootPage('wp_options'));
+        $t->same(null, $database->tableRootPage('wp_missing'));
+        $t->same('table-leaf', $database->tablePageHeader('wp_options')?->pageType);
+    },
+    'database reader rejects missing pages during btree traversal' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
+        $page1 = $tableInteriorPage([[2, 1]], 3, 512, 100, $makeFirstPage(512, 1));
+        $database = SQLiteDatabase::fromBytes($page1);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->schemaRecords());
     },
     'sqlite record parser rejects reserved serial types' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse("\x02\x0a"));
