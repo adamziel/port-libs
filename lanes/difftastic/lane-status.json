@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, recursive bracketed-list diffs, JSON object-key item alignment, JSON list deletion alignment for slider_at_end-shaped arrays, upstream-style word/subword diffs, optional HTML angle delimiters for tag-list changes, root tag-list alignment, and escaped HTML rendering for token, subword, and syntax-list changes.",
     "blocker": "Lane blocker: full upstream runner parity is not available. Rust tooling was installed with `sudo -n dnf install -y cargo rust`, but the sparse blob-filtered clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; `cargo test --no-run --locked --offline` now fails before compilation because the local Cargo cache cannot resolve `clap`. No lane-local or root PHP blocker is present in the latest run: `php tools/run-tests.php` passes 59 test files, 3203 assertions, 0 failures.",
-    "latestCommit": "pending difftastic implementation commit; previous committed lane slice was eaf28e1",
+    "latestCommit": "e6a8ae9",
     "nextTask": "Add JSON display output parity from `src/display/json.rs` for the mapped JSON fixture family, or map the upstream nested slider fixture pair to exercise delimiter-sliding behavior."
 }

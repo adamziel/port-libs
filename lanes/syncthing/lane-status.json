@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: lane-local Syncthing PHP tests pass 39/0 with 258 assertions; root `php tools/run-tests.php` passes 59 test files, 3206 assertions, 0 failures; no upstream runner parity",
     "currentWork": "Native scanner-style block hashing, version vectors, FileInfo conflict/equivalence behavior, protocol validation/wire-path normalization, BEP Hello/Request/Response/ClusterConfig proto3 payload serialization, and uncompressed plus LZ4-compressed post-auth frame handling from upstream `bep_hello.go`, `bep_hello_test.go`, `bep_request_response.go`, `bep_clusterconfig.go`, `proto/bep/bep.proto`, `protocol.go`, and focused `protocol_test.go` compression tests.",
     "blocker": "Full upstream runner has not executed: `.upstream-cache/syncthing` is blob-filtered/no-checkout with mass tracked deletions, and `go test ./...` would require hydrating the full checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`. Go itself is available as `/usr/bin/go` version `go1.26.3-X:nodwarf5 linux/amd64`.",
-    "latestCommit": "pending",
+    "latestCommit": "eba2a75",
     "nextTask": "Port native Index/IndexUpdate FileInfo protobuf payloads, including block info, version vector counters, deleted/invalid/no-permission flags, and blocks_hash fields from focused upstream `bep_index_updates.go`, `bep_fileinfo.go`, and `proto/bep/bep.proto` behavior."
 }
