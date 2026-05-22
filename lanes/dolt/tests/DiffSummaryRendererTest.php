@@ -62,6 +62,28 @@ return [
         $t->same("t1\nt2\nt3\nt4", $renderer->renderNameOnly($summaryRows()));
         $t->same('', $renderer->render($summaryRows(), ['tableNames' => ['missing']]));
     },
+    'dolt diff summary table args match upstream short circuit boundary' => static function (TestRunner $t) use ($summaryRows): void {
+        $renderer = new DiffSummaryRenderer();
+
+        $t->same(implode("\n", [
+            '+------------+-----------+-------------+---------------+',
+            '| Table name | Diff type | Data change | Schema change |',
+            '+------------+-----------+-------------+---------------+',
+            '| t4         | added     | false       | true          |',
+            '+------------+-----------+-------------+---------------+',
+        ]), $renderer->renderForTableArgs($summaryRows(), ['t4']));
+        $t->same(implode("\n", [
+            '+------------+-----------+-------------+---------------+',
+            '| Table name | Diff type | Data change | Schema change |',
+            '+------------+-----------+-------------+---------------+',
+            '| t4         | added     | false       | true          |',
+            '| t1         | dropped   | false       | true          |',
+            '+------------+-----------+-------------+---------------+',
+        ]), $renderer->renderForTableArgs($summaryRows(), ['t4', 't1']));
+        $t->same('', $renderer->renderForTableArgs($summaryRows(), ['t1']));
+        $t->same('', $renderer->renderForTableArgs($summaryRows(), ['t3']));
+        $t->same($renderer->render($summaryRows()), $renderer->renderForTableArgs($summaryRows(), []));
+    },
     'dolt diff summary renderer filters upstream diff types and removed alias' => static function (TestRunner $t) use ($summaryRows): void {
         $renderer = new DiffSummaryRenderer();
 
@@ -94,5 +116,12 @@ return [
         $t->true(!str_contains($output['renamedSummary'], 'wp_legacy_links'));
         $t->contains('wp_import_audit', $output['addedSummary']);
         $t->same('wp_legacy_links', $output['droppedNames']);
+    },
+    'wordpress summary table arg example exposes upstream short circuit boundary' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-summary-table-arg-boundary.php';
+
+        $t->contains('wp_import_audit', $output['firstChangedTable']);
+        $t->same('', $output['laterDroppedTable']);
+        $t->contains('wp_legacy_links', $output['genericFilteredTable']);
     },
 ];

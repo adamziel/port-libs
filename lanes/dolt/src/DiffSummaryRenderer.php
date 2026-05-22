@@ -18,35 +18,39 @@ final class DiffSummaryRenderer
     public function render(array $summaryRows, array $options = []): string
     {
         $rows = $this->sortedRows($this->filteredRows($summaryRows, $options));
-        if ($rows === []) {
-            return '';
+
+        return $this->renderRows($rows);
+    }
+
+    /**
+     * Render `dolt diff --summary [tables...]` output using upstream's CLI
+     * table-argument behavior. Upstream stops at the first changed table outside
+     * the requested table set instead of continuing to search later summaries.
+     *
+     * @param list<array<string, mixed>> $summaryRows
+     * @param list<string> $tableNames
+     * @param array{filter?:string|null} $options
+     */
+    public function renderForTableArgs(array $summaryRows, array $tableNames, array $options = []): string
+    {
+        $tableNames = $this->normalizeTableNames($tableNames);
+        if ($tableNames === []) {
+            return $this->render($summaryRows, $options);
         }
 
-        $table = [];
-        foreach ($rows as $row) {
-            $table[] = [
-                $this->displayTableName($row),
-                $this->requiredDiffType($row['diff_type'] ?? null),
-                $this->boolString($row['data_change'] ?? null, 'data_change'),
-                $this->boolString($row['schema_change'] ?? null, 'schema_change'),
-            ];
-        }
-
-        $widths = array_map('strlen', self::COLUMNS);
-        foreach ($table as $row) {
-            foreach ($row as $index => $value) {
-                $widths[$index] = max($widths[$index], strlen($value));
+        $filter = $this->normalizeFilter($options['filter'] ?? null);
+        $rows = [];
+        foreach ($summaryRows as $row) {
+            if (!$this->rowMatchesTableNames($row, $tableNames)) {
+                break;
             }
+            if ($filter !== null && $this->requiredDiffType($row['diff_type'] ?? null) !== $filter) {
+                continue;
+            }
+            $rows[] = $row;
         }
 
-        $separator = $this->separator($widths);
-        $lines = [$separator, $this->rowLine(self::COLUMNS, $widths), $separator];
-        foreach ($table as $row) {
-            $lines[] = $this->rowLine($row, $widths);
-        }
-        $lines[] = $separator;
-
-        return implode("\n", $lines);
+        return $this->renderRows($rows);
     }
 
     /**
@@ -91,15 +95,7 @@ final class DiffSummaryRenderer
         }
         $tableNames = $this->normalizeTableNames($tableNames);
         if ($tableNames !== []) {
-            $rows = array_values(array_filter($rows, function (array $row) use ($tableNames): bool {
-                foreach ($this->candidateNames($row) as $name) {
-                    if (in_array(strtolower($name), $tableNames, true)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }));
+            $rows = array_values(array_filter($rows, fn (array $row): bool => $this->rowMatchesTableNames($row, $tableNames)));
         }
 
         $filter = $this->normalizeFilter($options['filter'] ?? null);
@@ -110,6 +106,57 @@ final class DiffSummaryRenderer
         return array_values(array_filter($rows, function (array $row) use ($filter): bool {
             return $this->requiredDiffType($row['diff_type'] ?? null) === $filter;
         }));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function renderRows(array $rows): string
+    {
+        if ($rows === []) {
+            return '';
+        }
+
+        $table = [];
+        foreach ($rows as $row) {
+            $table[] = [
+                $this->displayTableName($row),
+                $this->requiredDiffType($row['diff_type'] ?? null),
+                $this->boolString($row['data_change'] ?? null, 'data_change'),
+                $this->boolString($row['schema_change'] ?? null, 'schema_change'),
+            ];
+        }
+
+        $widths = array_map('strlen', self::COLUMNS);
+        foreach ($table as $row) {
+            foreach ($row as $index => $value) {
+                $widths[$index] = max($widths[$index], strlen($value));
+            }
+        }
+
+        $separator = $this->separator($widths);
+        $lines = [$separator, $this->rowLine(self::COLUMNS, $widths), $separator];
+        foreach ($table as $row) {
+            $lines[] = $this->rowLine($row, $widths);
+        }
+        $lines[] = $separator;
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string> $tableNames
+     */
+    private function rowMatchesTableNames(array $row, array $tableNames): bool
+    {
+        foreach ($this->candidateNames($row) as $name) {
+            if (in_array(strtolower($name), $tableNames, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeFilter(mixed $filter): ?string

@@ -12,6 +12,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native projected row filtering that applies Dolt-style `--where` predicates and limits after diff rows are shaped.
 - Native `dolt_diff_summary()` and `dolt_diff_stat()` projections for table-level review rows and aggregate row/cell counts.
 - Native `dolt diff --summary` fixed-width CLI text rendering plus `--name-only` table-name output for table-level review queues, including upstream `--filter` values and the `removed` alias for dropped tables.
+- Native `dolt diff --summary [tables...]` table-argument rendering, including upstream's current short-circuit behavior where a later changed table can produce successful empty output if an earlier changed table is outside the requested table set.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -41,6 +42,7 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-table-delta-summary.php` returns Dolt-style table summaries with `renamed`, `dropped`, and `added` classifications. A migration UI can use this before row rendering to avoid presenting a table rename as unrelated delete/create noise.
 - `examples/wordpress-diff-summary-cli.php` renders that same table-delta fixture as fixed-width `dolt diff --summary` text, so a migration dashboard can show Dolt-compatible CLI output without shelling out.
 - `examples/wordpress-filtered-diff-summary-cli.php` renders the same table-delta fixture through diff-type filters, separating renamed content-table work, added audit tables, and dropped legacy table names for migration review queues.
+- `examples/wordpress-summary-table-arg-boundary.php` contrasts generic table filtering with upstream CLI table-argument rendering, showing that `wp_import_audit` prints when it is the first changed table while a later `wp_legacy_links` request returns successful empty output because of the upstream short-circuit.
 - `fixtures/wp-plugin-schema-drift.php` models a plugin-owned event table where a numeric count column was dropped and later recreated as a string column.
 - `examples/wordpress-plugin-schema-drift.php` returns schema-aware diff rows plus warnings so a migration review UI can explain schema drift without shelling out to Dolt.
 - `fixtures/wp-skinny-diff.php` models a Data Liberation import review where the post title and import batch changed while GUID/order/comment-count noise stayed constant.
@@ -78,4 +80,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: explicitly document and decide how to handle the current upstream `dolt diff --summary <table>` short-circuit boundary, then map another focused table-specific CLI summary case.
+Next best slice: map `dolt diff --stat <table>` table-specific output and empty-output boundaries, reusing the existing diff-stat counters.

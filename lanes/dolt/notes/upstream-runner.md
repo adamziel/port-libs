@@ -5,6 +5,22 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## PHP Summary Table-Argument Slice Refresh 2026-05-22
+
+- Targeted source inspection covered `go/cmd/dolt/commands/diff.go` `printDiffSummary`, which writes matching summary rows but returns immediately at the first changed table whose from/to names are outside the CLI table-argument set.
+- Related upstream BATS coverage remains `integration-tests/bats/diff.bats` `diff: table-only option` and `integration-tests/bats/diff-stat.bats` `diff-stat: stat/summary gets summaries for all tables with changes`; those establish the fixed-width `--summary` frame and a table-specific summary case when the requested table is encountered first.
+- Direct cache-local probe built a temporary Dolt repository under `.upstream-cache/dolt/tmp/summary-table-boundary.*`, changed two tables (`aaa` and `zzz`), and ran:
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff --summary`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff --summary zzz`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff --summary aaa`
+- Probe result: the unscoped summary printed both `aaa` and `zzz`; `dolt diff --summary zzz` exited successfully with empty output because `aaa` was the first summary row and was outside the requested table set; `dolt diff --summary aaa` printed only `aaa` and stopped before `zzz`.
+- Native PHP lane-only verification after this slice:
+  - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; ... lanes/dolt/tests/*Test.php ...'`
+  - Result: 13 Dolt test files, 115 behavior tests, 602 assertions, 0 failures.
+- Required root verification after this slice:
+  - `php tools/run-tests.php`
+  - Result: latest captured rerun exited 0 with 143 test files, 12,874 assertions, and 0 failures. The immediately preceding root run failed once outside Dolt in `lanes/readability/tests/ArticleExtractorTest.php` while the shared tree was moving.
+
 ## PHP Diff-Mode Slice Refresh 2026-05-22
 
 - Targeted upstream evidence reused the hydrated `integration-tests/bats/diff.bats` case `diff: row, line, in-place, context diff modes`, which had already passed in the bounded BATS runner.
@@ -21,6 +37,51 @@
   - `php tools/run-tests.php`
   - Initial result: exit 1 with 141 test files, 12,572 assertions, and 2 failures in `lanes/readability/tests/ArticleExtractorTest.php`; Dolt tests reached by the root run passed.
   - Final captured rerun after the moving tree settled: exit 0 with 142 test files, 12,668 assertions, and 0 failures.
+
+## Runner Tooling Refresh 2026-05-22 22:22-22:43 UTC
+
+- Cache inspection before running evidence:
+  - `git -C .upstream-cache/dolt rev-parse --is-shallow-repository`: `true`.
+  - `git -C .upstream-cache/dolt rev-parse HEAD`: `b2274926e0dcd84aab000ee242df5b5e75689eef`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.promisor`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.partialclonefilter`: `blob:none`.
+  - `git -C .upstream-cache/dolt sparse-checkout list`: `go`, `integration-tests/bats`.
+  - `git -C .upstream-cache/dolt status --short --branch`: known sparse/no-checkout out-of-cone staged deletions plus runner-local caches and `integration-tests/bats/status-local-fixed.bats`; no delete, reset, or broader hydration was run.
+- Tooling check:
+  - `sudo -n dnf install -y golang bats expect`
+  - Result: packages were already installed; `Nothing to do.`
+  - `rpm -q golang golang-bin golang-src bats expect libicu-devel`: `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, `expect-5.45.4-31.fc44.x86_64`, `libicu-devel-77.1-2.fc44.x86_64`.
+  - Tool probes: `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, `expect version 5.45.4`.
+- Cache-local build:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install -p 1 ./cmd/dolt ./store/cmd/noms ./utils/remotesrv`
+  - Result: exit 0; cache-local `dolt`, `noms`, and `remotesrv` rebuilt.
+  - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version`: `dolt version 2.0.5`.
+- Bounded Go evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 20m`
+  - Result: exit 0; 14 packages passed, `rowconv` and `sqle/dtables` compiled with no test files, `sqle/dtablefunctions` passed in `0.048s`, and `merge` passed in `7.372s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 25m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(DiffTableFunction|DiffTableFunctionPrepared|DiffSummaryTableFunction|DiffSummaryTableFunctionPrepared|DiffStatTableFunction|DiffStatTableFunctionPrepared|SchemaDiffTableFunction|SchemaDiffTableFunctionPrepared|ColumnDiffSystemTable|ColumnDiffSystemTablePrepared|DiffSystemTable|DiffSystemTablePrepared|UnscopedDiffSystemTable|UnscopedDiffSystemTablePrepared|CommitDiffSystemTable|CommitDiffSystemTablePrepared|LogTableFunction|LogTableFunctionPrepared|DoltCommit|DoltCommitPrepared|DoltBranchesSystemTable|DoltBranchesSystemTablePrepared|BranchActivity|DoltDTableScripts|DoltDTableScriptsPrepared|DoltConflictsTableNameTable)$' -count=1 -timeout 25m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 15.411s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/integration_test ./libraries/doltcore/doltdb ./libraries/doltcore/sqle/dtablefunctions -run 'Test(DoltSchemasHistoryTable|DoltSchemasDiffTable|DoltProceduresHistoryTable|DoltProceduresDiffTable|HistoryTable|ParseInstructions|SplitAncestorSpec|DoltLog)$' -count=1 -timeout 10m`
+  - Result: `sqle/integration_test` passed in `0.230s`, `doltdb` passed in `0.047s`, and dtablefunctions reported no tests for that combined regex.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test -p 1 ./libraries/doltcore/sqle/dtablefunctions -run TestDoltLog -count=1 -timeout 5m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/dtablefunctions 0.037s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestHistorySystemTable/(can sort by dolt_log.commit|dolt_commit_ancestors table with commit_hash filter ignored for max1row optimization)$|TestDoltScripts/test has_ancestor$' -count=1 -timeout 10m -v`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.412s`.
+- Bounded BATS evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 90m bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats`
+  - Result: exit 0 with plan `1..319`; 303 runnable tests passed and 16 upstream-declared skips remained.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 25m bats branch.bats sql-branch.bats`
+  - Result: exit 0 with plan `1..39`; 30 local branch CLI tests and 9 SQL branch procedure/table tests passed.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
+  - Result: exit 1 with plan `1..1`; pristine `status.bats` still truncates `jvktivfmfv2qj7pi971f8rsdumq3qr0o` to `vfmfv2qj7pi971f8rsdumq3qr0o`, and `dolt reset` reports `branch not found`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status-local-fixed.bats`
+  - Result: exit 0 with plan `1..1`; the runner-local fixed helper passed the same commit-hash reset case.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, or benchmark suites were run.
+- Required repository check after this runner metadata update:
+  - `tmp=.upstream-cache/dolt/tmp/root-php-after-runner-20260522T2243.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 120 "$tmp"; exit $status`
+  - Initial result: exit 1 with 143 test files, 12,767 assertions, and 1 failure in `lanes/pandoc/tests/MarkdownReaderTest.php` test `writes wordpress imported fancy ordered lists with nested starts`; Dolt tests reached by the root run passed.
+  - `tmp=.upstream-cache/dolt/tmp/root-php-after-runner-rerun-20260522T2243.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 120 "$tmp"; exit $status`
+  - Immediate rerun result: exit 0 with 143 test files, 12,794 assertions, and 0 failures.
 
 ## Runner Tooling Refresh 2026-05-22 22:12 UTC
 
