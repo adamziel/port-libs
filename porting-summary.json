@@ -1,5 +1,5 @@
 {
-    "generated": "2026-05-22 12:40:13 UTC",
+    "generated": "2026-05-22 14:01:45 UTC",
     "averageProgressPercent": "11.8",
     "lanes": [
         {
@@ -84,18 +84,18 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "11.0",
-            "suite": "static-upstream-inventory",
-            "benchmark": "static-upstream-inventory",
+            "progressPercent": "12.0",
+            "suite": "static-upstream-inventory-plus-runner-evidence",
+            "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "241",
             "mapped": "63",
             "coverage": "63 / 241",
             "php": "63 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "static upstream inventory plus stylesheet parser/CSSOM/...",
+            "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
             "audit": "audited 2026-05-22",
             "nextTarget": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing,...",
-            "blocker": "upstream runner not executed",
+            "blocker": "Resolved the prior missing dependency blockers: node_modules/uvu is insta...",
             "commit": "5947906"
         },
         {

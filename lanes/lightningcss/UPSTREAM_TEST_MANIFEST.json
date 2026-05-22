@@ -10,9 +10,9 @@
         "architecture": "Rust workspace for CSS parsing, transformation, minification, prefixing, CSS modules, bundling, Node/NAPI bindings, WASM, CLI, and selector matching."
     },
     "benchmarkDenominator": {
-        "status": "static-upstream-inventory",
+        "status": "static-upstream-inventory-plus-runner-evidence",
         "total": 241,
-    "mapped": 63,
+        "mapped": 63,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 241,
@@ -44,18 +44,67 @@
             }
         },
         "runnerStatus": {
-            "executed": false,
-            "reason": "The full upstream runners were not executed in this lane slice. npm test fails before tests because node_modules is absent and the uvu binary is not installed. A modest offline Cargo probe fails before build because the local crates.io cache does not contain napi-derive for the Node workspace member; a real run would require dependency downloads and a Rust/NAPI build.",
-            "probes": [
+            "executed": true,
+            "summary": "The old missing uvu/node_modules and offline napi-derive blockers are resolved. Core upstream Rust and Node CI runners pass locally; the WASM runner also passes with a documented local upstream-cache compatibility override for the current getrandom/Rust/napi-wasm toolchain.",
+            "environment": {
+                "node": "22.20.0 for native Node runner; Node 18.20.8 via npx node@18 for WASM runner parity with upstream CI",
+                "yarn": "1.22.22 via corepack/npx",
+                "rust": "rustc/cargo 1.92.0 from upstream rust-toolchain; host cargo also reports 1.95 outside the override",
+                "binaryen": "wasm-opt version 111 via npm binaryen@111.0.0"
+            },
+            "commands": [
                 {
-                    "command": "npm test",
-                    "result": "failed before upstream tests: sh: uvu: command not found"
+                    "command": "PUPPETEER_SKIP_DOWNLOAD=1 corepack yarn install --frozen-lockfile --ignore-scripts",
+                    "result": "passed; installed node_modules including uvu without browser download"
                 },
                 {
-                    "command": "timeout 30 cargo test --workspace --all-features --no-run --offline",
-                    "result": "failed before build: no matching package named napi-derive found in the local crates.io cache"
+                    "command": "CARGO_BUILD_JOBS=2 corepack yarn build",
+                    "result": "passed; produced lightningcss.linux-x64-gnu.node through @napi-rs/cli"
+                },
+                {
+                    "command": "corepack yarn test",
+                    "result": "passed: 81 Node uvu tests, 0 failures"
+                },
+                {
+                    "command": "CARGO_BUILD_JOBS=2 RUSTFLAGS='-D warnings' cargo test --all-features",
+                    "result": "passed: 120 library tests, 27 CLI tests, 3 CSSOM tests, 2 custom parser tests, 1 serde test, and 8 doctests; 0 failures"
+                },
+                {
+                    "command": "corepack yarn tsc",
+                    "result": "passed TypeScript check"
+                },
+                {
+                    "command": "rustup target add wasm32-unknown-unknown",
+                    "result": "passed"
+                },
+                {
+                    "command": "npm install --no-save --no-package-lock binaryen@111.0.0",
+                    "result": "passed; installed wasm-opt version 111"
+                },
+                {
+                    "command": "PATH=\"$PWD/node_modules/.bin:$PATH\" CARGO_BUILD_JOBS=2 RUSTFLAGS=\"--cfg getrandom_backend=\\\"custom\\\" -C link-arg=--export-table\" corepack yarn wasm:build-release",
+                    "result": "passed after local upstream-cache compatibility patch defining deterministic __getrandom_v03_custom and exporting __indirect_function_table"
+                },
+                {
+                    "command": "TEST_WASM=node npx --yes -p node@18 -p yarn@1.22.22 yarn test",
+                    "result": "passed: 81 WASM Node-mode uvu tests, 0 failures"
+                },
+                {
+                    "command": "TEST_WASM=browser npx --yes -p node@18 -p yarn@1.22.22 yarn test",
+                    "result": "passed: 81 WASM browser-mode uvu tests, 0 failures"
                 }
-            ]
+            ],
+            "nonCiProbes": [
+                {
+                    "command": "cargo test --workspace --all-features --no-run",
+                    "result": "failed because workspace all-features enables parcel_selectors bench, which uses stable-incompatible #![feature(test)]; upstream CI does not run this overbroad workspace command"
+                },
+                {
+                    "command": "cargo test --workspace --no-run",
+                    "result": "failed while linking lightningcss_node as a Rust test harness because Node-API symbols are unresolved for the cdylib crate; upstream CI tests that package through yarn build/test instead"
+                }
+            ],
+            "wasmCompatibilityOverride": "Pristine upstream WASM build on this toolchain failed first on getrandom 0.3 wasm32 backend selection and then on missing __indirect_function_table for napi-wasm. The passing local WASM run used getrandom_backend=custom, a deterministic custom RNG shim in the upstream cache, and -C link-arg=--export-table. This is runner compatibility evidence, not a committed upstream source change."
         },
         "mappedSemantics": [
             "CSS comments and insignificant whitespace are removed without rewriting quoted strings.",
@@ -66,20 +115,20 @@
             "Selector lists are split at top-level commas while preserving pseudo-class functions and attribute selectors.",
             "Declaration blocks expose CSSOM-style direct property get/set/remove helpers while preserving order and !important priority flags.",
             "Margin and padding CSSOM access expands and compresses physical box shorthands for get/set/remove, including mixed !important guardrails and logical property append fallback.",
-      "Selector specificity is packed with the upstream a<<20 | b<<10 | c layout for ID, class-like, and element-like counts.",
-      "Selector specificity covers type, universal, namespace-qualified, class, ID, attribute, pseudo-class, and pseudo-element selectors.",
-      ":is(), :matches(), :not(), and :has() take the maximum specificity from their selector lists, :where() contributes zero specificity, and nth-child selector-list arguments add to the pseudo-class specificity.",
-      "Media query prelude normalization maps upstream range syntax including min-/max- feature aliases, name-first and value-first comparisons, two-sided ranges, comma-separated lists, qualifiers, boolean/discrete features, ratios, and simple same-unit calc folding.",
-      "Background CSSOM access maps upstream get/set cases for final-layer colors, image and repeat layer lists, position X/Y synthesis, shorthand composition with size/repeat, mixed-importance guards, and mismatched layer-count rejection.",
-      "Flex-flow CSSOM access maps upstream get/set/remove cases for prefixed and unprefixed flex-direction/flex-wrap shorthand composition, prefix isolation, and shorthand-to-longhand removal."
-    ],
-    "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 63 focused lane checks against a 241-behavior-check upstream denominator."
-  },
+            "Selector specificity is packed with the upstream a<<20 | b<<10 | c layout for ID, class-like, and element-like counts.",
+            "Selector specificity covers type, universal, namespace-qualified, class, ID, attribute, pseudo-class, and pseudo-element selectors.",
+            ":is(), :matches(), :not(), and :has() take the maximum specificity from their selector lists, :where() contributes zero specificity, and nth-child selector-list arguments add to the pseudo-class specificity.",
+            "Media query prelude normalization maps upstream range syntax including min-/max- feature aliases, name-first and value-first comparisons, two-sided ranges, comma-separated lists, qualifiers, boolean/discrete features, ratios, and simple same-unit calc folding.",
+            "Background CSSOM access maps upstream get/set cases for final-layer colors, image and repeat layer lists, position X/Y synthesis, shorthand composition with size/repeat, mixed-importance guards, and mismatched layer-count rejection.",
+            "Flex-flow CSSOM access maps upstream get/set/remove cases for prefixed and unprefixed flex-direction/flex-wrap shorthand composition, prefix isolation, and shorthand-to-longhand removal."
+        ],
+        "warning": "Native PHP progress still maps 63 focused lane checks against a 241-behavior-check upstream denominator. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
+    },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-    "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding, background, and flex-flow shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
-  },
-  "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, background and flex-flow shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
-  "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing, or transformer semantics."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding, background, and flex-flow shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+    },
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, background and flex-flow shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing, or transformer semantics."
 }
