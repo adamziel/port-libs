@@ -76,6 +76,39 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $plan->deduplicateByHash(new MemoryProvider(), DeduplicateMode::INTERACTIVE));
         $t->throws(InvalidArgumentException::class, static fn () => $plan->deduplicateByHash(new MemoryProvider(), DeduplicateMode::RENAME));
     },
+    'interactive dedupe by hash keeps chosen duplicate and quit stops later groups' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->put('database/site-a.sql', 'same sql bytes');
+        $remote->put('database/site-b.sql', 'same sql bytes');
+        $remote->put('exports/site-a.wxr', '<rss>same export</rss>');
+        $remote->put('exports/site-b.wxr', '<rss>same export</rss>');
+
+        $calls = 0;
+        $result = (new SyncPlan())->deduplicateByHash(
+            $remote,
+            DeduplicateMode::INTERACTIVE,
+            static function (array $group) use (&$calls): array|string {
+                $calls++;
+
+                return $calls === 1
+                    ? ['action' => 'keep', 'keep' => 2]
+                    : 'q';
+            },
+        );
+
+        $t->same(true, $result['quit']);
+        $t->same(2, $calls);
+        $t->same('keep', $result['groups'][0]['action']);
+        $t->same(1, count($result['groups'][0]['deleted']));
+        $t->same('quit', $result['groups'][1]['action']);
+        $t->same(3, count($remote->list()));
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new SyncPlan())->deduplicateByHash(
+            $remote,
+            DeduplicateMode::INTERACTIVE,
+            static fn (): array => ['action' => 'rename'],
+        ));
+    },
     'dedupe by name skip removes identical duplicate files before skipping remaining conflicts' => static function (TestRunner $t): void {
         $remote = new MemoryProvider();
         $remote->putUnchecked('exports/site.wxr', 'same-wxr', ['modTime' => '2026-05-20T00:00:00Z']);
@@ -138,6 +171,53 @@ return [
 
         $t->same(1, count($result['groups'][0]['identicalDeleted']));
         $t->same([3, 6], array_map(static fn ($info) => $info->size, $remote->list('exports')));
+    },
+    'interactive dedupe by name deletes identical copies before keeping chosen conflict' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->putUnchecked('exports/site.wxr', '<rss>published export</rss>', ['modTime' => '2026-05-20T00:00:00Z']);
+        $remote->putUnchecked('exports/site.wxr', '<rss>published export</rss>', ['modTime' => '2026-05-21T00:00:00Z']);
+        $remote->putUnchecked('exports/site.wxr', '<rss>recovered draft</rss>', ['modTime' => '2026-05-22T00:00:00Z']);
+
+        $result = (new SyncPlan())->deduplicateByName(
+            $remote,
+            DeduplicateMode::INTERACTIVE,
+            interactiveChoice: static function (array $group): array {
+                return [
+                    'action' => 'keep',
+                    'keep' => 2,
+                ];
+            },
+        );
+
+        $t->same(false, $result['quit']);
+        $t->same('keep', $result['groups'][0]['action']);
+        $t->same(1, count($result['groups'][0]['identicalDeleted']));
+        $t->same(1, count($result['groups'][0]['deleted']));
+        $t->same('<rss>recovered draft</rss>', $remote->get('exports/site.wxr'));
+        $t->same(['exports/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list('exports')));
+    },
+    'interactive dedupe by name can choose upstream rename action' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->put('exports/site-1.wxr', 'existing numbered export');
+        $remote->putUnchecked('exports/site.wxr', 'published export');
+        $remote->putUnchecked('exports/site.wxr', 'recovered export');
+
+        $result = (new SyncPlan())->deduplicateByName(
+            $remote,
+            DeduplicateMode::INTERACTIVE,
+            interactiveChoice: static fn (): array => ['action' => 'rename'],
+        );
+
+        $t->same('rename', $result['groups'][0]['action']);
+        $t->same([
+            'exports/site-1.wxr',
+            'exports/site-2.wxr',
+            'exports/site-3.wxr',
+        ], array_map(static fn ($info) => $info->path, $remote->list('exports')));
+        $t->same([
+            'exports/site-2.wxr',
+            'exports/site-3.wxr',
+        ], array_map(static fn ($info) => $info->path, $result['groups'][0]['renamed']));
     },
     'dedupe by name ignores repeated provider IDs to avoid data loss' => static function (TestRunner $t): void {
         $remote = new MemoryProvider();

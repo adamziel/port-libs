@@ -445,18 +445,22 @@ final class SyncPlan
     }
 
     /**
-     * Model `rclone dedupe --by-hash` for non-interactive modes.
+     * Model `rclone dedupe --by-hash`.
      *
-     * @return array{hashType: string, groups: list<array{hash: string, objects: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, skipped: bool}>}
+     * Interactive mode is represented by a deterministic chooser callback
+     * instead of reading from a terminal.
+     *
+     * @param null|callable(array<string, mixed>): array<string, mixed>|string $interactiveChoice
+     * @return array{hashType: string, groups: list<array{hash: string, objects: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, skipped: bool, action?: string, quit?: bool}>, quit: bool}
      */
-    public function deduplicateByHash(MemoryProvider $provider, string $mode): array
+    public function deduplicateByHash(MemoryProvider $provider, string $mode, ?callable $interactiveChoice = null): array
     {
         $mode = DeduplicateMode::normalize($mode);
         $hashType = $provider->supportedHashes()->getOne();
         if ($hashType === HashType::NONE) {
             throw new \RuntimeException('provider has no hashes');
         }
-        if ($mode === DeduplicateMode::INTERACTIVE) {
+        if ($mode === DeduplicateMode::INTERACTIVE && $interactiveChoice === null) {
             throw new \InvalidArgumentException('interactive dedupe mode requires a caller-supplied choice');
         }
         if ($mode === DeduplicateMode::RENAME) {
@@ -474,8 +478,51 @@ final class SyncPlan
         ksort($objectsByHash, SORT_STRING);
 
         $groups = [];
+        $quit = false;
         foreach ($objectsByHash as $hash => $objects) {
             if (count($objects) <= 1) {
+                continue;
+            }
+
+            if ($mode === DeduplicateMode::INTERACTIVE) {
+                $decision = $this->interactiveDedupeDecision(
+                    $interactiveChoice,
+                    [
+                        'byHash' => true,
+                        'hash' => $hash,
+                        'hashType' => $hashType,
+                        'objects' => $objects,
+                    ],
+                    count($objects),
+                    true,
+                );
+
+                if ($decision['action'] === 'skip' || $decision['action'] === 'quit') {
+                    $groups[] = [
+                        'hash' => $hash,
+                        'objects' => $objects,
+                        'kept' => null,
+                        'deleted' => [],
+                        'skipped' => true,
+                        'action' => $decision['action'],
+                        'quit' => $decision['action'] === 'quit',
+                    ];
+                    if ($decision['action'] === 'quit') {
+                        $quit = true;
+                        break;
+                    }
+                    continue;
+                }
+
+                $choice = $this->deleteDedupeObjectsExcept($provider, $objects, $decision['keepIndex'] ?? 0);
+                $groups[] = [
+                    'hash' => $hash,
+                    'objects' => $objects,
+                    'kept' => $choice['kept'],
+                    'deleted' => $choice['deleted'],
+                    'skipped' => false,
+                    'action' => 'keep',
+                ];
                 continue;
             }
 
@@ -517,20 +564,30 @@ final class SyncPlan
         return [
             'hashType' => $hashType,
             'groups' => $groups,
+            'quit' => $quit,
         ];
     }
 
     /**
-     * Model `rclone dedupe` by duplicate remote name for non-interactive modes.
+     * Model `rclone dedupe` by duplicate remote name.
      * Identical duplicates are removed before skip/keep/rename modes, matching
      * upstream's by-name flow.
      *
-     * @return array{groups: list<array{path: string, objects: list<ObjectInfo>, identicalDeleted: list<ObjectInfo>, remaining: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, renamed: list<ObjectInfo>, skipped: bool, listed: bool}>}
+     * Interactive mode is represented by a deterministic chooser callback
+     * instead of reading from a terminal.
+     *
+     * @param null|callable(array<string, mixed>): array<string, mixed>|string $interactiveChoice
+     * @return array{groups: list<array{path: string, objects: list<ObjectInfo>, identicalDeleted: list<ObjectInfo>, remaining: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, renamed: list<ObjectInfo>, skipped: bool, listed: bool, action?: string, quit?: bool}>, quit: bool}
      */
-    public function deduplicateByName(MemoryProvider $provider, string $mode, bool $sizeOnly = false): array
+    public function deduplicateByName(
+        MemoryProvider $provider,
+        string $mode,
+        bool $sizeOnly = false,
+        ?callable $interactiveChoice = null,
+    ): array
     {
         $mode = DeduplicateMode::normalize($mode);
-        if ($mode === DeduplicateMode::INTERACTIVE) {
+        if ($mode === DeduplicateMode::INTERACTIVE && $interactiveChoice === null) {
             throw new \InvalidArgumentException('interactive dedupe mode requires a caller-supplied choice');
         }
 
@@ -541,6 +598,7 @@ final class SyncPlan
         ksort($objectsByPath, SORT_STRING);
 
         $groups = [];
+        $quit = false;
         foreach ($objectsByPath as $path => $objects) {
             if (count($objects) <= 1) {
                 continue;
@@ -559,8 +617,37 @@ final class SyncPlan
             $renamed = [];
             $skipped = false;
             $listed = false;
+            $action = null;
+            $groupQuit = false;
             if (count($remaining) > 1) {
-                if ($mode === DeduplicateMode::SKIP) {
+                if ($mode === DeduplicateMode::INTERACTIVE) {
+                    $decision = $this->interactiveDedupeDecision(
+                        $interactiveChoice,
+                        [
+                            'byHash' => false,
+                            'path' => $path,
+                            'objects' => $remaining,
+                        ],
+                        count($remaining),
+                        false,
+                    );
+                    $action = $decision['action'];
+                    if ($decision['action'] === 'skip') {
+                        $skipped = true;
+                    } elseif ($decision['action'] === 'quit') {
+                        $skipped = true;
+                        $groupQuit = true;
+                        $quit = true;
+                    } elseif ($decision['action'] === 'rename') {
+                        $renamed = $this->renameDuplicateNames($provider, $path, $remaining);
+                        $remaining = $renamed;
+                    } else {
+                        $choice = $this->deleteDedupeObjectsExcept($provider, $remaining, $decision['keepIndex'] ?? 0);
+                        $kept = $choice['kept'];
+                        $deleted = $choice['deleted'];
+                        $remaining = [$kept];
+                    }
+                } elseif ($mode === DeduplicateMode::SKIP) {
                     $skipped = true;
                 } elseif ($mode === DeduplicateMode::LIST) {
                     $listed = true;
@@ -595,10 +682,18 @@ final class SyncPlan
                 'renamed' => $renamed,
                 'skipped' => $skipped,
                 'listed' => $listed,
+                'action' => $action ?? $mode,
+                'quit' => $groupQuit,
             ];
+            if ($quit) {
+                break;
+            }
         }
 
-        return ['groups' => $groups];
+        return [
+            'groups' => $groups,
+            'quit' => $quit,
+        ];
     }
 
     /**
@@ -1552,6 +1647,84 @@ final class SyncPlan
         return $sourceInfo->id !== null
             && $sourceInfo->id !== ''
             && $sourceInfo->id === $targetInfo->id;
+    }
+
+    /**
+     * @param callable(array<string, mixed>): array<string, mixed>|string $chooser
+     * @param array<string, mixed> $context
+     * @return array{action: string, keepIndex: ?int}
+     */
+    private function interactiveDedupeDecision(callable $chooser, array $context, int $count, bool $byHash): array
+    {
+        $choice = $chooser($context);
+        $keep = null;
+        if (is_string($choice)) {
+            $action = $choice;
+        } elseif (is_array($choice)) {
+            $action = (string) ($choice['action'] ?? $choice['command'] ?? '');
+            if (array_key_exists('keep', $choice)) {
+                $keep = (int) $choice['keep'];
+            } elseif (array_key_exists('keepNumber', $choice)) {
+                $keep = (int) $choice['keepNumber'];
+            } elseif (array_key_exists('index', $choice)) {
+                $keep = (int) $choice['index'] + 1;
+            }
+        } else {
+            throw new \InvalidArgumentException('interactive dedupe choice must be a command string or decision array');
+        }
+
+        $action = match (strtolower(trim($action))) {
+            's', 'skip' => 'skip',
+            'k', 'keep' => 'keep',
+            'r', 'rename' => 'rename',
+            'q', 'quit' => 'quit',
+            default => throw new \InvalidArgumentException('unknown interactive dedupe choice "' . (string) $action . '"'),
+        };
+
+        if ($action === 'rename' && $byHash) {
+            throw new \InvalidArgumentException('interactive dedupe by hash does not offer rename');
+        }
+        if ($action !== 'keep') {
+            return [
+                'action' => $action,
+                'keepIndex' => null,
+            ];
+        }
+        if ($keep === null) {
+            throw new \InvalidArgumentException('interactive keep choice requires a 1-based keep number');
+        }
+        if ($keep < 1 || $keep > $count) {
+            throw new \OutOfRangeException("interactive keep number {$keep} is outside 1..{$count}");
+        }
+
+        return [
+            'action' => 'keep',
+            'keepIndex' => $keep - 1,
+        ];
+    }
+
+    /**
+     * @param list<ObjectInfo> $objects
+     * @return array{kept: ObjectInfo, deleted: list<ObjectInfo>}
+     */
+    private function deleteDedupeObjectsExcept(MemoryProvider $provider, array $objects, int $keepIndex): array
+    {
+        if (!isset($objects[$keepIndex])) {
+            throw new \OutOfRangeException('dedupe keep index is outside the duplicate group');
+        }
+
+        $deleted = [];
+        foreach ($objects as $index => $info) {
+            if ($index === $keepIndex) {
+                continue;
+            }
+            $deleted[] = $provider->deleteListedObject($info);
+        }
+
+        return [
+            'kept' => $objects[$keepIndex],
+            'deleted' => $deleted,
+        ];
     }
 
     /**
