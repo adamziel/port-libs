@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory",
         "total": 241,
-        "mapped": 15,
+        "mapped": 26,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 241,
@@ -64,15 +64,16 @@
             "URL tokens and custom property token streams are treated conservatively for WordPress theme CSS.",
             "Stylesheet parsing distinguishes style rules, at-rule statements, at-rule blocks, declarations, and nested rules.",
             "Selector lists are split at top-level commas while preserving pseudo-class functions and attribute selectors.",
-            "Declaration blocks expose CSSOM-style direct property get/set/remove helpers while preserving order and !important priority flags."
+            "Declaration blocks expose CSSOM-style direct property get/set/remove helpers while preserving order and !important priority flags.",
+            "Margin and padding CSSOM access expands and compresses physical box shorthands for get/set/remove, including mixed !important guardrails and logical property append fallback."
         ],
-        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 15 focused lane tests against a 241-behavior-check upstream denominator."
+        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 26 focused lane checks against a 241-behavior-check upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration get/set/remove helpers with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, and stylesheet parser support for selectors, at-rules, declarations, and nested WordPress rules."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding box shorthand get/set/remove helpers with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, and stylesheet parser support for selectors, at-rules, declarations, and nested WordPress rules."
     },
     "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, at-rule/nested-rule parsing, color minification, and calc spacing.",
-    "nextTask": "Expand parser coverage toward media query values, selector specificity, and shorthand CSSOM access before adding prefixing or transformer semantics."
+    "nextTask": "Expand parser coverage toward media query values, selector specificity, broader shorthand CSSOM families, and background/flex CSSOM access before adding prefixing or transformer semantics."
 }
