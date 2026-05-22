@@ -58,7 +58,9 @@ final class CssMinifier
             $output .= $char;
         }
 
-        return $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
+        $css = $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
+
+        return $this->composeTransitionDeclarationBlocks($css);
     }
 
     private function stripComments(string $css): string
@@ -345,11 +347,24 @@ final class CssMinifier
             'transition',
             '-webkit-transition',
             '-moz-transition' => $this->minifyTransitionShorthandValue($value),
+            'transition-property',
+            '-webkit-transition-property',
+            '-moz-transition-property' => $this->minifyTransitionPropertyValue($value),
             'transition-duration',
             'transition-delay' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTimeValue($part)),
             'transition-timing-function' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionTimingFunction($part)),
             default => $value,
         };
+    }
+
+    private function minifyTransitionPropertyValue(string $value): string
+    {
+        $properties = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            array_push($properties, ...$this->expandBlockAxisTransitionProperty(trim($part)));
+        }
+
+        return implode(',', $properties);
     }
 
     private function minifyTransitionShorthandValue(string $value): string
@@ -408,9 +423,6 @@ final class CssMinifier
         }
 
         $parts = [];
-        if ($property !== null && strtolower($property) !== 'all') {
-            $parts[] = $property;
-        }
         if ($duration !== null) {
             $parts[] = $duration;
         }
@@ -427,7 +439,15 @@ final class CssMinifier
             $parts[] = $behavior;
         }
 
-        return $parts === [] ? 'all' : implode(' ', $parts);
+        $value = $parts === [] ? 'all' : implode(' ', $parts);
+        if ($property === null || strtolower($property) === 'all') {
+            return $value;
+        }
+
+        return implode(',', array_map(
+            static fn (string $expanded): string => $expanded . ($value === 'all' ? '' : ' ' . $value),
+            $this->expandBlockAxisTransitionProperty($property)
+        ));
     }
 
     private function isTimeValue(string $value): bool
@@ -810,6 +830,525 @@ final class CssMinifier
         }
 
         return array_values(array_map('trim', $parts));
+    }
+
+    private function composeTransitionDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeTransitionDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeTransitionDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function findMatchingBraceInCss(string $css, int $open): int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($css);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return $length - 1;
+    }
+
+    private function composeTransitionDeclarationList(string $body): string
+    {
+        if (stripos($body, 'transition') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['-webkit-', '-moz-', ''] as $prefix) {
+            $this->rewriteTransitionGroup($entries, $prefix);
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @return list<array{property:string,name:string,value:string,important:bool,drop:bool}>|null
+     */
+    private function parseDeclarationEntriesForComposition(string $body): ?array
+    {
+        $entries = [];
+        foreach ($this->splitTopLevel($body, ';') as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+
+            $colon = $this->findTopLevelColon($part);
+            if ($colon === null) {
+                return null;
+            }
+
+            $name = trim(substr($part, 0, $colon));
+            $property = strtolower($name);
+            $value = trim(substr($part, $colon + 1));
+            if ($property === '' || $value === '') {
+                return null;
+            }
+
+            [$value, $important] = $this->splitImportantFlag($value);
+            $entries[] = [
+                'property' => $property,
+                'name' => $name,
+                'value' => $value,
+                'important' => $important,
+                'drop' => false,
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function findTopLevelColon(string $part): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($part);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $part[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === ':' && $parenDepth === 0 && $bracketDepth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0:string,1:bool}
+     */
+    private function splitImportantFlag(string $value): array
+    {
+        if (preg_match('/^(.*?)\s*!\s*important\s*$/i', $value, $matches) === 1) {
+            return [trim($matches[1]), true];
+        }
+
+        return [$value, false];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function serializeDeclarationEntriesForComposition(array $entries): string
+    {
+        $parts = [];
+        foreach ($entries as $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            $parts[] = $entry['name'] . ':' . $entry['value'] . ($entry['important'] ? '!important' : '');
+        }
+
+        return implode(';', $parts);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteTransitionGroup(array &$entries, string $prefix): void
+    {
+        $properties = [
+            'transition' => $prefix . 'transition',
+            'property' => $prefix . 'transition-property',
+            'duration' => $prefix . 'transition-duration',
+            'timing' => $prefix . 'transition-timing-function',
+            'delay' => $prefix . 'transition-delay',
+            'behavior' => $prefix . 'transition-behavior',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === $properties['transition']) {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseTransitionShorthandComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'transition') {
+                    continue;
+                }
+
+                $values = $this->parseTransitionLonghandList($component, $entries[$index]['value']);
+                if ($values === null) {
+                    continue;
+                }
+
+                $state[$component] = $values;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeTransitionComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'transition') {
+                $latest[$component] = $index;
+            }
+        }
+
+        foreach (['property', 'duration', 'timing', 'delay'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+
+        $state = [
+            'property' => [],
+            'duration' => [],
+            'timing' => [],
+            'delay' => [],
+            'behavior' => ['normal'],
+        ];
+        foreach ($latest as $component => $index) {
+            $values = $this->parseTransitionLonghandList($component, $entries[$index]['value']);
+            if ($values === null) {
+                return;
+            }
+            $state[$component] = $values;
+        }
+
+        $replaceAt = min(array_values($latest));
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $properties['transition'],
+            'name' => $properties['transition'],
+            'value' => $this->serializeTransitionComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @return array{property:list<string>,duration:list<string>,timing:list<string>,delay:list<string>,behavior:list<string>}|null
+     */
+    private function parseTransitionShorthandComponents(string $value): ?array
+    {
+        $state = [
+            'property' => [],
+            'duration' => [],
+            'timing' => [],
+            'delay' => [],
+            'behavior' => [],
+        ];
+
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $components = $this->parseTransitionLayerComponents($layer);
+            if ($components === null) {
+                return null;
+            }
+            foreach ($components as $component => $componentValue) {
+                $state[$component][] = $componentValue;
+            }
+        }
+
+        return $state;
+    }
+
+    /**
+     * @return array{property:string,duration:string,timing:string,delay:string,behavior:string}|null
+     */
+    private function parseTransitionLayerComponents(string $layer): ?array
+    {
+        $property = null;
+        $duration = null;
+        $timing = null;
+        $delay = null;
+        $behavior = null;
+
+        foreach ($this->splitWhitespaceTopLevel($layer) as $token) {
+            if ($this->isTimeValue($token)) {
+                if ($duration === null) {
+                    $duration = $this->minifyTimeValue($token);
+                    continue;
+                }
+                if ($delay === null) {
+                    $delay = $this->minifyTimeValue($token);
+                    continue;
+                }
+
+                return null;
+            }
+
+            if ($this->isTransitionTimingFunction($token)) {
+                if ($timing !== null) {
+                    return null;
+                }
+                $timing = $this->minifyTransitionTimingFunction($token);
+                continue;
+            }
+
+            $lower = strtolower($token);
+            if ($lower === 'normal' || $lower === 'allow-discrete') {
+                if ($behavior !== null) {
+                    return null;
+                }
+                $behavior = $lower;
+                continue;
+            }
+
+            if ($property !== null) {
+                return null;
+            }
+            $property = $token;
+        }
+
+        return [
+            'property' => $property ?? 'all',
+            'duration' => $duration ?? '0s',
+            'timing' => $timing ?? 'ease',
+            'delay' => $delay ?? '0s',
+            'behavior' => $behavior ?? 'normal',
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseTransitionLonghandList(string $component, string $value): ?array
+    {
+        if ($component === 'behavior') {
+            return $this->mapTransitionComponentList(
+                $value,
+                static function (string $part): ?string {
+                    $part = strtolower(trim($part));
+
+                    return $part === 'normal' || $part === 'allow-discrete' ? $part : null;
+                }
+            );
+        }
+
+        if ($component === 'duration' || $component === 'delay') {
+            return $this->mapTransitionComponentList(
+                $value,
+                fn (string $part): ?string => $this->isTimeValue($part) ? $this->minifyTimeValue($part) : null
+            );
+        }
+
+        if ($component === 'timing') {
+            return $this->mapTransitionComponentList(
+                $value,
+                fn (string $part): ?string => $this->isTransitionTimingFunction($part) ? $this->minifyTransitionTimingFunction($part) : null
+            );
+        }
+
+        if ($component === 'property') {
+            return $this->mapTransitionComponentList(
+                $value,
+                function (string $part): ?string {
+                    $part = trim($part);
+                    if ($part === '') {
+                        return null;
+                    }
+
+                    return implode(', ', $this->expandBlockAxisTransitionProperty($part));
+                }
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function mapTransitionComponentList(string $value, callable $mapper): ?array
+    {
+        $mapped = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $component = $mapper($part);
+            if ($component === null) {
+                return null;
+            }
+            $mapped[] = $component;
+        }
+
+        return $mapped === [] ? null : $mapped;
+    }
+
+    /**
+     * @param array{property:list<string>,duration:list<string>,timing:list<string>,delay:list<string>,behavior:list<string>} $state
+     */
+    private function serializeTransitionComponents(array $state): string
+    {
+        $count = max(
+            count($state['property']),
+            count($state['duration']),
+            count($state['timing']),
+            count($state['delay']),
+            count($state['behavior'])
+        );
+        $layers = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $property = $this->transitionComponentAt($state['property'], $i, 'all');
+            $duration = $this->transitionComponentAt($state['duration'], $i, '0s');
+            $timing = $this->transitionComponentAt($state['timing'], $i, 'ease');
+            $delay = $this->transitionComponentAt($state['delay'], $i, '0s');
+            $behavior = $this->transitionComponentAt($state['behavior'], $i, 'normal');
+
+            $parts = [];
+            if (strtolower($property) !== 'all') {
+                $parts[] = $property;
+            }
+
+            $needsDuration = $duration !== '0s' || $timing !== 'ease' || $delay !== '0s' || $behavior !== 'normal';
+            if ($needsDuration) {
+                $parts[] = $duration;
+            }
+            if ($timing !== 'ease') {
+                $parts[] = $timing;
+            }
+            if ($delay !== '0s') {
+                if (!$needsDuration) {
+                    $parts[] = '0s';
+                }
+                $parts[] = $delay;
+            }
+            if ($behavior !== 'normal') {
+                $parts[] = $behavior;
+            }
+
+            $layers[] = $parts === [] ? 'all' : implode(' ', $parts);
+        }
+
+        return implode(',', $layers);
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private function transitionComponentAt(array $values, int $index, string $default): string
+    {
+        if ($values === []) {
+            return $default;
+        }
+
+        return $values[$index % count($values)];
+    }
+
+    /**
+     * @return non-empty-list<string>
+     */
+    private function expandBlockAxisTransitionProperty(string $property): array
+    {
+        return match (strtolower($property)) {
+            'margin-block' => ['margin-top', 'margin-bottom'],
+            'margin-block-start' => ['margin-top'],
+            'margin-block-end' => ['margin-bottom'],
+            'padding-block' => ['padding-top', 'padding-bottom'],
+            'padding-block-start' => ['padding-top'],
+            'padding-block-end' => ['padding-bottom'],
+            default => [$property],
+        };
     }
 
     private function normalizeMathFunctionOperators(string $value): string

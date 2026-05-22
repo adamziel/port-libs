@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
         "total": 382,
-        "mapped": 124,
+        "mapped": 138,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes outside tests/test_cssom.rs and the targeted src/lib.rs::test_transitions helper inventory, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, inspected 71 transition helper invocations in src/lib.rs::test_transitions, and counted Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 382,
@@ -115,6 +115,29 @@
                     "test vendor-prefixed transition shorthands: -webkit/-moz/background 200ms and unprefixed background 230ms shorten time units without prefix composition"
                 ]
             },
+            "focusedTransitionDeclarationCompositionInventory": {
+                "path": "src/lib.rs",
+                "test": "test_transitions",
+                "testTransitionsHelperCases": 71,
+                "newlyMappedThisRun": [
+                    "test transition-property/duration/timing-function/delay compose to transition shorthand with 0.09s -> 90ms and 500ms -> .5s",
+                    "test transition shorthand plus transition-timing-function ease and transition-delay 500ms composes to transition: opacity 2s .5s",
+                    "test transition shorthand plus var(--ease) timing keeps transition-timing-function as a longhand while minifying shorthand time",
+                    "test later transition shorthand resets earlier transition-* longhands",
+                    "test property/duration/timing/delay lists compose to comma-separated transition shorthand layers",
+                    "test shorter transition-duration/timing/delay lists cycle across longer transition-property lists",
+                    "test -webkit-transition, -moz-transition, and unprefixed transition longhand groups compose independently"
+                ]
+            },
+            "focusedTransitionLogicalPropertyInventory": {
+                "path": "src/lib.rs",
+                "test": "test_transitions",
+                "testTransitionsHelperCases": 71,
+                "newlyMappedThisRun": [
+                    "prefix_test transition-property: margin-block -> transition-property: margin-top, margin-bottom",
+                    "prefix_test transition: margin-block-start 2s -> transition: margin-top 2s"
+                ]
+            },
             "focusedCustomMediaInventory": {
                 "path": "src/lib.rs",
                 "test": "test_custom_media",
@@ -126,13 +149,18 @@
                     "custom_media_test recursive --b -> --a resolves to (color)",
                     "custom_media_test @media usage before later @custom-media declaration resolves after collection",
                     "custom_media_test print and (--color-print) deduplicates the common print media type",
+                    "custom_media_test not print and (--not-print-color) deduplicates the common not-print media type",
                     "custom_media_test not (--print) with --print not print simplifies to print",
                     "custom_media_test not (--not-color) with --not-color not (color) simplifies to (color)",
                     "custom_media_test common media type factoring maps print and (color), print and (script) to print and ((color) or (script))",
                     "custom_media_test not (min-width: 300px) maps to ((width < 300px)) inside nested boolean queries",
                     "cli preserve_custom_media keeps @custom-media declarations when requested",
                     "custom_media_error_test undefined references raise native InvalidArgumentException",
-                    "custom_media_error_test circular references raise native InvalidArgumentException"
+                    "custom_media_error_test circular references raise native InvalidArgumentException",
+                    "custom_media_error_test screen and (--color-print) raises native InvalidArgumentException for unsupported media type boolean logic",
+                    "custom_media_error_test (--color-print) or (--color-screen) raises native InvalidArgumentException for incompatible media type aliases",
+                    "custom_media_error_test (--print) and (--screen) raises native InvalidArgumentException for incompatible media type aliases",
+                    "custom_media_error_test mixed screen/print branches inside one @custom-media alias raise native InvalidArgumentException"
                 ]
             }
         },
@@ -223,15 +251,17 @@
             "Animation longhand value minification maps focused upstream src/lib.rs::test_animation cases for duration/delay time shortening, iteration-count numeric cleanup, and lowercase list serialization for direction, play-state, and fill-mode.",
             "Transition longhand value minification maps focused upstream src/lib.rs::test_transitions cases for duration/delay shortest-unit serialization, simple time calc folding, cubic-bezier keyword aliases, cubic-bezier numeric cleanup, and steps() alias cleanup.",
             "Transition shorthand value minification maps focused upstream src/lib.rs::test_transitions cases for shortest-unit times, default ease omission, canonical property/duration/timing/delay order, list layers, and vendor-prefixed transition shorthand time shortening.",
-            "Custom media transformation maps focused upstream src/lib.rs::test_custom_media and CLI preserve cases for declaration collection, recursive/later references, list substitution, media type factoring, negation simplification, undefined/circular errors, and optional declaration preservation."
+            "Transition declaration composition maps focused upstream src/lib.rs::test_transitions cases for transition-* longhands folding into shorthands, later shorthand reset behavior, unknown var() timing fallback preservation, list cycling, and independent prefixed transition groups.",
+            "Transition logical block-axis expansion maps focused upstream src/lib.rs::test_transitions prefix cases for margin-block transition-property expansion and margin-block-start transition shorthand expansion.",
+            "Custom media transformation maps focused upstream src/lib.rs::test_custom_media and CLI preserve cases for declaration collection, recursive/later references, list substitution, media type factoring, negation simplification, undefined/circular errors, unsupported media-type boolean-logic errors, and optional declaration preservation."
         ],
-        "warning": "Native PHP progress maps 124 focused upstream-aligned lane checks and 192 local PHP assertions against a 382-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs and targeted transition helper invocations in src/lib.rs::test_transitions instead of treating those files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
+        "warning": "Native PHP progress maps 138 focused upstream-aligned lane checks and 210 local PHP assertions against a 382-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs and targeted transition helper invocations in src/lib.rs::test_transitions instead of treating those files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, animation duration/delay/iteration/list longhand value minification, transition duration/delay/timing-function longhand value minification, transition shorthand value minification, focused @custom-media declaration collection/substitution/error handling, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, animation duration/delay/iteration/list longhand value minification, transition duration/delay/timing-function longhand value minification, transition shorthand value minification, transition longhand-to-shorthand declaration composition, transition logical block-axis property expansion, focused @custom-media declaration collection/substitution/error handling including unsupported media-type boolean-logic guards, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, animation and transition longhand minification, transition shorthand minification for block interactions, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, custom-media breakpoint/motion alias expansion, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
-    "nextTask": "Broaden transition longhand-to-shorthand declaration composition from upstream src/lib.rs::test_transitions, or custom-media boolean-logic error parity from upstream src/lib.rs::test_custom_media."
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, animation and transition longhand minification, transition shorthand minification, transition longhand composition, logical block-axis transition expansion for block interactions, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, custom-media breakpoint/motion alias expansion and incompatible print/screen alias rejection, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "nextTask": "Broaden direction-sensitive inline transition selector expansion and transform prefixing from upstream src/lib.rs::test_transitions, then improve custom-media diagnostic locations."
 }

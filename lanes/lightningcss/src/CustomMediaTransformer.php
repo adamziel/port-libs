@@ -107,12 +107,142 @@ final class CustomMediaTransformer
      */
     private function resolveSingleQuery(string $query, array $stack): string
     {
+        $this->validateSupportedCustomMediaBooleanLogic($query);
+
         $query = $this->normalizeWhitespace($this->resolveReferences(trim($query), $stack));
         $query = $this->simplifyNegatedFeatureRanges($query);
         $query = $this->simplifyDoubleNegation($query);
         $query = $this->simplifyDuplicateMediaTypes($query);
 
         return $this->normalizeWhitespace($query);
+    }
+
+    private function validateSupportedCustomMediaBooleanLogic(string $query): void
+    {
+        $references = $this->collectCustomMediaReferences($query);
+        if ($references === []) {
+            return;
+        }
+
+        $explicitSignature = $this->mediaTypeSignature($this->stripCustomMediaReferences($query));
+        $referenceSignatures = [];
+        foreach ($references as $reference) {
+            $signatures = $this->customMediaTypeSignatures($reference, []);
+            if (count($signatures) > 1) {
+                throw new \InvalidArgumentException("Unsupported custom media boolean logic involving {$reference}");
+            }
+
+            foreach ($signatures as $signature) {
+                $referenceSignatures[$signature] = $reference;
+            }
+        }
+
+        if (count($referenceSignatures) > 1) {
+            $reference = reset($referenceSignatures);
+            throw new \InvalidArgumentException("Unsupported custom media boolean logic involving {$reference}");
+        }
+
+        $referenceSignature = array_key_first($referenceSignatures);
+        if ($explicitSignature !== null && $referenceSignature !== null && $explicitSignature !== $referenceSignature) {
+            throw new \InvalidArgumentException('Unsupported custom media boolean logic combining media types');
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectCustomMediaReferences(string $query): array
+    {
+        $references = [];
+        $quote = null;
+        $length = strlen($query);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $query[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '(') {
+                continue;
+            }
+
+            $close = $this->findMatchingDelimiter($query, $i, '(', ')');
+            $inner = substr($query, $i + 1, $close - $i - 1);
+            $trimmed = trim($inner);
+            if (preg_match('/^--[-_a-zA-Z0-9]+$/', $trimmed) === 1) {
+                $references[$trimmed] = true;
+            } else {
+                foreach ($this->collectCustomMediaReferences($inner) as $reference) {
+                    $references[$reference] = true;
+                }
+            }
+
+            $i = $close;
+        }
+
+        return array_keys($references);
+    }
+
+    private function stripCustomMediaReferences(string $query): string
+    {
+        return preg_replace('/\(\s*--[-_a-zA-Z0-9]+\s*\)/', '(custom-media)', $query) ?? $query;
+    }
+
+    /**
+     * @param list<string> $stack
+     * @return list<string>
+     */
+    private function customMediaTypeSignatures(string $name, array $stack): array
+    {
+        if (!array_key_exists($name, $this->definitions)) {
+            throw new \InvalidArgumentException("Custom media {$name} is not defined");
+        }
+        if (in_array($name, $stack, true)) {
+            throw new \InvalidArgumentException("Circular custom media reference involving {$name}");
+        }
+
+        $stack[] = $name;
+        $signatures = [];
+        foreach ($this->splitTopLevel($this->definitions[$name], ',') as $query) {
+            $signature = $this->mediaTypeSignature($this->stripCustomMediaReferences($query));
+            if ($signature !== null) {
+                $signatures[$signature] = true;
+            }
+
+            foreach ($this->collectCustomMediaReferences($query) as $reference) {
+                foreach ($this->customMediaTypeSignatures($reference, $stack) as $nestedSignature) {
+                    $signatures[$nestedSignature] = true;
+                }
+            }
+        }
+
+        return array_keys($signatures);
+    }
+
+    private function mediaTypeSignature(string $query): ?string
+    {
+        $query = $this->normalizeWhitespace(trim($query));
+        if (preg_match('/^(?:(not|only)\s+)?(screen|print|all)\b/i', $query, $matches) !== 1) {
+            return null;
+        }
+
+        $medium = strtolower($matches[2]);
+        $qualifier = strtolower($matches[1] ?? '');
+
+        return $qualifier === 'not' ? 'not ' . $medium : $medium;
     }
 
     /**

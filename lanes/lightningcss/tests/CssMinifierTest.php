@@ -96,6 +96,58 @@ return [
             $minifier->minify('.foo { -webkit-transition: background 200ms; -moz-transition: background 200ms; transition: background 230ms }')
         );
     },
+    'css minifier maps upstream transition longhand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{transition:opacity 90ms ease-in-out .5s}',
+            $minifier->minify('.foo { transition-property: opacity; transition-duration: 0.09s; transition-timing-function: ease-in-out; transition-delay: 500ms; }')
+        );
+        $t->same(
+            '.foo{transition:opacity 2s .5s}',
+            $minifier->minify('.foo { transition: opacity 2s; transition-timing-function: ease; transition-delay: 500ms; }')
+        );
+        $t->same(
+            '.foo{transition:opacity .5s;transition-timing-function:var(--ease)}',
+            $minifier->minify('.foo { transition: opacity 500ms; transition-timing-function: var(--ease); }')
+        );
+        $t->same(
+            '.foo{transition:color 2s}',
+            $minifier->minify('.foo { transition-property: opacity; transition-duration: 0.09s; transition-timing-function: ease-in-out; transition-delay: 500ms; transition: color 2s; }')
+        );
+    },
+    'css minifier maps upstream transition list and prefix composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{transition:opacity 2s ease-in-out .5s,color 4s ease-in}',
+            $minifier->minify('.foo { transition-property: opacity, color; transition-duration: 2s, 4s; transition-timing-function: ease-in-out, ease-in; transition-delay: 500ms, 0s; }')
+        );
+        $t->same(
+            '.foo{transition:opacity 2s,color 4s,width 2s,height 4s}',
+            $minifier->minify('.foo { transition-property: opacity, color, width, height; transition-duration: 2s, 4s; transition-timing-function: ease; transition-delay: 0s; }')
+        );
+        $t->same(
+            '.foo{-webkit-transition:opacity 2s ease-in-out .5s,color 4s ease-in;-moz-transition:opacity 2s ease-in-out .5s,color 4s ease-in;transition:opacity 2s ease-in-out .5s,color 4s ease-in}',
+            $minifier->minify('.foo { -webkit-transition-property: opacity, color; -webkit-transition-duration: 2s, 4s; -webkit-transition-timing-function: ease-in-out, ease-in; -webkit-transition-delay: 500ms, 0s; -moz-transition-property: opacity, color; -moz-transition-duration: 2s, 4s; -moz-transition-timing-function: ease-in-out, ease-in; -moz-transition-delay: 500ms, 0s; transition-property: opacity, color; transition-duration: 2s, 4s; transition-timing-function: ease-in-out, ease-in; transition-delay: 500ms, 0s; }')
+        );
+    },
+    'css minifier maps upstream transition logical block properties' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{transition-property:margin-top,margin-bottom}',
+            $minifier->minify('.foo { transition-property: margin-block; }')
+        );
+        $t->same(
+            '.foo{transition:margin-top 2s}',
+            $minifier->minify('.foo { transition: margin-block-start 2s; }')
+        );
+        $t->same(
+            '.foo{transition:padding-top .2s,padding-bottom .2s}',
+            $minifier->minify('.foo { transition: padding-block 200ms; }')
+        );
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
@@ -124,6 +176,36 @@ CSS;
 
         $t->same(
             '.wp-block-button.is-style-animated .wp-element-button{transition-duration:1.9s;transition-delay:.5s;transition-timing-function:ease-in,steps(5,start)}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block interaction longhands compose to transition shorthand without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-query-pagination a {
+  transition-property: opacity, transform;
+  transition-duration: 90ms, 200ms;
+  transition-timing-function: ease-in-out, cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition-delay: 500ms, 0s;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-query-pagination a{transition:opacity 90ms ease-in-out .5s,transform .2s}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress logical spacing transitions expand block axis properties without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-group.is-style-reveal {
+  transition-property: margin-block;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+  transition-delay: 0s;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-group.is-style-reveal{transition:margin-top .2s,margin-bottom .2s}',
             (new CssMinifier())->minify($css)
         );
     },

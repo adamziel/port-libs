@@ -58,6 +58,10 @@ CSS;
             '@media (color){.a{color:green}}',
             $transformAndMinify('@custom-media --not-color not (color); @media not (--not-color) { .a { color: green } }')
         );
+        $t->same(
+            '@media not print and (color){.a{color:green}}',
+            $transformAndMinify('@custom-media --not-print-color not print and (color); @media not print and (--not-print-color) { .a { color: green } }')
+        );
     },
     'custom media transformer maps upstream common media type factoring' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
@@ -107,6 +111,26 @@ CSS;
             static fn () => $transformer->transform('@custom-media --a (--b); @custom-media --b (--a); @media (--a) { body { color: red } }')
         );
     },
+    'custom media transformer rejects upstream unsupported media type boolean logic' => static function (TestRunner $t): void {
+        $transformer = new CustomMediaTransformer();
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $transformer->transform('@custom-media --color-print print and (color); @media screen and (--color-print) { .a { color: green } }')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $transformer->transform('@custom-media --color-print print and (color); @custom-media --color-screen screen and (color); @media (--color-print) or (--color-screen) {}')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $transformer->transform('@custom-media --screen screen; @custom-media --print print; @media (--print) and (--screen) {}')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $transformer->transform('@custom-media --color screen and (color), print and (color); @media (--color) { .a { color: green } }')
+        );
+    },
     'wordpress custom media transformer expands block theme breakpoints without node' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --wp-mobile (max-width: 599px);
@@ -124,5 +148,18 @@ CSS;
             '@media (width<=599px) and (prefers-reduced-motion:no-preference){.wp-block-cover.is-style-animated{animation-duration:.1s;color:#ff0}}',
             $transformAndMinify($css)
         );
+    },
+    'wordpress custom media transformer rejects incompatible print aliases in screen styles' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@custom-media --wp-print-color print and (color);
+
+@media screen and (--wp-print-color) {
+  .wp-block-post-title {
+    color: green;
+  }
+}
+CSS;
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CustomMediaTransformer())->transform($css));
     },
 ];
