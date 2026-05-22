@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "syncthing",
-    "estimatedProgress": 4,
-    "suiteProgress": "cloned static upstream inventory counted: 211 unique test-related paths; upstream runner not executed",
-    "phpPass": 6,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static upstream inventory counted: 211 unique test-related paths; scanner and protocol vector semantics mapped; upstream runner not executed",
+    "phpPass": 11,
     "phpFail": 0,
-    "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset.",
-    "phase": "cloned static upstream inventory plus scanner block parity slice",
+    "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset, and vector fixtures cover concurrent media/caption edits from separate devices.",
+    "phase": "cloned static upstream inventory plus scanner block and protocol vector slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, and upstream block size selection.",
+    "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, and immutable protocol version vectors for update/merge/compare/concurrent edit detection.",
     "blocker": "Full upstream runner has not executed: `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
-    "latestCommit": "7af2cb2fef6f",
-    "nextTask": "Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures."
+    "latestCommit": "61197ec",
+    "nextTask": "Port FileInfo conflict winner, tombstone, and delete/modify ordering semantics from protocol conflict tests."
 }

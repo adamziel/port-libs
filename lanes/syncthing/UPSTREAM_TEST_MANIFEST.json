@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 211,
-        "mapped": 6,
+        "mapped": 11,
         "source": "Shallow blob-filtered upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted test-related paths with git ls-tree without hydrating the full checkout.",
         "inventory": {
             "goTestFiles": 141,
@@ -45,15 +45,20 @@
             "Block verification requires exact contiguous coverage of the local byte string.",
             "Per-file block size selection follows `MinBlockSize`, `MaxBlockSize`, and `DesiredPerFileBlocks` from `lib/protocol`.",
             "Block-list hashes are SHA-256 over concatenated raw block hashes, matching `protocol.BlocksHash`.",
-            "Optional hash validation follows scanner `Validate`: an empty expected hash accepts the bytes."
+            "Optional hash validation follows scanner `Validate`: an empty expected hash accepts the bytes.",
+            "Protocol version vectors update counters by sorted device ID and use max(existing + 1, unix time).",
+            "Version vector merges keep the maximum counter value for each device while preserving sorted IDs.",
+            "Missing counters compare as zero, so zero-valued counters compare equal to missing device counters.",
+            "Vector comparison returns equal, greater, lesser, and Syncthing's oriented concurrent orderings.",
+            "Concurrent WordPress media/caption edits from separate devices are detected before merge and dominated by the merged vector."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against a 211-path upstream test-related denominator."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 11 focused lane tests against a 211-path upstream test-related denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, and upstream block size selection."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, and protocol version vector update/merge/compare semantics."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset.",
-    "nextTask": "Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset, and vector fixtures cover concurrent media/caption edits from separate devices.",
+    "nextTask": "Port FileInfo conflict winner, tombstone, and delete/modify ordering semantics from protocol conflict tests."
 }
