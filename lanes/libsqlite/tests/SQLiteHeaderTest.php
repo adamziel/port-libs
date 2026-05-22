@@ -555,6 +555,7 @@ return [
         $expressionIndex = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_expr ON wp_options(lower(option_name))');
         $isNotNullIndex = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_present_name ON wp_options(option_name) WHERE (main.wp_options."option_name" IS NOT NULL)');
         $autoloadedIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes'");
+        $autoloadOrIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes' OR autoload='on'");
 
         $t->same('option_name', $index?->columnName);
         $t->same('NOCASE', $index?->collation);
@@ -566,6 +567,11 @@ return [
         $t->same('autoload', $autoloadedIndex?->partialPredicate?->columnName);
         $t->same(SQLiteIndexPredicate::EQUALS, $autoloadedIndex?->partialPredicate?->operator);
         $t->same('yes', $autoloadedIndex?->partialPredicate?->value);
+        $t->same(SQLiteIndexPredicate::OR, $autoloadOrIndex?->partialPredicate?->operator);
+        $t->same(['yes', 'on'], array_map(
+            static fn (SQLiteIndexPredicate $predicate): mixed => $predicate->value,
+            $autoloadOrIndex?->partialPredicate?->value ?? [],
+        ));
     },
     'parses explicit sqlite composite index column metadata' => static function (TestRunner $t): void {
         $columns = SQLiteCreateIndex::columns('CREATE INDEX idx_autoload_name ON wp_options(autoload, option_name COLLATE nocase DESC, option_value) WHERE autoload IS NOT NULL');
@@ -677,6 +683,40 @@ return [
         $t->same('yes', $option->autoload);
         $t->same(null, $missingAutoloadedName);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedNameForAutoload('siteurl', 'no'));
+    },
+    'uses or equality partial option_name index when wordpress autoload predicate matches one term' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoloaded_name', 'wp_options', 3, "CREATE INDEX wp_options_autoloaded_name ON wp_options(option_name) WHERE autoload='yes' OR autoload='on'"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'on'], 2),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'no'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $siteurl = $database->wordpressOptionByIndexedNameForAutoload('siteurl', 'yes');
+        $home = $database->wordpressOptionByIndexedNameForAutoload('home', 'on');
+
+        $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'siteurl', [
+            'autoload' => 'yes',
+        ]));
+        $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'home', [
+            'autoload' => 'on',
+        ]));
+        $t->same(null, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'blogname', [
+            'autoload' => 'no',
+        ]));
+        $t->true($siteurl instanceof SQLiteWordPressOption);
+        $t->same('https://example.test', $siteurl->optionValue);
+        $t->true($home instanceof SQLiteWordPressOption);
+        $t->same('https://example.test/blog', $home->optionValue);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedNameForAutoload('blogname', 'no'));
     },
     'uses nonunique composite autoload index to scan duplicate wordpress options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

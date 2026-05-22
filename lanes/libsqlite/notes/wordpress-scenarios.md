@@ -42,7 +42,10 @@ options table. Equality partial indexes such as
 `CREATE INDEX ... ON wp_options(option_name) WHERE autoload='yes'` are now
 usable when the recovery caller supplies the matching autoload constraint, so
 autoloaded single-option lookups can avoid both a whole-table scan and a wider
-composite index requirement.
+composite index requirement. OR equality partial predicates such as
+`WHERE autoload='yes' OR autoload='on'` are also usable when the caller
+supplies one matching autoload value, which helps migration/recovery tools read
+WordPress databases with mixed legacy autoload state encodings.
 
 ## Example
 
@@ -74,9 +77,11 @@ host without the PHP SQLite extension.
 `examples/wordpress-autoloaded-option-by-name.php` reads a WordPress-oriented
 SQLite database file, resolves either an explicit composite
 `wp_options(autoload, option_name)` index or an equality partial
-`wp_options(option_name) WHERE autoload='yes'` index, and returns a single
-option when both the autoload value and option name are known. This is useful
-for recovery tools that need to inspect one autoloaded option while avoiding a
+`wp_options(option_name) WHERE autoload='yes'` index. The same path now accepts
+OR equality partial predicates such as `autoload='yes' OR autoload='on'` when
+the requested autoload value matches one branch, and returns a single option
+when both the autoload value and option name are known. This is useful for
+recovery tools that need to inspect one autoloaded option while avoiding a
 whole-table scan on constrained hosts.
 
 `examples/wordpress-option-name-range.php` reads a WordPress-oriented SQLite
@@ -94,6 +99,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: optimized b-tree seek bounds, expression indexes, OR/range/inequality
+slice: optimized b-tree seek bounds, expression indexes, comparison/range/AND
 partial-index predicate implication, custom collations, automatic-index
 collation metadata, and full composite-key range scans.

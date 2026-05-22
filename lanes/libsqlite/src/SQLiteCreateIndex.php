@@ -176,6 +176,26 @@ final class SQLiteCreateIndex
     private static function parsePartialPredicate(string $where): ?SQLiteIndexPredicate
     {
         $where = trim(self::stripOuterParens($where));
+        $orTerms = self::splitTopLevelKeyword($where, 'OR');
+        if (count($orTerms) > 1) {
+            $predicates = [];
+            foreach ($orTerms as $term) {
+                $predicate = self::parseSinglePartialPredicate($term);
+                if ($predicate === null) {
+                    return null;
+                }
+                $predicates[] = $predicate;
+            }
+
+            return new SQLiteIndexPredicate('', SQLiteIndexPredicate::OR, $predicates);
+        }
+
+        return self::parseSinglePartialPredicate($where);
+    }
+
+    private static function parseSinglePartialPredicate(string $where): ?SQLiteIndexPredicate
+    {
+        $where = trim(self::stripOuterParens($where));
         $identifier = self::readPossiblyQualifiedIdentifier($where, 0);
         if ($identifier === null) {
             return null;
@@ -211,6 +231,50 @@ final class SQLiteCreateIndex
         }
 
         return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::EQUALS, $literal[0]);
+    }
+
+    /**
+     * @return non-empty-list<string>
+     */
+    private static function splitTopLevelKeyword(string $text, string $keyword): array
+    {
+        $terms = [];
+        $start = 0;
+        $depth = 0;
+        $length = strlen($text);
+        $keywordLength = strlen($keyword);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $text[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuoted($text, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $i = self::skipBracketQuoted($text, $i);
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if (
+                $depth === 0
+                && strncasecmp(substr($text, $i, $keywordLength), $keyword, $keywordLength) === 0
+                && ($i === 0 || !self::isIdentifierChar($text[$i - 1]))
+                && (!isset($text[$i + $keywordLength]) || !self::isIdentifierChar($text[$i + $keywordLength]))
+            ) {
+                $terms[] = substr($text, $start, $i - $start);
+                $start = $i + $keywordLength;
+                $i += $keywordLength - 1;
+            }
+        }
+        $terms[] = substr($text, $start);
+
+        return array_map(trim(...), $terms);
     }
 
     private static function readEqualsOperator(string $text, int $offset): ?int

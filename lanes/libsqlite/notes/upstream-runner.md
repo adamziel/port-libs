@@ -261,6 +261,40 @@ point-lookup root-page helper, resolving a WordPress-shaped
 to reject an unsupported `WHERE autoload='yes'` partial index for generic
 option-name point lookup.
 
+## Focused Native Mapping: OR Equality Partial Predicates
+
+SQLite's partial-index planner allows an index whose predicate is an OR
+expression when one query WHERE term implies one OR arm. The native PHP reader
+now maps that bounded rule for OR predicates made of simple equality terms,
+which is enough for WordPress recovery callers that know a concrete autoload
+state and need to use a narrowed `wp_options(option_name)` index.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index7.test
+```
+
+Result: 2 Tcl script/permutation runs, 0 errors out of 60 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index7.test` verifies OR partial-index usability boundaries with
+  `CREATE INDEX t2a2 ON t2(a) WHERE a<100 OR a>200`, including the requirement
+  that a query term imply one OR arm before the partial index is usable.
+- `src/where.c` `whereUsablePartialIndex()` and `src/expr.c`
+  `sqlite3ExprImpliesExpr()` are the focused source boundaries: AND predicates
+  must have every term usable, while OR predicates are usable if one branch is
+  implied.
+
+The native PHP tests now parse `WHERE autoload='yes' OR autoload='on'`, expose
+the OR predicate tree, use the partial option-name index when the caller
+supplies either matching autoload equality, and reject `autoload='no'`.
+Comparison OR terms, AND predicate conjunctions, and custom collation-aware
+predicate comparison remain outside this slice.
+
 ## Focused Native Mapping: Duplicate First-Column Index Scans
 
 SQLite non-unique indexes allow multiple rows with the same first indexed key.
