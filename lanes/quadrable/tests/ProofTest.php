@@ -26,6 +26,46 @@ return [
         $t->same('value', $decoded->strands[0]->value);
         $t->same(ProofCommand::MERGE, $decoded->commands[0]->operation);
     },
+    'full key proof encoding preserves tracked string keys for partial enumeration' => static function (TestRunner $t): void {
+        $tree = new SparseTree();
+        $tree->change()
+            ->put('wp_options:siteurl', 'https://example.test')
+            ->put('wp_options:home', 'https://example.test')
+            ->put('wp_posts:1', 'Hello world')
+            ->apply();
+
+        $root = $tree->rootHash();
+        $proof = $tree->exportProof([
+            'wp_options:siteurl',
+            'wp_posts:1',
+            'wp_posts:404',
+        ]);
+        $encoded = $proof->encode(Proof::ENCODING_FULL_KEYS);
+        $decoded = Proof::decode($encoded);
+        $partial = SparseTree::importProof($decoded, $root);
+
+        $t->same(Proof::ENCODING_FULL_KEYS, ord($encoded[0]));
+        $t->same($root, $partial->rootHash());
+        $t->same('https://example.test', $partial->get('wp_options:siteurl'));
+        $t->same('Hello world', $partial->get('wp_posts:1'));
+        $t->same(null, $partial->get('wp_posts:404'));
+        $t->throws(RuntimeException::class, static fn () => $partial->get('wp_options:home'));
+
+        $entries = [];
+        foreach ($partial->orderedEntries() as $entry) {
+            $entries[$entry->stringKey() ?? $entry->keyHex()] = $entry->value();
+        }
+        ksort($entries, SORT_STRING);
+
+        $t->same([
+            'wp_options:siteurl' => 'https://example.test',
+            'wp_posts:1' => 'Hello world',
+        ], $entries);
+
+        $raw = new SparseTree();
+        $raw->putKey(Key::fromInteger(1), 'one');
+        $t->throws(RuntimeException::class, static fn () => $raw->exportRawProof([Key::fromInteger(1)])->encode(Proof::ENCODING_FULL_KEYS));
+    },
     'maps upstream basic proof export import and incomplete lookups' => static function (TestRunner $t): void {
         $tree = new SparseTree();
         $changes = $tree->change();

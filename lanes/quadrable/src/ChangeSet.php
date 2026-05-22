@@ -9,7 +9,7 @@ final class ChangeSet
     private HashTree $hashTree;
 
     /**
-     * @var array<string, array{delete: bool, value: string}>
+     * @var array<string, array{delete: bool, value: string, key?: string}>
      */
     private array $updates = [];
 
@@ -24,6 +24,7 @@ final class ChangeSet
         $this->updates[$this->hashTree->keyHash($key)] = [
             'delete' => false,
             'value' => $value,
+            'key' => $key,
         ];
 
         return $this;
@@ -45,6 +46,7 @@ final class ChangeSet
         $this->updates[$this->hashTree->keyHash($key)] = [
             'delete' => true,
             'value' => '',
+            'key' => $key,
         ];
 
         return $this;

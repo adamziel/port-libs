@@ -14,6 +14,11 @@ final class SparseTree
     private array $values = [];
 
     /**
+     * @var array<string, string>
+     */
+    private array $trackedKeys = [];
+
+    /**
      * @var array<string, mixed>|null
      */
     private ?array $partialRoot = null;
@@ -494,15 +499,26 @@ final class SparseTree
     public function orderedEntries(): array
     {
         $entries = [];
+        if ($this->partialRoot !== null) {
+            $records = [];
+            $this->collectEnumerablePartialLeafRecords($this->partialRoot, $records);
+            ksort($records, SORT_STRING);
+            foreach ($records as $keyHashHex => $record) {
+                $entries[] = new SparseTreeEntry(Key::fromHex($keyHashHex), $record['value'], $record['key']);
+            }
+
+            return $entries;
+        }
+
         foreach ($this->entries() as $keyHashHex => $value) {
-            $entries[] = new SparseTreeEntry(Key::fromHex($keyHashHex), $value);
+            $entries[] = new SparseTreeEntry(Key::fromHex($keyHashHex), $value, $this->trackedKeys[$keyHashHex] ?? null);
         }
 
         return $entries;
     }
 
     /**
-     * @param array<string, array{delete: bool, value: string}> $updates
+     * @param array<string, array{delete: bool, value: string, key?: string}> $updates
      */
     public function applyRawUpdates(array $updates): self
     {
@@ -515,16 +531,26 @@ final class SparseTree
 
         foreach ($updates as $keyHashHex => $update) {
             self::assertHash($keyHashHex);
-            if (!isset($update['delete'], $update['value']) || !is_bool($update['delete']) || !is_string($update['value'])) {
+            if (!isset($update['delete'], $update['value'])
+                || !is_bool($update['delete'])
+                || !is_string($update['value'])
+                || (array_key_exists('key', $update) && !is_string($update['key']))
+            ) {
                 throw new \InvalidArgumentException('Malformed sparse tree update');
             }
 
             if ($update['delete']) {
                 unset($this->values[$keyHashHex]);
+                unset($this->trackedKeys[$keyHashHex]);
                 continue;
             }
 
             $this->values[$keyHashHex] = $update['value'];
+            if (array_key_exists('key', $update) && $update['key'] !== '') {
+                $this->trackedKeys[$keyHashHex] = $update['key'];
+            } else {
+                unset($this->trackedKeys[$keyHashHex]);
+            }
         }
 
         ksort($this->values, SORT_STRING);
@@ -586,6 +612,7 @@ final class SparseTree
             $records[] = [
                 'keyHash' => $keyHashHex,
                 'value' => $value,
+                'key' => $this->trackedKeys[$keyHashHex] ?? '',
             ];
         }
         usort($records, static fn (array $a, array $b): int => $a['keyHash'] <=> $b['keyHash']);
@@ -599,7 +626,7 @@ final class SparseTree
     }
 
     /**
-     * @param list<array{keyHash: string, value: string}> $records
+     * @param list<array{keyHash: string, value: string, key: string}> $records
      * @param array<int, array<string, mixed>> $nodesById
      *
      * @return array<string, mixed>
@@ -628,6 +655,7 @@ final class SparseTree
                 'depth' => $depth,
                 'keyHash' => $records[0]['keyHash'],
                 'value' => $records[0]['value'],
+                'key' => $records[0]['key'],
                 'hash' => $this->hashTree->leafHashForKeyHash($records[0]['keyHash'], $records[0]['value']),
                 'nodes' => 1,
                 'leaves' => 1,
@@ -704,10 +732,12 @@ final class SparseTree
                     throw new \RuntimeException('incomplete tree, missing leaf to make proof');
                 }
 
+                $leafKey = $node['key'] ?? $keyHashes[$node['keyHash']];
+
                 $items[] = [
                     'nodeId' => $nodeId,
                     'parentNodeId' => $parentNodeId,
-                    'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value'], $keyHashes[$node['keyHash']]),
+                    'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value'], $leafKey),
                 ];
                 return;
             }
@@ -779,7 +809,7 @@ final class SparseTree
             $items[] = [
                 'nodeId' => $nodeId,
                 'parentNodeId' => $parentNodeId,
-                'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value']),
+                'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value'], $node['key'] ?? ''),
             ];
             return;
         }
@@ -873,7 +903,7 @@ final class SparseTree
                 $items[] = [
                     'nodeId' => $node['id'],
                     'parentNodeId' => $parentNodeId,
-                    'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value']),
+                    'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value'], $node['key'] ?? ''),
                 ];
                 return;
             }
@@ -1056,7 +1086,7 @@ final class SparseTree
 
     /**
      * @param array<string, mixed> $node
-     * @param array<string, array{delete: bool, value: string}> $updates
+     * @param array<string, array{delete: bool, value: string, key?: string}> $updates
      *
      * @return array{node: array<string, mixed>, bubble: bool}
      */
@@ -1064,7 +1094,11 @@ final class SparseTree
     {
         foreach ($updates as $keyHashHex => $update) {
             self::assertHash($keyHashHex);
-            if (!isset($update['delete'], $update['value']) || !is_bool($update['delete']) || !is_string($update['value'])) {
+            if (!isset($update['delete'], $update['value'])
+                || !is_bool($update['delete'])
+                || !is_string($update['value'])
+                || (array_key_exists('key', $update) && !is_string($update['key']))
+            ) {
                 throw new \InvalidArgumentException('Malformed sparse tree update');
             }
         }
@@ -1144,7 +1178,7 @@ final class SparseTree
 
     /**
      * @param array<string, mixed> $node
-     * @param array<string, array{delete: bool, value: string}> $updates
+     * @param array<string, array{delete: bool, value: string, key?: string}> $updates
      *
      * @return array{node: array<string, mixed>, bubble: bool}
      */
@@ -1166,7 +1200,7 @@ final class SparseTree
             }
 
             return [
-                'node' => $this->leafPartialNode($nodeKeyHash, $update['value'], $node['depth']),
+                'node' => $this->leafPartialNode($nodeKeyHash, $update['value'], $node['depth'], $update['key'] ?? ($node['key'] ?? '')),
                 'bubble' => false,
             ];
         }
@@ -1210,7 +1244,7 @@ final class SparseTree
     }
 
     /**
-     * @param array<string, array{delete: bool, value: string|array<string, mixed>}> $updates
+     * @param array<string, array{delete: bool, value: string|array<string, mixed>, key?: string}> $updates
      *
      * @return array<string, mixed>
      */
@@ -1227,7 +1261,7 @@ final class SparseTree
                 return $update['value'];
             }
 
-            return $this->leafPartialNode($keyHashHex, $update['value'], $depth);
+            return $this->leafPartialNode($keyHashHex, $update['value'], $depth, $update['key'] ?? '');
         }
 
         if ($depth > 255) {
@@ -1254,7 +1288,7 @@ final class SparseTree
     /**
      * @return array<string, mixed>
      */
-    private function leafPartialNode(string $keyHashHex, string $value, int $depth): array
+    private function leafPartialNode(string $keyHashHex, string $value, int $depth, string $key = ''): array
     {
         self::assertHash($keyHashHex);
 
@@ -1264,6 +1298,7 @@ final class SparseTree
             'depth' => $depth,
             'keyHash' => $keyHashHex,
             'value' => $value,
+            'key' => $key,
             'hash' => $this->hashTree->leafHashForKeyHash($keyHashHex, $value),
         ];
     }
@@ -1601,6 +1636,33 @@ final class SparseTree
 
     /**
      * @param array<string, mixed> $node
+     * @param array<string, array{value: string, key: ?string}> $entries
+     */
+    private function collectEnumerablePartialLeafRecords(array $node, array &$entries): void
+    {
+        if ($node['type'] === 'empty' || $this->isWitnessAny($node)) {
+            return;
+        }
+
+        if ($node['type'] === 'leaf') {
+            $entries[$node['keyHash']] = [
+                'value' => $node['value'],
+                'key' => ($node['key'] ?? '') !== '' ? $node['key'] : null,
+            ];
+            return;
+        }
+
+        if ($node['type'] === 'branch') {
+            $this->collectEnumerablePartialLeafRecords($node['left'], $entries);
+            $this->collectEnumerablePartialLeafRecords($node['right'], $entries);
+            return;
+        }
+
+        throw new \RuntimeException('unrecognized partial tree node type');
+    }
+
+    /**
+     * @param array<string, mixed> $node
      * @param array<string, array{value: string, nodeId: int}> $entries
      */
     private function collectFullPartialLeafRecords(array $node, array &$entries): void
@@ -1719,6 +1781,7 @@ final class SparseTree
                     'depth' => $strand->depth,
                     'keyHash' => $strand->keyHash,
                     'value' => $strand->value,
+                    'key' => $strand->key,
                     'hash' => $hashTree->leafHashForKeyHash($strand->keyHash, $strand->value),
                 ];
             } elseif ($strand->type === ProofStrand::WITNESS_LEAF) {
