@@ -107,6 +107,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   foot sections; the bounded PHP slice maps those row-span and section shapes
   through DocBook `morerows`, `thead`, `tbody`, and `tfoot` input and
   WordPress `rowspan`/`tfoot` output.
+- `test/command/nested-table-to-asciidoc-6942.md` command fixture inspected in
+  this run: 82 lines covering HTML input rendered to AsciiDoc, including a
+  two-level nested table that Pandoc renders as a nested table and a separate
+  three-level case where the AsciiDoc writer warns because that target format
+  only supports two table levels. The bounded PHP slice maps the two-level
+  nested-table AST shape at the WordPress boundary.
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -214,6 +220,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   raw without interpreting Markdown, HTML comments become raw HTML blocks with
   tabs expanded as Pandoc does, trailing spaces are trimmed from raw comments and
   `<hr>` tags, and tab-indented HTML remains an indented code block.
+- The two-level nested HTML table case from
+  `test/command/nested-table-to-asciidoc-6942.md` is now represented for the
+  WordPress table boundary: balanced nested `<table>` blocks are parsed into
+  native table AST nodes inside `table_cell` children, while simple non-nested
+  raw HTML tables continue to use the existing raw HTML block path.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
   single and double quotes become `quoted` AST nodes, apostrophes inside words

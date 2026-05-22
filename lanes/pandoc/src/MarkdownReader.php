@@ -50,6 +50,11 @@ final class MarkdownReader
                 $blocks[] = $docBookTable;
                 continue;
             }
+            $nestedHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadNestedHtmlTableBlock($lines, $index) : null;
+            if ($nestedHtmlTable !== null) {
+                $blocks[] = $nestedHtmlTable;
+                continue;
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -817,6 +822,290 @@ final class MarkdownReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadNestedHtmlTableBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return null;
+        }
+
+        $balanced = $this->collectBalancedHtmlTableBlock($lines, $index);
+        if ($balanced === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $balanced;
+        $table = $this->parseNestedHtmlTable($html);
+        if ($table === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $table;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectBalancedHtmlTableBlock(array $lines, int $index): ?array
+    {
+        $content = [];
+        $depth = 0;
+        $started = false;
+        $count = count($lines);
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $content[] = $line;
+
+            preg_match_all('/<\/?table\b[^>]*>/i', $line, $matches, PREG_OFFSET_CAPTURE);
+            foreach ($matches[0] as $match) {
+                $tag = strtolower($match[0]);
+                if (str_starts_with($tag, '</table')) {
+                    $depth--;
+                    if ($started && $depth === 0) {
+                        return [implode("\n", $content), $cursor];
+                    }
+                    continue;
+                }
+
+                $started = true;
+                $depth++;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseNestedHtmlTable(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $table = $this->firstDescendantElement($body, 'table');
+        if (!$table instanceof \DOMElement || !$this->htmlTableContainsNestedTable($table)) {
+            return null;
+        }
+
+        return $this->parseHtmlTableElement($table);
+    }
+
+    private function htmlTableContainsNestedTable(\DOMElement $table): bool
+    {
+        foreach ($table->getElementsByTagName('table') as $nested) {
+            if ($nested instanceof \DOMElement && !$nested->isSameNode($table)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function parseHtmlTableElement(\DOMElement $table): AstNode
+    {
+        $maxColumns = 0;
+        $thead = $this->firstChildElement($table, 'thead');
+        $tfoot = $this->firstChildElement($table, 'tfoot');
+        $bodySections = $this->childElements($table, 'tbody');
+
+        $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns) : [];
+        $bodyRows = [];
+        if ($bodySections !== []) {
+            foreach ($bodySections as $tbody) {
+                array_push($bodyRows, ...$this->readHtmlTableRows($tbody, false, $maxColumns));
+            }
+        } else {
+            $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns);
+        }
+        $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
+
+        $attrs = [
+            'caption' => '',
+            'alignments' => array_fill(0, $maxColumns, 'default'),
+        ];
+        if ($maxColumns > 0) {
+            $attrs['widths'] = array_fill(0, $maxColumns, 1 / $maxColumns);
+        }
+
+        $children = [
+            new AstNode('table_head', [], $headRows),
+            new AstNode('table_body', [], $bodyRows),
+        ];
+        if ($footRows !== []) {
+            $children[] = new AstNode('table_foot', [], $footRows);
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readHtmlTableRows(\DOMElement $section, bool $header, int &$maxColumns): array
+    {
+        $rows = [];
+        foreach ($this->childElements($section, 'tr') as $rowElement) {
+            $cells = [];
+            $rowColumns = 0;
+            foreach ($rowElement->childNodes as $child) {
+                if (!$child instanceof \DOMElement || !in_array(strtolower($child->localName), ['td', 'th'], true)) {
+                    continue;
+                }
+
+                $cell = $this->buildHtmlTableCell($child, $header || strtolower($child->localName) === 'th');
+                $cells[] = $cell;
+                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
+            }
+
+            if ($cells === []) {
+                continue;
+            }
+
+            $maxColumns = max($maxColumns, $rowColumns);
+            $rows[] = new AstNode('table_row', ['header' => $header], $cells);
+        }
+
+        return $rows;
+    }
+
+    private function buildHtmlTableCell(\DOMElement $cell, bool $header): AstNode
+    {
+        $children = $this->parseHtmlTableCellChildren($cell);
+        $attrs = [
+            'text' => trim(preg_replace('/\s+/', ' ', $cell->textContent) ?? $cell->textContent),
+            'header' => $header,
+        ];
+
+        $colspan = $this->positiveHtmlSpan($cell->getAttribute('colspan'));
+        if ($colspan > 1) {
+            $attrs['colspan'] = $colspan;
+        }
+
+        $rowspan = $this->positiveHtmlSpan($cell->getAttribute('rowspan'));
+        if ($rowspan > 1) {
+            $attrs['rowspan'] = $rowspan;
+        }
+
+        $alignment = $this->normalizeHtmlTableAlignment($cell);
+        if ($alignment !== 'default') {
+            $attrs['align'] = $alignment;
+        }
+
+        return new AstNode('table_cell', $attrs, $children);
+    }
+
+    private function positiveHtmlSpan(string $value): int
+    {
+        $value = trim($value);
+
+        return preg_match('/^\d+$/', $value) === 1 ? max(1, (int) $value) : 1;
+    }
+
+    private function normalizeHtmlTableAlignment(\DOMElement $cell): string
+    {
+        $align = strtolower(trim($cell->getAttribute('align')));
+        if (in_array($align, ['left', 'right', 'center'], true)) {
+            return $align;
+        }
+
+        $style = strtolower($cell->getAttribute('style'));
+        if (preg_match('/text-align\s*:\s*(left|right|center)\b/', $style, $m) === 1) {
+            return $m[1];
+        }
+
+        return 'default';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlTableCellChildren(\DOMElement $cell): array
+    {
+        $children = [];
+        foreach ($cell->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'table') {
+                $children[] = $this->parseHtmlTableElement($child);
+                continue;
+            }
+
+            array_push($children, ...$this->parseHtmlInlineNode($child));
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlInlineNode(\DOMNode $node): array
+    {
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            $text = trim(preg_replace('/\s+/', ' ', $node->wholeText) ?? $node->wholeText);
+
+            return $text === '' ? [] : $this->parseInlines($text);
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return [];
+        }
+
+        $name = strtolower($node->localName);
+        $children = $this->parseHtmlInlineChildren($node);
+
+        if (in_array($name, ['strong', 'b'], true)) {
+            return [new AstNode('strong', [], $children)];
+        }
+        if (in_array($name, ['em', 'i'], true)) {
+            return [new AstNode('emph', [], $children)];
+        }
+        if (in_array($name, ['code', 'kbd', 'samp'], true)) {
+            return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];
+        }
+        if ($name === 'a') {
+            return [new AstNode('link', [
+                'url' => $node->getAttribute('href'),
+                'title' => $node->getAttribute('title'),
+            ], $children)];
+        }
+        if ($name === 'br') {
+            return [new AstNode('softbreak')];
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlInlineChildren(\DOMElement $element): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            array_push($children, ...$this->parseHtmlInlineNode($child));
+        }
+
+        return $children;
     }
 
     /**

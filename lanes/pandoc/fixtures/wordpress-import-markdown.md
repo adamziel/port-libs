@@ -83,6 +83,20 @@ Raw import table:
 </tr>
 </table>
 
+Nested import table:
+
+<table>
+<tr>
+<td>
+<table><tr><td>Inner posts</td><td>42</td></tr></table>
+</td>
+<td>Batch status</td>
+</tr>
+<tr>
+<td>Reviewer</td><td>Ready</td>
+</tr>
+</table>
+
 Import metrics:
 
 | Item | Count | Notes |

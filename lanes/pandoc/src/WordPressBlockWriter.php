@@ -331,10 +331,49 @@ final class WordPressBlockWriter
                 continue;
             }
             $attrs = $this->renderTableCellAttrs($table, $index, $cell);
-            $html .= '<' . $tag . $attrs . '>' . $this->renderInlines($cell) . '</' . $tag . '>';
+            $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
         }
 
         return $html . '</tr>';
+    }
+
+    private function renderTableCellContent(AstNode $cell): string
+    {
+        if ($cell->children === []) {
+            return $this->esc((string) $cell->attr('text', ''));
+        }
+
+        $html = '';
+        foreach ($cell->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $html .= $this->renderInlineNode($child);
+                continue;
+            }
+
+            $html .= $this->renderBlocksAsHtml([$child]);
+        }
+
+        return $html;
+    }
+
+    private function isInlineNode(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'emph',
+            'strong',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'softbreak',
+            'quoted',
+            'math',
+            'raw_tex',
+            'code',
+            'link',
+            'image',
+            'note',
+        ], true);
     }
 
     private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string

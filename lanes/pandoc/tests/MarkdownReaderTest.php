@@ -1007,6 +1007,44 @@ return [
         $t->contains('*should not*', $script->attr('html'));
         $t->same(false, str_contains($script->attr('html'), '<em>should not</em>'));
     },
+    'maps upstream command nested html tables into table cell block children' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+ <tr>
+  <td>
+   <table>  <tr> <td> a1 </td> <td> a2 </td> </tr>  </table>
+  </td>
+  <td>b</td>
+ </tr>
+ <tr>
+   <td>c</td> <td>d </td>
+ </tr>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $nested = $body->children[0]->children[0]->children[0];
+
+        $t->same(1, count($document->children));
+        $t->same('table', $table->type);
+        $t->same([], $table->children[0]->children);
+        $t->same([0.5, 0.5], $table->attr('widths'));
+        $t->same('table', $nested->type);
+        $t->same('a1', $nested->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('a2', $nested->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('b', $body->children[0]->children[1]->attr('text'));
+        $t->same('c', $body->children[1]->children[0]->attr('text'));
+        $t->same('d', $body->children[1]->children[1]->attr('text'));
+    },
+    'writes wordpress nested html tables inside table cells for legacy imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Nested import table:</p>', $blocks);
+        $t->contains('<td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>Inner posts</td><td>42</td></tr></tbody></table></td><td>Batch status</td>', $blocks);
+        $t->contains('<tr><td>Reviewer</td><td>Ready</td></tr>', $blocks);
+    },
     'maps upstream testsuite raw html comments hr blocks and indented html code' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '<!-- Comment -->',

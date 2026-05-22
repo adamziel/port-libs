@@ -49,6 +49,11 @@ tables remain in a WordPress HTML block while Markdown inside table cells is
 interpreted, HTML comments can carry migration audit markers, custom `<hr>`
 tags stay raw instead of being normalized into core separators, and tab-indented
 HTML snippets remain code blocks.
+The two-level nested table shape from
+`test/command/nested-table-to-asciidoc-6942.md` now has a WordPress-specific
+boundary as well: nested HTML tables become table AST nodes inside table cells
+and render as nested table HTML in a core table block, while simple non-nested
+raw HTML tables remain raw HTML for reviewer inspection.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -143,6 +148,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
+- The fixture now includes a nested legacy HTML audit table to exercise nested
+  table-cell block children and WordPress nested table rendering.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -189,6 +196,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Raw HTML tables, comments, and custom dividers render inside WordPress HTML
   blocks without shelling out to Pandoc, preserving legacy import annotations
   and table markup that reviewers may need to inspect.
+- Nested legacy HTML audit tables render as nested table HTML inside the
+  containing WordPress table block, preserving old reviewer matrices that used
+  inner tables for grouped import status.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.
