@@ -765,6 +765,60 @@ return [
         ));
         $t->same(['new'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
     },
+    'maps upstream gix-merge tree-baseline renamed-symlink-with-conflict fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
+        $base = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', "original\n1\n2\n3\n4\n5\n")])),
+            $linkEntry('link', 'a/x.f'),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', "1\n2\n3\n4\n5\n")])),
+            $linkEntry('link-renamed', 'a/x.f'),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', "original\n1\n2\n3\n4\n5\n6\n")])),
+            $linkEntry('link-different', 'a/x.f'),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+
+        $t->same(false, $result->isClean());
+        $t->same(['a', 'link-different', 'link-renamed'], $names($result->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($aTree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('a/x.f', $read($result->tree->entryNamed('link-renamed')?->oid ?? '')->body);
+        $t->same('a/x.f', $read($result->tree->entryNamed('link-different')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'link', 'reason' => 'rename-rename', 'base' => 'link', 'ours' => null, 'theirs' => null],
+            ['path' => 'link-renamed', 'reason' => 'rename-rename', 'base' => null, 'ours' => 'link-renamed', 'theirs' => null],
+            ['path' => 'link-different', 'reason' => 'rename-rename', 'base' => null, 'ours' => null, 'theirs' => 'link-different'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'link', 'kind' => 'link', 'body' => 'a/x.f'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'link-different', 'kind' => 'link', 'body' => 'a/x.f'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'link-renamed', 'kind' => 'link', 'body' => 'a/x.f'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind(),
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline rename-add-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));

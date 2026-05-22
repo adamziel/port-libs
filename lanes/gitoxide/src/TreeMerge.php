@@ -496,6 +496,22 @@ final class TreeMerge
                         $consumed[$ourRename['path']] = true;
                     }
                 } else {
+                    $divergentSymlinkRename = self::tryMergeDivergentSymlinkRenames(
+                        $pathPrefix,
+                        $path,
+                        $baseEntry,
+                        $ourRename,
+                        $theirRename,
+                    );
+                    if ($divergentSymlinkRename !== null) {
+                        array_push($merged, ...$divergentSymlinkRename['merged']);
+                        array_push($conflicts, ...$divergentSymlinkRename['conflicts']);
+                        $consumed[$path] = true;
+                        $consumed[$ourRename['path']] = true;
+                        $consumed[$theirRename['path']] = true;
+                        continue;
+                    }
+
                     $conflicts[] = new TreeMergeConflict(
                         self::joinPath($pathPrefix, $path),
                         'rename-rename',
@@ -1246,6 +1262,35 @@ final class TreeMerge
             $writeObject,
             $conflictStyle,
         );
+    }
+
+    /**
+     * @param array{path:string,entry:TreeEntry} $ourRename
+     * @param array{path:string,entry:TreeEntry} $theirRename
+     * @return null|array{merged:list<TreeEntry>,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeDivergentSymlinkRenames(
+        string $pathPrefix,
+        string $sourcePath,
+        TreeEntry $baseEntry,
+        array $ourRename,
+        array $theirRename,
+    ): ?array {
+        if (!$baseEntry->isLink() || !$ourRename['entry']->isLink() || !$theirRename['entry']->isLink()) {
+            return null;
+        }
+
+        return [
+            'merged' => [
+                new TreeEntry($theirRename['entry']->mode, $theirRename['path'], $theirRename['entry']->oid),
+                new TreeEntry($ourRename['entry']->mode, $ourRename['path'], $ourRename['entry']->oid),
+            ],
+            'conflicts' => [
+                new TreeMergeConflict(self::joinPath($pathPrefix, $sourcePath), 'rename-rename', $baseEntry, null, null),
+                new TreeMergeConflict(self::joinPath($pathPrefix, $ourRename['path']), 'rename-rename', null, $ourRename['entry'], null),
+                new TreeMergeConflict(self::joinPath($pathPrefix, $theirRename['path']), 'rename-rename', null, null, $theirRename['entry']),
+            ],
+        ];
     }
 
     /**
