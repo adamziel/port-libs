@@ -45,16 +45,7 @@ final class MemoryProvider
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
-        $path = $this->normalize($path);
-        if ($this->caseInsensitive) {
-            $lookup = $this->lookupPath($path);
-            if (isset($this->caseIndex[$lookup]) && $this->caseIndex[$lookup] !== $path) {
-                unset($this->objects[$this->caseIndex[$lookup]]);
-            }
-            $this->caseIndex[$lookup] = $path;
-        }
-
-        $this->objects[$path] = [
+        return $this->putEntry($path, [
             'bytes' => $bytes,
             'unknownSize' => (bool) ($options['unknownSize'] ?? false),
             'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
@@ -68,9 +59,7 @@ final class MemoryProvider
                 ? null
                 : $this->normalizeReadErrorAfterBytes($options),
             'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
-        ];
-
-        return $this->info($path);
+        ]);
     }
 
     public function isCaseInsensitive(): bool
@@ -87,12 +76,23 @@ final class MemoryProvider
     {
         $path = $this->canonicalPath($path);
         $info = $this->info($path);
-        unset($this->objects[$path]);
-        if ($this->caseInsensitive) {
-            unset($this->caseIndex[$this->lookupPath($path)]);
-        }
+        $this->forget($path);
 
         return $info;
+    }
+
+    public function moveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    {
+        $sourcePath = $this->canonicalPath($sourcePath);
+        $entry = $this->entry($sourcePath);
+        $targetInfo = $target->putEntry($targetPath, $entry);
+        $targetPath = $target->canonicalPath($targetPath);
+
+        if ($this !== $target || $sourcePath !== $targetPath) {
+            $this->forget($sourcePath);
+        }
+
+        return $targetInfo;
     }
 
     public function openReader(string $path, int $offset = 0, ?int $length = null): object
@@ -255,6 +255,33 @@ final class MemoryProvider
         }
 
         return $this->objects[$path];
+    }
+
+    /**
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     */
+    private function putEntry(string $path, array $entry): ObjectInfo
+    {
+        $path = $this->normalize($path);
+        if ($this->caseInsensitive) {
+            $lookup = $this->lookupPath($path);
+            if (isset($this->caseIndex[$lookup]) && $this->caseIndex[$lookup] !== $path) {
+                unset($this->objects[$this->caseIndex[$lookup]]);
+            }
+            $this->caseIndex[$lookup] = $path;
+        }
+
+        $this->objects[$path] = $entry;
+
+        return $this->info($path);
+    }
+
+    private function forget(string $path): void
+    {
+        unset($this->objects[$path]);
+        if ($this->caseInsensitive) {
+            unset($this->caseIndex[$this->lookupPath($path)]);
+        }
     }
 
     private function normalizeModTime(\DateTimeInterface|string|null $modTime): ?string

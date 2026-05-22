@@ -120,6 +120,65 @@ return [
         $t->same('old', $target->get('old.txt'));
         $t->same(['old.txt'], $plan->deletePaths($source, $target));
     },
+    'moves overwritten and deleted destination files into backup dir like upstream sync' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('one', 'oneA');
+        $source->put('two', 'two');
+        $target->put('one', 'one');
+        $target->put('two', 'two');
+        $target->put('three.txt', 'three');
+
+        $plan = new SyncPlan();
+        $copied = $plan->copyChanged($source, $target, null, backupPrefix: 'backup');
+        $moved = $plan->deleteDestinationOnly($source, $target, backupPrefix: 'backup');
+
+        $t->same(['one'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same(['backup/three.txt'], array_map(static fn ($info) => $info->path, $moved));
+        $t->same('oneA', $target->get('one'));
+        $t->same('two', $target->get('two'));
+        $t->same('one', $target->get('backup/one'));
+        $t->same('three', $target->get('backup/three.txt'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('three.txt'));
+
+        $source->put('one', 'oneBB');
+        $target->put('three.txt', 'threeA');
+        $plan->copyChanged($source, $target, null, backupPrefix: 'backup');
+        $plan->deleteDestinationOnly($source, $target, backupPrefix: 'backup');
+
+        $t->same('oneBB', $target->get('one'));
+        $t->same('oneA', $target->get('backup/one'));
+        $t->same('threeA', $target->get('backup/three.txt'));
+    },
+    'adds backup suffix before extensions when suffix keep extension is set' => static function (TestRunner $t): void {
+        $t->same('backup/three.txt.bak', SyncPlan::backupPath('three.txt', 'backup', '.bak'));
+        $t->same('backup/three-2019-01-01.txt', SyncPlan::backupPath('three.txt', 'backup', '-2019-01-01', true));
+        $t->same('backup/file-2019-01-01.tar.gz', SyncPlan::backupPath('file.tar.gz', 'backup', '-2019-01-01', true));
+        $t->same('backup/file.badextension-2019-01-01.gz', SyncPlan::backupPath('file.badextension.gz', 'backup', '-2019-01-01', true));
+    },
+    'uses destination as backup dir when only suffix is configured' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('one', 'oneA');
+        $source->put('two', 'two');
+        $target->put('one', 'one');
+        $target->put('two', 'two');
+        $target->put('three.txt', 'three');
+
+        $filter = FilterRuleSet::fromRules([
+            '- *.bak',
+            '+ *',
+        ]);
+
+        $plan = new SyncPlan();
+        $plan->copyChanged($source, $target, $filter, suffix: '.bak');
+        $plan->deleteDestinationOnly($source, $target, $filter, suffix: '.bak');
+
+        $t->same('oneA', $target->get('one'));
+        $t->same('one', $target->get('one.bak'));
+        $t->same('three', $target->get('three.txt.bak'));
+        $t->same([], $plan->deletePaths($source, $target, $filter));
+    },
     'prunes stale wordpress backup artifacts after a filtered sync' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
@@ -188,6 +247,64 @@ return [
 
         $t->same('--max-delete threshold reached', $error?->getMessage());
         $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
+        $t->same('obsolete image bytes', $target->get('wp-content/uploads/2024/01/obsolete.jpg'));
+        $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
+    },
+    'moves stale wordpress backup artifacts into backup dir before pruning' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        foreach (require __DIR__ . '/../fixtures/wordpress-backup-tree.php' as $path => $bytes) {
+            $source->put($path, $bytes);
+        }
+
+        $target->put('exports/old-site.wxr', '<rss>old</rss>');
+        $target->put('wp-content/uploads/2024/01/obsolete.jpg', 'obsolete image bytes');
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'previous published hero');
+        $target->put('wp-content/cache/orphan.html', '<html>stale cache</html>');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '- *.log',
+            '- *.psd',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $plan = new SyncPlan();
+        $copied = $plan->copyChanged(
+            $source,
+            $target,
+            $filter,
+            backupPrefix: 'archive/2026-05-22',
+            suffix: '-previous',
+            suffixKeepExtension: true,
+        );
+        $error = null;
+        try {
+            $plan->deleteDestinationOnly(
+                $source,
+                $target,
+                $filter,
+                maxDelete: 1,
+                backupPrefix: 'archive/2026-05-22',
+                suffix: '-previous',
+                suffixKeepExtension: true,
+            );
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('--max-delete threshold reached', $error?->getMessage());
+        $t->same('previous published hero', $target->get('archive/2026-05-22/wp-content/uploads/2026/05/hero-previous.jpg'));
+        $t->same('<rss>old</rss>', $target->get('archive/2026-05-22/exports/old-site-previous.wxr'));
         $t->same('obsolete image bytes', $target->get('wp-content/uploads/2024/01/obsolete.jpg'));
         $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
     },

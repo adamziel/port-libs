@@ -128,10 +128,28 @@ final class SyncPlan
     /**
      * @return list<ObjectInfo>
      */
-    public function copyChanged(MemoryProvider $source, MemoryProvider $target, ?FilterRuleSet $filter = null): array
-    {
+    public function copyChanged(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        ?MemoryProvider $backup = null,
+        string $backupPrefix = '',
+        string $suffix = '',
+        bool $suffixKeepExtension = false,
+    ): array {
         $copied = [];
         foreach ($this->changedPaths($source, $target, $filter) as $path) {
+            if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $hasTarget = true;
+                try {
+                    $target->info($path);
+                } catch (\RuntimeException) {
+                    $hasTarget = false;
+                }
+                if ($hasTarget) {
+                    $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+                }
+            }
             $copied[] = $source->copyTo($path, $target, $path);
         }
 
@@ -178,20 +196,45 @@ final class SyncPlan
         bool $deleteExcluded = false,
         ?int $maxDelete = null,
         ?int $maxDeleteSize = null,
+        ?MemoryProvider $backup = null,
+        string $backupPrefix = '',
+        string $suffix = '',
+        bool $suffixKeepExtension = false,
     ): array {
         $deleted = [];
         $deleteCount = 0;
         $deleteBytes = 0;
         foreach ($this->deletePaths($source, $target, $filter, $deleteMode, $deleteExcluded) as $path) {
+            if ($backupPrefix !== '' && self::pathUnderPrefix($path, $backupPrefix)) {
+                continue;
+            }
+
             $targetInfo = $target->info($path);
             $deleteSize = max(0, $targetInfo->size);
             $this->assertDeleteWithinLimits($deleteCount, $deleteBytes, $deleteSize, $maxDelete, $maxDeleteSize);
             $deleteCount++;
             $deleteBytes += $deleteSize;
-            $deleted[] = $target->delete($path);
+            if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $deleted[] = $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+            } else {
+                $deleted[] = $target->delete($path);
+            }
         }
 
         return $deleted;
+    }
+
+    public static function backupPath(
+        string $path,
+        string $backupPrefix = '',
+        string $suffix = '',
+        bool $suffixKeepExtension = false,
+    ): string {
+        $path = self::normalizePath($path);
+        $path = self::suffixName($path, $suffix, $suffixKeepExtension);
+        $backupPrefix = self::normalizePath($backupPrefix);
+
+        return $backupPrefix === '' ? $path : $backupPrefix . '/' . $path;
     }
 
     /**
@@ -249,5 +292,114 @@ final class SyncPlan
         if ($maxDeleteSize !== null && $maxDeleteSize >= 0 && $deleteBytes + $nextSize > $maxDeleteSize) {
             throw new \RuntimeException('--max-delete-size threshold reached');
         }
+    }
+
+    private function backupRequested(?MemoryProvider $backup, string $backupPrefix, string $suffix): bool
+    {
+        return $backup !== null || $backupPrefix !== '' || $suffix !== '';
+    }
+
+    private function moveToBackup(
+        MemoryProvider $target,
+        string $path,
+        ?MemoryProvider $backup,
+        string $backupPrefix,
+        string $suffix,
+        bool $suffixKeepExtension,
+    ): ObjectInfo {
+        $backup ??= $target;
+
+        return $target->moveTo(
+            $path,
+            $backup,
+            self::backupPath($path, $backupPrefix, $suffix, $suffixKeepExtension),
+        );
+    }
+
+    private static function suffixName(string $path, string $suffix, bool $suffixKeepExtension): string
+    {
+        if ($suffix === '') {
+            return $path;
+        }
+        if (!$suffixKeepExtension) {
+            return $path . $suffix;
+        }
+
+        [$base, $extensions] = self::splitExtension($path);
+
+        return $base . $suffix . $extensions;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private static function splitExtension(string $path): array
+    {
+        $base = $path;
+        $extensions = '';
+        $first = true;
+
+        while (($extension = self::pathExtension($base)) !== '') {
+            if (!$first && !self::isKnownExtension($extension)) {
+                break;
+            }
+
+            $base = substr($base, 0, -strlen($extension));
+            $extensions = $extension . $extensions;
+            $first = false;
+        }
+
+        return [$base, $extensions];
+    }
+
+    private static function pathExtension(string $path): string
+    {
+        $slash = strrpos($path, '/');
+        $nameStart = $slash === false ? 0 : $slash + 1;
+        $dot = strrpos($path, '.');
+        if ($dot === false || $dot < $nameStart) {
+            return '';
+        }
+
+        return substr($path, $dot);
+    }
+
+    private static function isKnownExtension(string $extension): bool
+    {
+        return in_array(strtolower($extension), [
+            '.css',
+            '.gif',
+            '.gz',
+            '.htm',
+            '.html',
+            '.jpeg',
+            '.jpg',
+            '.js',
+            '.json',
+            '.mjs',
+            '.pdf',
+            '.png',
+            '.sql',
+            '.svg',
+            '.tar',
+            '.txt',
+            '.webp',
+            '.wxr',
+            '.xml',
+            '.zip',
+        ], true);
+    }
+
+    private static function normalizePath(string $path): string
+    {
+        return trim(preg_replace('#/+#', '/', $path) ?? $path, '/');
+    }
+
+    private static function pathUnderPrefix(string $path, string $prefix): bool
+    {
+        $path = self::normalizePath($path);
+        $prefix = self::normalizePath($prefix);
+
+        return $path === $prefix || str_starts_with($path, $prefix . '/');
     }
 }
