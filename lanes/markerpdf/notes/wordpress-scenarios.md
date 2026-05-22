@@ -8,6 +8,8 @@ Native PDF content stream text-line extraction for literal, array, hex, UTF-16 h
 
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
+The lane now also maps `marker/pdf/utils.py::find_filetype`. `FiletypeDetector` uses magic-MIME style detection to accept PDF uploads, reject extension-spoofed non-PDF payloads as `other`, and preserve the upstream settings-backed MIME mapping branch.
+
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
 
 `examples/wordpress-import.php` reads `fixtures/wordpress-import-content.pdf` and emits heading/paragraph block comments. This keeps the lane tied to a practical Data Liberation workflow: extracting embedded PDF text into block-ready post content without shelling out to Python or native PDF binaries.
@@ -58,11 +60,15 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-image-import.php` maps Marker's upstream image insertion path into a Gutenberg image-block import. It uses deterministic `page_image_index.png` filenames, Figure/Picture layout-box matching, intersecting text-span removal, and Marker-style Markdown image spans before rendering a core image block. The native slice intentionally stops before raster crop rendering because upstream delegates that work to `pypdfium2` and PIL.
 
+`examples/wordpress-bbox-geometry-import.php` maps Marker's upstream bbox geometry helpers into a WordPress import preflight. It merges adjacent PDF span boxes into one reviewable paragraph bbox, preserves that geometry as block metadata, and uses Marker's strict intersection semantics before emitting a related image block.
+
 `examples/wordpress-equation-import.php` maps Marker's upstream equation replacement path into a WordPress math import. It uses Formula layout-box matching, removes the source equation text line, inserts supplied LaTeX as a Formula block after upstream validation, renders the equation as a constrained core HTML block, and emits Marker-style equation metadata for editorial review. The native slice intentionally stops before Texify model inference and equation crop rendering.
 
 `examples/wordpress-output-artifact.php` maps Marker's upstream output writer into a WordPress import handoff. It persists converted block Markdown, `_meta.json` review metadata, and extracted image artifacts under the same per-document folder naming that `marker/output.py` uses.
 
 `examples/wordpress-settings-preflight.php` maps Marker's upstream settings defaults into a WordPress import preflight. It accepts `application/pdf`, rejects unsupported MIME types, applies shared-hosting overrides for image extraction and pagination, and exposes page separator and bad-span defaults without importing Torch or model dependencies.
+
+`examples/wordpress-filetype-preflight.php` maps Marker's upstream filetype detection into a WordPress upload preflight. It accepts a real PDF fixture by magic bytes and rejects a ZIP-like `.pdf` payload before heavier conversion steps run.
 
 ## Next Task
 
