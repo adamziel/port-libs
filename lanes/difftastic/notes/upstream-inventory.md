@@ -56,6 +56,7 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/nested_slider_1.el` / `sample_files/nested_slider_2.el`: copied locally and mapped through the Lisp-family opposite nested-slider preference from `src/diff/sliders.rs`. The deleted outer `-when-let(...)` wrapper is reported separately while the retained `setq` form is diffed inside it.
 - `sample_files/change_outer_1.el` / `sample_files/change_outer_2.el`: copied locally and mapped through changed-outer-delimiter handling. When the flattened child atoms are retained, the PHP differ now reports the delimiter pair change separately from newly introduced inner wrappers instead of replacing the whole list body.
 - `sample_files/strings_1.el` / `sample_files/strings_2.el`: targeted upstream excerpts around `hack--keyword-regex` are copied locally and mapped through Emacs Lisp reader-quote and semicolon-comment tokenization plus flat literal-list item splitting. The changed `regexp-opt` keyword list now reports focused quoted-string/comment additions and deletions instead of replacing the whole form.
+- `sample_files/hack_1.php` / `sample_files/hack_2.php`: copied locally and mapped through PHP/Hack function return-type extraction plus existing syntax-list alignment. The changed `foo(): vec<int>` signature is reported as a focused `$php.function.foo.return_type` update while the inserted `null` in `return vec[1, null]` remains a nested list insertion.
 - `sample_files/string_subwords_1.el` / `sample_files/string_subwords_2.el`: copied locally and mapped through changed string atom word splitting from `src/parse/syntax.rs`. The JSON renderer now reports word spans inside paired changed string atoms when enough words are shared.
 - `sample_files/comments_1.rs` / `sample_files/comments_2.rs`: copied locally and mapped through changed comment atom word splitting from `src/parse/syntax.rs`. Inserted comment words and changed quoted subwords inside comments are emitted as comment-highlighted word spans.
 - `sample_files/multiline_string_1.ml` / `sample_files/multiline_string_2.ml`: copied locally and mapped through multiline atom byte spans. The JSON renderer now keeps changed words inside a multiline string highlighted as `string` instead of falling back to per-line identifier highlighting.
@@ -79,7 +80,7 @@ Mapped native behavior:
 - YAML block scalar atoms that do not share enough words now fall back to per-line string spans instead of generic token highlighting, mapping upstream `trailling_newline_*.yaml`.
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 
-The focused PHP lane test now passes 47 tests and 202 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, WXR XML, block allow-list array syntax, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
+The focused PHP lane test now passes 49 tests and 209 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, block allow-list array syntax, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
 
 The required root test runner was attempted after this slice:
 
@@ -87,11 +88,11 @@ The required root test runner was attempted after this slice:
 php tools/run-tests.php
 ```
 
-The latest required root test run after the YAML block-scalar display slice passed:
+The latest required root test run after the PHP/Hack return-type slice passed:
 
 ```text
 php tools/run-tests.php
-99 test files, 6,638 assertions, 0 failures
+101 test files, 6,813 assertions, 0 failures
 ```
 
-The difftastic-focused test file remains green with 47 tests, 202 assertions, and 0 failures.
+The difftastic-focused test file remains green with 49 tests, 209 assertions, and 0 failures.

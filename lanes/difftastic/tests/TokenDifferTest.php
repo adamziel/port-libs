@@ -202,6 +202,18 @@ return [
         $t->contains('+ $[1][1]/{0}[2]/(2)[0]/{0}[0] context', $encoded);
         $t->contains('+ $[1][1]/{0}[3]/(0)[0]/(3)[0] "codec_data"', $encoded);
     },
+    'maps upstream hack sample return type and vec insertion' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-hack-1.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-hack-2.php');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'hack']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $php.function.foo.return_type vec<int> vec<?int>', $encoded);
+        $t->contains('+ $[1][0]/[0][1] null', $encoded);
+    },
     'splits words like upstream words rs' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
 
@@ -264,6 +276,20 @@ return [
         $t->contains('-esc_html', $encoded);
         $t->contains('+wp_kses_post', $encoded);
         $t->true(!str_contains($encoded, 'Classic template fallback'), 'Comment-only churn should be filtered.');
+    },
+    'wordpress render callback diff reports nullable return type changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-render-return-type-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-render-return-type-after.php');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'php',
+            'title' => 'Render callback return type diff',
+        ]);
+
+        $t->contains('Render callback return type diff', $html);
+        $t->contains('data-path="$php.function.acme_render_card.return_type"', $html);
+        $t->contains('<del>string</del><ins>?string</ins>', $html);
+        $t->contains('returnnull', $html);
+        $t->true(!str_contains($html, 'wp-block-acme-card'), 'Stable markup returned by the callback should stay out of the rendered change stream.');
     },
     'wordpress block style slug diff reports subword changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-before.php');

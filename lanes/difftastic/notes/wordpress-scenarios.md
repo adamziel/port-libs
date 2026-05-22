@@ -16,6 +16,8 @@ Emacs Lisp mode now keeps reader quotes and semicolon comments distinct from str
 
 The current WordPress fixture compares a block render callback where a PHP comment changes at the same time as the escaping API changes from `esc_html` to `wp_kses_post`. With `ignoreComments`, the diff hides the comment-only churn but still reports the security-relevant API change.
 
+The render-callback return-type fixture applies the upstream `sample_files/hack_*.php` shape to a PHP block callback where `string` becomes `?string` and an empty-title branch starts returning `null`. The syntax-list renderer reports the nullable return type at `$php.function.acme_render_card.return_type` and keeps stable returned markup out of the change stream.
+
 The recursive list fixture compares nested `register_block_type` arrays so block support changes such as `html => false` becoming `html => true` and new alignment support show up at the nested array path instead of as a single flattened line replacement.
 
 The subword fixture compares a `register_block_style` slug change from `legacy-cta-v2` to `modern-cta-v3`. The number-aware word diff reports the changed slug words and version number separately, matching the upstream `src/words.rs` behavior used for readable inline changes.
@@ -52,6 +54,7 @@ Run:
 
 ```sh
 php lanes/difftastic/examples/wordpress-render-callback-diff.php
+php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-block-markup-html-diff.php

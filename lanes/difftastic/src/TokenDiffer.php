@@ -318,6 +318,9 @@ final class TokenDiffer
             $this->diffYamlBlockSequences($old, $new, $changes);
             $this->diffYamlBlockScalars($old, $new, $changes);
         }
+        if ($this->isPhpLikeLanguage($options)) {
+            $this->diffPhpFunctionReturnTypes($old, $new, $changes);
+        }
 
         return $changes;
     }
@@ -1248,6 +1251,65 @@ final class TokenDiffer
     }
 
     /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffPhpFunctionReturnTypes(string $old, string $new, array &$changes): void
+    {
+        $oldFunctions = $this->phpFunctionReturnTypes($old);
+        $newFunctions = $this->phpFunctionReturnTypes($new);
+        $names = array_values(array_intersect(array_keys($oldFunctions), array_keys($newFunctions)));
+        sort($names);
+
+        foreach ($names as $name) {
+            $oldType = $oldFunctions[$name];
+            $newType = $newFunctions[$name];
+            if ($oldType === $newType) {
+                continue;
+            }
+
+            $path = '$php.function.' . $name . '.return_type';
+            if ($oldType === null) {
+                $changes[] = ['op' => '+', 'path' => $path, 'text' => (string) $newType];
+                continue;
+            }
+            if ($newType === null) {
+                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldType];
+                continue;
+            }
+
+            $changes[] = ['op' => '~', 'path' => $path, 'old' => $oldType, 'new' => $newType];
+        }
+    }
+
+    /**
+     * @return array<string, ?string>
+     */
+    private function phpFunctionReturnTypes(string $source): array
+    {
+        $functions = [];
+        preg_match_all(
+            '/function\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*(?::\s*(?<type>[^{;\r\n]+))?/m',
+            $source,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        foreach ($matches as $match) {
+            $type = isset($match['type']) && trim($match['type']) !== ''
+                ? $this->normalizePhpType((string) $match['type'])
+                : null;
+            $functions[(string) $match['name']] = $type;
+        }
+
+        return $functions;
+    }
+
+    private function normalizePhpType(string $type): string
+    {
+        return (string) preg_replace('/\s+/', '', trim($type));
+    }
+
+    /**
      * @param array<string, mixed> $list
      * @return list<list<array<string, mixed>>>
      */
@@ -1427,6 +1489,14 @@ final class TokenDiffer
     private function isYamlLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['yaml', 'yml'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isPhpLikeLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['hack', 'hh', 'php'], true);
     }
 
     /**
