@@ -11,10 +11,10 @@
         "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, SQL engine, extensions, and TCL/C regression harnesses."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory",
+        "status": "cloned-inventory-plus-upstream-veryquick-runner",
         "total": 1454,
         "mapped": 15,
-        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; counted with git ls-tree without hydrating broad blobs, with focused b-tree/schema path categories counted from the tree inventory.",
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "testDirectoryTclTests": 1189,
@@ -34,10 +34,41 @@
             "focusedFileFormatRelatedScripts": 113
         },
         "runnerStatus": {
-            "executed": false,
-            "reason": "The upstream runner was inventoried but not executed: this environment cannot find tclsh, cc, or make on PATH and has no Tcl headers under /usr/include. SQLite's documented test flow requires configuring/building testfixture/sqlite3 with Tcl development libraries, then running testrunner.tcl suites such as full/all that cover thousands of TCL scripts and many permutations. The defensible denominator here is the cloned static file/script inventory, not upstream pass parity."
+            "executed": true,
+            "buildDirectory": ".upstream-cache/libsqlite-build-port-libsqlite",
+            "prerequisitesInstalled": [
+                "sudo -n dnf install -y tcl tcl-devel gcc make"
+            ],
+            "environment": {
+                "tclsh": "/usr/bin/tclsh 9.0.2",
+                "cc": "GCC 16.1.1-2.fc44",
+                "gcc": "GCC 16.1.1-2.fc44",
+                "make": "GNU Make 4.4.1",
+                "tclHeaders": "/usr/include/tcl.h"
+            },
+            "cacheHydration": {
+                "before": ".upstream-cache/libsqlite was a clean shallow blobless Git checkout at 8f70ec615f4cd247d36f92a22c99f65ebbcc22a7 with a root-only sparse checkout.",
+                "command": "git -C .upstream-cache/libsqlite sparse-checkout set src test tool ext autosetup autoconf mptest",
+                "after": "SQLite source, test, tool, extension, autosetup/autoconf, and mptest directories were materialized; the upstream worktree remained clean."
+            },
+            "commands": [
+                "mkdir -p .upstream-cache/libsqlite-build-port-libsqlite && cd .upstream-cache/libsqlite-build-port-libsqlite && ../libsqlite/configure CFLAGS='-O0 -g'",
+                "make -C .upstream-cache/libsqlite-build-port-libsqlite -j2 testfixture",
+                "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick btree*.test pager*.test quick*.test schema*.test rowid*.test table*.test",
+                "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick"
+            ],
+            "results": {
+                "configure": "Passed; Tcl detected via /usr/bin/tclsh9.0 and /usr/lib64/tclConfig.sh.",
+                "testfixture": "Passed.",
+                "focusedVeryquick": "Passed 37 scripts with 0 errors out of 6731 tests in 00:07.",
+                "fullVeryquick": "Passed 1235 scripts with 0 errors out of 329670 tests in 01:51."
+            },
+            "fullReleaseStatus": {
+                "executed": false,
+                "reason": "The stronger release/all permutations were not run in this bounded lane pass because they span many build configurations and higher-cost suites. The clean upstream evidence for this run is the complete veryquick permutation, not full release parity."
+            }
         },
-        "warning": "This denominator counts upstream test files, helper programs, and declared suites, not individual do_test assertions. PHP progress is local mapped behavior only."
+        "warning": "The upstream veryquick permutation now has local runner parity. Full all/release permutations remain unexecuted, and PHP progress is still local mapped behavior only."
     },
     "nativeImplementation": {
         "language": "PHP",

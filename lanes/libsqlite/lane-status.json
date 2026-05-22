@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 10,
-    "suiteProgress": "cloned static upstream inventory plus focused b-tree/schema counts; runner not executed",
+    "estimatedProgress": 12,
+    "suiteProgress": "cloned static upstream inventory plus clean upstream SQLite veryquick runner parity",
     "phpPass": 15,
     "phpFail": 0,
     "wordpressScenarios": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable.",
-    "phase": "upstream inventory plus multi-page schema b-tree traversal slice",
-    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
+    "phase": "upstream veryquick runner parity plus multi-page schema b-tree traversal slice",
+    "audit": "audited 2026-05-22: upstream SQLite veryquick runner passes locally; PHP smoke coverage remains local mapped behavior only",
     "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and table interior cell parsing, page-backed database reader, SQLite record serial decoding, and sqlite_schema traversal to resolve WordPress table root pages.",
-    "blocker": "Full upstream runner was not executed because this environment cannot find tclsh, cc, or make on PATH and has no Tcl headers under /usr/include; SQLite testing requires configure/build of testfixture/sqlite3 with Tcl development libraries and large testrunner.tcl suites/permutations. Current denominator is a cloned static inventory of 1454 upstream test-related files/scripts, not upstream pass parity.",
+    "blocker": "Remaining upstream boundary: full SQLite all/release permutations were not run in this bounded pass. Clean upstream evidence is configure, testfixture, and the full veryquick permutation passing 1235 scripts with 0 errors out of 329670 tests; no local Tcl/compiler/make prerequisite blocker remains.",
     "latestCommit": "04962eb",
     "nextTask": "Read bounded wp_options table leaf rows from resolved root pages, including option_name/option_value records, while marking overflow payload handling as unsupported until ported."
 }

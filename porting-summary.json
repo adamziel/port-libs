@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 15:15:39 UTC",
-    "averageProgressPercent": "13.1",
+    "generated": "2026-05-22 15:29:17 UTC",
+    "averageProgressPercent": "13.3",
     "lanes": [
         {
             "library": "difftastic",
@@ -72,19 +72,19 @@
         },
         {
             "library": "libsqlite",
-            "progressPercent": "10.0",
-            "suite": "cloned-static-inventory",
-            "benchmark": "cloned-static-inventory",
+            "progressPercent": "12.0",
+            "suite": "cloned-inventory-plus-upstream-veryquick-runner",
+            "benchmark": "cloned-inventory-plus-upstream-veryquick-runner",
             "denominator": "1454",
             "mapped": "15",
             "coverage": "15 / 1454",
             "php": "15 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "upstream inventory plus multi-page schema b-tree traver...",
+            "phase": "upstream veryquick runner parity plus multi-page schema...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and ta...",
             "nextTarget": "Read bounded wp_options table leaf rows from resolved root pages, including option_name/o...",
-            "blocker": "upstream runner not executed",
+            "blocker": "Remaining upstream boundary: full SQLite all/release permutations were no...",
             "commit": "04962eb"
         },
         {
