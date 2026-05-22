@@ -485,6 +485,83 @@ return [
         $t->same("0\n1\n2\n3\n4\n5\n6\n", $read($diff3->tree->entryNamed('numbers')?->oid ?? '')->body);
         $t->same("bar\n", $read($diff3->tree->entryNamed('whatever~A')?->oid ?? '')->body);
     },
+    'maps upstream gix-merge tree-baseline simple tweak1-side2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $renamedNumbers = 'Αυτά μου φαίνονται κινέζικα';
+        $base = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "hello\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+        $ours = new Tree([
+            $blobEntry($renamedNumbers, "zero\n1\n2\n3\n4\n5\n6\n"),
+            $blobEntry('greeting', "hi\n"),
+            $blobEntry('whatever', "bar\n"),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('numbers', "0\n1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "yo\n"),
+            $treeEntry('whatever', new Tree([$blobEntry('empty', '')])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $mergedGreeting = $read($result->tree->entryNamed('greeting')?->oid ?? '');
+        $mergedRenamedNumbers = $read($result->tree->entryNamed($renamedNumbers)?->oid ?? '');
+        $whateverTree = Tree::fromObject($read($result->tree->entryNamed('whatever', true)?->oid ?? ''));
+        $conflicts = array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        );
+        usort($conflicts, static fn (array $left, array $right): int => strcmp($left['path'], $right['path']));
+        $worktreePaths = array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read));
+        sort($worktreePaths, SORT_STRING);
+
+        $t->same(false, $result->isClean());
+        $t->same(['greeting', 'whatever', 'whatever~A', $renamedNumbers], $names($result->tree));
+        $t->same(['empty'], $names($whateverTree));
+        $t->contains('<<<<<<< ours/greeting', $mergedGreeting->body);
+        $t->contains('<<<<<<< ours/' . $renamedNumbers, $mergedRenamedNumbers->body);
+        $t->contains("zero\n", $mergedRenamedNumbers->body);
+        $t->contains("0\n", $mergedRenamedNumbers->body);
+        $t->same("bar\n", $read($result->tree->entryNamed('whatever~A')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'greeting', 'reason' => 'content-conflict', 'base' => 'greeting', 'ours' => 'greeting', 'theirs' => 'greeting'],
+            ['path' => 'whatever~A', 'reason' => 'delete-modify', 'base' => 'whatever~A', 'ours' => 'whatever~A', 'theirs' => null],
+            ['path' => $renamedNumbers, 'reason' => 'content-conflict', 'base' => $renamedNumbers, 'ours' => $renamedNumbers, 'theirs' => $renamedNumbers],
+        ], $conflicts);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'greeting', 'body' => "hello\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'greeting', 'body' => "hi\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'greeting', 'body' => "yo\n"],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'whatever~A', 'body' => "foo\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'whatever~A', 'body' => "bar\n"],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => $renamedNumbers, 'body' => "1\n2\n3\n4\n5\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => $renamedNumbers, 'body' => "zero\n1\n2\n3\n4\n5\n6\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => $renamedNumbers, 'body' => "0\n1\n2\n3\n4\n5\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same(['greeting', $renamedNumbers], $worktreePaths);
+
+        $diff3 = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $diff3RenamedNumbers = $read($diff3->tree->entryNamed($renamedNumbers)?->oid ?? '');
+
+        $t->same(false, $diff3->isClean());
+        $t->contains('||||||| base/' . $renamedNumbers, $diff3RenamedNumbers->body);
+        $t->same("bar\n", $read($diff3->tree->entryNamed('whatever~A')?->oid ?? '')->body);
+    },
     'recursive tree merge reports nested exact rename delete conflicts' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old.php', "<?php\nreturn 'base';\n")]))]);
@@ -535,7 +612,7 @@ return [
             $result->indexEntries(),
         ));
     },
-    'recursive tree merge reports similar rename modify conflicts' => static function (TestRunner $t) use ($objectStore): void {
+    'recursive tree merge reports similar rename modify conflicts' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "name: old-plugin\nversion: 1.0\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
         $ourContent = "name: new-plugin\nversion: 1.1\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
@@ -545,17 +622,27 @@ return [
         $theirs = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old-plugin.php', $theirContent)]))]);
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $mergedPlugin = $read($contentTree->entryNamed('new-plugin.php')?->oid ?? '');
 
         $t->same(false, $result->isClean());
-        $t->same('rename-modify', $result->conflicts[0]->reason);
-        $t->same('wp-content/old-plugin.php', $result->conflicts[0]->path);
+        $t->same(['new-plugin.php'], $names($contentTree));
+        $t->same('content-conflict', $result->conflicts[0]->reason);
+        $t->same('wp-content/new-plugin.php', $result->conflicts[0]->path);
         $t->same('new-plugin.php', $result->conflicts[0]->ours?->filename);
-        $t->same('old-plugin.php', $result->conflicts[0]->theirs?->filename);
+        $t->same('new-plugin.php', $result->conflicts[0]->theirs?->filename);
+        $t->contains('<<<<<<< ours/wp-content/new-plugin.php', $mergedPlugin->body);
+        $t->contains('>>>>>>> theirs/wp-content/new-plugin.php', $mergedPlugin->body);
         $t->same([
             MergeIndexEntry::STAGE_ANCESTOR,
             MergeIndexEntry::STAGE_OURS,
             MergeIndexEntry::STAGE_THEIRS,
         ], array_map(static fn (MergeIndexEntry $entry): int => $entry->stage, $result->indexEntries()));
+        $t->same([
+            'wp-content/new-plugin.php',
+            'wp-content/new-plugin.php',
+            'wp-content/new-plugin.php',
+        ], array_map(static fn (MergeIndexEntry $entry): string => $entry->path, $result->indexEntries()));
     },
     'recursive tree merge cleanly merges same target similar renames' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();

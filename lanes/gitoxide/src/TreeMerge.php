@@ -1381,19 +1381,21 @@ final class TreeMerge
         if ($baseEntry->isTree() || $renameEntry->isTree() || $otherEntry->isTree()) {
             return null;
         }
-        if ($baseEntry->oid !== $renameEntry->oid || $baseEntry->mode !== $renameEntry->mode) {
-            return null;
-        }
         if ($baseEntry->kind() !== $renameEntry->kind() || $baseEntry->kind() !== $otherEntry->kind()) {
             return null;
         }
 
+        $targetName = basename($targetPath);
+        $baseAtTarget = new TreeEntry($baseEntry->mode, $targetName, $baseEntry->oid);
+        $renameAtTarget = new TreeEntry($renameEntry->mode, $targetName, $renameEntry->oid);
+        $otherAtTarget = new TreeEntry($otherEntry->mode, $targetName, $otherEntry->oid);
+
         return self::tryMergeChangedEntry(
-            basename($targetPath),
+            $targetName,
             self::joinPath($pathPrefix, $targetPath),
-            new TreeEntry($baseEntry->mode, basename($sourcePath), $baseEntry->oid),
-            $renamedByOurs ? new TreeEntry($renameEntry->mode, basename($targetPath), $renameEntry->oid) : $otherEntry,
-            $renamedByOurs ? $otherEntry : new TreeEntry($renameEntry->mode, basename($targetPath), $renameEntry->oid),
+            $baseAtTarget,
+            $renamedByOurs ? $renameAtTarget : $otherAtTarget,
+            $renamedByOurs ? $otherAtTarget : $renameAtTarget,
             $readObject,
             $writeObject,
             $conflictStyle,
