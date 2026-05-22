@@ -1305,6 +1305,30 @@ return [
         $t->true(str_starts_with($rows[4]['src'] ?? '', 'data:image/jpeg;base64,'), 'real JPEG data URI should be preserved');
         $t->same(4, count($attributeValues($article->contentHtml, '//p')), 'expected editorial paragraphs should remain around data URI images');
     },
+    'maps Mozilla keep-images fixture full-width editorial media retention' => static function (TestRunner $t) use ($attributeValues, $imageAttributeRows, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/keep-images';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
+        $t->same(16, count($imageAttributeRows($article->contentHtml)), 'all expected image payloads should remain');
+        $t->same(count($attributeValues($expected, '//figure')), count($attributeValues($article->contentHtml, '//figure')));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->contains('Cristina Gil Lladanosa, at the Barcelona testing lab', $article->text);
+        $t->contains('Photo by Joan Bardeletti', $article->text);
+        $t->same(false, str_contains($article->text, 'Ready to publish?'), 'Medium editor chrome should not survive the keep-images fixture extraction');
+    },
     'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1407,6 +1431,27 @@ return [
         $t->contains('Editorial chart', $article->text);
         $t->true(!str_contains($article->contentHtml, '/uploads/decorative-crop.jpg'), 'layout-only full-width crop should be removed');
         $t->true(!str_contains($article->text, 'Decorative crop'), 'decorative figure caption should be removed with the wrapper');
+    },
+    'preserves WordPress editorial full-width figures while dropping decorative media wrappers' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Editorial Media Import"></head><body><article>'
+            . '<h1>Editorial Media Import</h1>'
+            . '<p>' . str_repeat('Migration reviewers need the real editorial copy around imported media before cleanup decisions are made. ', 3) . '</p>'
+            . '<div class="legacy-media-shell"><figure class="graf--figure postField--fillWidthImage"><div><img src="/uploads/editorial-full-width.jpg" alt="Editorial lab photo"></div><figcaption>Editorial lab photo by source author</figcaption></figure></div>'
+            . '<p>' . str_repeat('The source page can also include layout crops that should not become WordPress media blocks. ', 3) . '</p>'
+            . '<div class="theme-wide-crop"><figure><img src="/uploads/decorative-crop.jpg" alt="Decorative crop"><figcaption>Decorative crop</figcaption></figure></div>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Editorial Media Import', $article->title);
+        $t->contains('/uploads/editorial-full-width.jpg', $article->contentHtml);
+        $t->contains('Editorial lab photo by source author', $article->text);
+        $t->contains('/uploads/editorial-full-width.jpg', $blocks);
+        $t->same(false, str_contains($article->contentHtml, '/uploads/decorative-crop.jpg'), 'decorative source crop should still be removed');
+        $t->same(false, str_contains($article->text, 'Decorative crop'), 'decorative crop caption should not become migrated text');
+        $t->same(false, str_contains($article->contentHtml, 'postField--fillWidthImage'), 'source Medium classes should be stripped after the keep decision');
     },
     'maps Mozilla lazy-image-2 responsive image fixture' => static function (TestRunner $t) use ($fixtureText, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-2';

@@ -1561,6 +1561,10 @@ final class ArticleExtractor
             return false;
         }
 
+        if ($this->hasMediumEditorialFullWidthClass($figure)) {
+            return false;
+        }
+
         if (($xpath->query('.//img|.//picture', $node)?->length ?? 0) !== 1) {
             return false;
         }
@@ -1579,6 +1583,11 @@ final class ArticleExtractor
         }
 
         return mb_strlen($this->siblingText($node)) >= 200;
+    }
+
+    private function hasMediumEditorialFullWidthClass(\DOMElement $figure): bool
+    {
+        return preg_match('/\bpostField--fillWidthImage\b/', $figure->getAttribute('class')) === 1;
     }
 
     private function textOutsideDescendant(\DOMNode $node, \DOMNode $excluded): string
