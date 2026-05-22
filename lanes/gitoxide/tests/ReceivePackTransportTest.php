@@ -264,6 +264,74 @@ return [
         );
         $t->throws(RuntimeException::class, static fn () => $badService->readAdvertisement());
     },
+    'smart http receive-pack preserves auth headers and session cookies across requests' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress smart HTTP session payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $requester = static function (string $method, string $url, array $headers, ?string $body, float $timeout) use (&$requests, $packet, $flush, $advertisement, $responseBytes): array {
+            $requests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => ['wp_session=abc123; Path=/; HttpOnly', 'deploy=blue; Secure'],
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $responseBytes,
+            ];
+        };
+
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                $requester,
+                ['version=1'],
+                9.5,
+                ['Authorization' => 'Bearer wp-token', 'User-Agent' => 'port-libs-test/1']
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('Bearer wp-token', $requests[0]['headers']['Authorization']);
+        $t->same('port-libs-test/1', $requests[0]['headers']['User-Agent']);
+        $t->same('version=1', $requests[0]['headers']['Git-Protocol']);
+        $t->same(null, $requests[0]['headers']['Cookie'] ?? null);
+        $t->same('Bearer wp-token', $requests[1]['headers']['Authorization']);
+        $t->same('port-libs-test/1', $requests[1]['headers']['User-Agent']);
+        $t->same('version=1', $requests[1]['headers']['Git-Protocol']);
+        $t->same('wp_session=abc123; deploy=blue', $requests[1]['headers']['Cookie']);
+        $t->same($request->requestBytes(), $requests[1]['body']);
+        $t->same(9.5, $requests[1]['timeout']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ['Content-Type' => 'text/plain']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ["Bad\nHeader" => 'x']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ['User-Agent' => "bad\nvalue"]));
+    },
     'ssh receive-pack transport connects through injected exec streams' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress SSH transport payload');

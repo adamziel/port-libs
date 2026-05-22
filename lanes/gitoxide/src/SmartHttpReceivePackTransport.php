@@ -13,21 +13,28 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private readonly string $repositoryUrl;
     private readonly ?string $authorizationHeader;
     private readonly mixed $requester;
+    /** @var array<string, string> */
+    private array $cookies = [];
+    /** @var array<string, string> */
+    private readonly array $extraHeaders;
 
     /**
      * @param null|callable(string, string, array<string, string>, ?string, float): array{status: int, headers: array<string, string|list<string>>, body: string} $requester
      * @param list<string> $extraParameters
+     * @param array<string, string> $extraHeaders
      */
     public function __construct(
         string $repositoryUrl,
         ?callable $requester = null,
         private readonly array $extraParameters = [],
         private readonly float $timeout = 30.0,
+        array $extraHeaders = [],
     ) {
         if ($timeout <= 0.0) {
             throw new \InvalidArgumentException('smart HTTP receive-pack transport timeout must be greater than zero');
         }
         self::validateExtraParameters($extraParameters);
+        $this->extraHeaders = self::normalizeExtraHeaders($extraHeaders);
 
         $target = self::normalizeRepositoryUrl($repositoryUrl);
         $this->repositoryUrl = $target['url'];
@@ -66,6 +73,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null);
         self::assertStatus($response, [200, 304], 'smart HTTP receive-pack advertisement');
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
+        $this->rememberCookies($response['headers']);
 
         return self::stripServiceAdvertisement($response['body']);
     }
@@ -101,6 +109,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         );
         self::assertStatus($response, [200], 'smart HTTP receive-pack result');
         self::assertContentType($response, 'application/x-git-receive-pack-result', 'smart HTTP receive-pack result');
+        $this->rememberCookies($response['headers']);
 
         return $response['body'];
     }
@@ -110,16 +119,20 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private function advertisementHeaders(): array
     {
-        $headers = [
+        $headers = $this->withExtraHeaders([
             'Accept' => 'application/x-git-receive-pack-advertisement',
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
-        ];
+        ]);
         if ($this->authorizationHeader !== null) {
-            $headers['Authorization'] = $this->authorizationHeader;
+            self::setHeader($headers, 'Authorization', $this->authorizationHeader);
         }
         if ($this->extraParameters !== []) {
-            $headers['Git-Protocol'] = implode(':', $this->extraParameters);
+            self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
+        }
+        $cookieHeader = self::cookieHeader($this->cookies, self::headerValue($headers, 'cookie'));
+        if ($cookieHeader !== null) {
+            self::setHeader($headers, 'Cookie', $cookieHeader);
         }
 
         return $headers;
@@ -130,15 +143,35 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private function requestHeaders(int $bodyLength): array
     {
-        $headers = [
+        $headers = $this->withExtraHeaders([
             'Accept' => 'application/x-git-receive-pack-result',
             'Content-Type' => 'application/x-git-receive-pack-request',
             'Content-Length' => (string) $bodyLength,
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
-        ];
+        ]);
         if ($this->authorizationHeader !== null) {
-            $headers['Authorization'] = $this->authorizationHeader;
+            self::setHeader($headers, 'Authorization', $this->authorizationHeader);
+        }
+        if ($this->extraParameters !== []) {
+            self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
+        }
+        $cookieHeader = self::cookieHeader($this->cookies, self::headerValue($headers, 'cookie'));
+        if ($cookieHeader !== null) {
+            self::setHeader($headers, 'Cookie', $cookieHeader);
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return array<string, string>
+     */
+    private function withExtraHeaders(array $headers): array
+    {
+        foreach ($this->extraHeaders as $name => $value) {
+            self::setHeader($headers, $name, $value);
         }
 
         return $headers;
@@ -244,6 +277,35 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
+     * @param array<string, string> $extraHeaders
+     * @return array<string, string>
+     */
+    private static function normalizeExtraHeaders(array $extraHeaders): array
+    {
+        $normalized = [];
+        foreach ($extraHeaders as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack extra headers must be string name/value pairs');
+            }
+            self::validateHeader($name, $value);
+
+            $lowerName = strtolower($name);
+            if (in_array($lowerName, ['accept', 'content-type', 'content-length', 'cache-control', 'pragma', 'git-protocol'], true)) {
+                throw new \InvalidArgumentException("smart HTTP receive-pack extra header {$name} is managed by the transport");
+            }
+
+            foreach (array_keys($normalized) as $existingName) {
+                if (strtolower($existingName) === $lowerName) {
+                    unset($normalized[$existingName]);
+                }
+            }
+            $normalized[$name] = $value;
+        }
+
+        return $normalized;
+    }
+
+    /**
      * @param array{status: int, headers: array<string, string|list<string>>, body: string} $response
      * @param list<int> $allowedStatuses
      */
@@ -284,6 +346,88 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function setHeader(array &$headers, string $name, string $value): void
+    {
+        $lowerName = strtolower($name);
+        foreach (array_keys($headers) as $existingName) {
+            if (strtolower((string) $existingName) === $lowerName) {
+                unset($headers[$existingName]);
+            }
+        }
+
+        $headers[$name] = $value;
+    }
+
+    /**
+     * @param array<string, string|list<string>> $headers
+     */
+    private function rememberCookies(array $headers): void
+    {
+        foreach (self::headerValues($headers, 'set-cookie') as $setCookie) {
+            $this->rememberCookie($setCookie);
+        }
+    }
+
+    private function rememberCookie(string $setCookie): void
+    {
+        [$pair] = explode(';', $setCookie, 2);
+        [$name, $value] = array_pad(explode('=', trim($pair), 2), 2, null);
+        if ($value === null || !self::isCookieName($name) || !self::isCookieValue($value)) {
+            return;
+        }
+
+        $this->cookies[$name] = $value;
+    }
+
+    /**
+     * @param array<string, string|list<string>> $headers
+     * @return list<string>
+     */
+    private static function headerValues(array $headers, string $name): array
+    {
+        $values = [];
+        foreach ($headers as $headerName => $value) {
+            if (strtolower((string) $headerName) !== $name) {
+                continue;
+            }
+
+            foreach ((array) $value as $item) {
+                $values[] = (string) $item;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, string> $cookies
+     */
+    private static function cookieHeader(array $cookies, ?string $base = null): ?string
+    {
+        $parts = [];
+        if ($base !== null && $base !== '') {
+            $parts[] = $base;
+        }
+        foreach ($cookies as $name => $value) {
+            $parts[] = "{$name}={$value}";
+        }
+
+        return $parts === [] ? null : implode('; ', $parts);
+    }
+
+    private static function isCookieName(string $name): bool
+    {
+        return $name !== '' && preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $name) === 1;
+    }
+
+    private static function isCookieValue(string $value): bool
+    {
+        return preg_match('/^[^\x00-\x1f\x7f;]*$/', $value) === 1;
     }
 
     private static function stripServiceAdvertisement(string $body): string
@@ -367,7 +511,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     private static function validateHeader(string $name, string $value): void
     {
-        if ($name === '' || str_contains($name, ':') || str_contains($name, "\r") || str_contains($name, "\n") || str_contains($name, "\0")) {
+        if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $name) !== 1) {
             throw new \InvalidArgumentException('smart HTTP receive-pack header name is invalid');
         }
         if (str_contains($value, "\r") || str_contains($value, "\n") || str_contains($value, "\0")) {
