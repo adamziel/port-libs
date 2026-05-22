@@ -24,6 +24,7 @@ Highest-value work for this run:
 Resource constraints:
 
 - Keep network and CPU use modest. Prefer shallow/sparse upstream clones into `.upstream-cache/{{LANE}}` if needed.
+- On filtered/blobless clones, do not run broad `git grep` or commands that hydrate every blob. Use `git ls-tree`, path inventories, manifests, and targeted file reads first.
 - Do not run all upstream suites unless they are clearly small; inventory first.
 - Do not launch additional agents or tmux sessions.
 
@@ -34,4 +35,3 @@ Git constraints:
 - Do not use destructive Git commands.
 
 Final response: summarize changed files, tests run, blocker status, and the next best lane task.
-

@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 4,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 3,
+    "estimatedProgress": 5,
+    "suiteProgress": "static upstream tree inventory counted; full cargo runner not executed",
+    "phpPass": 6,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, and server-side repo primitives.",
-    "phase": "seed implementation",
-    "audit": "needs independent auditor review",
-    "currentWork": "Native loose Git object storage with canonical object headers and SHA-1 object IDs.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "phase": "upstream tree inventory plus commit primitive slice",
+    "audit": "needs auditor review against targeted object/ref crate denominator",
+    "currentWork": "Native loose Git object storage plus canonical commit header parsing.",
+    "blocker": "Full cargo workspace runner not executed under VM cap; broad blob scans on filtered clones were stopped to avoid resource spikes.",
     "latestCommit": "079f990fce6d",
-    "nextTask": "Expand loose object store into tree/commit parsing and map gitoxide object tests."
+    "nextTask": "Target the gitoxide object/ref crates with a controlled non-filtered checkout, then add tree object parsing and ref storage tests."
 }

@@ -6,21 +6,46 @@
         "name": "sddai/markerPDF",
         "url": "https://github.com/sddai/markerPDF",
         "commit": "da6a2f5c9a7b1e92c82d85fbcf3680a79dd28a34",
-        "license": "pending verification from upstream checkout",
-        "architecture": "PDF extraction pipeline for structured text/content conversion."
+        "license": "GPL-3.0-or-later",
+        "architecture": "Python PDF-to-Markdown extraction pipeline using pdftext, pypdfium2, Surya OCR/layout models, table/equation/image extraction, and Markdown post-processing."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Repository tests and sample document fixtures; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": 6,
+        "mapped": 0,
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus README benchmark table and .github/workflows/tests.yml.",
+        "items": [
+            "multicolcnn.pdf",
+            "switch_trans.pdf",
+            "thinkpython.pdf",
+            "thinkos.pdf",
+            "thinkdsp.pdf",
+            "crowd.pdf"
+        ],
+        "ciAssertions": 2,
+        "ciAssertionSource": "scripts/verify_benchmark_scores.py checks multicolcnn.pdf > 0.34 and switch_trans.pdf > 0.40 for marker output.",
+        "committedReferenceLikeArtifacts": {
+            "markerMarkdownExamples": 4,
+            "nougatMarkdownExamples": 4,
+            "paths": [
+                "data/examples/marker/*.md",
+                "data/examples/nougat/*.md"
+            ]
+        },
+        "runnerStatus": "not-executed",
+        "runnerBlocker": "The upstream CI benchmark downloads benchmark_data from Google Drive and requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, and model downloads. The shallow clone contains no benchmark PDFs or references, so the full runner cannot execute locally under the modest network/CPU constraint.",
+        "warning": "This replaces the seed denominator with a cloned static inventory. No upstream benchmark PDF/reference pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-run extraction for literal, array, hex, and FlateDecode streams."
+        "currentSlice": "Native PDF content stream text-line extraction for literal, array, hex, UTF-16 hex, FlateDecode streams, adjacent same-line text operators, PDF line continuations, and text line movement operators.",
+        "phpBehaviorTests": 5,
+        "mappedUpstreamSemantics": [
+            "PDF embedded text extraction feeding Marker-style Markdown conversion",
+            "Marker post-processing need for block-ready line boundaries before WordPress import"
+        ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows.",
-    "nextTask": "Add more PDF operators and map markerPDF extraction pipeline fixtures."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixture output convertible to heading/paragraph WordPress blocks.",
+    "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior."
 }

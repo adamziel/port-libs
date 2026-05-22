@@ -6,21 +6,24 @@
         "name": "GitoxideLabs/gitoxide",
         "url": "https://github.com/GitoxideLabs/gitoxide",
         "commit": "87433ed33eee9ba974111d20b854f6acb07cd4a6",
-        "license": "pending verification from upstream checkout",
+        "license": "MIT OR Apache-2.0",
         "architecture": "Rust workspace for Git object database, packfiles, refs, protocol, worktree, and plumbing crates."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 3,
-        "source": "cargo test workspace plus crate-level fixtures; full denominator pending clone/test inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "static-tree-inventory",
+        "total": "93 Cargo manifests; 472 Rust test/bench source files; 605 fixture files; 180 fixture shell scripts; 214 generated archive fixtures; 2877 upstream files total",
+        "mapped": 6,
+        "source": "git ls-tree inventory of upstream checkout at commit 87433ed33eee9ba974111d20b854f6acb07cd4a6.",
+        "runner": "cargo test workspace and crate-level tests",
+        "runnerStatus": "not executed; full workspace test run would hydrate/build too much for the current VM cap",
+        "inventoryPath": "lanes/gitoxide/notes/upstream-inventory.md",
+        "warning": "Tree inventory is stronger than the seed manifest but still not a full upstream test denominator. Next slice should target object/ref crates in a controlled non-filtered checkout."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native loose Git object storage with canonical object headers and SHA-1 object IDs."
+        "currentSlice": "Native loose Git object storage plus canonical commit header parsing."
     },
     "wordpressScenario": "Git-backed WordPress content workflows, package installs, Playground snapshots, and server-side repo primitives.",
-    "nextTask": "Expand loose object store into tree/commit parsing and map gitoxide object tests."
+    "nextTask": "Target the gitoxide object/ref crates with a controlled non-filtered checkout, then add tree object parsing and ref storage tests."
 }
