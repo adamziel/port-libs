@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 14,
+    "estimatedProgress": 15,
     "suiteProgress": "cloned static upstream inventory plus clean upstream SQLite veryquick runner parity",
-    "phpPass": 22,
+    "phpPass": 26,
     "phpFail": 0,
-    "wordpressScenarios": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, including bounded wp_options row inspection and large option_value overflow reads for recovery/import workflows.",
-    "phase": "upstream veryquick runner parity plus table leaf overflow wp_options reader slice",
-    "audit": "audited 2026-05-22: upstream SQLite veryquick runner passes locally; PHP smoke coverage remains local mapped behavior only; root harness passes after this lane slice",
-    "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and table interior cell parsing, page-backed database reader, SQLite record serial decoding, sqlite_schema traversal, bounded table-row decoding, standard wp_options option_id/option_name/option_value/autoload reads from resolved root pages, and SQLite table leaf overflow payload chain reads for large option values.",
-    "blocker": "Remaining upstream boundary: full SQLite all/release permutations were not run in this bounded pass. Clean upstream evidence is configure, testfixture, and the full veryquick permutation passing 1235 scripts with 0 errors out of 329670 tests; no local Tcl/compiler/make prerequisite blocker remains. Native index b-trees, journaling/WAL, SQL execution, writes, and broader corruption validation remain unported.",
-    "latestCommit": "95e09c2",
-    "nextTask": "Port SQLite index b-tree parsing and a bounded wp_options option_name lookup path so recovery tools do not need to full-scan large options tables."
+    "wordpressScenarios": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, including bounded wp_options row inspection, large option_value overflow reads, and explicit option_name index lookup for recovery/import workflows.",
+    "phase": "upstream veryquick runner parity plus index-backed wp_options option lookup slice",
+    "audit": "audited 2026-05-22: upstream SQLite veryquick runner passes locally; 26 libsqlite PHP tests pass with 98 assertions; PHP smoke coverage remains local mapped behavior only; root harness passes after this lane slice.",
+    "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and table interior cell parsing, index leaf and index interior cell parsing, page-backed database reader, SQLite record serial decoding, sqlite_schema traversal, bounded table-row decoding, rowid-backed table lookup, standard wp_options option_id/option_name/option_value/autoload reads from resolved root pages, SQLite table leaf overflow payload chain reads for large option values, and explicit CREATE INDEX wp_options(option_name) lookup.",
+    "blocker": "Remaining upstream boundary: full SQLite all/release permutations were not run in this bounded pass. Clean upstream evidence is configure, testfixture, and the full veryquick permutation passing 1235 scripts with 0 errors out of 329670 tests; no local Tcl/compiler/make prerequisite blocker remains. Native expression indexes, partial indexes, non-BINARY collations, descending index order, automatic-index column introspection, journaling/WAL, SQL execution, writes, and broader corruption validation remain unported.",
+    "latestCommit": "35da84d",
+    "nextTask": "Port SQLite index comparison features outside the current bounded slice: expression indexes, partial indexes, non-BINARY collations, descending sort order, and automatic-index column introspection."
 }
