@@ -38,4 +38,16 @@ return [
 
         $t->same(1.0, (new BenchmarkScorer())->scoreText($markdown, $reference));
     },
+    'scores committed upstream multicolcnn surrogate pair above threshold' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-surrogate.php';
+        $score = (new BenchmarkScorer())->scoreText(
+            $fixture['markerExcerpt'],
+            $fixture['referenceExcerpt'],
+            $fixture['chunkLength'],
+        );
+
+        $t->same('multicolcnn.pdf', $fixture['document']);
+        $t->same('committed-nougat-output-surrogate', $fixture['referenceKind']);
+        $t->true($score >= $fixture['scoreThreshold'], 'Upstream-derived surrogate score did not clear threshold: ' . $score);
+    },
 ];
