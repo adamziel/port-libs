@@ -28,9 +28,9 @@
 
 | Priority | Lane | Session | Phase | Estimate | Next Task |
 | --- | --- | --- | --- | ---: | --- |
-| 1 | gitoxide | stopped | upstream tree inventory plus commit primitive slice | 5% | Target the gitoxide object/ref crates with a controlled non-filtered checkout, then add tree object parsing and ref storage tests. |
+| 1 | gitoxide | stopped | targeted object/ref inventory plus tree object slice | 7% | Add loose ref direct/symbolic parsing and storage from gix-ref, then map packed-ref fixture parsing. |
 | 2 | lightningcss | stopped | static upstream inventory + native value minifier slice | 4% | Port a small selector/tokenizer parser slice so PHP can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics. |
-| 3 | markerPDF | stopped | cloned inventory + native text-line slice | 5% | Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture. |
+| 3 | markerPDF | stopped | cloned inventory + native markdown postprocess slice | 6% | Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture. |
 | 4 | libsqlite | stopped | upstream inventory plus first b-tree page-header slice | 7% | Parse table leaf cells on the schema root page and decode `sqlite_schema` records needed to locate WordPress tables such as `wp_options`. |
 | 5 | readability | stopped | cloned static inventory + readerable preflight slice | 5% | Map the first Mozilla test-page source/expected/metadata fixture into PHP parity, then improve metadata/byline/media handling. |
 | 6 | pandoc | stopped | cloned inventory plus inline/list slice | 5% | Map a small subset of Pandoc `Tests.Readers.Markdown` golden cases into PHP fixtures, then add nested list item blocks. |
@@ -51,7 +51,8 @@
 - Added `scripts/start-tmux-team.sh`, `scripts/check-tmux-team.sh`, and durable worker/auditor prompts under `.tmux-team/`.
 - Replaced Quadrable's seed denominator with a static upstream `check.cpp` inventory: 34 top-level scenarios, 29 `equivHeads` subcases, 136 `verify` checks, and 20 `verifyThrow` checks.
 - Gitoxide: replaced the seed denominator with a safe upstream tree inventory at `87433ed33eee9ba974111d20b854f6acb07cd4a6`: 93 Cargo manifests, 472 Rust test/bench source files, and 605 fixture files counted; added native commit parsing tests.
-- markerPDF: replaced the seed denominator with a shallow cloned upstream inventory at `da6a2f5c9a7b1e92c82d85fbcf3680a79dd28a34`: 6 README benchmark documents, 2 CI score thresholds, and 8 committed markdown examples counted; added native text-line extraction plus a WordPress block import fixture/example.
+- Gitoxide: strengthened the denominator with targeted `gix-object`/`gix-ref` static inventory at `87433ed33eee9ba974111d20b854f6acb07cd4a6`: 205 object/ref crate paths, 114 test/fixture paths, 37 Rust integration test files, 77 fixture paths, 296 targeted `#[test]` attributes, and 25 tree behavior tests counted. Added native Git tree entry parsing/serialization plus a WordPress deploy-tree fixture/example. Lane PHP: 15 passing tests, 0 failing tests. Implementation commit: `c2ee31a`.
+- markerPDF: replaced the seed denominator with a shallow cloned upstream inventory at `da6a2f5c9a7b1e92c82d85fbcf3680a79dd28a34`: 18 inspected benchmark/test artifacts counted (workflow, benchmark runner, scoring/verifier scripts, 6 benchmark documents, and 8 committed markdown examples); added native text-line extraction plus Marker markdown post-processing for hyphen dewrapping, sentence paragraph breaks, heading/list/text wrapping, and WordPress block import examples. Lane PHP: 9 passing tests, 0 failing tests.
 - LightningCSS: replaced the seed denominator with a shallow sparse upstream inventory at `22bdda3d190f1cd321d98026225cfc964af64ad9`: 241 behavior checks counted (160 Rust `#[test]`, 81 Node `uvu` tests) plus 8 CSS fixtures; added value-level color minification, calc operator spacing, and a WordPress block-theme fixture/example.
 - libsqlite: replaced the seed denominator with a shallow blobless upstream inventory at Git mirror `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7` / official manifest UUID `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`: 1,454 upstream test-related files/scripts counted plus 58 declared permutation suites; added native b-tree page header parsing and a WordPress SQLite root-page inspection example.
 - Readability: replaced the seed denominator with a shallow sparse Mozilla Readability inventory at `08be6b4bdb204dd333c9b7a0cfbc0e730b257252`: 1,984 Mocha tests counted over 130 fixture pages; added native `isProbablyReaderable` thresholds, unlikely-candidate cleanup, semantic article scoring, and a WordPress page-builder migration fixture/example.
@@ -62,14 +63,14 @@
 - Difftastic: replaced the seed denominator with a shallow sparse blob-filtered upstream inventory at `7ccfcb315f7e46fd015809416c7d7dffa5be7078`: 287 inspected behavior artifacts counted, including 144 Rust `#[test]` functions, 112 paired sample fixture bases, 30 vendored parser corpus files, and `sample_files/compare.expected`. Added native comment classification, delimiter anchors, `ignoreComments`, trailing-comma normalization, and a WordPress render-callback fixture/example. Lane PHP: 6 passing tests, 0 failing tests.
 - esbuild: replaced the seed denominator with a shallow blob-filtered upstream inventory at `6a794dff68e6a43539f6da671e3080efdf11ca70`: 2,567 counted upstream test entry points, including 1,391 Go `func Test*` functions, 331 JS API cases, 97 plugin cases, and 748 end-to-end CLI cases. Added native hashbang tokens, unterminated block comment errors, base-prefixed/decimal numeric literal values, and a WordPress block view asset fixture/example. Lane PHP: 6 passing tests, 0 failing tests. Implementation commit: `e8f8ce0b9272`.
 - Dolt: replaced the seed denominator with a shallow blob-filtered upstream inventory at `b2274926e0dcd84aab000ee242df5b5e75689eef`: 613 executable upstream test files counted, including 399 Go `_test.go` files and 214 BATS files, plus 3,808 BATS `@test` cases and 256 fixture/data artifact paths. Added native Dolt-style `DOLT_DIFF_*` row projection, structural composite primary-key indexing, and a WordPress `wp_posts` migration fixture/example. Lane PHP: 5 passing tests, 0 failing tests. Implementation commit: `e47acb6152ce`.
-- Latest root suite: `php tools/run-tests.php` passes 14 test files, 235 assertions, 0 failures.
+- Latest root suite: `php tools/run-tests.php` passes 16 test files, 268 assertions, 0 failures.
 
 ## Open Blockers
 
 - All lanes now have at least a stronger cloned or static upstream inventory replacing the original seed denominators. None of the large upstream runners should be treated as upstream pass parity until each lane runs or maps focused upstream fixtures.
-- Gitoxide now has a safe tree inventory, but the full workspace test runner was not executed under the VM cap and the broad filtered-clone blob scan was stopped.
+- Gitoxide now has a targeted object/ref static inventory and native tree parsing, but no upstream Cargo runner parity. Full Cargo was not executed because `.upstream-cache/gitoxide` is sparse/no-checkout and a runner attempt would require materializing crate source plus building Rust dependencies; full workspace `cargo test` would hydrate/build beyond the current VM cap.
 - Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
-- markerPDF now has a cloned static upstream inventory, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
+- markerPDF now has a cloned static upstream inventory and 4 focused upstream source semantics mapped, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
 - LightningCSS full upstream runners were not executed: `npm test` fails before tests because `node_modules`/`uvu` is absent, and an offline Cargo no-run probe cannot resolve `napi-derive` for the Node workspace member.
 - libsqlite full upstream runner was not executed: SQLite testing requires configuring/building `testfixture`/`sqlite3` with Tcl development libraries and then running `testrunner.tcl` suites/permutations. The current denominator is a cloned static inventory of 1,454 upstream test-related files/scripts, not upstream pass parity.
 - Readability full upstream runner was not executed: `npm test` reaches `mocha test/test-*.js` but fails before tests because the sparse upstream cache has no `node_modules` and `mocha` is not installed. The current denominator is a cloned static inventory of 1,984 Mocha tests, not upstream pass parity.
@@ -95,8 +96,8 @@
 
 - Supervisor: main Codex session.
 - Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: none active after integrating the latest Dolt slice.
+- Worker sessions: none active after integrating the latest markerPDF slice.
 
 ## Next Best Step
 
-Fix coordination truthfulness first: label dashboard pass/fail as local PHP, reconcile the LightningCSS mapped/pass mismatch, and stamp audit status from the latest independent audit. Then return capacity to the highest-priority gaps: target Gitoxide object/ref storage with a controlled checkout and map one markerPDF benchmark/reference pair or documented surrogate.
+Fix coordination truthfulness first: label dashboard pass/fail as local PHP, reconcile the LightningCSS mapped/pass mismatch, and stamp audit status from the latest independent audit. Then return capacity to the highest-priority gaps: add Gitoxide loose direct/symbolic ref parsing from `gix-ref` and map one markerPDF benchmark/reference pair or documented surrogate.

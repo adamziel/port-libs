@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "markerPDF",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static inventory: 6 upstream benchmark documents identified, 2 CI score thresholds identified, 0 benchmark documents mapped; upstream runner not executed",
-    "phpPass": 5,
+    "estimatedProgress": 6,
+    "suiteProgress": "cloned static inventory: 18 inspected upstream benchmark/test artifacts counted, 4 focused upstream source semantics mapped, 0 benchmark PDF/reference pairs mapped; upstream runner not executed",
+    "phpPass": 9,
     "phpFail": 0,
-    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output from a fixture.",
-    "phase": "cloned inventory + native text-line slice",
+    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output and wrapped-line dehyphenation before paragraph rendering.",
+    "phase": "cloned inventory + native markdown postprocess slice",
     "audit": "needs independent auditor review",
-    "currentWork": "Native PDF content stream text-line extraction for literal, array, hex, UTF-16 hex, FlateDecode streams, adjacent same-line text operators, PDF line continuations, and text line movement operators.",
-    "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required; no external benchmark pair is mapped yet.",
+    "currentWork": "Native PDF text-line extraction plus Marker markdown post-processing for hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and hash escaping.",
+    "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required; no external benchmark PDF/reference pair is mapped yet.",
     "latestCommit": "22e5cf88760b",
     "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior."
 }

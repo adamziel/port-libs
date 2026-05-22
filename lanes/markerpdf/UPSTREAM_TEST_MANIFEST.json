@@ -11,10 +11,24 @@
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": 6,
-        "mapped": 0,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus README benchmark table and .github/workflows/tests.yml.",
-        "items": [
+        "total": "18 inspected upstream benchmark/test artifacts: 1 CI workflow, 1 benchmark runner, 1 scoring module, 1 score verifier, 6 benchmark documents, and 8 committed reference-like markdown outputs",
+        "mapped": 4,
+        "mappedBenchmarkPairs": 0,
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, and data/examples/*/*.md paths.",
+        "inventory": {
+            "repositoryFiles": 78,
+            "pythonFiles": 47,
+            "markerPythonModules": 39,
+            "pythonTestFiles": 0,
+            "ciBenchmarkWorkflows": 1,
+            "benchmarkRunnerScripts": 1,
+            "benchmarkScoringModules": 1,
+            "scoreVerifierScripts": 1,
+            "readmeBenchmarkDocuments": 6,
+            "committedMarkerMarkdownExamples": 4,
+            "committedNougatMarkdownExamples": 4
+        },
+        "benchmarkDocuments": [
             "multicolcnn.pdf",
             "switch_trans.pdf",
             "thinkpython.pdf",
@@ -34,18 +48,26 @@
         },
         "runnerStatus": "not-executed",
         "runnerBlocker": "The upstream CI benchmark downloads benchmark_data from Google Drive and requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, and model downloads. The shallow clone contains no benchmark PDFs or references, so the full runner cannot execute locally under the modest network/CPU constraint.",
-        "warning": "This replaces the seed denominator with a cloned static inventory. No upstream benchmark PDF/reference pair is mapped yet because the external benchmark_data archive was not fetched."
+        "mappedSemantics": [
+            "PDF content stream text operators feed Marker-style Markdown conversion.",
+            "PDF text movement operators define block-ready line boundaries before WordPress import.",
+            "marker.postprocessors.markdown line_separator hyphen dewrapping joins split words across extracted lines.",
+            "marker.postprocessors.markdown block_surround heading/list/text wrapping and hash escaping."
+        ],
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 4 focused upstream source semantics; no upstream benchmark PDF/reference pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction for literal, array, hex, UTF-16 hex, FlateDecode streams, adjacent same-line text operators, PDF line continuations, and text line movement operators.",
-        "phpBehaviorTests": 5,
+        "currentSlice": "Native PDF content stream text-line extraction plus Marker markdown post-processing for hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and hash escaping.",
+        "phpBehaviorTests": 9,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
-            "Marker post-processing need for block-ready line boundaries before WordPress import"
+            "Marker post-processing need for block-ready line boundaries before WordPress import",
+            "marker.postprocessors.markdown line_separator hyphen and sentence boundary rules",
+            "marker.postprocessors.markdown block_surround heading/list/text Markdown wrapping"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixture output convertible to heading/paragraph WordPress blocks.",
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output and wrapped-line dehyphenation before WordPress block rendering.",
     "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior."
 }

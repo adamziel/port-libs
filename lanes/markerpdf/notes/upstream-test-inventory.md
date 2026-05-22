@@ -4,11 +4,23 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 ## Counted Denominator
 
+- Repository files inspected with `git ls-tree`: 78.
+- Python files: 47, including 39 files under `marker/`.
 - Committed Python unit tests: 0 found.
 - CI benchmark workflow: 1 integration workflow, `.github/workflows/tests.yml`.
+- Benchmark/scoring scripts inspected: `benchmarks/overall.py`, `marker/benchmark/scoring.py`, and `scripts/verify_benchmark_scores.py`.
 - Published benchmark documents in the README accuracy table: 6 (`multicolcnn.pdf`, `switch_trans.pdf`, `thinkpython.pdf`, `thinkos.pdf`, `thinkdsp.pdf`, `crowd.pdf`).
 - CI score assertions: 2 marker thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
+
+The lane manifest counts 18 inspected benchmark/test artifacts for dashboard purposes: 1 CI workflow, 1 benchmark runner, 1 scoring module, 1 verifier, 6 benchmark documents, and 8 committed reference-like markdown outputs. This is a static inventory, not upstream pass parity.
+
+## Mapped Native Semantics
+
+- PDF content stream text operators feed Marker-style Markdown conversion.
+- PDF text movement operators define block-ready line boundaries before WordPress import.
+- `marker/postprocessors/markdown.py` hyphenated line dewrapping is mapped by `MarkdownPostProcessor::mergeLines`.
+- `marker/postprocessors/markdown.py` heading/list/text wrapping and hash escaping are mapped by `MarkdownPostProcessor::surroundBlock`.
 
 ## Runner Status
 
