@@ -72,12 +72,19 @@ Focused object-database/alternates/replacements inventory inspected on 2026-05-2
 - `gix-odb/src/alternate/mod.rs` and `parse.rs` define the mapped alternates semantics: read `objects/info/alternates`, skip blank/comment lines, unquote ANSI-C-style quoted paths, resolve relative paths from the objects directory, recurse into linked object databases, and reject cycles.
 - `gix-odb/src/store_impls/dynamic/find.rs`, `header.rs`, and `init.rs` define the mapped replacement semantics: replacement pairs are sorted by source object id, object reads and headers apply one replacement by default, replacement application can be disabled, and replacement mappings remain inspectable.
 
+Focused multi-pack-index inventory inspected on 2026-05-22:
+
+- 11 selected `gix-pack` multi-index source/test paths inspected with targeted `git ls-tree`, `git show`, and `git grep`.
+- 12 Rust `#[test]` attributes counted across `gix-pack/tests/pack/multi_index/access.rs`, `fuzzed.rs`, `verify.rs`, and `write.rs`.
+- `gix-pack/src/multi_index/init.rs` defines the mapped v1 parser semantics: `MIDX` signature, hash-kind validation, chunk-table decoding with a sentinel, required `PNAM`/`OIDF`/`OIDL`/`OOFF` chunks, optional `LOFF`, sorted null-terminated pack index names, monotonic 256-entry fanout, object counts from fanout[255], exact chunk sizes, and trailing object-hash checksum bytes.
+- `gix-pack/src/multi_index/access.rs` and `verify.rs` define the mapped access semantics: object IDs are fanout-bounded, full lookups binary-search the object-id table, prefix lookups return missing/ambiguous/found, entries map object IDs to pack-index IDs and pack offsets, high-bit 32-bit offsets use `LOFF` when present, and fast verification covers checksum, non-empty object sets, object order, and pack-offset consistency.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should materialize only the needed object/ref crate paths and try `cargo test -p gix-object --no-run --locked --offline` before any live runner attempt.
+- The next inventory slice should either integrate multi-pack-index pack selection into `ObjectDatabase` or materialize only the needed object/ref/pack crate paths and try a controlled `cargo test -p gix-pack --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -90,3 +97,4 @@ Current PHP mapping:
 - `PackIndexTest.php` maps `gix-pack` v2 pack-index fanout parsing, monotonic fanout/size/version validation, pack and index checksum access, checksum verification, full object ID lookup, prefix missing/ambiguous/found outcomes, CRC32 entries, 32-bit and large 64-bit offsets, sorted offsets, and a WordPress compacted object-offset fixture.
 - `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, OFS_DELTA/REF_DELTA resolution, Git delta copy/insert application, object ID verification, unsupported/corrupt pack errors, direct delta-entry rejection, and a WordPress packed commit/blob/delta fixture.
 - `ObjectDatabaseTest.php` maps `gix-odb` pack-before-loose object lookup, packed object counts, prefix lookup across packed and loose objects, duplicate id de-duplication, ambiguous prefix reporting, pack-missing error behavior, pack lexicographic iteration, pack-offset iteration, loose and packed alternates, quoted relative alternate paths, cycle rejection, loose and packed replacement refs, replacement ignore mode, sorted replacement mappings, and a WordPress pack+loose+alternate+replacement object database fixture.
+- `MultiPackIndexTest.php` maps `gix-pack` multi-index v1 header and chunk-table parsing, SHA-1/SHA-256 hash-kind recognition, sorted pack index names, fanout and chunk size validation, full object ID lookup, prefix missing/ambiguous/found outcomes, high-bit raw offsets without `LOFF`, large 64-bit offsets through `LOFF`, checksum verification, fast object-order and pack-id integrity checks, and a WordPress content/template/media multi-pack-index fixture.
