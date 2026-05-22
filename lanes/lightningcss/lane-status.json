@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 9,
-    "suiteProgress": "static upstream inventory counted: 241 behavior checks (160 Rust #[test], 81 Node uvu tests) plus 8 CSS fixtures; selector/stylesheet parser, media query normalization, selector specificity, and CSSOM direct plus box shorthand declaration slices mapped; upstream runners probed but not executed",
-    "phpPass": 33,
+  "estimatedProgress": 10,
+  "suiteProgress": "static upstream inventory counted: 241 behavior checks (160 Rust #[test], 81 Node uvu tests) plus 8 CSS fixtures; selector/stylesheet parser, media query normalization, selector specificity, CSSOM direct plus box shorthand declaration slices, and background CSSOM access mapped; upstream runners probed but not executed",
+  "phpPass": 50,
     "phpFail": 0,
-    "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; block theme fixture covers custom properties, block selectors, at-rules, nested WordPress selectors, media query range/feature normalization, selector override specificity, color minification, and calc spacing.",
-    "phase": "static upstream inventory plus stylesheet parser/CSSOM/specificity/media-query slices",
+  "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; block theme fixture covers custom properties, block selectors, background shorthand CSSOM access, at-rules, nested WordPress selectors, media query range/feature normalization, selector override specificity, color minification, and calc spacing.",
+  "phase": "static upstream inventory plus stylesheet parser/CSSOM/background/specificity/media-query slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct and margin/padding shorthand get/set/remove helpers with !important priority handling, color keyword shortening, calc/min/max/clamp operator spacing, stylesheet rule parsing for selectors, at-rule statements/blocks, nested rules, selector specificity packing/comparison, media query range/feature/list normalization, and a WordPress block-theme parser example.",
+  "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct, margin/padding, and background shorthand access with !important priority handling, background color/image/repeat/position/size composition, color keyword shortening, calc/min/max/clamp operator spacing, stylesheet rule parsing for selectors, at-rule statements/blocks, nested rules, selector specificity packing/comparison, media query range/feature/list normalization, and a WordPress block-theme parser example.",
     "blocker": "Full upstream runner not executed: npm test lacks node_modules/uvu, and offline Cargo no-run cannot resolve napi-derive for the Node workspace; full parity run requires dependency install/build beyond this modest lane slice.",
-    "latestCommit": "c61b7b0",
-    "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, background/flex CSSOM access, prefixing, custom media, or transformer semantics."
+  "latestCommit": "99badad",
+  "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, flex CSSOM access, prefixing, custom media, or transformer semantics."
 }
