@@ -551,9 +551,23 @@ parity. A bounded upstream runner was also executed for the prefix/drop slice:
 worktree at the same commit with `ok
 github.com/syncthing/syncthing/internal/db/sqlite 0.028s`; this is not full
 upstream runner parity.
+The block-diff slice now maps focused upstream `lib/model/folder_sendrecv.go`
+and `folder_sendrecv_test.go` behavior: `blockDiff(src, tgt)` returns target
+blocks already present at the same index separately from target blocks still
+needed, treats an empty target as no work, treats an empty source as a full
+target copy, stops comparing once the source is shorter than the target, and
+uses the target block offsets/sizes in the returned need list. The native tests
+copy the upstream 12-case `TestDiff` table plus the three `TestDiffEmpty`
+boundaries. A bounded upstream runner was executed for this focused slice only:
+`go test ./lib/model -run 'TestDiff|TestDiffEmpty' -count=1` passed in a
+throwaway worktree at commit `3962a237232473c20a44945a6c8ce8c930375360` with
+`ok github.com/syncthing/syncthing/lib/model 0.011s`; this is not full upstream
+runner parity. The WordPress example `wordpress-block-diff-planner.php` shows a
+changed media block being selected for a native BEP request while unchanged
+block ranges are reused locally.
 
 ## Next Task
 
-Connect ordered and prefix-filtered FolderIndexState output to a higher-level
-pull planner, or broaden upstream sqlite conflict-delete promotion before
-broadening protocol/model behavior.
+Connect BlockDiff output to temporary-file reuse/copy accounting, then broaden
+upstream `folder_sendrecv` puller handling for zero blocks, unavailable peers,
+or receive-encrypted request behavior.

@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "verified-cloned-static-test-inventory-plus-focused-runner",
         "total": 658,
-        "mapped": 165,
-        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted 658 static Go test/benchmark entry points across 141 `_test.go` files plus 264 focused behavior/test inventory paths from Go tests, test/testdata fixtures, scripts, protocol/scanner/model paths, and targeted proto/XML/JSON/DB/cert artifacts with git ls-tree and targeted git show reads, without hydrating the full checkout. Bounded throwaway worktree runners passed the upstream block-pull reorderer, job queue, device activity, FileInfoBatch, service-map, indexhandler concurrency, receive-index RemoteIndexUpdated, folder completion, request max-size, sqlite global/need, sqlite global drop/recalculation, sqlite needed-file pull-order, and sqlite global-prefix/drop-device tests.",
+        "mapped": 169,
+        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted 658 static Go test/benchmark entry points across 141 `_test.go` files plus 264 focused behavior/test inventory paths from Go tests, test/testdata fixtures, scripts, protocol/scanner/model paths, and targeted proto/XML/JSON/DB/cert artifacts with git ls-tree and targeted git show reads, without hydrating the full checkout. Bounded throwaway worktree runners passed the upstream block-pull reorderer, blockDiff, job queue, device activity, FileInfoBatch, service-map, indexhandler concurrency, receive-index RemoteIndexUpdated, folder completion, request max-size, sqlite global/need, sqlite global drop/recalculation, sqlite needed-file pull-order, and sqlite global-prefix/drop-device tests.",
         "inventory": {
             "upstreamTrackedPaths": 940,
             "upstreamGoFiles": 548,
@@ -92,6 +92,13 @@
             "targetBlockPullOrderConfigMethods": 2,
             "targetBlockPullReordererFocusedRunnerTests": 3,
             "targetBlockPullReordererMappedPhpTests": 4,
+            "targetBlockDiffMethods": 2,
+            "targetBlockDiffTestFunctions": 2,
+            "targetBlockDiffBenchmarks": 1,
+            "targetBlockDiffTableCases": 12,
+            "targetBlockDiffEmptyCases": 3,
+            "targetBlockDiffFocusedRunnerTests": 2,
+            "targetBlockDiffMappedPhpTests": 4,
             "targetJobQueueMethods": 8,
             "targetJobQueueTestFunctions": 3,
             "targetJobQueueBenchmarks": 2,
@@ -230,6 +237,10 @@
                     "result": "passed focused upstream block-pull reorderer package slice with `ok github.com/syncthing/syncthing/lib/model 0.020s`; this is bounded upstream evidence for three selected tests, not full `go test ./...` parity"
                 },
                 {
+                    "command": "git worktree add --detach /tmp/syncthing-blockdiff.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run 'TestDiff|TestDiffEmpty' -count=1",
+                    "result": "passed focused upstream blockDiff package slice with `ok github.com/syncthing/syncthing/lib/model 0.011s`; this is bounded upstream evidence for two selected block-diff tests, not full `go test ./...` parity"
+                },
+                {
                     "command": "git worktree add --detach /tmp/syncthing-queue.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run 'TestJobQueue|TestBringToFront|TestQueuePagination' -count=1",
                     "result": "passed focused upstream job queue package slice with `ok github.com/syncthing/syncthing/lib/model 0.013s`; this is bounded upstream evidence for three selected queue tests, not full `go test ./...` parity"
                 },
@@ -296,6 +307,10 @@
                 {
                     "command": "targeted git show reads of internal/db/sqlite/db_global_test.go, folderdb_global.go, folderdb_counts.go, and folderdb_update.go",
                     "result": "inspected local and remote need selection, deleted global handling, ignored and remote-invalid boundaries, directory/symlink need counts, alphabetic need pagination, pull-order ORDER BY selection, AllGlobalFilesPrefix range behavior, DropDevice cascading recalculation/no-op behavior, full-index reset global recalculation, and fileRow conflict ordering without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/folder_sendrecv.go and lib/model/folder_sendrecv_test.go",
+                    "result": "inspected blockDiff index-based source/target block comparison, populateOffsets, the upstream TestDiff table with 12 cases, TestDiffEmpty with 3 nil/empty cases, and BenchmarkDiff without hydrating broad blobs"
                 },
                 {
                     "command": "targeted git show reads of lib/protocol/bep_fileinfo.go and lib/protocol/bep_fileinfo_test.go",
