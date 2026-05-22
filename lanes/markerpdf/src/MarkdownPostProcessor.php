@@ -55,9 +55,260 @@ final class MarkdownPostProcessor
         return $text;
     }
 
+    /**
+     * @param list<array<string, mixed>|list<array<string, mixed>>> $pages
+     * @return list<array{text: string, block_type: string, page_start: bool, pnum: int|null}>
+     */
+    public function mergeBlocks(
+        array $pages,
+        int $maxBlockGap = 15,
+        bool $paginateOutput = false,
+        string $defaultBlockType = 'Text'
+    ): array {
+        $textBlocks = [];
+        $previousType = null;
+        $previousLine = null;
+        $previousHeadingLevel = null;
+        $blockText = '';
+        $blockType = '';
+        $pnum = null;
+
+        foreach ($pages as $page) {
+            $pageBlocks = $this->pageBlocks($page);
+            if ($paginateOutput) {
+                if ($blockText !== '') {
+                    $textBlocks[] = $this->fullBlock(
+                        $this->surroundBlock($blockText, $previousType ?? $defaultBlockType, $previousHeadingLevel),
+                        $previousType ?? $defaultBlockType,
+                        false,
+                        $pnum
+                    );
+                    $blockText = '';
+                }
+                $textBlocks[] = $this->fullBlock('', 'Text', true, $this->pageNumber($page, $pageBlocks));
+            }
+
+            foreach ($pageBlocks as $block) {
+                $blockType = $this->blockType($block, $defaultBlockType);
+                $headingLevel = $this->headingLevel($block);
+                if (
+                    $blockText !== ''
+                    && (
+                        ($previousType !== null && $blockType !== $previousType)
+                        || ($previousHeadingLevel !== null && $headingLevel !== $previousHeadingLevel)
+                    )
+                ) {
+                    $textBlocks[] = $this->fullBlock(
+                        $this->surroundBlock($blockText, $previousType ?? $defaultBlockType, $previousHeadingLevel),
+                        $previousType ?? $defaultBlockType,
+                        false,
+                        $pnum
+                    );
+                    $blockText = '';
+                }
+
+                $previousType = $blockType;
+                $previousHeadingLevel = $headingLevel;
+                $pnum = $this->blockPageNumber($block) ?? $this->pageNumber($page, $pageBlocks);
+
+                foreach (($block['lines'] ?? []) as $line) {
+                    $lineText = $this->lineText($line);
+                    $isContinuation = false;
+                    if ($previousLine !== null) {
+                        $lineBox = $this->lineBbox($line);
+                        $previousLineBox = $this->lineBbox($previousLine);
+                        $verticalDistance = min(
+                            abs($lineBox[1] - $previousLineBox[3]),
+                            abs($lineBox[3] - $previousLineBox[1])
+                        );
+                        $isContinuation = $this->lineHeight($line) === $this->lineHeight($previousLine)
+                            && $lineBox[0] === $previousLineBox[0]
+                            && $verticalDistance < $maxBlockGap;
+                    }
+
+                    $previousLine = $line;
+                    $blockText = $blockText === ''
+                        ? $lineText
+                        : $this->lineSeparator($blockText, $lineText, $blockType, $isContinuation);
+                }
+            }
+        }
+
+        if ($blockText !== '') {
+            $textBlocks[] = $this->fullBlock(
+                $this->surroundBlock($blockText, $blockType !== '' ? $blockType : $defaultBlockType, $previousHeadingLevel),
+                $blockType !== '' ? $blockType : $defaultBlockType,
+                false,
+                $pnum
+            );
+        }
+
+        return array_values(array_filter(
+            $textBlocks,
+            static fn (array $block): bool => trim($block['text']) !== '' || $block['page_start']
+        ));
+    }
+
+    /**
+     * @param array{text?: string, block_type?: string} $previousBlock
+     * @param array{text?: string} $block
+     */
+    public function blockSeparator(array $previousBlock, array $block): string
+    {
+        $separator = "\n";
+        if (($previousBlock['block_type'] ?? null) === 'Text') {
+            $separator = "\n\n";
+        }
+
+        return $separator . (string) ($block['text'] ?? '');
+    }
+
+    /**
+     * @param list<array{text?: string, block_type?: string, page_start?: bool, pnum?: int|null}> $textBlocks
+     */
+    public function getFullText(array $textBlocks, string $pageSeparator = "\n\n"): string
+    {
+        $fullText = '';
+        $previousBlock = null;
+        foreach ($textBlocks as $block) {
+            if (($block['page_start'] ?? false) === true) {
+                $fullText .= "\n\n{" . (string) ($block['pnum'] ?? '') . '}' . $pageSeparator;
+            } elseif ($previousBlock !== null) {
+                $fullText .= $this->blockSeparator($previousBlock, $block);
+            } else {
+                $fullText .= (string) ($block['text'] ?? '');
+            }
+
+            $previousBlock = $block;
+        }
+
+        return $fullText;
+    }
+
     public function escapeMarkdown(string $text): string
     {
         return preg_replace('/[#]/', '\\\\$0', $text) ?? $text;
+    }
+
+    /**
+     * @param array<string, mixed>|list<array<string, mixed>> $page
+     * @return list<array<string, mixed>>
+     */
+    private function pageBlocks(array $page): array
+    {
+        if (isset($page['blocks']) && is_array($page['blocks'])) {
+            return array_values($page['blocks']);
+        }
+
+        return array_values(array_filter($page, static fn (mixed $block): bool => is_array($block)));
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param list<array<string, mixed>> $pageBlocks
+     */
+    private function pageNumber(array $page, array $pageBlocks): ?int
+    {
+        if (isset($page['pnum'])) {
+            return (int) $page['pnum'];
+        }
+        if (isset($pageBlocks[0])) {
+            return $this->blockPageNumber($pageBlocks[0]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function blockPageNumber(array $block): ?int
+    {
+        if (isset($block['pnum'])) {
+            return (int) $block['pnum'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{text: string, block_type: string, page_start: bool, pnum: int|null}
+     */
+    private function fullBlock(string $text, string $blockType, bool $pageStart, ?int $pnum): array
+    {
+        return [
+            'text' => $text,
+            'block_type' => $blockType,
+            'page_start' => $pageStart,
+            'pnum' => $pnum,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function blockType(array $block, string $defaultBlockType): string
+    {
+        return (string) ($block['type'] ?? $block['block_type'] ?? $defaultBlockType);
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function headingLevel(array $block): ?int
+    {
+        if (isset($block['heading_level'])) {
+            return (int) $block['heading_level'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed>|string $line
+     */
+    private function lineText(array|string $line): string
+    {
+        if (is_string($line)) {
+            return $line;
+        }
+        if (isset($line['text'])) {
+            return (string) $line['text'];
+        }
+        if (isset($line['prelim_text'])) {
+            return (string) $line['prelim_text'];
+        }
+        if (isset($line['spans']) && is_array($line['spans'])) {
+            return implode('', array_map(static fn (array $span): string => (string) ($span['text'] ?? ''), $line['spans']));
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed>|string $line
+     * @return list<float>
+     */
+    private function lineBbox(array|string $line): array
+    {
+        if (is_array($line) && isset($line['bbox']) && is_array($line['bbox']) && count($line['bbox']) === 4) {
+            return array_map(static fn (float|int $value): float => (float) $value, array_values($line['bbox']));
+        }
+
+        return [0.0, 0.0, 0.0, 0.0];
+    }
+
+    /**
+     * @param array<string, mixed>|string $line
+     */
+    private function lineHeight(array|string $line): float
+    {
+        if (is_array($line) && isset($line['height'])) {
+            return (float) $line['height'];
+        }
+
+        $bbox = $this->lineBbox($line);
+        return $bbox[3] - $bbox[1];
     }
 
     private function lineSeparator(string $line1, string $line2, string $blockType, bool $isContinuation = false): string
