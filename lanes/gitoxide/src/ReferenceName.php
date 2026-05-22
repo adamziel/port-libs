@@ -43,6 +43,16 @@ final class ReferenceName
         self::assertCommonShape($name);
     }
 
+    public static function joinPartial(string $name, string $component): string
+    {
+        self::assertValidPartial($name);
+
+        $joined = $name . '/' . $component;
+        self::assertValidPartial($joined);
+
+        return $joined;
+    }
+
     public static function fileName(string $name): string
     {
         self::assertValidPartial($name);

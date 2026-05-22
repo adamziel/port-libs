@@ -32,6 +32,8 @@ The example now uses an uppercase raw target ID in the fixture and reports both 
 
 `examples/wordpress-reference-categories.php` classifies WordPress deployment refs as local branches, remote-tracking branches, tags, pseudo refs, main-worktree refs, linked-worktree refs, and worktree-private refs. It also constructs full names from upstream categories and prefixes/strips a site namespace such as `refs/namespaces/site-a/refs/heads/main`. This models multisite or staged-deployment tooling that needs to route fetch, push, and review refs without invoking `git for-each-ref`.
 
+The same example now uses `ReferenceName::joinPartial()` to compose plugin review branches such as `refs/heads/review/plugins/gutenberg` and `refs/remotes/origin/review/plugins/gutenberg` from partial ref components. This models deployment tools that build branch names from WordPress plugin paths while still rejecting unsafe ref bytes, repeated slashes, empty components, leading-dot names, and `.lock` suffixes through upstream-shaped validation.
+
 ## WordPress Packed Reference Example
 
 `examples/wordpress-packed-refs.php` parses a compacted `packed-refs` buffer with a WordPress deployment branch, remote-tracking branch, and peeled release tag. This models a PHP deployment or package manager inspecting compacted repository state on shared hosting without invoking `git show-ref` or `git for-each-ref`.
@@ -128,4 +130,4 @@ The example now uses an uppercase raw target ID in the fixture and reports both 
 
 ## Next Task
 
-Broaden commit trailer/message edge cases from upstream fixtures, run another controlled `gix-object` integration-test subset, add broader directory rename conflict cases, broaden proxy credential persistence, or map `gix-ref` partial-name join behavior.
+Broaden commit trailer/message edge cases from upstream fixtures, run another controlled `gix-object` integration-test subset, add broader directory rename conflict cases, or broaden proxy credential persistence.

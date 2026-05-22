@@ -22,6 +22,12 @@ return [
     'remoteBranch' => $remoteBranch,
     'namespace' => 'site-a',
     'expectedNamespacedHead' => 'refs/namespaces/site-a/refs/heads/main',
+    'pluginReviewBranchBase' => 'refs/heads/review',
+    'pluginReviewBranchComponent' => 'plugins/gutenberg',
+    'expectedJoinedPluginReviewBranch' => 'refs/heads/review/plugins/gutenberg',
+    'remoteReviewBranchBase' => 'refs/remotes',
+    'remoteReviewBranchComponent' => 'origin/review/plugins/gutenberg',
+    'expectedJoinedRemoteReviewBranch' => 'refs/remotes/origin/review/plugins/gutenberg',
     'expectedCategories' => [
         $defaultBranch => ReferenceName::CATEGORY_LOCAL_BRANCH,
         $remoteBranch => ReferenceName::CATEGORY_REMOTE_BRANCH,

@@ -49,6 +49,13 @@ Focused reference full-name and namespace inventory inspected on 2026-05-22:
 - A bounded upstream runner probe `timeout 120 cargo test -p gix-ref --lib --features sha1,sha256` passed 17/17 gix-ref library unit tests. A direct probe for the focused nested integration files, `cargo test -p gix-ref --test refs fullname` and `--test main fullname`, could not run because this crate has no registered Cargo test target named `refs` or `main`; the full-name/namespace mapping is therefore static source/test inventory evidence, not upstream runner parity for those nested files.
 - The PHP slice adds `ReferenceName::fileName()`, `shorten()`, `category()`, `categoryAndShortName()`, `isWorktreePrivate()`, `isRemoteTrackingBranch()`, `toFullName()`, `expandNamespace()`, `prefixNamespace()`, and `stripNamespace()`, plus a WordPress reference classification fixture for active, remote-tracking, tag, pseudo, linked-worktree, and namespaced deployment refs.
 
+Focused partial-name join inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-ref/src/name.rs`, `gix-validate/src/reference.rs`, and `gix-validate/tests/validate/reference.rs` with targeted upstream reads.
+- `PartialName::join()` appends one `/` plus the provided component, then validates the full joined partial reference name with `gix_validate::reference::name_partial()`. The component is not pre-split or separately validated; nested components are accepted when the combined path remains valid, and empty, repeated-slash, space/backslash-containing, dot-leading, and `.lock` suffix paths fail through the same partial-name validator.
+- A bounded upstream runner probe materialized `gix-validate/tests/validate/*` in the sparse cache and ran `timeout 120 cargo test -p gix-validate --test validate reference::name_partial -- --nocapture`, passing 50/50 filtered upstream tests with 263 tests filtered out.
+- The PHP slice adds `ReferenceName::joinPartial()` with upstream-shaped validation and extends the WordPress reference-category example to compose local and remote plugin review branch refs from partial components before fetch/push planning.
+
 Focused commit signature/actor inventory inspected on 2026-05-22:
 
 - Selected `gix-object/src/commit/decode.rs`, `gix-object/src/commit/mod.rs`, `gix-object/src/commit/ref_iter.rs`, `gix-object/src/parse.rs`, `gix-object/tests/object/commit/from_bytes.rs`, `gix-object/tests/object/commit/iter.rs`, `gix-actor/src/signature/decode.rs`, `gix-actor/src/signature/mod.rs`, and `gix-actor/tests/actor/signature.rs` with targeted `git show` and `git grep`.
