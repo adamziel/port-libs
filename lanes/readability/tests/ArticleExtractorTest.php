@@ -381,6 +381,53 @@ return [
         $t->true(preg_match('/<\/?(?:table|tbody|tr|td)\b/i', $article->contentHtml) !== 1, 'one-cell block layout table markup should be removed');
         $t->contains('remove table markup without dropping editorial media', $article->text);
     },
+    'strips presentational table and font markup for WordPress imports' => static function (TestRunner $t) use ($attributeValues): void {
+        $html = '<html><head><meta property="og:title" content="Legacy Styling Cleanup"></head><body><article>'
+            . '<h1>Legacy Styling Cleanup</h1>'
+            . '<p><font size="+2">Legacy status</font> should keep its emphasis without importing obsolete font tags.</p>'
+            . '<p>' . str_repeat('A WordPress migration should keep tabular content while dropping source-era presentational attributes. ', 3) . '</p>'
+            . '<table id="legacy-data" class="layout-grid" width="90%" cellpadding="8" cellspacing="0" border="1" bgcolor="#fff" style="color:red">'
+            . '<tbody><tr><td width="50%" bgcolor="#eee">Metric</td><td style="text-align:right">Ready</td></tr></tbody></table>'
+            . '<p>' . str_repeat('Cleaned table markup can become a core table block without carrying theme-specific styling. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+        $blocks = (new ArticleExtractor())->toWordPressBlocks($article);
+
+        $t->contains('<span size="+2">Legacy status</span>', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, '<font'), 'legacy font tags should be normalized to spans like upstream _prepDocument');
+        $t->contains('<table id="legacy-data">', $article->contentHtml);
+        $t->same([], $attributeValues($article->contentHtml, '//@align|//@bgcolor|//@border|//@cellpadding|//@cellspacing|//@style|//table/@width|//td/@width'));
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('dropping source-era presentational attributes', $article->text);
+    },
+    'maps Mozilla table style attributes fixture cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/table-style-attributes';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        foreach (['table', 'tr', 'td', 'a', 'img', 'span'] as $tagName) {
+            $t->same(
+                preg_match_all('/<' . $tagName . '\b/i', $expected),
+                preg_match_all('/<' . $tagName . '\b/i', $article->contentHtml),
+                'expected element count should match copied upstream fixture for ' . $tagName,
+            );
+        }
+        $t->same([], $attributeValues($article->contentHtml, '//font|//@align|//@bgcolor|//@border|//@cellpadding|//@cellspacing|//@style|//table/@width|//td/@width'));
+        $t->true(!str_contains($article->contentHtml, '<!--'), 'commented source tables and links should not be imported');
+    },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
         $source = (string) file_get_contents($fixture . '/source.html');

@@ -10,6 +10,27 @@ final class ArticleExtractor
     private const OK_MAYBE_CANDIDATE_PATTERN = '/and|article|body|column|content|main|mathjax|shadow/i';
     private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
     private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
+    private const PRESENTATIONAL_ATTRIBUTES = [
+        'align',
+        'background',
+        'bgcolor',
+        'border',
+        'cellpadding',
+        'cellspacing',
+        'frame',
+        'hspace',
+        'rules',
+        'style',
+        'valign',
+        'vspace',
+    ];
+    private const DEPRECATED_SIZE_ATTRIBUTE_TAGS = [
+        'TABLE',
+        'TH',
+        'TD',
+        'HR',
+        'PRE',
+    ];
     private const UNLIKELY_ROLES = [
         'menu',
         'menubar',
@@ -23,6 +44,7 @@ final class ArticleExtractor
     public function extract(string $html, ?string $url = null): Article
     {
         $dom = $this->loadHtmlDocument($html);
+        $this->replaceElementsByTagName($dom, 'font', 'span');
         $xpath = new \DOMXPath($dom);
         $effectiveBaseUri = $this->effectiveBaseUri($xpath, $url);
         $this->unwrapNoscriptImages($xpath, $dom);
@@ -1122,9 +1144,66 @@ final class ArticleExtractor
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->removeEmptyParagraphs($scope);
         $scope = $this->unwrapSingleCellTables($scope);
+        $this->removeCommentNodes($scope);
+        $this->cleanPresentationalAttributes($scope);
         $this->cleanClasses($scope);
 
         return $scope;
+    }
+
+    private function replaceElementsByTagName(\DOMDocument $dom, string $tagName, string $replacementTagName): void
+    {
+        $nodes = [];
+        foreach ($dom->getElementsByTagName($tagName) as $node) {
+            if ($node instanceof \DOMElement) {
+                $nodes[] = $node;
+            }
+        }
+
+        foreach ($nodes as $node) {
+            $this->replaceElementTag($node, $replacementTagName);
+        }
+    }
+
+    private function removeCommentNodes(\DOMNode $node): void
+    {
+        for ($index = $node->childNodes->length - 1; $index >= 0; $index--) {
+            $child = $node->childNodes->item($index);
+            if (!$child instanceof \DOMNode) {
+                continue;
+            }
+
+            if ($child instanceof \DOMComment) {
+                $node->removeChild($child);
+                continue;
+            }
+
+            if ($child instanceof \DOMElement) {
+                $this->removeCommentNodes($child);
+            }
+        }
+    }
+
+    private function cleanPresentationalAttributes(\DOMElement $node): void
+    {
+        if (strtolower($node->tagName) === 'svg') {
+            return;
+        }
+
+        foreach (self::PRESENTATIONAL_ATTRIBUTES as $attribute) {
+            $node->removeAttribute($attribute);
+        }
+
+        if (in_array(strtoupper($node->tagName), self::DEPRECATED_SIZE_ATTRIBUTE_TAGS, true)) {
+            $node->removeAttribute('width');
+            $node->removeAttribute('height');
+        }
+
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $this->cleanPresentationalAttributes($child);
+            }
+        }
     }
 
     private function removeEmptyParagraphs(\DOMElement $scope): void

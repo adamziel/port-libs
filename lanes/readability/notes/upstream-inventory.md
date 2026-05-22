@@ -101,6 +101,13 @@ npm test
 1984 passing (41s)
 ```
 
+It was rerun on 2026-05-22 after the native presentational table/style cleanup slice and still passed:
+
+```text
+npm test
+1984 passing (38s)
+```
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -136,8 +143,10 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla div preprocessing semantics: consecutive phrasing children inside `div` nodes are wrapped in `p` elements, including image and anchor-wrapped image payloads; media-bearing single-paragraph `div` wrappers are retained so copied Medium figure image wrappers move closer to expected HTML parity.
 - Mozilla `_prepArticle` extra paragraph cleanup: empty `p` nodes with no image/embed/object/iframe payload are removed before WordPress block serialization.
 - Mozilla `_prepArticle` single-cell table cleanup: a table whose only row contains one `td` is replaced by a `p` when the cell contains only phrasing content, or a `div` when the cell contains block children; multi-cell data tables are retained.
+- Mozilla `test-pages/table-style-attributes` copied into the lane and mapped for table retention, source `font` to `span` normalization, HTML comment removal, presentational attribute cleanup, table/cell `width`/`height` cleanup, source class cleanup, readerable classification, metadata, excerpt, and whitespace-normalized article text parity.
 - Single-article body promotion for Medium/WordPress exports: when the selected body/main wrapper contains one substantial article, the native extractor uses that article as the content scope so surrounding document wrappers and empty body placeholders are not imported.
 - WordPress migration class cleanup: source theme and block wrapper classes are removed while IDs, article text, and promoted media sources remain available for clean block serialization.
+- WordPress migration presentational markup cleanup: legacy `font` tags are normalized to spans, commented-out source tables/links are removed, and retained multi-cell tables drop obsolete presentational attributes before core table block serialization.
 - Mozilla `_prepArticle` interactive cleanup: `button`, `input`, `textarea`, and `select` controls plus source platform share/action links are removed from article content.
 - WordPress/Medium migration leading action-bar cleanup: byline, follow, read-time, and share controls before the first content heading are removed while author/avatar media remains available.
 - WordPress migration URL cleanup: relative editorial links, image `src`, and responsive `srcset` candidates are made absolute against the source URL/base element before block output so import previews and media sideloading are deterministic.
@@ -146,13 +155,13 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/single-article/empty-paragraph/single-cell-table mappings.
-- Native PHP lane tests: 33 passing, 0 failing, 236 assertions.
-- Latest root verification: `php tools/run-tests.php` passes 97 test files, 6486 assertions, and 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/single-article/empty-paragraph/single-cell-table/table-style mappings.
+- Native PHP lane tests: 35 passing, 0 failing, 258 assertions.
+- Latest root verification: `php tools/run-tests.php` passes 99 test files, 6638 assertions, and 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
 - Blocker: no readability-local execution blocker remains. Broader table fixture parity and exact structural HTML parity are still incomplete for copied Medium lazy-image fixtures, including the readability-page root wrapper, author/avatar wrapper nesting, and remaining wrapper/id differences.
-- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, promotes a single substantial article out of body/main wrappers, removes empty paragraphs with no media/embed payload, removes one-cell layout tables while preserving retained data tables, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, wraps consecutive phrasing content inside `div` nodes into paragraphs, preserves media-bearing single-paragraph `div` wrappers, converts text/phrasing-only `div` blocks to paragraphs, collapses low-link-density non-media `div` wrappers around a single paragraph, strips source classes, resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, avoids document-head fallback on body-only pages, cleans platform chrome, and emits WordPress paragraph, heading, image, and table block output.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, promotes a single substantial article out of body/main wrappers, removes empty paragraphs with no media/embed payload, removes one-cell layout tables while preserving retained data tables, normalizes legacy `font` tags to spans, removes article comments, strips presentational/style attributes from retained markup, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, wraps consecutive phrasing content inside `div` nodes into paragraphs, preserves media-bearing single-paragraph `div` wrappers, converts text/phrasing-only `div` blocks to paragraphs, collapses low-link-density non-media `div` wrappers around a single paragraph, strips source classes, resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, avoids document-head fallback on body-only pages, cleans platform chrome, and emits WordPress paragraph, heading, image, and table block output.
 
 ## Next Slice
 
-Copy and map the Mozilla `keep-tabular-data` or `links-in-tables` fixture for broader table parity, then continue remaining Medium lazy-image structural HTML parity around readability-page wrappers and author/avatar nesting.
+Copy and map the Mozilla `keep-tabular-data` or `links-in-tables` fixture for broader table structure/link parity, then continue remaining Medium lazy-image structural HTML parity around readability-page wrappers and author/avatar nesting.
