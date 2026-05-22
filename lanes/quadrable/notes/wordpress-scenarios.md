@@ -4,7 +4,7 @@ Authenticated local-first state sync for Playground snapshots and content databa
 
 ## Current Native Slice
 
-Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/put/delete, update batching, path-independent roots, `getMulti`, empty-head restoration, delete bubbling equivalence, ordered raw integer keys for WordPress option/post records, an exact upstream-digest snapshot root, iterator windows for incremental sync chunks, compact authenticated range proofs for partial snapshot verification, proof-backed partial-tree updates for narrow content changes, merged partial proofs for independently requested records, bounded sync proof fragments with diff reconstruction, scan-time diff callbacks that match the final authenticated diff, tracked leaf node-id reuse for compact rebuilds of unchanged snapshot records, saved branch-head checkout for old/new snapshot forks, tracked scan/final diffs that report identical leaf node ids for changed/deleted/added records, tracked diff application that reconstructs changed snapshots from final diffs, memStore-range detached overlays for volatile preview edits, and named published heads that reject volatile memStore writes until a preview fork detaches the head.
+Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/put/delete, update batching, path-independent roots, `getMulti`, empty-head restoration, delete bubbling equivalence, ordered raw integer keys for WordPress option/post records, an exact upstream-digest snapshot root, iterator windows for incremental sync chunks, compact authenticated range proofs for partial snapshot verification, proof-backed partial-tree updates for narrow content changes, merged partial proofs for independently requested records, bounded sync proof fragments with diff reconstruction, scan-time diff callbacks that match the final authenticated diff, imported proof-fragment shadow node ids that match final sync diffs, tracked leaf node-id reuse for compact rebuilds of unchanged snapshot records, saved branch-head checkout for old/new snapshot forks, tracked scan/final diffs that report identical leaf node ids for changed/deleted/added records, tracked diff application that reconstructs changed snapshots from final diffs, memStore-range detached overlays for volatile preview edits, and named published heads that reject volatile memStore writes until a preview fork detaches the head.
 
 ## Fixture And Example
 
@@ -15,6 +15,7 @@ Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/p
 - `examples/wordpress-proof-merge.php` imports one proof for `siteurl`, merges a second proof for a post record with the same trusted root, and reads both records from the expanded authenticated partial tree.
 - `examples/wordpress-sync-diff.php` uses upstream-shaped sync request/response transport round trips to fetch bounded proof fragments from a changed snapshot, diff the authenticated shadow tree, and reconstruct updated/deleted/added WordPress records locally.
 - `examples/wordpress-sync-scan-diff.php` streams scan-time diff callbacks while sync requests converge, then shows that those callbacks match the final authenticated WordPress option/post diff.
+- `examples/wordpress-sync-node-id-parity.php` shows scan-time and final sync diffs carrying identical node ids, with changed/added records coming from imported memStore-range shadow leaves and deletes carrying local snapshot node ids.
 - `examples/wordpress-node-id-reuse.php` rebuilds the ordered snapshot from reused leaf node ids, preserving unchanged record node ids while producing the same trusted root and a new branch head id.
 - `examples/wordpress-snapshot-fork.php` saves the branch head id for an ordered snapshot, applies a post update on a fork, then checks out both old and new branch heads to read the authenticated record versions.
 - `examples/wordpress-node-id-diff.php` compares a saved snapshot with a changed fork and reports matching scan-time and final diff leaf node ids for changed, deleted, and added records.
@@ -24,4 +25,4 @@ Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/p
 
 ## Next Task
 
-Broaden tracked diff reconstruction into full upstream 500-trial proof-fragment sync fuzz with imported shadow node ids.
+Broaden the imported sync shadow node-id slice into full upstream 500-trial proof-fragment sync fuzz, including persisted LMDB-style branch node-id parity and randomized upstream mt19937 dimensions.

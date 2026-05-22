@@ -9,6 +9,7 @@ use PortLibs\Quadrable\SparseTree;
 use PortLibs\Quadrable\SyncCodec;
 use PortLibs\Quadrable\SyncRequest;
 use PortLibs\Quadrable\SyncSession;
+use PortLibs\Quadrable\TrackedNodeStore;
 
 return [
     'maps upstream sync request and response transport round trips' => static function (TestRunner $t): void {
@@ -167,6 +168,54 @@ return [
         });
         $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs));
     },
+    'sync proof fragments preserve upstream shaped imported diff node ids' => static function (TestRunner $t): void {
+        $local = new SparseTree();
+        $local->change()
+            ->putKey(Key::fromInteger(1), 'one')
+            ->putKey(Key::fromInteger(2), 'two')
+            ->putKey(Key::fromInteger(4), 'four')
+            ->apply();
+
+        $remote = clone $local;
+        $remote->change()
+            ->putKey(Key::fromInteger(2), 'two updated')
+            ->deleteKey(Key::fromInteger(4))
+            ->putKey(Key::fromInteger(3), 'three')
+            ->apply();
+
+        $session = new SyncSession($local, 1, 1);
+        $scanDiffs = [];
+        $converged = false;
+
+        for ($roundTrips = 0; $roundTrips < 50; $roundTrips++) {
+            $requests = SyncCodec::decodeRequests(SyncCodec::encodeRequests($session->getRequests(
+                128,
+                static function (DiffEntry $diff) use (&$scanDiffs): void {
+                    $scanDiffs[] = $diff;
+                }
+            )));
+            if ($requests === []) {
+                $converged = true;
+                break;
+            }
+
+            $responses = SyncCodec::decodeResponses(SyncCodec::encodeResponses($remote->handleSyncRequests($requests, 512)));
+            $session->addResponses($requests, $responses);
+        }
+
+        $t->true($converged, 'sync should converge before checking node id parity');
+
+        $finalDiffs = $local->diffTo($session->shadow());
+        $diffsByKey = [];
+        foreach ($finalDiffs as $diff) {
+            $diffsByKey[$diff->key()->toInteger()] = $diff;
+        }
+
+        $t->same(quadrableSyncNodeIdSignature($finalDiffs), quadrableSyncNodeIdSignature($scanDiffs));
+        $t->true($diffsByKey[2]->nodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'changed imported leaf should use memStore-range node id');
+        $t->true($diffsByKey[3]->nodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'added imported leaf should use memStore-range node id');
+        $t->true($diffsByKey[4]->nodeId > 0 && $diffsByKey[4]->nodeId < TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'deleted local leaf should keep a local node id');
+    },
     'deterministic upstream shaped sync fuzz converges with scan diff equivalence' => static function (TestRunner $t): void {
         $state = 0;
 
@@ -226,6 +275,7 @@ return [
             $t->same($remote->rootHash(), $shadow->rootHash(), 'shadow root mismatch on trial ' . $trial);
             $t->same($remote->rootHash(), $reconstructed->rootHash(), 'reconstructed root mismatch on trial ' . $trial);
             $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs), 'scan diff mismatch on trial ' . $trial);
+            $t->same(quadrableSyncNodeIdSignature($finalDiffs), quadrableSyncNodeIdSignature($scanDiffs), 'scan diff node id mismatch on trial ' . $trial);
         }
     },
 ];
@@ -253,6 +303,22 @@ function quadrableSyncDiffSignature(array $diffs): array
 {
     $signature = array_map(
         static fn (DiffEntry $diff): string => $diff->type . ':' . $diff->keyHex() . ':' . $diff->value,
+        $diffs
+    );
+    sort($signature, SORT_STRING);
+
+    return $signature;
+}
+
+/**
+ * @param list<DiffEntry> $diffs
+ *
+ * @return list<string>
+ */
+function quadrableSyncNodeIdSignature(array $diffs): array
+{
+    $signature = array_map(
+        static fn (DiffEntry $diff): string => $diff->type . ':' . $diff->keyHex() . ':' . $diff->value . ':' . $diff->nodeId,
         $diffs
     );
     sort($signature, SORT_STRING);

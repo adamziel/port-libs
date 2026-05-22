@@ -17,6 +17,7 @@ final class SparseTree
      * @var array<string, mixed>|null
      */
     private ?array $partialRoot = null;
+    private int $nextPartialNodeId = TrackedNodeStore::FIRST_MEMSTORE_NODE_ID;
 
     public function __construct(?HashTree $hashTree = null)
     {
@@ -243,7 +244,7 @@ final class SparseTree
         }
 
         $tree = new self();
-        $tree->partialRoot = self::importProofRoot($proof, $tree->hashTree);
+        $tree->partialRoot = self::importProofRoot($proof, $tree->hashTree, 0, $tree->nextPartialNodeId);
 
         if ($expectedRoot !== '' && $tree->partialRoot['hash'] !== $expectedRoot) {
             throw new \RuntimeException('proof invalid');
@@ -271,7 +272,7 @@ final class SparseTree
                 throw new \InvalidArgumentException('importSyncResponses expects paired SyncRequest and Proof instances');
             }
 
-            $fragmentRoot = self::importProofRoot($response, $this->hashTree, $request->startDepth);
+            $fragmentRoot = self::importProofRoot($response, $this->hashTree, $request->startDepth, $this->nextPartialNodeId);
 
             if ($this->partialRoot === null) {
                 if ($request->startDepth !== 0) {
@@ -296,7 +297,7 @@ final class SparseTree
 
     public function mergeProof(Proof $proof): self
     {
-        $newRoot = self::importProofRoot($proof, $this->hashTree);
+        $newRoot = self::importProofRoot($proof, $this->hashTree, 0, $this->nextPartialNodeId);
         if ($newRoot['hash'] !== $this->rootHash()) {
             throw new \RuntimeException('different roots, unable to merge proofs');
         }
@@ -366,24 +367,8 @@ final class SparseTree
             return $diffs;
         }
 
-        $ours = $this->leafValueMapForDiff();
-        $theirs = $target->leafValueMapForDiff();
-        $keys = array_values(array_unique(array_merge(array_keys($ours), array_keys($theirs))));
-        sort($keys, SORT_STRING);
-
         $diffs = [];
-        foreach ($keys as $keyHashHex) {
-            $oursHas = array_key_exists($keyHashHex, $ours);
-            $theirsHas = array_key_exists($keyHashHex, $theirs);
-
-            if (!$oursHas && $theirsHas) {
-                $diffs[] = new DiffEntry(DiffEntry::ADDED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
-            } elseif ($oursHas && !$theirsHas) {
-                $diffs[] = new DiffEntry(DiffEntry::DELETED, Key::fromHex($keyHashHex), $ours[$keyHashHex]);
-            } elseif ($oursHas && $theirsHas && $ours[$keyHashHex] !== $theirs[$keyHashHex]) {
-                $diffs[] = new DiffEntry(DiffEntry::CHANGED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
-            }
-        }
+        $this->appendLeafRecordDiffs($this->leafRecordMapForDiff(), $target->leafRecordMapForDiff(), $diffs);
 
         return $diffs;
     }
@@ -1159,6 +1144,7 @@ final class SparseTree
         self::assertHash($keyHashHex);
 
         return [
+            'nodeId' => 0,
             'type' => 'leaf',
             'depth' => $depth,
             'keyHash' => $keyHashHex,
@@ -1173,6 +1159,7 @@ final class SparseTree
     private function emptyPartialNode(int $depth): array
     {
         return [
+            'nodeId' => 0,
             'type' => 'empty',
             'depth' => $depth,
             'hash' => HashTree::EMPTY_HASH,
@@ -1185,9 +1172,10 @@ final class SparseTree
      *
      * @return array<string, mixed>
      */
-    private function branchPartialNode(int $depth, array $left, array $right): array
+    private function branchPartialNode(int $depth, array $left, array $right, int $nodeId = 0): array
     {
         return [
+            'nodeId' => $nodeId,
             'type' => 'branch',
             'depth' => $depth,
             'left' => $left,
@@ -1233,7 +1221,7 @@ final class SparseTree
                 return $new;
             }
 
-            return $this->branchPartialNode($original['depth'], $left, $right);
+            return $this->branchPartialNode($original['depth'], $left, $right, $this->nodeIdFromPartialNode($original));
         }
 
         return $original;
@@ -1353,28 +1341,38 @@ final class SparseTree
             return $this->branchPartialNode(
                 $node['depth'],
                 $this->replaceSyncFragment($node['left'], $path, $depth + 1, $targetDepth, $fragmentRoot),
-                $node['right']
+                $node['right'],
+                $this->allocatePartialNodeId()
             );
         }
 
         return $this->branchPartialNode(
             $node['depth'],
             $node['left'],
-            $this->replaceSyncFragment($node['right'], $path, $depth + 1, $targetDepth, $fragmentRoot)
+            $this->replaceSyncFragment($node['right'], $path, $depth + 1, $targetDepth, $fragmentRoot),
+            $this->allocatePartialNodeId()
         );
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, array{value: string, nodeId: int}>
      */
-    private function leafValueMapForDiff(): array
+    private function leafRecordMapForDiff(): array
     {
         if ($this->partialRoot === null) {
-            return $this->entries();
+            $entries = [];
+            foreach ($this->entries() as $keyHashHex => $value) {
+                $entries[$keyHashHex] = [
+                    'value' => $value,
+                    'nodeId' => 0,
+                ];
+            }
+
+            return $entries;
         }
 
         $entries = [];
-        $this->collectFullPartialLeaves($this->partialRoot, $entries);
+        $this->collectFullPartialLeafRecords($this->partialRoot, $entries);
         ksort($entries, SORT_STRING);
 
         return $entries;
@@ -1401,9 +1399,9 @@ final class SparseTree
             return;
         }
 
-        $this->appendLeafMapDiffs(
-            $this->leafValueMapFromNode($ours),
-            $this->leafValueMapFromNode($theirs),
+        $this->appendLeafRecordDiffs(
+            $this->leafRecordMapFromNode($ours),
+            $this->leafRecordMapFromNode($theirs),
             $diffs
         );
     }
@@ -1411,23 +1409,23 @@ final class SparseTree
     /**
      * @param array<string, mixed> $node
      *
-     * @return array<string, string>
+     * @return array<string, array{value: string, nodeId: int}>
      */
-    private function leafValueMapFromNode(array $node): array
+    private function leafRecordMapFromNode(array $node): array
     {
         $entries = [];
-        $this->collectFullPartialLeaves($node, $entries);
+        $this->collectFullPartialLeafRecords($node, $entries);
         ksort($entries, SORT_STRING);
 
         return $entries;
     }
 
     /**
-     * @param array<string, string> $ours
-     * @param array<string, string> $theirs
+     * @param array<string, array{value: string, nodeId: int}> $ours
+     * @param array<string, array{value: string, nodeId: int}> $theirs
      * @param list<DiffEntry> $diffs
      */
-    private function appendLeafMapDiffs(array $ours, array $theirs, array &$diffs): void
+    private function appendLeafRecordDiffs(array $ours, array $theirs, array &$diffs): void
     {
         $keys = array_values(array_unique(array_merge(array_keys($ours), array_keys($theirs))));
         sort($keys, SORT_STRING);
@@ -1437,33 +1435,36 @@ final class SparseTree
             $theirsHas = array_key_exists($keyHashHex, $theirs);
 
             if (!$oursHas && $theirsHas) {
-                $diffs[] = new DiffEntry(DiffEntry::ADDED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
+                $diffs[] = new DiffEntry(DiffEntry::ADDED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]['value'], $theirs[$keyHashHex]['nodeId']);
             } elseif ($oursHas && !$theirsHas) {
-                $diffs[] = new DiffEntry(DiffEntry::DELETED, Key::fromHex($keyHashHex), $ours[$keyHashHex]);
-            } elseif ($oursHas && $theirsHas && $ours[$keyHashHex] !== $theirs[$keyHashHex]) {
-                $diffs[] = new DiffEntry(DiffEntry::CHANGED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
+                $diffs[] = new DiffEntry(DiffEntry::DELETED, Key::fromHex($keyHashHex), $ours[$keyHashHex]['value'], $ours[$keyHashHex]['nodeId']);
+            } elseif ($oursHas && $theirsHas && $ours[$keyHashHex]['value'] !== $theirs[$keyHashHex]['value']) {
+                $diffs[] = new DiffEntry(DiffEntry::CHANGED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]['value'], $theirs[$keyHashHex]['nodeId']);
             }
         }
     }
 
     /**
      * @param array<string, mixed> $node
-     * @param array<string, string> $entries
+     * @param array<string, array{value: string, nodeId: int}> $entries
      */
-    private function collectFullPartialLeaves(array $node, array &$entries): void
+    private function collectFullPartialLeafRecords(array $node, array &$entries): void
     {
         if ($node['type'] === 'empty') {
             return;
         }
 
         if ($node['type'] === 'leaf') {
-            $entries[$node['keyHash']] = $node['value'];
+            $entries[$node['keyHash']] = [
+                'value' => $node['value'],
+                'nodeId' => $this->nodeIdFromPartialNode($node),
+            ];
             return;
         }
 
         if ($node['type'] === 'branch') {
-            $this->collectFullPartialLeaves($node['left'], $entries);
-            $this->collectFullPartialLeaves($node['right'], $entries);
+            $this->collectFullPartialLeafRecords($node['left'], $entries);
+            $this->collectFullPartialLeafRecords($node['right'], $entries);
             return;
         }
 
@@ -1494,12 +1495,29 @@ final class SparseTree
         return $output;
     }
 
+    private function allocatePartialNodeId(): int
+    {
+        return $this->nextPartialNodeId++;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function nodeIdFromPartialNode(array $node): int
+    {
+        return (int) ($node['nodeId'] ?? $node['id'] ?? 0);
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private static function importProofRoot(Proof $proof, HashTree $hashTree, int $expectedDepth = 0): array
+    private static function importProofRoot(Proof $proof, HashTree $hashTree, int $expectedDepth, int &$nextNodeId): array
     {
         $accums = [];
+
+        $allocateNodeId = static function () use (&$nextNodeId): int {
+            return $nextNodeId++;
+        };
 
         foreach ($proof->strands as $index => $strand) {
             self::assertHash($strand->keyHash);
@@ -1507,6 +1525,7 @@ final class SparseTree
 
             if ($strand->type === ProofStrand::LEAF) {
                 $node = [
+                    'nodeId' => $allocateNodeId(),
                     'type' => 'leaf',
                     'depth' => $strand->depth,
                     'keyHash' => $strand->keyHash,
@@ -1516,6 +1535,7 @@ final class SparseTree
             } elseif ($strand->type === ProofStrand::WITNESS_LEAF) {
                 self::assertHash($strand->value);
                 $node = [
+                    'nodeId' => $allocateNodeId(),
                     'type' => 'witnessLeaf',
                     'depth' => $strand->depth,
                     'keyHash' => $strand->keyHash,
@@ -1524,6 +1544,7 @@ final class SparseTree
                 ];
             } elseif ($strand->type === ProofStrand::WITNESS_EMPTY) {
                 $node = [
+                    'nodeId' => 0,
                     'type' => 'empty',
                     'depth' => $strand->depth,
                     'keyHash' => $strand->keyHash,
@@ -1532,6 +1553,7 @@ final class SparseTree
             } elseif ($strand->type === ProofStrand::WITNESS) {
                 self::assertHash($strand->value);
                 $node = [
+                    'nodeId' => $allocateNodeId(),
                     'type' => 'witness',
                     'depth' => $strand->depth,
                     'keyHash' => $strand->keyHash,
@@ -1572,12 +1594,14 @@ final class SparseTree
             if ($command->operation === ProofCommand::HASH_PROVIDED) {
                 self::assertHash($command->hash);
                 $sibling = [
+                    'nodeId' => $allocateNodeId(),
                     'type' => 'witness',
                     'depth' => $accum['depth'],
                     'hash' => $command->hash,
                 ];
             } elseif ($command->operation === ProofCommand::HASH_EMPTY) {
                 $sibling = [
+                    'nodeId' => 0,
                     'type' => 'empty',
                     'depth' => $accum['depth'],
                     'hash' => HashTree::EMPTY_HASH,
@@ -1610,6 +1634,7 @@ final class SparseTree
 
             $accum['depth']--;
             $accum['node'] = [
+                'nodeId' => $allocateNodeId(),
                 'type' => 'branch',
                 'depth' => $accum['depth'],
                 'left' => $left,
