@@ -127,12 +127,20 @@ Focused lazy promisor inventory inspected on 2026-05-22:
 - `gix/src/remote/connection/fetch/receive_pack.rs` defines the mapped repository-level side effect: received pack bytes are written into the object database pack directory when not in dry-run mode.
 - The PHP slice maps the local lazy-hydration side for partial clone reads: when the object database has promisor packs and a read misses locally, a `PromisorObjectResolver` can resolve the object, the object ID is verified, and the object is written into loose storage before the read returns.
 
+Focused push/refspec inventory inspected on 2026-05-22:
+
+- Selected `gix-refspec/tests/refspec/parse/push.rs`, `gix-refspec/src/spec.rs`, `gix-transport/tests/fixtures/v1/push.request`, `gix-transport/tests/fixtures/v1/push.response`, and `gix/src/push.rs` with targeted `git show` and `git ls-tree`.
+- 11 push parse `#[test]` attributes were counted in `gix-refspec/tests/refspec/parse/push.rs`.
+- `gix-refspec` push tests define the mapped update shapes: `src:dst` updates, `+src:dst` forced updates, `:` matching-branch updates, `:dst` deletions, and excluded refs.
+- `gix-transport/tests/fixtures/v1/push.request` defines the mapped receive-pack request envelope: first ref update line carries `old new ref\0` followed by requested capabilities such as `report-status-v2`, `side-band-64k`, `object-format=sha1`, and `agent=...`; subsequent update lines omit capabilities; a flush separates commands from optional push-options and pack bytes.
+- `gix-transport/tests/fixtures/v1/push.response` is reserved for the next slice: sideband progress plus `unpack ok` and per-ref status lines should be parsed before any push result is treated as complete.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, or start mapping push protocol request basics.
+- The next inventory slice should either map push status response parsing and sideband receive-pack status, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -152,3 +160,4 @@ Current PHP mapping:
 - `PartialCloneTest.php` maps common fetch filter specs (`blob:none`, `blob:limit`, `tree:<depth>`, `sparse:oid`), `FetchCommand` value-object filter emission, `.promisor` pack sidecar discovery, promisor-present object reporting, promised-missing object state, and a WordPress blobless partial-clone tree where an omitted media blob stays promised rather than ordinary-missing.
 - `SparseCheckoutTest.php` maps sparse checkout cone directory matching, cone pattern-file reconstruction, bounded non-cone include/exclude matching, case-insensitive matching, skip-worktree decisions, and WordPress tree-entry filtering for a plugin-focused sparse checkout.
 - `PartialCloneTest.php` also maps lazy promisor hydration: a promised-missing object can be resolved through a native resolver, verified against the requested object ID, persisted into loose storage, and then observed as present by a fresh object database.
+- `PushCommandTest.php` maps protocol v1 receive-pack update commands, create/update/delete ref lines, first-line capability negotiation, `atomic` and `push-options` guards, command packet-line framing before pack bytes, and a WordPress branch/tag deployment push request fixture.
