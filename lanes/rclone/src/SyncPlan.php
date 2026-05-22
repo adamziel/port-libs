@@ -445,8 +445,7 @@ final class SyncPlan
     }
 
     /**
-     * Model `rclone dedupe --by-hash` for non-interactive modes. Duplicate
-     * names require provider internals this in-memory lane does not expose yet.
+     * Model `rclone dedupe --by-hash` for non-interactive modes.
      *
      * @return array{hashType: string, groups: list<array{hash: string, objects: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, skipped: bool}>}
      */
@@ -466,7 +465,7 @@ final class SyncPlan
 
         $objectsByHash = [];
         foreach ($provider->list() as $info) {
-            $hash = $provider->hashes($info->path, new HashSet($hashType))[$hashType] ?? '';
+            $hash = $provider->hashesForObject($info, new HashSet($hashType))[$hashType] ?? '';
             if ($hash === '') {
                 continue;
             }
@@ -503,7 +502,7 @@ final class SyncPlan
                 if ($index === $keepIndex) {
                     continue;
                 }
-                $deleted[] = $provider->delete($info->path);
+                $deleted[] = $provider->deleteListedObject($info);
             }
 
             $groups[] = [
@@ -519,6 +518,87 @@ final class SyncPlan
             'hashType' => $hashType,
             'groups' => $groups,
         ];
+    }
+
+    /**
+     * Model `rclone dedupe` by duplicate remote name for non-interactive modes.
+     * Identical duplicates are removed before skip/keep/rename modes, matching
+     * upstream's by-name flow.
+     *
+     * @return array{groups: list<array{path: string, objects: list<ObjectInfo>, identicalDeleted: list<ObjectInfo>, remaining: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, renamed: list<ObjectInfo>, skipped: bool, listed: bool}>}
+     */
+    public function deduplicateByName(MemoryProvider $provider, string $mode, bool $sizeOnly = false): array
+    {
+        $mode = DeduplicateMode::normalize($mode);
+        if ($mode === DeduplicateMode::INTERACTIVE) {
+            throw new \InvalidArgumentException('interactive dedupe mode requires a caller-supplied choice');
+        }
+
+        $objectsByPath = [];
+        foreach ($provider->list() as $info) {
+            $objectsByPath[$info->path][] = $info;
+        }
+        ksort($objectsByPath, SORT_STRING);
+
+        $groups = [];
+        foreach ($objectsByPath as $path => $objects) {
+            if (count($objects) <= 1) {
+                continue;
+            }
+
+            $remaining = $objects;
+            $identicalDeleted = [];
+            if ($mode !== DeduplicateMode::LIST) {
+                $identical = $this->deleteIdenticalDuplicateNames($provider, $remaining, $sizeOnly);
+                $remaining = $identical['remaining'];
+                $identicalDeleted = $identical['deleted'];
+            }
+
+            $kept = null;
+            $deleted = [];
+            $renamed = [];
+            $skipped = false;
+            $listed = false;
+            if (count($remaining) > 1) {
+                if ($mode === DeduplicateMode::SKIP) {
+                    $skipped = true;
+                } elseif ($mode === DeduplicateMode::LIST) {
+                    $listed = true;
+                } elseif ($mode === DeduplicateMode::RENAME) {
+                    $renamed = $this->renameDuplicateNames($provider, $path, $remaining);
+                    $remaining = $renamed;
+                } else {
+                    $ordered = $this->dedupeOrderedObjects($remaining, $mode);
+                    $keepIndex = match ($mode) {
+                        DeduplicateMode::FIRST, DeduplicateMode::OLDEST, DeduplicateMode::SMALLEST => 0,
+                        DeduplicateMode::NEWEST, DeduplicateMode::LARGEST => count($ordered) - 1,
+                        default => 0,
+                    };
+                    $kept = $ordered[$keepIndex];
+                    foreach ($ordered as $index => $info) {
+                        if ($index === $keepIndex) {
+                            continue;
+                        }
+                        $deleted[] = $provider->deleteListedObject($info);
+                    }
+                    $remaining = [$kept];
+                }
+            }
+
+            $groups[] = [
+                'path' => $path,
+                'objects' => $objects,
+                'identicalDeleted' => $identicalDeleted,
+                'remaining' => $remaining,
+                'kept' => $kept,
+                'deleted' => $deleted,
+                'renamed' => $renamed,
+                'skipped' => $skipped,
+                'listed' => $listed,
+            ];
+        }
+
+        return ['groups' => $groups];
     }
 
     /**
@@ -1369,6 +1449,109 @@ final class SyncPlan
     private function dedupeObjectTimestamp(ObjectInfo $info): float
     {
         return $this->timestamp($info->modTime) ?? 0.0;
+    }
+
+    /**
+     * @param list<ObjectInfo> $objects
+     * @return array{remaining: list<ObjectInfo>, deleted: list<ObjectInfo>}
+     */
+    private function deleteIdenticalDuplicateNames(MemoryProvider $provider, array $objects, bool $sizeOnly): array
+    {
+        $idCounts = [];
+        foreach ($objects as $info) {
+            if ($info->id !== null && $info->id !== '') {
+                $idCounts[$info->id] = ($idCounts[$info->id] ?? 0) + 1;
+            }
+        }
+
+        $eligible = [];
+        foreach ($objects as $info) {
+            if ($info->id !== null && $info->id !== '' && ($idCounts[$info->id] ?? 0) > 1) {
+                continue;
+            }
+            $eligible[] = $info;
+        }
+
+        $hashType = $provider->supportedHashes()->getOne();
+        $groups = [];
+        $remaining = [];
+        foreach ($eligible as $info) {
+            $identity = '';
+            if ($sizeOnly && $info->size >= 0) {
+                $identity = 'size ' . $info->size;
+            } elseif ($hashType !== HashType::NONE) {
+                $hash = $provider->hashesForObject($info, new HashSet($hashType))[$hashType] ?? '';
+                if ($hash !== '') {
+                    $identity = $hashType . ' ' . $hash;
+                }
+            }
+
+            if ($identity === '') {
+                $remaining[] = $info;
+                continue;
+            }
+
+            $groups[$identity][] = $info;
+        }
+
+        ksort($groups, SORT_STRING);
+        $deleted = [];
+        foreach ($groups as $duplicates) {
+            $remaining[] = $duplicates[0];
+            for ($index = 1; $index < count($duplicates); $index++) {
+                $deleted[] = $provider->deleteListedObject($duplicates[$index]);
+            }
+        }
+
+        usort(
+            $remaining,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path
+                ?: ($a->providerKey ?? '') <=> ($b->providerKey ?? ''),
+        );
+
+        return [
+            'remaining' => $remaining,
+            'deleted' => $deleted,
+        ];
+    }
+
+    /**
+     * @param list<ObjectInfo> $objects
+     * @return list<ObjectInfo>
+     */
+    private function renameDuplicateNames(MemoryProvider $provider, string $path, array $objects): array
+    {
+        [$base, $extension] = $this->splitRemoteExtension($path);
+        $renamed = [];
+        foreach ($objects as $index => $info) {
+            $suffix = 1;
+            do {
+                if ($suffix > 100) {
+                    throw new \RuntimeException("Could not find an available new name for {$path}");
+                }
+                $newName = sprintf('%s-%d%s', $base, $index + $suffix, $extension);
+                $suffix++;
+            } while ($provider->pathExists($newName));
+
+            $renamed[] = $provider->renameListedObject($info, $newName);
+        }
+
+        return $renamed;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitRemoteExtension(string $path): array
+    {
+        $slash = strrpos($path, '/');
+        $leafStart = $slash === false ? 0 : $slash + 1;
+        $dot = strrpos($path, '.');
+        if ($dot === false || $dot < $leafStart) {
+            return [$path, ''];
+        }
+
+        return [substr($path, 0, $dot), substr($path, $dot)];
     }
 
     /**

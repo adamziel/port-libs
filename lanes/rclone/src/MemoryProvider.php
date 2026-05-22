@@ -17,6 +17,13 @@ final class MemoryProvider
     private array $objects = [];
 
     /**
+     * @var array<string, array{path: string, entry: array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}}>
+     */
+    private array $duplicateObjects = [];
+
+    private int $duplicateObjectSequence = 0;
+
+    /**
      * @var array<string, array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string}>
      */
     private array $directories = [];
@@ -81,22 +88,24 @@ final class MemoryProvider
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
-        return $this->putEntry($path, [
-            'bytes' => $bytes,
-            'unknownSize' => (bool) ($options['unknownSize'] ?? false),
-            'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
-            'mimeType' => $options['mimeType'] ?? null,
-            'metadata' => $options['metadata'] ?? [],
-            'id' => $options['id'] ?? null,
-            'tier' => $options['tier'] ?? null,
-            'hashes' => $this->normalizeHashes($options['hashes'] ?? []),
-            'openError' => $this->normalizeThrowable($options['openError'] ?? null),
-            'readError' => $this->normalizeThrowable($options['readError'] ?? null),
-            'readErrorAfterBytes' => array_key_exists('readBreaks', $options) && !array_key_exists('readErrorAfterBytes', $options)
-                ? null
-                : $this->normalizeReadErrorAfterBytes($options),
-            'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
-        ]);
+        return $this->putEntry($path, $this->objectEntry($bytes, $options));
+    }
+
+    /**
+     * Add another object with the same remote path, matching providers that
+     * support duplicate names via unchecked writes.
+     *
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     */
+    public function putUnchecked(string $path, string $bytes, array $options = []): ObjectInfo
+    {
+        $key = 'unchecked:' . sprintf('%08d', ++$this->duplicateObjectSequence);
+        $this->duplicateObjects[$key] = [
+            'path' => $this->normalize($path),
+            'entry' => $this->objectEntry($bytes, $options),
+        ];
+
+        return $this->duplicateInfo($key);
     }
 
     /**
@@ -172,6 +181,22 @@ final class MemoryProvider
         return $this->entry($path)['bytes'];
     }
 
+    public function pathExists(string $path): bool
+    {
+        $path = $this->normalize($path);
+        if (array_key_exists($this->canonicalPath($path), $this->objects)) {
+            return true;
+        }
+
+        foreach ($this->duplicateObjects as $duplicate) {
+            if ($this->sameProviderPath($duplicate['path'], $path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function delete(string $path): ObjectInfo
     {
         $path = $this->canonicalPath($path);
@@ -179,6 +204,30 @@ final class MemoryProvider
         $this->forget($path);
 
         return $info;
+    }
+
+    public function deleteListedObject(ObjectInfo $info): ObjectInfo
+    {
+        if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            $deleted = $this->duplicateInfo($info->providerKey);
+            unset($this->duplicateObjects[$info->providerKey]);
+
+            return $deleted;
+        }
+
+        return $this->delete($info->path);
+    }
+
+    public function renameListedObject(ObjectInfo $info, string $targetPath): ObjectInfo
+    {
+        if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            $entry = $this->duplicateObjects[$info->providerKey]['entry'];
+            unset($this->duplicateObjects[$info->providerKey]);
+
+            return $this->putEntry($targetPath, $entry);
+        }
+
+        return $this->renameObject($info->path, $targetPath);
     }
 
     public function moveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
@@ -457,6 +506,13 @@ final class MemoryProvider
     public function info(string $path): ObjectInfo
     {
         $path = $this->canonicalPath($path);
+        if (!array_key_exists($path, $this->objects)) {
+            foreach ($this->duplicateObjects as $key => $duplicate) {
+                if ($this->sameProviderPath($duplicate['path'], $path)) {
+                    return $this->duplicateInfo($key);
+                }
+            }
+        }
         $entry = $this->entry($path);
         $bytes = $entry['bytes'];
 
@@ -470,6 +526,7 @@ final class MemoryProvider
             $entry['id'],
             $entry['tier'],
             $entry['hashes'],
+            'path:' . $path,
         );
     }
 
@@ -485,7 +542,17 @@ final class MemoryProvider
                 $items[] = $this->info($path);
             }
         }
-        usort($items, static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path);
+        foreach (array_keys($this->duplicateObjects) as $key) {
+            $path = $this->duplicateObjects[$key]['path'];
+            if ($prefix === '' || $this->pathStartsWith($path, $prefix)) {
+                $items[] = $this->duplicateInfo($key);
+            }
+        }
+        usort(
+            $items,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path
+                ?: ($a->providerKey ?? '') <=> ($b->providerKey ?? ''),
+        );
 
         return $items;
     }
@@ -597,6 +664,25 @@ final class MemoryProvider
         return $hashes + MultiHasher::hashBytes($this->get($path), $set);
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function hashesForObject(ObjectInfo $info, ?HashSet $set = null): array
+    {
+        $set = ($set ?? $this->supportedHashes)->overlap($this->supportedHashes);
+        $entry = $info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])
+            ? $this->duplicateObjects[$info->providerKey]['entry']
+            : $this->entry($info->path);
+        $hashes = [];
+        foreach ($set->toArray() as $type) {
+            if (isset($entry['hashes'][$type])) {
+                $hashes[$type] = $entry['hashes'][$type];
+            }
+        }
+
+        return $hashes + MultiHasher::hashBytes($entry['bytes'], $set);
+    }
+
     private function normalize(string $path): string
     {
         return trim(preg_replace('#/+#', '/', $path) ?? $path, '/');
@@ -609,10 +695,63 @@ final class MemoryProvider
     {
         $path = $this->canonicalPath($path);
         if (!array_key_exists($path, $this->objects)) {
+            foreach ($this->duplicateObjects as $duplicate) {
+                if ($this->sameProviderPath($duplicate['path'], $path)) {
+                    return $duplicate['entry'];
+                }
+            }
             throw new \RuntimeException("Object not found: {$path}");
         }
 
         return $this->objects[$path];
+    }
+
+    /**
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     */
+    private function objectEntry(string $bytes, array $options): array
+    {
+        return [
+            'bytes' => $bytes,
+            'unknownSize' => (bool) ($options['unknownSize'] ?? false),
+            'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
+            'mimeType' => $options['mimeType'] ?? null,
+            'metadata' => $options['metadata'] ?? [],
+            'id' => $options['id'] ?? null,
+            'tier' => $options['tier'] ?? null,
+            'hashes' => $this->normalizeHashes($options['hashes'] ?? []),
+            'openError' => $this->normalizeThrowable($options['openError'] ?? null),
+            'readError' => $this->normalizeThrowable($options['readError'] ?? null),
+            'readErrorAfterBytes' => array_key_exists('readBreaks', $options) && !array_key_exists('readErrorAfterBytes', $options)
+                ? null
+                : $this->normalizeReadErrorAfterBytes($options),
+            'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
+        ];
+    }
+
+    private function duplicateInfo(string $key): ObjectInfo
+    {
+        if (!isset($this->duplicateObjects[$key])) {
+            throw new \RuntimeException("Object not found: {$key}");
+        }
+
+        $duplicate = $this->duplicateObjects[$key];
+        $entry = $duplicate['entry'];
+        $bytes = $entry['bytes'];
+
+        return new ObjectInfo(
+            $duplicate['path'],
+            $entry['unknownSize'] ? -1 : strlen($bytes),
+            hash('sha256', $bytes),
+            $entry['modTime'],
+            $entry['mimeType'],
+            $entry['metadata'],
+            $entry['id'],
+            $entry['tier'],
+            $entry['hashes'],
+            $key,
+        );
     }
 
     /**
@@ -795,6 +934,10 @@ final class MemoryProvider
             $this->addParentDirectories($dirs, $path);
         }
 
+        foreach ($this->duplicateObjects as $duplicate) {
+            $this->addParentDirectories($dirs, $duplicate['path']);
+        }
+
         foreach (array_keys($this->directories) as $path) {
             $dirs[$path] = true;
             $this->addParentDirectories($dirs, $path);
@@ -830,6 +973,17 @@ final class MemoryProvider
         }
 
         return str_starts_with(strtolower($path), strtolower($prefix));
+    }
+
+    private function sameProviderPath(string $left, string $right): bool
+    {
+        $left = $this->normalize($left);
+        $right = $this->normalize($right);
+        if (!$this->caseInsensitive) {
+            return $left === $right;
+        }
+
+        return strtolower($left) === strtolower($right);
     }
 
     private static function pathIsOrUnder(string $path, string $prefix): bool
