@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review after cloned inventory update",
     "currentWork": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, and emits simple WordPress blocks.",
     "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed.",
-    "latestCommit": "pending readability inventory/preflight slice",
+    "latestCommit": "eeed1d30b898",
     "nextTask": "Map the first Mozilla test-page source.html/expected.html/expected-metadata.json fixture into a PHP parity fixture, then improve metadata/byline/media handling."
 }
