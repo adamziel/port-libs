@@ -285,6 +285,104 @@ return [
         $t->same(true, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05', setDirModTime: false, setDirMetadata: false));
         $t->same(false, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/06'));
     },
+    'delayed directory modtime updates run deepest first after changed child objects' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+
+        $source->mkdir('wp-content', [
+            'modTime' => '2026-05-22T00:00:00Z',
+            'metadata' => ['wp-scope' => 'content-root'],
+        ]);
+        $source->mkdir('wp-content/uploads', [
+            'modTime' => '2026-05-22T00:01:00Z',
+            'metadata' => ['wp-scope' => 'uploads-root'],
+        ]);
+        $source->mkdir('wp-content/uploads/2026', [
+            'modTime' => '2026-05-22T00:02:00Z',
+        ]);
+        $source->mkdir('wp-content/uploads/2026/05', [
+            'modTime' => '2026-05-22T00:03:00Z',
+            'metadata' => ['wp-scope' => 'uploads-month'],
+        ]);
+        $source->mkdir('wp-content/cache', [
+            'modTime' => '2026-05-22T00:04:00Z',
+            'metadata' => ['wp-scope' => 'cache'],
+        ]);
+        $source->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes');
+
+        foreach ([
+            'wp-content',
+            'wp-content/uploads',
+            'wp-content/uploads/2026',
+            'wp-content/uploads/2026/05',
+            'wp-content/cache',
+        ] as $dir) {
+            $target->mkdir($dir, [
+                'modTime' => '2026-05-20T00:00:00Z',
+                'metadata' => ['wp-scope' => 'stale'],
+            ]);
+        }
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'old image bytes');
+
+        $plan = new SyncPlan();
+        $copied = $plan->copyChanged($source, $target);
+        $updated = $plan->setDelayedDirectoryModTimes(
+            $source,
+            $target,
+            $copied,
+            setDirMetadata: true,
+        );
+
+        $t->same(['wp-content/uploads/2026/05/hero.jpg'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same([
+            'wp-content/uploads/2026/05',
+            'wp-content/uploads/2026',
+            'wp-content/uploads',
+            'wp-content',
+        ], array_map(static fn ($info) => $info->path, $updated));
+        $t->same('2026-05-22T00:03:00Z', $target->directoryInfo('wp-content/uploads/2026/05')->modTime);
+        $t->same([
+            'wp-scope' => 'uploads-month',
+            'mtime' => '2026-05-22T00:03:00Z',
+        ], $target->directoryInfo('wp-content/uploads/2026/05')->metadata);
+        $t->same([
+            'wp-scope' => 'content-root',
+            'mtime' => '2026-05-22T00:00:00Z',
+        ], $target->directoryInfo('wp-content')->metadata);
+        $t->same('2026-05-20T00:00:00Z', $target->directoryInfo('wp-content/cache')->modTime);
+        $t->same(['wp-scope' => 'stale'], $target->directoryInfo('wp-content/cache')->metadata);
+    },
+    'delayed directory modtimes skip empty dirs unless copy empty source dirs is enabled' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->mkdirModTime('exports/incremental/empty', '2026-05-22T01:00:00Z');
+
+        $plan = new SyncPlan();
+        $t->same([], $plan->setDelayedDirectoryModTimes($source, $target, ['exports/incremental/empty']));
+        $t->throws(RuntimeException::class, static fn () => $target->directoryInfo('exports/incremental/empty'));
+
+        $updated = $plan->setDelayedDirectoryModTimes(
+            $source,
+            $target,
+            ['exports/incremental/empty'],
+            copyEmptySourceDirs: true,
+        );
+
+        $t->same([
+            'exports/incremental/empty',
+            'exports/incremental',
+            'exports',
+        ], array_map(static fn ($info) => $info->path, $updated));
+        $t->same('2026-05-22T01:00:00Z', $target->directoryInfo('exports/incremental/empty')->modTime);
+        $t->same(null, $target->directoryInfo('exports/incremental')->modTime);
+        $t->same([], $plan->setDelayedDirectoryModTimes(
+            $source,
+            $target,
+            ['exports/incremental/empty'],
+            copyEmptySourceDirs: true,
+            noUpdateDirModTime: true,
+        ));
+    },
     'compare dest skips copies when an upstream reference matches source bytes' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

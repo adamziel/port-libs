@@ -20,18 +20,26 @@ $source->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes', [
     'modTime' => '2026-05-22T00:05:00Z',
 ]);
 
+$target->put('wp-content/uploads/2026/05/hero.jpg', 'old image bytes', [
+    'modTime' => '2026-05-20T00:05:00Z',
+]);
 $target->mkdirModTime('wp-content/uploads/2026/05', '2026-05-20T00:00:00Z');
 $target->mkdirModTime('exports/incremental', '2026-05-20T01:00:00Z');
 
 $plan = new SyncPlan();
 $changedBefore = !$plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05');
-
-$target->setDirectoryModTime('wp-content/uploads/2026/05', $source->directoryInfo('wp-content/uploads/2026/05')->modTime);
-$target->setDirectoryModTime('exports/incremental', $source->directoryInfo('exports/incremental')->modTime);
+$copied = $plan->copyChanged($source, $target);
+$directoryUpdates = $plan->setDelayedDirectoryModTimes(
+    $source,
+    $target,
+    $copied,
+    setDirMetadata: true,
+);
 
 return [
     'uploadsDirNeededTimestampRepair' => $changedBefore,
+    'copiedPaths' => array_map(static fn ($info) => $info->path, $copied),
+    'delayedDirectoryUpdates' => array_map(static fn ($info) => $info->path, $directoryUpdates),
     'uploadsDirEqualAfterRepair' => $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05'),
-    'exportsDirEqualAfterRepair' => $plan->dirsEqual($source, $target, 'exports/incremental'),
     'lsjsonDirectoryEntry' => LsJsonListing::stat($source, 'wp-content/uploads/2026/05', ['metadata' => true]),
 ];

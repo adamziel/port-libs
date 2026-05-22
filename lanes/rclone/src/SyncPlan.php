@@ -377,6 +377,78 @@ final class SyncPlan
     }
 
     /**
+     * @param list<string|ObjectInfo> $changedPaths
+     * @return list<ObjectInfo>
+     */
+    public function setDelayedDirectoryModTimes(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        array $changedPaths,
+        bool $copyEmptySourceDirs = false,
+        bool $setDirModTime = true,
+        bool $setDirMetadata = false,
+        bool $noUpdateDirModTime = false,
+    ): array {
+        if (!$setDirModTime || $noUpdateDirModTime) {
+            return [];
+        }
+
+        $modifiedDirs = [];
+        foreach ($changedPaths as $changedPath) {
+            $dir = $this->changedPathDirectory($source, $changedPath);
+            if ($dir !== '') {
+                $modifiedDirs[$dir] = true;
+            }
+        }
+        if ($modifiedDirs === []) {
+            return [];
+        }
+
+        $queue = [];
+        $maxLevel = 0;
+        foreach ($source->directories() as $sourceDir) {
+            $level = self::pathLevel($sourceDir->path);
+            $maxLevel = max($maxLevel, $level);
+            $queue[] = [
+                'info' => $sourceDir,
+                'level' => $level,
+            ];
+        }
+
+        $updated = [];
+        for ($level = $maxLevel; $level >= 0; $level--) {
+            foreach ($queue as $item) {
+                if ($item['level'] !== $level) {
+                    continue;
+                }
+
+                $sourceDir = $item['info'];
+                if (!isset($modifiedDirs[$sourceDir->path])) {
+                    continue;
+                }
+                if (!$copyEmptySourceDirs && $this->sourceDirectoryIsEmpty($source, $sourceDir->path)) {
+                    continue;
+                }
+                $targetDirExists = $this->directoryExists($target, $sourceDir->path);
+                if (!$targetDirExists && !$copyEmptySourceDirs) {
+                    continue;
+                }
+                if (!$targetDirExists) {
+                    $target->mkdir($sourceDir->path);
+                }
+
+                $updated[] = $this->applyDirectoryUpdate($target, $sourceDir, $setDirMetadata);
+                $parent = self::parentPath($sourceDir->path);
+                if ($parent !== '') {
+                    $modifiedDirs[$parent] = true;
+                }
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
      * @return array<string, ObjectInfo>
      */
     private function listedPaths(MemoryProvider $provider, ?FilterRuleSet $filter): array
@@ -425,6 +497,66 @@ final class SyncPlan
         } catch (\RuntimeException) {
             return null;
         }
+    }
+
+    private function directoryExists(MemoryProvider $provider, string $path): bool
+    {
+        try {
+            $provider->directoryInfo($path);
+
+            return true;
+        } catch (\RuntimeException) {
+            return false;
+        }
+    }
+
+    private function applyDirectoryUpdate(MemoryProvider $target, ObjectInfo $sourceDir, bool $setDirMetadata): ObjectInfo
+    {
+        if ($setDirMetadata) {
+            $metadata = $sourceDir->metadata;
+            if ($sourceDir->modTime !== null && ($metadata['mtime'] ?? '') === '') {
+                $metadata['mtime'] = $sourceDir->modTime;
+            }
+
+            return $target->mkdir($sourceDir->path, [
+                'modTime' => $sourceDir->modTime,
+                'metadata' => $metadata,
+            ]);
+        }
+
+        return $target->setDirectoryModTime($sourceDir->path, $sourceDir->modTime);
+    }
+
+    /**
+     * @param string|ObjectInfo $changedPath
+     */
+    private function changedPathDirectory(MemoryProvider $source, string|ObjectInfo $changedPath): string
+    {
+        $path = $changedPath instanceof ObjectInfo ? $changedPath->path : self::normalizePath($changedPath);
+        if ($path === '') {
+            return '';
+        }
+
+        if ($this->optionalInfo($source, $path) !== null) {
+            return self::parentPath($path);
+        }
+
+        try {
+            return $source->directoryInfo($path)->path;
+        } catch (\RuntimeException) {
+            return self::parentPath($path);
+        }
+    }
+
+    private function sourceDirectoryIsEmpty(MemoryProvider $source, string $dir): bool
+    {
+        foreach ($source->list() as $info) {
+            if (self::pathUnderPrefix($info->path, $dir)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function needsTransfer(
@@ -782,6 +914,23 @@ final class SyncPlan
         $prefix = self::normalizePath($prefix);
 
         return $path === $prefix || str_starts_with($path, $prefix . '/');
+    }
+
+    private static function parentPath(string $path): string
+    {
+        $path = self::normalizePath($path);
+        if ($path === '' || !str_contains($path, '/')) {
+            return '';
+        }
+
+        return substr($path, 0, strrpos($path, '/')) ?: '';
+    }
+
+    private static function pathLevel(string $path): int
+    {
+        $path = self::normalizePath($path);
+
+        return $path === '' ? 0 : substr_count($path, '/') + 1;
     }
 
     private static function normalizeRoot(string $root): string
