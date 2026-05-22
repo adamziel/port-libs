@@ -11,6 +11,7 @@ final class ArticleExtractor
     private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
     private const WORDPRESS_SOCIAL_CHROME_PATTERN = '/\b(?:like-post-wrapper|likes-widget-placeholder|post-likes-widget-placeholder|sd-like|sharedaddy)\b/i';
     private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
+    private const HASH_URL_PATTERN = '/^#.+/';
     private const PRESENTATIONAL_ATTRIBUTES = [
         'align',
         'background',
@@ -1737,7 +1738,7 @@ final class ArticleExtractor
         }
 
         foreach ($links as $link) {
-            $href = $link->getAttribute('href');
+            $href = trim($link->getAttribute('href'));
             if ($href === '') {
                 continue;
             }
@@ -1770,7 +1771,7 @@ final class ArticleExtractor
 
             foreach ($mediaNodes as $media) {
                 foreach (['src', 'poster'] as $attribute) {
-                    $value = $media->getAttribute($attribute);
+                    $value = trim($media->getAttribute($attribute));
                     if ($value !== '') {
                         $media->setAttribute($attribute, $this->toAbsoluteUri($value, $baseUri, $documentUri));
                     }
@@ -2158,12 +2159,14 @@ final class ArticleExtractor
             return 0.0;
         }
 
-        $linkText = '';
+        $linkLength = 0.0;
         foreach ($node->getElementsByTagName('a') as $link) {
-            $linkText .= ' ' . $this->normalizeWhitespace($link->textContent);
+            $href = trim($link->getAttribute('href'));
+            $coefficient = preg_match(self::HASH_URL_PATTERN, $href) === 1 ? 0.3 : 1.0;
+            $linkLength += mb_strlen($this->normalizeWhitespace($link->textContent)) * $coefficient;
         }
 
-        return mb_strlen($this->normalizeWhitespace($linkText)) / $textLength;
+        return $linkLength / $textLength;
     }
 
     private function hasMediaPayload(\DOMElement $node): bool

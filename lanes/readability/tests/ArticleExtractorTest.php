@@ -148,6 +148,29 @@ return [
         $t->same(false, $extractor->isProbablyReaderable($html));
         $t->same(false, $extractor->isProbablyReaderable('<p>' . $longText . '</p>', static fn (): bool => false));
     },
+    'maps Mozilla ordered-list fixture without counting list paragraphs as readerable' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/ol';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//ol/li/p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//ol/li/p')),
+        );
+        $t->same(count($attributeValues($expected, '//ol')), count($attributeValues($article->contentHtml, '//ol')));
+        $t->same(count($attributeValues($expected, '//li')), count($attributeValues($article->contentHtml, '//li')));
+    },
     'maps Mozilla remove-aria-hidden fixture during extraction cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/remove-aria-hidden';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -410,6 +433,25 @@ return [
         $t->contains('Keep this editorial quote', $article->text);
         $t->true(!str_contains($article->contentHtml, 'quote-shell'), 'source quote wrapper classes should be removed with the wrapper');
     },
+    'weights hash-only links lightly when collapsing WordPress footnote wrappers' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Footnote Wrapper Cleanup"></head><body><article>'
+            . '<h1>Footnote Wrapper Cleanup</h1>'
+            . '<p>' . str_repeat('Imported editorial copy should remain available before the citation wrapper. ', 3) . '</p>'
+            . '<div id="footnote-shell"><p>Keep this paragraph with a <a href="#citation-one">long internal citation reference</a> while removing only the source wrapper.</p></div>'
+            . '<p id="citation-one">' . str_repeat('The footnote target remains in the article so WordPress block output keeps local jump links usable. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Footnote Wrapper Cleanup', $article->title);
+        $t->contains('href="#citation-one"', $article->contentHtml);
+        $t->contains('long internal citation reference', $blocks);
+        $t->contains('id="citation-one"', $blocks);
+        $t->same(false, str_contains($article->contentHtml, 'footnote-shell'), 'hash-link wrapper should collapse under upstream link-density weighting');
+        $t->same(false, str_contains($blocks, '<div'), 'collapsed wrapper should not become an extra block container');
+    },
     'wraps phrasing media in div paragraphs like upstream preprocessing' => static function (TestRunner $t) use ($attributeValues): void {
         $html = '<html><head><title>Phrasing Media Cleanup</title></head><body><article>'
             . '<h1>Phrasing Media Cleanup</h1>'
@@ -518,6 +560,41 @@ return [
         $t->contains('srcset="https://example.com/imports/2024/images/hero-320.jpg 320w, https://example.com/media/hero-800.jpg 800w"', $article->contentHtml);
         $t->contains('Open inline note', $article->contentHtml);
         $t->true(!str_contains($article->contentHtml, 'javascript:'), 'javascript links should be replaced by inert content like upstream post-processing');
+    },
+    'maps Mozilla clean-links fixture popup links and whitespace-trimmed URIs' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/clean-links';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+
+        $articleHrefs = $attributeValues($article->contentHtml, '//a[@href]/@href');
+        foreach ($attributeValues($expected, '//a[@href]/@href') as $href) {
+            $t->true(in_array($href, $articleHrefs, true), 'expected cleaned href should be retained: ' . $href);
+        }
+
+        $articleImageSources = $attributeValues($article->contentHtml, '//img[@src]/@src');
+        foreach ($attributeValues($expected, '//img[@src]/@src') as $src) {
+            $t->true(in_array($src, $articleImageSources, true), 'expected cleaned image source should be retained: ' . $src);
+        }
+
+        foreach (array_merge($articleHrefs, $articleImageSources) as $uri) {
+            $t->same(false, str_contains($uri, '%20'), 'cleaned URIs should not retain encoded trailing spaces');
+            $t->same(false, str_contains($uri, '%0A'), 'cleaned URIs should not retain encoded newlines');
+        }
+
+        $t->same([], $attributeValues($article->contentHtml, '//a[starts-with(@href, "javascript:")]/@href'));
+        $t->same([], $attributeValues($article->contentHtml, '//@onclick|//@onmouseout'));
     },
     'promotes single article bodies and removes empty paragraphs before block migration' => static function (TestRunner $t): void {
         $html = '<html><head><title>Single Article Import</title></head><body>'
