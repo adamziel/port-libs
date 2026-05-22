@@ -42,6 +42,49 @@ $tablePage = static function (): array {
     ];
 };
 
+$tableBoxPages = static function (): array {
+    return [
+        [
+            'pnum' => 10,
+            'bbox' => [0.0, 0.0, 600.0, 800.0],
+            'layout' => [
+                'image_bbox' => [0.0, 0.0, 1200.0, 1600.0],
+                'bboxes' => [
+                    ['label' => 'Table', 'bbox' => [100.0, 100.0, 210.0, 200.0]],
+                    ['label' => 'Table', 'bbox' => [209.0, 100.0, 320.0, 200.0]],
+                    ['label' => 'Table', 'bbox' => [20.0, 20.0, 29.0, 80.0]],
+                    ['label' => 'Text', 'bbox' => [60.0, 20.0, 260.0, 70.0]],
+                ],
+            ],
+            'blocks' => [],
+        ],
+        [
+            'pnum' => 11,
+            'bbox' => [0.0, 0.0, 600.0, 800.0],
+            'layout' => [
+                'image_bbox' => [0.0, 0.0, 1200.0, 1600.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 80.0, 260.0, 130.0]],
+                ],
+            ],
+            'blocks' => [],
+        ],
+        [
+            'pnum' => 20,
+            'bbox' => [0.0, 0.0, 600.0, 800.0],
+            'ocr_method' => 'surya',
+            'layout' => [
+                'image_bbox' => [0.0, 0.0, 1200.0, 1600.0],
+                'bboxes' => [
+                    ['label' => 'Table', 'bbox' => [100.0, 300.0, 260.0, 420.0]],
+                    ['label' => 'Table', 'bbox' => [400.0, 300.0, 520.0, 420.0]],
+                ],
+            ],
+            'blocks' => [],
+        ],
+    ];
+};
+
 $markdown = "| Block | Status |\n| --- | --- |\n| Intro | Published |\n| Media | Draft |";
 
 $wordpressTable = static function (string $tableMarkdown): string {
@@ -76,6 +119,58 @@ return [
             ],
             $regions
         );
+    },
+    'plans upstream get_table_boxes crop metadata with merged tables and OCR null lines' => static function (TestRunner $t) use ($tableBoxPages): void {
+        $textLines = [
+            ['page' => 10, 'lines' => [['bbox' => [200.0, 210.0, 630.0, 230.0], 'text' => 'Block Status']]],
+        ];
+        $sizes = [
+            ['width' => 2400, 'height' => 3200],
+            ['width' => 2400, 'height' => 3200],
+            ['width' => 2400, 'height' => 3200],
+        ];
+
+        $planned = (new TableFormatter())->getTableBoxes($tableBoxPages(), $textLines, $sizes);
+
+        $t->same([1, 0, 2], $planned['table_counts']);
+        $t->same([10, 20], $planned['doc_indexes']);
+        $t->same([0, 2], $planned['table_page_indexes']);
+        $t->same(
+            [
+                [200.0, 200.0, 640.0, 400.0],
+                [200.0, 600.0, 520.0, 840.0],
+                [800.0, 600.0, 1040.0, 840.0],
+            ],
+            $planned['table_bboxes']
+        );
+        $t->same(
+            [
+                $textLines[0],
+                null,
+                null,
+            ],
+            $planned['text_lines']
+        );
+        $t->same(
+            [
+                ['width' => 2400, 'height' => 3200],
+                null,
+                ['width' => 2400, 'height' => 3200],
+            ],
+            $planned['page_image_sizes']
+        );
+        $t->same([100.0, 100.0, 320.0, 200.0], $planned['table_images'][0]['source_bbox']);
+        $t->same(440.0, $planned['table_images'][0]['crop_width']);
+        $t->same(200.0, $planned['table_images'][0]['crop_height']);
+    },
+    'rejects missing supplied text lines for non-OCR table pages' => static function (TestRunner $t) use ($tableBoxPages): void {
+        $pages = [$tableBoxPages()[0]];
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new TableFormatter())->getTableBoxes(
+            $pages,
+            [],
+            [['width' => 2400, 'height' => 3200]]
+        ));
     },
     'replaces intersecting upstream table blocks with supplied markdown tables' => static function (TestRunner $t) use ($tablePage, $markdown): void {
         $formatted = (new TableFormatter())->formatTables([$tablePage()], [$markdown]);

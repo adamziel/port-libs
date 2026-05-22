@@ -9,12 +9,15 @@ use InvalidArgumentException;
 final class TableFormatter
 {
     private const DEFAULT_INTERSECTION_THRESHOLD = 0.7;
+    private const DEFAULT_TABLE_DPI = 192.0;
 
     private LayoutOrderer $layout;
+    private PdfImageRenderer $renderer;
 
-    public function __construct(?LayoutOrderer $layout = null)
+    public function __construct(?LayoutOrderer $layout = null, ?PdfImageRenderer $renderer = null)
     {
         $this->layout = $layout ?? new LayoutOrderer();
+        $this->renderer = $renderer ?? new PdfImageRenderer();
     }
 
     /**
@@ -30,6 +33,148 @@ final class TableFormatter
             ],
             $this->tableRegions($page)
         );
+    }
+
+    /**
+     * Native boundary for marker.tables.table::get_table_boxes.
+     *
+     * Upstream returns cropped PIL images; this PHP slice returns deterministic
+     * crop plans keyed the same way so later table recognition can be supplied
+     * without shelling out to Python, pypdfium, Surya, or tabled.
+     *
+     * @param list<array<string, mixed>> $pages
+     * @param list<mixed> $suppliedTextLines One text-line prediction payload per non-OCR table page, in upstream selected-page order.
+     * @param array<int, array{width?: int|float, height?: int|float}|list<int|float>> $renderedImageSizes Optional high-res image sizes by page index.
+     * @return array{
+     *     table_images: list<array<string, mixed>>,
+     *     table_bboxes: list<list<float>>,
+     *     table_counts: list<int>,
+     *     text_lines: list<mixed>,
+     *     image_sizes: list<array{width: int, height: int}>,
+     *     page_image_sizes: list<array{width: int, height: int}|null>,
+     *     pnums: list<int>,
+     *     doc_indexes: list<int>,
+     *     table_page_indexes: list<int>
+     * }
+     */
+    public function getTableBoxes(
+        array $pages,
+        array $suppliedTextLines = [],
+        array $renderedImageSizes = [],
+        float $tableDpi = self::DEFAULT_TABLE_DPI
+    ): array {
+        $tableImages = [];
+        $tableBboxes = [];
+        $tableCounts = [];
+        $pageImageSizes = [];
+        $pnums = [];
+
+        foreach ($pages as $pageIndex => $page) {
+            if (!is_array($page)) {
+                throw new InvalidArgumentException('Page entries must be arrays.');
+            }
+
+            $pnum = (int) ($page['pnum'] ?? $pageIndex);
+            $pnums[] = $pnum;
+            $pageBbox = $this->bbox($page['bbox'] ?? null) ?? [0.0, 0.0, 0.0, 0.0];
+            $imageSize = $this->resolveRenderedImageSize($pageBbox, $renderedImageSizes[$pageIndex] ?? null, $tableDpi);
+            $layoutImageBbox = $this->layoutImageBbox($page) ?? $pageBbox;
+            $tableBoxes = $this->mergeTables($this->rawTableBoxes($page));
+            $tableBoxes = array_values(array_filter(
+                $tableBoxes,
+                static fn (array $bbox): bool => ($bbox[3] - $bbox[1]) > 10.0 && ($bbox[2] - $bbox[0]) > 10.0
+            ));
+
+            if ($tableBoxes === []) {
+                $tableCounts[] = 0;
+                $pageImageSizes[] = null;
+                continue;
+            }
+
+            $tableCounts[] = count($tableBoxes);
+            $pageImageSizes[] = $imageSize;
+            $renderedImageBbox = [0.0, 0.0, (float) $imageSize['width'], (float) $imageSize['height']];
+
+            foreach ($tableBoxes as $tableIndex => $tableBox) {
+                $highresBbox = $this->layout->rescaleBbox($layoutImageBbox, $renderedImageBbox, $tableBox);
+                $tableBboxes[] = $highresBbox;
+                $tableImages[] = [
+                    'kind' => 'crop-plan',
+                    'page_index' => $pageIndex,
+                    'pnum' => $pnum,
+                    'table_index' => $tableIndex,
+                    'dpi' => $tableDpi,
+                    'scale' => $tableDpi / 72.0,
+                    'source_bbox' => $tableBox,
+                    'highres_bbox' => $highresBbox,
+                    'image_size' => $imageSize,
+                    'crop_width' => max(0.0, $highresBbox[2] - $highresBbox[0]),
+                    'crop_height' => max(0.0, $highresBbox[3] - $highresBbox[1]),
+                ];
+            }
+        }
+
+        $docIndexes = [];
+        $tablePageIndexes = [];
+        foreach ($tableCounts as $pageIndex => $tableCount) {
+            if ($tableCount > 0) {
+                $docIndexes[] = $pnums[$pageIndex];
+                $tablePageIndexes[] = $pageIndex;
+            }
+        }
+
+        $textLines = [];
+        $outImageSizes = [];
+        $textLineIndex = 0;
+        foreach ($tableCounts as $pageIndex => $tableCount) {
+            if ($tableCount === 0) {
+                continue;
+            }
+
+            $page = $pages[$pageIndex];
+            $pageOcred = isset($page['ocr_method']) && $page['ocr_method'] !== null;
+            if ($pageOcred) {
+                for ($i = 0; $i < $tableCount; $i++) {
+                    $textLines[] = null;
+                }
+            } else {
+                if (!array_key_exists($textLineIndex, $suppliedTextLines)) {
+                    throw new InvalidArgumentException('Missing supplied text-line prediction for table page index ' . $pageIndex . '.');
+                }
+
+                for ($i = 0; $i < $tableCount; $i++) {
+                    $textLines[] = $suppliedTextLines[$textLineIndex];
+                }
+                $textLineIndex++;
+            }
+
+            $imageSize = $pageImageSizes[$pageIndex];
+            if ($imageSize === null) {
+                throw new InvalidArgumentException('Internal table image size mismatch for page index ' . $pageIndex . '.');
+            }
+            for ($i = 0; $i < $tableCount; $i++) {
+                $outImageSizes[] = $imageSize;
+            }
+        }
+
+        if (count($tableImages) !== count($tableBboxes) || count($tableImages) !== count($textLines) || count($tableImages) !== count($outImageSizes)) {
+            throw new InvalidArgumentException('Internal table box planning counts do not match upstream shape.');
+        }
+        if (array_sum($tableCounts) !== count($tableImages)) {
+            throw new InvalidArgumentException('Internal table count total does not match planned crop count.');
+        }
+
+        return [
+            'table_images' => $tableImages,
+            'table_bboxes' => $tableBboxes,
+            'table_counts' => $tableCounts,
+            'text_lines' => $textLines,
+            'image_sizes' => $outImageSizes,
+            'page_image_sizes' => $pageImageSizes,
+            'pnums' => $pnums,
+            'doc_indexes' => $docIndexes,
+            'table_page_indexes' => $tablePageIndexes,
+        ];
     }
 
     /**
@@ -114,6 +259,149 @@ final class TableFormatter
             'pages' => array_values($pages),
             'table_count' => $processedTables,
             'inserted_tables' => $insertedTables,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @return list<list<float>>
+     */
+    private function rawTableBoxes(array $page): array
+    {
+        $boxes = [];
+        $layout = $page['layout'] ?? [];
+        if (is_array($layout) && isset($layout['bboxes']) && is_array($layout['bboxes'])) {
+            $boxes = $layout['bboxes'];
+        } elseif (isset($page['layout_boxes']) && is_array($page['layout_boxes'])) {
+            $boxes = $page['layout_boxes'];
+        }
+
+        $tableBoxes = [];
+        foreach ($boxes as $box) {
+            if (!is_array($box) || ($box['label'] ?? '') !== 'Table') {
+                continue;
+            }
+
+            $bbox = $this->bbox($box['bbox'] ?? null);
+            if ($bbox !== null) {
+                $tableBoxes[] = $bbox;
+            }
+        }
+
+        return $tableBoxes;
+    }
+
+    /**
+     * Mirrors tabled.inference.detection::merge_tables for Marker's table boundary.
+     *
+     * @param list<list<float>> $pageTableBoxes
+     * @return list<list<float>>
+     */
+    private function mergeTables(array $pageTableBoxes): array
+    {
+        $expansionFactor = 1.02;
+        $shrinkFactor = 0.98;
+        $ignoreBoxes = [];
+
+        for ($i = 0; $i < count($pageTableBoxes); $i++) {
+            if (isset($ignoreBoxes[$i])) {
+                continue;
+            }
+
+            for ($j = $i + 1; $j < count($pageTableBoxes); $j++) {
+                if (isset($ignoreBoxes[$j])) {
+                    continue;
+                }
+
+                $expandedBox1 = [
+                    $pageTableBoxes[$i][0] * $shrinkFactor,
+                    $pageTableBoxes[$i][1],
+                    $pageTableBoxes[$i][2] * $expansionFactor,
+                    $pageTableBoxes[$i][3],
+                ];
+                $expandedBox2 = [
+                    $pageTableBoxes[$j][0] * $shrinkFactor,
+                    $pageTableBoxes[$j][1],
+                    $pageTableBoxes[$j][2] * $expansionFactor,
+                    $pageTableBoxes[$j][3],
+                ];
+
+                if ($this->layout->intersectionPct($expandedBox1, $expandedBox2) > 0.0) {
+                    $pageTableBoxes[$i] = $this->mergeBoxes($pageTableBoxes[$i], $pageTableBoxes[$j]);
+                    $ignoreBoxes[$j] = true;
+                }
+            }
+        }
+
+        $merged = [];
+        foreach ($pageTableBoxes as $index => $bbox) {
+            if (!isset($ignoreBoxes[$index])) {
+                $merged[] = $bbox;
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param list<float> $box1
+     * @param list<float> $box2
+     * @return list<float>
+     */
+    private function mergeBoxes(array $box1, array $box2): array
+    {
+        return [
+            min($box1[0], $box2[0]),
+            min($box1[1], $box2[1]),
+            max($box1[2], $box2[2]),
+            max($box1[3], $box2[3]),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @return list<float>|null
+     */
+    private function layoutImageBbox(array $page): ?array
+    {
+        $layout = $page['layout'] ?? [];
+        if (is_array($layout)) {
+            $bbox = $this->bbox($layout['image_bbox'] ?? null);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
+        return $this->bbox($page['layout_image_bbox'] ?? null);
+    }
+
+    /**
+     * @param list<float> $pageBbox
+     * @param mixed $override
+     * @return array{width: int, height: int}
+     */
+    private function resolveRenderedImageSize(array $pageBbox, mixed $override, float $tableDpi): array
+    {
+        if ($override === null) {
+            return $this->renderer->renderedImageSize($pageBbox, $tableDpi);
+        }
+
+        if (!is_array($override)) {
+            throw new InvalidArgumentException('Rendered image size override must be an array.');
+        }
+
+        $width = $override['width'] ?? $override[0] ?? null;
+        $height = $override['height'] ?? $override[1] ?? null;
+        if ((!is_int($width) && !is_float($width)) || (!is_int($height) && !is_float($height))) {
+            throw new InvalidArgumentException('Rendered image size override must include numeric width and height.');
+        }
+        if ($width <= 0 || $height <= 0) {
+            throw new InvalidArgumentException('Rendered image size override must be greater than zero.');
+        }
+
+        return [
+            'width' => (int) round($width),
+            'height' => (int) round($height),
         ];
     }
 
