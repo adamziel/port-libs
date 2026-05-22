@@ -197,7 +197,7 @@ final class SQLiteDatabase
             }
             if ($record->sql === null && self::isAutomaticIndex($record, $tableName)) {
                 if ($autoIndexFirstColumns === null) {
-                    $autoIndexFirstColumns = $this->uniqueAutoIndexFirstColumnsForTable($tableName);
+                    $autoIndexFirstColumns = $this->automaticIndexFirstColumnsForTable($tableName);
                 }
                 $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
                 $autoIndexOrdinal++;
@@ -499,11 +499,11 @@ final class SQLiteDatabase
         return strcasecmp($firstColumn, $columnName) === 0;
     }
 
-    private function uniqueAutoIndexFirstColumnsForTable(string $tableName): array
+    private function automaticIndexFirstColumnsForTable(string $tableName): array
     {
         foreach ($this->schemaRecords() as $record) {
             if ($record->isTable($tableName) && $record->sql !== null) {
-                return SQLiteCreateTable::uniqueAutoIndexFirstColumns($record->sql);
+                return SQLiteCreateTable::automaticIndexFirstColumns($record->sql);
             }
         }
 

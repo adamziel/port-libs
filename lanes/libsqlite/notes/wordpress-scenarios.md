@@ -18,7 +18,10 @@ used to fetch a single option by indexed name, then resolve the stored rowid
 through the table b-tree without scanning the whole options table. The same
 lookup path now handles automatic `UNIQUE` indexes where SQLite records
 `sqlite_autoindex_*` schema rows with `sql` set to `NULL`, by inferring the
-first indexed column from the owning table's `CREATE TABLE` statement.
+first indexed column from the owning table's `CREATE TABLE` statement. It also
+handles automatic non-rowid `PRIMARY KEY` indexes, preserving earlier UNIQUE
+autoindex slots so a WordPress-shaped `PRIMARY KEY(option_name)` lookup still
+finds the correct `sqlite_autoindex_wp_options_*` root page.
 
 ## Example
 
@@ -32,8 +35,9 @@ import/export and recovery tooling on hosts where `sqlite3` is unavailable.
 
 `examples/wordpress-indexed-option-lookup.php` reads a WordPress-oriented
 SQLite database file, resolves an explicit `wp_options(option_name)` index,
-or an automatic `UNIQUE` option-name autoindex, and returns one option by name
-using native index and rowid b-tree traversal.
+an automatic `UNIQUE` option-name autoindex, or an automatic non-rowid
+`PRIMARY KEY` option-name autoindex, and returns one option by name using
+native index and rowid b-tree traversal.
 
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
@@ -42,6 +46,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: automatic `PRIMARY KEY` index inference, composite duplicate scans,
-expression indexes, partial indexes, non-BINARY collations, and descending sort
-order.
+slice: composite duplicate scans, expression indexes, partial indexes,
+non-BINARY collations, descending sort order, and full composite-key range
+scans.

@@ -117,10 +117,10 @@ Focused upstream fixture boundary:
 The native PHP tests now cover index leaf and interior cell parsing, in-order
 index b-tree traversal that preserves interior index records, index local
 payload calculations, explicit `CREATE INDEX ... ON wp_options(option_name)`
-schema discovery, option-name index lookup, and rowid-backed table retrieval.
+schema discovery, option-name index lookup, rowid-backed table retrieval, and
+automatic `PRIMARY KEY` index inference for simple first-column lookups.
 Expression indexes, partial indexes, non-BINARY collations, descending sort
-order, automatic `PRIMARY KEY` index inference, and full composite-key scans
-remain unported.
+order, and full composite-key scans remain unported.
 
 ## Focused Native Mapping: Automatic UNIQUE Autoindexes
 
@@ -146,6 +146,45 @@ The native PHP tests cover column-level `option_name text UNIQUE`, table-level
 `UNIQUE` text inside `CHECK(...)`, and a WordPress-shaped
 `sqlite_autoindex_wp_options_1` row whose `sql` is `NULL`. The lookup then uses
 the automatic index root page, decodes the index record's rowid tail, and reads
-the target `wp_options` row through the table b-tree. Automatic `PRIMARY KEY`
-index inference, full composite-key scans, non-BINARY collations, descending
-sort order, expression indexes, and partial indexes remain unported.
+the target `wp_options` row through the table b-tree. Full composite-key scans,
+non-BINARY collations, descending sort order, expression indexes, and partial
+indexes remain unported.
+
+## Focused Native Mapping: Automatic PRIMARY KEY Autoindexes
+
+This slice extends automatic index inference from `UNIQUE` constraints to
+non-rowid `PRIMARY KEY` constraints. A focused upstream runner was executed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test index3.test schema6.test indexedby.test
+```
+
+Result: 8 Tcl script/permutation runs, 0 errors out of 404 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` verifies automatic primary-key index creation, the
+  `sqlite_autoindex_<table>_<n>` naming convention, and duplicate
+  `UNIQUE`/`PRIMARY KEY` constraint coalescing.
+- `test/index3.test` verifies quoted/string identifier compatibility and that
+  `INTEGER PRIMARY KEY` table declarations do not create autoindex rows.
+- `test/schema6.test` cross-checks `INTEGER PRIMARY KEY`, `PRIMARY KEY(...)`,
+  `UNIQUE`, and `WITHOUT ROWID` database-content equivalence.
+- `test/indexedby.test` verifies that a primary-key-created automatic index can
+  be named by `INDEXED BY sqlite_autoindex_*`.
+
+The native PHP reader now derives automatic index first-column order from
+`CREATE TABLE` SQL for both `UNIQUE` and `PRIMARY KEY` constraints. It skips
+rowid-alias `INTEGER PRIMARY KEY` constraints, handles the SQLite
+`INTEGER PRIMARY KEY DESC` exception as an autoindexed primary key, suppresses
+`WITHOUT ROWID` table-primary-key autoindex slots, and preserves earlier
+`UNIQUE` autoindex ordinals before a later table-level primary key. A
+WordPress-shaped fixture verifies lookup through `sqlite_autoindex_wp_options_2`
+when `sqlite_autoindex_wp_options_1` belongs to an earlier `autoload UNIQUE`
+constraint and `PRIMARY KEY(option_name)` backs the option-name lookup.
+
+Composite duplicate scans, non-BINARY collations, descending sort order inside
+index comparison, expression indexes, partial indexes, and full
+WITHOUT ROWID table reads remain unported.

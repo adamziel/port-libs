@@ -11,13 +11,53 @@ final class SQLiteCreateTable
      */
     public static function uniqueAutoIndexFirstColumns(string $sql): array
     {
+        return array_map(
+            static fn (array $columns): string => $columns[0],
+            self::automaticIndexColumns($sql, false),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function automaticIndexFirstColumns(string $sql): array
+    {
+        return array_map(
+            static fn (array $columns): string => $columns[0],
+            self::automaticIndexColumns($sql, true),
+        );
+    }
+
+    /**
+     * @return list<list<string>>
+     */
+    private static function automaticIndexColumns(string $sql, bool $includePrimaryKey): array
+    {
         $body = self::tableBody($sql);
         if ($body === null) {
             return [];
         }
 
+        $withoutRowid = self::isWithoutRowidTable($sql);
+        $definitions = self::splitTopLevel($body, ',');
+        $columnTypes = self::columnDeclaredTypes($definitions);
         $columns = [];
-        foreach (self::splitTopLevel($body, ',') as $definition) {
+        $seen = [];
+
+        $addConstraint = static function (array $constraintColumns) use (&$columns, &$seen): void {
+            if ($constraintColumns === []) {
+                return;
+            }
+            $key = implode("\0", array_map(static fn (string $column): string => strtolower($column), $constraintColumns));
+            if (isset($seen[$key])) {
+                return;
+            }
+
+            $seen[$key] = true;
+            $columns[] = $constraintColumns;
+        };
+
+        foreach ($definitions as $definition) {
             $definition = trim($definition);
             if ($definition === '') {
                 continue;
@@ -26,10 +66,16 @@ final class SQLiteCreateTable
             $constraint = self::stripLeadingConstraint($definition);
             if (self::startsWithKeyword($constraint, 'UNIQUE')) {
                 $list = self::parenthesizedBodyAfterKeyword($constraint, 'UNIQUE');
-                $firstColumn = $list === null ? null : self::firstIdentifierInList($list);
-                if ($firstColumn !== null) {
-                    $columns[] = $firstColumn;
+                $addConstraint($list === null ? [] : self::identifiersInList($list));
+                continue;
+            }
+            if ($includePrimaryKey && self::startsWithPrimaryKey($constraint)) {
+                $list = self::parenthesizedBodyAfterPrimaryKey($constraint);
+                $primaryKeyColumns = $list === null ? [] : self::identifiersInList($list);
+                if (!$withoutRowid && !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
+                    $addConstraint($primaryKeyColumns);
                 }
+
                 continue;
             }
 
@@ -47,8 +93,17 @@ final class SQLiteCreateTable
             }
 
             $tail = substr($definition, $column[1]);
+            $constraintColumns = [$column[0]];
             if (self::containsTopLevelKeyword($tail, 'UNIQUE')) {
-                $columns[] = $column[0];
+                $addConstraint($constraintColumns);
+            }
+            if (
+                $includePrimaryKey
+                && !$withoutRowid
+                && self::containsTopLevelPrimaryKey($tail)
+                && !self::isRowidAliasColumnPrimaryKey($definition, $column[1], $tail)
+            ) {
+                $addConstraint($constraintColumns);
             }
         }
 
@@ -156,16 +211,21 @@ final class SQLiteCreateTable
         return substr($text, $offset + 1, $close - $offset - 1);
     }
 
-    private static function firstIdentifierInList(string $list): ?string
+    /**
+     * @return list<string>
+     */
+    private static function identifiersInList(string $list): array
     {
-        $items = self::splitTopLevel($list, ',');
-        if ($items === []) {
-            return null;
+        $columns = [];
+        foreach (self::splitTopLevel($list, ',') as $item) {
+            $identifier = self::readIdentifier(trim($item), 0);
+            if ($identifier === null) {
+                return [];
+            }
+            $columns[] = $identifier[0];
         }
 
-        $identifier = self::readIdentifier(trim($items[0]), 0);
-
-        return $identifier[0] ?? null;
+        return $columns;
     }
 
     private static function containsTopLevelKeyword(string $text, string $keyword): bool
@@ -202,6 +262,215 @@ final class SQLiteCreateTable
         }
 
         return false;
+    }
+
+    private static function containsTopLevelPrimaryKey(string $text): bool
+    {
+        return self::topLevelPrimaryKeyEndOffset($text) !== null;
+    }
+
+    private static function startsWithPrimaryKey(string $text): bool
+    {
+        $text = ltrim($text);
+        if (!self::startsWithKeyword($text, 'PRIMARY')) {
+            return false;
+        }
+
+        $offset = strlen('PRIMARY');
+        while (isset($text[$offset]) && ctype_space($text[$offset])) {
+            $offset++;
+        }
+
+        return self::startsWithKeyword(substr($text, $offset), 'KEY');
+    }
+
+    private static function parenthesizedBodyAfterPrimaryKey(string $text): ?string
+    {
+        $text = ltrim($text);
+        if (!self::startsWithKeyword($text, 'PRIMARY')) {
+            return null;
+        }
+
+        $offset = strlen('PRIMARY');
+        while (isset($text[$offset]) && ctype_space($text[$offset])) {
+            $offset++;
+        }
+        if (!self::startsWithKeyword(substr($text, $offset), 'KEY')) {
+            return null;
+        }
+        $offset += strlen('KEY');
+        while (isset($text[$offset]) && ctype_space($text[$offset])) {
+            $offset++;
+        }
+        if (!isset($text[$offset]) || $text[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($text, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        return substr($text, $offset + 1, $close - $offset - 1);
+    }
+
+    private static function topLevelPrimaryKeyEndOffset(string $text): ?int
+    {
+        $depth = 0;
+        $length = strlen($text);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $text[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuoted($text, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $i = self::skipBracketQuoted($text, $i);
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0 || !self::startsWithKeyword(substr($text, $i), 'PRIMARY')) {
+                continue;
+            }
+
+            $offset = $i + strlen('PRIMARY');
+            while (isset($text[$offset]) && ctype_space($text[$offset])) {
+                $offset++;
+            }
+            if (self::startsWithKeyword(substr($text, $offset), 'KEY')) {
+                return $offset + strlen('KEY');
+            }
+        }
+
+        return null;
+    }
+
+    private static function topLevelPrimaryKeyDirection(string $text): ?string
+    {
+        $offset = self::topLevelPrimaryKeyEndOffset($text);
+        if ($offset === null) {
+            return null;
+        }
+
+        while (isset($text[$offset]) && ctype_space($text[$offset])) {
+            $offset++;
+        }
+        $direction = self::readIdentifier($text, $offset);
+        if ($direction === null) {
+            return null;
+        }
+        $value = strtoupper($direction[0]);
+
+        return $value === 'ASC' || $value === 'DESC' ? $value : null;
+    }
+
+    /**
+     * @param list<string> $definitions
+     * @return array<string, string>
+     */
+    private static function columnDeclaredTypes(array $definitions): array
+    {
+        $types = [];
+        foreach ($definitions as $definition) {
+            $definition = trim($definition);
+            if ($definition === '') {
+                continue;
+            }
+            $constraint = self::stripLeadingConstraint($definition);
+            if (
+                self::startsWithKeyword($constraint, 'PRIMARY')
+                || self::startsWithKeyword($constraint, 'UNIQUE')
+                || self::startsWithKeyword($constraint, 'CHECK')
+                || self::startsWithKeyword($constraint, 'FOREIGN')
+            ) {
+                continue;
+            }
+
+            $column = self::readIdentifier($definition, 0);
+            if ($column === null) {
+                continue;
+            }
+            $types[strtolower($column[0])] = self::columnDeclaredType($definition, $column[1]);
+        }
+
+        return $types;
+    }
+
+    private static function columnDeclaredType(string $definition, int $offset): string
+    {
+        $tail = ltrim(substr($definition, $offset));
+        if ($tail === '') {
+            return '';
+        }
+        if (
+            preg_match(
+                '/\b(CONSTRAINT|PRIMARY|NOT|NULL|UNIQUE|CHECK|DEFAULT|COLLATE|REFERENCES|GENERATED|AS)\b/i',
+                $tail,
+                $matches,
+                PREG_OFFSET_CAPTURE,
+            ) === 1
+        ) {
+            $tail = substr($tail, 0, $matches[0][1]);
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $tail) ?? $tail);
+    }
+
+    private static function isRowidAliasColumnPrimaryKey(string $definition, int $columnNameEnd, string $tail): bool
+    {
+        if (!self::isExactIntegerType(self::columnDeclaredType($definition, $columnNameEnd))) {
+            return false;
+        }
+
+        return self::topLevelPrimaryKeyDirection($tail) !== 'DESC';
+    }
+
+    /**
+     * @param list<string> $primaryKeyColumns
+     * @param array<string, string> $columnTypes
+     */
+    private static function isRowidAliasTablePrimaryKey(array $primaryKeyColumns, array $columnTypes): bool
+    {
+        if (count($primaryKeyColumns) !== 1) {
+            return false;
+        }
+
+        return self::isExactIntegerType($columnTypes[strtolower($primaryKeyColumns[0])] ?? '');
+    }
+
+    private static function isExactIntegerType(string $type): bool
+    {
+        $type = trim($type);
+        if (
+            (str_starts_with($type, '"') && str_ends_with($type, '"'))
+            || (str_starts_with($type, '`') && str_ends_with($type, '`'))
+            || (str_starts_with($type, '[') && str_ends_with($type, ']'))
+        ) {
+            $type = substr($type, 1, -1);
+        }
+
+        return strcasecmp($type, 'INTEGER') === 0;
+    }
+
+    private static function isWithoutRowidTable(string $sql): bool
+    {
+        $open = strpos($sql, '(');
+        if ($open === false) {
+            return false;
+        }
+        $close = self::matchingParen($sql, $open);
+        if ($close === null) {
+            return false;
+        }
+
+        return preg_match('/\bWITHOUT\s+ROWID\b/i', substr($sql, $close + 1)) === 1;
     }
 
     /**

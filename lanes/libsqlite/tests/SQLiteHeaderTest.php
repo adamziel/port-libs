@@ -556,6 +556,28 @@ return [
             'legacy_name',
         ], SQLiteCreateTable::uniqueAutoIndexFirstColumns("CREATE TABLE t(a text CHECK(a <> 'UNIQUE'), [legacy_name] text unique on conflict ignore)"));
     },
+    'infers sqlite primary key autoindex columns without consuming rowid aliases' => static function (TestRunner $t): void {
+        $t->same([
+            'option_name',
+        ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_id integer, option_name text PRIMARY KEY, option_value text)'));
+        $t->same([
+            'option_name',
+        ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_id integer, option_name text, option_value text, PRIMARY KEY(option_name))'));
+        $t->same([
+            'option_name',
+        ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_id INTEGER PRIMARY KEY, option_name text UNIQUE, option_value text)'));
+        $t->same([
+            'option_id',
+            'option_name',
+        ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_id INTEGER PRIMARY KEY DESC, option_name text UNIQUE, option_value text)'));
+        $t->same([
+            'option_name',
+            'autoload',
+        ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_name text UNIQUE PRIMARY KEY, autoload text UNIQUE)'));
+        $t->same([
+            'autoload',
+        ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_name text PRIMARY KEY, autoload text UNIQUE) WITHOUT ROWID'));
+    },
     'uses sqlite automatic unique index rows with null sql to fetch a wordpress option' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, autoload text)'], 1),
@@ -581,6 +603,34 @@ return [
         $t->same(1, $option->optionId);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
+    },
+    'uses sqlite automatic primary key index rows after earlier unique autoindexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer, option_name text, option_value text, autoload text UNIQUE, PRIMARY KEY(option_name))'], 1),
+            $schemaCell(['index', 'sqlite_autoindex_wp_options_1', 'wp_options', 3, null], 2),
+            $schemaCell(['index', 'sqlite_autoindex_wp_options_2', 'wp_options', 4, null], 3),
+        ], 512, 100, $makeFirstPage(512, 6));
+        $page2 = $tableInteriorPage([[5, 1]], 6);
+        $page3 = $indexLeafPage([
+            $indexCell(['yes', 1]),
+        ]);
+        $page4 = $indexLeafPage([
+            $indexCell(['siteurl', 1]),
+        ]);
+        $page5 = $tableLeafPage([
+            $schemaCell([1, 'siteurl', 'https://example.test', 'yes'], 1),
+        ]);
+        $page6 = $tableLeafPage([]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5 . $page6);
+
+        $option = $database->wordpressOptionByIndexedName('siteurl');
+
+        $t->same(4, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->optionId);
+        $t->same('siteurl', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
+        $t->same('yes', $option->autoload);
     },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';
