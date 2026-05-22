@@ -137,6 +137,38 @@ final class SyncPlan
     }
 
     /**
+     * Model operations.SetTier/ListFn over listed provider objects.
+     *
+     * @return list<ObjectInfo>
+     */
+    public function setTier(MemoryProvider $provider, string $tier, ?FilterRuleSet $filter = null): array
+    {
+        if (!$provider->supportsSetTier()) {
+            throw new \RuntimeException('remote does not support settier');
+        }
+
+        $updated = [];
+        foreach ($provider->list() as $info) {
+            if ($filter !== null && !$filter->includes($info->path)) {
+                continue;
+            }
+
+            $updated[] = $provider->setListedObjectTier($info, $tier);
+        }
+
+        return $updated;
+    }
+
+    public function setTierFile(MemoryProvider $provider, string $path, string $tier): ObjectInfo
+    {
+        if (!$provider->supportsSetTier()) {
+            throw new \RuntimeException('remote does not support settier');
+        }
+
+        return $provider->setObjectTier($path, $tier);
+    }
+
+    /**
      * @return list<ObjectInfo>
      *
      * @param list<MemoryProvider> $compareDest

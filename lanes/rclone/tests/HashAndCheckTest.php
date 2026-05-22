@@ -334,13 +334,27 @@ return [
         $provider->put('file3', str_repeat('y', 1234));
         $provider->put('subdir/file1', '');
         $provider->put('subdir/file2', 'z');
+        $provider->setObjectTier('file2', 'Cool');
 
         $t->same(['file1', 'file2', 'file3', 'subdir/'], LsfListing::lines($provider));
         $t->same(['file1;0', 'file2;321', 'file3;1234', 'subdir/;-1'], LsfListing::lines($provider, ['format' => 'ps']));
         $t->same(['d41d8cd98f00b204e9800998ecf8427e;file1'], array_slice(LsfListing::lines($provider, ['format' => 'hp', 'filesOnly' => true]), 0, 1));
+        $t->same(['file1:', 'file2:Cool', 'file3:', 'subdir/:'], LsfListing::lines($provider, ['format' => 'pT', 'separator' => ':']));
         $t->same(['file1', 'file2', 'file3'], LsfListing::lines($provider, ['filesOnly' => true]));
         $t->same(['subdir'], LsfListing::lines($provider, ['dirsOnly' => true, 'dirSlash' => false]));
         $t->same(['file1_+_0', 'file2_+_321', 'file3_+_1234', 'subdir/_+_-1', 'subdir/file1_+_0', 'subdir/file2_+_1'], LsfListing::lines($provider, ['format' => 'ps', 'separator' => '_+_', 'recurse' => true]));
+    },
+    'formats lsjson tier only when provider exposes GetTier' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('exports/site.wxr', '<rss>portable export</rss>', ['tier' => 'Archive']);
+
+        $stat = LsJsonListing::stat($provider, 'exports/site.wxr');
+        $t->same('Archive', $stat['Tier']);
+
+        $hidden = new MemoryProvider(getTier: false);
+        $hidden->put('exports/site.wxr', '<rss>portable export</rss>', ['tier' => 'Archive']);
+        $hiddenStat = LsJsonListing::stat($hidden, 'exports/site.wxr');
+        $t->true(!array_key_exists('Tier', $hiddenStat));
     },
     'formats lsjson list entries from upstream table cases' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();

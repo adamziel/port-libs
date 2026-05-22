@@ -257,6 +257,61 @@ return [
         ], $provider->directoryInfo('wp-content/uploads/2026/05')->metadata);
         $t->throws(RuntimeException::class, static fn () => $provider->setDirectoryMetadata('wp-content/uploads/2026/04', ['potato' => 'missing']));
     },
+    'memory provider set tier and get tier match upstream object contract' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('exports/site.wxr', '<rss>portable export</rss>', ['tier' => 'Standard']);
+
+        $t->same(true, $provider->supportsSetTier());
+        $t->same(true, $provider->supportsGetTier());
+        $t->same('Standard', $provider->getObjectTier('exports/site.wxr'));
+
+        $updated = $provider->setObjectTier('exports/site.wxr', 'Archive');
+        $t->same('exports/site.wxr', $updated->path);
+        $t->same('Archive', $provider->getObjectTier('exports/site.wxr'));
+        $t->same('Archive', $provider->info('exports/site.wxr')->tier);
+        $t->same('<rss>portable export</rss>', $provider->get('exports/site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => $provider->setObjectTier('exports/missing.wxr', 'Archive'));
+
+        $noSetTier = new MemoryProvider(setTier: false);
+        $noSetTier->put('exports/site.wxr', '<rss></rss>', ['tier' => 'Standard']);
+        $t->same(false, $noSetTier->supportsSetTier());
+        $t->throws(RuntimeException::class, static fn () => $noSetTier->setObjectTier('exports/site.wxr', 'Archive'));
+
+        $noGetTier = new MemoryProvider(getTier: false);
+        $noGetTier->put('exports/site.wxr', '<rss></rss>', ['tier' => 'Standard']);
+        $t->same(false, $noGetTier->supportsGetTier());
+        $t->throws(RuntimeException::class, static fn () => $noGetTier->getObjectTier('exports/site.wxr'));
+    },
+    'sync plan settier applies filtered tier changes over listed objects' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('exports/site.wxr', '<rss>portable export</rss>', ['tier' => 'Hot']);
+        $provider->put('database/site.sql', 'insert into wp_posts values (...)', ['tier' => 'Hot']);
+        $provider->put('wp-content/uploads/2026/05/hero.jpg', 'image bytes', ['tier' => 'Cool']);
+        $provider->put('wp-content/cache/page.html', '<html>cached</html>', ['tier' => 'Hot']);
+
+        $filter = FilterRuleSet::fromRules([
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '+ wp-content/uploads/**',
+            '- *',
+        ]);
+
+        $updated = (new SyncPlan())->setTier($provider, 'Archive', $filter);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+        ], array_map(static fn ($info) => $info->path, $updated));
+        $t->same('Archive', $provider->getObjectTier('exports/site.wxr'));
+        $t->same('Archive', $provider->getObjectTier('database/site.sql'));
+        $t->same('Archive', $provider->getObjectTier('wp-content/uploads/2026/05/hero.jpg'));
+        $t->same('Hot', $provider->getObjectTier('wp-content/cache/page.html'));
+
+        $single = (new SyncPlan())->setTierFile($provider, 'exports/site.wxr', 'Standard');
+        $t->same('exports/site.wxr', $single->path);
+        $t->same('Standard', $provider->getObjectTier('exports/site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => (new SyncPlan())->setTier(new MemoryProvider(setTier: false), 'Archive'));
+    },
     'sync plan reports missing and checksum changed paths' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
@@ -381,5 +436,30 @@ return [
         $t->same('', $example['unlinkResult']);
         $t->same($example['wxrLink'], $example['relinkedWxr']);
         $t->same('wp-content/uploads/2026/05', $example['root']);
+    },
+    'wordpress settier example archives portable artifacts without tiering cache' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-settier-archive.php';
+
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $example['updatedPaths']);
+        $t->same('Archive', $example['wxrTier']);
+        $t->same('Archive', $example['sqlTier']);
+        $t->same('Archive', $example['uploadTier']);
+        $t->same('Hot', $example['cacheTier']);
+        $t->same('Hot', $example['sourceAssetTier']);
+        $t->same('Archive', $example['wxrJsonTier']);
+        $t->same([
+            'database/site.sql|Archive',
+            'exports/site.wxr|Archive',
+            'wp-content/cache/page/index.html|Hot',
+            'wp-content/debug.log|Hot',
+            'wp-content/uploads/2026/05/hero.jpg|Archive',
+            'wp-content/uploads/2026/05/hero.webp|Archive',
+            'wp-content/uploads/2026/05/private-draft.psd|Hot',
+        ], $example['lsfTierLines']);
     },
 ];

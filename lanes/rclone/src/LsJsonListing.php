@@ -139,7 +139,7 @@ final class LsJsonListing
         if ($info->id !== null && $info->id !== '') {
             $item['ID'] = $info->id;
         }
-        if ($info->tier !== null && $info->tier !== '') {
+        if ($provider->supportsGetTier() && $info->tier !== null && $info->tier !== '') {
             $item['Tier'] = $info->tier;
         }
 

@@ -72,6 +72,8 @@ final class MemoryProvider
         ?string $serverSideMoveError = null,
         ?string $serverSideCopyError = null,
         ?string $serverSideDirMoveError = null,
+        private readonly bool $setTier = true,
+        private readonly bool $getTier = true,
     )
     {
         $this->supportedHashes = $supportedHashes === null
@@ -227,6 +229,16 @@ final class MemoryProvider
     public function supportsServerSideDirMove(): bool
     {
         return $this->serverSideDirMove;
+    }
+
+    public function supportsSetTier(): bool
+    {
+        return $this->setTier;
+    }
+
+    public function supportsGetTier(): bool
+    {
+        return $this->getTier;
     }
 
     public function get(string $path): string
@@ -971,6 +983,43 @@ final class MemoryProvider
         $entry = $this->entryWithMetadataSet($this->entry($path), $metadata);
 
         return $this->putEntry($path, $entry);
+    }
+
+    public function setObjectTier(string $path, string $tier): ObjectInfo
+    {
+        if (!$this->setTier) {
+            throw new \RuntimeException('remote object does not implement SetTier');
+        }
+
+        $path = $this->canonicalPath($path);
+        $entry = $this->entry($path);
+        $entry['tier'] = $tier;
+
+        return $this->putEntry($path, $entry);
+    }
+
+    public function setListedObjectTier(ObjectInfo $info, string $tier): ObjectInfo
+    {
+        if (!$this->setTier) {
+            throw new \RuntimeException('remote object does not implement SetTier');
+        }
+
+        if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            $this->duplicateObjects[$info->providerKey]['entry']['tier'] = $tier;
+
+            return $this->duplicateInfo($info->providerKey);
+        }
+
+        return $this->setObjectTier($info->path, $tier);
+    }
+
+    public function getObjectTier(string $path): string
+    {
+        if (!$this->getTier) {
+            throw new \RuntimeException('remote object does not implement GetTier');
+        }
+
+        return $this->info($path)->tier ?? '';
     }
 
     /**

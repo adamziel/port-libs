@@ -36,6 +36,7 @@ final class LsfListing
                     'p' => $item['path'],
                     's' => (string) $item['size'],
                     'h' => $item['dir'] ? '' : ($provider->hashes($item['path'], new HashSet($hashType))[$hashType] ?? ''),
+                    'T' => $item['tier'],
                     default => throw new \InvalidArgumentException('Unsupported lsf format field "' . $part . '"'),
                 };
             }
@@ -46,15 +47,16 @@ final class LsfListing
     }
 
     /**
-     * @return list<array{path:string, size:int, dir:bool}>
+     * @return list<array{path:string, size:int, dir:bool, tier:string}>
      */
     private static function items(MemoryProvider $provider, bool $recurse, bool $dirSlash): array
     {
-        $paths = array_map(static fn (ObjectInfo $info): string => $info->path, $provider->list());
+        $infos = $provider->list();
         $files = [];
         $dirs = [];
 
-        foreach ($paths as $path) {
+        foreach ($infos as $info) {
+            $path = $info->path;
             $segments = explode('/', $path);
             if (count($segments) > 1) {
                 $prefix = '';
@@ -65,7 +67,10 @@ final class LsfListing
             }
 
             if ($recurse || !str_contains($path, '/')) {
-                $files[$path] = $provider->info($path)->size;
+                $files[$path] = [
+                    'size' => $info->size,
+                    'tier' => $provider->supportsGetTier() ? ($info->tier ?? '') : '',
+                ];
             }
         }
 
@@ -77,11 +82,11 @@ final class LsfListing
         }
 
         $items = [];
-        foreach ($files as $path => $size) {
-            $items[] = ['path' => $path, 'size' => $size, 'dir' => false];
+        foreach ($files as $path => $file) {
+            $items[] = ['path' => $path, 'size' => $file['size'], 'dir' => false, 'tier' => $file['tier']];
         }
         foreach ($visibleDirs as $dir) {
-            $items[] = ['path' => $dir . ($dirSlash ? '/' : ''), 'size' => -1, 'dir' => true];
+            $items[] = ['path' => $dir . ($dirSlash ? '/' : ''), 'size' => -1, 'dir' => true, 'tier' => ''];
         }
         usort($items, static fn (array $a, array $b): int => $a['path'] <=> $b['path']);
 
