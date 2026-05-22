@@ -15,6 +15,13 @@ $signedData = $commit->signedDataForSignature();
 $mergeTags = $commit->mergeTags();
 $tokenResults = Commit::iterateTokens($fixture['commitBody']);
 $storageBytes = $commit->storageBytes();
+$lateStandardHeaderCommit = Commit::parse($fixture['lateStandardHeaderCommitBody']);
+$misorderedHeaderRejected = false;
+try {
+    Commit::parse($fixture['misorderedHeaderCommitBody']);
+} catch (InvalidArgumentException) {
+    $misorderedHeaderRejected = true;
+}
 
 return [
     'tree' => $commit->tree,
@@ -64,6 +71,11 @@ return [
     'objectSha1' => $commit->object()->oid(),
     'size' => $commit->size(),
     'roundTripMatches' => Commit::parse($storageBytes)->storageBytes() === $storageBytes,
+    'lateStandardHeaderParentCount' => count($lateStandardHeaderCommit->parents),
+    'lateStandardHeaderEncoding' => $lateStandardHeaderCommit->encoding,
+    'lateStandardHeaderParentExtra' => $lateStandardHeaderCommit->extraHeader('parent'),
+    'lateStandardHeaderEncodingExtra' => $lateStandardHeaderCommit->extraHeader('encoding'),
+    'misorderedHeaderRejected' => $misorderedHeaderRejected,
     'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
     'tokenExtraHeaderNames' => array_values(array_map(
         static fn (array $result): string => $result['token']['name'],

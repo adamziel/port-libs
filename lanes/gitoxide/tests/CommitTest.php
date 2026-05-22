@@ -38,6 +38,38 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($body));
         $t->same([], Commit::iterateTokens(''));
     },
+    'commit parser follows gitoxide strict header order' => static function (TestRunner $t): void {
+        $lateStandardHeader = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author Ada <ada@example.test> 1700000000 +0000\n"
+            . "committer CI <ci@example.test> 1700000001 +0000\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "encoding UTF-8\n"
+            . "\n"
+            . "Late standard headers\n";
+
+        $commit = Commit::parse($lateStandardHeader);
+
+        $t->same([], $commit->parents);
+        $t->same(null, $commit->encoding);
+        $t->same('1111111111111111111111111111111111111111', $commit->extraHeader('parent'));
+        $t->same('UTF-8', $commit->extraHeader('encoding'));
+        $t->same(['parent', 'encoding'], array_map(static fn (array $header): string => $header['name'], $commit->allExtraHeaders()));
+
+        $committerBeforeAuthor = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "committer CI <ci@example.test> 1700000001 +0000\n"
+            . "author Ada <ada@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Out of order\n";
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($committerBeforeAuthor));
+
+        $encodingBeforeCommitter = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author Ada <ada@example.test> 1700000000 +0000\n"
+            . "encoding UTF-8\n"
+            . "committer CI <ci@example.test> 1700000001 +0000\n"
+            . "\n"
+            . "Out of order\n";
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($encodingBeforeCommitter));
+    },
     'parses gitoxide actor signatures with lenient delimiter handling' => static function (TestRunner $t): void {
         $signature = CommitSignature::parse('Gregor Hartmann<gh <Gregor Hartmann<gh@openoffice.org>> 1282910542 +0200');
 
@@ -388,5 +420,10 @@ return [
         $t->same($fixture['expectedObjectSha1'], $summary['objectSha1']);
         $t->same($fixture['expectedSize'], $summary['size']);
         $t->same(true, $summary['roundTripMatches']);
+        $t->same(0, $summary['lateStandardHeaderParentCount']);
+        $t->same(null, $summary['lateStandardHeaderEncoding']);
+        $t->same($fixture['expectedLateParentExtraHeader'], $summary['lateStandardHeaderParentExtra']);
+        $t->same('UTF-8', $summary['lateStandardHeaderEncodingExtra']);
+        $t->same(true, $summary['misorderedHeaderRejected']);
     },
 ];

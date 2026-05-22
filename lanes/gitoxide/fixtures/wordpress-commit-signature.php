@@ -26,8 +26,24 @@ $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "Tested-by: QA Runner <qa@example.test>\n"
     . " staged import dry-run\n";
 
+$lateStandardHeaderBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+    . "parent 1111111111111111111111111111111111111111\n"
+    . "encoding UTF-8\n"
+    . "\n"
+    . "Import with late standard headers\n";
+
+$misorderedHeaderBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+    . "\n"
+    . "Import with reordered actors\n";
+
 return [
     'commitBody' => $body,
+    'lateStandardHeaderCommitBody' => $lateStandardHeaderBody,
+    'misorderedHeaderCommitBody' => $misorderedHeaderBody,
     'expectedTree' => '0123456789abcdef0123456789abcdef01234567',
     'expectedAuthorName' => 'WordPress Importer',
     'expectedAuthorEmail' => 'importer@example.test',
@@ -51,5 +67,6 @@ return [
     'expectedMergeTagKind' => 'commit',
     'expectedMergeTagTagger' => 'WordPress Release Bot',
     'expectedMergeTagMessage' => 'Release tag embedded for deployment provenance',
+    'expectedLateParentExtraHeader' => '1111111111111111111111111111111111111111',
     'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
 ];

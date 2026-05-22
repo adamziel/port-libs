@@ -27,90 +27,61 @@ final class Commit
 
     public static function parse(string $body, string $algorithm = 'sha1'): self
     {
-        $separator = strpos($body, "\n\n");
-        if ($separator === false) {
-            throw new \InvalidArgumentException('Commit message is missing header separator');
-        }
-
-        $headerBlock = substr($body, 0, $separator);
-        $message = substr($body, $separator + 2);
+        $offset = 0;
         $headers = [];
-        $current = null;
-        $currentEntryIndex = null;
-        $headerEntries = [];
-
-        foreach (explode("\n", $headerBlock) as $line) {
-            if ($line === '') {
-                continue;
-            }
-            if ($line[0] === ' ') {
-                if ($current === null) {
-                    throw new \InvalidArgumentException('Commit continuation line without a header');
-                }
-                $last = array_key_last($headers[$current]);
-                $headers[$current][$last] .= "\n" . substr($line, 1);
-                if ($currentEntryIndex !== null) {
-                    $headerEntries[$currentEntryIndex]['value'] .= "\n" . substr($line, 1);
-                }
-                continue;
-            }
-
-            $space = strpos($line, ' ');
-            if ($space === false) {
-                throw new \InvalidArgumentException('Invalid commit header line: ' . $line);
-            }
-            $current = substr($line, 0, $space);
-            $value = substr($line, $space + 1);
-            $headers[$current][] = $value;
-            $currentEntryIndex = count($headerEntries);
-            $headerEntries[] = ['name' => $current, 'value' => $value];
-        }
-
-        $hashLength = ReferenceTarget::hashHexLength($algorithm);
-        foreach (['tree', 'author', 'committer'] as $required) {
-            if (($headers[$required] ?? []) === []) {
-                throw new \InvalidArgumentException("Commit is missing required {$required} header");
-            }
-        }
-
-        $tree = strtolower($headers['tree'][0]);
-        if (!preg_match('/^[0-9a-f]{' . $hashLength . '}$/', $tree)) {
-            throw new \InvalidArgumentException("Commit tree must be a {$hashLength}-character {$algorithm} hex object id");
-        }
-
-        $parents = array_map('strtolower', $headers['parent'] ?? []);
-        foreach ($parents as $parent) {
-            if (!preg_match('/^[0-9a-f]{' . $hashLength . '}$/', $parent)) {
-                throw new \InvalidArgumentException("Commit parent must be a {$hashLength}-character {$algorithm} hex object id");
-            }
-        }
-
-        CommitSignature::parse($headers['author'][0]);
-        CommitSignature::parse($headers['committer'][0]);
-
         $extraHeaders = [];
         $extraHeaderList = [];
-        $standardHeaders = ['tree', 'parent', 'author', 'committer', 'encoding'];
-        foreach ($headers as $name => $values) {
-            if (in_array($name, $standardHeaders, true)) {
-                continue;
-            }
-            $extraHeaders[$name] = $values;
+        $appendHeader = static function (string $name, string $value) use (&$headers): void {
+            $headers[$name][] = $value;
+        };
+        $hashLength = ReferenceTarget::hashHexLength($algorithm);
+
+        $treeRaw = self::readRequiredTokenHeader($body, $offset, 'tree');
+        self::validateTokenObjectId($treeRaw, $hashLength, $algorithm, 'tree');
+        $tree = strtolower($treeRaw);
+        $appendHeader('tree', $treeRaw);
+
+        $parents = [];
+        while (substr($body, $offset, 7) === 'parent ') {
+            $parentRaw = self::readRequiredTokenHeader($body, $offset, 'parent');
+            self::validateTokenObjectId($parentRaw, $hashLength, $algorithm, 'parent');
+            $parents[] = strtolower($parentRaw);
+            $appendHeader('parent', $parentRaw);
         }
-        foreach ($headerEntries as $entry) {
-            if (!in_array($entry['name'], $standardHeaders, true)) {
-                $extraHeaderList[] = $entry;
-            }
+
+        $author = self::readRequiredTokenHeader($body, $offset, 'author');
+        CommitSignature::parse($author);
+        $appendHeader('author', $author);
+
+        $committer = self::readRequiredTokenHeader($body, $offset, 'committer');
+        CommitSignature::parse($committer);
+        $appendHeader('committer', $committer);
+
+        $encoding = null;
+        if (substr($body, $offset, 9) === 'encoding ') {
+            $encoding = self::readRequiredTokenHeader($body, $offset, 'encoding');
+            $appendHeader('encoding', $encoding);
+        }
+
+        while ($offset < strlen($body) && ($body[$offset] ?? '') !== "\n") {
+            [$name, $value] = self::readAnyTokenHeader($body, $offset);
+            $appendHeader($name, $value);
+            $extraHeaders[$name][] = $value;
+            $extraHeaderList[] = ['name' => $name, 'value' => $value];
+        }
+
+        if (($body[$offset] ?? null) !== "\n") {
+            throw new \InvalidArgumentException('Commit message is missing header separator');
         }
 
         return new self(
             $tree,
             $parents,
-            $headers['author'][0],
-            $headers['committer'][0],
-            $message,
+            $author,
+            $committer,
+            substr($body, $offset + 1),
             $headers,
-            $headers['encoding'][0] ?? null,
+            $encoding,
             $extraHeaders,
             $body,
             $extraHeaderList,
