@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
+use PortLibs\LibSqlite\SQLiteRecord;
+use PortLibs\LibSqlite\SQLiteSchemaRecord;
+use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteVarint;
 
 $makeFirstPage = static function (int $pageSize = 512): string {
@@ -20,6 +23,58 @@ $makeFirstPage = static function (int $pageSize = 512): string {
     $page = substr_replace($page, pack('N', 1), 56, 4);
 
     return $page;
+};
+
+$varint = static function (int $value): string {
+    if ($value < 0) {
+        throw new RuntimeException('Fixture varint cannot encode negative values');
+    }
+    if ($value <= 0x7f) {
+        return chr($value);
+    }
+    $groups = [$value & 0x7f];
+    $value >>= 7;
+    while ($value > 0) {
+        array_unshift($groups, 0x80 | ($value & 0x7f));
+        $value >>= 7;
+    }
+
+    return implode('', array_map(chr(...), $groups));
+};
+
+$recordPayload = static function (array $values) use ($varint): string {
+    $serialTypes = [];
+    $body = '';
+    foreach ($values as $value) {
+        if ($value === null) {
+            $serialTypes[] = 0;
+        } elseif (is_int($value)) {
+            if ($value === 0) {
+                $serialTypes[] = 8;
+            } elseif ($value === 1) {
+                $serialTypes[] = 9;
+            } elseif ($value >= -128 && $value <= 127) {
+                $serialTypes[] = 1;
+                $body .= pack('C', $value & 0xff);
+            } elseif ($value >= -32768 && $value <= 32767) {
+                $serialTypes[] = 2;
+                $body .= pack('n', $value & 0xffff);
+            } else {
+                $serialTypes[] = 4;
+                $body .= pack('N', $value & 0xffffffff);
+            }
+        } elseif (is_string($value)) {
+            $serialTypes[] = 13 + (strlen($value) * 2);
+            $body .= $value;
+        } else {
+            throw new RuntimeException('Unsupported fixture record value');
+        }
+    }
+
+    $serialHeader = implode('', array_map($varint, $serialTypes));
+    $headerSize = strlen($serialHeader) + 1;
+
+    return $varint($headerSize) . $serialHeader . $body;
 };
 
 return [
@@ -106,5 +161,75 @@ return [
         $page[0] = "\x00";
         $page = substr_replace($page, pack('n', 512), 5, 2);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageHeader::parsePage($page, 512));
+    },
+    'parses table leaf cell rowid payload and sqlite record values' => static function (TestRunner $t) use ($varint, $recordPayload): void {
+        $payload = $recordPayload(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text)']);
+        $cell = $varint(strlen($payload)) . $varint(1) . $payload;
+        $page = str_repeat("\0", 512);
+        $offset = 512 - strlen($cell);
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+
+        $parsed = SQLiteTableLeafCell::parse($page, $offset);
+        $record = SQLiteRecord::parse($parsed->payload);
+
+        $t->same(strlen($payload), $parsed->payloadLength);
+        $t->same(1, $parsed->rowId);
+        $t->same('wp_options', $record->values[1]);
+        $t->same(2, $record->values[3]);
+        $t->contains('CREATE TABLE wp_options', $record->values[4]);
+    },
+    'table leaf cells reject truncated payloads' => static function (TestRunner $t) use ($varint): void {
+        $page = str_repeat("\0", 512);
+        $cell = $varint(12) . $varint(3) . 'short';
+        $offset = 512 - strlen($cell);
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafCell::parse($page, $offset));
+    },
+    'sqlite records decode core serial types' => static function (TestRunner $t) use ($varint): void {
+        $serialTypes = [0, 8, 9, 1, 2, 3, 4, 5, 6, 7, 18, 19];
+        $header = implode('', array_map($varint, $serialTypes));
+        $payload = $varint(strlen($header) + 1)
+            . $header
+            . "\xfe"
+            . "\xff\xfe"
+            . "\xff\xff\xfe"
+            . "\xff\xff\xff\xfe"
+            . "\xff\xff\xff\xff\xff\xfe"
+            . "\xff\xff\xff\xff\xff\xff\xff\xfe"
+            . pack('E', 1.5)
+            . "\x00A\xff"
+            . 'abc';
+
+        $record = SQLiteRecord::parse($payload);
+
+        $t->same($serialTypes, $record->serialTypes);
+        $t->same([null, 0, 1, -2, -2, -2, -2, -2, -2, 1.5, "\x00A\xff", 'abc'], $record->values);
+        $t->same(strlen($payload), $record->bytesRead);
+    },
+    'decodes sqlite_schema table records from a first-page table leaf cell' => static function (TestRunner $t) use ($makeFirstPage, $varint, $recordPayload): void {
+        $payload = $recordPayload(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text)']);
+        $cell = $varint(strlen($payload)) . $varint(1) . $payload;
+        $page = $makeFirstPage();
+        $cellOffset = 512 - strlen($cell);
+        $page[100] = "\x0d";
+        $page = substr_replace($page, pack('n', 0), 101, 2);
+        $page = substr_replace($page, pack('n', 1), 103, 2);
+        $page = substr_replace($page, pack('n', $cellOffset), 105, 2);
+        $page[107] = "\x00";
+        $page = substr_replace($page, pack('n', $cellOffset), 108, 2);
+        $page = substr_replace($page, $cell, $cellOffset, strlen($cell));
+
+        $header = SQLiteBTreePageHeader::parseFirstPage($page);
+        $cells = SQLiteTableLeafCell::parsePageCells($page, $header);
+        $schema = SQLiteSchemaRecord::fromTableLeafCell($cells[0], SQLiteHeader::parse($page)->textEncoding);
+
+        $t->same('table', $schema->type);
+        $t->true($schema->isTable('wp_options'));
+        $t->same(2, $schema->rootPage);
+        $t->contains('option_value text', $schema->sql ?? '');
+    },
+    'sqlite record parser rejects reserved serial types' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse("\x02\x0a"));
     },
 ];
