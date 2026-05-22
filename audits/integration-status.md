@@ -1,5 +1,94 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T20:44:11Z
+
+No lane implementation, dashboard, or generated status batch was integrated,
+staged, committed, regenerated, or pushed by this pass. The current checkout is
+not a safe integration boundary: `HEAD` advanced during inspection, dirty work is
+interleaved across multiple lanes, and the required root PHP harness is red.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 45, behind 26]`.
+- Final observed `HEAD`: `a070d36` (`readability: map body byline cleanup`).
+- `HEAD` moved during this pass from `fc064ff` to `a070d36`; recent intervening
+  commits included `f8c64c7`/`a070d36` readability status commits after the
+  earlier sqlite/quadrable/syncthing/pandoc/lightningcss/difftastic batches.
+- No staged paths were present.
+
+Dirty scopes waiting for review:
+
+- Difftastic: `lanes/difftastic/tests/TokenDifferTest.php` plus untracked
+  TypeScript module fixtures.
+- Dolt: commit-log source/tests/fixture/example, runner notes, manifest, and
+  lane status; skipped despite reauthorization because the implementation and
+  runner metadata are still mixed with broader dirty work.
+- esbuild: TypeScript lowerer source/tests/example plus an untracked WordPress
+  comma-super fixture.
+- Gitoxide: `ReferenceStore.php`, reference-store tests, and packed-reference
+  WordPress example/fixture.
+- LightningCSS: `TransitionPrefixer.php`; this scope is currently causing root
+  test failures.
+- markerPDF: table recognizer source/tests/example/status/manifest/notes.
+- rclone: `SyncPlan.php`.
+- Public/status artifacts: `audits/latest.md`, `progress.md`, `porting.html`,
+  and `porting-summary.json`; these were not regenerated because no accepted
+  green state exists.
+- Many untracked audit evidence files remain review-only until a supervisor
+  chooses which reports should become public artifacts.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output before this snapshot was written.
+- `php tools/run-tests.php`: failed with `123 test files, 9513 assertions, 24
+  failures`.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Visible root test failures:
+
+- Difftastic: `maps typescript default namespace and re-export source changes`
+  and `wordpress block module asset diff keeps default and namespace imports
+  aligned`.
+- LightningCSS: 22 `lanes/lightningcss/tests/TransitionPrefixerTest.php`
+  failures, all reporting `Call to undefined method
+  PortLibs\LightningCSS\TransitionPrefixer::rewriteTextDecorationPrefixEntries()`.
+
+Risk:
+
+- Committing any lane batch now would record a red root-suite state and make the
+  dashboard/status artifacts look more authoritative than the evidence supports.
+- The dirty set is not one coherent review unit; it spans source, tests,
+  fixtures, generated dashboard files, audit files, and lane metadata.
+
+Next safe integration point: start with the LightningCSS `TransitionPrefixer`
+red failures or ask that lane to publish a coherent handoff, then rerun
+`php tools/run-tests.php` from a stable `HEAD`. After the root suite is green,
+accept exactly one lane-scoped batch, run `git diff --check`, commit that batch,
+and only then regenerate `porting.html` / `porting-summary.json` from the same
+accepted state.
+
+Post-write drift note: by 2026-05-22T20:45:04Z, the dirty set had changed again
+while this pass was checking the snapshot. Newly visible or changed paths
+included `lanes/difftastic/src/TokenDiffer.php`,
+`lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/pandoc/src/MarkdownReader.php`,
+`lanes/pandoc/src/WordPressBlockWriter.php`,
+`lanes/quadrable/tests/ProofTest.php`, an untracked
+`audits/syncthing-request-runner-evidence-20260522T2036.md`, and an untracked
+`lanes/quadrable/examples/wordpress-large-proof-window.php`. This reinforces
+that the tree is moving and should be treated as a hold state, not an accepted
+integration checkpoint.
+
+Second post-write drift note: by 2026-05-22T20:45:26Z, `HEAD` remained
+`a070d36`, but the branch relationship changed to
+`main...origin/main [ahead 19, behind 28]` and additional dirty paths appeared,
+including `lanes/gitoxide/notes/upstream-inventory.md`,
+`lanes/lightningcss/tests/TransitionPrefixerTest.php`,
+`lanes/pandoc/tests/MarkdownReaderTest.php`, and
+`lanes/rclone/tests/ProviderMoveFeatureTest.php`. This pass still accepted no
+lane files and should not be treated as a dashboard or release checkpoint.
+
 ## Integration Worker Snapshot - 2026-05-22T20:37:34Z
 
 No lane output was integrated, staged, committed, dashboard-regenerated, or
