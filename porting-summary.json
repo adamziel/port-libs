@@ -1,5 +1,5 @@
 {
-    "generated": "2026-05-22 14:09:36 UTC",
+    "generated": "2026-05-22 14:10:01 UTC",
     "averageProgressPercent": "11.9",
     "lanes": [
         {
@@ -176,7 +176,7 @@
             "audit": "audited 2026-05-22",
             "nextTarget": "Map another Mozilla media fixture such as embedded-videos/videos-2 or copy a full lazy-im...",
             "blocker": "Resolved the previous missing dependency blocker: upstream package-lock/s...",
-            "commit": "39bcdee"
+            "commit": "a2e9937"
         },
         {
             "library": "syncthing",

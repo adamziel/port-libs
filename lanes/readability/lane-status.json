@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: upstream npm test passes locally; native PHP smoke coverage still maps 12 tests / 47 checks, not full upstream fixture parity",
     "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and lazy-loaded media, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, and mozilla-2 fixtures plus lazy-image media cleanup semantics, emits simple WordPress blocks, and now has upstream `npm test` runner evidence from the hydrated sparse cache.",
     "blocker": "Resolved the previous missing dependency blocker: upstream package-lock/source files were hydrated into the sparse cache, `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies, and `npm test` passes 1984/1984. Remaining gaps are native PHP fixture parity: broader video handling, cleanup, and exact expected-HTML parity remain incomplete.",
-    "latestCommit": "39bcdee",
+    "latestCommit": "a2e9937",
     "nextTask": "Map another Mozilla media fixture such as embedded-videos/videos-2 or copy a full lazy-image fixture locally for closer expected-HTML parity."
 }
