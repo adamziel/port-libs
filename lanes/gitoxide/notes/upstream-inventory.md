@@ -62,6 +62,13 @@ Focused pack-data/delta inventory inspected on 2026-05-22:
 - `gix-pack/src/data/delta.rs` defines the mapped delta semantics: 7-bit little-endian source/result size headers, copy instructions with offset/size bytes, zero-size copy expansion to `0x10000`, insert commands, and explicit rejection of reserved command 0/truncated data/out-of-range copies.
 - `gix-pack/tests/pack/data/file.rs` and `gix-pack/tests/pack/data/input.rs` provide the mapped non-delta commit/blob/tree decompression cases plus OFS_DELTA and REF_DELTA resolution paths.
 
+Focused pack generation inventory inspected on 2026-05-22:
+
+- Selected `gix-pack/src/bundle/write/mod.rs`, `gix-pack/src/bundle/write/types.rs`, `gix-pack/src/index/write/mod.rs`, `gix-pack/tests/pack/data/output/count_and_entries.rs`, `gix-pack/tests/pack/data/output/mod.rs`, and `gix-pack/tests/pack/multi_index/write.rs` with targeted `git show`.
+- 5 output/write `#[test]` attributes were counted across the selected pack output and multi-index write tests.
+- `gix-pack` output tests define the wider generation model: count reachable objects, emit base and delta entries, and produce pack data hashes. The PHP slice starts with deterministic non-delta `commit`/`tree`/`blob`/`tag` object packing because that is enough to hand generated pack bytes to a receive-pack request.
+- `gix-pack/src/index/write/mod.rs` defines the mapped generated-index semantics: sort objects by id for the index, write a monotonic fanout table, object IDs, CRC32 values, 32-bit or large offsets, the trailing pack checksum, and the trailing index checksum.
+
 Focused object-database/alternates/replacements inventory inspected on 2026-05-22:
 
 - Selected `gix-odb` dynamic object database find, header, prefix, iteration, linked-store, loose-store, alternate parser/resolver, replacement handling, and test paths inspected with targeted `git show` and `git grep`.
@@ -142,7 +149,7 @@ Runner status:
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either map pack generation handoff for receive-pack requests, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either map send-pack transport orchestration from advertised refs through generated pack request and status response, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -154,6 +161,7 @@ Current PHP mapping:
 - `ReferenceStoreTest.php` maps loose-over-packed precedence, opening `packed-refs` from a Git directory, loose-only remote `HEAD` shortcuts, capitalized packed branches, and WordPress combined loose+packed ref resolution.
 - `PackIndexTest.php` maps `gix-pack` v2 pack-index fanout parsing, monotonic fanout/size/version validation, pack and index checksum access, checksum verification, full object ID lookup, prefix missing/ambiguous/found outcomes, CRC32 entries, 32-bit and large 64-bit offsets, sorted offsets, and a WordPress compacted object-offset fixture.
 - `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, OFS_DELTA/REF_DELTA resolution, Git delta copy/insert application, object ID verification, unsupported/corrupt pack errors, direct delta-entry rejection, and a WordPress packed commit/blob/delta fixture.
+- `PackBuilderTest.php` maps deterministic non-delta pack generation for native Git objects, generated v2 pack-index bytes, empty pack generation for already-present push objects, multi-byte entry headers, generated pack handoff to `PushCommand`, and a WordPress receive-pack branch/tag request with native pack bytes.
 - `ObjectDatabaseTest.php` maps `gix-odb` pack-before-loose object lookup, packed object counts, prefix lookup across packed and loose objects, duplicate id de-duplication, ambiguous prefix reporting, pack-missing error behavior, pack lexicographic iteration, pack-offset iteration, loose and packed alternates, quoted relative alternate paths, cycle rejection, loose and packed replacement refs, replacement ignore mode, sorted replacement mappings, MIDX-backed pack selection/de-duplication with missing-pack rejection, and WordPress pack+loose+alternate+replacement plus multi-pack object database fixtures.
 - `MultiPackIndexTest.php` maps `gix-pack` multi-index v1 header and chunk-table parsing, SHA-1/SHA-256 hash-kind recognition, sorted pack index names, fanout and chunk size validation, full object ID lookup, prefix missing/ambiguous/found outcomes, high-bit raw offsets without `LOFF`, large 64-bit offsets through `LOFF`, checksum verification, fast object-order and pack-id integrity checks, and a WordPress content/template/media multi-pack-index fixture.
 - `ProtocolV2Test.php` maps `gix-transport` v1/v2 capability parsing and capability value support, `gix-protocol` `ls-refs` default arguments, `unborn` negotiation, first-seen ref-prefix de-duplication, unknown argument/capability validation errors, v2 remote ref parsing for direct/symbolic/unborn/peeled/symbolic-peeled lines, malformed ref-line errors, and a WordPress protocol v2 `ls-refs` fixture for active branch/release tag/unborn staging ref discovery.
