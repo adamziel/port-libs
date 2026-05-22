@@ -55,6 +55,13 @@ Focused namespace prefix runner evidence added on 2026-05-22:
 - A broader substring probe, `timeout 120 cargo test -p gix-ref --test refs namespace --features sha1,sha256 -- --nocapture`, compiled the `refs` integration target but also matched namespaced store-iteration tests and failed 2 fixture-backed tests because the sparse cache did not materialize `gix-ref/tests/fixtures/make_namespaced_packed_ref_repository.sh`. This is a fixture-materialization blocker for the broader store-iteration namespace tests, not a failure of the exact namespace helper tests above.
 - `gix-ref/src/namespace.rs` defines the mapped helper: `Namespace::into_namespaced_prefix()` appends a validated relative path prefix to the expanded namespace bytes while preserving a trailing slash. The PHP slice adds `ReferenceName::intoNamespacedPrefix()` and covers `prefix`, `prefix/`, and a WordPress `refs/heads/review/` iteration prefix.
 
+Focused namespaced reference-store iteration runner evidence added on 2026-05-22:
+
+- Materialized only `gix-ref/tests/fixtures/make_namespaced_packed_ref_repository.sh`, `gix-ref/tests/fixtures/generated-archives/make_namespaced_packed_ref_repository.tar`, and `gix-ref/tests/fixtures/generated-archives/make_namespaced_packed_ref_repository_sha256.tar` into the sparse upstream cache.
+- Re-ran the broader namespace substring probe: `timeout 180 cargo test -p gix-ref --test refs namespace --features sha1,sha256 -- --nocapture` passed 14/14 filtered upstream tests, with 130 tests filtered out.
+- The newly unblocked store-iteration cases are `file::store::iter::with_namespace::iteration_can_trivially_use_namespaces_as_prefixes` and `file::store::iter::with_namespace::iteration_on_store_with_namespace_makes_namespace_transparent`. They define the mapped behavior: a namespace-aware store strips `refs/namespaces/<site>/` from returned reference names, finds store-relative full and partial names inside the namespace, rejects redundant namespaced lookups on the namespace-aware store, filters packed refs through the namespace even though packed buffers themselves are not namespace-aware, and applies the same transparent namespace handling to loose iteration.
+- The PHP slice adds namespace-aware `ReferenceStore` construction, `all()`, `prefixed()`, `looseAll()`, and `loosePrefixed()` overlay iteration, plus store-relative symbolic target stripping for namespace-internal symbolic refs. The WordPress fixture models multisite review refs under `refs/namespaces/site-a/refs/...` without shelling out to `git for-each-ref`.
+
 Focused partial-name join inventory inspected on 2026-05-22:
 
 - Re-inspected `gix-ref/src/name.rs`, `gix-validate/src/reference.rs`, and `gix-validate/tests/validate/reference.rs` with targeted upstream reads.

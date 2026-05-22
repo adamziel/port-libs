@@ -24,6 +24,11 @@ final class ResolvedReference
         return new self($reference->name, $reference->target, $reference->peeledObjectId, 'packed');
     }
 
+    public function withNameAndTarget(string $name, ?ReferenceTarget $target = null): self
+    {
+        return new self($name, $target ?? $this->target, $this->peeledObjectId, $this->source);
+    }
+
     public function kind(): string
     {
         return $this->target->kind;

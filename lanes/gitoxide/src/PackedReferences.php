@@ -103,6 +103,23 @@ final class PackedReferences
         return array_map(static fn (PackedReference $reference): string => $reference->name, $this->references);
     }
 
+    /**
+     * @return list<PackedReference>
+     */
+    public function prefixed(string $prefix): array
+    {
+        ReferenceName::assertValidPartial(rtrim($prefix, '/'));
+
+        $references = [];
+        foreach ($this->references as $reference) {
+            if (str_starts_with($reference->name, $prefix)) {
+                $references[] = $reference;
+            }
+        }
+
+        return $references;
+    }
+
     public function tryFind(string $name): ?PackedReference
     {
         $byName = [];

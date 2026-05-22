@@ -7,20 +7,28 @@ namespace PortLibs\Gitoxide;
 final class ReferenceStore
 {
     private readonly LooseReferenceStore $loose;
+    private readonly ?string $namespacePrefix;
 
     public function __construct(
         private readonly string $gitDirectory,
         private readonly ?PackedReferences $packed = null,
+        ?string $namespace = null,
     ) {
         $this->loose = new LooseReferenceStore($gitDirectory);
+        $this->namespacePrefix = $namespace === null ? null : ReferenceName::expandNamespace($namespace);
     }
 
-    public static function at(string $gitDirectory, string $algorithm = 'sha1'): self
+    public static function at(string $gitDirectory, string $algorithm = 'sha1', ?string $namespace = null): self
     {
         $packedPath = rtrim($gitDirectory, '/\\') . '/packed-refs';
         $packed = is_file($packedPath) ? PackedReferences::open($packedPath, $algorithm) : null;
 
-        return new self($gitDirectory, $packed);
+        return new self($gitDirectory, $packed, $namespace);
+    }
+
+    public function withNamespace(string $namespace): self
+    {
+        return new self($this->gitDirectory, $this->packed, $namespace);
     }
 
     public function looseStore(): LooseReferenceStore
@@ -31,15 +39,16 @@ final class ReferenceStore
     public function tryFind(string $name, string $algorithm = 'sha1'): ?ResolvedReference
     {
         foreach (self::lookupCandidates($name) as [$candidate, $allowPacked]) {
-            $loose = $this->loose->tryRead($candidate, $algorithm);
+            $lookupName = $this->namespacePrefix === null ? $candidate : $this->namespacePrefix . $candidate;
+            $loose = $this->loose->tryRead($lookupName, $algorithm);
             if ($loose !== null) {
-                return ResolvedReference::fromLoose($loose);
+                return $this->storeRelativeReference(ResolvedReference::fromLoose($loose));
             }
 
             if ($allowPacked && $this->packed !== null) {
-                $packed = $this->packed->tryFind($candidate);
+                $packed = $this->packed->tryFind($lookupName);
                 if ($packed !== null) {
-                    return ResolvedReference::fromPacked($packed);
+                    return $this->storeRelativeReference(ResolvedReference::fromPacked($packed));
                 }
             }
         }
@@ -55,6 +64,64 @@ final class ReferenceStore
         }
 
         return $reference;
+    }
+
+    /**
+     * @return list<ResolvedReference>
+     */
+    public function all(string $algorithm = 'sha1'): array
+    {
+        return $this->prefixed('refs/', $algorithm);
+    }
+
+    /**
+     * @return list<ResolvedReference>
+     */
+    public function prefixed(string $prefix, string $algorithm = 'sha1'): array
+    {
+        $lookupPrefix = $this->namespacePrefix === null ? $prefix : $this->namespacePrefix . $prefix;
+        ReferenceName::assertValidPartial(rtrim($lookupPrefix, '/'));
+
+        $byName = [];
+        foreach ($this->loose->prefixed($lookupPrefix, $algorithm) as $reference) {
+            $resolved = $this->storeRelativeReference(ResolvedReference::fromLoose($reference));
+            $byName[$resolved->name] = $resolved;
+        }
+
+        if ($this->packed !== null) {
+            foreach ($this->packed->prefixed($lookupPrefix) as $reference) {
+                $resolved = $this->storeRelativeReference(ResolvedReference::fromPacked($reference));
+                $byName[$resolved->name] ??= $resolved;
+            }
+        }
+
+        ksort($byName, SORT_STRING);
+
+        return array_values($byName);
+    }
+
+    /**
+     * @return list<ResolvedReference>
+     */
+    public function looseAll(string $algorithm = 'sha1'): array
+    {
+        return $this->loosePrefixed('refs/', $algorithm);
+    }
+
+    /**
+     * @return list<ResolvedReference>
+     */
+    public function loosePrefixed(string $prefix, string $algorithm = 'sha1'): array
+    {
+        $lookupPrefix = $this->namespacePrefix === null ? $prefix : $this->namespacePrefix . $prefix;
+        ReferenceName::assertValidPartial(rtrim($lookupPrefix, '/'));
+
+        return array_map(
+            fn (LooseReference $reference): ResolvedReference => $this->storeRelativeReference(
+                ResolvedReference::fromLoose($reference)
+            ),
+            $this->loose->prefixed($lookupPrefix, $algorithm),
+        );
     }
 
     /**
@@ -91,5 +158,23 @@ final class ReferenceStore
         }
 
         return $candidates;
+    }
+
+    private function storeRelativeReference(ResolvedReference $reference): ResolvedReference
+    {
+        if ($this->namespacePrefix === null) {
+            return $reference;
+        }
+
+        if (!str_starts_with($reference->name, $this->namespacePrefix)) {
+            return $reference;
+        }
+
+        $target = $reference->target;
+        if ($target->isSymbolic() && str_starts_with($target->value, $this->namespacePrefix)) {
+            $target = ReferenceTarget::symbolic(substr($target->value, strlen($this->namespacePrefix)));
+        }
+
+        return $reference->withNameAndTarget(substr($reference->name, strlen($this->namespacePrefix)), $target);
     }
 }
