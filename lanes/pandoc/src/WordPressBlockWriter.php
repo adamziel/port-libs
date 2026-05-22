@@ -247,7 +247,26 @@ final class WordPressBlockWriter
 
         $caption = (string) $node->attr('caption', '');
         if ($caption !== '') {
-            $html .= '<figcaption class="wp-element-caption">' . $this->esc($caption) . '</figcaption>';
+            $html .= '<figcaption class="wp-element-caption">' . $this->renderCaptionInlines($node) . '</figcaption>';
+        }
+
+        return $html;
+    }
+
+    private function renderCaptionInlines(AstNode $node): string
+    {
+        $inlines = $node->attr('captionInlines', null);
+        if (!is_array($inlines)) {
+            return $this->esc((string) $node->attr('caption', ''));
+        }
+
+        $html = '';
+        foreach ($inlines as $inline) {
+            if (!$inline instanceof AstNode) {
+                return $this->esc((string) $node->attr('caption', ''));
+            }
+
+            $html .= $this->renderInlineNode($inline);
         }
 
         return $html;

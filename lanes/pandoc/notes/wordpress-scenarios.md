@@ -97,8 +97,8 @@ header-less one-column, side-less, indented-left-column, one-column, and
 no-body forms retain the expected table head/body shape, relative column-width
 metadata stays on the AST, and cells containing escaped pipes or code-span pipes
 stay in the intended cell. The WordPress writer renders these as core table
-blocks with escaped inline emphasis, code spans, and optional `<colgroup>` width
-styles.
+blocks with escaped inline emphasis, code spans, links, caption inline markup,
+and optional `<colgroup>` width styles.
 All seven gridless simple/multiline table cases from `test/tables.markdown` are
 now mapped for older Markdown exports: captioned and uncaptioned simple tables
 infer Pandoc-style alignment from header spacing, the two-space-indented table
@@ -130,8 +130,8 @@ alignment distinction is preserved.
   imported raw HTML boundaries.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
-  spans, a caption, and colgroup widths, exercising the native table AST and
-  WordPress table block writer.
+  spans, a caption with a reference link and code span, and colgroup widths,
+  exercising the native table AST and WordPress table block writer.
 - The fixture now also includes legacy simple-table source totals with a
   caption, plus a wrapped multiline review-note table with colgroup widths,
   exercising gridless table imports from older Pandoc-compatible exports that
@@ -194,7 +194,7 @@ alignment distinction is preserved.
 - Pipe-table import metrics and relative-width review-note tables render as
   core WordPress table blocks with `<thead>`, `<tbody>`, aligned cells,
   optional `<colgroup>` widths, a figcaption where present, escaped emphasis,
-  and code spans without invoking Pandoc.
+  links, and code spans without invoking Pandoc.
 - Legacy simple-table source totals render as core WordPress table blocks with
   inferred alignment styles and captions without invoking Pandoc.
 - Wrapped multiline review tables render as core WordPress table blocks with
@@ -203,7 +203,6 @@ alignment distinction is preserved.
 
 ## Next Task
 
-Map table caption inline content more faithfully instead of plain caption
-strings, starting with emphasis/code/link parsing in captions and WordPress-safe
-caption rendering, then move to another bounded upstream Markdown table or
-writer fixture.
+Map Pandoc short-caption semantics or another bounded table/writer fixture,
+starting with the upstream `test/command/short-caption.md` native `Caption`
+shape and a PHP AST representation for optional short captions.

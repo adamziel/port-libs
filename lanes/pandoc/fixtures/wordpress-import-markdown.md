@@ -90,7 +90,7 @@ Import metrics:
 | Posts | 42 | **ready** |
 | Media | 7 | needs `alt` |
 
-  : Migration batch summary.
+  : **Migration** [batch summary][checklist] for `wp_posts`.
 
 Import field widths:
 

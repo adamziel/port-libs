@@ -993,6 +993,9 @@ final class MarkdownReader
             'caption' => $caption,
             'alignments' => $alignments,
         ];
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        }
         if ($widths !== null) {
             $attrs['widths'] = $widths;
         }
@@ -1099,6 +1102,9 @@ final class MarkdownReader
             'caption' => $caption,
             'alignments' => $delimiter['alignments'],
         ];
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        }
         if ($delimiter['widths'] !== null) {
             $attrs['widths'] = $delimiter['widths'];
         }

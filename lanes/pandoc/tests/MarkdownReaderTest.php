@@ -1223,6 +1223,31 @@ return [
         $t->same('123', $body->children[1]->children[2]->attr('text'));
         $t->same('1', $body->children[2]->children[3]->attr('text'));
     },
+    'maps table captions as parsed inline content' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '| Item | Status |',
+            '| :--- | :----- |',
+            '| Posts | ready |',
+            '',
+            ': **Migration** [audit](https://example.test/audit "Audit") uses `batch` 1987--1999.',
+        ]));
+        $table = $document->children[0];
+        $captionInlines = $table->attr('captionInlines');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('**Migration** [audit](https://example.test/audit "Audit") uses `batch` 1987--1999.', $table->attr('caption'));
+        $t->same(true, is_array($captionInlines));
+        $t->same('strong', $captionInlines[0]->type);
+        $t->same('Migration', $captionInlines[0]->children[0]->attr('text'));
+        $t->same('link', $captionInlines[2]->type);
+        $t->same('https://example.test/audit', $captionInlines[2]->attr('url'));
+        $t->same('Audit', $captionInlines[2]->attr('title'));
+        $t->same('code', $captionInlines[4]->type);
+        $t->same('batch', $captionInlines[4]->attr('text'));
+        $t->contains("1987\u{2013}1999.", $captionInlines[5]->attr('text'));
+        $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a> uses <code>batch</code> 1987–1999.</figcaption>', $blocks);
+    },
     'maps upstream pipe table headerless and side-less forms' => static function (TestRunner $t): void {
         $headerless = (new MarkdownReader())->read(implode("\n", [
             'Headerless table without caption:',
@@ -1469,7 +1494,7 @@ return [
         $t->contains('<figure class="wp-block-table"><table><thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Count</th><th style="text-align:left">Notes</th></tr></thead><tbody>', $blocks);
         $t->contains('<tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:left"><strong>ready</strong></td></tr>', $blocks);
         $t->contains('<tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:left">needs <code>alt</code></td></tr>', $blocks);
-        $t->contains('<figcaption class="wp-element-caption">Migration batch summary.</figcaption>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit imported post">batch summary</a> for <code>wp_posts</code>.</figcaption>', $blocks);
     },
     'writes wordpress relative width pipe table colgroups from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

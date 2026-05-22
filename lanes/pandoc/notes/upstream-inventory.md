@@ -264,11 +264,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   multiline captions can span continuation lines, and the no-header multiline
   table preserves the upstream final-column `AlignDefault` distinction while
   the headed multiline examples infer `AlignLeft`.
+- Parsed table caption inline content is now mapped for pipe and simple tables:
+  the AST keeps the legacy plain caption string but also stores parsed caption
+  inline nodes, matching Pandoc's native `Caption ... [Plain [...]]` block
+  shape observed in `test/tables.native`, `test/pipe-tables.native`, and the
+  short-caption command fixture. WordPress figcaptions now render emphasis,
+  links with titles, code spans, and smart punctuation instead of escaping
+  Markdown markup as literal caption text.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-85 tests, 573 assertions, and 0 failures. The required repo-wide
+86 tests, 585 assertions, and 0 failures. The required repo-wide
 `php tools/run-tests.php` command passed in the current shared worktree with
-111 test files, 8,162 assertions, and 0 failures.
+112 test files, 8,270 assertions, and 0 failures.
