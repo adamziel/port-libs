@@ -17,6 +17,7 @@ $enumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fi
 $constEnumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-const-enum-config.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
+$nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
@@ -26,6 +27,7 @@ $enumConfigLowered = (new TypeScriptModuleLowerer())->lower($enumConfigTypeScrip
 $constEnumConfigLowered = (new TypeScriptModuleLowerer())->lower($constEnumConfigTypeScriptSource);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
+$nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
 $namespaceLowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
 namespace CardBlockRuntime {
   export import blocks = wp.blocks;
@@ -49,6 +51,7 @@ printf("WordPress TypeScript const enum config bytes: %d\n", strlen($constEnumCo
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
+printf("WordPress TypeScript nested namespace enum bytes: %d\n", strlen($nestedNamespaceEnumLowered));
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()

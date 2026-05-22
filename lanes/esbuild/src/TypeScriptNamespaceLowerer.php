@@ -22,8 +22,9 @@ final class TypeScriptNamespaceLowerer
         $count = count($this->tokens);
         for ($i = 0; $i < $count; $i++) {
             $token = $this->tokens[$i];
-            if ($depth === 0 && $this->isNamespaceKeywordAt($i)) {
-                [$namespaceOutput, $blockEnd] = $this->lowerNamespaceAt($i);
+            $namespace = $this->namespaceStatementAt($i);
+            if ($depth === 0 && $namespace !== null && !$namespace['declared']) {
+                [$namespaceOutput, $blockEnd] = $this->lowerNamespaceAt($namespace['namespaceIndex'], $namespace['exported']);
                 $output .= $namespaceOutput;
                 $i = $blockEnd;
                 continue;
@@ -38,7 +39,7 @@ final class TypeScriptNamespaceLowerer
     /**
      * @return array{0:string, 1:int}
      */
-    private function lowerNamespaceAt(int $index): array
+    private function lowerNamespaceAt(int $index, bool $exported = false, ?string $parentNamespace = null): array
     {
         $name = $this->tokens[$index + 1] ?? null;
         if ($name?->kind !== 'identifier') {
@@ -63,6 +64,18 @@ final class TypeScriptNamespaceLowerer
                 continue;
             }
 
+            $nestedNamespace = $this->namespaceStatementAt($start);
+            if ($nestedNamespace !== null) {
+                if (!$nestedNamespace['declared']) {
+                    $ordered[] = [
+                        'kind' => 'namespace',
+                        'namespaceIndex' => $nestedNamespace['namespaceIndex'],
+                        'exported' => $nestedNamespace['exported'],
+                    ];
+                }
+                continue;
+            }
+
             if ($first->text === 'export' && ($this->tokens[$start + 1] ?? null)?->text === 'import') {
                 $import = $this->parseNamespaceImportEquals($start + 1, $end, true);
                 $imports[$import['local']] = $import;
@@ -74,6 +87,25 @@ final class TypeScriptNamespaceLowerer
                 $import = $this->parseNamespaceImportEquals($start, $end, false);
                 $imports[$import['local']] = $import;
                 $ordered[] = ['kind' => 'import', 'local' => $import['local']];
+                continue;
+            }
+
+            if ($this->isExportedDeclareVariableStatement($start)) {
+                foreach ($this->parseExportedDeclareVariableNames($start, $end) as $declaredName) {
+                    $exportedValues[$declaredName] = true;
+                }
+                continue;
+            }
+
+            $enum = $this->parseNamespaceEnumStatement($start, $end);
+            if ($enum !== null) {
+                if (!$enum['declared'] && (!$enum['const'] || $enum['exported'])) {
+                    if ($enum['exported']) {
+                        $exportedLocalBindings[$enum['name']] = true;
+                    }
+                    $ordered[] = ['kind' => 'enum', 'enum' => $enum];
+                    $hasRuntimeNamespaceStatement = true;
+                }
                 continue;
             }
 
@@ -117,6 +149,14 @@ final class TypeScriptNamespaceLowerer
                 $rendered[$index] = $this->printExportedVariableAssignments($item['declarations'], $parameter, $imports, $exportedValues);
             } elseif ($item['kind'] === 'exported-local-declaration') {
                 $rendered[$index] = $this->printExportedLocalDeclaration($item['declaration'], $parameter, $imports, $exportedValues);
+            } elseif ($item['kind'] === 'namespace') {
+                [$namespaceOutput] = $this->lowerNamespaceAt((int) $item['namespaceIndex'], (bool) $item['exported'], $parameter);
+                $rendered[$index] = [
+                    'lines' => $namespaceOutput === '' ? [] : explode("\n", rtrim($namespaceOutput, "\n")),
+                    'uses' => [],
+                ];
+            } elseif ($item['kind'] === 'enum') {
+                $rendered[$index] = $this->printNamespaceEnum($item['enum'], $parameter);
             }
         }
 
@@ -155,11 +195,20 @@ final class TypeScriptNamespaceLowerer
             return ['', $blockEnd];
         }
 
+        $declaration = $parentNamespace === null
+            ? ($exported ? 'export var ' : 'var ') . $name->text . ';'
+            : 'let ' . $name->text . ';';
+        $initializer = $parentNamespace === null
+            ? $name->text . ' || (' . $name->text . ' = {})'
+            : ($exported
+                ? $name->text . ' = ' . $parentNamespace . '.' . $name->text . ' || (' . $parentNamespace . '.' . $name->text . ' = {})'
+                : $name->text . ' || (' . $name->text . ' = {})');
+
         return [
-            'var ' . $name->text . ";\n"
+            $declaration . "\n"
             . '((' . $parameter . ") => {\n"
             . implode('', array_map(static fn (string $line): string => '  ' . $line . "\n", $lines))
-            . '})(' . $name->text . ' || (' . $name->text . " = {}));\n",
+            . '})(' . $initializer . ");\n",
             $blockEnd,
         ];
     }
@@ -197,6 +246,29 @@ final class TypeScriptNamespaceLowerer
         if (($this->tokens[$cursor] ?? null)?->text === 'export') {
             $cursor++;
         }
+        if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
+            $cursor++;
+        }
+        if ($this->isNamespaceKeywordAt($cursor)) {
+            for ($i = $cursor + 1; $i < $limit; $i++) {
+                if (($this->tokens[$i] ?? null)?->text === '{') {
+                    return $this->findMatchingPunctuator($i, '{', '}');
+                }
+            }
+        }
+        $enumCursor = $cursor;
+        if (($this->tokens[$enumCursor] ?? null)?->text === 'const'
+            && ($this->tokens[$enumCursor + 1] ?? null)?->text === 'enum'
+        ) {
+            $enumCursor++;
+        }
+        if (($this->tokens[$enumCursor] ?? null)?->text === 'enum') {
+            for ($i = $enumCursor + 1; $i < $limit; $i++) {
+                if (($this->tokens[$i] ?? null)?->text === '{') {
+                    return $this->findMatchingPunctuator($i, '{', '}');
+                }
+            }
+        }
         if (($this->tokens[$cursor] ?? null)?->text === 'async'
             && ($this->tokens[$cursor + 1] ?? null)?->text === 'function'
         ) {
@@ -215,6 +287,36 @@ final class TypeScriptNamespaceLowerer
         }
 
         return null;
+    }
+
+    /**
+     * @return array{namespaceIndex:int, exported:bool, declared:bool}|null
+     */
+    private function namespaceStatementAt(int $start): ?array
+    {
+        $cursor = $start;
+        $exported = false;
+        $declared = false;
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            $exported = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
+            $declared = true;
+            $cursor++;
+        }
+
+        if (!$this->isNamespaceKeywordAt($cursor)) {
+            return null;
+        }
+
+        return [
+            'namespaceIndex' => $cursor,
+            'exported' => $exported,
+            'declared' => $declared,
+        ];
     }
 
     /**
@@ -347,6 +449,232 @@ final class TypeScriptNamespaceLowerer
         return $declarations;
     }
 
+    private function isExportedDeclareVariableStatement(int $start): bool
+    {
+        return ($this->tokens[$start] ?? null)?->text === 'export'
+            && ($this->tokens[$start + 1] ?? null)?->text === 'declare'
+            && in_array(($this->tokens[$start + 2] ?? null)?->text, ['var', 'let', 'const'], true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseExportedDeclareVariableNames(int $start, int $end): array
+    {
+        $names = [];
+        $cursor = $start + 3;
+
+        while ($cursor <= $end) {
+            $name = $this->tokens[$cursor] ?? null;
+            if ($name?->kind !== 'identifier') {
+                break;
+            }
+
+            $names[] = $name->text;
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->variableInitializerEnd($cursor + 1, $end) + 1;
+            }
+            if (($this->tokens[$cursor] ?? null)?->text !== ',') {
+                break;
+            }
+            $cursor++;
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @return array{name:string, exported:bool, declared:bool, const:bool, members:list<array{name:string, assignment:string, assignmentKind:string}>}|null
+     */
+    private function parseNamespaceEnumStatement(int $start, int $end): ?array
+    {
+        $cursor = $start;
+        $exported = false;
+        $declared = false;
+        $const = false;
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            $exported = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
+            $declared = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'const'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'enum'
+        ) {
+            $const = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'enum') {
+            return null;
+        }
+
+        $name = $this->tokens[$cursor + 1] ?? null;
+        if ($name?->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected TypeScript namespace enum name');
+        }
+        if (($this->tokens[$cursor + 2] ?? null)?->text !== '{') {
+            throw new \InvalidArgumentException('Expected TypeScript namespace enum block');
+        }
+
+        $open = $cursor + 2;
+        $close = $this->findMatchingPunctuator($open, '{', '}');
+        if ($close > $end) {
+            throw new \InvalidArgumentException('TypeScript namespace enum block must end inside its statement');
+        }
+
+        return [
+            'name' => $name->text,
+            'exported' => $exported,
+            'declared' => $declared,
+            'const' => $const,
+            'members' => $this->parseNamespaceEnumMembers($open + 1, $close, $name->text),
+        ];
+    }
+
+    /**
+     * @return list<array{name:string, assignment:string, assignmentKind:string}>
+     */
+    private function parseNamespaceEnumMembers(int $start, int $close, string $enumName): array
+    {
+        $members = [];
+        $cursor = $start;
+        $previousNumeric = -1.0;
+
+        while ($cursor < $close) {
+            if (in_array(($this->tokens[$cursor] ?? null)?->text, [',', ';'], true)) {
+                $cursor++;
+                continue;
+            }
+
+            $nameToken = $this->tokens[$cursor] ?? null;
+            if ($nameToken === null || ($nameToken->kind !== 'identifier' && $nameToken->kind !== 'string')) {
+                throw new \InvalidArgumentException('Expected TypeScript namespace enum member name');
+            }
+
+            $memberName = $this->enumMemberName($nameToken);
+            $cursor++;
+            $assignmentKind = 'number';
+
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $expressionStart = $cursor + 1;
+                if ($expressionStart >= $close) {
+                    throw new \InvalidArgumentException('Expected TypeScript namespace enum member value');
+                }
+
+                $expressionEnd = $this->namespaceEnumExpressionEnd($expressionStart, $close);
+                [$assignment, $assignmentKind, $numericValue] = $this->namespaceEnumMemberAssignment($expressionStart, $expressionEnd, $enumName);
+                $previousNumeric = $numericValue;
+                $cursor = $expressionEnd + 1;
+            } elseif ($previousNumeric !== null) {
+                $previousNumeric++;
+                $assignment = $this->formatEnumNumber($previousNumeric);
+            } else {
+                $assignment = 'void 0';
+                $assignmentKind = 'void';
+            }
+
+            $members[] = [
+                'name' => $memberName,
+                'assignment' => $assignment,
+                'assignmentKind' => $assignmentKind,
+            ];
+
+            $after = $this->tokens[$cursor] ?? null;
+            if ($cursor < $close && $after?->text !== ',' && $after?->text !== ';') {
+                throw new \InvalidArgumentException('Expected "," after TypeScript namespace enum member');
+            }
+            if ($cursor < $close) {
+                $cursor++;
+            }
+        }
+
+        return $members;
+    }
+
+    private function namespaceEnumExpressionEnd(int $start, int $close): int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $close; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && ($text === ',' || $text === ';')) {
+                return $i - 1;
+            }
+
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $close - 1;
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:?float}
+     */
+    private function namespaceEnumMemberAssignment(int $start, int $end, string $enumName): array
+    {
+        if ($this->hasAdjacentEnumValueTokens($start, $end)) {
+            throw new \InvalidArgumentException('Expected "," after TypeScript namespace enum member');
+        }
+
+        if ($start === $end) {
+            $token = $this->tokens[$start];
+            if ($token->kind === 'number') {
+                return [$this->formatEnumNumber($token->numberValue ?? (float) $token->text), 'number', $token->numberValue];
+            }
+            if ($token->kind === 'string') {
+                return [$this->quoteJsString($this->stringTokenValue($token)), 'string', null];
+            }
+            if ($token->kind === 'identifier' && $token->text !== $enumName) {
+                return [$token->text, 'unknown', null];
+            }
+        }
+
+        if ($end === $start + 1
+            && in_array(($this->tokens[$start] ?? null)?->text, ['+', '-'], true)
+            && ($this->tokens[$end] ?? null)?->kind === 'number'
+        ) {
+            $value = $this->tokens[$end]->numberValue ?? (float) $this->tokens[$end]->text;
+            if ($this->tokens[$start]->text === '-') {
+                $value *= -1;
+            }
+
+            return [$this->formatEnumNumber($value), 'number', $value];
+        }
+
+        $uses = [];
+
+        return [$this->printTokenRange($start, $end, '', [], [], $uses), 'unknown', null];
+    }
+
+    private function hasAdjacentEnumValueTokens(int $start, int $end): bool
+    {
+        for ($i = $start; $i < $end; $i++) {
+            $left = $this->tokens[$i] ?? null;
+            $right = $this->tokens[$i + 1] ?? null;
+            if ($left === null || $right === null) {
+                continue;
+            }
+
+            if (in_array($left->kind, ['identifier', 'number', 'string'], true)
+                && in_array($right->kind, ['identifier', 'number', 'string'], true)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function variableInitializerEnd(int $start, int $end): int
     {
         $depth = 0;
@@ -432,6 +760,35 @@ final class TypeScriptNamespaceLowerer
         ];
     }
 
+    /**
+     * @param array{name:string, exported:bool, declared:bool, const:bool, members:list<array{name:string, assignment:string, assignmentKind:string}>} $enum
+     * @return array{lines:list<string>, uses:list<string>}
+     */
+    private function printNamespaceEnum(array $enum, string $namespace): array
+    {
+        $name = $enum['name'];
+        $lines = [
+            'let ' . $name . ';',
+            '((' . $name . ') => {',
+        ];
+
+        foreach ($enum['members'] as $member) {
+            $memberName = $this->quoteJsString($member['name']);
+            if ($member['assignmentKind'] === 'string') {
+                $lines[] = '  ' . $name . '[' . $memberName . '] = ' . $member['assignment'] . ';';
+            } else {
+                $lines[] = '  ' . $name . '[' . $name . '[' . $memberName . '] = ' . $member['assignment'] . '] = ' . $memberName . ';';
+            }
+        }
+
+        $initializer = $enum['exported']
+            ? $name . ' = ' . $namespace . '.' . $name . ' || (' . $namespace . '.' . $name . ' = {})'
+            : $name . ' || (' . $name . ' = {})';
+        $lines[] = '})(' . $initializer . ');';
+
+        return ['lines' => $lines, 'uses' => []];
+    }
+
     private function isTypeOnlyNamespaceStatement(int $start): bool
     {
         $token = $this->tokens[$start] ?? null;
@@ -439,7 +796,17 @@ final class TypeScriptNamespaceLowerer
             return false;
         }
 
+        if ($token->text === 'declare') {
+            return true;
+        }
+
         if (in_array($token->text, ['type', 'interface'], true)) {
+            return true;
+        }
+
+        if ($token->text === 'export'
+            && ($this->tokens[$start + 1] ?? null)?->text === 'declare'
+        ) {
             return true;
         }
 
@@ -551,6 +918,30 @@ final class TypeScriptNamespaceLowerer
     private function isWordLike(string $text): bool
     {
         return (bool) preg_match('/^[A-Za-z0-9_$"\']/', $text);
+    }
+
+    private function enumMemberName(Token $token): string
+    {
+        return $token->kind === 'string' ? $this->stringTokenValue($token) : $token->text;
+    }
+
+    private function stringTokenValue(Token $token): string
+    {
+        return stripcslashes(substr($token->text, 1, -1));
+    }
+
+    private function quoteJsString(string $value): string
+    {
+        return '"' . addcslashes($value, "\\\"") . '"';
+    }
+
+    private function formatEnumNumber(float $value): string
+    {
+        if (floor($value) === $value) {
+            return (string) (int) $value;
+        }
+
+        return rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
     }
 
     private function findStatementEndOrLineBreak(int $start, int $limit): int

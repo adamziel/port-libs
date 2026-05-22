@@ -99,6 +99,39 @@ var d;
 })(d || (d = {}));
 JS . "\n", $lowerer->lower('namespace d { export class d {} log(d) }'));
     },
+    'lowers upstream nested namespace function and enum exports' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+
+        $t->same(<<<'JS'
+var A;
+((A) => {
+  let B;
+  ((B) => {
+    function fn(){}
+    B.fn = fn;
+  })(B = A.B || (A.B = {}));
+  let C;
+  ((C) => {
+    let Mode;
+    ((Mode) => {
+      Mode[Mode["Card"] = 0] = "Card";
+      Mode[Mode["Grid"] = 3] = "Grid";
+    })(Mode = C.Mode || (C.Mode = {}));
+    Mode.Card;
+  })(C || (C = {}));
+})(A || (A = {}));
+JS . "\n", $lowerer->lower('namespace A { export namespace B { export function fn() {} } namespace C { export enum Mode { Card, Grid = 3 } Mode.Card } }'));
+    },
+    'rewrites simple upstream declared namespace variable exports' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+
+        $t->same(<<<'JS'
+var ns;
+((ns) => {
+  console.log(ns.L1);
+})(ns || (ns = {}));
+JS . "\n", $lowerer->lower('namespace ns { export declare const L1; console.log(L1) }'));
+    },
     'lowers wordpress namespace import equals aliases without node' => static function (TestRunner $t): void {
         $source = <<<'TS'
 namespace CardBlockRuntime {
@@ -135,5 +168,18 @@ JS . "\n", $lowered);
         $t->contains('function register(){CardBlockRuntime.blocks.registerBlockType(CardBlockRuntime.settings.name, CardBlockRuntime.settings);}', $lowered);
         $t->contains('CardBlockRuntime.register = register;', $lowered);
         $t->contains('register();', $lowered);
+    },
+    'lowers wordpress nested namespace enum settings without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-nested-namespace-enum.ts');
+        $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
+
+        $t->contains('let Supports;', $lowered);
+        $t->contains('})(Supports = CardBlockRuntime.Supports || (CardBlockRuntime.Supports = {}));', $lowered);
+        $t->contains('let DisplayMode;', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Card"] = 0] = "Card";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Grid"] = 3] = "Grid";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["List"] = 4] = "List";', $lowered);
+        $t->contains('Supports.settings = {viewMode:DisplayMode.Card, layout:DisplayMode.Grid, fallback:DisplayMode.List,};', $lowered);
+        $t->contains('CardBlockRuntime.blocks.registerBlockType(metadata.name, Supports.settings);', $lowered);
     },
 ];
