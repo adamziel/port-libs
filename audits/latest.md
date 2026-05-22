@@ -1,14 +1,14 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `4bfdc80` (`readability: map metadata font and rtl fixtures`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `e6cc3bb` (`esbuild: update root verification count`) before this audit metadata commit. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: the required root PHP harness is green on the current checkout, but this is not a clean integration checkpoint. `HEAD` moved during the audit from `d2fb6db` to `4bfdc80`, and `git status --porcelain=v1` still reports `107` entries with a tracked diff of `31 files changed, 2234 insertions(+), 172 deletions(-)`, plus many untracked evidence files and fixtures.
+Audit boundary: the required root PHP harness is green on the current checkout, but this is not a clean integration checkpoint. `HEAD` moved during the audit from `d2fb6db` to `e6cc3bb` before the audit metadata commit, and `git status --porcelain=v1` still reports `111` entries with a tracked diff of `32 files changed, 2211 insertions(+), 137 deletions(-)`, plus many untracked evidence files and fixtures.
 
 ## Findings
 
 1. **Critical - the green root suite is attached to a moving, very dirty integration state.**
    - Paths: `audits/integration-status.md`, `lanes/difftastic/src/TokenDiffer.php`, `lanes/dolt/src/CommitLogTable.php`, `lanes/esbuild/src/TypeScriptModuleLowerer.php`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/markerpdf/src/TableRecognizer.php`, `lanes/quadrable/src/QuadbStore.php`, `lanes/rclone/src/SyncPlan.php`, `lanes/readability/src/ArticleExtractor.php`, `porting.html`, `porting-summary.json`, `progress.md`.
-   - Evidence: the root run now passes, but the worktree still has `107` porcelain entries and the tracked dirty diff spans `31` files. Recent commits advanced while this audit was in progress (`d2fb6db` to `4bfdc80`), so the result proves the current dirty checkout ran, not that any individual lane batch has been reviewed and accepted.
+   - Evidence: the root run now passes, but the worktree still has `111` porcelain entries and the tracked dirty diff spans `32` files. Recent commits advanced while this audit was in progress (`d2fb6db` to `e6cc3bb`), so the result proves the current dirty checkout ran, not that any individual lane batch has been reviewed and accepted.
    - Goal requirement at risk: `goal.md` requires small reviewable slices with passing tests, cleanup of unrelated changes, accepted commits, and coordination status generated from accepted state.
    - Audit judgment: freeze or explicitly coordinate writers, then accept or reject one lane batch at a time. Do not treat the dirty aggregate as an integrated milestone.
 
