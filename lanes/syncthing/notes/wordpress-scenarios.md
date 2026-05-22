@@ -46,7 +46,22 @@ pending requests, late unknown responses are ignored, no-error/generic/
 no-such-file/invalid-file codes map to the same error classes as upstream,
 connection close drains pending requests as closed, and dispatcher request
 size/filename validation rejects invalid messages before request handling. The
-device identity slice
+bounded BEP session slice now maps focused upstream `writerLoop` and
+`dispatcherLoop` behavior from `protocol.go` and `protocol_test.go`: ordinary
+post-auth writes are gated behind the local ClusterConfig frame, unknown message
+types are skipped for future compatibility, inbound Close is accepted before
+ClusterConfig, the first known inbound non-Close message must be ClusterConfig,
+Ping/Request/Index/DownloadProgress before readiness close with a protocol
+error, inbound Response frames resolve only pending request IDs, and inbound
+WordPress media Request frames validate before a native handler emits a BEP
+Response. The stream-frame slice maps adjacent upstream `readHeader`,
+`readMessageAfterHeader`, `readerLoop`, `writeMessage`, and
+`writeCompressedMessage` boundaries: PHP streams read exactly one post-auth
+frame at a time using the upstream uint16 header length, protobuf Header bytes,
+uint32 message length, max-message guard, and exact payload bytes; truncated or
+oversized frames fail before protobuf decoding; and a stream-read WordPress
+media Request can be dispatched through the bounded BEP session to produce a
+native BEP Response. The device identity slice
 now maps focused upstream `deviceid.go`, `deviceid_test.go`, `luhn.go`, and
 `luhn_test.go` behavior: raw certificate bytes hash to a 32-byte device ID,
 canonical IDs use Syncthing's base32 plus four Luhn32 check digits and
@@ -323,9 +338,18 @@ upstream different-password error.
 parent-directory boundary: a private WordPress media object creates its
 synthetic encrypted parent path without a scan event, the non-empty parent is
 not indexed, and an abandoned empty synthetic parent is removed.
+`examples/wordpress-bep-session.php` ties the BEP session state together for a
+WordPress media peer: Ping is blocked before ClusterConfig, ClusterConfig makes
+post-auth frames available, an inbound media Request is served through a native
+handler and emitted as a BEP Response, and a remote Close drains a pending media
+request as connection-closed.
+`examples/wordpress-bep-stream-io.php` shows the same WordPress media exchange
+over a PHP stream boundary: ClusterConfig and Request frames are written into a
+stream, read back with exact Syncthing post-auth framing, dispatched through the
+session, and answered with a native BEP Response.
 
 ## Next Task
 
-Broaden encrypted request serving into temporary-source encrypted-file reads and
-raw connection request/response error mapping, then reassess whether a bounded
-upstream Go package runner is affordable.
+Broaden the bounded stream-backed BEP session into model callbacks for
+Index/IndexUpdate/DownloadProgress, then reassess whether a bounded upstream Go
+package runner is affordable.
