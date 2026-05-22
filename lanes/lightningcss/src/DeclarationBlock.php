@@ -49,6 +49,16 @@ final class DeclarationBlock
         'grid-row-end',
         'grid-column-end',
     ];
+    private const GRID_TEMPLATE_COMPONENTS = [
+        'grid-template-rows',
+        'grid-template-columns',
+        'grid-template-areas',
+    ];
+    private const GRID_AUTO_COMPONENTS = [
+        'grid-auto-flow',
+        'grid-auto-rows',
+        'grid-auto-columns',
+    ];
 
     /**
      * @return array<string, string>
@@ -133,6 +143,10 @@ final class DeclarationBlock
         $animationValue = $this->getAnimationProperty($entries, $property);
         if ($animationValue !== null) {
             return $animationValue;
+        }
+        $maskBorderValue = $this->getMaskBorderProperty($entries, $property);
+        if ($maskBorderValue !== null) {
+            return $maskBorderValue;
         }
         $gridValue = $this->getGridProperty($entries, $property);
         if ($gridValue !== null) {
@@ -243,14 +257,76 @@ final class DeclarationBlock
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{value:string, important:bool}|null
      */
+    private function getMaskBorderProperty(array $entries, string $property): ?array
+    {
+        if ($property !== 'mask-border-source') {
+            return null;
+        }
+
+        $match = null;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'mask-border-source') {
+                $match = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if ($entry['property'] !== 'mask-border') {
+                continue;
+            }
+
+            $source = $this->parseMaskBorderSource($entry['value']);
+            if ($source === null) {
+                continue;
+            }
+
+            $match = [
+                'value' => $source,
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $match;
+    }
+
+    private function parseMaskBorderSource(string $value): ?string
+    {
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            if ($this->isMaskBorderSourceToken($token)) {
+                return $token;
+            }
+        }
+
+        return null;
+    }
+
+    private function isMaskBorderSourceToken(string $token): bool
+    {
+        return strtolower($token) === 'none' || $this->isBackgroundImageToken($token);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
     private function getGridProperty(array $entries, string $property): ?array
     {
-        if (!$this->isGridPlacementProperty($property)) {
+        if (!$this->isGridProperty($property)) {
             return null;
         }
 
         $components = array_fill_keys(self::GRID_AREA_COMPONENTS, null);
+        $template = array_fill_keys(array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS), null);
         foreach ($entries as $entry) {
+            if (array_key_exists($entry['property'], $template)) {
+                $template[$entry['property']] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+
             if ($entry['property'] === 'grid-area') {
                 $area = $this->parseGridArea($entry['value']);
                 if ($area === null) {
@@ -290,6 +366,14 @@ final class DeclarationBlock
             }
         }
 
+        if ($property === 'grid-template') {
+            return $this->composeGridTemplateShorthand($template);
+        }
+
+        if ($property === 'grid') {
+            return $this->composeGridShorthand($template);
+        }
+
         if (in_array($property, self::GRID_AREA_COMPONENTS, true)) {
             return $components[$property];
         }
@@ -321,6 +405,372 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}|null> $components
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeGridTemplateShorthand(array $components): ?array
+    {
+        $rows = $components['grid-template-rows'] ?? null;
+        $columns = $components['grid-template-columns'] ?? null;
+        $areas = $components['grid-template-areas'] ?? null;
+        if ($rows === null || $columns === null || $areas === null) {
+            return null;
+        }
+
+        $important = $this->sameImportant([$rows, $columns, $areas]);
+        if ($important === null) {
+            return null;
+        }
+
+        if ($this->isGridTemplateAreasNone($areas['value'])) {
+            return [
+                'value' => $this->normalizeGridTrackValue($rows['value']) . ' / ' . $this->normalizeGridTrackValue($columns['value']),
+                'important' => $important,
+            ];
+        }
+
+        $value = $this->serializeGridTemplateWithAreas($rows['value'], $columns['value'], $areas['value']);
+        if ($value === null) {
+            return null;
+        }
+
+        return ['value' => $value, 'important' => $important];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}|null> $components
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeGridShorthand(array $components): ?array
+    {
+        foreach (array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS) as $property) {
+            if (($components[$property] ?? null) === null) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null || !$this->isInitialGridAuto($components)) {
+            return null;
+        }
+
+        return $this->composeGridTemplateShorthand($components);
+    }
+
+    /**
+     * @param list<array{value:string, important:bool}|null> $components
+     */
+    private function sameImportant(array $components): ?bool
+    {
+        $important = null;
+        foreach ($components as $component) {
+            if ($component === null) {
+                return null;
+            }
+            if ($important === null) {
+                $important = $component['important'];
+                continue;
+            }
+            if ($component['important'] !== $important) {
+                return null;
+            }
+        }
+
+        return $important;
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}|null> $components
+     */
+    private function isInitialGridAuto(array $components): bool
+    {
+        $flow = $this->normalizeGridAutoFlow($components['grid-auto-flow']['value']);
+        $rows = strtolower($this->normalizeGridTrackValue($components['grid-auto-rows']['value']));
+        $columns = strtolower($this->normalizeGridTrackValue($components['grid-auto-columns']['value']));
+
+        return $flow === 'row' && $rows === 'auto' && $columns === 'auto';
+    }
+
+    private function normalizeGridAutoFlow(string $value): string
+    {
+        $tokens = array_map('strtolower', $this->splitWhitespaceTopLevel($value));
+        sort($tokens);
+
+        return implode(' ', $tokens);
+    }
+
+    private function serializeGridTemplateWithAreas(string $rowsValue, string $columnsValue, string $areasValue): ?string
+    {
+        $areas = $this->parseGridTemplateAreaRows($areasValue);
+        $rows = $this->parseGridTrackList($rowsValue);
+        $columns = $this->parseGridTrackList($columnsValue);
+        if ($areas === null || $areas === [] || $rows === null || $columns === null) {
+            return null;
+        }
+        if ($rows['none'] || $rows['hasRepeat'] || $columns['hasRepeat']) {
+            return null;
+        }
+
+        $areaColumnCount = $areas[0]['columns'];
+        while (count($areas) < count($rows['items'])) {
+            $areas[] = [
+                'text' => implode(' ', array_fill(0, $areaColumnCount, '.')),
+                'columns' => $areaColumnCount,
+            ];
+        }
+
+        $parts = [];
+        $rowCount = count($areas);
+        for ($i = 0; $i < $rowCount; $i++) {
+            if ($i === 0 && ($rows['lineNames'][$i] ?? []) !== []) {
+                $parts[] = $this->serializeGridLineNames($rows['lineNames'][$i]);
+            }
+
+            $parts[] = '"' . str_replace('"', '\\"', $areas[$i]['text']) . '"';
+
+            $track = $rows['items'][$i] ?? null;
+            if ($track !== null && !$this->isDefaultGridTrackSize($track)) {
+                $parts[] = $track;
+            }
+
+            if (($rows['lineNames'][$i + 1] ?? []) !== []) {
+                $parts[] = $this->serializeGridLineNames($rows['lineNames'][$i + 1]);
+            }
+        }
+
+        return implode(' ', $parts) . ' / ' . $this->serializeGridTrackList($columns);
+    }
+
+    /**
+     * @return list<array{text:string, columns:int}>|null
+     */
+    private function parseGridTemplateAreaRows(string $value): ?array
+    {
+        if ($this->isGridTemplateAreasNone($value)) {
+            return [];
+        }
+
+        $rows = [];
+        $quote = null;
+        $current = '';
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote === null) {
+                if (ctype_space($char)) {
+                    continue;
+                }
+                if ($char !== '"' && $char !== "'") {
+                    return null;
+                }
+                $quote = $char;
+                $current = '';
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $current .= $char . $value[++$i];
+                continue;
+            }
+
+            if ($char === $quote) {
+                $tokens = preg_split('/\s+/', trim($current)) ?: [];
+                $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+                if ($tokens === []) {
+                    return null;
+                }
+                $columns = count($tokens);
+                if ($rows !== [] && $rows[0]['columns'] !== $columns) {
+                    return null;
+                }
+                $rows[] = [
+                    'text' => implode(' ', $tokens),
+                    'columns' => $columns,
+                ];
+                $quote = null;
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        return $quote === null ? $rows : null;
+    }
+
+    /**
+     * @return array{none:bool, items:list<string>, lineNames:list<list<string>>, hasRepeat:bool}|null
+     */
+    private function parseGridTrackList(string $value): ?array
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'none') === 0) {
+            return [
+                'none' => true,
+                'items' => [],
+                'lineNames' => [[]],
+                'hasRepeat' => false,
+            ];
+        }
+
+        $items = [];
+        $lineNames = [[]];
+        $hasRepeat = false;
+        foreach ($this->splitGridTrackTokens($value) as $token) {
+            $names = $this->parseGridLineNameToken($token);
+            if ($names !== null) {
+                $index = count($items);
+                if (!isset($lineNames[$index])) {
+                    $lineNames[$index] = [];
+                }
+                array_push($lineNames[$index], ...$names);
+                continue;
+            }
+
+            $items[] = $token;
+            if (str_starts_with(strtolower($token), 'repeat(')) {
+                $hasRepeat = true;
+            }
+            if (!isset($lineNames[count($items)])) {
+                $lineNames[count($items)] = [];
+            }
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        return [
+            'none' => false,
+            'items' => $items,
+            'lineNames' => $lineNames,
+            'hasRepeat' => $hasRepeat,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitGridTrackTokens(string $value): array
+    {
+        $tokens = [];
+        $token = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $token .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $token .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif (ctype_space($char) && $parenDepth === 0 && $bracketDepth === 0) {
+                if (trim($token) !== '') {
+                    $tokens[] = trim($token);
+                    $token = '';
+                }
+                continue;
+            }
+
+            $token .= $char;
+        }
+
+        if (trim($token) !== '') {
+            $tokens[] = trim($token);
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseGridLineNameToken(string $token): ?array
+    {
+        if (preg_match('/^\[(.*)\]$/s', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $inner = trim($matches[1]);
+        if ($inner === '') {
+            return [];
+        }
+
+        return preg_split('/\s+/', $inner) ?: [];
+    }
+
+    /**
+     * @param array{none:bool, items:list<string>, lineNames:list<list<string>>, hasRepeat:bool} $trackList
+     */
+    private function serializeGridTrackList(array $trackList): string
+    {
+        if ($trackList['none']) {
+            return 'none';
+        }
+
+        $parts = [];
+        foreach ($trackList['items'] as $index => $item) {
+            if (($trackList['lineNames'][$index] ?? []) !== []) {
+                $parts[] = $this->serializeGridLineNames($trackList['lineNames'][$index]);
+            }
+            $parts[] = $item;
+        }
+
+        $lastNames = $trackList['lineNames'][count($trackList['items'])] ?? [];
+        if ($lastNames !== []) {
+            $parts[] = $this->serializeGridLineNames($lastNames);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function serializeGridLineNames(array $names): string
+    {
+        return '[' . implode(' ', $names) . ']';
+    }
+
+    private function normalizeGridTrackValue(string $value): string
+    {
+        $trackList = $this->parseGridTrackList($value);
+        if ($trackList === null) {
+            return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+        }
+
+        return $this->serializeGridTrackList($trackList);
+    }
+
+    private function isDefaultGridTrackSize(string $value): bool
+    {
+        return strcasecmp(trim($value), 'auto') === 0;
+    }
+
+    private function isGridTemplateAreasNone(string $value): bool
+    {
+        return strcasecmp(trim($value), 'none') === 0;
     }
 
     /**
@@ -382,11 +832,15 @@ final class DeclarationBlock
         ];
     }
 
-    private function isGridPlacementProperty(string $property): bool
+    private function isGridProperty(string $property): bool
     {
         return $property === 'grid-area'
+            || $property === 'grid-template'
+            || $property === 'grid'
             || $property === 'grid-row'
             || $property === 'grid-column'
+            || in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)
+            || in_array($property, self::GRID_AUTO_COMPONENTS, true)
             || in_array($property, self::GRID_AREA_COMPONENTS, true);
     }
 

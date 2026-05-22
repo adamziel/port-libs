@@ -108,6 +108,22 @@ return [
             )
         );
     },
+    'declaration block reads upstream mask border source cssom longhand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'linear-gradient(red, green)', 'important' => false],
+            $block->getProperty('mask-border: linear-gradient(red, green) 25', 'mask-border-source')
+        );
+        $t->same(
+            ['value' => 'linear-gradient(red, green)', 'important' => true],
+            $block->getProperty('mask-border: 25 linear-gradient(red, green) / 12px round !important', 'mask-border-source')
+        );
+        $t->same(
+            ['value' => 'url(frame.svg)', 'important' => false],
+            $block->getProperty('mask-border-source: none; mask-border: 25; mask-border-source: url(frame.svg)', 'mask-border-source')
+        );
+    },
     'declaration block reads upstream border cssom shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -163,6 +179,59 @@ return [
             $block->getProperty(
                 'grid-area: content-start / aside-start / content-end / aside-end !important',
                 'grid-area'
+            )
+        );
+    },
+    'declaration block reads upstream grid template cssom shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'auto 1fr / auto 1fr auto', 'important' => false],
+            $block->getProperty(
+                'grid-template-rows: auto 1fr; grid-template-columns: auto 1fr auto; grid-template-areas: none',
+                'grid-template'
+            )
+        );
+        $t->same(
+            ['value' => '". a a ." ". b b ." 1fr / 10px 1fr 1fr 10px', 'important' => false],
+            $block->getProperty(
+                'grid-template-areas: ". a a ." ". b b ."; grid-template-rows: auto 1fr; grid-template-columns: 10px 1fr 1fr 10px',
+                'grid-template'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'grid-template-areas: "a a a" "b b b"; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto 1fr',
+                'grid-template'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'grid-template-rows: auto 1fr !important; grid-template-columns: auto 1fr auto; grid-template-areas: none',
+                'grid-template'
+            )
+        );
+    },
+    'declaration block reads upstream grid cssom shorthand only for initial auto placement' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'value' => '[header-top] "a a a" [header-bottom main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
+                'important' => false,
+            ],
+            $block->getProperty(
+                'grid-template-areas: "a a a" "b b b"; grid-template-rows: [header-top] auto [header-bottom main-top] 1fr [main-bottom]; grid-template-columns: auto 1fr auto; grid-auto-flow: row; grid-auto-rows: auto; grid-auto-columns: auto',
+                'grid'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'grid-template-areas: "a a a" "b b b"; grid-template-rows: [header-top] auto [header-bottom main-top] 1fr [main-bottom]; grid-template-columns: auto 1fr auto; grid-auto-flow: column; grid-auto-rows: 1fr; grid-auto-columns: 1fr',
+                'grid'
             )
         );
     },
