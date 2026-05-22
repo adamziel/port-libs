@@ -10,6 +10,7 @@
 - [x] Create GitHub repository and enable GitHub Pages for the dashboard.
 - [ ] Replace seed manifests with full cloned/tested upstream benchmark denominators.
 - [ ] Keep each lane moving through native PHP implementation slices with mapped upstream behavior.
+- [x] Add capped tmux worker/auditor launch scripts.
 - [ ] Run an independent auditor loop that challenges shallow progress and updates lane blockers.
 - [ ] Reach the required baseline for every lane: upstream manifest, native PHP slice, passing PHP tests, WordPress scenarios, and visible `porting.html` status.
 
@@ -47,6 +48,7 @@
 - Added generated `porting.html` dashboard support backed by lane manifests/status files.
 - Added seed native PHP slices and WordPress scenarios for all 12 lanes.
 - Verified the seed suite: `php tools/run-tests.php` passes 12 test files, 58 assertions, 0 failures.
+- Added `scripts/start-tmux-team.sh`, `scripts/check-tmux-team.sh`, and durable worker/auditor prompts under `.tmux-team/`.
 
 ## Open Blockers
 
@@ -57,8 +59,8 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: pending `port-auditor` tmux session.
-- Worker sessions: pending launch via `scripts/start-tmux-team.sh`.
+- Auditor: pending `port-auditor` tmux session launch.
+- Worker sessions: pending capped launch via `scripts/start-tmux-team.sh`.
 
 ## Next Best Step
 
