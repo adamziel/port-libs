@@ -134,6 +134,16 @@ executed for this focused slice only: `go test ./lib/model -run
 -count=1` passed in a throwaway worktree at commit
 `3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
 parity.
+The pull job queue slice now maps focused upstream `lib/model/queue.go` and
+`queue_test.go` behavior: Push appends pull jobs, Pop moves the next queued
+file into progress, Done removes the first matching in-progress file,
+BringToFront moves only queued files ahead of their peers, Jobs paginates
+in-progress files before queued files while preserving upstream skip counts, and
+Reset clears both lists. A bounded upstream runner was executed for this focused
+slice only: `go test ./lib/model -run
+'TestJobQueue|TestBringToFront|TestQueuePagination' -count=1` passed in a
+throwaway worktree at commit `3962a237232473c20a44945a6c8ce8c930375360`; this
+is not full upstream runner parity.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
@@ -373,9 +383,13 @@ progress map without shelling out.
 being split into upstream standard pull chunks across three sorted Syncthing
 device IDs, with the local Playground peer's assigned chunk requested first and
 the remaining chunks following as whole ranges.
+`examples/wordpress-pull-job-queue.php` shows a WordPress media pull queue
+where a private export is bumped ahead of ordinary uploads, appears in the
+in-progress page before queued media, and is removed from progress after
+completion while the remaining queued files keep FIFO order.
 
 ## Next Task
 
-Map a bounded file-pull queue or device-activity slice from upstream
-`lib/model`, or run another focused upstream package test before the next
-protocol/model behavior slice.
+Map upstream `deviceactivity.go` least-busy peer selection into temporary/full
+availability planning, or run another focused upstream package test before the
+next protocol/model behavior slice.
