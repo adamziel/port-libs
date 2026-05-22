@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
 use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
+use PortLibs\Gitoxide\SshReceivePackTransport;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
@@ -262,6 +263,80 @@ return [
             }
         );
         $t->throws(RuntimeException::class, static fn () => $badService->readAdvertisement());
+    },
+    'ssh receive-pack transport connects through injected exec streams' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress SSH transport payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02Writing objects: 100% (1/1)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $read = $streamWith($advertisement . $responseBytes);
+        $write = $streamWith('');
+        $connection = null;
+        $connector = static function (string $host, ?string $user, ?int $port, string $command, float $timeout) use (&$connection, $read, $write): array {
+            $connection = [
+                'host' => $host,
+                'user' => $user,
+                'port' => $port,
+                'command' => $command,
+                'timeout' => $timeout,
+            ];
+
+            return ['read' => $read, 'write' => $write];
+        };
+
+        $client = new ReceivePackClient(
+            SshReceivePackTransport::connect('ssh://deploy@git.example.test:2222/var/www/wp-content.git', $connector, 11.5),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+        [$commands, $packBytes] = $readPacketSequence($streamBytes($write));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['Writing objects: 100% (1/1)'], $response->progressMessages());
+        $t->same([
+            'host' => 'git.example.test',
+            'user' => 'deploy',
+            'port' => 2222,
+            'command' => "git-receive-pack '/var/www/wp-content.git'",
+            'timeout' => 11.5,
+        ], $connection);
+        $t->same($request->requestBytes(), $streamBytes($write));
+        $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
+        $t->same($request->pack()?->packBytes(), $packBytes);
+    },
+    'ssh receive-pack urls and commands are validated without shelling out' => static function (TestRunner $t): void {
+        $t->same([
+            'host' => 'git.example.test',
+            'user' => 'deploy',
+            'port' => 2222,
+            'path' => '/var/www/wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@git.example.test:2222/var/www/wp-content.git'));
+        $t->same([
+            'host' => 'git.example.test',
+            'user' => 'deploy',
+            'port' => null,
+            'path' => 'wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'));
+        $t->same('~/wp-content.git', SshReceivePackTransport::parseRepositoryUrl('ssh://git.example.test/~/wp-content.git')['path']);
+        $t->same("git-receive-pack 'wp content/repo'\\''s.git'", SshReceivePackTransport::receivePackCommand("wp content/repo's.git"));
+
+        $badConnector = static fn (): array => ['read' => 'not a stream', 'write' => 'not a stream'];
+
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('https://example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://example.test'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl("ssh://example.test/repo.git\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://example.test/repo.git?service=git-receive-pack'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::receivePackCommand("repo\0.git"));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connect('ssh://example.test/repo.git', static fn (): array => [], 0.0));
+        $t->throws(RuntimeException::class, static fn () => SshReceivePackTransport::connect('ssh://example.test/repo.git', $badConnector));
     },
     'receive-pack transport guards state order and truncated packet streams' => static function (TestRunner $t) use ($streamWith): void {
         $transport = new StreamReceivePackTransport($streamWith(''), $streamWith(''));
