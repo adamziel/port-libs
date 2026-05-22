@@ -7,7 +7,7 @@ namespace PortLibs\Rclone;
 final class MemoryProvider
 {
     /**
-     * @var array<string, array{bytes: string, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
+     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
      */
     private array $objects = [];
 
@@ -41,7 +41,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -56,6 +56,7 @@ final class MemoryProvider
 
         $this->objects[$path] = [
             'bytes' => $bytes,
+            'unknownSize' => (bool) ($options['unknownSize'] ?? false),
             'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
             'mimeType' => $options['mimeType'] ?? null,
             'metadata' => $options['metadata'] ?? [],
@@ -184,7 +185,7 @@ final class MemoryProvider
 
         return new ObjectInfo(
             $path,
-            strlen($bytes),
+            $entry['unknownSize'] ? -1 : strlen($bytes),
             hash('sha256', $bytes),
             $entry['modTime'],
             $entry['mimeType'],
@@ -232,7 +233,7 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
      */
     private function entry(string $path): array
     {

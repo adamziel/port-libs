@@ -46,6 +46,33 @@ return [
         $seek = new ReOpenReader($provider, 'potato', 10, ['seekOffset' => 2]);
         $t->same('23456789', $readAll($seek, 20));
     },
+    'reopen reader maps upstream unknown-size range and seek behavior' => static function (TestRunner $t) use ($readAll): void {
+        $provider = new MemoryProvider();
+        $provider->put('potato', '0123456789', [
+            'unknownSize' => true,
+            'readError' => 'test error',
+            'readBreaks' => [2, 1],
+        ]);
+
+        $reader = new ReOpenReader($provider, 'potato', 10, ['rangeStart' => 1, 'rangeEnd' => -1]);
+
+        $t->same(-1, $provider->info('potato')->size);
+        $t->same('123456789', $readAll($reader, 20));
+        $t->same([
+            ['path' => 'potato', 'offset' => 1, 'length' => null],
+            ['path' => 'potato', 'offset' => 3, 'length' => null],
+            ['path' => 'potato', 'offset' => 4, 'length' => null],
+        ], $provider->openLog());
+
+        $provider = new MemoryProvider();
+        $provider->put('potato', '0123456789', ['unknownSize' => true]);
+        $reader = new ReOpenReader($provider, 'potato', 10, ['rangeStart' => 1, 'rangeEnd' => -1]);
+
+        $t->same(10, $reader->seek(10, SEEK_SET));
+        $t->same('', $reader->read(1));
+        $t->true($reader->eof());
+        $t->throws(RuntimeException::class, static fn () => $reader->seek(-1, SEEK_END));
+    },
     'reopen reader reports open failures and too many retries like upstream' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('potato', '0123456789', [
@@ -121,6 +148,28 @@ return [
             ['path' => 'exports/site.wxr', 'offset' => 0, 'length' => strlen($tree['exports/site.wxr'])],
             ['path' => 'exports/site.wxr', 'offset' => 5, 'length' => strlen($tree['exports/site.wxr']) - 5],
             ['path' => 'exports/site.wxr', 'offset' => 12, 'length' => strlen($tree['exports/site.wxr']) - 12],
+        ], $provider->openLog());
+    },
+    'reopen reader restores unknown-size wordpress export streams' => static function (TestRunner $t) use ($readAll): void {
+        $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
+        $provider = new MemoryProvider();
+        $provider->put('exports/site.wxr', $tree['exports/site.wxr'], [
+            'unknownSize' => true,
+            'readError' => 'temporary unknown-length object interruption',
+            'readBreaks' => [5, 7],
+        ]);
+
+        $reader = new ReOpenReader($provider, 'exports/site.wxr', 10, [
+            'rangeStart' => 0,
+            'rangeEnd' => -1,
+        ]);
+
+        $t->same($tree['exports/site.wxr'], $readAll($reader, 8));
+        $t->same(-1, $provider->info('exports/site.wxr')->size);
+        $t->same([
+            ['path' => 'exports/site.wxr', 'offset' => 0, 'length' => null],
+            ['path' => 'exports/site.wxr', 'offset' => 5, 'length' => null],
+            ['path' => 'exports/site.wxr', 'offset' => 12, 'length' => null],
         ], $provider->openLog());
     },
 ];

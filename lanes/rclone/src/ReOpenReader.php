@@ -11,6 +11,7 @@ final class ReOpenReader
     public const ERR_INVALID_WHENCE = 'reopen Seek: invalid whence';
     public const ERR_NEGATIVE_SEEK = 'reopen Seek: negative position';
     public const ERR_SEEK_PAST_END = 'reopen Seek: attempt to seek past end of data';
+    public const ERR_BAD_END_SEEK = "reopen Seek: can't seek from end with unknown sized object";
 
     private ?object $reader = null;
     private int $offset = 0;
@@ -22,8 +23,9 @@ final class ReOpenReader
     private int $reads = 0;
     private int $accountOn = 0;
     private readonly int $start;
-    private readonly int $end;
-    private readonly int $selectedSize;
+    private readonly ?int $end;
+    private readonly ?int $selectedSize;
+    private bool $atEnd = false;
 
     /**
      * @param array{rangeStart?: int, rangeEnd?: int, seekOffset?: int} $options
@@ -37,14 +39,19 @@ final class ReOpenReader
         $size = $provider->info($path)->size;
         $this->start = max(0, (int) ($options['seekOffset'] ?? $options['rangeStart'] ?? 0));
         $rangeEnd = $options['rangeEnd'] ?? null;
-        $this->end = $rangeEnd === null || (int) $rangeEnd < 0
-            ? $size
-            : min($size, (int) $rangeEnd + 1);
-        if ($this->start > $this->end) {
-            throw new \InvalidArgumentException('reopen range starts past end of data');
-        }
+        if ($size < 0 && ($rangeEnd === null || (int) $rangeEnd < 0)) {
+            $this->end = null;
+            $this->selectedSize = null;
+        } else {
+            $this->end = $rangeEnd === null || (int) $rangeEnd < 0
+                ? $size
+                : ($size < 0 ? (int) $rangeEnd + 1 : min($size, (int) $rangeEnd + 1));
+            if ($this->start > $this->end) {
+                throw new \InvalidArgumentException('reopen range starts past end of data');
+            }
 
-        $this->selectedSize = $this->end - $this->start;
+            $this->selectedSize = $this->end - $this->start;
+        }
         $this->open();
     }
 
@@ -91,6 +98,9 @@ final class ReOpenReader
                 throw new \UnexpectedValueException('Reader read() must return a string');
             }
             if ($chunk === '') {
+                if ($this->selectedSize === null) {
+                    $this->atEnd = true;
+                }
                 break;
             }
 
@@ -128,18 +138,23 @@ final class ReOpenReader
         $absolute = match ($whence) {
             SEEK_SET => $offset,
             SEEK_CUR => $current + $offset,
-            SEEK_END => $this->selectedSize + $offset,
+            SEEK_END => $this->selectedSize === null
+                ? throw new \RuntimeException(self::ERR_BAD_END_SEEK)
+                : $this->selectedSize + $offset,
             default => throw new \InvalidArgumentException(self::ERR_INVALID_WHENCE),
         };
 
         if ($absolute < 0) {
             throw new \RuntimeException(self::ERR_NEGATIVE_SEEK);
         }
-        if ($absolute > $this->selectedSize) {
+        if ($this->selectedSize !== null && $absolute > $this->selectedSize) {
             throw new \RuntimeException(self::ERR_SEEK_PAST_END);
         }
 
         $this->tries = 0;
+        if ($this->selectedSize === null && $absolute !== $this->offset) {
+            $this->atEnd = false;
+        }
         $this->newOffset = $absolute;
 
         return $absolute;
@@ -147,6 +162,10 @@ final class ReOpenReader
 
     public function eof(): bool
     {
+        if ($this->selectedSize === null) {
+            return $this->atEnd && $this->newOffset === null;
+        }
+
         return $this->offset >= $this->selectedSize && $this->newOffset === null;
     }
 
@@ -186,9 +205,10 @@ final class ReOpenReader
         }
 
         $absoluteOffset = $this->start + $this->offset;
-        $remaining = $this->selectedSize - $this->offset;
+        $remaining = $this->selectedSize === null ? null : $this->selectedSize - $this->offset;
         $this->reader = $this->provider->openReader($this->path, $absoluteOffset, $remaining);
         $this->opened = true;
+        $this->atEnd = false;
     }
 
     private function reopen(): void
