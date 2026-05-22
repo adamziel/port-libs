@@ -68,6 +68,16 @@ final class MarkdownReader
                 $blocks[] = $htmlCodeBlock;
                 continue;
             }
+            $htmlBlockQuote = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlBlockQuoteBlock($lines, $index) : null;
+            if ($htmlBlockQuote !== null) {
+                $blocks[] = $htmlBlockQuote;
+                continue;
+            }
+            $htmlList = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlListBlock($lines, $index) : null;
+            if ($htmlList !== null) {
+                $blocks[] = $htmlList;
+                continue;
+            }
             $htmlParagraph = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
             if ($htmlParagraph !== null) {
                 $blocks[] = $htmlParagraph;
@@ -993,13 +1003,60 @@ final class MarkdownReader
             return null;
         }
 
-        $children = $this->parseHtmlInlineChildren($paragraph);
+        return $this->buildHtmlParagraphNode($paragraph);
+    }
 
-        return new AstNode(
-            'paragraph',
-            ['text' => $this->plainTextFromInlines($children)],
-            $children
-        );
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlBlockQuoteBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<blockquote(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'blockquote');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $quote = $this->parseHtmlBlockQuoteBlock($html);
+        if ($quote === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $quote;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlListBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<(ol|ul)(?:\s+[^>]*)?>/i', $line, $m) !== 1) {
+            return null;
+        }
+
+        $tag = strtolower($m[1]);
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $list = $this->parseHtmlListBlock($html, $tag);
+        if ($list === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $list;
     }
 
     /**
@@ -1052,6 +1109,11 @@ final class MarkdownReader
             return null;
         }
 
+        return $this->buildHtmlPreCodeBlock($pre);
+    }
+
+    private function buildHtmlPreCodeBlock(\DOMElement $pre): ?AstNode
+    {
         $code = $this->firstChildElement($pre, 'code');
         if (!$code instanceof \DOMElement) {
             return null;
@@ -1067,6 +1129,353 @@ final class MarkdownReader
             'attributes' => [],
             'text' => $text,
         ]);
+    }
+
+    private function parseHtmlBlockQuoteBlock(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $quote = $this->firstChildElement($body, 'blockquote');
+        if (!$quote instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->buildHtmlBlockQuoteNode($quote);
+    }
+
+    private function parseHtmlListBlock(string $html, string $tag): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $list = $this->firstChildElement($body, $tag);
+        if (!$list instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->parseHtmlListElement($list);
+    }
+
+    private function buildHtmlBlockQuoteNode(\DOMElement $quote): AstNode
+    {
+        return new AstNode('blockquote', $this->htmlElementPandocAttrs($quote), $this->parseHtmlBlockChildren($quote));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlBlockChildren(\DOMElement $element): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $blocks[] = $block;
+                }
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    private function isHtmlBlockElement(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->localName), [
+            'blockquote',
+            'div',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'hr',
+            'ol',
+            'p',
+            'pre',
+            'table',
+            'ul',
+        ], true);
+    }
+
+    private function parseHtmlBlockElement(\DOMElement $element): ?AstNode
+    {
+        $name = strtolower($element->localName);
+        if ($name === 'p') {
+            return $this->buildHtmlParagraphNode($element);
+        }
+        if ($name === 'pre') {
+            return $this->buildHtmlPreCodeBlock($element);
+        }
+        if ($name === 'blockquote') {
+            return $this->buildHtmlBlockQuoteNode($element);
+        }
+        if ($name === 'ol' || $name === 'ul') {
+            return $this->parseHtmlListElement($element);
+        }
+        if ($name === 'table') {
+            return $this->parseHtmlTableElement($element);
+        }
+        if ($name === 'div') {
+            return new AstNode('div', $this->htmlElementPandocAttrs($element), $this->parseHtmlBlockChildren($element));
+        }
+        if ($name === 'hr') {
+            return new AstNode('horizontal_rule');
+        }
+        if (preg_match('/^h([1-6])$/', $name, $m) === 1) {
+            $children = $this->parseHtmlInlineChildren($element);
+
+            return new AstNode(
+                'heading',
+                ['level' => (int) $m[1], 'text' => $this->plainTextFromInlines($children)],
+                $children
+            );
+        }
+
+        $children = $this->parseHtmlInlineChildren($element);
+        if ($children === []) {
+            return null;
+        }
+
+        return new AstNode(
+            'paragraph',
+            ['text' => $this->plainTextFromInlines($children)],
+            $children
+        );
+    }
+
+    private function buildHtmlParagraphNode(\DOMElement $paragraph): AstNode
+    {
+        $children = $this->parseHtmlInlineChildren($paragraph);
+
+        return new AstNode(
+            'paragraph',
+            ['text' => $this->plainTextFromInlines($children)],
+            $children
+        );
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $blocks
+     */
+    private function flushHtmlInlineParagraph(array &$inlines, array &$blocks): void
+    {
+        $text = $this->plainTextFromInlines($inlines);
+        $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+        if ($normalized !== '') {
+            $blocks[] = new AstNode('paragraph', ['text' => $normalized], $inlines);
+        }
+
+        $inlines = [];
+    }
+
+    private function parseHtmlListElement(\DOMElement $list): AstNode
+    {
+        $ordered = strtolower($list->localName) === 'ol';
+        $items = [];
+        $loose = false;
+        foreach ($this->childElements($list, 'li') as $itemElement) {
+            $children = $this->parseHtmlListItemChildren($itemElement);
+            $itemLoose = $this->htmlListItemIsLoose($children);
+            $loose = $loose || $itemLoose;
+            $items[] = new AstNode(
+                'list_item',
+                [
+                    'text' => trim(preg_replace('/\s+/', ' ', $itemElement->textContent) ?? $itemElement->textContent),
+                    'loose' => $itemLoose,
+                ],
+                $children
+            );
+        }
+
+        $attrs = ['loose' => $loose];
+        if ($ordered) {
+            $attrs = array_merge($attrs, $this->htmlOrderedListAttrs($list));
+        }
+
+        return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlListItemChildren(\DOMElement $item): array
+    {
+        $children = [];
+        $inlines = [];
+        foreach ($item->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $this->flushHtmlListItemInlines($inlines, $children);
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $children[] = $block;
+                }
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+
+        $this->flushHtmlListItemInlines($inlines, $children);
+
+        return $children;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function htmlListItemIsLoose(array $children): bool
+    {
+        foreach ($children as $child) {
+            if (!$this->htmlListChildIsInline($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function htmlListChildIsInline(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'emph',
+            'strong',
+            'small_caps',
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'softbreak',
+            'linebreak',
+            'span',
+            'quoted',
+            'math',
+            'raw_tex',
+            'code',
+            'link',
+            'image',
+            'note',
+        ], true);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $children
+     */
+    private function flushHtmlListItemInlines(array &$inlines, array &$children): void
+    {
+        $text = $this->plainTextFromInlines($inlines);
+        if (trim(preg_replace('/\s+/', ' ', $text) ?? $text) !== '') {
+            array_push($children, ...$inlines);
+        }
+
+        $inlines = [];
+    }
+
+    /**
+     * @return array{start:int, style:string, delimiter:string}
+     */
+    private function htmlOrderedListAttrs(\DOMElement $list): array
+    {
+        $start = 1;
+        $rawStart = trim($list->getAttribute('start'));
+        if (preg_match('/^\d+$/', $rawStart) === 1 && (int) $rawStart > 0) {
+            $start = (int) $rawStart;
+        }
+
+        return [
+            'start' => $start,
+            'style' => $this->htmlOrderedListStyle($list),
+            'delimiter' => 'default',
+        ];
+    }
+
+    private function htmlOrderedListStyle(\DOMElement $list): string
+    {
+        $type = trim($list->getAttribute('type'));
+        if ($type === 'a') {
+            return 'lower_alpha';
+        }
+        if ($type === 'A') {
+            return 'upper_alpha';
+        }
+        if ($type === 'i') {
+            return 'lower_roman';
+        }
+        if ($type === 'I') {
+            return 'upper_roman';
+        }
+
+        foreach (preg_split('/\s+/', strtolower(trim($list->getAttribute('class'))), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+            $mapped = $this->htmlOrderedListStyleName($class);
+            if ($mapped !== null) {
+                return $mapped;
+            }
+        }
+
+        foreach (preg_split('/;/', strtolower($list->getAttribute('style'))) ?: [] as $declaration) {
+            if (preg_match('/^\s*list-style(?:-type)?\s*:\s*([a-z-]+)\b/', $declaration, $m) !== 1) {
+                continue;
+            }
+
+            $mapped = $this->htmlOrderedListStyleName($m[1]);
+            if ($mapped !== null) {
+                return $mapped;
+            }
+        }
+
+        return 'default';
+    }
+
+    private function htmlOrderedListStyleName(string $style): ?string
+    {
+        return match ($style) {
+            'decimal' => 'decimal',
+            'lower-alpha' => 'lower_alpha',
+            'upper-alpha' => 'upper_alpha',
+            'lower-roman' => 'lower_roman',
+            'upper-roman' => 'upper_roman',
+            default => null,
+        };
     }
 
     /**
@@ -1121,6 +1530,47 @@ final class MarkdownReader
 
                 $started = true;
                 $depth++;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectBalancedHtmlElementBlock(array $lines, int $index, string $tag): ?array
+    {
+        $content = [];
+        $depth = 0;
+        $started = false;
+        $count = count($lines);
+        $pattern = '/<\/?' . preg_quote($tag, '/') . '\b[^>]*>/i';
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $content[] = $line;
+
+            preg_match_all($pattern, $line, $matches);
+            foreach ($matches[0] as $matchedTag) {
+                $matchedTag = strtolower(trim($matchedTag));
+                if (str_starts_with($matchedTag, '</')) {
+                    if (!$started) {
+                        continue;
+                    }
+
+                    $depth--;
+                    if ($depth === 0) {
+                        return [implode("\n", $content), $cursor];
+                    }
+                    continue;
+                }
+
+                $started = true;
+                if (!str_ends_with(rtrim($matchedTag), '/>')) {
+                    $depth++;
+                }
             }
         }
 
@@ -1733,7 +2183,7 @@ final class MarkdownReader
                 $text .= ' ';
             }
 
-            return $this->parseInlines($text);
+            return [new AstNode('text', ['text' => $text])];
         }
 
         if (!$node instanceof \DOMElement) {

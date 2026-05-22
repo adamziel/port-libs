@@ -118,6 +118,36 @@ HTML reader legacy code export:
 echo esc_html($title);
 </code></pre>
 
+HTML reader blockquote import:
+
+<blockquote>
+<p>Reviewer checklist:</p>
+<pre><code class="language-php">wp_update_post($post);
+</code></pre>
+<ol>
+<li>Confirm source quote</li>
+<li>Publish block version</li>
+</ol>
+<blockquote>
+<p>Nested reviewer approval stays attached.</p>
+</blockquote>
+</blockquote>
+
+HTML reader list import:
+
+<ul>
+<li>Review imported posts</li>
+<li>Attach media audit<ul>
+<li>Confirm alt text</li>
+<li>Verify captions</li>
+</ul>
+</li>
+</ul>
+<ol start="4" class="lower-roman">
+<li><p>Queue editorial pass</p></li>
+<li><p>Publish reviewed batch</p></li>
+</ol>
+
 Empty import audit table:
 
 <table>

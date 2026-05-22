@@ -96,8 +96,8 @@ final class WordPressBlockWriter
             $attrs = ['ordered' => true];
             if ($start > 1) {
                 $attrs['start'] = $start;
-                $tagAttrs = ' start="' . $start . '"';
             }
+            $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
         }
         $items = [];
@@ -117,8 +117,7 @@ final class WordPressBlockWriter
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
-        $start = (int) $node->attr('start', 1);
-        $tagAttrs = $ordered && $start > 1 ? ' start="' . $start . '"' : '';
+        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : '';
         $items = [];
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
@@ -127,6 +126,33 @@ final class WordPressBlockWriter
         }
 
         return '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+    }
+
+    private function renderOrderedListTagAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $start = (int) $node->attr('start', 1);
+        if ($start > 1) {
+            $attrs .= ' start="' . $start . '"';
+        }
+
+        $type = $this->orderedListHtmlType((string) $node->attr('style', 'default'));
+        if ($type !== '') {
+            $attrs .= ' type="' . $this->esc($type) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function orderedListHtmlType(string $style): string
+    {
+        return match ($style) {
+            'lower_alpha' => 'a',
+            'upper_alpha' => 'A',
+            'lower_roman' => 'i',
+            'upper_roman' => 'I',
+            default => '',
+        };
     }
 
     private function renderListItem(AstNode $item): string

@@ -113,6 +113,16 @@ The next HTML-reader code-block slice is now represented too: standalone
 instead of paragraphs or raw HTML. Blank lines, indentation, and literal
 backslash escapes remain intact, and `language-*` classes render as WordPress
 code block language classes for reviewer-friendly migration snippets.
+The bounded HTML-reader blockquote container slice is now represented as well:
+balanced `<blockquote>` blocks become native quote nodes, nested quotes remain
+nested, code blocks and ordered lists inside quotes stay as block children, and
+HTML text inside those quote containers keeps HTML-reader apostrophes rather
+than receiving Markdown smart punctuation.
+The bounded HTML-reader top-level list slice is now represented too: imported
+`<ul>` and `<ol>` blocks become native list nodes, tight list items stay inline,
+paragraph-wrapped list items stay paragraph-wrapped, multi-paragraph ordered
+items stay attached to one item, and ordered-list `type`, class, and
+`list-style` metadata render as safe WordPress ordered-list `type` attributes.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -234,6 +244,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes a legacy HTML `<pre><code class="language-php">`
   snippet, exercising upstream HTML-reader code-block behavior and WordPress
   code block language output without shelling out to Pandoc.
+- The fixture now includes a legacy HTML `<blockquote>` import note containing
+  a PHP code block, ordered checklist, and nested approval quote, exercising
+  upstream HTML-reader quote container behavior and WordPress quote block
+  output without shelling out to Pandoc.
+- The fixture now includes top-level HTML reader list imports, exercising a
+  reviewer checklist `<ul>` with nested media-review bullets plus a roman
+  ordered review queue that preserves start/style metadata in WordPress list
+  output without shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -295,6 +313,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - HTML reader quote/cite paragraphs render as WordPress paragraph blocks with
   Pandoc-style typographic quotes, preserved citation metadata, and hard
   `<br/>` line breaks without invoking Pandoc.
+- HTML reader blockquote containers render as core WordPress quote blocks while
+  preserving nested quote structure, embedded code blocks, and ordered review
+  checklists without invoking Pandoc.
+- HTML reader top-level lists render as core WordPress list blocks while
+  preserving nested media-review bullets, paragraph-bearing ordered items,
+  start values, and roman ordered-list style metadata without invoking Pandoc.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -347,5 +371,7 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded non-table slice from `test/html-reader.html`, starting with
-`<pre><code>` code block behavior, then expose it through WordPress blocks.
+Map the next bounded HTML-reader nested-list slice from `test/html-reader.html`,
+starting with the `Nested`, `Tabs and spaces`, and `Fancy list markers` cases
+after the top-level list-style section, then expose it through WordPress
+blocks.

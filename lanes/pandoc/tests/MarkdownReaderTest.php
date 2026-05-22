@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -1285,6 +1286,148 @@ HTML);
         $t->contains('<pre class="wp-block-code"><code>---- (should be four hyphens)', $blocks);
         $t->contains('These should not be escaped:  \$ \\\\ \&gt; \[ \{</code></pre>', $blocks);
     },
+    'maps upstream html reader blockquote containers with code lists and nested quotes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p>E-mail style:</p>
+<blockquote>
+<p>This is a block quote. It is pretty short.</p>
+</blockquote>
+<blockquote>
+<p>Code in a block quote:</p>
+<pre><code>sub status {
+    print "working";
+}
+</code></pre>
+<p>A list:</p>
+<ol>
+<li>item one</li>
+<li>item two</li>
+</ol>
+<p>Nested block quotes:</p>
+<blockquote>
+<p>nested</p>
+</blockquote>
+<blockquote>
+<p>nested</p>
+</blockquote>
+</blockquote>
+<p>This should not be a block quote: 2 &gt; 1.</p>
+<p>Box-style:</p>
+<blockquote>
+<p>Example:</p>
+<pre><code>sub status {
+    print "working";
+}
+</code></pre>
+</blockquote>
+<blockquote>
+<ol>
+<li>do laundry</li>
+<li>take out the trash</li>
+</ol>
+</blockquote>
+<p>Here's a nested one:</p>
+<blockquote>
+<p>Joe said:</p>
+<blockquote>
+<p>Don't quote me.</p>
+</blockquote>
+</blockquote>
+<p>And a following paragraph.</p>
+HTML);
+        $simple = $document->children[1];
+        $complex = $document->children[2];
+        $notQuote = $document->children[3];
+        $boxCode = $document->children[5];
+        $listQuote = $document->children[6];
+        $outerNested = $document->children[8];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(10, count($document->children));
+        $t->same('blockquote', $simple->type);
+        $t->same('This is a block quote. It is pretty short.', $simple->children[0]->attr('text'));
+        $t->same(['paragraph', 'code_block', 'paragraph', 'ordered_list', 'paragraph', 'blockquote', 'blockquote'], array_map(static fn ($node): string => $node->type, $complex->children));
+        $t->same("sub status {\n    print \"working\";\n}", $complex->children[1]->attr('text'));
+        $t->same('item two', $complex->children[3]->children[1]->children[0]->attr('text'));
+        $t->same('nested', $complex->children[5]->children[0]->attr('text'));
+        $t->same('This should not be a block quote: 2 > 1.', $notQuote->attr('text'));
+        $t->same(['paragraph', 'code_block'], array_map(static fn ($node): string => $node->type, $boxCode->children));
+        $t->same('ordered_list', $listQuote->children[0]->type);
+        $t->same('take out the trash', $listQuote->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('blockquote', $outerNested->children[1]->type);
+        $t->same("Don't quote me.", $outerNested->children[1]->children[0]->attr('text'));
+        $t->contains('<blockquote class="wp-block-quote"><p>Code in a block quote:</p><pre class="wp-block-code"><code>sub status {', $blocks);
+        $t->contains('<ol><li>item one</li><li>item two</li></ol>', $blocks);
+        $t->contains('<blockquote><p>Don&#039;t quote me.</p></blockquote>', $blocks);
+    },
+    'maps upstream html reader top-level lists and ordered styles' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p>Asterisks tight:</p>
+<ul>
+<li>asterisk 1</li>
+<li>asterisk 2</li>
+<li>asterisk 3</li>
+</ul>
+<p>Asterisks loose:</p>
+<ul>
+<li><p>asterisk 1</p>
+</li>
+<li><p>asterisk 2</p>
+</li>
+<li><p>asterisk 3</p>
+</li>
+</ul>
+<p>Tight:</p>
+<ol>
+<li>First</li>
+<li>Second</li>
+<li>Third</li>
+</ol>
+<p>Multiple paragraphs:</p>
+<ol>
+<li><p>Item 1, graf one.</p>
+<p>Item 1. graf two. The quick brown fox jumped over the lazy dog's back.</p>
+</li>
+<li><p>Item 2.</p>
+</li>
+<li><p>Item 3.</p>
+</li>
+</ol>
+<p>List styles:</p>
+<ol></ol>
+<ol type="i"></ol>
+<ol class="lower-roman"></ol>
+<ol style="lower-roman"></ol>
+<ol style="list-style: lower-roman;"></ol>
+<ol style="list-style-type: lower-roman;"></ol>
+HTML);
+        $tightBullet = $document->children[1];
+        $looseBullet = $document->children[3];
+        $tightOrdered = $document->children[5];
+        $multiParagraphOrdered = $document->children[7];
+        $styleLists = array_slice($document->children, 9, 6);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(15, count($document->children));
+        $t->same('bullet_list', $tightBullet->type);
+        $t->same('text', $tightBullet->children[0]->children[0]->type);
+        $t->same('asterisk 1', $tightBullet->children[0]->children[0]->attr('text'));
+        $t->same('bullet_list', $looseBullet->type);
+        $t->same('paragraph', $looseBullet->children[0]->children[0]->type);
+        $t->same('asterisk 1', $looseBullet->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $tightOrdered->type);
+        $t->same(1, $tightOrdered->attr('start'));
+        $t->same('default', $tightOrdered->attr('style'));
+        $t->same('Second', $tightOrdered->children[1]->children[0]->attr('text'));
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $multiParagraphOrdered->children[0]->children));
+        $t->same("Item 1. graf two. The quick brown fox jumped over the lazy dog's back.", $multiParagraphOrdered->children[0]->children[1]->attr('text'));
+        $t->same(['default', 'lower_roman', 'lower_roman', 'default', 'lower_roman', 'lower_roman'], array_map(static fn (AstNode $node): mixed => $node->attr('style'), $styleLists));
+        $t->contains('<ul><li>asterisk 1</li><li>asterisk 2</li><li>asterisk 3</li></ul>', $blocks);
+        $t->contains('<ul><li><p>asterisk 1</p></li><li><p>asterisk 2</p></li><li><p>asterisk 3</p></li></ul>', $blocks);
+        $t->contains('<ol><li>First</li><li>Second</li><li>Third</li></ol>', $blocks);
+        $t->contains('<ol><li><p>Item 1, graf one.</p><p>Item 1. graf two. The quick brown fox jumped over the lazy dog&#039;s back.</p></li><li><p>Item 2.</p></li><li><p>Item 3.</p></li></ol>', $blocks);
+        $t->contains('<ol type="i"></ol>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -2529,7 +2672,7 @@ XML;
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
-        $t->contains('<ol start="2"><li>Confirm source identifiers</li><li>Schedule staged import<ol start="4"><li>Review roman checkpoint</li><li>Approve nested audit</li></ol></li></ol>', $blocks);
+        $t->contains('<ol start="2"><li>Confirm source identifiers</li><li>Schedule staged import<ol start="4" type="i"><li>Review roman checkpoint</li><li>Approve nested audit</li></ol></li></ol>', $blocks);
     },
     'writes wordpress definition list html from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Plugin\n: Stable release\n\nChecklist\n:   - Verify imports");
@@ -2758,6 +2901,56 @@ XML;
 
         $t->contains('<p>HTML reader legacy code export:</p>', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-carousel]&#039;);' . "\n" . 'echo esc_html($title);</code></pre>', $blocks);
+    },
+    'writes wordpress html reader blockquote imports from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $htmlQuote = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'blockquote'
+                && ($node->children[0] ?? null)?->type === 'paragraph'
+                && ($node->children[0]->attr('text') === 'Reviewer checklist:')
+            ) {
+                $htmlQuote = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($htmlQuote !== null, 'HTML reader blockquote import should stay on the native quote path');
+        $t->same(['paragraph', 'code_block', 'ordered_list', 'blockquote'], array_map(static fn ($node): string => $node->type, $htmlQuote->children));
+        $t->same(['php'], $htmlQuote->children[1]->attr('classes'));
+        $t->same('Publish block version', $htmlQuote->children[2]->children[1]->children[0]->attr('text'));
+        $t->contains('<p>HTML reader blockquote import:</p>', $blocks);
+        $t->contains('<blockquote class="wp-block-quote"><p>Reviewer checklist:</p><pre class="wp-block-code"><code class="language-php">wp_update_post($post);</code></pre><ol><li>Confirm source quote</li><li>Publish block version</li></ol><blockquote><p>Nested reviewer approval stays attached.</p></blockquote></blockquote>', $blocks);
+    },
+    'writes wordpress html reader list imports from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $htmlList = null;
+        $styledOrdered = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'bullet_list'
+                && ($node->children[0] ?? null)?->children[0]?->attr('text') === 'Review imported posts'
+            ) {
+                $htmlList = $node;
+            }
+            if ($node->type === 'ordered_list' && $node->attr('start') === 4 && $node->attr('style') === 'lower_roman') {
+                $styledOrdered = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($htmlList !== null, 'HTML reader top-level ul should stay on the native list path');
+        $t->true($styledOrdered !== null, 'HTML reader styled ol should preserve ordered-list metadata');
+        $t->same('bullet_list', $htmlList->children[1]->children[1]->type);
+        $t->same('Verify captions', $htmlList->children[1]->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('paragraph', $styledOrdered->children[0]->children[0]->type);
+        $t->contains('<p>HTML reader list import:</p>', $blocks);
+        $t->contains('<ul><li>Review imported posts</li><li>Attach media audit<ul><li>Confirm alt text</li><li>Verify captions</li></ul></li></ul>', $blocks);
+        $t->contains('<ol start="4" type="i"><li><p>Queue editorial pass</p></li><li><p>Publish reviewed batch</p></li></ol>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

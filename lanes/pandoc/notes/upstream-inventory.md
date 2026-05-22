@@ -156,6 +156,28 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   nodes whose text removes the final closing-tag newline while preserving
   internal blank lines, four-space indentation, and literal `\$`, `\\`, `\>`,
   `\[`, and `\{` escapes.
+- `test/html-reader.html` Block Quotes slice inspected in this run: upstream
+  lines 36-83 cover eight `<blockquote>` containers, including a simple
+  paragraph quote, a quote with `<pre><code>` and an ordered list, two nested
+  sibling quotes, a box-style code quote, a list-only quote, and a nested quote
+  inside another quote.
+- `test/html-reader.native` Block Quotes rendered native AST slice inspected in
+  this run: upstream lines 231-355 show eight `BlockQuote` nodes, two
+  `CodeBlock` nodes inside quotes, and two `OrderedList` nodes inside quotes.
+  The bounded PHP mapping now preserves the same quote/container shape and
+  keeps HTML text-node apostrophes as straight HTML-reader text rather than
+  applying Markdown smart punctuation inside imported HTML.
+- `test/html-reader.html` top-level Lists slice inspected in this run:
+  upstream lines 104-198 cover the `Lists` heading through the `List styles`
+  cases, including six unordered tight/loose list examples, five ordered
+  tight/loose/multiple-paragraph examples, and six empty ordered-list style
+  metadata examples.
+- `test/html-reader.native` top-level Lists rendered native AST slice
+  inspected in this run: upstream lines 421-541 show six top-level
+  `BulletList` nodes and 11 top-level `OrderedList` nodes. The six style cases
+  map to DefaultStyle, LowerRoman via `type="i"`, LowerRoman via class,
+  DefaultStyle for bare `style="lower-roman"`, and LowerRoman via
+  `list-style` and `list-style-type` declarations.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -432,11 +454,27 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   backslash escapes stay literal instead of being treated as Markdown escapes.
   WordPress output renders the node as a core code block and normalizes
   `language-*` classes for imported legacy snippets.
+- The blockquote container shape from the `test/html-reader.html` Block Quotes
+  section is now mapped for a narrow HTML reader slice: balanced
+  `<blockquote>` blocks become native `blockquote` nodes, nested quotes stay
+  nested, paragraph/code/list children stay as block children, ordered lists
+  inside quotes stay on the native list path, and HTML text nodes are not
+  passed through Markdown smart punctuation.
+- The top-level list shape from the `test/html-reader.html` Lists section is
+  now mapped for a narrow HTML reader slice: balanced `<ul>` and `<ol>` blocks
+  become native list nodes, tight `<li>text</li>` items stay inline/plain-like,
+  `<li><p>text</p></li>` items stay paragraph-like, multiple paragraphs remain
+  attached to one ordered item, and `type`, class, `list-style`, and
+  `list-style-type` metadata preserve ordered-list styles while the upstream
+  bare `style="lower-roman"` case remains default. The WordPress writer emits
+  safe `type` attributes for roman/alpha ordered lists.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-119 tests, 921 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command was run after this slice and passed with
-140 test files, 12,431 assertions, and 0 failures.
+123 tests, 970 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command was run after this slice and passed with 143
+test files, 12,794 assertions, and 0 failures. A final rerun after lane status
+updates passed with 144 test files, 12,904 assertions, and 0 failures while
+other lanes continued adding tests.
