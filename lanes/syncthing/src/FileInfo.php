@@ -90,6 +90,32 @@ final class FileInfo
         return $this->deleted;
     }
 
+    public function withName(string $name): self
+    {
+        return new self(
+            name: $name,
+            modifiedS: $this->modifiedS,
+            modifiedNs: $this->modifiedNs,
+            version: $this->version,
+            deleted: $this->deleted,
+            localFlags: $this->localFlags,
+            size: $this->size,
+            blocksHash: $this->blocksHash,
+            previousBlocksHash: $this->previousBlocksHash,
+            type: $this->type,
+            permissions: $this->permissions,
+            noPermissions: $this->noPermissions,
+            rawBlockSize: $this->rawBlockSize,
+            sequence: $this->sequence,
+            symlinkTarget: $this->symlinkTarget,
+            blocks: $this->blocks,
+            unixOwnerName: $this->unixOwnerName,
+            unixGroupName: $this->unixGroupName,
+            unixUid: $this->unixUid,
+            unixGid: $this->unixGid,
+        );
+    }
+
     public function isInvalid(): bool
     {
         return self::flagsInvalid($this->localFlags);

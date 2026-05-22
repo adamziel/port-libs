@@ -12,19 +12,29 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 22,
+        "mapped": 32,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, and focused protocol/scanner paths with git ls-tree without hydrating the full checkout.",
         "inventory": {
+            "upstreamTrackedPaths": 940,
+            "upstreamGoFiles": 548,
             "goTestFiles": 141,
             "testdataPaths": 32,
             "integrationTestTreePaths": 41,
             "scriptPaths": 21,
+            "libProtocolPaths": 37,
             "uniqueBehaviorInventoryPaths": 264,
             "uniqueTestRelatedPaths": 264,
             "targetScannerProtocolModelTestFiles": 34,
             "targetScannerProtocolModelTestdataFiles": 1,
             "targetProtocolFileInfoTestFunctions": 4,
             "targetProtocolFileInfoTableCases": 41,
+            "targetProtocolValidationTestFunctions": 4,
+            "targetProtocolValidationTableCases": 31,
+            "targetWireFormatMethods": 3,
+            "targetHelloTestFunctions": 2,
+            "targetHelloOldMagicCases": 3,
+            "targetRequestResponseWireMethods": 4,
+            "targetPostAuthFrameMethods": 5,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -48,6 +58,14 @@
                 {
                     "command": "targeted git show reads of lib/protocol/bep_fileinfo.go and lib/protocol/bep_fileinfo_test.go",
                     "result": "inspected FileInfo equivalence and BlocksEqual semantics without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go, protocol_test.go, wireformat.go, bep_index_updates.go, and bep_request_response.go",
+                    "result": "inspected filename canonicality, request size validation, FileInfo index consistency checks, request/index update path normalization, and IndexUpdate message fields without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_hello.go, bep_hello_test.go, bep_request_response.go, proto/bep/bep.proto, and protocol.go",
+                    "result": "inspected hello magic/length/protobuf handling, old-magic error cases, Request/Response field mappings, Header message type values, and uncompressed post-auth frame layout without hydrating broad blobs"
                 }
             ]
         },
@@ -73,15 +91,25 @@
             "FileInfo equivalence checks name, type, deleted state, invalidity, file size, modtime window, blocks, directory identity, and symlink targets while ignoring version, sequence, raw block size, and no-permission noise.",
             "Must-rescan entries are never equivalent; otherwise local invalid flags compare by invalidity, with explicit ignore flags able to mask local receive-only changes.",
             "FileInfo comparison supports upstream permission and block ignore options for scanner/config noise.",
-            "Unix ownership equivalence accepts matching UID/GID pairs or matching resolved owner/group names, and treats missing ownership as unequal unless ownership is ignored."
+            "Unix ownership equivalence accepts matching UID/GID pairs or matching resolved owner/group names, and treats missing ownership as unequal unless ownership is ignored.",
+            "Protocol filename validation follows upstream `checkFilename`: slash-canonical names are required, absolute paths and leading dotdot escapes are rejected, and Unix wire backslashes remain literal filename characters.",
+            "Index FileInfo consistency rejects deleted files or directories with blocks and live valid files without blocks, while allowing invalid file entries without block data.",
+            "Request validation accepts exactly `MaxRequestSize` and rejects zero, negative, oversized, or traversal-path requests before dispatch.",
+            "Outgoing request and index update names are converted to slash-separated wire paths and normalized toward NFC before protocol validation.",
+            "Native IndexUpdate messages preserve folder, last sequence, previous sequence, and FileInfo lists while applying the same wire-name normalization used by requests.",
+            "Hello frames use the upstream `0x2EA7D90B` magic, big-endian uint16 protobuf length, proto3 fields for device/client/version/connections/timestamp, and reject old v12/v13 or unknown magics.",
+            "Request protobuf payloads preserve upstream field numbers for id, folder, slash-normalized name, offset, size, hash bytes, temporary-source flag, and block number.",
+            "Response protobuf payloads preserve upstream id, data bytes, and `ERROR_CODE_*` values for no-error, generic, no-such-file, and invalid-file responses.",
+            "Uncompressed post-auth BEP frames use the upstream uint16 Header length, proto3 Header type/compression fields, uint32 message length, and message payload layout.",
+            "Compressed post-auth frames are explicitly detected and rejected in this slice until native LZ4 parity is ported."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 22 focused lane tests against a 264-path upstream behavior/test inventory denominator."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 32 focused lane tests against a 264-path upstream behavior/test inventory denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, and FileInfo equivalence/block comparison behavior."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, and BEP Hello/Request/Response protobuf plus uncompressed frame serialization."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, and treating scanner-only metadata noise as equivalent while content changes still force sync.",
-    "nextTask": "Port index update message fixtures, wire-format path normalization, or request validation behavior from focused upstream protocol tests."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, and emitting a native BEP Request frame for a missing media block.",
+    "nextTask": "Port native LZ4-compressed BEP message frames or cluster config protobuf serialization from focused upstream protocol tests."
 }

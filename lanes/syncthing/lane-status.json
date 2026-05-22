@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "syncthing",
-    "estimatedProgress": 7,
-    "suiteProgress": "cloned static upstream inventory counted: 264 unique behavior/test paths; scanner, protocol vector, FileInfo conflict, and FileInfo equivalence semantics mapped; upstream runner not executed",
-    "phpPass": 22,
+    "estimatedProgress": 9,
+    "suiteProgress": "cloned static upstream inventory counted: 264 unique behavior/test paths from 940 upstream tracked paths; scanner, protocol vector, FileInfo conflict/equivalence, protocol filename/request/index consistency, wire-path normalization, and BEP Hello/Request/Response wire-frame semantics mapped; upstream runner not executed",
+    "phpPass": 32,
     "phpFail": 0,
-    "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, and treating scanner-only metadata noise as equivalent while content changes still force sync.",
-    "phase": "cloned static upstream inventory plus scanner block, protocol vector, FileInfo conflict, and FileInfo equivalence slices",
-    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, immutable protocol version vectors, FileInfo conflict winner ordering, invalid/conflict flag handling, block-lineage conflict detection, tombstone creation, and FileInfo equivalence/block comparison behavior from upstream `bep_fileinfo_test.go`.",
+    "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, and emitting a native BEP Request frame for a missing media block.",
+    "phase": "cloned static upstream inventory plus scanner block, protocol vector, FileInfo conflict/equivalence, protocol validation/wire-path, and BEP wire-frame slices",
+    "audit": "audited 2026-05-22: lane-local Syncthing PHP tests pass 32/0; latest root `php tools/run-tests.php` passes 55 test files, 2791 assertions, 0 failures; no upstream runner parity",
+    "currentWork": "Native scanner-style block hashing, version vectors, FileInfo conflict/equivalence behavior, protocol validation/wire-path normalization, and BEP Hello/Request/Response proto3 payload plus uncompressed post-auth frame serialization from upstream `bep_hello.go`, `bep_hello_test.go`, `bep_request_response.go`, `proto/bep/bep.proto`, and `protocol.go`.",
     "blocker": "Full upstream runner has not executed: `.upstream-cache/syncthing` is blob-filtered/no-checkout with mass tracked deletions, `go` is not on this shell's PATH, and `go test ./...` would require hydrating the full checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
-    "latestCommit": "11f1e27",
-    "nextTask": "Port index update message fixtures, wire-format path normalization, or request validation behavior from focused upstream protocol tests."
+    "latestCommit": "pending",
+    "nextTask": "Port native LZ4-compressed BEP message frames or cluster config protobuf serialization from focused upstream protocol tests."
 }
