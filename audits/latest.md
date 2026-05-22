@@ -1,6 +1,6 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `eb67640` (`Record rclone single-file move copy status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `46dc1eb` (`Record integration hold status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
 Audit boundary: the required PHP harness is green on the current checkout, but this is not an accepted integration checkpoint. `HEAD` advanced while the audit was running, the worktree remains broad and dirty, and the visible dashboard/progress/status surfaces disagree with current manifests and each other.
 
@@ -8,13 +8,13 @@ Audit boundary: the required PHP harness is green on the current checkout, but t
 
 1. **Critical - `porting.html` and `porting-summary.json` are stale enough to mislead portfolio decisions.**
    - Paths: `porting.html:30`, `porting.html:32`, `porting.html:53`, `porting.html:56`, `porting.html:58`, `porting.html:59`, `porting.html:61`, `porting.html:63`, `porting-summary.json:2`, `porting-summary.json:3`, `porting-summary.json:11`, `porting-summary.json:62`, `porting-summary.json:95`, `porting-summary.json:112`, `porting-summary.json:147`, `porting-summary.json:181`, `porting-summary.json:198`.
-   - Evidence: both generated files still say `Generated: 2026-05-22 15:40:20 UTC` and average progress `14.3%`. Current manifests/status files report much newer values: Difftastic `76 / 404` mapped but dashboard `15 / 404`; Dolt `93 / 613` but dashboard `5 / 613`; esbuild `91 / 2,567` but dashboard `16 / 2,567`; Gitoxide `1074 / 2877` with `1970` PHP assertions but dashboard `737 / 2877` and `1257 pass`; libsqlite `77 / 1454` but dashboard `18 / 1454`; LightningCSS `292 / 3532` but dashboard `78 / 312`; rclone `135 / 327` but dashboard `20 / 327`; Readability `539 / 1984` but dashboard `89 / 1984`; Syncthing `116 / 264` but dashboard `27 / 264`; Quadrable now records upstream `make -r test` passing and `55 / 55` mapped but dashboard still shows the old C++ runner failure and `24 / 55`.
+   - Evidence: both generated files still say `Generated: 2026-05-22 15:40:20 UTC` and average progress `14.3%`. Current manifests/status files report much newer values: Difftastic `78 / 404` mapped but dashboard `15 / 404`; Dolt `95 / 613` but dashboard `5 / 613`; esbuild `91 / 2,567` but dashboard `16 / 2,567`; Gitoxide `1074 / 2877` with `1970` PHP assertions but dashboard `737 / 2877` and `1257 pass`; libsqlite `77 / 1454` but dashboard `18 / 1454`; LightningCSS `292 / 3532` but dashboard `78 / 312`; markerPDF `78 / 78` with manifest `153` behavior tests but dashboard `11 / 27`; rclone `135 / 327` but dashboard `20 / 327`; Readability `539 / 1984` but dashboard `89 / 1984`; Syncthing `116 / 264` but dashboard `27 / 264`; Quadrable now records upstream `make -r test` passing and `55 / 55` mapped but dashboard still shows the old C++ runner failure and `24 / 55`.
    - Goal requirement at risk: `goal.md` requires `porting.html` to show current upstream denominator, mapped tests, PHP pass/fail, WordPress scenarios, phase, audit status, current work, blocker, and commit for every lane.
    - Audit judgment: regenerate `porting.html` and `porting-summary.json` only after accepting/rejecting the current dirty lane batches, so the public status is derived from the same tested state.
 
 2. **Critical - the current dirty worktree is too broad and too mobile to be a reviewable integration unit.**
    - Paths: `lanes/difftastic/src/TokenDiffer.php`, `lanes/gitoxide/src/ReferenceStore.php`, `lanes/lightningcss/src/TransitionPrefixer.php`, `lanes/markerpdf/src/TableRecognizer.php`, `lanes/pandoc/src/MarkdownReader.php`, `lanes/rclone/src/SyncPlan.php`, `lanes/readability/src/ArticleExtractor.php`, `lanes/syncthing/src/BepSession.php`, `porting.html`, `porting-summary.json`, plus many untracked evidence/example files.
-   - Evidence: excluding this audit/progress edit, the current tracked diff is `30 files changed, 1887 insertions(+), 211 deletions(-)`. `git status --short` has `93` entries: `30` modified tracked paths and `63` untracked paths. Recent history advanced during the audit from `be5d051` to `eb67640`, adding multiple lane commits while unrelated lane implementation changes remain dirty.
+   - Evidence: excluding this audit/progress edit, the current tracked diff is `35 files changed, 2439 insertions(+), 206 deletions(-)`. `git status --short` has `100` entries: `35` modified tracked paths and `65` untracked paths. Recent history advanced during the audit from `be5d051` to `46dc1eb`, adding multiple lane commits while unrelated lane implementation changes remain dirty.
    - Goal requirement at risk: `goal.md` requires small reviewable slices with passing tests, cleanup of unrelated changes, and generated progress/status from accepted state.
    - Audit judgment: do not batch-commit this portfolio state. Accept or reject one lane batch at a time, rerun the root harness after each accepted batch, and then regenerate coordination outputs.
 
@@ -26,7 +26,7 @@ Audit boundary: the required PHP harness is green on the current checkout, but t
 
 4. **High - lane status files contain stale and contradictory root-suite evidence.**
    - Paths: `lanes/difftastic/lane-status.json:10`, `lanes/difftastic/lane-status.json:12`, `lanes/markerpdf/lane-status.json:12`, `lanes/rclone/lane-status.json:10`, `lanes/syncthing/lane-status.json:10`, `lanes/libsqlite/lane-status.json:10`, `lanes/esbuild/lane-status.json:10`, `lanes/gitoxide/lane-status.json:10`, `lanes/pandoc/lane-status.json:12`.
-   - Evidence: the current required run is `123 test files, 10759 assertions, 0 failures`. Status files still preserve older and conflicting root evidence, including Difftastic saying a final root rerun failed with `10659` assertions and `5` unrelated failures, markerPDF saying root was blocked with `9513` assertions and `24` failures, and several lanes citing older green counts such as `9537`, `10675`, `10689`, or `10673` assertions.
+   - Evidence: the current required run is `124 test files, 10849 assertions, 0 failures`. Status files still preserve older and conflicting root evidence, including Difftastic saying a final root rerun failed with `10659` assertions and `5` unrelated failures, markerPDF saying root was blocked with `9513` assertions and `24` failures, and several lanes citing older green counts such as `9537`, `10675`, `10689`, or `10673` assertions.
    - Goal requirement at risk: `goal.md` requires precise blockers and honest repo-wide test recording.
    - Audit judgment: lane status audit/blocker strings should be normalized after each accepted integration slice instead of preserving every transient root count as current truth.
 
@@ -64,7 +64,7 @@ Required command: `php tools/run-tests.php`
 
 ```text
 Exit status: 0
-123 test files, 10759 assertions, 0 failures
+124 test files, 10849 assertions, 0 failures
 ```
 
 ## Recommended Next Intervention
