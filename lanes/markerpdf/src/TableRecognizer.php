@@ -627,44 +627,53 @@ final class TableRecognizer
     {
         $rotated = $this->isRotated($rows, $cols);
 
-        foreach ($cells as &$cell) {
+        foreach ($cells as $cellIndex => &$cell) {
             foreach ($cols as $col) {
                 $pct = $rotated ? $this->intersectionYPct($cell['bbox'], $col['bbox']) : $this->intersectionXPct($cell['bbox'], $col['bbox']);
-                $otherCellExists = false;
-                foreach ($cells as $candidate) {
-                    if ($candidate['col_ids'][0] === $col['col_id'] && $candidate['row_ids'][0] === $cell['row_ids'][0]) {
-                        $otherCellExists = true;
-                        break;
-                    }
+                if ($pct <= $thresh || in_array((int) $col['col_id'], $cell['col_ids'], true)) {
+                    continue;
                 }
-                if ($pct > $thresh && !$otherCellExists) {
+
+                if (!$this->hasOtherCellAt($cells, $cellIndex, (int) $cell['row_ids'][0], (int) $col['col_id'])) {
                     $cell['col_ids'][] = (int) $col['col_id'];
-                } else {
-                    break;
                 }
             }
             sort($cell['col_ids']);
         }
         unset($cell);
 
-        foreach ($cells as &$cell) {
+        foreach ($cells as $cellIndex => &$cell) {
             foreach ($rows as $row) {
                 $pct = $rotated ? $this->intersectionXPct($cell['bbox'], $row['bbox']) : $this->intersectionYPct($cell['bbox'], $row['bbox']);
-                $otherCellExists = false;
-                foreach ($cells as $candidate) {
-                    if ($candidate['row_ids'][0] === $row['row_id'] && $candidate['col_ids'][0] === $cell['col_ids'][0]) {
-                        $otherCellExists = true;
-                        break;
-                    }
+                if ($pct <= $thresh || in_array((int) $row['row_id'], $cell['row_ids'], true)) {
+                    continue;
                 }
-                if ($pct > $thresh && !$otherCellExists) {
+
+                if (!$this->hasOtherCellAt($cells, $cellIndex, (int) $row['row_id'], (int) $cell['col_ids'][0])) {
                     $cell['row_ids'][] = (int) $row['row_id'];
-                } else {
-                    break;
                 }
             }
+            sort($cell['row_ids']);
         }
         unset($cell);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     */
+    private function hasOtherCellAt(array $cells, int $selfIndex, int $rowId, int $colId): bool
+    {
+        foreach ($cells as $candidateIndex => $candidate) {
+            if ($candidateIndex === $selfIndex) {
+                continue;
+            }
+
+            if (($candidate['row_ids'][0] ?? null) === $rowId && ($candidate['col_ids'][0] ?? null) === $colId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
