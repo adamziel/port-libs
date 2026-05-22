@@ -183,7 +183,7 @@
 - esbuild: mapped selected upstream `TestImportAssertions`/`TestImportAttributes` semantics with native preservation of static import/export `assert` and `with` metadata, simple direct-string dynamic import options, malformed duplicate/non-string attribute rejection, and a WordPress block metadata `block.json` import preflight. Lane PHP: 13 passing tests, 0 failing tests. Implementation commit: `6a1e69f`.
 - esbuild: mapped selected upstream `import.meta` and `new URL(..., import.meta.url)` semantics, including ESM classification, `import.meta.url`/`import.meta.path` property metadata, expression-form dynamic imports, malformed `import()`/spread rejection, worker/dynamic-import asset reference contexts, and a WordPress block view fixture with stylesheet and worker asset preflight. Lane PHP: 16 passing tests, 0 failing tests. Implementation commit: `2e1fcb0`.
 - Dolt: replaced the seed denominator with a shallow blob-filtered upstream inventory at `b2274926e0dcd84aab000ee242df5b5e75689eef`: 613 executable upstream test files counted, including 399 Go `_test.go` files and 214 BATS files, plus 3,808 BATS `@test` cases and 256 fixture/data artifact paths. Added native Dolt-style `DOLT_DIFF_*` row projection, structural composite primary-key indexing, and a WordPress `wp_posts` migration fixture/example. Lane PHP: 5 passing tests, 0 failing tests. Implementation commit: `e47acb6152ce`.
-- Latest root suite: `php tools/run-tests.php` passes 52 test files, 2636 assertions, 0 failures with PHP 8.5.6. This was run against the current dirty working tree.
+- Latest root suite: `php tools/run-tests.php` passes 55 test files, 2735 assertions, 0 failures with PHP 8.5.6. This was run against the current dirty working tree.
 
 ## Open Blockers
 
@@ -218,7 +218,7 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor/session status: `tmux ls` currently shows `port-auditor`, all lane sessions, `port-dolt-runner`, `port-evaluator`, `port-integrator`, and `port-watchdog` active; latest independent audit after `fc1e1a6` is recorded in `audits/latest.md`.
+- Auditor/session status: `tmux ls` currently shows `port-auditor`, all lane sessions, `port-dolt-runner`, `port-evaluator`, `port-integrator`, and `port-watchdog` active; latest independent audit after `89fb9c9` is recorded in `audits/latest.md`.
 - Worker sessions: active despite the prior stopped status; quiesce or explicitly coordinate them before treating `progress.md` or `porting.html` as a stable integration snapshot.
 
 ## Next Best Step

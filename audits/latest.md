@@ -1,12 +1,12 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, bridge/shell-out usage, the current dirty worktree, and recent Git history through `fc1e1a6` (`gitoxide: refresh socks status test count`). I did not edit lane implementation files or launch agents.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, bridge/shell-out usage, the current dirty worktree, and recent Git history through `89fb9c9` (`Record current independent audit snapshot`). I did not edit lane implementation files or launch agents.
 
 ## Findings
 
 1. **High - The dashboard and progress file currently include uncommitted lane and supervisor changes, so they are not a clean-HEAD publication state.**
    - Paths: `goal.md:29`, `goal.md:48`, `progress.md:31-42`, `progress.md:185`, `porting.html:56-62`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `.tmux-team/prompts/integrator.md`, `scripts/run-team-watchdog.sh`.
-   - Evidence: after `fc1e1a6`, `git status --short` still shows staged libsqlite row-reading work plus modified files across LightningCSS, Quadrable, Readability, Syncthing, generated dashboard files, team scripts, and progress, plus untracked lane source/fixture/test files. `porting.html` still renders several lanes as uncommitted or pending, including LightningCSS (`porting.html:58`), Quadrable (`porting.html:61`), Readability (`porting.html:63`), and Syncthing (`porting.html:64`).
+   - Evidence: after `89fb9c9`, `git status --short` still shows modified files across LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, Syncthing, generated dashboard files, and progress, plus untracked lane source/fixture/test files. `porting.html` still renders several lanes as uncommitted or pending, including LightningCSS (`porting.html:58`), Quadrable (`porting.html:61`), Readability (`porting.html:63`), and Syncthing (`porting.html:64`).
    - Goal requirement at risk: commit small reviewable slices with passing tests, verify/commit finished agent work before moving on, and track accurate latest commits.
    - Audit judgment: integrate or reject the current libsqlite, Quadrable, dashboard, progress, and supervisor-script changes as separate reviewable commits before treating the dashboard as published state.
 
@@ -51,7 +51,7 @@ Command: `php tools/run-tests.php`
 Exact result:
 
 ```text
-53 test files, 2688 assertions, 0 failures
+55 test files, 2735 assertions, 0 failures
 ```
 
 Exit status: 0.
