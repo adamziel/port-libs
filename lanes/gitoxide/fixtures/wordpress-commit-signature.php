@@ -39,6 +39,8 @@ return [
     'expectedAckedBy' => ['Plugin Maintainer <plugin-maintainer@example.test>'],
     'expectedReviewedBy' => ['Deployment Reviewer <deploy-review@example.test>'],
     'expectedTestedBy' => ['QA Runner <qa@example.test> staged import dry-run'],
+    'expectedTokenTypes' => ['tree', 'parent', 'author', 'committer', 'encoding', 'extraHeader', 'extraHeader', 'message'],
+    'expectedTokenExtraHeaders' => ['gpgsig', 'mergetag'],
     'expectedSignatureHeaderPosition' => 0,
     'expectedMergeTagCount' => 1,
     'expectedMergeTagName' => 'wp-release-2026.05',

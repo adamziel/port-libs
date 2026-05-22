@@ -13,6 +13,7 @@ $committer = $commit->committerSignature();
 $trailers = $commit->messageTrailers();
 $signedData = $commit->signedDataForSignature();
 $mergeTags = $commit->mergeTags();
+$tokenResults = Commit::iterateTokens($fixture['commitBody']);
 
 return [
     'tree' => $commit->tree,
@@ -58,4 +59,9 @@ return [
     'attributions' => array_map(static fn ($trailer): string => "{$trailer->token}: {$trailer->value}", $commit->attributionTrailers()),
     'signedDataSha1' => $signedData === null ? null : sha1($signedData),
     'signedDataHasSignatureHeader' => $signedData !== null && str_contains($signedData, 'gpgsig '),
+    'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
+    'tokenExtraHeaderNames' => array_values(array_map(
+        static fn (array $result): string => $result['token']['name'],
+        array_filter($tokenResults, static fn (array $result): bool => ($result['token']['type'] ?? null) === 'extraHeader'),
+    )),
 ];

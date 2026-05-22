@@ -30,6 +30,14 @@ return [
     'commit parser rejects missing required headers' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => Commit::parse("tree 0123456789abcdef0123456789abcdef01234567\n\nmsg"));
     },
+    'commit parser requires the gitoxide header message separator' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author Ada <ada@example.test> 1700000000 +0000\n"
+            . "committer CI <ci@example.test> 1700000001 +0000\n";
+
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($body));
+        $t->same([], Commit::iterateTokens(''));
+    },
     'parses gitoxide actor signatures with lenient delimiter handling' => static function (TestRunner $t): void {
         $signature = CommitSignature::parse('Gregor Hartmann<gh <Gregor Hartmann<gh@openoffice.org>> 1282910542 +0200');
 
@@ -70,6 +78,62 @@ return [
             $commit->extraHeaders['gpgsig'][0],
         );
         $t->same("sha256 subject\n\nsha256 body\n", $commit->message);
+    },
+    'commit token iterator follows gitoxide CommitRefIter order' => static function (TestRunner $t): void {
+        $body = "tree 0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef\n"
+            . "parent 1111111111111111111111111111111111111111111111111111111111111111\n"
+            . "parent 2222222222222222222222222222222222222222222222222222222222222222\n"
+            . "author Ada Lovelace <ada@example.com> 1710000000 +0000\n"
+            . "committer Grace Hopper <grace@example.com> 1710003600 -0230\n"
+            . "encoding ISO-8859-1\n"
+            . "gpgsig -----BEGIN SSH SIGNATURE-----\n"
+            . " U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n"
+            . " -----END SSH SIGNATURE-----\n"
+            . "mergetag object 3333333333333333333333333333333333333333333333333333333333333333\n"
+            . " type commit\n"
+            . " tag nested-sha256\n"
+            . " tagger Release Bot <release@example.com> 1710007200 +0530\n"
+            . " \n"
+            . " nested release notes\n"
+            . "\n"
+            . "sha256 subject\n\nsha256 body\n";
+
+        $tokens = Commit::iterateTokens($body, 'sha256');
+
+        $t->same([
+            'tree',
+            'parent',
+            'parent',
+            'author',
+            'committer',
+            'encoding',
+            'extraHeader',
+            'extraHeader',
+            'message',
+        ], array_map(static fn (array $result): ?string => $result['token']['type'] ?? null, $tokens));
+        $t->same('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', $tokens[0]['token']['id']);
+        $t->same('0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef', $tokens[0]['token']['rawId']);
+        $t->same('Ada Lovelace <ada@example.com> 1710000000 +0000', $tokens[3]['token']['signature']);
+        $t->same('ISO-8859-1', $tokens[5]['token']['encoding']);
+        $t->same('gpgsig', $tokens[6]['token']['name']);
+        $t->same(
+            "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n-----END SSH SIGNATURE-----",
+            $tokens[6]['token']['value'],
+        );
+        $t->same('mergetag', $tokens[7]['token']['name']);
+        $t->contains('tag nested-sha256', $tokens[7]['token']['value']);
+        $t->same("sha256 subject\n\nsha256 body\n", $tokens[8]['token']['message']);
+    },
+    'commit token iterator returns prior tokens before decode errors' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author Ada <ada@example.test> 1700000000 +0000\n"
+            . "committer Broken <broken@example.test> 1700000001 +0000";
+
+        $tokens = Commit::iterateTokens($body);
+
+        $t->same(['tree', 'author', null], array_map(static fn (array $result): ?string => $result['token']['type'] ?? null, $tokens));
+        $t->same(false, $tokens[2]['ok']);
+        $t->contains('committer header is not newline terminated', $tokens[2]['error'] ?? '');
     },
     'extra header lookup follows gitoxide first all and position semantics' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
@@ -270,5 +334,7 @@ return [
         $t->same($fixture['expectedReviewedBy'], $summary['reviewedBy']);
         $t->same($fixture['expectedTestedBy'], $summary['testedBy']);
         $t->same(false, $summary['signedDataHasSignatureHeader']);
+        $t->same($fixture['expectedTokenTypes'], $summary['tokenTypes']);
+        $t->same($fixture['expectedTokenExtraHeaders'], $summary['tokenExtraHeaderNames']);
     },
 ];

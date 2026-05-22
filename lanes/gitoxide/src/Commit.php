@@ -27,7 +27,13 @@ final class Commit
 
     public static function parse(string $body, string $algorithm = 'sha1'): self
     {
-        [$headerBlock, $message] = array_pad(explode("\n\n", $body, 2), 2, '');
+        $separator = strpos($body, "\n\n");
+        if ($separator === false) {
+            throw new \InvalidArgumentException('Commit message is missing header separator');
+        }
+
+        $headerBlock = substr($body, 0, $separator);
+        $message = substr($body, $separator + 2);
         $headers = [];
         $current = null;
         $currentEntryIndex = null;
@@ -109,6 +115,61 @@ final class Commit
             $body,
             $extraHeaderList,
         );
+    }
+
+    /**
+     * @return list<array{ok: bool, token?: array<string, mixed>, error?: string}>
+     */
+    public static function iterateTokens(string $body, string $algorithm = 'sha1'): array
+    {
+        $offset = 0;
+        $tokens = [];
+        $hashLength = ReferenceTarget::hashHexLength($algorithm);
+
+        if ($body === '') {
+            return [];
+        }
+
+        try {
+            $tree = self::readRequiredTokenHeader($body, $offset, 'tree');
+            self::validateTokenObjectId($tree, $hashLength, $algorithm, 'tree');
+            $tokens[] = self::okToken(['type' => 'tree', 'id' => strtolower($tree), 'rawId' => $tree]);
+
+            while (substr($body, $offset, 7) === 'parent ') {
+                $parent = self::readRequiredTokenHeader($body, $offset, 'parent');
+                self::validateTokenObjectId($parent, $hashLength, $algorithm, 'parent');
+                $tokens[] = self::okToken(['type' => 'parent', 'id' => strtolower($parent), 'rawId' => $parent]);
+            }
+
+            $author = self::readRequiredTokenHeader($body, $offset, 'author');
+            CommitSignature::parse($author);
+            $tokens[] = self::okToken(['type' => 'author', 'signature' => $author]);
+
+            $committer = self::readRequiredTokenHeader($body, $offset, 'committer');
+            CommitSignature::parse($committer);
+            $tokens[] = self::okToken(['type' => 'committer', 'signature' => $committer]);
+
+            if (substr($body, $offset, 9) === 'encoding ') {
+                $tokens[] = self::okToken([
+                    'type' => 'encoding',
+                    'encoding' => self::readRequiredTokenHeader($body, $offset, 'encoding'),
+                ]);
+            }
+
+            while ($offset < strlen($body) && ($body[$offset] ?? '') !== "\n") {
+                [$name, $value] = self::readAnyTokenHeader($body, $offset);
+                $tokens[] = self::okToken(['type' => 'extraHeader', 'name' => $name, 'value' => $value]);
+            }
+
+            if (($body[$offset] ?? null) !== "\n") {
+                throw new \InvalidArgumentException('Commit message is missing header separator');
+            }
+            $tokens[] = self::okToken(['type' => 'message', 'message' => substr($body, $offset + 1)]);
+        } catch (\InvalidArgumentException $exception) {
+            $tokens[] = ['ok' => false, 'error' => $exception->getMessage()];
+        }
+
+        return $tokens;
     }
 
     public function authorSignature(): CommitSignature
@@ -355,6 +416,72 @@ final class Commit
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $token
+     * @return array{ok: bool, token: array<string, mixed>}
+     */
+    private static function okToken(array $token): array
+    {
+        return ['ok' => true, 'token' => $token];
+    }
+
+    private static function readRequiredTokenHeader(string $input, int &$offset, string $name): string
+    {
+        if (strpos($input, "\n", $offset) === false) {
+            throw new \InvalidArgumentException("Commit {$name} header is not newline terminated");
+        }
+
+        [, $line, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
+        $prefix = $name . ' ';
+        if (!str_starts_with($line, $prefix)) {
+            throw new \InvalidArgumentException("Commit is missing required {$name} header");
+        }
+
+        $offset = $nextOffset;
+        return substr($line, strlen($prefix));
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private static function readAnyTokenHeader(string $input, int &$offset): array
+    {
+        if (strpos($input, "\n", $offset) === false) {
+            throw new \InvalidArgumentException('Commit extra header is not newline terminated');
+        }
+
+        [, $line, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
+        if ($line === '' || $line[0] === ' ') {
+            throw new \InvalidArgumentException('Commit extra header has no field name');
+        }
+
+        $space = strpos($line, ' ');
+        if ($space === false) {
+            throw new \InvalidArgumentException('Commit extra header has no value separator');
+        }
+
+        $name = substr($line, 0, $space);
+        $value = substr($line, $space + 1);
+        $offset = $nextOffset;
+        while ($offset < strlen($input) && ($input[$offset] ?? '') === ' ') {
+            if (strpos($input, "\n", $offset) === false) {
+                throw new \InvalidArgumentException('Commit extra header continuation is not newline terminated');
+            }
+            [, $continuation, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
+            $value .= "\n" . substr($continuation, 1);
+            $offset = $nextOffset;
+        }
+
+        return [$name, $value];
+    }
+
+    private static function validateTokenObjectId(string $id, int $hashLength, string $algorithm, string $field): void
+    {
+        if (preg_match('/^[0-9a-fA-F]{' . $hashLength . '}$/', $id) !== 1) {
+            throw new \InvalidArgumentException("Commit {$field} must be a {$hashLength}-character {$algorithm} hex object id");
+        }
     }
 
     /**
