@@ -172,7 +172,8 @@ final class TableRecognizer
             return $this->heuristicLayout($cells, $this->imageSize($imageSize));
         }
 
-        $rows = $this->mergeMultilineRows($rows, $cells);
+        $initialAssigned = $this->initialAssignment(['cells' => $cells, 'rows' => $rows, 'cols' => $cols]);
+        $rows = $this->mergeMultilineRows($rows, $initialAssigned);
         $assigned = $this->initialAssignment(['cells' => $cells, 'rows' => $rows, 'cols' => $cols]);
         $this->assignOverlappers($assigned, $rows, $cols);
 
@@ -503,12 +504,12 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @param list<array<string, mixed>> $cells
+     * @param list<array<string, mixed>> $assignedCells
      * @return list<array<string, mixed>>
      */
-    private function mergeMultilineRows(array $rows, array $cells): array
+    private function mergeMultilineRows(array $rows, array $assignedCells): array
     {
-        if (count($rows) < 2 || $cells === []) {
+        if (count($rows) < 2 || $assignedCells === []) {
             return $rows;
         }
 
@@ -522,10 +523,10 @@ final class TableRecognizer
         $gapThresh = $this->median($rowGaps);
 
         $allCols = [];
-        foreach ($cells as $cell) {
-            $allCols[] = $cell['bbox'][0] . ':' . $cell['bbox'][2];
+        foreach ($assignedCells as $cell) {
+            $allCols[] = $cell['col_ids'][0] ?? null;
         }
-        $allColCount = max(count(array_unique($allCols)), 1);
+        $allColCount = max(count(array_unique($allCols, SORT_REGULAR)), 1);
 
         $remove = [];
         for ($i = 1; $i < count($rows); $i++) {
@@ -535,14 +536,14 @@ final class TableRecognizer
                 continue;
             }
 
-            $prevCells = $this->cellsNearestRow($cells, $prev);
-            $rowCells = $this->cellsNearestRow($cells, $row);
+            $prevCells = $this->cellsAssignedToRow($assignedCells, (int) $prev['row_id']);
+            $rowCells = $this->cellsAssignedToRow($assignedCells, (int) $row['row_id']);
             if ($rowCells === []) {
                 continue;
             }
 
-            $prevCols = $this->cellColumnKeys($prevCells);
-            $rowCols = $this->cellColumnKeys($rowCells);
+            $prevCols = $this->cellColumnIds($prevCells);
+            $rowCols = $this->cellColumnIds($rowCells);
             if (array_diff($rowCols, $prevCols) !== []) {
                 continue;
             }
@@ -582,12 +583,11 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells
      * @return list<array<string, mixed>>
      */
-    private function cellsNearestRow(array $cells, array $row): array
+    private function cellsAssignedToRow(array $cells, int $rowId): array
     {
         $out = [];
         foreach ($cells as $cell) {
-            $center = ($cell['bbox'][1] + $cell['bbox'][3]) / 2.0;
-            if ($center >= $row['bbox'][1] && $center <= $row['bbox'][3]) {
+            if (($cell['row_ids'][0] ?? null) === $rowId) {
                 $out[] = $cell;
             }
         }
@@ -597,16 +597,17 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
-     * @return list<string>
+     * @return list<int|null>
      */
-    private function cellColumnKeys(array $cells): array
+    private function cellColumnIds(array $cells): array
     {
-        $keys = [];
+        $ids = [];
         foreach ($cells as $cell) {
-            $keys[] = $cell['bbox'][0] . ':' . $cell['bbox'][2];
+            $id = $cell['col_ids'][0] ?? null;
+            $ids[] = $id === null ? null : (int) $id;
         }
 
-        return array_values(array_unique($keys));
+        return array_values(array_unique($ids, SORT_REGULAR));
     }
 
     /**

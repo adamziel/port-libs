@@ -58,6 +58,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-ocr-recognition-handoff.php` maps Marker's upstream `run_ocr` orchestration into a WordPress OCR handoff. It uses native page selection and `ocr_stats` accounting, accepts supplied recognized page content from a later OCR adapter, replaces only successful OCR pages, and renders the recovered text as a core paragraph without loading Surya, Tesseract, or OCRmyPDF.
 
+`examples/wordpress-bad-span-filter-import.php` maps Marker's upstream block span cleanup into a WordPress import path. It removes a repeated header span ID and clears OCR text from a `Picture` block via `BAD_SPAN_TYPES` before Markdown rendering, while preserving the image filename and bbox metadata needed to render a core image block.
+
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
 `examples/wordpress-table-box-plan.php` maps Marker's upstream `get_table_boxes` boundary into a Gutenberg table review path. It merges adjacent Table layout boxes with the locked `tabled-pdf` helper semantics, emits high-resolution crop bboxes that a table-recognition adapter would consume, duplicates supplied text-line detections for non-OCR pages, and marks OCRed pages with null text-line payloads so cell boxes can be redetected before rendering.
@@ -69,6 +71,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-table-recognition-handoff.php` maps the supplied table-recognition handoff into a Gutenberg table import path. It accepts tabled-style cell/row/column geometry from a later detector adapter, filters duplicated page text-line payloads to the active table bbox before routing cells, applies native `assign_rows_columns`-style row/column assignment, preserves row/column span metadata for multi-column headers and row-spanning labels, renders spans as table-cell attributes, cleans dot leaders and embedded newlines, formats Markdown, and then reuses Marker's `format_tables` replacement path before rendering a core table block.
 
 `examples/wordpress-table-detector-filter.php` maps the detector fallback half of `tabled.inference.recognition.py::get_cells` into a Gutenberg table import preflight. It drops zero-width and zero-height detector boxes before OCR text assignment, reports how many cells were discarded, and renders the remaining OCR-backed cells as a core table block.
+
+`examples/wordpress-table-multiline-row-import.php` maps `tabled.assignment.py::merge_multiline_rows` into a Gutenberg table import path. It starts with three model-detected table rows, merges a wrapped continuation row into the prior row using initially assigned column IDs despite slight x-coordinate jitter, reports the row merge as review metadata, and renders two clean core table rows.
 
 `examples/wordpress-table-heuristic-columns.php` maps the locked `tabled.heuristics.cells` fallback into a Gutenberg table import path. It records DBSCAN-derived column separator metadata, assigns table cells without supplied model row/column boxes, and renders the resulting Markdown as a core table block.
 
@@ -90,4 +94,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded table task: port the multiline-row merge behavior from `tabled.assignment.py::merge_multiline_rows` so slight same-column x jitter is resolved from assigned model column IDs instead of raw bbox strings. After that, use the two external CI benchmark pairs for a larger document-level extraction parity slice.
+Next bounded task: use the two external CI benchmark pairs for a larger document-level extraction parity slice, starting with supplied pdftext/layout/table boundaries for `multicolcnn.pdf` or `switch_trans.pdf`.

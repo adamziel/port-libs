@@ -208,6 +208,42 @@ return [
             $markdown
         );
     },
+    'merges multiline continuation rows using assigned column ids despite x jitter' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $assigned = $recognizer->assignRowsColumns(
+            [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 34.0, 300.0, 56.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 95.0, 300.0, 125.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 95.0, 130.0]],
+                    ['col_id' => 1, 'bbox' => [100.0, 0.0, 195.0, 130.0]],
+                    ['col_id' => 2, 'bbox' => [200.0, 0.0, 300.0, 130.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [8.0, 5.0, 88.0, 24.0], 'text' => 'Section'],
+                    ['bbox' => [108.0, 5.0, 188.0, 24.0], 'text' => 'Summary'],
+                    ['bbox' => [208.0, 5.0, 288.0, 24.0], 'text' => 'Status'],
+                    ['bbox' => [112.0, 38.0, 192.0, 53.0], 'text' => 'continued'],
+                    ['bbox' => [8.0, 100.0, 88.0, 119.0], 'text' => 'Media'],
+                    ['bbox' => [108.0, 100.0, 188.0, 119.0], 'text' => 'Ready'],
+                    ['bbox' => [208.0, 100.0, 288.0, 119.0], 'text' => 'Published'],
+                ],
+            ],
+            ['width' => 300, 'height' => 130]
+        );
+        $byText = [];
+        foreach ($assigned as $cell) {
+            $byText[$cell['text']] = $cell;
+        }
+
+        $t->same([0], $byText['continued']['row_ids']);
+        $t->same([1], $byText['continued']['col_ids']);
+        $t->same([1], $byText['Media']['row_ids']);
+        $t->contains('Summary continued', $recognizer->markdownFormat($assigned));
+    },
     'adds tabled-style row and column spans when geometry covers open bands' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(
