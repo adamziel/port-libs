@@ -10,6 +10,6 @@
     "audit": "needs auditor review against targeted object/ref crate denominator",
     "currentWork": "Native loose Git object storage plus canonical commit header parsing.",
     "blocker": "Full cargo workspace runner not executed under VM cap; broad blob scans on filtered clones were stopped to avoid resource spikes.",
-    "latestCommit": "079f990fce6d",
+    "latestCommit": "22e5cf88760b",
     "nextTask": "Target the gitoxide object/ref crates with a controlled non-filtered checkout, then add tree object parsing and ref storage tests."
 }

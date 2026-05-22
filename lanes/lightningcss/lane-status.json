@@ -3,7 +3,7 @@
     "library": "LightningCSS",
     "estimatedProgress": 4,
     "suiteProgress": "static upstream inventory counted: 241 behavior checks (160 Rust #[test], 81 Node uvu tests) plus 8 CSS fixtures; upstream runners probed but not executed",
-    "phpPass": 7,
+    "phpPass": 6,
     "phpFail": 0,
     "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; block theme fixture covers custom properties, block selectors, color minification, and calc spacing.",
     "phase": "static upstream inventory plus native value minifier slice",

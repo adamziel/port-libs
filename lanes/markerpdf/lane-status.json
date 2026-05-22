@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native PDF content stream text-line extraction for literal, array, hex, UTF-16 hex, FlateDecode streams, adjacent same-line text operators, PDF line continuations, and text line movement operators.",
     "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required; no external benchmark pair is mapped yet.",
-    "latestCommit": "acb1f24",
+    "latestCommit": "22e5cf88760b",
     "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior."
 }
