@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../../tools/bootstrap.php';
+
+use PortLibs\Gitoxide\FetchFilterSpec;
+use PortLibs\Gitoxide\SparseCheckoutSpec;
+use PortLibs\Gitoxide\Tree;
+use PortLibs\Gitoxide\TreeEntry;
+
+$blob = str_repeat('1', 40);
+$tree = str_repeat('2', 40);
+$sparse = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
+$filter = FetchFilterSpec::blobNone();
+
+$root = new Tree([
+    new TreeEntry('100644', 'index.php', $blob),
+    new TreeEntry('100644', 'wp-config.php', $blob),
+    new TreeEntry('040000', 'wp-admin', $tree),
+    new TreeEntry('040000', 'wp-content', $tree),
+]);
+$wpContent = new Tree([
+    new TreeEntry('100644', 'index.php', $blob),
+    new TreeEntry('040000', 'plugins', $tree),
+    new TreeEntry('040000', 'uploads', $tree),
+]);
+$plugins = new Tree([
+    new TreeEntry('100644', 'plugin-loader.php', $blob),
+    new TreeEntry('040000', 'akismet', $tree),
+    new TreeEntry('040000', 'gutenberg', $tree),
+]);
+
+$entryNames = static fn (array $entries): array => array_map(
+    static fn (TreeEntry $entry): string => $entry->filename,
+    $entries
+);
+
+return [
+    'fetchFilter' => (string) $filter,
+    'sparseMode' => $sparse->mode,
+    'recursiveDirectories' => $sparse->recursiveDirectories(),
+    'parentDirectories' => $sparse->parentDirectories(),
+    'rootEntriesToMaterialize' => $entryNames($sparse->includedTreeEntries($root)),
+    'wpContentEntriesToMaterialize' => $entryNames($sparse->includedTreeEntries($wpContent, 'wp-content')),
+    'pluginEntriesToMaterialize' => $entryNames($sparse->includedTreeEntries($plugins, 'wp-content/plugins')),
+    'akismetSkipped' => $sparse->skipWorktree('wp-content/plugins/akismet/akismet.php', false),
+    'gutenbergBlockIncluded' => $sparse->includesPath('wp-content/plugins/gutenberg/block.json', false),
+];
