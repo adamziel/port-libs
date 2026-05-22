@@ -30,9 +30,7 @@ final class LooseObjectStore
 
     public function read(string $oid): GitObject
     {
-        if (!preg_match('/^[0-9a-f]{40}$/', $oid)) {
-            throw new \InvalidArgumentException('Loose object id must be a 40-character SHA-1 hex string');
-        }
+        self::assertObjectId($oid);
 
         $path = $this->pathFor($oid);
         if (!is_file($path)) {
@@ -47,9 +45,62 @@ final class LooseObjectStore
         return GitObject::fromStorageBytes($bytes);
     }
 
+    public function tryRead(string $oid): ?GitObject
+    {
+        self::assertObjectId($oid);
+        if (!$this->contains($oid)) {
+            return null;
+        }
+
+        return $this->read($oid);
+    }
+
+    public function contains(string $oid): bool
+    {
+        self::assertObjectId($oid);
+
+        return is_file($this->pathFor(strtolower($oid)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function objectIds(): array
+    {
+        $objectsDirectory = rtrim($this->gitDirectory, '/') . '/objects';
+        if (!is_dir($objectsDirectory)) {
+            return [];
+        }
+
+        $ids = [];
+        $directories = glob($objectsDirectory . '/[0-9a-f][0-9a-f]', GLOB_ONLYDIR) ?: [];
+        sort($directories, SORT_STRING);
+        foreach ($directories as $directory) {
+            $prefix = basename($directory);
+            $files = glob($directory . '/*') ?: [];
+            sort($files, SORT_STRING);
+            foreach ($files as $file) {
+                $suffix = basename($file);
+                if (is_file($file) && preg_match('/^[0-9a-f]{38}$/', $suffix) === 1) {
+                    $ids[] = $prefix . $suffix;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
     private function pathFor(string $oid): string
     {
+        $oid = strtolower($oid);
+
         return rtrim($this->gitDirectory, '/') . '/objects/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
     }
-}
 
+    private static function assertObjectId(string $oid): void
+    {
+        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException('Loose object id must be a 40-character SHA-1 hex string');
+        }
+    }
+}
