@@ -16,6 +16,14 @@ Python mode now maps a targeted upstream directory fixture excerpt from `sample_
 
 The same indentation-block slice now recognizes bounded `for`, `while`, and `with` headers. The WordPress loop migration fixture applies this to a content migration loop where `hydrate_featured_media(post)` moves out of `for post in posts`, reporting the loop-body deletion and top-level insertion without deleting the retained loop header.
 
+Python mode now recursively parses nested indentation suites instead of flattening every indented line into its nearest top-level block. A targeted upstream `sample_files/dir_*/has_many_hunk.py` excerpt maps `function081` gaining an `if True:` child block while retaining its direct `pass` and neighboring functions.
+
+The WordPress nested migration fixture applies that to a migration function where `migrate_posts()` loops over posts and gains a featured-media guard. The diff reports the inserted guard at `$py.def["migrate_posts"].for["post in posts"].if[...]` without deleting the retained function, loop, `normalize_blocks(post)`, or `save_post(post)`.
+
+Python mode now recognizes compound clauses from the same upstream parser boundary: `elif`, `else`, `try`, `except`, and `finally`. Continuation clauses are attached to the preceding `if`, `for`, `while`, or `try` path, so inserted branches and cleanup clauses do not force retained branch bodies to appear deleted.
+
+The WordPress compound migration fixture applies that to a migration helper where a raw-HTML sanitization branch is inserted after a legacy-builder branch and a `finally` cleanup is added after a retained exception handler. The diff reports `$py.def["migrate_post"].if[...].elif[...]` and `$py.def["migrate_post"].try[...].finally[...]` paths while preserving the original `if`, `else`, `try`, and `except` blocks.
+
 HTML and XML modes add upstream-style angle-bracket delimiters without changing default code tokenization, where `<` and `>` remain punctuation/operators. This lets block markup, saved post content, and XML export diffs report tag-list changes such as class mutations, inserted `id` attributes, newly inserted inline tags, and namespaced metadata tags while still escaping the rendered review HTML.
 
 JSON mode aligns object items by their string property key before comparing values. This maps the upstream `sample_files/json_*.json` pair and keeps WordPress `block.json`/`theme.json` metadata reviews focused on changed values and nested arrays instead of whole-object churn.
@@ -63,6 +71,10 @@ The upstream Python `if` fixture now exercises indentation-block movement. The W
 The targeted upstream Python trailing-comma config applies to migration scripts that collect WordPress blocks. The WordPress trailing-comma fixture hides added list/dict/call commas around `collect_blocks(...)` while preserving the tuple comma deletion in `legacy_marker = ("classic-editor",)`.
 
 The upstream Python directory fixture excerpt now exercises function-header updates. The WordPress Python loop fixture applies the broader block-header path to a migration script where `hydrate_featured_media(post)` moves out of a post loop; the diff reports `$py.for["post in posts"][1]` and `$py.root[1]` changes without presenting the loop as deleted and re-added.
+
+The upstream Python directory fixture now also exercises a nested block added inside a retained function. The WordPress nested migration fixture applies this to `migrate_posts()` and reports the featured-media guard under `$py.def["migrate_posts"].for["post in posts"].if[...]`, so nested migration-control changes remain reviewable without noisy function or loop replacement.
+
+The targeted Python compound-clause fixture now exercises `elif`, `else`, `try`, `except`, and `finally` boundaries. The WordPress compound migration fixture applies this to a migration helper that adds a raw-HTML branch and a temporary-media cleanup, keeping retained branch and exception-handler bodies stable.
 
 The upstream CSS fixture now exercises selector-block alignment and declaration property matching. The WordPress block-style CSS fixture applies this to global style review: a `.wp-block-acme-card` custom-property color changes, `border-radius` is added, and a query-title selector is introduced while a reordered `.wp-block-image` rule stays out of the rendered change stream.
 
@@ -119,6 +131,8 @@ php lanes/difftastic/examples/wordpress-byte-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-graph-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-python-migration-if-diff.php
 php lanes/difftastic/examples/wordpress-python-loop-migration-diff.php
+php lanes/difftastic/examples/wordpress-python-nested-migration-diff.php
+php lanes/difftastic/examples/wordpress-python-compound-migration-diff.php
 php lanes/difftastic/examples/wordpress-python-trailing-comma-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
@@ -145,4 +159,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map another upstream `sample_files` display pair, or broaden Python nested block extraction inside `def` bodies.
+Map another upstream `sample_files` display pair such as `multibyte_*.py`, `utf16_*.py`, or a broader CLI display golden shard.

@@ -122,6 +122,38 @@ return [
         $t->true(!str_contains($encoded, 'function040'), 'Stable neighboring Python functions should stay matched when one signature changes.');
         $t->true(!str_contains($encoded, 'function042'), 'Stable following Python functions should stay matched when one signature changes.');
     },
+    'maps upstream python directory nested def excerpt as nested block insertion' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-python-nested-def-1.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-python-nested-def-2.py');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'python']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $py.def["function081"].if["True"] if True:', $encoded);
+        $t->true(!str_contains($encoded, '- $py.def["function081"][0] pass'), 'The retained direct function body statement should stay matched after a nested if is inserted.');
+        $t->true(!str_contains($encoded, 'function080'), 'Stable preceding Python functions should stay matched when a nested block is inserted.');
+        $t->true(!str_contains($encoded, 'function082'), 'Stable following Python functions should stay matched when a nested block is inserted.');
+    },
+    'maps python elif else try except finally clauses as compound blocks' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/python-compound-clauses-before.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/python-compound-clauses-after.py');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'python']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $py.if["status == \"draft\""].elif["status == \"private\""] elif status == "private":', $encoded);
+        $t->contains('queue_private(post)', $encoded);
+        $t->contains('+ $py.try["try"].finally["finally"] finally:', $encoded);
+        $t->contains('cleanup_temp(post)', $encoded);
+        $t->true(!str_contains($encoded, '- $py.if["status == \"draft\""]'), 'Stable Python if blocks should remain matched when an elif clause is inserted.');
+        $t->true(!str_contains($encoded, '- $py.if["status == \"draft\""].else["else"]'), 'Stable Python else clauses should remain matched when an elif clause is inserted.');
+        $t->true(!str_contains($encoded, '- $py.try["try"]'), 'Stable Python try blocks should remain matched when finally is inserted.');
+        $t->true(!str_contains($encoded, '- $py.try["try"].except["ValueError as error"]'), 'Stable Python except clauses should remain matched when finally is inserted.');
+    },
     'respects upstream python trailing comma tuple exception' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
 
@@ -910,6 +942,38 @@ return [
         $t->contains('data-path="$py.root[1]"', $html);
         $t->contains('hydrate_featured_media(post)', $html);
         $t->true(!str_contains($html, 'data-op="-" data-path="$py.for[&quot;post in posts&quot;]">for post in posts'), 'Stable Python for headers should not be deleted when a migration helper call is unindented.');
+    },
+    'wordpress python nested migration diff keeps def and for headers aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-nested-migration-before.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-nested-migration-after.py');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'python',
+            'title' => 'WordPress Python nested migration diff',
+        ]);
+
+        $t->contains('WordPress Python nested migration diff', $html);
+        $t->contains('data-path="$py.def[&quot;migrate_posts&quot;].for[&quot;post in posts&quot;].if[&quot;post.get(\&quot;featured_media\&quot;)&quot;]"', $html);
+        $t->contains('hydrate_featured_media(post)', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.def[&quot;migrate_posts&quot;]"'), 'Stable migration function should not be deleted when a nested guard is inserted.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.def[&quot;migrate_posts&quot;].for[&quot;post in posts&quot;]"'), 'Stable migration loop should not be deleted when a nested guard is inserted.');
+        $t->true(!str_contains($html, 'normalize_blocks(post)</code>'), 'Retained direct loop statements should stay out of the rendered change stream.');
+    },
+    'wordpress python compound migration diff reports elif and finally clauses' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-compound-migration-before.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-compound-migration-after.py');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'python',
+            'title' => 'WordPress Python compound migration diff',
+        ]);
+
+        $t->contains('WordPress Python compound migration diff', $html);
+        $t->contains('data-path="$py.def[&quot;migrate_post&quot;].if[&quot;post.get(\&quot;legacy_builder\&quot;)&quot;].elif[&quot;post.get(\&quot;raw_html\&quot;)&quot;]"', $html);
+        $t->contains('sanitize_raw_html(post)', $html);
+        $t->contains('data-path="$py.def[&quot;migrate_post&quot;].try[&quot;try&quot;].finally[&quot;finally&quot;]"', $html);
+        $t->contains('cleanup_temp_media(post)', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.def[&quot;migrate_post&quot;].if[&quot;post.get(\&quot;legacy_builder\&quot;)&quot;]"'), 'Stable migration if block should not be deleted when an elif branch is inserted.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.def[&quot;migrate_post&quot;].try[&quot;try&quot;]"'), 'Stable migration try block should not be deleted when a finally cleanup is inserted.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.def[&quot;migrate_post&quot;].try[&quot;try&quot;].except[&quot;ValueError as error&quot;]"'), 'Stable exception handler should remain matched when a finally cleanup is inserted.');
     },
     'wordpress block variation graph limit falls back to text diff' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-graph-limit-fallback-before.js');

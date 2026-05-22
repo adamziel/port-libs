@@ -3419,68 +3419,130 @@ final class TokenDiffer
     }
 
     /**
-     * @return array{root:list<string>, blocks:array<string, array{keyword:string, label:string, header:string, items:list<string>, index:int}>}
+     * @return array{root:list<string>, blocks:array<string, array{keyword:string, label:string, header:string, items:list<string>, index:int, parentPath:string}>}
      */
     private function pythonBlockStructure(string $source): array
+    {
+        $entries = $this->pythonSignificantLines($source);
+        $position = 0;
+        $blocks = [];
+        $seen = [];
+        $root = $this->parsePythonSuite($entries, $position, 0, '', $blocks, $seen);
+
+        return ['root' => $root, 'blocks' => $blocks];
+    }
+
+    /**
+     * @return list<array{indent:int, text:string}>
+     */
+    private function pythonSignificantLines(string $source): array
     {
         $lines = preg_split('/\r\n|\n|\r/', $source);
         if ($lines === false) {
             $lines = [$source];
         }
 
-        $root = [];
-        $blocks = [];
-        $seen = [];
-        $count = count($lines);
-
-        for ($index = 0; $index < $count; $index++) {
-            $line = $lines[$index];
+        $entries = [];
+        foreach ($lines as $line) {
             $trimmed = trim($line);
             if ($trimmed === '' || str_starts_with($trimmed, '#')) {
                 continue;
             }
 
-            $indent = $this->pythonIndentWidth($line);
-            $header = $this->pythonBlockHeader($trimmed);
-            if ($header !== null) {
-                $items = [];
-                for ($bodyIndex = $index + 1; $bodyIndex < $count; $bodyIndex++) {
-                    $bodyLine = $lines[$bodyIndex];
-                    $bodyTrimmed = trim($bodyLine);
-                    if ($bodyTrimmed === '' || str_starts_with($bodyTrimmed, '#')) {
-                        continue;
-                    }
+            $entries[] = [
+                'indent' => $this->pythonIndentWidth($line),
+                'text' => $trimmed,
+            ];
+        }
 
-                    if ($this->pythonIndentWidth($bodyLine) <= $indent) {
-                        $index = $bodyIndex - 1;
-                        break;
-                    }
+        return $entries;
+    }
 
-                    $items[] = $bodyTrimmed;
-                    $index = $bodyIndex;
-                }
+    /**
+     * @param list<array{indent:int, text:string}> $entries
+     * @param array<string, array{keyword:string, label:string, header:string, items:list<string>, index:int, parentPath:string}> $blocks
+     * @param array<string, int> $seen
+     * @return list<string>
+     */
+    private function parsePythonSuite(array $entries, int &$position, int $suiteIndent, string $parentPath, array &$blocks, array &$seen): array
+    {
+        $items = [];
+        $count = count($entries);
+        $compoundPath = null;
+        $compoundKind = null;
 
-                $label = $header['condition'];
-                $seenKey = $header['keyword'] . "\0" . $label;
-                $blockIndex = $seen[$seenKey] ?? 0;
-                $seen[$seenKey] = $blockIndex + 1;
-                $key = $seenKey . "\0" . $blockIndex;
-                $blocks[$key] = [
-                    'keyword' => $header['keyword'],
-                    'label' => $label,
-                    'header' => $header['header'],
-                    'items' => $items,
-                    'index' => $blockIndex,
-                ];
+        while ($position < $count) {
+            $entry = $entries[$position];
+            if ($entry['indent'] < $suiteIndent) {
+                break;
+            }
+            if ($entry['indent'] > $suiteIndent) {
+                break;
+            }
+
+            $header = $this->pythonBlockHeader($entry['text']);
+            if ($header === null) {
+                $items[] = $entry['text'];
+                $position++;
+                $compoundPath = null;
+                $compoundKind = null;
                 continue;
             }
 
-            if ($indent === 0) {
-                $root[] = $trimmed;
+            $keyword = $header['keyword'];
+            $continuesCompound = $compoundPath !== null && $this->pythonContinuationMatches($keyword, $compoundKind);
+            $blockParentPath = $continuesCompound ? $compoundPath : $parentPath;
+            $label = $header['condition'];
+            $seenKey = $blockParentPath . "\0" . $keyword . "\0" . $label;
+            $blockIndex = $seen[$seenKey] ?? 0;
+            $seen[$seenKey] = $blockIndex + 1;
+
+            $block = [
+                'keyword' => $keyword,
+                'label' => $label,
+                'header' => $header['header'],
+                'items' => [],
+                'index' => $blockIndex,
+                'parentPath' => $blockParentPath,
+            ];
+            $blockPath = $this->pythonBlockPath($block);
+            $position++;
+
+            if ($position < $count && $entries[$position]['indent'] > $entry['indent']) {
+                $block['items'] = $this->parsePythonSuite(
+                    $entries,
+                    $position,
+                    $entries[$position]['indent'],
+                    $blockPath,
+                    $blocks,
+                    $seen,
+                );
             }
+
+            $key = $seenKey . "\0" . $blockIndex;
+            $blocks[$key] = $block;
+
+            if ($this->pythonStartsCompoundChain($keyword)) {
+                $compoundPath = $blockPath;
+                $compoundKind = $keyword;
+                continue;
+            }
+
+            if (
+                $continuesCompound
+                && (
+                    ($compoundKind === 'if' && $keyword === 'elif')
+                    || ($compoundKind === 'try' && in_array($keyword, ['except', 'else'], true))
+                )
+            ) {
+                continue;
+            }
+
+            $compoundPath = null;
+            $compoundKind = null;
         }
 
-        return ['root' => $root, 'blocks' => $blocks];
+        return $items;
     }
 
     /**
@@ -3506,6 +3568,16 @@ final class TokenDiffer
             ];
         }
 
+        if (preg_match('/^elif\s+(?<condition>.+):(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
+            $condition = trim((string) $match['condition']);
+
+            return [
+                'keyword' => 'elif',
+                'condition' => $condition,
+                'header' => 'elif ' . $condition,
+            ];
+        }
+
         if (preg_match('/^(?<keyword>if|while|with)\s+(?<condition>.+):(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
             $keyword = (string) $match['keyword'];
             $condition = trim((string) $match['condition']);
@@ -3517,7 +3589,47 @@ final class TokenDiffer
             ];
         }
 
+        if (preg_match('/^(?<keyword>else|try|finally):(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
+            $keyword = (string) $match['keyword'];
+
+            return [
+                'keyword' => $keyword,
+                'condition' => $keyword,
+                'header' => $keyword,
+            ];
+        }
+
+        if (preg_match('/^except(?<star>\*)?(?:\s+(?<condition>.+))?:(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
+            $keyword = 'except';
+            $condition = trim((string) ($match['condition'] ?? ''));
+            $header = $keyword . ((string) ($match['star'] ?? '') === '*' ? '*' : '');
+            if ($condition !== '') {
+                $header .= ' ' . $condition;
+            }
+
+            return [
+                'keyword' => $keyword,
+                'condition' => $condition === '' ? $header : $condition,
+                'header' => $header,
+            ];
+        }
+
         return null;
+    }
+
+    private function pythonStartsCompoundChain(string $keyword): bool
+    {
+        return in_array($keyword, ['if', 'for', 'while', 'try'], true);
+    }
+
+    private function pythonContinuationMatches(string $keyword, ?string $compoundKind): bool
+    {
+        return match ($keyword) {
+            'elif' => $compoundKind === 'if',
+            'else' => in_array($compoundKind, ['if', 'for', 'while', 'try'], true),
+            'except', 'finally' => $compoundKind === 'try',
+            default => false,
+        };
     }
 
     private function normalizePythonHeaderSuffix(string $suffix): string
@@ -3537,11 +3649,12 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{keyword:string, label:string, header:string, items:list<string>, index:int} $block
+     * @param array{keyword:string, label:string, header:string, items:list<string>, index:int, parentPath?:string} $block
      */
     private function pythonBlockPath(array $block): string
     {
-        $path = '$py.' . $block['keyword'] . '[' . json_encode($block['label'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+        $parentPath = (string) ($block['parentPath'] ?? '');
+        $path = ($parentPath === '' ? '$py' : $parentPath) . '.' . $block['keyword'] . '[' . json_encode($block['label'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
         if ($block['index'] > 0) {
             $path .= '[' . $block['index'] . ']';
         }
@@ -3550,7 +3663,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{keyword:string, label:string, header:string, items:list<string>, index:int} $block
+     * @param array{keyword:string, label:string, header:string, items:list<string>, index:int, parentPath?:string} $block
      */
     private function pythonBlockText(array $block): string
     {
