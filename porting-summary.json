@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-22 22:14:16 UTC",
-    "sourceCommit": "7577ec0e931d7df8a43ec650eff3d3f41c0ae71e",
-    "sourceCommitShort": "7577ec0e931d",
-    "sourceBranch": "main",
-    "dashboardCommit": "4bcfb7c45deeb244a6cceaee9e415cf5e9c889b1",
-    "dashboardCommitShort": "4bcfb7c45dee",
-    "averageProgressPercent": "43.7",
+    "generated": "2026-05-22 22:20:02 UTC",
+    "sourceCommit": "a6f53f9938268d149aa933f2b6891c1e95d68534",
+    "sourceCommitShort": "a6f53f993826",
+    "sourceBranch": "dashboard-publish-attempt",
+    "dashboardCommit": "615094cc7e14b526337231b28f7bd46310c451b6",
+    "dashboardCommitShort": "615094cc7e14",
+    "averageProgressPercent": "44.5",
     "lanes": [
         {
             "library": "difftastic",
@@ -26,24 +26,24 @@
         },
         {
             "library": "dolt",
-            "progressPercent": "30.0",
+            "progressPercent": "31.0",
             "suite": "cloned-static-inventory-plus-bounded-upstream-runner",
             "benchmark": "cloned-static-inventory-plus-bounded-upstream-runner",
             "denominator": "613",
-            "mapped": "104",
-            "coverage": "104 / 613",
-            "php": "102 pass / 0 fail",
+            "mapped": "110",
+            "coverage": "110 / 613",
+            "php": "107 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static upstream inventory + bounded diff/schema/...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* row projection, schema/tag diffs...",
-            "nextTarget": "Map another bounded Dolt CLI/system-table behavior, such as focused `dolt diff --name-sta...",
+            "nextTarget": "Map row-level tabular `dolt diff --filter` output for added, modified, and removed rows,...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "c19fa02"
         },
         {
             "library": "esbuild",
-            "progressPercent": "30.0",
+            "progressPercent": "31.0",
             "suite": "cloned-static-inventory-plus-make-test-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-make-test-runner-evidence",
             "denominator": "2,567",
@@ -53,10 +53,10 @@
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream make-test runner...",
             "audit": "audited 2026-05-22",
-            "currentWork": "Native TypeScript module lowerer now erases type annotations from top-level `using` decla...",
-            "nextTarget": "Continue multiline `using` declaration handling, target-version-specific static field low...",
+            "currentWork": "Native TypeScript module lowerer now keeps comma-continued multiline `using` and `await u...",
+            "nextTarget": "Map explicit resource management lowering for older targets, starting with upstream `usin...",
             "blocker": "No current esbuild implementation blocker.",
-            "commit": "4c8dd1c"
+            "commit": "cefb22f"
         },
         {
             "library": "gitoxide",
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2877",
-            "mapped": "1106",
-            "coverage": "1106 / 2877",
-            "php": "2070 pass / 0 fail",
+            "mapped": "1107",
+            "coverage": "1107 / 2877",
+            "php": "2082 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
             "audit": "audited 2026-05-22",
-            "currentWork": "Added GitTag::toOwned() to mirror Gitoxide TagRef::into_owned(): parsed TagRef-style tags...",
+            "currentWork": "Added SmartHttpReceivePackTransport followRedirects normalization for default initial red...",
             "nextTarget": "Run another controlled gix-object message integration-test subset, broaden proxy credenti...",
             "blocker": "cargo runner not executed",
-            "commit": "fcd5f71"
+            "commit": "581d6ef"
         },
         {
             "library": "libsqlite",
@@ -90,58 +90,58 @@
             "currentWork": "Native database header, varint, schema/root b-tree parsing, table/index cell parsing, pag...",
             "nextTarget": "Port expression indexes beyond lower(column), upper(column), literal-start substr(column,...",
             "blocker": "Lane implementation blocker: none for this slice.",
-            "commit": "pending"
+            "commit": "a082b2a"
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "44.0",
+            "progressPercent": "46.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "363",
-            "coverage": "363 / 3532",
-            "php": "466 pass / 0 fail",
+            "mapped": "393",
+            "coverage": "393 / 3532",
+            "php": "499 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct/box/...",
-            "nextTarget": "Map image-set minification/prefixing from src/lib.rs::test_image_set or broaden prefix ta...",
-            "blocker": "No current LightningCSS implementation blocker: native Node tests, Rust c...",
-            "commit": "9402bd3"
+            "nextTarget": "Broaden container query coverage toward validation/prefix target behavior, or move to bun...",
+            "blocker": "No current LightningCSS implementation blocker: lane-local PHP tests, roo...",
+            "commit": "b4b6b24"
         },
         {
             "library": "markerPDF",
-            "progressPercent": "37.0",
+            "progressPercent": "39.0",
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
             "mapped": "78",
             "coverage": "78 / 78",
-            "php": "159 pass / 0 fail",
+            "php": "169 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory + inspected CI benchmark archive + loc...",
             "audit": "updated 2026-05-22: php -l lanes/markerpd...",
             "currentWork": "Native PDF text-line extraction, upstream magic-MIME filetype detection for WordPress upl...",
             "nextTarget": "Use the external CI benchmark pairs for a larger document-level extraction parity slice,...",
             "blocker": "benchmark runner not executed",
-            "commit": "current"
+            "commit": "this la"
         },
         {
             "library": "pandoc",
-            "progressPercent": "45.0",
+            "progressPercent": "46.0",
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2028",
-            "mapped": "167",
-            "coverage": "167 / 2028",
-            "php": "115 pass / 0 fail",
+            "mapped": "170",
+            "coverage": "170 / 2028",
+            "php": "117 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus Markdown reader/list-loose-contin...",
             "audit": "audited 2026-05-22",
-            "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader paragraph hard-line-break...",
-            "nextTarget": "Map the next bounded non-table HTML reader slice from test/html-reader.html, with small-c...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 115/0 with 890...",
-            "commit": "da1fe5d"
+            "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader inline style semantics fr...",
+            "nextTarget": "Map the next bounded non-table HTML reader slice from test/html-reader.html, with `<pre><...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 117/0 with 910...",
+            "commit": "70a953c"
         },
         {
             "library": "quadrable",
@@ -158,24 +158,24 @@
             "currentWork": "Pure-PHP BLAKE2s-256 hash/key primitives plus PHP-native integer overflow rejection, in-m...",
             "nextTarget": "Map mergeProof after persisted proof-head writes, raw/integer proof-head writes, broader...",
             "blocker": "No current quadrable upstream runner, native digest, quadrable-only PHP,...",
-            "commit": "pending"
+            "commit": "7577ec0"
         },
         {
             "library": "rclone",
-            "progressPercent": "47.0",
+            "progressPercent": "48.0",
             "suite": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "denominator": "327",
-            "mapped": "161",
-            "coverage": "161 / 327",
-            "php": "161 pass / 0 fail",
+            "mapped": "163",
+            "coverage": "163 / 327",
+            "php": "163 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus bounded upstream Go runner...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native in-memory provider contract with advertised hash sets, no-hash provider behavior,...",
-            "nextTarget": "Map duplicate-directory merge behavior against fs/operations/dedupe.go, or start a focuse...",
-            "blocker": "No rclone-local PHP or root-test blocker; rclone-only and required root P...",
-            "commit": "035c451"
+            "nextTarget": "Implement live-provider duplicate-directory discovery by ID/ParentID and list-mode report...",
+            "blocker": "No rclone-local PHP or accepted root-test blocker; rclone-only and requir...",
+            "commit": "4fca512"
         },
         {
             "library": "Readability/content rewrite engine",
@@ -192,24 +192,24 @@
             "currentWork": "Native DOM extractor now unwraps transparent section wrappers after source class cleanup,...",
             "nextTarget": "Return to Medium lazy-image wrapper parity around the `readability-page-1` root wrapper/i...",
             "blocker": "No readability-local or root harness blocker is active: focused readabili...",
-            "commit": "pending"
+            "commit": "a082b2a"
         },
         {
             "library": "syncthing",
-            "progressPercent": "42.0",
+            "progressPercent": "44.0",
             "suite": "cloned-static-inventory-plus-focused-runner",
             "benchmark": "cloned-static-inventory-plus-focused-runner",
             "denominator": "264",
-            "mapped": "135",
-            "coverage": "135 / 264",
-            "php": "135 pass / 0 fail",
+            "mapped": "146",
+            "coverage": "146 / 264",
+            "php": "146 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static upstream inventory plus bounded upstream...",
             "audit": "audited 2026-05-22",
-            "currentWork": "Native Syncthing ServiceMap from upstream `lib/model/service_map.go` and `service_map_tes...",
-            "nextTarget": "Map upstream indexhandler folder index sequence behavior, or run another focused upstream...",
+            "currentWork": "Native Syncthing IndexHandler and IndexHandlerRegistry from upstream `lib/model/indexhand...",
+            "nextTarget": "Map upstream indexhandler ReceiveIndex sequence anomaly/event logging and missing-folder...",
             "blocker": "upstream runner not executed",
-            "commit": "63e2fa4"
+            "commit": "current"
         }
     ]
 }
