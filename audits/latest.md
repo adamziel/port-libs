@@ -1,14 +1,14 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `ea1d352` (`Update Syncthing lane status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `35f9d04` (`Refresh Syncthing root test evidence`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: the required PHP harness is green on the current checkout, but `HEAD` moved during this audit from `4ef72c8` to `ea1d352`, and the worktree remains dirty after several lane batches landed. Treat this as green test evidence, not an accepted integration checkpoint.
+Audit boundary: the required PHP harness is green on the current checkout, but `HEAD` moved during this audit from `4ef72c8` to `35f9d04`, and the worktree remains dirty after several lane batches landed. Treat this as green test evidence, not an accepted integration checkpoint.
 
 ## Findings
 
 1. **Critical - the integration state is moving and too dirty to review as one unit.**
    - Paths: `lanes/difftastic/src/TokenDiffer.php`, `lanes/dolt/src/CommitLogRenderer.php`, `lanes/gitoxide/src/ReferenceStore.php`, `lanes/libsqlite/src/SQLiteDatabase.php`, `lanes/markerpdf/src/TableFormatter.php`, `lanes/pandoc/src/MarkdownReader.php`, `lanes/quadrable/src/QuadbStore.php`, `lanes/readability/src/ArticleExtractor.php`, `porting.html`, `porting-summary.json`.
-   - Evidence: current `git status --porcelain=v1` has `91` entries: `27` modified tracked files and `64` untracked files. The tracked dirty diff is `27 files changed, 1298 insertions(+), 170 deletions(-)`. Recent history advanced during the audit to `ea1d352`, after starting at `4ef72c8`.
+   - Evidence: current `git status --porcelain=v1` has `95` entries: `29` modified tracked files and `66` untracked files. The tracked dirty diff is `29 files changed, 1238 insertions(+), 175 deletions(-)`. Recent history advanced during the audit to `35f9d04`, after starting at `4ef72c8`.
    - Goal requirement at risk: `goal.md` requires small reviewable slices with passing tests, cleanup of unrelated changes, and coordination status generated from accepted state.
    - Audit judgment: freeze or explicitly coordinate writers before integration. Accept or reject one lane batch at a time, rerunning the root suite after each accepted batch.
 
