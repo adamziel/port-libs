@@ -309,40 +309,41 @@ final class TransitionPrefixer
         $labSupportEntries = [];
 
         foreach ($entries as $entry) {
-            if (!in_array($entry['property'], ['background', 'background-color', 'background-image'], true)) {
+            $isCustomProperty = str_starts_with($entry['property'], '--');
+            if (!$isCustomProperty && !in_array($entry['property'], ['background', 'background-color', 'background-image'], true)) {
                 $rewritten[] = $entry;
                 continue;
             }
 
-            $normalized = $this->normalizeBackgroundFallbackValue($entry['value']);
+            $normalized = $isCustomProperty
+                ? $entry['value']
+                : $this->normalizeBackgroundFallbackValue($entry['value']);
             $srgbFallback = $this->advancedColorFallbackValue($normalized);
             if ($srgbFallback === null) {
                 $rewritten[] = $entry;
                 continue;
             }
 
-            $p3Fallback = $this->advancedColorP3FallbackValue($normalized);
-            $labFallback = $this->advancedColorLabFallbackValue($normalized);
-            $property = $entry['property'];
-            $important = $entry['important'];
-            $rewritten[] = $this->declarationEntry($property, $srgbFallback, $important);
+            $p3Fallback = $this->advancedColorP3FallbackValue($normalized, $isCustomProperty);
+            $labFallback = $this->advancedColorLabFallbackValue($normalized, $isCustomProperty);
+            $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
             $changed = true;
 
-            if ($this->containsCustomPropertyReference($normalized)) {
+            if ($isCustomProperty || $this->containsCustomPropertyReference($normalized)) {
                 if ($p3Fallback !== null && $p3Fallback !== $srgbFallback) {
-                    $p3SupportEntries[] = $this->declarationEntry($property, $p3Fallback, $important);
+                    $p3SupportEntries[] = $this->entryWithValue($entry, $p3Fallback);
                 }
                 if ($labFallback !== null && $labFallback !== $srgbFallback) {
-                    $labSupportEntries[] = $this->declarationEntry($property, $labFallback, $important);
+                    $labSupportEntries[] = $this->entryWithValue($entry, $labFallback);
                 }
                 continue;
             }
 
             if ($p3Fallback !== null && $p3Fallback !== $srgbFallback && $p3Fallback !== $normalized) {
-                $rewritten[] = $this->declarationEntry($property, $p3Fallback, $important);
+                $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
             }
 
-            $entry['value'] = $normalized;
+            $entry['value'] = $this->advancedColorLabTargetValue($normalized) ?? $normalized;
             $rewritten[] = $entry;
         }
 
@@ -903,20 +904,31 @@ final class TransitionPrefixer
         );
     }
 
-    private function advancedColorP3FallbackValue(string $value): ?string
+    private function advancedColorP3FallbackValue(string $value, bool $allowIdentity = false): ?string
     {
         return $this->mapAdvancedColorValue(
             $value,
-            fn (string $color): ?string => $this->knownAdvancedColorP3Fallback($color)
+            fn (string $color): ?string => $this->knownAdvancedColorP3Fallback($color),
+            $allowIdentity
         );
     }
 
-    private function advancedColorLabFallbackValue(string $value): ?string
+    private function advancedColorLabFallbackValue(string $value, bool $allowIdentity = false): ?string
     {
         return $this->mapAdvancedColorValue(
             $value,
-            fn (string $color): ?string => $this->knownAdvancedColorLabFallback($color)
+            fn (string $color): ?string => $this->knownAdvancedColorLabFallback($color),
+            $allowIdentity
         );
+    }
+
+    private function advancedColorLabTargetValue(string $value): ?string
+    {
+        if (preg_match('/\b(?:oklab|oklch)\(/i', $value) !== 1) {
+            return null;
+        }
+
+        return $this->advancedColorLabFallbackValue($value);
     }
 
     private function containsCustomPropertyReference(string $value): bool
@@ -927,7 +939,7 @@ final class TransitionPrefixer
     /**
      * @param callable(string): ?string $mapper
      */
-    private function mapAdvancedColorValue(string $value, callable $mapper): ?string
+    private function mapAdvancedColorValue(string $value, callable $mapper, bool $allowIdentity = false): ?string
     {
         $matched = false;
         $unknown = false;
@@ -948,7 +960,7 @@ final class TransitionPrefixer
             $value
         ) ?? $value;
 
-        if (!$matched || $unknown || $fallback === $value) {
+        if (!$matched || $unknown || (!$allowIdentity && $fallback === $value)) {
             return null;
         }
 
@@ -970,6 +982,8 @@ final class TransitionPrefixer
             'lab(51.5117% 43.3777 -29.0443)' => '#af5cae',
             'lab(52.2319% 40.1449 59.9171)',
             'oklab(59.686% 0.1009 0.1192)' => '#c65d07',
+            'oklch(59.686% 0.15619 49.7694)' => '#c65d06',
+            'oklch(40% 0.1268735435 34.568626)' => '#7e250f',
             'lab(47.7776% -34.2947 -7.65904)',
             'oklab(54.0% -0.10 -0.02)' => '#00807c',
             'lch(56.208% 136.76 46.312)',
@@ -984,6 +998,10 @@ final class TransitionPrefixer
 
     private function knownAdvancedColorP3Fallback(string $color): ?string
     {
+        if (preg_match('/^color\(display-p3\b/', $color) === 1) {
+            return $color;
+        }
+
         return match ($color) {
             'lab(40% 56.6 39)' => 'color(display-p3 .643308 .192455 .167712)',
             'lab(52.2319% 40.1449 59.9171)',
@@ -1005,6 +1023,8 @@ final class TransitionPrefixer
             'lab(51.5117% 43.3777 -29.0443)' => 'lab(51.5117% 43.3777 -29.0443)',
             'lab(52.2319% 40.1449 59.9171)',
             'oklab(59.686% 0.1009 0.1192)' => 'lab(52.2319% 40.1449 59.9171)',
+            'oklch(59.686% 0.15619 49.7694)' => 'lab(52.2321% 40.1417 59.9527)',
+            'oklch(40% 0.1268735435 34.568626)' => 'lab(29.2661% 38.2437 35.3889)',
             'lab(47.7776% -34.2947 -7.65904)',
             'oklab(54.0% -0.10 -0.02)' => 'lab(47.7776% -34.2947 -7.65904)',
             'lch(56.208% 136.76 46.312)',
@@ -1052,6 +1072,17 @@ final class TransitionPrefixer
         $url = $matches[2] !== '' ? $matches[2] : trim($matches[3]);
 
         return 'url("' . str_replace('"', '\\"', $url) . '")';
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @return array{property:string,name:string,value:string,important:bool}
+     */
+    private function entryWithValue(array $entry, string $value): array
+    {
+        $entry['value'] = $value;
+
+        return $entry;
     }
 
     /**

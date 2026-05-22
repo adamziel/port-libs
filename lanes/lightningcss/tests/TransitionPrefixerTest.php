@@ -167,6 +167,39 @@ return [
             $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) } }')
         );
     },
+    'transition prefixer maps upstream oklab and oklch lab target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{background-image:linear-gradient(#c65d07,#00807c);background-image:linear-gradient(lab(52.2319% 40.1449 59.9171),lab(47.7776% -34.2947 -7.65904))}',
+            $prefixer->prefixLegacySafari('.foo { background-image: linear-gradient(oklab(59.686% 0.1009 0.1192), oklab(54.0% -0.10 -0.02)); }')
+        );
+        $t->same(
+            '.foo{background-color:#7e250f;background-color:lab(29.2661% 38.2437 35.3889)}',
+            $prefixer->prefixLegacySafari('.foo { background-color: oklch(40% 0.1268735435 34.568626) }')
+        );
+    },
+    'transition prefixer maps upstream custom property advanced color supports' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.foo {
+  --foo: oklab(59.686% 0.1009 0.1192);
+  --bar: lab(40% 56.6 39);
+}
+CSS;
+
+        $t->same(
+            '.foo{--foo:#c65d07;--bar:#b32323}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 .724144 .386777 .148795);--bar:color(display-p3 .643308 .192455 .167712)}}@supports (color:lab(0% 0 0)){.foo{--foo:lab(52.2319% 40.1449 59.9171);--bar:lab(40% 56.6 39)}}',
+            (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+        $t->same(
+            '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            (new TransitionPrefixer())->prefixLegacySafari('.foo { --foo: color(display-p3 0 1 0); }')
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{--foo:oklab(59.686% 0.1009 0.1192)}}',
+            (new TransitionPrefixer())->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -273,6 +306,19 @@ CSS;
 
         $t->same(
             '.wp-block-cover.has-brand-gradient{background:linear-gradient(#ff0f0e,#7773ff);background:linear-gradient(color(display-p3 1 .0000153435 -.00000303562),color(display-p3 .440289 .28452 1.23485));background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}',
+            (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+    },
+    'wordpress theme color tokens get guarded p3 and lab fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-button {
+  --wp--preset--color--brand: oklab(59.686% 0.1009 0.1192);
+  --wp--preset--color--accent: color(display-p3 0 1 0);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-button{--wp--preset--color--brand:#c65d07;--wp--preset--color--accent:#00f942}@supports (color:color(display-p3 0 0 0)){.wp-block-button{--wp--preset--color--brand:color(display-p3 .724144 .386777 .148795);--wp--preset--color--accent:color(display-p3 0 1 0)}}@supports (color:lab(0% 0 0)){.wp-block-button{--wp--preset--color--brand:lab(52.2319% 40.1449 59.9171)}}',
             (new TransitionPrefixer())->prefixLegacySafari($css)
         );
     },
