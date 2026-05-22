@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native Markdown reader now parses structured HTML tables with caption, colgroup, thead, or tfoot boundaries from targeted upstream HTML table artifacts. The test/tables/nordics.html5 slice preserves caption inline emphasis, explicit column widths, table head/body/foot sections, row-header cells, soft line breaks, and superscript units in the table AST and WordPress table block output while simple non-structured raw tables remain on the raw HTML path.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 98/0 with 697 assertions. The required repo-wide php tools/run-tests.php command passed on 2026-05-22 with 123 test files, 9533 assertions, and 0 failures in the current shared worktree. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "3947fd6",
+    "latestCommit": "395363e",
     "nextTask": "Map bounded HTML reader row-header and tag-omission cases from test/html-reader.html so omitted tbody/tfoot boundaries and row-header semantics are explicit before broader HTML reader work."
 }
