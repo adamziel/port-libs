@@ -88,6 +88,25 @@ return [
         $t->throws(RuntimeException::class, static fn () => $partial->get('0'));
         $t->throws(RuntimeException::class, static fn () => SparseTree::importProof($proof, str_repeat('f', 64)));
     },
+    'maps upstream shared empty witness proof for multiple absent keys' => static function (TestRunner $t): void {
+        $tree = new SparseTree();
+        $tree->change()
+            ->put('735838777414', 'A')
+            ->put('367300200150', 'B')
+            ->apply();
+
+        $proof = Proof::decode($tree->exportProof([
+            '582086612140',
+            '37481825503',
+        ])->encode());
+        $partial = SparseTree::importProof($proof, $tree->rootHash());
+
+        $t->same(null, $partial->get('582086612140'));
+        $t->same(null, $partial->get('37481825503'));
+        $t->same(null, $partial->get('915377487270'));
+        $t->throws(RuntimeException::class, static fn () => $partial->get('735838777414'));
+        $t->throws(RuntimeException::class, static fn () => $partial->get('367300200150'));
+    },
     'maps upstream no unnecessary empty witness proof shape' => static function (TestRunner $t): void {
         $tree = new SparseTree();
         $tree->change()
