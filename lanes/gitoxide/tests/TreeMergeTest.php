@@ -2046,6 +2046,70 @@ return [
         ));
         $t->same(['four', 'six', 'two'], $worktreePaths);
     },
+    'maps upstream gix-merge tree-baseline super-2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('foo', "1\n2\n3\n4\n5\n"),
+            $treeEntry('olddir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('newdir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('b', "b\n"),
+                $treeEntry('bar', new Tree([
+                    $blobEntry('file', ''),
+                ])),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('olddir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('bar', "1\n2\n3\n4\n5\n6\n"),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $newdir = Tree::fromObject($read($result->tree->entryNamed('newdir', true)?->oid ?? ''));
+        $bar = Tree::fromObject($read($newdir->entryNamed('bar', true)?->oid ?? ''));
+
+        $t->same(false, $result->isClean());
+        $t->same(['newdir'], $names($result->tree));
+        $t->same(['a', 'b', 'bar', 'bar~B', 'c'], $names($newdir));
+        $t->same(['file'], $names($bar));
+        $t->same('', $read($bar->entryNamed('file')?->oid ?? '')->body);
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($newdir->entryNamed('bar~B')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'newdir/bar~B', 'reason' => 'directory-file', 'base' => null, 'ours' => null, 'theirs' => 'bar~B'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'newdir/bar~B', 'body' => "1\n2\n3\n4\n5\n6\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline conflicting-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";
@@ -2399,7 +2463,7 @@ return [
         $t->contains("<<<<<<< ours/wp-content/plugins/acme-pro/acme.php\nPlugin: Acme\nVersion: ours", $mergedPlugin->body);
         $t->contains("=======\nPlugin: Acme Pro\nVersion: theirs", $mergedPlugin->body);
     },
-    'recursive tree merge records nested directory file conflicts with stages' => static function (TestRunner $t) use ($objectStore): void {
+    'recursive tree merge records nested directory file conflicts with stages' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([
             $treeEntry('wp-content', new Tree([])),
@@ -2418,16 +2482,18 @@ return [
         ]);
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $cacheTree = Tree::fromObject($read($contentTree->entryNamed('cache', true)?->oid ?? ''));
 
         $t->same(false, $result->isClean());
         $t->same('directory-file', $result->conflicts[0]->reason);
-        $t->same('wp-content/cache', $result->conflicts[0]->path);
+        $t->same('wp-content/cache~B', $result->conflicts[0]->path);
+        $t->same(['cache', 'cache~B'], $names($contentTree));
+        $t->same(['index.php'], $names($cacheTree));
         $t->same([
-            MergeIndexEntry::STAGE_OURS,
             MergeIndexEntry::STAGE_THEIRS,
         ], array_map(static fn (MergeIndexEntry $entry): int => $entry->stage, $result->indexEntries()));
         $t->same([
-            'tree',
             'blob',
         ], array_map(static fn (MergeIndexEntry $entry): string => (new TreeEntry($entry->mode, 'cache', $entry->oid))->kind(), $result->indexEntries()));
         $t->same([], $result->worktreeConflictFiles($read));

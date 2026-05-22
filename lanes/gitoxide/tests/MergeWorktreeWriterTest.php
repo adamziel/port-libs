@@ -102,7 +102,7 @@ return [
 
         $t->throws(RuntimeException::class, static fn () => MergeIndexFile::bytesFor($entries));
     },
-    'expands directory file conflicts into file level git index entries' => static function (TestRunner $t) use ($objectStore): void {
+    'writes relocated directory file conflicts to git index entries' => static function (TestRunner $t) use ($objectStore): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([
             $treeEntry('wp-content', new Tree([])),
@@ -130,9 +130,7 @@ return [
         $parsed = MergeIndexFile::entriesFromBytes((string) file_get_contents($dir . '/.git/index'));
 
         $t->same([
-            ['path' => 'wp-content/cache', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'kind' => 'blob'],
-            ['path' => 'wp-content/cache/index.php', 'stage' => MergeIndexEntry::STAGE_OURS, 'kind' => 'blob'],
-            ['path' => 'wp-content/cache/nested/asset.txt', 'stage' => MergeIndexEntry::STAGE_OURS, 'kind' => 'blob'],
+            ['path' => 'wp-content/cache~B', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'kind' => 'blob'],
         ], array_map(
             static fn (MergeIndexEntry $entry): array => ['path' => $entry->path, 'stage' => $entry->stage, 'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind()],
             $expanded,
