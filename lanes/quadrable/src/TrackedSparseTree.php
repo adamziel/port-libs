@@ -265,6 +265,28 @@ final class TrackedSparseTree
     }
 
     /**
+     * @param list<DiffEntry> $diffs
+     */
+    public function applyDiffs(array $diffs): self
+    {
+        $changes = $this->change();
+
+        foreach ($diffs as $diff) {
+            if (!$diff instanceof DiffEntry) {
+                throw new \InvalidArgumentException('applyDiffs expects DiffEntry instances');
+            }
+
+            if ($diff->type === DiffEntry::DELETED) {
+                $changes->deleteKey($diff->key());
+            } else {
+                $changes->putKey($diff->key(), $diff->value);
+            }
+        }
+
+        return $changes->apply();
+    }
+
+    /**
      * @param array<string, array{delete: bool, value: string, reuseNodeId: int, outputNodeId: ?int}> $updates
      */
     public function applyTrackedUpdates(array $updates): self

@@ -283,6 +283,58 @@ return [
         $t->same($newFourNodeId, $diffsByKey[4]->nodeId);
         $t->true($oldTwoNodeId !== $newTwoNodeId);
     },
+    'tracked upstream-shaped sync diff reconstructs randomized forks with node id parity' => static function (TestRunner $t): void {
+        $state = 0;
+
+        for ($trial = 0; $trial < 64; $trial++) {
+            $seed = new TrackedSparseTree();
+            $changes = $seed->change();
+            $numElems = 12 + quadrableTrackedSyncNext($state, 140);
+            $maxElem = 260;
+
+            for ($i = 0; $i < $numElems; $i++) {
+                $n = quadrableTrackedSyncNext($state, $maxElem);
+                $changes->putKey(
+                    Key::fromInteger($n),
+                    quadrableTrackedSyncValue($n, quadrableTrackedSyncNext($state, 25), quadrableTrackedSyncNext($state, 45))
+                );
+            }
+            $changes->apply();
+
+            $local = $seed->checkout($seed->headNodeId());
+            $remote = $seed->checkout($seed->headNodeId());
+            $remoteChanges = $remote->change();
+            $alterations = 4 + quadrableTrackedSyncNext($state, 50);
+
+            for ($i = 0; $i < $alterations; $i++) {
+                $n = quadrableTrackedSyncNext($state, $maxElem);
+                if (quadrableTrackedSyncNext($state, 2) === 0) {
+                    $remoteChanges->putKey(
+                        Key::fromInteger($n),
+                        quadrableTrackedSyncValue($n, 1000 + $trial, quadrableTrackedSyncNext($state, 50))
+                    );
+                } else {
+                    $remoteChanges->deleteKey(Key::fromInteger($n));
+                }
+            }
+            $remoteChanges->apply();
+
+            $scanDiffs = [];
+            $finalDiffs = $local->diffTo($remote, static function (DiffEntry $diff) use (&$scanDiffs): void {
+                $scanDiffs[] = $diff;
+            });
+
+            $reconstructed = $local->checkout($local->headNodeId());
+            $reconstructed->applyDiffs($finalDiffs);
+
+            $t->same($remote->rootHash(), $reconstructed->rootHash(), 'reconstructed root mismatch on trial ' . $trial);
+            $t->same(
+                quadrableTrackedDiffSignature($finalDiffs),
+                quadrableTrackedDiffSignature($scanDiffs),
+                'scan/final node id mismatch on trial ' . $trial
+            );
+        }
+    },
     'wordpress tracked snapshot can reuse leaves during a compact rebuild' => static function (TestRunner $t): void {
         $records = json_decode((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-ordered-snapshot.json'), true, flags: JSON_THROW_ON_ERROR);
 
@@ -421,4 +473,16 @@ function quadrableTrackedDiffSignature(array $diffs): array
     sort($signature, SORT_STRING);
 
     return $signature;
+}
+
+function quadrableTrackedSyncNext(int &$state, int $mod): int
+{
+    $state = ($state * 1103515245 + 12345) & 0x7fffffff;
+
+    return $state % $mod;
+}
+
+function quadrableTrackedSyncValue(int $number, int $variant, int $extraLength): string
+{
+    return $number . ':' . $variant . ':' . str_repeat(chr(65 + (($number + $variant) % 26)), $extraLength);
 }
