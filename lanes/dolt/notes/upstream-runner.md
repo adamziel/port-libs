@@ -338,6 +338,10 @@
   - Required rerun after the consolidated runner metadata update passed: 109 test files, 7,887 assertions, 0 failures.
   - Required rerun after the native `has_ancestor` slice passed: 110 test files, 8,021 assertions, 0 failures.
   - Required rerun after the native branch table/activity slice passed: 112 test files, 8,270 assertions, 0 failures.
+  - Required rerun after the current runner metadata update initially failed in an unrelated esbuild lane: 113 test files, 8,290 assertions, 7 failures. The failing tests were in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php` and `lanes/esbuild/tests/TypeScriptNamespaceLowererTest.php`, rooted in missing `PortLibs\Esbuild\TypeScriptModuleLowerer::classHeaderHasExtends()` or the resulting wrong error type.
+  - Immediate required rerun after the unrelated esbuild lane changed passed: 113 test files, 8,366 assertions, 0 failures.
+  - Latest required rerun after later unrelated-lane changes failed in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php` test `lowers wordpress class field assign semantics without node`: 113 test files, 8,389 assertions, 1 failure. The Dolt tests in that root run passed.
+  - Final required rerun after the current runner metadata correction passed: 113 test files, 8,396 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
@@ -347,7 +351,7 @@
   - Prior rerun after the status-helper runner refresh also passed with 7 Dolt test files, 70 behavior tests, 306 assertions, and 0 failures.
   - Prior result after the commit-ancestors slice: pass with 8 Dolt test files, 74 behavior tests, 323 assertions, and 0 failures.
   - Prior result after the native `has_ancestor` slice: pass with 9 Dolt test files, 78 behavior tests, 380 assertions, and 0 failures.
-  - Current result after the native branch table/activity slice: pass with 10 Dolt test files, 84 behavior tests, 415 assertions, and 0 failures.
+  - Current result after this runner metadata update: pass with 10 Dolt test files, 84 behavior tests, 415 assertions, and 0 failures.
 
 ## Skipped Suites
 
