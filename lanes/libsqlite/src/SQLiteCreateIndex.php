@@ -235,16 +235,39 @@ final class SQLiteCreateIndex
             return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IS_NOT_NULL);
         }
 
-        $equalsOffset = self::readEqualsOperator($where, $offset);
-        if ($equalsOffset === null) {
+        $between = self::readIdentifier($where, $offset);
+        if ($between !== null && strcasecmp($between[0], 'BETWEEN') === 0) {
+            $lower = self::readLiteral($where, $between[1]);
+            if ($lower === null) {
+                return null;
+            }
+
+            $and = self::readIdentifier($where, $lower[1]);
+            if ($and === null || strcasecmp($and[0], 'AND') !== 0) {
+                return null;
+            }
+
+            $upper = self::readLiteral($where, $and[1]);
+            if ($upper === null || trim(substr($where, $upper[1])) !== '') {
+                return null;
+            }
+
+            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::BETWEEN, [
+                'lower' => $lower[0],
+                'upper' => $upper[0],
+            ]);
+        }
+
+        $comparison = self::readComparisonOperator($where, $offset);
+        if ($comparison === null) {
             return null;
         }
-        $literal = self::readLiteral($where, $equalsOffset);
+        $literal = self::readLiteral($where, $comparison[1]);
         if ($literal === null || trim(substr($where, $literal[1])) !== '') {
             return null;
         }
 
-        return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::EQUALS, $literal[0]);
+        return new SQLiteIndexPredicate($identifier[0], $comparison[0], $literal[0]);
     }
 
     /**
@@ -257,6 +280,7 @@ final class SQLiteCreateIndex
         $depth = 0;
         $length = strlen($text);
         $keywordLength = strlen($keyword);
+        $skipNextAndForBetween = false;
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             if ($char === "'" || $char === '"' || $char === '`') {
@@ -275,12 +299,20 @@ final class SQLiteCreateIndex
                 $depth--;
                 continue;
             }
+            if ($depth === 0 && $keyword === 'AND' && self::isKeywordAt($text, $i, 'BETWEEN')) {
+                $skipNextAndForBetween = true;
+                $i += strlen('BETWEEN') - 1;
+                continue;
+            }
             if (
                 $depth === 0
-                && strncasecmp(substr($text, $i, $keywordLength), $keyword, $keywordLength) === 0
-                && ($i === 0 || !self::isIdentifierChar($text[$i - 1]))
-                && (!isset($text[$i + $keywordLength]) || !self::isIdentifierChar($text[$i + $keywordLength]))
+                && self::isKeywordAt($text, $i, $keyword)
             ) {
+                if ($keyword === 'AND' && $skipNextAndForBetween) {
+                    $skipNextAndForBetween = false;
+                    $i += $keywordLength - 1;
+                    continue;
+                }
                 $terms[] = substr($text, $start, $i - $start);
                 $start = $i + $keywordLength;
                 $i += $keywordLength - 1;
@@ -291,14 +323,35 @@ final class SQLiteCreateIndex
         return array_map(trim(...), $terms);
     }
 
-    private static function readEqualsOperator(string $text, int $offset): ?int
+    /**
+     * @return null|array{0:string,1:int}
+     */
+    private static function readComparisonOperator(string $text, int $offset): ?array
     {
         $offset = self::skipWhitespace($text, $offset);
         if (substr($text, $offset, 2) === '==') {
-            return $offset + 2;
+            return [SQLiteIndexPredicate::EQUALS, $offset + 2];
+        }
+        if (substr($text, $offset, 2) === '<>') {
+            return [SQLiteIndexPredicate::NOT_EQUALS, $offset + 2];
+        }
+        if (substr($text, $offset, 2) === '!=') {
+            return [SQLiteIndexPredicate::NOT_EQUALS, $offset + 2];
+        }
+        if (substr($text, $offset, 2) === '<=') {
+            return [SQLiteIndexPredicate::LESS_THAN_OR_EQUAL, $offset + 2];
+        }
+        if (substr($text, $offset, 2) === '>=') {
+            return [SQLiteIndexPredicate::GREATER_THAN_OR_EQUAL, $offset + 2];
         }
         if (($text[$offset] ?? null) === '=') {
-            return $offset + 1;
+            return [SQLiteIndexPredicate::EQUALS, $offset + 1];
+        }
+        if (($text[$offset] ?? null) === '<') {
+            return [SQLiteIndexPredicate::LESS_THAN, $offset + 1];
+        }
+        if (($text[$offset] ?? null) === '>') {
+            return [SQLiteIndexPredicate::GREATER_THAN, $offset + 1];
         }
 
         return null;
@@ -499,5 +552,14 @@ final class SQLiteCreateIndex
     private static function isIdentifierChar(string $char): bool
     {
         return ctype_alnum($char) || $char === '_' || $char === '$';
+    }
+
+    private static function isKeywordAt(string $text, int $offset, string $keyword): bool
+    {
+        $keywordLength = strlen($keyword);
+
+        return strncasecmp(substr($text, $offset, $keywordLength), $keyword, $keywordLength) === 0
+            && ($offset === 0 || !self::isIdentifierChar($text[$offset - 1]))
+            && (!isset($text[$offset + $keywordLength]) || !self::isIdentifierChar($text[$offset + $keywordLength]));
     }
 }

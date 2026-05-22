@@ -367,8 +367,8 @@ The native PHP tests now parse AND predicate trees, use a
 `wp_options(option_name)` partial index only when both `autoload='yes'` and
 `option_name IS NOT NULL` are implied by supplied point constraints, and reject
 the same index for `autoload='no'` or unconstrained option-name lookups.
-Inequality/range implication, expression predicates, and custom
-collation-aware predicate comparison remain outside this slice.
+Expression predicates and custom collation-aware predicate comparison remain
+outside this slice.
 
 ## Focused Native Mapping: Duplicate First-Column Index Scans
 
@@ -445,7 +445,7 @@ second-column `COLLATE NOCASE` metadata, accepting an implied
 WordPress option through `wp_options(autoload, option_name)` without scanning
 the whole `wp_options` table. Remaining index work includes b-tree seek bounds
 for composite prefixes, composite range constraints, expression indexes, custom
-collations, and comparison/range partial-predicate implication.
+collations, and full composite-key range scans.
 
 ## Focused Native Mapping: First-Column Range Constraints
 
@@ -480,8 +480,8 @@ The native PHP tests now cover a WordPress-shaped transient recovery range
 empty ranges, rowid resolution back through the table b-tree, and safe use of a
 partial `WHERE option_name IS NOT NULL` index for non-null range bounds.
 Remaining range work includes true b-tree lower/upper seek bounds instead of
-full native index traversal, composite-key ranges, and comparison/range
-partial-predicate implication.
+full native index traversal, composite-key ranges, expression indexes, and
+custom collations.
 
 ## Focused Native Mapping: Open-Ended And Inclusive Range Variants
 
@@ -516,8 +516,52 @@ lower-only ranges, result limits, explicit range-root lookup, safe use of
 the predicate, rejection of unconstrained partial ranges, and descending
 `wp_options(option_name DESC)` index traversal for inclusive bounded scans.
 Remaining range work includes true b-tree lower/upper seek bounds instead of
-full native index traversal, composite-key ranges, expression indexes, custom
-collations, and comparison/range partial-predicate implication.
+full native index traversal, composite-key ranges, expression indexes, and
+custom collations.
+
+## Focused Native Mapping: Comparison And BETWEEN Partial Predicates
+
+SQLite can use a partial index when query terms imply comparison predicates in
+the partial-index WHERE clause, including bounded comparison terms and
+`BETWEEN` ranges. This slice maps a conservative native read-side subset:
+parse `<`, `<=`, `>`, `>=`, `!=`, `<>`, and `BETWEEN` predicates in explicit
+`CREATE INDEX` statements, preserve AND/OR predicate trees without splitting
+the `AND` inside `BETWEEN`, and use the partial index only when supplied point
+or range constraints are contained by the parsed predicate.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index6.test index7.test
+```
+
+Result: 4 Tcl script/permutation runs, 0 errors out of 140 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index6.test` creates partial indexes such as
+  `CREATE INDEX t2a2 ON t2(a) WHERE a<100 OR a>200` and verifies use only when
+  the query includes an implying comparison term.
+- `test/index6.test` also creates
+  `CREATE INDEX t3b ON t3(b) WHERE xyzzy.t3.b BETWEEN 5 AND 10`, anchoring
+  database-qualified `BETWEEN` predicates.
+- `test/index7.test` repeats the same partial-index planner boundaries for
+  WITHOUT ROWID tables.
+- `src/where.c` `whereUsablePartialIndex()` and `src/expr.c`
+  `sqlite3ExprImpliesExpr()` remain the source boundary for safe partial-index
+  use: a partial index is an optimization only when the query term implies the
+  partial WHERE term.
+
+The native PHP tests now cover parsing comparison and `BETWEEN` partial
+predicates, using a WordPress-shaped
+``wp_options(option_name) WHERE option_name >= '_transient_' AND option_name < '_transient`'``
+partial index for transient point and range recovery, rejecting the same index
+for out-of-range option names, and using an inclusive `BETWEEN` partial index
+for bounded transient scans. Remaining work includes optimized b-tree seek
+bounds, expression indexes, custom collations, and full composite-key range
+scans.
 
 ## Focused Native Mapping: Equality Partial Predicates
 

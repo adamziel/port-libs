@@ -557,6 +557,9 @@ return [
         $autoloadedIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes'");
         $autoloadOrIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes' OR autoload='on'");
         $autoloadAndIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_present_name ON wp_options(option_name) WHERE autoload='yes' AND option_name IS NOT NULL");
+        $rangeIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_transient_name ON wp_options(option_name) WHERE option_name >= '_transient_' AND option_name < '_transient`'");
+        $betweenIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_transient_autoload ON wp_options(option_name) WHERE option_name BETWEEN '_transient_' AND '_transient`' AND autoload='yes'");
+        $notEqualIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_not_no_name ON wp_options(option_name) WHERE autoload <> 'no'");
 
         $t->same('option_name', $index?->columnName);
         $t->same('NOCASE', $index?->collation);
@@ -578,6 +581,19 @@ return [
             static fn (SQLiteIndexPredicate $predicate): string => $predicate->operator,
             $autoloadAndIndex?->partialPredicate?->value ?? [],
         ));
+        $t->same(SQLiteIndexPredicate::AND, $rangeIndex?->partialPredicate?->operator);
+        $t->same([SQLiteIndexPredicate::GREATER_THAN_OR_EQUAL, SQLiteIndexPredicate::LESS_THAN], array_map(
+            static fn (SQLiteIndexPredicate $predicate): string => $predicate->operator,
+            $rangeIndex?->partialPredicate?->value ?? [],
+        ));
+        $t->same(SQLiteIndexPredicate::AND, $betweenIndex?->partialPredicate?->operator);
+        $t->same(SQLiteIndexPredicate::BETWEEN, $betweenIndex?->partialPredicate?->value[0]->operator ?? null);
+        $t->same([
+            'lower' => '_transient_',
+            'upper' => '_transient`',
+        ], $betweenIndex?->partialPredicate?->value[0]->value ?? null);
+        $t->same(SQLiteIndexPredicate::NOT_EQUALS, $notEqualIndex?->partialPredicate?->operator);
+        $t->same('no', $notEqualIndex?->partialPredicate?->value);
     },
     'parses explicit sqlite composite index column metadata' => static function (TestRunner $t): void {
         $columns = SQLiteCreateIndex::columns('CREATE INDEX idx_autoload_name ON wp_options(autoload, option_name COLLATE nocase DESC, option_value) WHERE autoload IS NOT NULL');
@@ -937,6 +953,57 @@ return [
         $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', null, 'm'));
         $t->same(['alpha_option'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRange(null, null));
+    },
+    'uses comparison partial option_name indexes for wordpress transient range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_transient_name', 'wp_options', 3, "CREATE INDEX wp_options_transient_name ON wp_options(option_name) WHERE option_name >= '_transient_' AND option_name < '_transient`'"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['_transient_feed', 1]),
+            $indexCell(['_transient_timeout_feed', 2]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $transients = $database->wordpressOptionsByIndexedNameRange('_transient_', '_transient`');
+        $single = $database->wordpressOptionByIndexedName('_transient_feed');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_transient_', '_transient`'));
+        $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'option_name', '_transient_feed'));
+        $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'siteurl'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->true($single instanceof SQLiteWordPressOption);
+        $t->same('cached-feed', $single->optionValue);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRange('blogname', 'siteurl'));
+    },
+    'uses between partial option_name indexes for inclusive wordpress range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_transient_name_between', 'wp_options', 3, "CREATE INDEX wp_options_transient_name_between ON wp_options(option_name) WHERE option_name BETWEEN '_transient_' AND '_transient_timeout_feed'"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['_transient_feed', 1]),
+            $indexCell(['_transient_timeout_feed', 2]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $inclusive = $database->wordpressOptionsByIndexedNameRange('_transient_', '_transient_timeout_feed', null, true);
+        $exclusive = $database->wordpressOptionsByIndexedNameRange('_transient_', '_transient_timeout_feed');
+
+        $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_transient_', '_transient_timeout_feed', true));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusive));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $exclusive));
     },
     'uses descending option_name indexes for inclusive wordpress range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

@@ -221,8 +221,9 @@ final class SQLiteDatabase
         string $columnName,
         mixed $lowerInclusive = null,
         mixed $upperBound = null,
+        bool $upperInclusive = false,
     ): ?int {
-        $lookup = $this->indexLookupForColumnRange($tableName, $columnName, $lowerInclusive, $upperBound);
+        $lookup = $this->indexLookupForColumnRange($tableName, $columnName, $lowerInclusive, $upperBound, $upperInclusive);
 
         return $lookup['rootPage'] ?? null;
     }
@@ -260,6 +261,7 @@ final class SQLiteDatabase
         bool $isPointLookup = false,
         array $equalityConstraints = [],
         bool $allowEqualityPartialPredicate = true,
+        array $rangeConstraints = [],
     ): ?array
     {
         if ($isPointLookup) {
@@ -273,12 +275,14 @@ final class SQLiteDatabase
                 if ($firstColumn !== null && strcasecmp($firstColumn->columnName, $columnName) === 0) {
                     if ($firstColumn->partial) {
                         $partialPredicate = $firstColumn->partialPredicate;
+                        $hasPredicateConstraints = $isPointLookup || $rangeConstraints !== [];
                         if (
-                            !$isPointLookup
+                            !$hasPredicateConstraints
                             || $partialPredicate === null
-                            || !self::partialPredicateIsImpliedByEqualityConstraints(
+                            || !self::partialPredicateIsImpliedByConstraints(
                                 $partialPredicate,
                                 $equalityConstraints,
+                                $rangeConstraints,
                                 $allowEqualityPartialPredicate,
                             )
                         ) {
@@ -320,20 +324,28 @@ final class SQLiteDatabase
         string $columnName,
         mixed $lowerInclusive = null,
         mixed $upperBound = null,
+        bool $upperInclusive = false,
     ): ?array {
         if ($lowerInclusive === null && $upperBound === null) {
             throw new \InvalidArgumentException('SQLite index range lookup requires at least one bound');
         }
 
-        $predicateImplyingValue = $lowerInclusive ?? $upperBound;
+        $rangeConstraints = [
+            $columnName => [
+                'lowerInclusive' => $lowerInclusive,
+                'upperBound' => $upperBound,
+                'upperInclusive' => $upperInclusive,
+            ],
+        ];
 
         return $this->indexLookupForColumn(
             $tableName,
             $columnName,
-            $predicateImplyingValue,
-            $predicateImplyingValue !== null,
+            null,
+            false,
             [],
             false,
+            $rangeConstraints,
         );
     }
 
@@ -754,7 +766,7 @@ final class SQLiteDatabase
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumnRange('wp_options', $columnName, $lowerInclusive, $upperBound);
+        $indexLookup = $this->indexLookupForColumnRange('wp_options', $columnName, $lowerInclusive, $upperBound, $upperInclusive);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException("SQLite wp_options {$columnName} range index is not present");
         }
@@ -952,9 +964,10 @@ final class SQLiteDatabase
                 $prefix[0]->partial
                 && (
                     $prefix[0]->partialPredicate === null
-                    || !self::partialPredicateIsImpliedByEqualityConstraints(
+                    || !self::partialPredicateIsImpliedByConstraints(
                         $prefix[0]->partialPredicate,
                         array_combine($columnNames, $pointLookupValues),
+                        [],
                         true,
                     )
                 )
@@ -974,9 +987,10 @@ final class SQLiteDatabase
     /**
      * @param array<string, mixed> $columnValues
      */
-    private static function partialPredicateIsImpliedByEqualityConstraints(
+    private static function partialPredicateIsImpliedByConstraints(
         SQLiteIndexPredicate $predicate,
         array $columnValues,
+        array $rangeConstraints,
         bool $allowEqualityPredicate,
     ): bool {
         if ($predicate->operator === SQLiteIndexPredicate::AND) {
@@ -987,9 +1001,10 @@ final class SQLiteDatabase
             foreach ($predicate->value as $subPredicate) {
                 if (
                     !$subPredicate instanceof SQLiteIndexPredicate
-                    || !self::partialPredicateIsImpliedByEqualityConstraints(
+                    || !self::partialPredicateIsImpliedByConstraints(
                         $subPredicate,
                         $columnValues,
+                        $rangeConstraints,
                         $allowEqualityPredicate,
                     )
                 ) {
@@ -1008,9 +1023,10 @@ final class SQLiteDatabase
             foreach ($predicate->value as $subPredicate) {
                 if (
                     $subPredicate instanceof SQLiteIndexPredicate
-                    && self::partialPredicateIsImpliedByEqualityConstraints(
+                    && self::partialPredicateIsImpliedByConstraints(
                         $subPredicate,
                         $columnValues,
+                        $rangeConstraints,
                         $allowEqualityPredicate,
                     )
                 ) {
@@ -1027,6 +1043,19 @@ final class SQLiteDatabase
 
         foreach ($columnValues as $columnName => $value) {
             if ($predicate->isImpliedByPointLookup((string) $columnName, $value)) {
+                return true;
+            }
+        }
+        foreach ($rangeConstraints as $columnName => $bounds) {
+            if (
+                is_array($bounds)
+                && $predicate->isImpliedByRangeLookup(
+                    (string) $columnName,
+                    $bounds['lowerInclusive'] ?? null,
+                    $bounds['upperBound'] ?? null,
+                    (bool) ($bounds['upperInclusive'] ?? false),
+                )
+            ) {
                 return true;
             }
         }

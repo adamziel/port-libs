@@ -53,6 +53,12 @@ partial predicates such as
 `WHERE autoload='yes' AND option_name IS NOT NULL` are now accepted only when
 every term is implied by caller-supplied constraints, so narrowed autoloaded
 option indexes can be used without risking incomplete generic lookups.
+Comparison and `BETWEEN` partial predicates are now parsed for bounded
+`option_name` point and range lookups, so a transient-specific partial index
+such as
+``WHERE option_name >= '_transient_' AND option_name < '_transient`'``
+can serve recovery scans only when the requested bounds or option name are
+contained by that predicate.
 
 ## Example
 
@@ -95,10 +101,12 @@ autoloaded option while avoiding a whole-table scan on constrained hosts.
 `examples/wordpress-option-name-range.php` reads a WordPress-oriented SQLite
 database file, resolves an explicit or safe partial `wp_options(option_name)`
 range index, and returns options whose names fall between caller-supplied lower
-and upper bounds. Either bound can be omitted with `-`, and the upper bound can
-be made inclusive; at least one bound is required. By default it targets the
-`_transient_` prefix range, which maps cleanup and cache-inspection workflows
-on hosts without the PHP SQLite extension.
+and upper bounds. The range helper now also accepts comparison and `BETWEEN`
+partial indexes when the requested bounds imply the partial predicate. Either
+bound can be omitted with `-`, and the upper bound can be made inclusive; at
+least one bound is required. By default it targets the `_transient_` prefix
+range, which maps cleanup and cache-inspection workflows on hosts without the
+PHP SQLite extension.
 
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
@@ -107,6 +115,5 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: optimized b-tree seek bounds, expression indexes, comparison/range
-partial-index predicate implication, custom collations, and full composite-key
-range scans.
+slice: optimized b-tree seek bounds, expression indexes, custom collations, and
+full composite-key range scans.
