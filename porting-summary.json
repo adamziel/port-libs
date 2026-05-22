@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 12:34:37 UTC",
-    "averageProgressPercent": "11.7",
+    "generated": "2026-05-22 12:40:13 UTC",
+    "averageProgressPercent": "11.8",
     "lanes": [
         {
             "library": "difftastic",
@@ -84,19 +84,19 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "10.0",
+            "progressPercent": "11.0",
             "suite": "static-upstream-inventory",
             "benchmark": "static-upstream-inventory",
             "denominator": "241",
-            "mapped": "50",
-            "coverage": "50 / 241",
-            "php": "50 pass / 0 fail",
+            "mapped": "63",
+            "coverage": "63 / 241",
+            "php": "63 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus stylesheet parser/CSSOM/...",
             "audit": "audited 2026-05-22",
-            "nextTarget": "Expand parser coverage toward broader shorthand CSSOM families, flex CSSOM access, prefix...",
+            "nextTarget": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing,...",
             "blocker": "upstream runner not executed",
-            "commit": "99badad"
+            "commit": "5947906"
         },
         {
             "library": "markerPDF",

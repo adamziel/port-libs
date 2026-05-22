@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory",
         "total": 241,
-    "mapped": 50,
+    "mapped": 63,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 241,
@@ -70,15 +70,16 @@
       "Selector specificity covers type, universal, namespace-qualified, class, ID, attribute, pseudo-class, and pseudo-element selectors.",
       ":is(), :matches(), :not(), and :has() take the maximum specificity from their selector lists, :where() contributes zero specificity, and nth-child selector-list arguments add to the pseudo-class specificity.",
       "Media query prelude normalization maps upstream range syntax including min-/max- feature aliases, name-first and value-first comparisons, two-sided ranges, comma-separated lists, qualifiers, boolean/discrete features, ratios, and simple same-unit calc folding.",
-      "Background CSSOM access maps upstream get/set cases for final-layer colors, image and repeat layer lists, position X/Y synthesis, shorthand composition with size/repeat, mixed-importance guards, and mismatched layer-count rejection."
+      "Background CSSOM access maps upstream get/set cases for final-layer colors, image and repeat layer lists, position X/Y synthesis, shorthand composition with size/repeat, mixed-importance guards, and mismatched layer-count rejection.",
+      "Flex-flow CSSOM access maps upstream get/set/remove cases for prefixed and unprefixed flex-direction/flex-wrap shorthand composition, prefix isolation, and shorthand-to-longhand removal."
     ],
-    "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 50 focused lane checks against a 241-behavior-check upstream denominator."
+    "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 63 focused lane checks against a 241-behavior-check upstream denominator."
   },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-    "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding and background shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+    "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding, background, and flex-flow shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
   },
-  "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, background shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
-  "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, flex CSSOM access, prefixing, custom media, or transformer semantics."
+  "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, background and flex-flow shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+  "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing, or transformer semantics."
 }
