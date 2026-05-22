@@ -140,6 +140,12 @@ branch no longer has to be readable before constrained `wp_options(option_name)`
 `wp_options(lower(option_name))`, or `wp_options(autoload, option_name)` lookups
 can return matching rows.
 
+The reader now also exposes `sqlite_sequence` records for AUTOINCREMENT tables.
+WordPress import, recovery, or Data Liberation tooling can inspect sequence
+counters for tables such as `wp_posts`, `wp_comments`, and `wp_users` from a
+raw database image, preserving mutable SQLite `name` and `seq` scalar values
+instead of assuming every `seq` cell is an integer.
+
 ## Example
 
 `examples/wordpress-options-root-page.php` reads a WordPress-oriented SQLite
@@ -258,6 +264,12 @@ SQLite database file, resolves a first-term `wp_options(length(option_name))`
 expression index, and returns options whose name lengths are in a caller
 supplied list such as `4,10`. This maps multi-bucket option-name audits and
 preload checks without scanning every `wp_options` row.
+
+`examples/wordpress-sequence-counters.php` reads a WordPress-oriented SQLite
+database file, resolves the internal `sqlite_sequence` table, and reports all
+AUTOINCREMENT rows plus selected counters such as `wp_posts`, `wp_comments`,
+and `wp_users`. This maps ID-continuity checks during imports and recovery on
+hosts where the PHP SQLite extension is unavailable.
 
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and

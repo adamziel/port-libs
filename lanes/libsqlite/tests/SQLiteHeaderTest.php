@@ -11,6 +11,7 @@ use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -1759,6 +1760,35 @@ return [
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
         $t->same('yes', $option->autoload);
+    },
+    'reads sqlite_sequence autoincrement counters for wordpress tables' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_posts', 'wp_posts', 2, 'CREATE TABLE wp_posts(ID integer primary key autoincrement, post_title text)'], 1),
+            $schemaCell(['table', 'wp_comments', 'wp_comments', 3, 'CREATE TABLE wp_comments(comment_ID integer primary key autoincrement, comment_content text)'], 2),
+            $schemaCell(['table', 'sqlite_sequence', 'sqlite_sequence', 4, 'CREATE TABLE sqlite_sequence(name,seq)'], 3),
+        ], 512, 100, $makeFirstPage(512, 4));
+        $page2 = $tableLeafPage([]);
+        $page3 = $tableLeafPage([]);
+        $page4 = $tableLeafPage([
+            $schemaCell(['wp_posts', 120], 1),
+            $schemaCell(['wp_comments', 7], 2),
+            $schemaCell([null, 'manually-mutated'], 3),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+
+        $records = $database->sqliteSequenceRecords();
+        $postsSequence = $database->sqliteSequenceForTable('wp_posts');
+
+        $t->same(3, count($records));
+        $t->true($records[0] instanceof SQLiteSequenceRecord);
+        $t->same([
+            ['name' => 'wp_posts', 'seq' => 120, 'rowid' => 1],
+            ['name' => 'wp_comments', 'seq' => 7, 'rowid' => 2],
+            ['name' => null, 'seq' => 'manually-mutated', 'rowid' => 3],
+        ], array_map(static fn (SQLiteSequenceRecord $record): array => $record->toArray(), $records));
+        $t->same(120, $postsSequence?->integerSequence());
+        $t->same(null, $database->sqliteSequenceForTable('wp_options'));
+        $t->same([], $database->sqliteSequenceRecords(0));
     },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';

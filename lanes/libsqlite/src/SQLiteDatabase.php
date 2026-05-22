@@ -142,6 +142,39 @@ final class SQLiteDatabase
         return $this->tableRows($rootPage, $limit);
     }
 
+    /**
+     * @return list<SQLiteSequenceRecord>
+     */
+    public function sqliteSequenceRecords(?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite sqlite_sequence row limit cannot be negative');
+        }
+
+        $rootPage = $this->tableRootPage('sqlite_sequence');
+        if ($rootPage === null || $limit === 0) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($this->tableRows($rootPage, $limit) as $row) {
+            $records[] = SQLiteSequenceRecord::fromTableRow($row);
+        }
+
+        return $records;
+    }
+
+    public function sqliteSequenceForTable(string $tableName): ?SQLiteSequenceRecord
+    {
+        foreach ($this->sqliteSequenceRecords() as $record) {
+            if ($record->matchesTable($tableName)) {
+                return $record;
+            }
+        }
+
+        return null;
+    }
+
     public function tableRowByRowId(int $rootPageNumber, int $rowId): ?SQLiteTableRow
     {
         $visited = [];

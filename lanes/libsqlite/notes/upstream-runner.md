@@ -191,6 +191,39 @@ collations, expression indexes beyond `lower(column)`, broader
 predicate-aware partial-index use, and full WITHOUT ROWID table reads remain
 unported.
 
+## Focused Native Mapping: sqlite_sequence AUTOINCREMENT Metadata
+
+This slice maps the read-only side of SQLite's internal `sqlite_sequence`
+table. SQLite creates `sqlite_sequence(name,seq)` for AUTOINCREMENT tables,
+keeps one row per table that has allocated a sequence value, and allows the
+table contents to be manually updated even though the system table itself
+cannot be indexed or dropped.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick autoinc.test
+```
+
+Result: 1 Tcl script, 0 errors out of 88 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/autoinc.test` verifies creation of `sqlite_sequence`, empty initial
+  rows, monotonically tracked maximum sequence values, independent rows for
+  multiple AUTOINCREMENT tables, manual `seq` mutation, `NULL` name mutation,
+  and the no-index/no-drop protection around `sqlite_sequence`.
+
+The native PHP reader now resolves the `sqlite_sequence` table from
+`sqlite_schema`, decodes its rows through the existing table b-tree reader, and
+preserves mutable SQLite scalar `name`/`seq` values instead of forcing `seq` to
+an integer. WordPress-oriented recovery tools can inspect post/comment/user
+sequence counters from a database image without invoking the SQLite extension.
+SQL writes, AUTOINCREMENT allocation, malformed schema recovery, attached/temp
+database sequence tables, and sequence updates remain outside this read-only
+slice.
+
 ## Focused Native Mapping: Automatic Index Collation And DESC Metadata
 
 SQLite automatic indexes created for `UNIQUE` or non-rowid `PRIMARY KEY`
