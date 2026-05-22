@@ -85,8 +85,13 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle = BlobMerge::STYLE_MERGE,
+        ?int $bigFileThreshold = null,
     ): TreeMergeResult {
-        return self::mergeRecursiveAt($base, $ours, $theirs, $readObject, $writeObject, $conflictStyle, '');
+        if ($bigFileThreshold !== null && $bigFileThreshold < 1) {
+            throw new \InvalidArgumentException('Big file threshold must be positive');
+        }
+
+        return self::mergeRecursiveAt($base, $ours, $theirs, $readObject, $writeObject, $conflictStyle, '', [], $bigFileThreshold);
     }
 
     /**
@@ -102,13 +107,14 @@ final class TreeMerge
         string $conflictStyle,
         string $pathPrefix,
         array $unionMergePatterns = [],
+        ?int $bigFileThreshold = null,
     ): TreeMergeResult {
         $baseEntries = self::entriesByName($base);
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
         $unionMergePatterns = self::unionMergeAttributePatterns($baseEntries, $ourEntries, $theirEntries, $readObject, $pathPrefix, $unionMergePatterns);
 
-        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject, $writeObject, $conflictStyle);
+        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject, $writeObject, $conflictStyle, $bigFileThreshold);
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
         sort($paths, SORT_STRING);
 
@@ -154,7 +160,7 @@ final class TreeMerge
                 continue;
             }
 
-            $addedBlobConflict = self::tryMergeAddedBlobConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
+            $addedBlobConflict = self::tryMergeAddedBlobConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $bigFileThreshold);
             if ($addedBlobConflict !== null) {
                 $merged[] = $addedBlobConflict['entry'];
                 array_push($conflicts, ...$addedBlobConflict['conflicts']);
@@ -175,7 +181,7 @@ final class TreeMerge
                 continue;
             }
 
-            $fileDirectory = self::tryMergeFileToDirectoryConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
+            $fileDirectory = self::tryMergeFileToDirectoryConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $bigFileThreshold);
             if ($fileDirectory !== null) {
                 array_push($merged, ...$fileDirectory['merged']);
                 array_push($conflicts, ...$fileDirectory['conflicts']);
@@ -189,7 +195,7 @@ final class TreeMerge
                 continue;
             }
 
-            $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $unionMergePatterns);
+            $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $unionMergePatterns, $bigFileThreshold);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
                     $merged[] = $contentMerge['entry'];
@@ -230,6 +236,7 @@ final class TreeMerge
         callable $writeObject,
         string $conflictStyle,
         array $unionMergePatterns = [],
+        ?int $bigFileThreshold = null,
     ): ?array {
         if ($baseEntry === null || $ourEntry === null || $theirEntry === null) {
             return null;
@@ -245,6 +252,7 @@ final class TreeMerge
                 $conflictStyle,
                 $fullPath,
                 $unionMergePatterns,
+                $bigFileThreshold,
             );
 
             return [
@@ -272,7 +280,7 @@ final class TreeMerge
         $baseBlob = self::readTypedObject($readObject, $baseEntry->oid, 'blob');
         $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
         $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
-        $merge = self::containsNul($baseBlob->body . $ourBlob->body . $theirBlob->body)
+        $merge = self::shouldUseBinaryMerge($baseBlob->body, $ourBlob->body, $theirBlob->body, $bigFileThreshold)
             ? BlobMerge::mergeBinary($baseBlob->body, $ourBlob->body, $theirBlob->body)
             : BlobMerge::mergeText(
                 $baseBlob->body,
@@ -309,6 +317,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): ?array {
         if ($baseEntry !== null || $ourEntry === null || $theirEntry === null || !$ourEntry->isBlob() || !$theirEntry->isBlob()) {
             return null;
@@ -320,7 +329,7 @@ final class TreeMerge
 
         $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
         $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
-        $merge = self::containsNul($ourBlob->body . $theirBlob->body)
+        $merge = self::shouldUseBinaryMerge('', $ourBlob->body, $theirBlob->body, $bigFileThreshold)
             ? BlobMerge::mergeBinary('', $ourBlob->body, $theirBlob->body)
             : BlobMerge::mergeText(
                 '',
@@ -402,6 +411,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): ?array {
         if ($baseEntry === null || $baseEntry->isTree() || $ourEntry === null || $theirEntry === null) {
             return null;
@@ -429,6 +439,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
         if ($renameIntoDirectory !== null) {
             return $renameIntoDirectory;
@@ -472,6 +483,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): ?array {
         $matches = self::matchingLeafPaths($directoryTree, $baseEntry, $readObject);
         if (count($matches) !== 1) {
@@ -492,6 +504,8 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            [],
+            $bigFileThreshold,
         );
         if ($contentMerge === null || $contentMerge['entry'] === null) {
             return null;
@@ -822,6 +836,7 @@ final class TreeMerge
         ?callable $readObject = null,
         ?callable $writeObject = null,
         string $conflictStyle = BlobMerge::STYLE_MERGE,
+        ?int $bigFileThreshold = null,
     ): array
     {
         $ourRenames = self::detectedRenames($baseEntries, $ourEntries, $readObject);
@@ -836,6 +851,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
         $singleLeafDirectoryRenames = self::singleLeafDirectoryRenameModifyMerges(
             $baseEntries,
@@ -845,6 +861,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
         $conflicts = $singleLeafDirectoryRenames['conflicts'];
         $consumed = $directoryFileRelocations['consumed'] + $singleLeafDirectoryRenames['consumed'];
@@ -870,6 +887,7 @@ final class TreeMerge
                         $readObject,
                         $writeObject,
                         $conflictStyle,
+                        $bigFileThreshold,
                     );
                     if ($sameTargetMerge !== null) {
                         if ($sameTargetMerge['entry'] !== null) {
@@ -925,6 +943,7 @@ final class TreeMerge
                                 $readObject,
                                 $writeObject,
                                 $conflictStyle,
+                                $bigFileThreshold,
                             );
                             if ($targetAddMerge !== null) {
                                 $merged[] = $targetAddMerge['entry'];
@@ -987,6 +1006,7 @@ final class TreeMerge
                         $readObject,
                         $writeObject,
                         $conflictStyle,
+                        $bigFileThreshold,
                     );
                     if ($renameModifyMerge !== null) {
                         if ($renameModifyMerge['entry'] !== null) {
@@ -1027,6 +1047,7 @@ final class TreeMerge
                                 $readObject,
                                 $writeObject,
                                 $conflictStyle,
+                                $bigFileThreshold,
                             );
                             if ($targetAddMerge !== null) {
                                 $merged[] = $targetAddMerge['entry'];
@@ -1089,6 +1110,7 @@ final class TreeMerge
                         $readObject,
                         $writeObject,
                         $conflictStyle,
+                        $bigFileThreshold,
                     );
                     if ($renameModifyMerge !== null) {
                         if ($renameModifyMerge['entry'] !== null) {
@@ -1134,6 +1156,7 @@ final class TreeMerge
         ?callable $readObject,
         ?callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): array {
         if ($readObject === null || $writeObject === null) {
             return ['conflicts' => [], 'consumed' => [], 'merged' => []];
@@ -1148,6 +1171,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
         $theirs = self::collectSingleLeafDirectoryRenameModifyMerges(
             $baseEntries,
@@ -1158,6 +1182,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
 
         return [
@@ -1184,6 +1209,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): array {
         $conflicts = [];
         $consumed = [];
@@ -1236,6 +1262,8 @@ final class TreeMerge
                     $readObject,
                     $writeObject,
                     $conflictStyle,
+                    [],
+                    $bigFileThreshold,
                 );
                 if ($merge === null || $merge['entry'] === null) {
                     continue;
@@ -1303,6 +1331,7 @@ final class TreeMerge
         ?callable $readObject,
         ?callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): array {
         if ($readObject === null || $writeObject === null) {
             return ['byDirectory' => [], 'consumed' => []];
@@ -1318,6 +1347,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
         $theirs = self::collectDirectoryRenameFileRelocations(
             $baseEntries,
@@ -1329,6 +1359,7 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            $bigFileThreshold,
         );
 
         return [
@@ -1356,6 +1387,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): array {
         $byDirectory = [];
         $consumed = [];
@@ -1427,6 +1459,8 @@ final class TreeMerge
                     $readObject,
                     $writeObject,
                     $conflictStyle,
+                    [],
+                    $bigFileThreshold,
                 );
                 if ($merge === null || $merge['entry'] === null) {
                     continue;
@@ -1580,6 +1614,7 @@ final class TreeMerge
         ?callable $readObject,
         ?callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): ?array {
         if ($readObject === null || $writeObject === null) {
             return null;
@@ -1591,7 +1626,7 @@ final class TreeMerge
         $fullPath = self::joinPath($pathPrefix, $targetPath);
         $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
         $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
-        $merge = self::containsNul($ourBlob->body . $theirBlob->body)
+        $merge = self::shouldUseBinaryMerge('', $ourBlob->body, $theirBlob->body, $bigFileThreshold)
             ? BlobMerge::mergeBinary('', $ourBlob->body, $theirBlob->body)
             : BlobMerge::mergeText(
                 '',
@@ -1629,6 +1664,7 @@ final class TreeMerge
         ?callable $readObject,
         ?callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): ?array {
         if ($readObject === null || $writeObject === null) {
             return null;
@@ -1645,6 +1681,8 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            [],
+            $bigFileThreshold,
         );
         if ($result === null) {
             return null;
@@ -1760,6 +1798,7 @@ final class TreeMerge
         ?callable $readObject,
         ?callable $writeObject,
         string $conflictStyle,
+        ?int $bigFileThreshold = null,
     ): ?array {
         if ($ourEntry === null || $theirEntry === null || $readObject === null || $writeObject === null) {
             return null;
@@ -1777,6 +1816,8 @@ final class TreeMerge
             $readObject,
             $writeObject,
             $conflictStyle,
+            [],
+            $bigFileThreshold,
         );
     }
 
@@ -2164,6 +2205,15 @@ final class TreeMerge
     private static function containsNul(string $bytes): bool
     {
         return str_contains($bytes, "\0");
+    }
+
+    private static function shouldUseBinaryMerge(string $base, string $ours, string $theirs, ?int $bigFileThreshold): bool
+    {
+        if (self::containsNul($base . $ours . $theirs)) {
+            return true;
+        }
+
+        return $bigFileThreshold !== null && max(strlen($base), strlen($ours), strlen($theirs)) > $bigFileThreshold;
     }
 
     private static function joinPath(string $prefix, string $path): string

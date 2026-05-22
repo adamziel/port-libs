@@ -271,6 +271,55 @@ return [
         $t->same($mergedThemeJson->oid(), $result->worktreeConflictFiles($read)[0]->oid);
         $t->contains('<<<<<<< ours/wp-content/themes/acme/theme.json', $result->worktreeConflictFiles($read)[0]->content);
     },
+    'maps upstream gix-merge tree-baseline big-file-merge fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "original\n1\n2\n3\n4\n5\n";
+        $ourContent = implode("\n", range(1, 37)) . "\n";
+        $theirContent = "1\n2\n3\n4\n5\n6\n";
+        $base = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', $baseContent)]))]);
+        $ours = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', $ourContent)]))]);
+        $theirs = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', $theirContent)]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_MERGE, 100);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $mergedFile = $read($aTree->entryNamed('x.f')?->oid ?? '');
+        $indexEntries = $result->indexEntries();
+        $worktreeFiles = $result->worktreeConflictFiles($read);
+
+        $t->same(false, $result->isClean());
+        $t->same(['a'], $names($result->tree));
+        $t->same($ourContent, $mergedFile->body);
+        $t->same([
+            ['path' => 'a/x.f', 'reason' => 'content-conflict', 'base' => 'x.f', 'ours' => 'x.f', 'theirs' => 'x.f'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'a/x.f'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a/x.f'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a/x.f'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'path' => $entry->path],
+            $indexEntries,
+        ));
+        $t->same([$baseContent, $ourContent, $theirContent], array_map(
+            static fn (MergeIndexEntry $entry): string => $read($entry->oid)->body,
+            $indexEntries,
+        ));
+        $t->same([
+            ['path' => 'a/x.f', 'content' => $ourContent],
+        ], array_map(
+            static fn ($file): array => ['path' => $file->path, 'content' => $file->content],
+            $worktreeFiles,
+        ));
+    },
     'recursive tree merge reports nested exact rename delete conflicts' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old.php', "<?php\nreturn 'base';\n")]))]);
