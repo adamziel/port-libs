@@ -130,6 +130,31 @@ return [
         $t->same('Block', $cells['table_cells'][0][0]['text']);
         $t->same('', $cells['table_cells'][1][0]['text']);
     },
+    'filters duplicated text-line payloads to each table bbox like get_table_blocks' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $fullPageBlocks = [
+            ['bbox' => [10.0, 10.0, 120.0, 36.0], 'text' => 'Left table'],
+            ['bbox' => [230.0, 10.0, 340.0, 36.0], 'text' => 'Right table'],
+        ];
+        $cells = $recognizer->getCells(
+            [
+                [0.0, 0.0, 150.0, 120.0],
+                [200.0, 0.0, 360.0, 120.0],
+            ],
+            [
+                ['width' => 400, 'height' => 200],
+                ['width' => 400, 'height' => 200],
+            ],
+            [
+                ['table_blocks' => $fullPageBlocks],
+                ['blocks' => $fullPageBlocks],
+            ]
+        );
+
+        $t->same([false, false], $cells['needs_ocr']);
+        $t->same(['Left table'], array_column($cells['table_cells'][0], 'text'));
+        $t->same(['Right table'], array_column($cells['table_cells'][1], 'text'));
+    },
     'forces supplied detector cells when detect_boxes is enabled' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $cells = $recognizer->getCells(
@@ -148,6 +173,25 @@ return [
 
         $t->same([true], $cells['needs_ocr']);
         $t->same([40.0, 40.0, 100.0, 60.0], $cells['table_cells'][0][0]['bbox']);
+    },
+    'drops zero-area supplied detector cells before OCR like tabled get_cells' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $cells = $recognizer->getCells(
+            [[20.0, 20.0, 220.0, 120.0]],
+            [['width' => 1200, 'height' => 1600]],
+            [null],
+            [
+                [
+                    ['bbox' => [40.0, 40.0, 40.0, 60.0], 'text' => null],
+                    ['bbox' => [50.0, 72.0, 130.0, 72.0], 'text' => null],
+                    ['bbox' => [60.0, 80.0, 140.0, 105.0], 'text' => null],
+                ],
+            ]
+        );
+
+        $t->same([true], $cells['needs_ocr']);
+        $t->same(1, count($cells['table_cells'][0]));
+        $t->same([60.0, 80.0, 140.0, 105.0], $cells['table_cells'][0][0]['bbox']);
     },
     'assigns recognized table cells to rows and columns then formats markdown' => static function (TestRunner $t) use ($tableResult): void {
         $recognizer = new TableRecognizer();

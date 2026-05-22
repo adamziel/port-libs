@@ -79,11 +79,7 @@ final class TableFormatter
             $pageBbox = $this->bbox($page['bbox'] ?? null) ?? [0.0, 0.0, 0.0, 0.0];
             $imageSize = $this->resolveRenderedImageSize($pageBbox, $renderedImageSizes[$pageIndex] ?? null, $tableDpi);
             $layoutImageBbox = $this->layoutImageBbox($page) ?? $pageBbox;
-            $tableBoxes = $this->mergeTables($this->rawTableBoxes($page));
-            $tableBoxes = array_values(array_filter(
-                $tableBoxes,
-                static fn (array $bbox): bool => ($bbox[3] - $bbox[1]) > 10.0 && ($bbox[2] - $bbox[0]) > 10.0
-            ));
+            $tableBoxes = $this->tableBboxes($page);
 
             if ($tableBoxes === []) {
                 $tableCounts[] = 0;
@@ -292,6 +288,18 @@ final class TableFormatter
     }
 
     /**
+     * @param array<string, mixed> $page
+     * @return list<list<float>>
+     */
+    private function tableBboxes(array $page): array
+    {
+        return array_values(array_filter(
+            $this->mergeTables($this->rawTableBoxes($page)),
+            static fn (array $bbox): bool => ($bbox[3] - $bbox[1]) > 10.0 && ($bbox[2] - $bbox[0]) > 10.0
+        ));
+    }
+
+    /**
      * Mirrors tabled.inference.detection::merge_tables for Marker's table boundary.
      *
      * @param list<list<float>> $pageTableBoxes
@@ -411,28 +419,12 @@ final class TableFormatter
      */
     private function tableRegions(array $page): array
     {
-        $boxes = [];
         $layout = $page['layout'] ?? [];
-        if (is_array($layout) && isset($layout['bboxes']) && is_array($layout['bboxes'])) {
-            $boxes = $layout['bboxes'];
-        } elseif (isset($page['layout_boxes']) && is_array($page['layout_boxes'])) {
-            $boxes = $page['layout_boxes'];
-        }
-
         $layoutImageBbox = is_array($layout) ? $this->bbox($layout['image_bbox'] ?? null) : null;
         $pageBbox = $this->bbox($page['bbox'] ?? null);
         $regions = [];
 
-        foreach ($boxes as $box) {
-            if (!is_array($box) || ($box['label'] ?? '') !== 'Table') {
-                continue;
-            }
-
-            $bbox = $this->bbox($box['bbox'] ?? null);
-            if ($bbox === null) {
-                continue;
-            }
-
+        foreach ($this->tableBboxes($page) as $bbox) {
             $regions[] = [
                 'bbox' => $bbox,
                 'page_bbox' => $layoutImageBbox !== null && $pageBbox !== null

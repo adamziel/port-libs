@@ -184,6 +184,49 @@ return [
         $t->same('Table', $blocks[1]['lines'][0]['spans'][0]['font']);
         $t->same($markdown, $blocks[1]['lines'][0]['spans'][0]['text']);
     },
+    'formats merged adjacent table layout boxes as one recognized table' => static function (TestRunner $t) use ($tableBoxPages, $markdown): void {
+        $page = $tableBoxPages()[0];
+        $page['blocks'] = [
+            [
+                'type' => 'Text',
+                'bbox' => [30.0, 20.0, 260.0, 40.0],
+                'lines' => [
+                    ['text' => 'Adjacent fragments follow.', 'bbox' => [30.0, 24.0, 250.0, 36.0]],
+                ],
+            ],
+            [
+                'type' => 'Table',
+                'bbox' => [50.0, 50.0, 105.0, 100.0],
+                'lines' => [
+                    ['text' => 'Left PDF fragment', 'bbox' => [52.0, 55.0, 104.0, 70.0]],
+                ],
+            ],
+            [
+                'type' => 'Table',
+                'bbox' => [104.5, 50.0, 160.0, 100.0],
+                'lines' => [
+                    ['text' => 'Right PDF fragment', 'bbox' => [106.0, 55.0, 158.0, 70.0]],
+                ],
+            ],
+            [
+                'type' => 'Caption',
+                'bbox' => [50.0, 120.0, 260.0, 140.0],
+                'lines' => [
+                    ['text' => 'Table 2: Split source table.', 'bbox' => [50.0, 124.0, 240.0, 136.0]],
+                ],
+            ],
+        ];
+
+        $formatted = (new TableFormatter())->formatTables([$page], [$markdown]);
+        $blocks = $formatted['pages'][0]['blocks'];
+
+        $t->same(1, $formatted['table_count']);
+        $t->same(1, $formatted['inserted_tables']);
+        $t->same(['Text', 'Table', 'Caption'], array_column($blocks, 'type'));
+        $t->same([100.0, 100.0, 320.0, 200.0], $blocks[1]['bbox']);
+        $t->same('0_table', $blocks[1]['lines'][0]['spans'][0]['span_id']);
+        $t->same($markdown, $blocks[1]['lines'][0]['spans'][0]['text']);
+    },
     'skips recognized tables without matching table layout blocks like upstream formatter' => static function (TestRunner $t) use ($tablePage): void {
         $page = $tablePage();
         $page['blocks'][1]['type'] = 'Text';

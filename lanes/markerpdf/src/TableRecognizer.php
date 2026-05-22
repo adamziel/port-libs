@@ -77,17 +77,17 @@ final class TableRecognizer
         $needsOcr = [];
 
         for ($idx = 0; $idx < $count; $idx++) {
-            $this->bbox($tableBboxes[$idx]);
-            $this->imageSize($imageSizes[$idx]);
+            $tableBbox = $this->bbox($tableBboxes[$idx]);
+            $imageSize = $this->imageSize($imageSizes[$idx]);
 
             $textLine = $textLines[$idx];
-            $textBlocks = $this->tableBlocksFromTextLine($textLine);
+            $textBlocks = $this->tableBlocksFromTextLine($textLine, $tableBbox, $imageSize);
 
             if ($textLine === null || $detectBoxes || $textBlocks === []) {
                 if (!array_key_exists($idx, $suppliedDetections)) {
                     throw new InvalidArgumentException('Missing supplied detector cells for table index ' . $idx . '.');
                 }
-                $tableCells[] = $this->normalizeCells($suppliedDetections[$idx]);
+                $tableCells[] = $this->normalizePositiveAreaCells($suppliedDetections[$idx]);
                 $needsOcr[] = true;
                 continue;
             }
@@ -270,27 +270,66 @@ final class TableRecognizer
 
     /**
      * @param mixed $textLine
+     * @param list<float> $tableBbox
+     * @param array{width: int, height: int} $imageSize
      * @return list<array<string, mixed>>
      */
-    private function tableBlocksFromTextLine(mixed $textLine): array
+    private function tableBlocksFromTextLine(mixed $textLine, array $tableBbox, array $imageSize): array
     {
         if (!is_array($textLine)) {
             return [];
         }
 
         if (isset($textLine['table_blocks']) && is_array($textLine['table_blocks'])) {
-            return array_values(array_filter($textLine['table_blocks'], static fn (mixed $block): bool => is_array($block)));
+            return $this->filterTextBlocksToTable(
+                array_values(array_filter($textLine['table_blocks'], static fn (mixed $block): bool => is_array($block))),
+                $tableBbox,
+                $imageSize
+            );
         }
         if (isset($textLine['blocks']) && is_array($textLine['blocks'])) {
-            return array_values(array_filter($textLine['blocks'], static fn (mixed $block): bool => is_array($block)));
+            return $this->filterTextBlocksToTable(
+                array_values(array_filter($textLine['blocks'], static fn (mixed $block): bool => is_array($block))),
+                $tableBbox,
+                $imageSize
+            );
         }
 
         $isList = array_is_list($textLine);
         if ($isList) {
-            return array_values(array_filter($textLine, static fn (mixed $block): bool => is_array($block)));
+            return $this->filterTextBlocksToTable(
+                array_values(array_filter($textLine, static fn (mixed $block): bool => is_array($block))),
+                $tableBbox,
+                $imageSize
+            );
         }
 
         return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @param list<float> $tableBbox
+     * @param array{width: int, height: int} $imageSize
+     * @return list<array<string, mixed>>
+     */
+    private function filterTextBlocksToTable(array $blocks, array $tableBbox, array $imageSize): array
+    {
+        $tableBbox = [
+            max(0.0, min((float) $imageSize['width'], $tableBbox[0])),
+            max(0.0, min((float) $imageSize['height'], $tableBbox[1])),
+            max(0.0, min((float) $imageSize['width'], $tableBbox[2])),
+            max(0.0, min((float) $imageSize['height'], $tableBbox[3])),
+        ];
+
+        $filtered = [];
+        foreach ($this->normalizeCells($blocks) as $block) {
+            if ($this->hasPositiveIntersection($block['bbox'], $tableBbox)) {
+                $filtered[] = $block;
+            }
+        }
+
+        return $filtered;
     }
 
     /**
@@ -311,6 +350,18 @@ final class TableRecognizer
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return list<array<string, mixed>>
+     */
+    private function normalizePositiveAreaCells(array $cells): array
+    {
+        return array_values(array_filter(
+            $this->normalizeCells($cells),
+            fn (array $cell): bool => $this->area($cell['bbox']) > 0.0
+        ));
     }
 
     /**
@@ -1151,6 +1202,20 @@ final class TableRecognizer
         }
 
         return (($xRight - $xLeft) * ($yBottom - $yTop)) / $area;
+    }
+
+    /**
+     * @param list<float> $left
+     * @param list<float> $right
+     */
+    private function hasPositiveIntersection(array $left, array $right): bool
+    {
+        $xLeft = max($left[0], $right[0]);
+        $yTop = max($left[1], $right[1]);
+        $xRight = min($left[2], $right[2]);
+        $yBottom = min($left[3], $right[3]);
+
+        return $xRight > $xLeft && $yBottom > $yTop;
     }
 
     /**
