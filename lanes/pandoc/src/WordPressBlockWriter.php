@@ -537,6 +537,7 @@ final class WordPressBlockWriter
             'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
+            'softbreak' => "\n",
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
             'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',

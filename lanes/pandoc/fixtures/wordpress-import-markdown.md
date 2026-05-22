@@ -108,6 +108,21 @@ Legacy source totals:
 
   : Legacy simple-table summary.
 
+Wrapped review summary:
+
+  ---------------------------------------------------------------
+   Section    Owner             Count Review note
+    Name      Team              Value
+  ----------- ---------- ------------ ---------------------------
+   Posts      Editorial          42.0 Needs reviewer approval
+                                      before publish.
+
+   Media      Library             7.0 Check alt text before
+                                      attachment import.
+  ---------------------------------------------------------------
+
+  : Wrapped legacy review summary.
+
 <!-- Preserve migration audit marker -->
 
 <hr class="legacy-import-divider" />

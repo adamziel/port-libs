@@ -1117,6 +1117,84 @@ return [
         $t->same('123', $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same('1', $table->children[1]->children[2]->children[2]->attr('text'));
     },
+    'maps upstream tables multiline syntax with wrapped rows captions and widths' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Multiline table with caption:',
+            '',
+            '  ---------------------------------------------------------------',
+            '   Centered   Left              Right Default aligned',
+            '    Header    Aligned         Aligned ',
+            '  ----------- ---------- ------------ ---------------------------',
+            '     First    row                12.0 Example of a row that spans',
+            '                                      multiple lines.',
+            '',
+            '    Second    row                 5.0 Here\'s another one. Note',
+            '                                      the blank line between',
+            '                                      rows.',
+            '  ---------------------------------------------------------------',
+            '',
+            '  : Here\'s the caption.',
+            '    It may span multiple lines.',
+            '',
+            'Multiline table without caption:',
+            '',
+            '  ---------------------------------------------------------------',
+            '   Centered   Left              Right Default aligned',
+            '    Header    Aligned         Aligned ',
+            '  ----------- ---------- ------------ ---------------------------',
+            '     First    row                12.0 Example of a row that spans',
+            '                                      multiple lines.',
+            '',
+            '    Second    row                 5.0 Here\'s another one. Note',
+            '                                      the blank line between',
+            '                                      rows.',
+            '  ---------------------------------------------------------------',
+        ]));
+        $captioned = $document->children[1];
+        $withoutCaption = $document->children[3];
+        $head = $captioned->children[0]->children[0];
+        $body = $captioned->children[1];
+        $wrappedCell = $body->children[0]->children[3];
+
+        $t->same('table', $captioned->type);
+        $t->same("Here's the caption.\nIt may span multiple lines.", $captioned->attr('caption'));
+        $t->same(['center', 'left', 'right', 'left'], $captioned->attr('alignments'));
+        $t->same([0.15, 0.1375, 0.1625, 0.35], $captioned->attr('widths'));
+        $t->same("Centered\nHeader", $head->children[0]->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn ($node): string => $node->type, $head->children[0]->children));
+        $t->same('Default aligned', $head->children[3]->attr('text'));
+        $t->same(2, count($body->children));
+        $t->same("Example of a row that spans\nmultiple lines.", $wrappedCell->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn ($node): string => $node->type, $wrappedCell->children));
+        $t->same("Here's another one. Note\nthe blank line between\nrows.", $body->children[1]->children[3]->attr('text'));
+        $t->same('table', $withoutCaption->type);
+        $t->same('', $withoutCaption->attr('caption'));
+        $t->same(['center', 'left', 'right', 'left'], $withoutCaption->attr('alignments'));
+    },
+    'maps upstream tables multiline syntax without column headers' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Multiline table without column headers:',
+            '',
+            '  ----------- ---------- ------------ ---------------------------',
+            '     First    row                12.0 Example of a row that spans',
+            '                                      multiple lines.',
+            '',
+            '    Second    row                 5.0 Here\'s another one. Note',
+            '                                      the blank line between',
+            '                                      rows.',
+            '  ----------- ---------- ------------ ---------------------------',
+        ]));
+        $table = $document->children[1];
+
+        $t->same('table', $table->type);
+        $t->same([], $table->children[0]->children);
+        $t->same(['center', 'left', 'right', 'default'], $table->attr('alignments'));
+        $t->same([0.15, 0.1375, 0.1625, 0.35], $table->attr('widths'));
+        $t->same(2, count($table->children[1]->children));
+        $t->same('First', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same("Example of a row that spans\nmultiple lines.", $table->children[1]->children[0]->children[3]->attr('text'));
+        $t->same("Here's another one. Note\nthe blank line between\nrows.", $table->children[1]->children[1]->children[3]->attr('text'));
+    },
     'maps upstream pipe tables with captions alignments and body rows' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'Simple table with caption:',
@@ -1409,6 +1487,15 @@ return [
         $t->contains('<th style="text-align:right">Field</th><th>Count</th><th style="text-align:right">Status</th>', $blocks);
         $t->contains('<td style="text-align:right">Posts</td><td>42</td><td style="text-align:right">Ready</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Legacy simple-table summary.</figcaption>', $blocks);
+    },
+    'writes wordpress multiline simple table blocks for wrapped review notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<colgroup><col style="width:15%"/><col style="width:13.75%"/><col style="width:16.25%"/><col style="width:35%"/></colgroup>', $blocks);
+        $t->contains("<th style=\"text-align:center\">Section\nName</th><th style=\"text-align:left\">Owner\nTeam</th>", $blocks);
+        $t->contains("<td style=\"text-align:left\">Needs reviewer approval\nbefore publish.</td>", $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Wrapped legacy review summary.</figcaption>', $blocks);
     },
     'writes wordpress underscore and nested emphasis from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
