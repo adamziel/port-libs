@@ -68,6 +68,8 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/simple_1.scss` / `sample_files/simple_2.scss`: copied locally and mapped through SCSS mixin selector/header matching plus nested declaration alignment. The changed mixin default argument, nested `border`, `font-size`, `.primary` border, and `.disabled` opacity edits are reported without replacing the whole `@mixin buttons(...)` body.
 - `sample_files/html_1.html` / `sample_files/html_2.html`: targeted CSS excerpts from the upstream `<style>` blocks are copied locally as `upstream-html-style-media-*.css` and mapped through nested CSS at-rule matching. The stable `@media (max-width: 700px)` child rule stays matched while surrounding style rules change.
 - `sample_files/html_1.html` / `sample_files/html_2.html`: the full upstream HTML pair is now copied locally and mapped through the upstream `src/parse/tree_sitter_parser.rs` `style_element` sub-language rule. HTML mode extracts `<style>` raw text, parses it as CSS, and reports selector/declaration changes under `$html.style.css[...]` paths while keeping the stable nested `@media` rule matched.
+- `sample_files/html_1.html` / `sample_files/html_2.html`: the same full upstream HTML pair now maps the adjacent upstream `script_element` sub-language rule. HTML mode extracts `<script>` raw text, parses focused JavaScript call arguments, and reports the `alert('welcome!')` to `alert("goodbye!")` change under `$html.script.js.call["alert"][0]`.
+- `sample_files/html_1.html` / `sample_files/html_2.html`: HTML root-list comparison now strips raw `<style>` and `<script>` bodies before generic tag/list diffing. CSS and JavaScript body changes are still reported through `$html.style.css[...]` and `$html.script.js.call[...]`, but no longer appear a second time as root `$[...]` list churn.
 - Nested CSS `@media` / `@supports` containers now recurse into direct child rules. This is a native behavior slice against the same tree-shaped at-rule semantics exercised by the upstream HTML style sample, while keeping SCSS mixin bodies on the existing declaration-aware path so direct declarations are still reported.
 
 ## JSON Display Slice
@@ -86,18 +88,18 @@ Mapped native behavior:
 - YAML block scalar atoms that do not share enough words now fall back to per-line string spans instead of generic token highlighting, mapping upstream `trailling_newline_*.yaml`.
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 
-The focused PHP lane test now passes 58 tests and 263 assertions, including the mapped upstream XML sample, CSS sample, upstream tailwind CSS sample, upstream simple SCSS sample, upstream HTML style `@media` CSS extraction, full upstream HTML style sub-language sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, inline HTML style sub-language, block allow-list array syntax, block-style CSS, block-editor SCSS, nested at-rule CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
+The focused PHP lane test now passes 61 tests and 274 assertions, including the mapped upstream XML sample, CSS sample, upstream tailwind CSS sample, upstream simple SCSS sample, upstream HTML style `@media` CSS extraction, full upstream HTML style sub-language sample, full upstream HTML script sub-language sample, full upstream HTML raw-text de-duplication sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, inline HTML style sub-language, inline HTML script sub-language, block allow-list array syntax, block-style CSS, block-editor SCSS, nested at-rule CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
 
-The required root test runner was run after this HTML style sub-language slice:
+The required root test runner was run after this HTML raw-text de-duplication slice:
 
 ```text
 php tools/run-tests.php
 ```
 
-The exact required root test run after the HTML style sub-language slice is green:
+The exact required root test run after the HTML raw-text de-duplication slice is green:
 
 ```text
-108 test files, 7,734 assertions, 0 failures
+111 test files, 8,178 assertions, 0 failures
 ```
 
-The difftastic-focused test file remains green with 58 tests, 263 assertions, and 0 failures via a direct `TestRunner` invocation.
+The difftastic-focused test file remains green with 61 tests, 274 assertions, and 0 failures via a direct `TestRunner` invocation.

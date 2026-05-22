@@ -291,8 +291,10 @@ final class TokenDiffer
     public function diffSyntaxLists(string $old, string $new, array $options = []): array
     {
         $delimiterPairs = $this->delimiterPairs($options);
-        $oldRoot = $this->parseTokenTree($this->tokensForDiff($old, $options), $delimiterPairs);
-        $newRoot = $this->parseTokenTree($this->tokensForDiff($new, $options), $delimiterPairs);
+        $oldForRoot = $this->isHtmlLanguage($options) ? $this->stripHtmlRawBlockBodies($old) : $old;
+        $newForRoot = $this->isHtmlLanguage($options) ? $this->stripHtmlRawBlockBodies($new) : $new;
+        $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldForRoot, $options), $delimiterPairs);
+        $newRoot = $this->parseTokenTree($this->tokensForDiff($newForRoot, $options), $delimiterPairs);
         $changes = [];
 
         $oldLists = $this->directLists($oldRoot['children']);
@@ -301,6 +303,7 @@ final class TokenDiffer
             $this->diffRootListNodes($oldLists, $newLists, $options, $changes);
             if ($this->isHtmlLanguage($options)) {
                 $this->diffHtmlStyleSubLanguage($old, $new, $changes);
+                $this->diffHtmlScriptSubLanguage($old, $new, $changes);
             }
 
             return $changes;
@@ -1150,6 +1153,200 @@ final class TokenDiffer
         $this->diffCssRules($oldRoot['children'], $newRoot['children'], $cssOptions, $changes, '$html.style.css');
     }
 
+    /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffHtmlScriptSubLanguage(string $old, string $new, array &$changes): void
+    {
+        $oldScript = $this->htmlRawBlockContent($old, 'script');
+        $newScript = $this->htmlRawBlockContent($new, 'script');
+        if ($oldScript === '' && $newScript === '') {
+            return;
+        }
+
+        $jsOptions = ['language' => 'javascript'];
+        $delimiterPairs = $this->delimiterPairs($jsOptions);
+        $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldScript, $jsOptions), $delimiterPairs);
+        $newRoot = $this->parseTokenTree($this->tokensForDiff($newScript, $jsOptions), $delimiterPairs);
+
+        $this->diffJavaScriptCalls($oldRoot['children'], $newRoot['children'], $jsOptions, $changes, '$html.script.js');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffJavaScriptCalls(array $oldNodes, array $newNodes, array $options, array &$changes, string $basePath): void
+    {
+        $newCalls = $this->javaScriptCalls($newNodes);
+        $newBySignature = [];
+        foreach ($newCalls as $index => $call) {
+            $newBySignature[$call['signature']][] = $index;
+        }
+
+        $matchedNewIndexes = [];
+        foreach ($this->javaScriptCalls($oldNodes) as $oldCall) {
+            $matchIndex = null;
+            foreach ($newBySignature[$oldCall['signature']] ?? [] as $candidateIndex) {
+                if (($matchedNewIndexes[$candidateIndex] ?? false) === false) {
+                    $matchIndex = $candidateIndex;
+                    break;
+                }
+            }
+
+            $path = $this->javaScriptCallPath($oldCall['callee'], $basePath);
+            if ($matchIndex === null) {
+                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldCall['text']];
+                continue;
+            }
+
+            $matchedNewIndexes[$matchIndex] = true;
+            $newCall = $newCalls[$matchIndex];
+            if ($this->nodeText($oldCall['list']) !== $this->nodeText($newCall['list'])) {
+                $this->diffJavaScriptCallArguments($oldCall['list'], $newCall['list'], $path, $options, $changes);
+            }
+        }
+
+        foreach ($newCalls as $index => $call) {
+            if (($matchedNewIndexes[$index] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '+',
+                'path' => $this->javaScriptCallPath($call['callee'], $basePath),
+                'text' => $call['text'],
+            ];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $oldList
+     * @param array<string, mixed> $newList
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffJavaScriptCallArguments(array $oldList, array $newList, string $path, array $options, array &$changes): void
+    {
+        $oldItems = $this->listItems($oldList, $options);
+        $newItems = $this->listItems($newList, $options);
+        $pairs = min(count($oldItems), count($newItems));
+
+        for ($index = 0; $index < $pairs; $index++) {
+            $oldText = $this->itemText($oldItems[$index]);
+            $newText = $this->itemText($newItems[$index]);
+            if ($oldText === $newText) {
+                continue;
+            }
+
+            $nestedOld = $this->directLists($oldItems[$index]);
+            $nestedNew = $this->directLists($newItems[$index]);
+            if ($nestedOld !== [] || $nestedNew !== []) {
+                $this->diffNestedLists($nestedOld, $nestedNew, $path . '[' . $index . ']', $options, $changes);
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '~',
+                'path' => $path . '[' . $index . ']',
+                'old' => $oldText,
+                'new' => $newText,
+            ];
+        }
+
+        for ($index = $pairs; $index < count($oldItems); $index++) {
+            $changes[] = ['op' => '-', 'path' => $path . '[' . $index . ']', 'text' => $this->itemText($oldItems[$index])];
+        }
+        for ($index = $pairs; $index < count($newItems); $index++) {
+            $changes[] = ['op' => '+', 'path' => $path . '[' . $index . ']', 'text' => $this->itemText($newItems[$index])];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array{callee:string, signature:string, list:array<string, mixed>, text:string}>
+     */
+    private function javaScriptCalls(array $nodes): array
+    {
+        $calls = [];
+        $this->collectJavaScriptCalls($nodes, $calls);
+
+        return $calls;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param list<array{callee:string, signature:string, list:array<string, mixed>, text:string}> $calls
+     */
+    private function collectJavaScriptCalls(array $nodes, array &$calls): void
+    {
+        $calleeParts = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                if ($this->isJavaScriptCalleeToken($node['token'])) {
+                    $calleeParts[] = $node['token']->text;
+                    continue;
+                }
+
+                $calleeParts = [];
+                continue;
+            }
+
+            if (($node['type'] ?? '') !== 'list') {
+                $calleeParts = [];
+                continue;
+            }
+
+            if (($node['open'] ?? '') === '(') {
+                $callee = $this->normalizeJavaScriptCallee($calleeParts);
+                if ($callee !== null) {
+                    $calls[] = [
+                        'callee' => $callee,
+                        'signature' => 'js-call:' . $callee,
+                        'list' => $node,
+                        'text' => $callee . $this->nodeText($node),
+                    ];
+                }
+            }
+
+            $this->collectJavaScriptCalls($node['children'] ?? [], $calls);
+            $calleeParts = [];
+        }
+    }
+
+    private function isJavaScriptCalleeToken(Token $token): bool
+    {
+        return $token->kind === 'identifier' || in_array($token->text, ['.', '$'], true);
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function normalizeJavaScriptCallee(array $parts): ?string
+    {
+        if ($parts === []) {
+            return null;
+        }
+
+        $callee = trim(implode('', $parts), '.');
+        if ($callee === '' || preg_match('/[A-Za-z_$]/', $callee) !== 1) {
+            return null;
+        }
+
+        if (in_array($callee, ['catch', 'for', 'function', 'if', 'return', 'switch', 'while'], true)) {
+            return null;
+        }
+
+        return $callee;
+    }
+
+    private function javaScriptCallPath(string $callee, string $basePath): string
+    {
+        return $basePath . '.call[' . json_encode($callee, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
     private function htmlRawBlockContent(string $source, string $tagName): string
     {
         $quotedTag = preg_quote($tagName, '/');
@@ -1159,6 +1356,15 @@ final class TokenDiffer
         }
 
         return implode("\n", array_map(static fn (string $body): string => trim($body), $matches['body']));
+    }
+
+    private function stripHtmlRawBlockBodies(string $source): string
+    {
+        return (string) preg_replace_callback(
+            '/(?<open><(?<tag>style|script)\b[^>]*>)(?<body>[\s\S]*?)(?<close><\/\k<tag>\s*>)/i',
+            static fn (array $match): string => $match['open'] . $match['close'],
+            $source,
+        );
     }
 
     /**
@@ -1716,6 +1922,14 @@ final class TokenDiffer
     /**
      * @param array{language?: string} $options
      */
+    private function isJavaScriptLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
     private function isHtmlLanguage(array $options): bool
     {
         return strtolower((string) ($options['language'] ?? '')) === 'html';
@@ -1780,6 +1994,12 @@ final class TokenDiffer
             $jsonPropertyKey = $this->jsonPropertyKeySignature($item);
             if ($jsonPropertyKey !== null) {
                 return $jsonPropertyKey;
+            }
+        }
+        if ($this->isJavaScriptLanguage($options)) {
+            $javaScriptProperty = $this->javaScriptPropertySignature($item);
+            if ($javaScriptProperty !== null) {
+                return $javaScriptProperty;
             }
         }
         if ($this->isCssLanguage($options)) {
@@ -1857,6 +2077,31 @@ final class TokenDiffer
             }
 
             return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $item
+     */
+    private function javaScriptPropertySignature(array $item): ?string
+    {
+        $property = '';
+        foreach ($item as $node) {
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                return null;
+            }
+
+            $text = $node['token']->text;
+            if ($text === ':') {
+                return $property === '' ? null : 'js-prop:' . $property;
+            }
+            if ($text === ';' || $text === '=') {
+                return null;
+            }
+
+            $property .= $text;
         }
 
         return null;

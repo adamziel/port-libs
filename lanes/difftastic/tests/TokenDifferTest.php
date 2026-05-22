@@ -166,6 +166,42 @@ return [
         $t->contains('+ $html.style.css["#main"] #main{width:600px;', $encoded);
         $t->true(!str_contains($encoded, '$html.style.css["@media"]'), 'Stable CSS @media rules inside upstream HTML style blocks should stay matched as a sublanguage.');
     },
+    'maps upstream html sample script blocks as javascript sublanguage changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-1.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-2.html');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'html']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $html.script.js.call["alert"][0] \'welcome!\' "goodbye!"', $encoded);
+    },
+    'maps upstream html raw text only through css and javascript sublanguages' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-1.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-2.html');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'html']);
+        $rawBodyChanges = array_values(array_filter($changes, static function (array $change): bool {
+            if (!str_starts_with($change['path'], '$[')) {
+                return false;
+            }
+
+            $text = ($change['text'] ?? '') . ' ' . ($change['old'] ?? '') . ' ' . ($change['new'] ?? '');
+
+            return str_contains($text, 'background-color:#f0f0f2')
+                || str_contains($text, 'background-color:#fdfdff')
+                || str_contains($text, "('welcome!')")
+                || str_contains($text, '("goodbye!")');
+        }));
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->same([], $rawBodyChanges, 'HTML raw text bodies should not duplicate CSS/JavaScript sub-language diffs as root HTML list churn.');
+        $t->contains('~ $html.style.css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
+        $t->contains('~ $html.script.js.call["alert"][0] \'welcome!\' "goodbye!"', $encoded);
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -550,6 +586,35 @@ return [
         $t->contains('gap:1.5rem;', $html);
         $t->contains('wp-block-query-title', $html);
         $t->true(!str_contains($html, 'data-path="$html.style.css[&quot;@media&quot;][&quot;.wp-block-image&quot;]'), 'Reordered stable CSS inside inline HTML style blocks should stay matched at the CSS sublanguage path.');
+    },
+    'wordpress inline html script diff reports javascript sublanguage changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-interactivity-script-before.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-interactivity-script-after.html');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'html']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'html',
+            'title' => 'Interactivity script sub-language diff',
+        ]);
+        $rawScriptChanges = array_values(array_filter($changes, static function (array $change): bool {
+            if (!str_starts_with($change['path'], '$[')) {
+                return false;
+            }
+
+            $text = ($change['text'] ?? '') . ' ' . ($change['old'] ?? '') . ' ' . ($change['new'] ?? '');
+
+            return str_contains($text, "label:'Show details'")
+                || str_contains($text, "label:'Read details'")
+                || str_contains($text, 'expanded:false')
+                || str_contains($text, 'expanded:true');
+        }));
+
+        $t->contains('Interactivity script sub-language diff', $html);
+        $t->contains('data-path="$html.script.js.call[&quot;wp.interactivity.store&quot;][1]/{0}[0]/{0}[0]"', $html);
+        $t->contains('label:&#039;Show details&#039;', $html);
+        $t->contains('label:&#039;Read details&#039;', $html);
+        $t->contains('expanded:false', $html);
+        $t->contains('expanded:true', $html);
+        $t->same([], $rawScriptChanges, 'WordPress inline script raw body changes should only appear under the JavaScript sub-language path.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');

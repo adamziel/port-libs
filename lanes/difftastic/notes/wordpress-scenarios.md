@@ -58,6 +58,10 @@ The upstream HTML style sample now contributes a targeted CSS `@media` extractio
 
 HTML mode now maps the upstream `style_element` sub-language rule from `src/parse/tree_sitter_parser.rs` by extracting `<style>` raw text and parsing it with the native CSS rule matcher. The inline block-template style fixture applies this to saved block markup that carries embedded CSS: color/padding/gap changes are rendered under `$html.style.css[...]` paths, an added query-title rule is shown as a CSS insertion, and reordered stable image rules remain matched at the CSS sub-language layer.
 
+HTML mode now also maps the upstream `script_element` sub-language rule from `src/parse/tree_sitter_parser.rs` by extracting `<script>` raw text and parsing focused JavaScript call arguments. The WordPress Interactivity-style fixture applies this to inline block state bootstrapping: `wp.interactivity.store(...)` state property changes render under `$html.script.js.call[...]` paths, so review UIs can show changed labels and booleans without relying only on raw HTML script text.
+
+HTML root-list comparison now strips `<style>` and `<script>` raw bodies before generic tag/list diffing. The same WordPress Interactivity-style fixture asserts changed state labels and booleans appear under the JavaScript sub-language path without duplicate root `$[...]` raw script churn in the rendered review data.
+
 Run:
 
 ```sh
@@ -66,6 +70,7 @@ php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
+php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-scss-diff.php
 php lanes/difftastic/examples/wordpress-nested-at-rule-css-diff.php
@@ -84,4 +89,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map upstream HTML `<script>` raw-text sub-language behavior to JavaScript syntax-list changes, or map another PHP/Hack body sample beyond return types.
+Map another JavaScript body/statement sample beyond call arguments, such as upstream `javascript_simple_*.js`, or broaden HTML raw-text handling to multiple style/script blocks with attributes.
