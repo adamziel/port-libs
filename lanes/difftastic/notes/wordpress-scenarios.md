@@ -6,6 +6,8 @@ Readable diffs for blocks, render callbacks, templates, theme.json, code snippet
 
 Native token-level differ that avoids raw line-only comparison, classifies comments separately, carries delimiter open/close anchors, filters comments on request, normalizes trailing commas before closing delimiters, reports recursive changes inside bracketed syntax lists, applies upstream-style word/subword splitting for punctuation, Unicode words, and number boundaries, and renders escaped HTML for token, word/subword, and syntax-list changes.
 
+Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
+
 HTML mode adds upstream-style angle-bracket delimiters without changing default code tokenization, where `<` and `>` remain punctuation/operators. This lets block markup and saved post content diffs report tag-list changes such as class mutations, inserted `id` attributes, and newly inserted inline tags while still escaping the rendered review HTML.
 
 JSON mode aligns object items by their string property key before comparing values. This maps the upstream `sample_files/json_*.json` pair and keeps WordPress `block.json`/`theme.json` metadata reviews focused on changed values and nested arrays instead of whole-object churn.
@@ -45,4 +47,4 @@ php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 
 ## Next Task
 
-Map the larger upstream slider_*.rs sample or another focused sample_files display pair without hydrating the full runner.
+Map another focused upstream sample_files display pair such as `change_outer_*.el`, `outer_delimiter_*.el`, or `html_*.html` without hydrating the full runner.

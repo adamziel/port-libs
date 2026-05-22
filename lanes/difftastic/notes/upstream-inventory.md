@@ -50,6 +50,7 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/html_simple_1.html` / `sample_files/html_simple_2.html`: copied locally and mapped through HTML-mode angle delimiters so tag attribute changes and inserted tags are reported as syntax-list changes.
 - `sample_files/json_1.json` / `sample_files/json_2.json`: copied locally and mapped through JSON object-key item alignment. The retained `"foo"` property is diffed inside its array value (`1` deleted and `5` inserted), while renamed/new keys (`"bar"`, `"zab"`, `"woo"`) remain property-level changes.
 - `sample_files/slider_at_end_1.json` / `sample_files/slider_at_end_2.json`: copied locally and mapped through JSON list-item alignment so repeated stable items remain matched while intervening `"novel-*"` entries are reported as focused deletions.
+- `sample_files/slider_1.rs` / `sample_files/slider_2.rs`: inspected as the larger upstream slider pair, with a targeted local excerpt around the inserted `container_sequence_header` method, extracted `context` setup, and added `codec_data` field. Rust mode now splits block items on method boundaries and semicolon-terminated statements so retained methods/statements stay matched while the inserted setup is reported as focused additions.
 - `sample_files/nested_slider_1.rs` / `sample_files/nested_slider_2.rs`: copied locally and mapped through nested slider wrapper correction from `src/diff/sliders.rs`. The retained inner `x` expression is kept stable while inserted wrappers are reported as `ifpad_last{...}` and `bar(...)`.
 - `sample_files/nested_slider_1.el` / `sample_files/nested_slider_2.el`: copied locally and mapped through the Lisp-family opposite nested-slider preference from `src/diff/sliders.rs`. The deleted outer `-when-let(...)` wrapper is reported separately while the retained `setq` form is diffed inside it.
 
@@ -66,7 +67,7 @@ Mapped native behavior:
 - Token changes carry `start`, `end`, `content`, and `highlight` fields; native highlights currently map delimiter/string/comment tokens and default other atom kinds to `normal`.
 - Directory JSON output is represented as an array of file objects and can skip unchanged files, matching upstream `print_directory`.
 
-The focused PHP lane test now passes 29 tests and 126 assertions, including the mapped upstream nested slider Rust sample, nested slider Emacs Lisp sample, and WordPress template-wrapper scenario.
+The focused PHP lane test now passes 30 tests and 133 assertions, including the mapped upstream nested slider Rust sample, nested slider Emacs Lisp sample, targeted slider Rust excerpt, and WordPress template-wrapper scenario.
 
 The required root test runner was attempted after this slice:
 
@@ -74,4 +75,4 @@ The required root test runner was attempted after this slice:
 php tools/run-tests.php
 ```
 
-It now passes: 68 test files, 3800 assertions, and 0 failures. The difftastic-focused test file remains green.
+It passed before the final status stamp with 72 test files, 4018 assertions, and 0 failures. A later post-commit run in the shared dirty worktree now reports 73 test files, 4068 assertions, and 2 failures outside this lane: one Dolt ignore-summary assertion and one esbuild TypeScript enum validation expectation. The difftastic-focused test file remains green.

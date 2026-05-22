@@ -134,6 +134,23 @@ return [
         $t->contains('+ $[0][0]/(1)[0]/(1)[0]/(0)[0]/wrap1[0]/(0)[0] project-rootproject', $encoded);
         $t->true(!str_contains($encoded, '-when-let(roots(project-rootsproject))(setqroot(carroots))'), 'Outer wrapper deletion should not swallow the retained setq form.');
     },
+    'maps upstream slider rust sample excerpt with method and statement sliders' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-methods-1.rs');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-methods-2.rs');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'rust']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $[0][0] fncontainer_sequence_header', $encoded);
+        $t->true(!str_contains($encoded, 'fncontainer_sequence_header(&self)->Vec<u8>{matchself{Context::Eight(refcontext)=>context.container_sequence_header(),Context::Sixteen(refcontext)=>context.container_sequence_header()}}fnreceive_packet'), 'Inserted method should not swallow the retained receive_packet method.');
+        $t->contains('+ $[1][1]/{0}[2] letcontext=ifvideo_info', $encoded);
+        $t->contains('+ $[1][1]/{0}[3] letcontainer_sequence_header=', $encoded);
+        $t->contains('- $[1][1]/{0}[2]/(2)[0]/{0}[0] context:ifvideo_info', $encoded);
+        $t->contains('+ $[1][1]/{0}[2]/(2)[0]/{0}[0] context', $encoded);
+        $t->contains('+ $[1][1]/{0}[3]/(0)[0]/(3)[0] "codec_data"', $encoded);
+    },
     'splits words like upstream words rs' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
 

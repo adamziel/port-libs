@@ -473,8 +473,8 @@ final class TokenDiffer
             return;
         }
 
-        $oldItems = $this->listItems($old);
-        $newItems = $this->listItems($new);
+        $oldItems = $this->listItems($old, $options);
+        $newItems = $this->listItems($new, $options);
         $oldSignatures = array_map(fn (array $item): string => $this->itemSignature($item, $options), $oldItems);
         $newSignatures = array_map(fn (array $item): string => $this->itemSignature($item, $options), $newItems);
         $table = $this->lcsTable($oldSignatures, $newSignatures);
@@ -608,7 +608,7 @@ final class TokenDiffer
                 continue;
             }
 
-            $items = $this->listItems($node);
+            $items = $this->listItems($node, $options);
             if (count($items) !== 1 || $this->itemLeadSignature($items[0]) !== $innerLead) {
                 $candidateIndex++;
                 continue;
@@ -681,7 +681,7 @@ final class TokenDiffer
                 continue;
             }
 
-            $items = $this->listItems($node);
+            $items = $this->listItems($node, $options);
             if (count($items) === 1 && $this->itemText($items[0]) === $innerText && $this->itemSignature($items[0], $options) === $innerSignature) {
                 return [
                     'op' => $operation,
@@ -755,11 +755,25 @@ final class TokenDiffer
      * @param array<string, mixed> $list
      * @return list<list<array<string, mixed>>>
      */
-    private function listItems(array $list): array
+    private function listItems(array $list, array $options = []): array
     {
         $items = [];
         $current = [];
         foreach ($list['children'] ?? [] as $child) {
+            if ($this->isRustBlockCommentItem($list, $child, $options)) {
+                if ($current !== []) {
+                    $items[] = $current;
+                    $current = [];
+                }
+                $items[] = [$child];
+                continue;
+            }
+
+            if ($this->shouldStartRustItem($list, $current, $child, $options)) {
+                $items[] = $current;
+                $current = [];
+            }
+
             if (($child['type'] ?? '') === 'atom' && $child['token'] instanceof Token && $child['token']->text === ',') {
                 if ($current !== []) {
                     $items[] = $current;
@@ -769,12 +783,87 @@ final class TokenDiffer
             }
 
             $current[] = $child;
+
+            if ($this->isRustStatementSeparator($list, $child, $options)) {
+                $items[] = $current;
+                $current = [];
+            }
         }
         if ($current !== []) {
             $items[] = $current;
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $list
+     * @param array<string, mixed> $child
+     * @param array{language?: string} $options
+     */
+    private function isRustBlockCommentItem(array $list, array $child, array $options): bool
+    {
+        return $this->isRustLanguage($options)
+            && ($list['open'] ?? '') === '{'
+            && ($child['type'] ?? '') === 'atom'
+            && $child['token'] instanceof Token
+            && $child['token']->kind === 'comment';
+    }
+
+    /**
+     * @param array<string, mixed> $list
+     * @param list<array<string, mixed>> $current
+     * @param array<string, mixed> $child
+     * @param array{language?: string} $options
+     */
+    private function shouldStartRustItem(array $list, array $current, array $child, array $options): bool
+    {
+        if (!$this->isRustLanguage($options) || ($list['open'] ?? '') !== '{' || $current === []) {
+            return false;
+        }
+
+        $previous = $current[array_key_last($current)];
+        if (($previous['type'] ?? '') !== 'list' || ($previous['open'] ?? '') !== '{') {
+            return false;
+        }
+
+        $text = $this->firstAtomText($child);
+
+        return in_array($text, ['#', 'async', 'const', 'extern', 'fn', 'impl', 'mod', 'pub', 'static', 'struct', 'type', 'unsafe', 'use'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $list
+     * @param array<string, mixed> $child
+     * @param array{language?: string} $options
+     */
+    private function isRustStatementSeparator(array $list, array $child, array $options): bool
+    {
+        return $this->isRustLanguage($options)
+            && ($list['open'] ?? '') === '{'
+            && ($child['type'] ?? '') === 'atom'
+            && $child['token'] instanceof Token
+            && $child['token']->text === ';';
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function firstAtomText(array $node): string
+    {
+        if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+            return $node['token']->text;
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isRustLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['rs', 'rust'], true);
     }
 
     /**
