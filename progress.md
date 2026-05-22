@@ -36,8 +36,8 @@
 | 6 | pandoc | stopped | cloned inventory plus inline/list slice | 5% | Map a small subset of Pandoc `Tests.Readers.Markdown` golden cases into PHP fixtures, then add nested list item blocks. |
 | 7 | quadrable | stopped | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
 | 8 | syncthing | stopped | cloned static upstream inventory + scanner block parity slice | 4% | Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures. |
-| 9 | difftastic | port-difftastic active | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
-| 10 | rclone | port-rclone active | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
+| 9 | difftastic | stopped | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
+| 10 | rclone | stopped | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
 | 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
 | 12 | esbuild | stopped | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
 
@@ -85,9 +85,9 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: `port-auditor` active; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: `port-difftastic` and `port-rclone` active at audit time.
+- Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: none active after integrating the latest Difftastic and rclone slices.
 
 ## Next Best Step
 
-For difftastic, port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair such as `simple_*.js` or `comma_*.js` into a fixture parity test. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
+Replace the remaining non-deferred esbuild seed manifest with a safe upstream inventory, then continue Difftastic with a small recursive syntax-list diff for bracketed PHP/JS/CSS structures and map one upstream `sample_files` pair such as `simple_*.js` or `comma_*.js` into a fixture parity test. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
