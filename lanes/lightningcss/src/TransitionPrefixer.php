@@ -115,10 +115,13 @@ final class TransitionPrefixer
         $textDecorationChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteTextDecorationPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
+        $textEmphasisChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteTextEmphasisPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -166,6 +169,7 @@ final class TransitionPrefixer
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
             'textDecorationNeedsWebkit' => ($safari !== null && $safari <= 16.0) || ($chrome !== null && $chrome <= 4.0),
             'textDecorationNeedsMoz' => $firefox !== null && $firefox <= 36.0,
+            'textEmphasisNeedsWebkit' => $chrome !== null && $chrome <= 99.0,
         ];
     }
 
@@ -917,6 +921,285 @@ final class TransitionPrefixer
     }
 
     private function isTextDecorationColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return in_array(strtolower($token), [
+            'black',
+            'blue',
+            'currentcolor',
+            'green',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteTextEmphasisPrefixEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $changed = false;
+        $hasWebkit = [];
+        $hasUnprefixed = [];
+
+        foreach ($entries as $entry) {
+            $base = $this->textEmphasisBaseProperty($entry['property']);
+            if ($base === null) {
+                continue;
+            }
+            if (str_starts_with($entry['property'], '-webkit-')) {
+                $hasWebkit[$base] = true;
+            } else {
+                $hasUnprefixed[$base] = true;
+            }
+        }
+
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            $base = $this->textEmphasisBaseProperty($entry['property']);
+            if ($entry['important'] || $base === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $entry['value'] = $this->normalizeTextEmphasisPropertyValue($base, $entry['value']);
+            if (str_starts_with($entry['property'], '-webkit-')) {
+                if (!($targetOptions['textEmphasisNeedsWebkit'] ?? false) && ($hasUnprefixed[$base] ?? false)) {
+                    $changed = true;
+                    continue;
+                }
+
+                $rewritten[] = $entry;
+                $changed = true;
+                continue;
+            }
+
+            $fallback = $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback !== null) {
+                $fallbackValue = $this->normalizeTextEmphasisPropertyValue($base, $fallback);
+                $hasCustomPropertyReference = $this->containsCustomPropertyReference($entry['value']);
+                if ($hasCustomPropertyReference) {
+                    if (($targetOptions['textEmphasisNeedsWebkit'] ?? false) && !($hasWebkit[$base] ?? false)) {
+                        $rewritten[] = $this->declarationEntry('-webkit-' . $base, $fallbackValue);
+                    }
+                    $rewritten[] = $this->entryWithValue($entry, $fallbackValue);
+
+                    $labFallback = $this->advancedColorLabFallbackValue($entry['value'], true);
+                    if ($labFallback !== null) {
+                        $supportValue = $this->normalizeTextEmphasisPropertyValue($base, $labFallback);
+                        $supportEntries = [];
+                        if (($targetOptions['textEmphasisNeedsWebkit'] ?? false) && !($hasWebkit[$base] ?? false)) {
+                            $supportEntries[] = $this->declarationEntry('-webkit-' . $base, $supportValue);
+                        }
+                        $supportEntries[] = $this->entryWithValue($entry, $supportValue);
+                        $supportRules[] = $this->supportsLabRule($selectors, $supportEntries);
+                    }
+                    $changed = true;
+                    continue;
+                }
+
+                $finalValue = $this->normalizeTextEmphasisPropertyValue(
+                    $base,
+                    $this->advancedColorLabTargetValue($entry['value']) ?? $entry['value']
+                );
+                if (($targetOptions['textEmphasisNeedsWebkit'] ?? false) && !($hasWebkit[$base] ?? false)) {
+                    $rewritten[] = $this->declarationEntry('-webkit-' . $base, $fallbackValue);
+                }
+                $rewritten[] = $this->entryWithValue($entry, $fallbackValue);
+                if (($targetOptions['textEmphasisNeedsWebkit'] ?? false) && !($hasWebkit[$base] ?? false)) {
+                    $rewritten[] = $this->declarationEntry('-webkit-' . $base, $finalValue);
+                }
+                $rewritten[] = $this->entryWithValue($entry, $finalValue);
+                $changed = true;
+                continue;
+            }
+
+            if (($targetOptions['textEmphasisNeedsWebkit'] ?? false)
+                && !($hasWebkit[$base] ?? false)
+                && $this->textEmphasisPropertyNeedsWebkitPrefix($base, $entry['value'])
+            ) {
+                $rewritten[] = $this->declarationEntry('-webkit-' . $base, $entry['value']);
+                $changed = true;
+            }
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    private function textEmphasisBaseProperty(string $property): ?string
+    {
+        $base = preg_replace('/^-webkit-/', '', $property) ?? $property;
+
+        return in_array($base, ['text-emphasis', 'text-emphasis-style', 'text-emphasis-color', 'text-emphasis-position'], true)
+            ? $base
+            : null;
+    }
+
+    private function textEmphasisPropertyNeedsWebkitPrefix(string $base, string $value): bool
+    {
+        if ($base !== 'text-emphasis-position') {
+            return true;
+        }
+
+        return $this->textEmphasisPositionNeedsWebkitPrefix($value);
+    }
+
+    private function textEmphasisPositionNeedsWebkitPrefix(string $value): bool
+    {
+        return !in_array(strtolower(trim($value)), ['over left', 'under left'], true);
+    }
+
+    private function normalizeTextEmphasisPropertyValue(string $base, string $value): string
+    {
+        return match ($base) {
+            'text-emphasis' => $this->normalizeTextEmphasisShorthand($value),
+            'text-emphasis-style' => $this->normalizeTextEmphasisStyle($value),
+            'text-emphasis-position' => $this->normalizeTextEmphasisPosition($value),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeTextEmphasisShorthand(string $value): string
+    {
+        $components = $this->parseTextEmphasisValue($value);
+
+        return $components === null ? trim($value) : $this->serializeTextEmphasisParts($components);
+    }
+
+    private function normalizeTextEmphasisStyle(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^([\'"]).*\1$/s', $value) === 1) {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(strtolower($value));
+        if ($tokens === []) {
+            return $value;
+        }
+
+        $fill = null;
+        $shape = null;
+        foreach ($tokens as $token) {
+            if ($token === 'filled' || $token === 'open') {
+                $fill = $token;
+                continue;
+            }
+            if ($token === 'none' || $this->isTextEmphasisShapeToken($token)) {
+                $shape = $token;
+                continue;
+            }
+
+            return $value;
+        }
+
+        if ($shape === null) {
+            return $fill ?? $value;
+        }
+        if ($shape === 'none') {
+            return 'none';
+        }
+
+        return $fill === 'open' ? 'open ' . $shape : $shape;
+    }
+
+    private function normalizeTextEmphasisPosition(string $value): string
+    {
+        if (stripos($value, 'var(') !== false) {
+            return trim($value);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if (count($tokens) === 2 && $tokens[1] === 'right') {
+            array_pop($tokens);
+        }
+
+        return $tokens === [] ? trim($value) : implode(' ', $tokens);
+    }
+
+    /**
+     * @return array{style:?string,color:?string,other:list<string>}|null
+     */
+    private function parseTextEmphasisValue(string $value): ?array
+    {
+        $styleTokens = [];
+        $color = null;
+        $other = [];
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($this->isTextEmphasisColorToken($token)) {
+                if ($color !== null) {
+                    return null;
+                }
+                $color = trim($token);
+                continue;
+            }
+            if (preg_match('/^([\'"]).*\1$/s', trim($token)) === 1
+                || $lower === 'filled'
+                || $lower === 'open'
+                || $lower === 'none'
+                || $this->isTextEmphasisShapeToken($lower)
+            ) {
+                $styleTokens[] = $token;
+                continue;
+            }
+
+            $other[] = trim($token);
+        }
+
+        $style = $styleTokens === [] ? null : $this->normalizeTextEmphasisStyle(implode(' ', $styleTokens));
+        if ($style === null && $color === null && $other === []) {
+            return null;
+        }
+
+        return [
+            'style' => $style,
+            'color' => $color,
+            'other' => $other,
+        ];
+    }
+
+    /**
+     * @param array{style:?string,color:?string,other:list<string>} $parts
+     */
+    private function serializeTextEmphasisParts(array $parts): string
+    {
+        $output = [];
+        if ($parts['style'] !== null) {
+            $output[] = $parts['style'];
+        }
+        if ($parts['color'] !== null) {
+            $output[] = $parts['color'];
+        }
+        array_push($output, ...$parts['other']);
+
+        return implode(' ', $output);
+    }
+
+    private function isTextEmphasisShapeToken(string $token): bool
+    {
+        return in_array($token, ['dot', 'circle', 'double-circle', 'triangle', 'sesame'], true);
+    }
+
+    private function isTextEmphasisColorToken(string $token): bool
     {
         $token = trim($token);
         if ($token === '') {

@@ -389,6 +389,31 @@ return [
             $minifier->minify('.foo { text-shadow: 1px 1px yellow, 2px 3px red; }')
         );
     },
+    'css minifier maps upstream text emphasis values and composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{text-emphasis-style:none}', $minifier->minify('.foo { text-emphasis-style: none }'));
+        $t->same('.foo{text-emphasis-style:filled}', $minifier->minify('.foo { text-emphasis-style: filled }'));
+        $t->same('.foo{text-emphasis-style:open}', $minifier->minify('.foo { text-emphasis-style: open }'));
+        $t->same('.foo{text-emphasis-style:dot}', $minifier->minify('.foo { text-emphasis-style: dot }'));
+        $t->same('.foo{text-emphasis-style:dot}', $minifier->minify('.foo { text-emphasis-style: filled dot }'));
+        $t->same('.foo{text-emphasis-style:dot}', $minifier->minify('.foo { text-emphasis-style: dot filled }'));
+        $t->same('.foo{text-emphasis-style:open dot}', $minifier->minify('.foo { text-emphasis-style: open dot }'));
+        $t->same('.foo{text-emphasis-style:open dot}', $minifier->minify('.foo { text-emphasis-style: dot open }'));
+        $t->same('.foo{text-emphasis-style:"x"}', $minifier->minify('.foo { text-emphasis-style: "x" }'));
+        $t->same('.foo{text-emphasis-color:#ff0}', $minifier->minify('.foo { text-emphasis-color: yellow }'));
+        $t->same('.foo{text-emphasis:none}', $minifier->minify('.foo { text-emphasis: none }'));
+        $t->same('.foo{text-emphasis:filled}', $minifier->minify('.foo { text-emphasis: filled }'));
+        $t->same('.foo{text-emphasis:filled #ff0}', $minifier->minify('.foo { text-emphasis: filled yellow }'));
+        $t->same('.foo{text-emphasis:dot #ff0}', $minifier->minify('.foo { text-emphasis: dot filled yellow }'));
+        $t->same('.foo{text-emphasis:filled #ff0}', $minifier->minify('.foo { text-emphasis-style: filled; text-emphasis-color: yellow; }'));
+        $t->same('.foo{text-emphasis:filled #ff0}', $minifier->minify('.foo { text-emphasis: filled red; text-emphasis-color: yellow; }'));
+        $t->same('.foo{text-emphasis:filled #ff0;text-emphasis-color:var(--color)}', $minifier->minify('.foo { text-emphasis: filled yellow; text-emphasis-color: var(--color); }'));
+        $t->same('.foo{text-emphasis-position:over}', $minifier->minify('.foo { text-emphasis-position: over }'));
+        $t->same('.foo{text-emphasis-position:under}', $minifier->minify('.foo { text-emphasis-position: under }'));
+        $t->same('.foo{text-emphasis-position:over}', $minifier->minify('.foo { text-emphasis-position: over right }'));
+        $t->same('.foo{text-emphasis-position:over left}', $minifier->minify('.foo { text-emphasis-position: over left }'));
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');

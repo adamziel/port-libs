@@ -59,6 +59,7 @@ final class CssMinifier
         }
 
         $css = $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
+        $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
 
         return $this->composeAnimationDeclarationBlocks($css);
@@ -333,6 +334,7 @@ final class CssMinifier
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
         $value = $this->minifyBoxShadowValue($property, $value);
+        $value = $this->minifyTextEmphasisValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
@@ -939,6 +941,167 @@ final class CssMinifier
             'text-shadow' => $this->mapCommaList($value, fn (string $part): string => $this->minifyShadowLayer($part)),
             default => $value,
         };
+    }
+
+    private function minifyTextEmphasisValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'text-emphasis',
+            '-webkit-text-emphasis' => $this->minifyTextEmphasisShorthand($value),
+            'text-emphasis-style',
+            '-webkit-text-emphasis-style' => $this->minifyTextEmphasisStyle($value),
+            'text-emphasis-position',
+            '-webkit-text-emphasis-position' => $this->minifyTextEmphasisPosition($value),
+            default => $value,
+        };
+    }
+
+    private function minifyTextEmphasisShorthand(string $value): string
+    {
+        $components = $this->parseTextEmphasisShorthandComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeTextEmphasisComponents($components);
+    }
+
+    private function minifyTextEmphasisStyle(string $value): string
+    {
+        $value = trim($value);
+        if ($this->isQuotedStringToken($value)) {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(strtolower($value));
+        if ($tokens === []) {
+            return $value;
+        }
+
+        $fill = null;
+        $shape = null;
+        foreach ($tokens as $token) {
+            if ($token === 'filled' || $token === 'open') {
+                $fill = $token;
+                continue;
+            }
+            if ($this->isTextEmphasisShapeToken($token) || $token === 'none') {
+                $shape = $token;
+                continue;
+            }
+
+            return $value;
+        }
+
+        if ($shape === null) {
+            return $fill ?? $value;
+        }
+        if ($shape === 'none') {
+            return 'none';
+        }
+
+        return $fill === 'open' ? 'open ' . $shape : $shape;
+    }
+
+    private function minifyTextEmphasisPosition(string $value): string
+    {
+        if (stripos($value, 'var(') !== false) {
+            return trim($value);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if (count($tokens) === 2 && $tokens[1] === 'right') {
+            array_pop($tokens);
+        }
+
+        return $tokens === [] ? trim($value) : implode(' ', $tokens);
+    }
+
+    /**
+     * @return array{style:?string,color:?string,other:list<string>}|null
+     */
+    private function parseTextEmphasisShorthandComponents(string $value): ?array
+    {
+        $styleTokens = [];
+        $color = null;
+        $other = [];
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($this->isTextEmphasisColorToken($token)) {
+                if ($color !== null) {
+                    return null;
+                }
+                $color = trim($token);
+                continue;
+            }
+            if ($this->isQuotedStringToken($token) || $lower === 'filled' || $lower === 'open' || $lower === 'none' || $this->isTextEmphasisShapeToken($lower)) {
+                $styleTokens[] = $token;
+                continue;
+            }
+
+            $other[] = trim($token);
+        }
+
+        $style = $styleTokens === [] ? null : $this->minifyTextEmphasisStyle(implode(' ', $styleTokens));
+        if ($style === null && $color === null && $other === []) {
+            return null;
+        }
+
+        return [
+            'style' => $style,
+            'color' => $color,
+            'other' => $other,
+        ];
+    }
+
+    /**
+     * @param array{style:?string,color:?string,other:list<string>} $components
+     */
+    private function serializeTextEmphasisComponents(array $components): string
+    {
+        $parts = [];
+        if ($components['style'] !== null) {
+            $parts[] = $components['style'];
+        }
+        if ($components['color'] !== null) {
+            $parts[] = $components['color'];
+        }
+        array_push($parts, ...$components['other']);
+
+        return implode(' ', $parts);
+    }
+
+    private function isTextEmphasisShapeToken(string $token): bool
+    {
+        return in_array($token, ['dot', 'circle', 'double-circle', 'triangle', 'sesame'], true);
+    }
+
+    private function isTextEmphasisColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return in_array(strtolower($token), [
+            'black',
+            'blue',
+            'currentcolor',
+            'green',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
+    }
+
+    private function containsCustomPropertyReference(string $value): bool
+    {
+        return stripos($value, 'var(') !== false;
     }
 
     private function minifyShadowLayer(string $layer): string
@@ -1698,6 +1861,155 @@ final class CssMinifier
         $this->rewriteAnimationRangeGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function composeTextEmphasisDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeTextEmphasisDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeTextEmphasisDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeTextEmphasisDeclarationList(string $body): string
+    {
+        if (stripos($body, 'text-emphasis') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['-webkit-', ''] as $prefix) {
+            $this->rewriteTextEmphasisGroup($entries, $prefix);
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteTextEmphasisGroup(array &$entries, string $prefix): void
+    {
+        $properties = [
+            'emphasis' => $prefix . 'text-emphasis',
+            'style' => $prefix . 'text-emphasis-style',
+            'color' => $prefix . 'text-emphasis-color',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === $properties['emphasis']) {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseTextEmphasisShorthandComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'emphasis') {
+                    continue;
+                }
+
+                $value = $component === 'style'
+                    ? $this->minifyTextEmphasisStyle($entries[$index]['value'])
+                    : trim($entries[$index]['value']);
+                if ($component === 'color' && $this->containsCustomPropertyReference($value)) {
+                    continue;
+                }
+
+                $state[$component] = $value;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeTextEmphasisComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'emphasis') {
+                $latest[$component] = $index;
+            }
+        }
+
+        if (!isset($latest['style'], $latest['color'])
+            || $this->containsCustomPropertyReference($entries[$latest['color']]['value'])
+        ) {
+            return;
+        }
+
+        $replaceAt = min($latest['style'], $latest['color']);
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $properties['emphasis'],
+            'name' => $properties['emphasis'],
+            'value' => $this->serializeTextEmphasisComponents([
+                'style' => $this->minifyTextEmphasisStyle($entries[$latest['style']]['value']),
+                'color' => trim($entries[$latest['color']]['value']),
+                'other' => [],
+            ]),
+            'important' => false,
+            'drop' => false,
+        ];
     }
 
     /**

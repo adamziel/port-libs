@@ -367,6 +367,46 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-decoration: lab(50.998% 125.506 -50.7078) var(--style); } }', ['chrome' => 90])
         );
     },
+    'transition prefixer maps upstream text emphasis prefixes and color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-text-emphasis-style:filled;text-emphasis-style:filled}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-style: filled; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
+            '.foo{text-emphasis-style:filled}',
+            $prefixer->prefixForTargets('.foo { -webkit-text-emphasis-style: filled; text-emphasis-style: filled; }', ['safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
+            '.foo{-webkit-text-emphasis-position:over;text-emphasis-position:over}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: over; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
+            '.foo{text-emphasis-position:over left}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: over left; }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
+            '.foo{-webkit-text-emphasis-position:var(--test);text-emphasis-position:var(--test)}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-position: var(--test); }', ['chrome' => 30, 'safari' => 10, 'firefox' => 45])
+        );
+        $t->same(
+            '.foo{-webkit-text-emphasis:filled #ee00be;text-emphasis:filled #ee00be;-webkit-text-emphasis:filled lch(50.998% 135.363 338);text-emphasis:filled lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { text-emphasis: filled lch(50.998% 135.363 338); }', ['chrome' => 25, 'firefox' => 48])
+        );
+        $t->same(
+            '.foo{-webkit-text-emphasis-color:#ee00be;text-emphasis-color:#ee00be;-webkit-text-emphasis-color:lch(50.998% 135.363 338);text-emphasis-color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-color: lch(50.998% 135.363 338); }', ['chrome' => 25, 'firefox' => 48])
+        );
+        $t->same(
+            '.foo{text-emphasis:#ee00be var(--style)}@supports (color:lab(0% 0 0)){.foo{text-emphasis:lab(50.998% 125.506 -50.7078) var(--style)}}',
+            $prefixer->prefixForTargets('.foo { text-emphasis: lch(50.998% 135.363 338) var(--style); }', ['safari' => 8])
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{text-emphasis:lab(50.998% 125.506 -50.7078) var(--style)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-emphasis: lab(50.998% 125.506 -50.7078) var(--style); } }', ['safari' => 8])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -489,6 +529,18 @@ CSS;
         $t->same(
             '.wp-block-post-content a.has-brand-underline{-webkit-text-decoration:underline dotted;text-decoration:underline dotted}',
             (new TransitionPrefixer())->prefixForTargets($css, ['safari' => 16])
+        );
+    },
+    'wordpress editorial emphasis marks get advanced color fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-content .has-annotation-emphasis {
+  text-emphasis: lch(50.998% 135.363 338) var(--wp--custom--annotation-emphasis);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-content .has-annotation-emphasis{text-emphasis:#ee00be var(--wp--custom--annotation-emphasis)}@supports (color:lab(0% 0 0)){.wp-block-post-content .has-annotation-emphasis{text-emphasis:lab(50.998% 125.506 -50.7078) var(--wp--custom--annotation-emphasis)}}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['safari' => 8])
         );
     },
     'wordpress cover frame mask-border longhands compose and prefix without node' => static function (TestRunner $t): void {
