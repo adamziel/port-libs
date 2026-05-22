@@ -173,6 +173,13 @@ final class TreeMerge
                 continue;
             }
 
+            $fileDirectory = self::tryMergeFileToDirectoryConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry);
+            if ($fileDirectory !== null) {
+                array_push($merged, ...$fileDirectory['merged']);
+                $conflicts[] = $fileDirectory['conflict'];
+                continue;
+            }
+
             $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
@@ -367,6 +374,50 @@ final class TreeMerge
         return [
             'entry' => new TreeEntry($modifiedEntry->mode, $path, $modifiedEntry->oid),
             'conflict' => new TreeMergeConflict($fullPath, 'delete-modify', $baseEntry, $ourEntry, $theirEntry),
+        ];
+    }
+
+    /**
+     * @return null|array{merged:list<TreeEntry>,conflict:TreeMergeConflict}
+     */
+    private static function tryMergeFileToDirectoryConflict(
+        string $path,
+        string $fullPath,
+        ?TreeEntry $baseEntry,
+        ?TreeEntry $ourEntry,
+        ?TreeEntry $theirEntry,
+    ): ?array {
+        if ($baseEntry === null || $baseEntry->isTree() || $ourEntry === null || $theirEntry === null) {
+            return null;
+        }
+        if ($ourEntry->isTree() === $theirEntry->isTree()) {
+            return null;
+        }
+
+        $fileEntry = $ourEntry->isTree() ? $theirEntry : $ourEntry;
+        $directoryEntry = $ourEntry->isTree() ? $ourEntry : $theirEntry;
+        if ($fileEntry->isTree() || !$directoryEntry->isTree() || $baseEntry->kind() !== $fileEntry->kind()) {
+            return null;
+        }
+
+        $fileIsOurs = !$ourEntry->isTree();
+        $relocatedName = $path . ($fileIsOurs ? '~A' : '~B');
+        $relocatedPath = $fullPath . ($fileIsOurs ? '~A' : '~B');
+        $baseRelocated = new TreeEntry($baseEntry->mode, $relocatedName, $baseEntry->oid);
+        $fileRelocated = new TreeEntry($fileEntry->mode, $relocatedName, $fileEntry->oid);
+
+        return [
+            'merged' => [
+                new TreeEntry($directoryEntry->mode, $path, $directoryEntry->oid),
+                $fileRelocated,
+            ],
+            'conflict' => new TreeMergeConflict(
+                $relocatedPath,
+                'delete-modify',
+                $baseRelocated,
+                $fileIsOurs ? $fileRelocated : null,
+                $fileIsOurs ? null : $fileRelocated,
+            ),
         ];
     }
 

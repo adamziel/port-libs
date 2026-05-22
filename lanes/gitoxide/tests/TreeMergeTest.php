@@ -580,6 +580,68 @@ return [
             $result->indexEntries(),
         ));
     },
+    'maps upstream gix-merge tree-baseline non-tree-to-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([$blobEntry('a', "original\n1\n2\n3\n4\n5\n")]);
+        $ours = new Tree([$blobEntry('a', "1\n2\n3\n4\n5\n6\n")]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([
+                $blobEntry('d', ''),
+                $blobEntry('e', ''),
+                $treeEntry('sub', new Tree([
+                    $blobEntry('b', ''),
+                    $blobEntry('c', ''),
+                ])),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $subTree = Tree::fromObject($read($aTree->entryNamed('sub', true)?->oid ?? ''));
+        $relocated = $result->tree->entryNamed('a~A');
+
+        $t->same(false, $result->isClean());
+        $t->same(['a', 'a~A'], $names($result->tree));
+        $t->same(['d', 'e', 'sub'], $names($aTree));
+        $t->same(['b', 'c'], $names($subTree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($relocated?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a~A', 'reason' => 'delete-modify', 'base' => 'a~A', 'ours' => 'a~A', 'theirs' => null],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'a~A', 'body' => "original\n1\n2\n3\n4\n5\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a~A', 'body' => "1\n2\n3\n4\n5\n6\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([
+            ['path' => 'a~A', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'body' => "original\n1\n2\n3\n4\n5\n"],
+            ['path' => 'a~A', 'stage' => MergeIndexEntry::STAGE_OURS, 'body' => "1\n2\n3\n4\n5\n6\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'body' => $read($entry->oid)->body,
+            ],
+            MergeIndexFile::entriesForResult($result, $read),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline rename-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([
