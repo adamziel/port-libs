@@ -3,9 +3,10 @@
 - Upstream: `https://github.com/rclone/rclone`
 - Commit: `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`
 - Cache: `.upstream-cache/rclone`
-- Method: shallow clone with `--filter=blob:none --depth=1`; denominator counted from `git ls-tree -r --name-only HEAD` plus targeted reads of `Makefile`, `COPYING`, `fs/filter/glob.go`, `fs/filter/filter.go`, `fs/filter/*_test.go`, `fs/hash/hash_test.go`, `fs/operations/check.go`, `fs/operations/check_test.go`, `lib/readers/readfill.go`, `lib/readers/readfill_test.go`, `lib/readers/error.go`, `lib/readers/error_test.go`, and selected command files.
+- Method: shallow clone with `--filter=blob:none --depth=1`; denominator counted from `git ls-tree -r --name-only HEAD` plus targeted reads of `Makefile`, `COPYING`, `fs/filter/glob.go`, `fs/filter/filter.go`, `fs/filter/*_test.go`, `fs/hash/hash_test.go`, `fs/operations/check.go`, `fs/operations/check_test.go`, `fs/operations/reopen.go`, `fs/operations/reopen_test.go`, `lib/readers/readfill.go`, `lib/readers/readfill_test.go`, `lib/readers/error.go`, `lib/readers/error_test.go`, `lib/readers/repeatable.go`, `lib/readers/repeatable_test.go`, and selected command files.
 - Focused listing reads: `cmd/lsjson/lsjson.go`, `fs/operations/lsjson.go`, and `fs/operations/lsjson_test.go`, including the `StatJSON` branch that compares directory entries with `strings.EqualFold` when the provider advertises `CaseInsensitive`.
-- Focused checksum/reader reads: `cmd/checksum/checksum.go`, `cmd/hashsum/hashsum.go`, `fs/operations/check.go`, `fs/operations/check_test.go`, `lib/readers/readfill.go`, `lib/readers/readfill_test.go`, `lib/readers/error.go`, and `lib/readers/error_test.go`, including `TestCheckDownload`, `TestCheckEqualReaders`, `TestCheckSumDownload`, `TestReadFill`, and `TestErrorReader`.
+- Focused checksum/reader reads: `cmd/checksum/checksum.go`, `cmd/hashsum/hashsum.go`, `fs/operations/check.go`, `fs/operations/check_test.go`, `lib/readers/readfill.go`, `lib/readers/readfill_test.go`, `lib/readers/error.go`, `lib/readers/error_test.go`, `lib/readers/repeatable.go`, and `lib/readers/repeatable_test.go`, including `TestCheckDownload`, `TestCheckEqualReaders`, `TestCheckSumDownload`, `TestReadFill`, `TestErrorReader`, and `TestRepeatableReader`.
+- Focused reopen reads: `fs/operations/reopen.go` and `fs/operations/reopen_test.go`, including retry-at-offset behavior, range and seek options, `ReadAt`, close-after-error state, and delayed accounting.
 
 ## Counted Test-Related Inventory
 
@@ -28,7 +29,8 @@
 - Focused `lsjson` static inventory: 2 upstream Go test functions (`TestListJSON`, `TestStatJSON`), 24 named/subtest table cases counted from `fs/operations/lsjson_test.go`, and 11 command flags/options declared in `cmd/lsjson/lsjson.go`.
 - Focused case-insensitive `StatJSON` rule: 1 implementation branch in `fs/operations/lsjson.go` maps provider `Features().CaseInsensitive` to case-folded directory-entry matching.
 - Focused checksum/check static inventory: 9 upstream Go test functions in `fs/operations/check_test.go`, including 9 `ParseSumFile` line samples over LF/CRLF, 14 `CheckSum` named runs across normal and download modes, 7 `CheckDownload` table runs, 12 `CheckEqualReaders` byte/error fixtures, 10 `ApplyTransforms` path-normalization scenarios, and checksum/hashsum command boundaries in `cmd/checksum/checksum.go` and `cmd/hashsum/hashsum.go`.
-- Focused `lib/readers` static inventory: 20 reader helper paths, 9 reader Go test files, 1 `TestReadFill` function with 3 count/error scenarios, and 1 `TestErrorReader` function confirming sentinel read-error propagation.
+- Focused `lib/readers` static inventory: 20 reader helper paths, 9 reader Go test files, 1 `TestReadFill` function with 3 count/error scenarios, 1 `TestErrorReader` function confirming sentinel read-error propagation, and 1 `TestRepeatableReader` function with 10 read/cache/seek scenarios.
+- Focused ReOpen static inventory: 1 upstream Go test function in `fs/operations/reopen_test.go`, 4 mode runs (`Normal`, `WithRangeOption`, `WithSeekOption`, `UnknownSize`), 36 subtest executions across basics, immediate open failure, transient read failures, too many retries, `ReadAt`, `Seek`, accounting, delayed accounting, and accounting-error behavior, plus 3 interface assertions for read/seek/close, reader-at, and delay-accounting contracts.
 
 ## Runner Status
 
@@ -72,8 +74,10 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - `fs/operations CheckSum --download` behavior where ordinary checksum mode rejects a provider that does not advertise the requested hash, while download mode hashes object bytes locally and preserves the same match/differ/missing reports.
 - `fs/operations CheckEqualReaders` plus `lib/readers ReadFill` behavior for 64 KiB chunk filling, equal byte streams, byte differences, length differences, and read-error precedence before byte-difference reporting.
 - `fs/operations CheckDownload` provider-to-provider verification: size differences become ordinary `*` differences before download, equal-size objects are compared byte-for-byte, and open/read failures are reported through `!` error lines with failed-download wrapping.
+- `fs/operations ReOpen` retry/range reader behavior: initial open failures, reopen after transient read failures at the already-read offset, inclusive range end handling, seek-offset starts, `ReadAt` without changing the current position, seek bounds, closed-reader errors, and delayed accounting.
+- `lib/readers RepeatableReader` cache-backed read/seek behavior: bytes read from the underlying reader are cached, cached prefixes can be replayed after seeking, seeking beyond the cached prefix is rejected, and `SeekCurrent`/`SeekEnd` are resolved against the cached data.
 
 ## Current PHP Verification
 
-- Rclone-only PHP lane check on 2026-05-22: 28 tests, 213 assertions, 0 failures.
-- Required root `php tools/run-tests.php` on 2026-05-22: 61 test files, 3,380 assertions, 0 failures in the current shared worktree.
+- Rclone-only PHP lane check on 2026-05-22: 36 tests, 270 assertions, 0 failures.
+- Required root `php tools/run-tests.php` on 2026-05-22: 67 test files, 3,687 assertions, 0 failures.

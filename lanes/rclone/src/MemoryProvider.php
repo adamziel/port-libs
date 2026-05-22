@@ -7,7 +7,7 @@ namespace PortLibs\Rclone;
 final class MemoryProvider
 {
     /**
-     * @var array<string, array{bytes: string, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int}>
+     * @var array<string, array{bytes: string, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
      */
     private array $objects = [];
 
@@ -15,6 +15,11 @@ final class MemoryProvider
      * @var array<string, string>
      */
     private array $caseIndex = [];
+
+    /**
+     * @var list<array{path: string, offset: int, length: ?int}>
+     */
+    private array $openLog = [];
 
     private readonly HashSet $supportedHashes;
 
@@ -36,7 +41,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null} $options
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -58,7 +63,10 @@ final class MemoryProvider
             'tier' => $options['tier'] ?? null,
             'openError' => $this->normalizeThrowable($options['openError'] ?? null),
             'readError' => $this->normalizeThrowable($options['readError'] ?? null),
-            'readErrorAfterBytes' => $this->normalizeReadErrorAfterBytes($options),
+            'readErrorAfterBytes' => array_key_exists('readBreaks', $options) && !array_key_exists('readErrorAfterBytes', $options)
+                ? null
+                : $this->normalizeReadErrorAfterBytes($options),
+            'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
         ];
 
         return $this->info($path);
@@ -74,14 +82,38 @@ final class MemoryProvider
         return $this->entry($path)['bytes'];
     }
 
-    public function openReader(string $path): object
+    public function openReader(string $path, int $offset = 0, ?int $length = null): object
     {
+        $path = $this->canonicalPath($path);
         $entry = $this->entry($path);
+        $offset = max(0, $offset);
+        if ($length !== null) {
+            $length = max(0, $length);
+        }
+
+        $this->openLog[] = ['path' => $path, 'offset' => $offset, 'length' => $length];
         if ($entry['openError'] !== null) {
             throw $entry['openError'];
         }
 
-        return new class($entry['bytes'], $entry['readError'], $entry['readErrorAfterBytes']) {
+        $readError = $entry['readError'];
+        $readErrorAfterBytes = $entry['readErrorAfterBytes'];
+        if ($entry['readBreaks'] !== []) {
+            $readError = $readError ?? new \RuntimeException('read failed');
+            $break = array_shift($this->objects[$path]['readBreaks']);
+            if ($break === 0) {
+                throw $readError;
+            }
+            $readErrorAfterBytes = $break;
+        } elseif ($readErrorAfterBytes !== null) {
+            $readErrorAfterBytes = max(0, $readErrorAfterBytes - $offset);
+        }
+
+        $bytes = $length === null
+            ? substr($entry['bytes'], $offset)
+            : substr($entry['bytes'], $offset, $length);
+
+        return new class($bytes, $readError, $readErrorAfterBytes) {
             private int $offset = 0;
 
             public function __construct(
@@ -129,7 +161,19 @@ final class MemoryProvider
                     && $this->readErrorAfterBytes !== null
                     && $this->offset >= $this->readErrorAfterBytes;
             }
+
+            public function close(): void
+            {
+            }
         };
+    }
+
+    /**
+     * @return list<array{path: string, offset: int, length: ?int}>
+     */
+    public function openLog(): array
+    {
+        return $this->openLog;
     }
 
     public function info(string $path): ObjectInfo
@@ -188,7 +232,7 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int}
+     * @return array{bytes: string, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
      */
     private function entry(string $path): array
     {

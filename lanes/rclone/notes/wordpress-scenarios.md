@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers, cache-backed repeatable readers, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting behavior, RepeatableReader-style cached seek/replay behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -24,6 +24,10 @@ The `../examples/wordpress-provider-download-check.php` example compares two no-
 
 The `../examples/wordpress-case-insensitive-stat.php` example models an rclone provider that advertises case-insensitive path behavior. Differently-cased upload and database requests resolve to canonical provider paths in `lsjson --stat` output, which is useful when WordPress backup manifests are moved between shared hosts, local filesystems, and cloud providers with different casing rules.
 
+The `../examples/wordpress-reopen-restore.php` example models a transient stream interruption while restoring a WXR export. The native ReOpen reader resumes at the recorded byte offsets and returns the complete artifact, which is the behavior needed for robust WordPress backup restores over flaky provider downloads.
+
+The `../examples/wordpress-repeatable-artifact-scan.php` example models a restore preflight that reads the start of a WXR artifact to identify it, seeks back within the cached prefix, and then streams the full artifact. This maps the upstream repeatable reader behavior needed when a migration tool sniffs or hashes early bytes before handing the same download stream to an importer.
+
 ## Next Task
 
-Map `operations.ReOpen` retry/range reader behavior or deeper fs provider contract behavior beyond the in-memory checksum/listing/download-check slices.
+Map the remaining ReOpen unknown-size/no-low-level-retry edge cases or `lib/readers RepeatableReader` limit/buffer constructors beyond the in-memory checksum/listing/download-check/reopen/repeatable-reader slices.

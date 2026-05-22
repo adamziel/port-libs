@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-bounded-go-runner-evidence",
         "total": 327,
-        "mapped": 28,
-        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, fs/operations check/copy/lsjson tests, lib/readers read-fill/error helpers, cmd/checksum, cmd/hashsum, and cmd/lsjson. The focused lsjson read includes StatJSON's case-insensitive provider directory matching branch. The focused checksum/read comparison read includes CheckSum download mode, TestCheckDownload, CheckEqualReaders byte/error fixtures, and lib/readers ReadFill/ErrorReader semantics. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
+        "mapped": 36,
+        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, fs/operations check/copy/lsjson/reopen tests, lib/readers read-fill/error/repeatable helpers, cmd/checksum, cmd/hashsum, and cmd/lsjson. The focused lsjson read includes StatJSON's case-insensitive provider directory matching branch. The focused checksum/read comparison read includes CheckSum download mode, TestCheckDownload, CheckEqualReaders byte/error fixtures, and lib/readers ReadFill/ErrorReader semantics. The focused ReOpen read includes fs/operations/reopen.go and reopen_test.go retry, range, seek, ReadAt, close, and delayed-accounting behavior. The focused RepeatableReader read includes lib/readers/repeatable.go and repeatable_test.go cache replay, partial read, seek-current, seek-end, and unavailable-offset behavior. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
         "inventory": {
             "allRepositoryFiles": 2553,
             "goTestFiles": 327,
@@ -47,6 +47,12 @@
             "readFillScenarios": 3,
             "errorReaderTestFunctions": 1,
             "checkSumApplyTransformScenarios": 10,
+            "reopenGoTestFunctions": 1,
+            "reopenModeRuns": 4,
+            "reopenSubtestExecutions": 36,
+            "reopenInterfaceAssertions": 3,
+            "repeatableReaderGoTestFunctions": 1,
+            "repeatableReaderCacheSeekScenarios": 10,
             "checksumCommandFiles": 2,
             "testFileBreakdown": {
                 "backend": 124,
@@ -107,6 +113,8 @@
             "fs/operations CheckSum download mode hashes object bytes locally when a provider does not advertise the requested hash type, while ordinary checksum mode rejects unsupported provider hashes.",
             "fs/operations CheckEqualReaders and lib/readers ReadFill compare 64 KiB chunks, report equal bytes, byte differences, length differences, and left/right read errors with upstream error-before-difference precedence.",
             "fs/operations CheckDownload provider-to-provider comparison short-circuits size differences, otherwise reads both objects byte-for-byte, reports content differences with `*`, and reports open/read failures with upstream `!` error sigils and failed-download wrapping.",
+            "fs/operations ReOpen reopens transiently failing object streams at the byte offset already read, preserves range and seek starts, exposes ReadAt without moving the current position, reports initial-open and too-many-retry failures, and supports close-state and delayed-accounting behavior.",
+            "lib/readers RepeatableReader caches bytes read from an underlying stream, replays cached bytes after seeks, refuses seeks beyond the cached prefix, and supports SeekCurrent/SeekEnd relative to the cached data.",
             "The in-memory provider advertises a concrete hash set so native checks can model remotes with MD5/SHA-1 support and remotes where checksums require byte downloads.",
             "fs/operations ApplyTransforms-style case-insensitive checksum matching maps differently cased WordPress backup paths without shelling out to rclone.",
             "fs/operations HashLister/HashSumStream output hash values in md5sum-compatible `hash  path` lines, including base64 stream output for stdin-style input.",
@@ -115,17 +123,19 @@
             "fs/operations StatJSON output maps upstream stat table cases for root, files-only root suppression, directory and trailing-slash directory lookup, file lookup, not-found lookup, and file/dir filters.",
             "fs/operations StatJSON case-insensitive provider matching resolves differently cased directory and file requests to the canonical provider path.",
             "Provider object lookup can model rclone case-insensitive remotes by resolving path casing through a canonical in-memory index.",
-            "cmd/lsjson-style recursive WordPress backup manifests include portable artifact paths, directory entries, selected MD5 hashes, and metadata while excluding cache/log/source artifacts."
+            "cmd/lsjson-style recursive WordPress backup manifests include portable artifact paths, directory entries, selected MD5 hashes, and metadata while excluding cache/log/source artifacts.",
+            "ReOpen-style interrupted WordPress WXR artifact downloads resume from recorded offsets and complete without shelling out to rclone.",
+            "RepeatableReader-style WordPress WXR artifact probes can sniff cached header bytes, seek back, and stream the complete artifact without rereading the cached prefix."
         ],
         "inventoryPath": "lanes/rclone/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 28 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 36 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native in-memory provider contract with advertised hash support, object metadata, copy, list, checksum sync planning, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, ParseSumFile-style checksum parsing, CheckSum-style checksum manifest verification including download-mode byte hashing when provider hashes are unavailable, CheckEqualReaders-style 64 KiB read-fill byte comparison and read-error precedence, CheckDownload-style provider-to-provider byte comparison with open/read error reporting, HashLister/HashSumStream-style output, lsf path/size/hash formatting, and lsjson list/stat JSON manifests including case-insensitive StatJSON lookups.",
-        "phpBehaviorTests": 28
+        "currentSlice": "Native in-memory provider contract with advertised hash support, object metadata, copy, list, ranged/reopenable readers with transient read-break simulation, cache-backed repeatable readers, checksum sync planning, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, ParseSumFile-style checksum parsing, CheckSum-style checksum manifest verification including download-mode byte hashing when provider hashes are unavailable, CheckEqualReaders-style 64 KiB read-fill byte comparison and read-error precedence, CheckDownload-style provider-to-provider byte comparison with open/read error reporting, ReOpen-style retry/range/seek/readAt/accounting behavior, RepeatableReader-style cached seek/replay behavior, HashLister/HashSumStream-style output, lsf path/size/hash formatting, and lsjson list/stat JSON manifests including case-insensitive StatJSON lookups.",
+        "phpBehaviorTests": 36
     },
-    "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, checksum manifest verification, download-mode checksum verification for remotes without advertised hashes, byte-for-byte provider restore verification with download error reporting, recursive lsjson catalogs, and excluded cache/log/source artifacts.",
-    "nextTask": "Map operations ReOpen retry/range reader behavior or deeper fs provider contract behavior beyond the in-memory checksum/listing/download-check slices."
+    "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, checksum manifest verification, download-mode checksum verification for remotes without advertised hashes, byte-for-byte provider restore verification with download error reporting, ReOpen-style resumed WXR artifact downloads after transient stream interruption, RepeatableReader-style cached WXR header probes before restore streaming, recursive lsjson catalogs, and excluded cache/log/source artifacts.",
+    "nextTask": "Map the remaining ReOpen unknown-size/no-low-level-retry edge cases or RepeatableReader limit/buffer constructors beyond the in-memory checksum/listing/download-check/reopen/repeatable-reader slices."
 }
