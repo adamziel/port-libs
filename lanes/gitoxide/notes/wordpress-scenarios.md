@@ -68,7 +68,7 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## WordPress Recursive Tree Merge Example
 
-`examples/wordpress-recursive-tree-merge.php` walks nested WordPress trees, merges independent `post.meta` edits into a new blob, records a full-path `theme.json` content conflict with diff3 marker output, writes the ancestor/ours/theirs blob stages into a Git index v2 file, and writes a merged worktree containing both clean metadata and the marker-file `theme.json`. The underlying recursive merge also classifies nested directory-file collisions such as a cache directory on one side and a cache file on the other, and the merge engine detects exact same-object rename/delete and rename/rename conflicts while leaving ambiguous duplicate-object moves to the ordinary add/delete path. This models the next PHP-native merge layer for deployment snapshots before full checkout deletion handling and tree-conflict index expansion are ported.
+`examples/wordpress-recursive-tree-merge.php` walks nested WordPress trees, merges independent `post.meta` edits into a new blob, records a full-path `theme.json` content conflict with diff3 marker output, writes the ancestor/ours/theirs blob stages into a Git index v2 file, and writes a merged worktree containing both clean metadata and the marker-file `theme.json`. The underlying recursive merge also classifies nested directory-file collisions such as a cache directory on one side and a cache file on the other; those tree stages can now expand into file-level index entries. The merge engine detects exact same-object rename/delete and rename/rename conflicts while leaving ambiguous duplicate-object moves to the ordinary add/delete path. This models the next PHP-native merge layer for deployment snapshots before full checkout deletion handling is ported.
 
 ## WordPress Partial Clone Example
 
@@ -104,4 +104,4 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## Next Task
 
-Add rename similarity/directory rename handling, tree-conflict index expansion, or concrete git-daemon/SSH/HTTP receive-pack URL adapters.
+Add rename similarity/directory rename handling, checkout deletion/removal semantics, or concrete git-daemon/SSH/HTTP receive-pack URL adapters.
