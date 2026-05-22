@@ -7,6 +7,7 @@ namespace PortLibs\Syncthing;
 final class RequestServer
 {
     private const UNIX_TEMP_PREFIX = '.syncthing.';
+    private const WINDOWS_TEMP_PREFIX = '~syncthing~';
     private const TEMP_SUFFIX = '.tmp';
     private const MAX_TEMP_FILENAME_LENGTH = 160 - 11 - 4;
 
@@ -59,6 +60,16 @@ final class RequestServer
             : $prefix . $base . self::TEMP_SUFFIX;
 
         return $dir === '' ? $tempBase : $dir . '/' . $tempBase;
+    }
+
+    public static function isTemporaryName(string $name): bool
+    {
+        $unixSlash = strrpos($name, '/');
+        $windowsSlash = strrpos($name, '\\');
+        $lastSlash = max($unixSlash === false ? -1 : $unixSlash, $windowsSlash === false ? -1 : $windowsSlash);
+        $base = $lastSlash < 0 ? $name : substr($name, $lastSlash + 1);
+
+        return str_starts_with($base, self::UNIX_TEMP_PREFIX) || str_starts_with($base, self::WINDOWS_TEMP_PREFIX);
     }
 
     public static function isInternalName(string $name): bool

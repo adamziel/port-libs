@@ -219,6 +219,15 @@ return [
         $t->same('wp-content/uploads/.syncthing.' . hash('sha256', $longBase) . '.tmp', $long);
         $t->true(strlen(basename($long)) <= 160);
     },
+    'maps upstream temporary file prefix recognition' => static function (TestRunner $t): void {
+        $t->true(RequestServer::isTemporaryName('.syncthing.short.tmp'));
+        $t->true(RequestServer::isTemporaryName('/Users/marieantoinette/~syncthing~somefile.txt.tmp'));
+        $t->true(RequestServer::isTemporaryName('wp-content/uploads/2026/.syncthing.hero.jpg.tmp'));
+        $t->true(RequestServer::isTemporaryName('wp-content\\uploads\\2026\\~syncthing~hero.jpg.tmp'));
+
+        $t->true(!RequestServer::isTemporaryName('wp-content/uploads/2026/hero.jpg'));
+        $t->true(!RequestServer::isTemporaryName('wp-content/.syncthing.folder/hero.jpg'));
+    },
 ];
 
 function syncthing_request_server_root(): string

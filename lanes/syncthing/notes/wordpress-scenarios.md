@@ -225,12 +225,17 @@ WordPress example `wordpress-receive-index.php` shows a Playground peer's media
 index replacing temporary block availability with a scheduled pull against the
 remote FileInfo state.
 The inbound request-serving slice now maps focused upstream `model.Request`,
-`readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
+`readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, `fs.TempName`, and
+`fs.IsTemporary`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
 try the `.syncthing.<basename>.tmp` sibling first, the temporary bytes must
 match the requested SHA-256 block hash, stale or short temporary reads fall
 back to the finalized file, final-file hash mismatches return no-such-file, and
-internal/traversal/symlink paths are rejected before disk reads.
+internal/traversal/symlink paths are rejected before disk reads. Temporary-file
+detection follows upstream basename-prefix semantics: both `.syncthing.` and
+`~syncthing~` mark a file as temporary regardless of the active platform
+prefix, while parent directories with those names do not make a normal media
+leaf temporary.
 The request-serving boundary now also maps upstream ignore and receive-encrypted
 guards from `model.Request` and `lib/ignore`: explicit ignored matches are
 rejected with invalid-file before any temporary or finalized bytes are served,
@@ -401,6 +406,9 @@ flow: a WordPress media restore request arrives with `fromTemporary` set, stale
 temporary bytes are rejected by the block hash, the finalized media file is
 served as a native BEP Response frame, and any restore error is surfaced as a
 response code rather than a shell command failure.
+`examples/wordpress-temporary-media-scan.php` shows the publishing side of the
+same boundary: a WordPress media scan filters Syncthing `.syncthing.` and
+`~syncthing~` temporary basenames before exposing finalized uploads.
 `examples/wordpress-encrypted-media-request.php` adds the encrypted-folder
 variant: a private export path is blocked by a native ignore match, while a
 receive-encrypted media object can be restored from finalized encrypted bytes
@@ -479,5 +487,7 @@ stopped folder can be removed after maintenance.
 
 ## Next Task
 
-Map upstream `indexhandler.go` folder index sequence behavior, or run another
-focused upstream package test before the next protocol/model behavior slice.
+Map upstream ReceiveIndex database/global-state effects such as index resets,
+deleted FileInfo interactions, and remote sequence edge cases, or run another
+focused upstream model package test before the next protocol/model behavior
+slice.
