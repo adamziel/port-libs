@@ -109,28 +109,31 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/lazy-image-2` copied into the lane and mapped for HTML entity-decoded excerpt metadata, readerable classification, Kinja in-article ad wrapper removal, exact whitespace-normalized article text parity, and 56 responsive image rows with `data-srcset`/`srcset` parity.
 - Mozilla `test-pages/lazy-image-3` copied into the lane and mapped for full-fixture `data-src` jpg/png image promotion, expected title/null metadata, and false readerable classification.
 - Mozilla `test-pages/base-url-base-element-relative` copied into the lane and mapped for relative anchor and image URL absolutization through a relative `<base href>` plus the upstream fixture document URL.
+- Mozilla `test-pages/base-url` and `test-pages/base-url-base-element` copied into the lane and mapped for source-URL and root `<base href>` resolution across relative links, root-relative links, hash links, fragment links, absolute links, and images.
+- Mozilla `test-pages/js-link-replacement` copied into the lane and mapped for `javascript:` link replacement where a multi-child anchor becomes an inert `span` while preserving child paragraphs and text.
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 - Mozilla `_fixRelativeUris` post-processing: `javascript:` links are replaced by inert text/span content, and `href`, `src`, `poster`, and `srcset` values are resolved against the document URL and first base element when a source URL is supplied.
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 - Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
-- Mozilla post-process semantics from `_simplifyNestedElements` and `_cleanClasses`: empty `div`/`section` containers are removed, single nested `div`/`section` wrappers are collapsed, and source `class` attributes are stripped by default while the reserved `page` class remains eligible for preservation.
+- Mozilla post-process semantics from `_simplifyNestedElements`, div-to-paragraph cleanup, and `_cleanClasses`: empty `div`/`section` containers are removed, single nested `div`/`section` wrappers are collapsed, `div` nodes without descendant block elements are converted to paragraphs, and source `class` attributes are stripped by default while the reserved `page` class remains eligible for preservation.
 - Mozilla scoring cleanup semantics: `div` nodes that only wrap one paragraph and have link density below `0.25` are collapsed to the paragraph, matching the expected Medium blockquote shape.
 - WordPress migration class cleanup: source theme and block wrapper classes are removed while IDs, article text, and promoted media sources remain available for clean block serialization.
 - Mozilla `_prepArticle` interactive cleanup: `button`, `input`, `textarea`, and `select` controls plus source platform share/action links are removed from article content.
 - WordPress/Medium migration leading action-bar cleanup: byline, follow, read-time, and share controls before the first content heading are removed while author/avatar media remains available.
 - WordPress migration URL cleanup: relative editorial links, image `src`, and responsive `srcset` candidates are made absolute against the source URL/base element before block output so import previews and media sideloading are deterministic.
+- Body-only fallback extraction: when a page has no positive-scoring article/main/div candidate, the native selector still extracts the body rather than falling back to document-head markup.
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri mappings.
-- Native PHP lane tests: 27 passing, 0 failing, 187 assertions.
-- Latest root verification: `php tools/run-tests.php` passes 82 test files, 5681 assertions, 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link mappings.
+- Native PHP lane tests: 29 passing, 0 failing, 220 assertions.
+- Latest root verification: `php tools/run-tests.php` passes 87 test files, 5816 assertions, 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
-- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for the rest of the base URL/javascript link family and copied Medium lazy-image fixtures, including root wrapper, blockquote/id, and figure paragraph wrapper differences.
-- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, collapses low-link-density `div` wrappers around a single paragraph, strips source classes, resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, cleans platform chrome, and emits WordPress block output.
+- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures, including root wrapper, blockquote/id, and figure paragraph wrapper differences.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, converts text/phrasing-only `div` blocks to paragraphs, collapses low-link-density `div` wrappers around a single paragraph, strips source classes, resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, avoids document-head fallback on body-only pages, cleans platform chrome, and emits WordPress block output.
 
 ## Next Slice
 
-Broaden the URI cleanup slice by copying and mapping the sibling Mozilla `base-url`, `base-url-base-element`, and `js-link-replacement` fixtures for exact content/span parity before returning to remaining Medium lazy-image structural differences.
+Return to remaining Medium lazy-image structural HTML parity, especially root wrapper, blockquote/id, and figure paragraph wrapper differences, after the base URL and javascript link fixture family mapping.

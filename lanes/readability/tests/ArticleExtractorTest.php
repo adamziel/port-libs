@@ -253,6 +253,44 @@ return [
         $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
         $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
     },
+    'maps Mozilla base URL fixture family including paragraphized div content' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {
+        $extractor = new ArticleExtractor();
+
+        foreach (['base-url', 'base-url-base-element'] as $name) {
+            $fixture = __DIR__ . '/../fixtures/mozilla/' . $name;
+            $source = (string) file_get_contents($fixture . '/source.html');
+            $expected = (string) file_get_contents($fixture . '/expected.html');
+            $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+            $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+            $t->same($metadata['title'], $article->title);
+            $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+            $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+            $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+            $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+            $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
+            $t->same($elementChildTags($expected, '//article'), $elementChildTags($article->contentHtml, '//main'));
+        }
+    },
+    'maps Mozilla javascript link replacement fixture to inert span content' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/js-link-replacement';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($elementChildTags($expected, '//div'), $elementChildTags($article->contentHtml, '//main'));
+        $t->same($elementChildTags($expected, '//span'), $elementChildTags($article->contentHtml, '//span'));
+        $t->same([], $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->true(!str_contains($article->contentHtml, '<head>'), 'fallback content selection should not include document head markup');
+        $t->true(!str_contains($article->contentHtml, 'javascript:'), 'javascript href should be removed while preserving link children');
+    },
     'absolutizes WordPress migration links and media against the source URL' => static function (TestRunner $t): void {
         $html = '<html><head><base href="/imports/2024/"><meta property="og:title" content="Migrated Link Map"></head><body><article>'
             . '<h1>Migrated Link Map</h1>'

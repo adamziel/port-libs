@@ -1088,6 +1088,7 @@ final class ArticleExtractor
     private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri): \DOMElement
     {
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
+        $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->cleanClasses($scope);
@@ -1320,6 +1321,70 @@ final class ArticleExtractor
         return $scope;
     }
 
+    private function convertPhrasingDivsToParagraphs(\DOMElement $scope): \DOMElement
+    {
+        do {
+            $changed = false;
+            foreach ($this->divCandidates($scope) as $node) {
+                if (!$node->parentNode instanceof \DOMNode || $this->hasReadabilityId($node)) {
+                    continue;
+                }
+
+                if ($this->hasChildBlockElement($node)) {
+                    continue;
+                }
+
+                $replacement = $this->replaceElementTag($node, 'p');
+                if ($node === $scope) {
+                    $scope = $replacement;
+                }
+
+                $changed = true;
+                break;
+            }
+        } while ($changed);
+
+        return $scope;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function divCandidates(\DOMElement $scope): array
+    {
+        $nodes = [];
+        if (strtolower($scope->tagName) === 'div') {
+            $nodes[] = $scope;
+        }
+
+        foreach ($scope->getElementsByTagName('div') as $node) {
+            if ($node instanceof \DOMElement) {
+                $nodes[] = $node;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function hasChildBlockElement(\DOMElement $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (in_array(strtolower($child->tagName), ['blockquote', 'dl', 'div', 'img', 'ol', 'p', 'pre', 'table', 'ul'], true)) {
+                return true;
+            }
+
+            if ($this->hasChildBlockElement($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return list<\DOMElement>
      */
@@ -1526,7 +1591,7 @@ final class ArticleExtractor
     private function bestContentNode(\DOMXPath $xpath): ?\DOMNode
     {
         $best = null;
-        $bestScore = -1;
+        $bestScore = PHP_INT_MIN;
         foreach ($xpath->query('//article|//main|//section|//div|//body') ?: [] as $node) {
             $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
             if ($node instanceof \DOMElement
