@@ -1,0 +1,70 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Gitoxide;
+
+final class ReceivePackClient
+{
+    private ?SendPackSession $session = null;
+
+    public function __construct(
+        private readonly ReceivePackTransport $transport,
+        private readonly ?string $agent = null,
+    ) {
+    }
+
+    public function handshake(): SendPackSession
+    {
+        if ($this->session !== null) {
+            return $this->session;
+        }
+
+        $advertisement = ReceivePackAdvertisement::fromV1PacketLines($this->transport->readAdvertisement());
+        $this->session = SendPackSession::create($advertisement, $this->agent);
+
+        return $this->session;
+    }
+
+    public function send(SendPackRequest $request): PushResponse
+    {
+        $features = $request->command()->features();
+        if (!self::hasFeature($features, 'report-status') && !self::hasFeature($features, 'report-status-v2')) {
+            throw new \LogicException('receive-pack client cannot parse a response without report-status');
+        }
+
+        $this->transport->writeRequest($request->requestBytes());
+        $responseBytes = $this->transport->readResponse();
+
+        if (self::hasFeature($features, 'side-band') || self::hasFeature($features, 'side-band-64k')) {
+            return PushResponse::fromSidebandPacketLines($responseBytes);
+        }
+
+        return PushResponse::fromReportStatusPacketLines($responseBytes);
+    }
+
+    public function run(callable $plan): PushResponse
+    {
+        $request = $plan($this->handshake());
+        if (!$request instanceof SendPackRequest) {
+            throw new \InvalidArgumentException('receive-pack client planner must return a SendPackRequest');
+        }
+
+        return $this->send($request);
+    }
+
+    /**
+     * @param list<string> $features
+     */
+    private static function hasFeature(array $features, string $name): bool
+    {
+        foreach ($features as $feature) {
+            [$featureName] = explode('=', $feature, 2);
+            if ($featureName === $name) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
