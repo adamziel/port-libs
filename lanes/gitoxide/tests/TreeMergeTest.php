@@ -775,6 +775,49 @@ return [
         ));
         $t->same(['bar'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
     },
+    'maps upstream gix-merge tree-baseline rename-rename-delete-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('foo', "foo\n"),
+            $blobEntry('bar', "bar\n"),
+        ]);
+        $ours = new Tree([$blobEntry('baz', "foo\n")]);
+        $theirs = new Tree([$blobEntry('baz', "bar\n")]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $mergedBaz = $read($result->tree->entryNamed('baz')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(['baz'], $names($result->tree));
+        $t->contains('<<<<<<< ours/baz', $mergedBaz->body);
+        $t->contains("foo\n", $mergedBaz->body);
+        $t->contains("bar\n", $mergedBaz->body);
+        $t->same([
+            ['path' => 'baz', 'reason' => 'content-conflict', 'base' => null, 'ours' => 'baz', 'theirs' => 'baz'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'baz', 'body' => "foo\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'baz', 'body' => "bar\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same(['baz'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+    },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";

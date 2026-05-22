@@ -299,6 +299,10 @@ final class TreeMerge
         $paths = array_keys($baseEntries);
         sort($paths, SORT_STRING);
         foreach ($paths as $path) {
+            if (isset($consumed[$path])) {
+                continue;
+            }
+
             $baseEntry = $baseEntries[$path];
             $ourRename = $ourRenames[$path] ?? null;
             $theirRename = $theirRenames[$path] ?? null;
@@ -357,6 +361,7 @@ final class TreeMerge
                                 array_push($conflicts, ...$targetAddMerge['conflicts']);
                                 $consumed[$path] = true;
                                 $consumed[$ourRename['path']] = true;
+                                self::consumeRenamesToTarget($ourRename['path'], $ourRenames, $theirRenames, $consumed);
                                 continue;
                             }
                         }
@@ -435,6 +440,7 @@ final class TreeMerge
                                 array_push($conflicts, ...$targetAddMerge['conflicts']);
                                 $consumed[$path] = true;
                                 $consumed[$theirRename['path']] = true;
+                                self::consumeRenamesToTarget($theirRename['path'], $ourRenames, $theirRenames, $consumed);
                                 continue;
                             }
                         }
@@ -494,6 +500,23 @@ final class TreeMerge
         }
 
         return [$conflicts, $consumed, $merged];
+    }
+
+    /**
+     * @param array<string, array{path:string,entry:TreeEntry}> $ourRenames
+     * @param array<string, array{path:string,entry:TreeEntry}> $theirRenames
+     * @param array<string,true> $consumed
+     */
+    private static function consumeRenamesToTarget(string $targetPath, array $ourRenames, array $theirRenames, array &$consumed): void
+    {
+        foreach ([$ourRenames, $theirRenames] as $renames) {
+            foreach ($renames as $sourcePath => $rename) {
+                if ($rename['path'] === $targetPath) {
+                    $consumed[$sourcePath] = true;
+                    $consumed[$targetPath] = true;
+                }
+            }
+        }
     }
 
     /**
