@@ -46,8 +46,7 @@ $suppliedRecognition = [
         ['col_id' => 1, 'bbox' => [120.0, 0.0, 240.0, 120.0]],
     ],
     'cells' => [
-        ['bbox' => [10.0, 5.0, 90.0, 25.0], 'text' => 'Block'],
-        ['bbox' => [130.0, 5.0, 230.0, 25.0], 'text' => 'Status'],
+        ['bbox' => [10.0, 5.0, 230.0, 25.0], 'text' => 'Block audit'],
         ['bbox' => [10.0, 45.0, 90.0, 65.0], 'text' => 'Intro'],
         ['bbox' => [130.0, 45.0, 230.0, 65.0], 'text' => 'Published'],
         ['bbox' => [10.0, 85.0, 90.0, 105.0], 'text' => 'Media .... 24'],
@@ -57,6 +56,22 @@ $suppliedRecognition = [
 
 $recognizer = new TableRecognizer();
 $formattedRecognition = $recognizer->formatRecognizedTables([$suppliedRecognition], [['width' => 1200, 'height' => 1600]]);
+$spanMetadata = [];
+foreach ($formattedRecognition['assigned_cells'][0] as $cell) {
+    if (count($cell['row_ids']) <= 1 && count($cell['col_ids']) <= 1) {
+        continue;
+    }
+
+    $spanMetadata[] = [
+        'text' => $cell['text'],
+        'row_ids' => $cell['row_ids'],
+        'col_ids' => $cell['col_ids'],
+    ];
+}
+$spanByText = [];
+foreach ($spanMetadata as $span) {
+    $spanByText[$span['text']] = $span;
+}
 $formattedPages = (new TableFormatter())->formatTables([$page], $formattedRecognition['markdown_tables']);
 $merged = (new MarkdownPostProcessor())->mergeBlocks($formattedPages['pages']);
 
@@ -65,6 +80,7 @@ foreach ($merged as $block) {
         continue;
     }
 
+    echo '<!-- markerpdf:table-spans ' . json_encode($spanMetadata, JSON_UNESCAPED_SLASHES) . " -->\n";
     $rows = array_values(array_filter(
         preg_split('/\R/', trim($block['text'])) ?: [],
         static fn (string $row): bool => trim($row, " \t|") !== '' && !preg_match('/^\s*\|-+\|-+\|?\s*$/', $row)
@@ -77,7 +93,19 @@ foreach ($merged as $block) {
             static fn (string $cell): string => htmlspecialchars(trim(str_replace('\\-', '-', $cell)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
             explode('|', trim($row, " \t|"))
         );
-        echo '<tr><td>' . implode('</td><td>', $cells) . '</td></tr>';
+        echo '<tr>';
+        foreach ($cells as $cell) {
+            $span = $spanByText[$cell] ?? null;
+            $attrs = '';
+            if ($span !== null && count($span['col_ids']) > 1) {
+                $attrs .= ' colspan="' . count($span['col_ids']) . '"';
+            }
+            if ($span !== null && count($span['row_ids']) > 1) {
+                $attrs .= ' rowspan="' . count($span['row_ids']) . '"';
+            }
+            echo '<td' . $attrs . '>' . $cell . '</td>';
+        }
+        echo '</tr>';
     }
     echo "</tbody></table></figure>\n";
     echo "<!-- /wp:table -->\n";
