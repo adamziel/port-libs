@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review after cloned inventory update",
     "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, and upstream block size selection.",
     "blocker": "Full upstream runner has not executed: `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
-    "latestCommit": "079f990fce6d",
+    "latestCommit": "7af2cb2fef6f",
     "nextTask": "Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures."
 }
