@@ -17,6 +17,7 @@ final class BepWire
 
     public const MESSAGE_COMPRESSION_NONE = 0;
     public const MESSAGE_COMPRESSION_LZ4 = 1;
+    public const COMPRESSION_THRESHOLD = 128;
 
     public static function encodeHelloFrame(Hello $hello): string
     {
@@ -56,9 +57,13 @@ final class BepWire
         return self::decodeHelloPayload(substr($frame, 6, $size));
     }
 
-    public static function encodeRequestMessage(Request $request): string
+    public static function encodeRequestMessage(Request $request, int $compressionMode = Device::COMPRESSION_NEVER): string
     {
-        return self::encodeMessageFrame(self::MESSAGE_TYPE_REQUEST, self::encodeRequestPayload($request));
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_REQUEST,
+            self::encodeRequestPayload($request),
+            $compressionMode,
+        );
     }
 
     public static function decodeRequestMessage(string $frame): Request
@@ -71,9 +76,13 @@ final class BepWire
         return self::decodeRequestPayload($message['payload']);
     }
 
-    public static function encodeResponseMessage(Response $response): string
+    public static function encodeResponseMessage(Response $response, int $compressionMode = Device::COMPRESSION_NEVER): string
     {
-        return self::encodeMessageFrame(self::MESSAGE_TYPE_RESPONSE, self::encodeResponsePayload($response));
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_RESPONSE,
+            self::encodeResponsePayload($response),
+            $compressionMode,
+        );
     }
 
     public static function decodeResponseMessage(string $frame): Response
@@ -84,6 +93,25 @@ final class BepWire
         }
 
         return self::decodeResponsePayload($message['payload']);
+    }
+
+    public static function encodeClusterConfigMessage(ClusterConfig $config, int $compressionMode = Device::COMPRESSION_NEVER): string
+    {
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_CLUSTER_CONFIG,
+            self::encodeClusterConfigPayload($config),
+            $compressionMode,
+        );
+    }
+
+    public static function decodeClusterConfigMessage(string $frame): ClusterConfig
+    {
+        $message = self::decodeMessageFrame($frame);
+        if ($message['type'] !== self::MESSAGE_TYPE_CLUSTER_CONFIG) {
+            throw new \UnexpectedValueException('expected cluster config message');
+        }
+
+        return self::decodeClusterConfigPayload($message['payload']);
     }
 
     public static function encodeMessageFrame(int $messageType, string $payload, int $compression = self::MESSAGE_COMPRESSION_NONE): string
@@ -98,12 +126,41 @@ final class BepWire
             throw new \LengthException('message length exceeds maximum');
         }
 
+        if ($compression === self::MESSAGE_COMPRESSION_LZ4) {
+            $payload = self::compressLz4Block($payload);
+            if (strlen($payload) > ProtocolValidation::MAX_MESSAGE_LEN) {
+                throw new \LengthException('message length exceeds maximum');
+            }
+        }
+
         $header = self::encodeHeaderPayload($messageType, $compression);
         if (strlen($header) > 0xffff) {
             throw new \LengthException('header length exceeds maximum');
         }
 
         return pack('n', strlen($header)) . $header . pack('N', strlen($payload)) . $payload;
+    }
+
+    public static function encodeMessageFrameWithCompressionMode(int $messageType, string $payload, int $compressionMode): string
+    {
+        if (!in_array($compressionMode, [
+            Device::COMPRESSION_METADATA,
+            Device::COMPRESSION_NEVER,
+            Device::COMPRESSION_ALWAYS,
+        ], true)) {
+            throw new \InvalidArgumentException('Unknown Syncthing compression mode');
+        }
+
+        if (!self::shouldCompressMessage($messageType, $payload, $compressionMode)) {
+            return self::encodeMessageFrame($messageType, $payload);
+        }
+
+        $compressed = self::compressLz4Block($payload);
+        if (strlen($compressed) > strlen($payload) - intdiv(strlen($payload), 32)) {
+            return self::encodeMessageFrame($messageType, $payload);
+        }
+
+        return self::encodeMessageFrame($messageType, $payload, self::MESSAGE_COMPRESSION_LZ4);
     }
 
     /**
@@ -129,15 +186,226 @@ final class BepWire
         if (strlen($frame) < $lengthOffset + 4 + $messageLength) {
             throw new \UnexpectedValueException('reading message failed');
         }
-        if ($compression !== self::MESSAGE_COMPRESSION_NONE) {
-            throw new \UnexpectedValueException('compressed BEP messages are not supported by this native slice');
+        $payload = substr($frame, $lengthOffset + 4, $messageLength);
+        if ($compression === self::MESSAGE_COMPRESSION_LZ4) {
+            $payload = self::decompressLz4Block($payload);
+        } elseif ($compression !== self::MESSAGE_COMPRESSION_NONE) {
+            throw new \UnexpectedValueException('unknown message compression');
         }
 
         return [
             'type' => $messageType,
             'compression' => $compression,
-            'payload' => substr($frame, $lengthOffset + 4, $messageLength),
+            'payload' => $payload,
         ];
+    }
+
+    public static function compressLz4Block(string $payload): string
+    {
+        if (strlen($payload) > ProtocolValidation::MAX_MESSAGE_LEN) {
+            throw new \LengthException('message length exceeds maximum');
+        }
+
+        return pack('N', strlen($payload)) . self::encodeLz4RawBlock($payload);
+    }
+
+    public static function decompressLz4Block(string $payload): string
+    {
+        if (strlen($payload) < 4) {
+            throw new \UnexpectedValueException(sprintf('compressed message len %d is too short', strlen($payload)));
+        }
+
+        $expectedLength = unpack('N', substr($payload, 0, 4))[1];
+        if ($expectedLength > ProtocolValidation::MAX_MESSAGE_LEN) {
+            throw new \LengthException('decompressed message length exceeds maximum');
+        }
+
+        $compressed = substr($payload, 4);
+        if ($expectedLength === 0 && $compressed === '') {
+            return '';
+        }
+
+        $out = '';
+        $offset = 0;
+        $length = strlen($compressed);
+        while ($offset < $length) {
+            $token = ord($compressed[$offset]);
+            $offset++;
+
+            $literalLength = $token >> 4;
+            if ($literalLength === 15) {
+                $literalLength += self::readLz4LengthExtension($compressed, $offset);
+            }
+            if ($offset + $literalLength > $length) {
+                throw new \UnexpectedValueException('truncated LZ4 literals');
+            }
+            if ($literalLength > 0) {
+                $out .= substr($compressed, $offset, $literalLength);
+                $offset += $literalLength;
+            }
+
+            if ($offset === $length) {
+                break;
+            }
+            if ($offset + 2 > $length) {
+                throw new \UnexpectedValueException('truncated LZ4 match offset');
+            }
+
+            $matchOffset = ord($compressed[$offset]) | (ord($compressed[$offset + 1]) << 8);
+            $offset += 2;
+            if ($matchOffset <= 0 || $matchOffset > strlen($out)) {
+                throw new \UnexpectedValueException('invalid LZ4 match offset');
+            }
+
+            $matchLength = ($token & 0x0f) + 4;
+            if (($token & 0x0f) === 15) {
+                $matchLength += self::readLz4LengthExtension($compressed, $offset);
+            }
+
+            for ($i = 0; $i < $matchLength; $i++) {
+                $out .= $out[strlen($out) - $matchOffset];
+            }
+        }
+
+        if (strlen($out) !== $expectedLength) {
+            throw new \UnexpectedValueException('decompressed message length mismatch');
+        }
+
+        return $out;
+    }
+
+    private static function shouldCompressMessage(int $messageType, string $payload, int $compressionMode): bool
+    {
+        if (strlen($payload) < self::COMPRESSION_THRESHOLD) {
+            return false;
+        }
+
+        return match ($compressionMode) {
+            Device::COMPRESSION_NEVER => false,
+            Device::COMPRESSION_ALWAYS => true,
+            Device::COMPRESSION_METADATA => $messageType !== self::MESSAGE_TYPE_RESPONSE,
+            default => false,
+        };
+    }
+
+    private static function encodeLz4RawBlock(string $payload): string
+    {
+        $length = strlen($payload);
+        if ($length === 0) {
+            return '';
+        }
+
+        $out = '';
+        $anchor = 0;
+        $offset = 0;
+        $table = [];
+        $lastMatchStart = $length - 12;
+
+        while ($offset <= $lastMatchStart) {
+            $sequence = substr($payload, $offset, 4);
+            $reference = $table[$sequence] ?? null;
+            $table[$sequence] = $offset;
+
+            if ($reference === null || $offset - $reference > 0xffff) {
+                $offset++;
+                continue;
+            }
+
+            $matchLength = 4;
+            $maxMatchLength = $length - $offset - 5;
+            while (
+                $matchLength < $maxMatchLength
+                && $payload[$reference + $matchLength] === $payload[$offset + $matchLength]
+            ) {
+                $matchLength++;
+            }
+
+            if ($matchLength < 4) {
+                $offset++;
+                continue;
+            }
+
+            $out .= self::encodeLz4Sequence(
+                substr($payload, $anchor, $offset - $anchor),
+                $offset - $reference,
+                $matchLength,
+            );
+
+            $matchEnd = $offset + $matchLength;
+            $primeEnd = min($matchEnd, $length - 3);
+            for ($prime = $offset + 1; $prime < $primeEnd; $prime++) {
+                $table[substr($payload, $prime, 4)] = $prime;
+            }
+
+            $offset = $matchEnd;
+            $anchor = $offset;
+        }
+
+        if ($anchor < $length) {
+            $out .= self::encodeLz4Literals(substr($payload, $anchor));
+        }
+
+        return $out;
+    }
+
+    private static function encodeLz4Sequence(string $literals, int $matchOffset, int $matchLength): string
+    {
+        if ($matchOffset <= 0 || $matchOffset > 0xffff || $matchLength < 4) {
+            throw new \InvalidArgumentException('Invalid LZ4 sequence');
+        }
+
+        $literalLength = strlen($literals);
+        $matchNibble = min($matchLength - 4, 15);
+        $token = (min($literalLength, 15) << 4) | $matchNibble;
+
+        return chr($token)
+            . self::encodeLz4LengthExtension($literalLength)
+            . $literals
+            . chr($matchOffset & 0xff)
+            . chr(($matchOffset >> 8) & 0xff)
+            . self::encodeLz4LengthExtension($matchLength - 4);
+    }
+
+    private static function encodeLz4Literals(string $literals): string
+    {
+        $literalLength = strlen($literals);
+
+        return chr(min($literalLength, 15) << 4)
+            . self::encodeLz4LengthExtension($literalLength)
+            . $literals;
+    }
+
+    private static function encodeLz4LengthExtension(int $length): string
+    {
+        if ($length < 15) {
+            return '';
+        }
+
+        $remaining = $length - 15;
+        $out = '';
+        while ($remaining >= 255) {
+            $out .= "\xff";
+            $remaining -= 255;
+        }
+
+        return $out . chr($remaining);
+    }
+
+    private static function readLz4LengthExtension(string $payload, int &$offset): int
+    {
+        $length = strlen($payload);
+        $extra = 0;
+
+        do {
+            if ($offset >= $length) {
+                throw new \UnexpectedValueException('truncated LZ4 length extension');
+            }
+            $byte = ord($payload[$offset]);
+            $offset++;
+            $extra += $byte;
+        } while ($byte === 255);
+
+        return $extra;
     }
 
     public static function encodeRequestPayload(Request $request): string
@@ -190,6 +458,99 @@ final class BepWire
             id: self::lastInt($fields, 1),
             data: self::lastBytes($fields, 2),
             code: self::lastInt($fields, 3),
+        );
+    }
+
+    public static function encodeClusterConfigPayload(ClusterConfig $config): string
+    {
+        $payload = '';
+        foreach ($config->folders as $folder) {
+            $payload .= self::fieldBytes(1, self::encodeFolderPayload($folder));
+        }
+        $payload .= self::fieldVarint(2, $config->secondary ? 1 : 0);
+
+        return $payload;
+    }
+
+    public static function decodeClusterConfigPayload(string $payload): ClusterConfig
+    {
+        $fields = self::decodeFields($payload);
+        $folders = [];
+        foreach (self::allBytes($fields, 1) as $folderPayload) {
+            $folders[] = self::decodeFolderPayload($folderPayload);
+        }
+
+        return new ClusterConfig(
+            folders: $folders,
+            secondary: self::lastInt($fields, 2) !== 0,
+        );
+    }
+
+    private static function encodeFolderPayload(Folder $folder): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $folder->id);
+        $payload .= self::fieldBytes(2, $folder->label);
+        $payload .= self::fieldVarint(3, $folder->type);
+        $payload .= self::fieldVarint(7, $folder->stopReason);
+        foreach ($folder->devices as $device) {
+            $payload .= self::fieldBytes(16, self::encodeDevicePayload($device));
+        }
+
+        return $payload;
+    }
+
+    private static function decodeFolderPayload(string $payload): Folder
+    {
+        $fields = self::decodeFields($payload);
+        $devices = [];
+        foreach (self::allBytes($fields, 16) as $devicePayload) {
+            $devices[] = self::decodeDevicePayload($devicePayload);
+        }
+
+        return new Folder(
+            id: self::lastBytes($fields, 1),
+            label: self::lastBytes($fields, 2),
+            type: self::lastInt($fields, 3),
+            stopReason: self::lastInt($fields, 7),
+            devices: $devices,
+        );
+    }
+
+    private static function encodeDevicePayload(Device $device): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $device->idHex === '' ? '' : hex2bin($device->idHex));
+        $payload .= self::fieldBytes(2, $device->name);
+        foreach ($device->addresses as $address) {
+            $payload .= self::fieldBytes(3, $address);
+        }
+        $payload .= self::fieldVarint(4, $device->compression);
+        $payload .= self::fieldBytes(5, $device->certName);
+        $payload .= self::fieldVarint(6, $device->maxSequence);
+        $payload .= self::fieldVarint(7, $device->introducer ? 1 : 0);
+        $payload .= self::fieldVarint(8, $device->indexId);
+        $payload .= self::fieldVarint(9, $device->skipIntroductionRemovals ? 1 : 0);
+        $payload .= self::fieldBytes(10, $device->encryptionPasswordTokenHex === '' ? '' : hex2bin($device->encryptionPasswordTokenHex));
+
+        return $payload;
+    }
+
+    private static function decodeDevicePayload(string $payload): Device
+    {
+        $fields = self::decodeFields($payload);
+
+        return new Device(
+            idHex: bin2hex(self::lastBytes($fields, 1)),
+            name: self::lastBytes($fields, 2),
+            addresses: self::allBytes($fields, 3),
+            compression: self::lastInt($fields, 4),
+            certName: self::lastBytes($fields, 5),
+            maxSequence: self::lastInt($fields, 6),
+            introducer: self::lastInt($fields, 7) !== 0,
+            indexId: self::lastInt($fields, 8),
+            skipIntroductionRemovals: self::lastInt($fields, 9) !== 0,
+            encryptionPasswordTokenHex: bin2hex(self::lastBytes($fields, 10)),
         );
     }
 
@@ -381,5 +742,24 @@ final class BepWire
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<int, list<int|string>> $fields
+     *
+     * @return list<string>
+     */
+    private static function allBytes(array $fields, int $field): array
+    {
+        $values = $fields[$field] ?? [];
+        $out = [];
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                throw new \UnexpectedValueException('expected protobuf bytes field');
+            }
+            $out[] = $value;
+        }
+
+        return $out;
     }
 }

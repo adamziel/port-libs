@@ -18,11 +18,20 @@ upstream `protocol_test.go` and `wireformat.go` behavior: filename canonicality,
 request maximum-size and traversal rejection, FileInfo index consistency checks,
 and slash/NFC normalization for outgoing request and index update names. The
 BEP wire slice now maps upstream `bep_hello.go`, `bep_hello_test.go`,
-`bep_request_response.go`, `proto/bep/bep.proto`, and `protocol.go` behavior:
-Hello magic/length/protobuf frames, old/unknown hello magic rejection,
-Request/Response proto3 field numbers, Header message type/compression fields,
-and uncompressed post-auth frame lengths. Compressed BEP frames are detected and
-rejected until native LZ4 parity is ported.
+`bep_request_response.go`, `bep_clusterconfig.go`, `proto/bep/bep.proto`, and
+`protocol.go` behavior: Hello magic/length/protobuf frames, old/unknown hello
+magic rejection, Request/Response proto3 field numbers, ClusterConfig folder
+and device field numbers, Header message type/compression fields, and
+uncompressed post-auth frame lengths. The compressed BEP slice now maps focused
+upstream `TestWriteCompressed`, `TestLZ4Compression`, and
+`TestLZ4CompressionUpdate` behavior: raw LZ4 blocks carry the upstream
+big-endian uncompressed-length prefix, the Syncthing 1.18.6 compatibility
+fixture decodes and re-encodes exactly, LZ4 post-auth frames decompress before
+protobuf decoding, compression is skipped below the 128-byte threshold, metadata
+mode leaves responses uncompressed, and incompressible payloads fall back to
+uncompressed frames. The upstream denominator is still a static inventory rather
+than runner parity, but this slice also counted 658 static Go test/benchmark
+entry points across 141 upstream `_test.go` files.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -40,8 +49,18 @@ traversal request for `wp-config.php` is rejected.
 the next missing WordPress media block, then decodes it back to prove the
 folder, wire path, block number, byte range, and SHA-256 block hash survive the
 wire boundary without shelling out.
+`examples/wordpress-cluster-config.php` advertises a WordPress media folder and
+Playground importer device as a native BEP ClusterConfig frame, then decodes it
+back to prove the folder label, device addresses, compression preference, max
+sequence, and frame type survive the wire boundary.
+`examples/wordpress-compressed-metadata-frame.php` sends a larger WordPress
+media ClusterConfig through metadata compression and decodes it back, showing
+native LZ4 reduces repeated folder/device metadata while preserving the same
+BEP message type and protobuf payload semantics.
 
 ## Next Task
 
-Port native LZ4-compressed BEP message frames or cluster config protobuf
-serialization from focused upstream protocol tests.
+Port native Index/IndexUpdate FileInfo protobuf payloads, including block info,
+version vector counters, deleted/invalid/no-permission flags, and blocks_hash
+fields from focused upstream `bep_index_updates.go`, `bep_fileinfo.go`, and
+`proto/bep/bep.proto` behavior.

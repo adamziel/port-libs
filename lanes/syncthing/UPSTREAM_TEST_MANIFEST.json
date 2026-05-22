@@ -12,12 +12,26 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 32,
-        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, and focused protocol/scanner paths with git ls-tree without hydrating the full checkout.",
+        "mapped": 39,
+        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
             "upstreamGoFiles": 548,
             "goTestFiles": 141,
+            "goTestEntryPoints": {
+                "filesWithEntrypoints": 129,
+                "tests": 610,
+                "benchmarks": 48,
+                "fuzz": 0,
+                "total": 658,
+                "breakdown": {
+                    "lib": 550,
+                    "cmd": 18,
+                    "internal": 44,
+                    "test": 43,
+                    "other": 3
+                }
+            },
             "testdataPaths": 32,
             "integrationTestTreePaths": 41,
             "scriptPaths": 21,
@@ -35,6 +49,11 @@
             "targetHelloOldMagicCases": 3,
             "targetRequestResponseWireMethods": 4,
             "targetPostAuthFrameMethods": 5,
+            "targetLz4CompressionTestFunctions": 3,
+            "targetLz4HelperMethods": 2,
+            "targetCompressionDecisionMethods": 3,
+            "targetClusterConfigStructs": 3,
+            "targetClusterConfigWireConversionMethods": 6,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -45,7 +64,7 @@
         },
         "runnerStatus": {
             "executed": false,
-            "reason": "The full upstream runner was not executed in this lane slice. The upstream cache is blob-filtered/no-checkout with mass tracked deletions in its working tree, `go` is not available on this shell's PATH, and running `go test ./...` would require hydrating the full checkout, downloading/building the Go module graph, and executing 141 Go test files plus integration test paths under `test/`; this exceeds the modest network/CPU budget for this worker run. The denominator is therefore a cloned static tree inventory, not upstream pass parity.",
+            "reason": "The full upstream runner was not executed in this lane slice. The upstream cache is blob-filtered/no-checkout with mass tracked deletions in its working tree, and running `go test ./...` would require hydrating the full checkout, downloading/building the Go module graph, and executing 141 Go test files plus integration test paths under `test/`; this exceeds the modest network/CPU budget for this worker run. The denominator is therefore a cloned static tree inventory, not upstream pass parity.",
             "probes": [
                 {
                     "command": "git ls-tree -r --name-only HEAD",
@@ -53,7 +72,7 @@
                 },
                 {
                     "command": "go version",
-                    "result": "not executed as runner setup; shell probe reports `go: command not found`"
+                    "result": "Go is available on this shell as `/usr/bin/go` version `go1.26.3-X:nodwarf5 linux/amd64`; the full runner was still not executed because the no-checkout cache would need broad hydration plus dependency build/test work beyond this worker run's budget"
                 },
                 {
                     "command": "targeted git show reads of lib/protocol/bep_fileinfo.go and lib/protocol/bep_fileinfo_test.go",
@@ -66,6 +85,14 @@
                 {
                     "command": "targeted git show reads of lib/protocol/bep_hello.go, bep_hello_test.go, bep_request_response.go, proto/bep/bep.proto, and protocol.go",
                     "result": "inspected hello magic/length/protobuf handling, old-magic error cases, Request/Response field mappings, Header message type values, and uncompressed post-auth frame layout without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go and protocol_test.go",
+                    "result": "inspected `TestWriteCompressed`, `TestLZ4Compression`, `TestLZ4CompressionUpdate`, raw LZ4 length-prefix helpers, compression threshold, response/metadata compression decisions, and compressed-message fallback behavior without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of 141 `_test.go` files plus lib/protocol/bep_clusterconfig.go and proto/bep/bep.proto",
+                    "result": "counted 658 static Go test/benchmark entry points and inspected ClusterConfig/Folder/Device protobuf field mappings without hydrating the full checkout"
                 }
             ]
         },
@@ -101,15 +128,21 @@
             "Request protobuf payloads preserve upstream field numbers for id, folder, slash-normalized name, offset, size, hash bytes, temporary-source flag, and block number.",
             "Response protobuf payloads preserve upstream id, data bytes, and `ERROR_CODE_*` values for no-error, generic, no-such-file, and invalid-file responses.",
             "Uncompressed post-auth BEP frames use the upstream uint16 Header length, proto3 Header type/compression fields, uint32 message length, and message payload layout.",
-            "Compressed post-auth frames are explicitly detected and rejected in this slice until native LZ4 parity is ported."
+            "ClusterConfig protobuf payloads preserve repeated folders, the secondary flag, folder IDs, labels, folder type, stop reason, and repeated device messages.",
+            "Device config protobuf payloads preserve raw ID bytes, repeated addresses, compression mode, certificate name, max sequence, introducer flag, index ID, skip-introduction-removals flag, and encryption password token bytes.",
+            "ClusterConfig post-auth BEP frames use upstream `MESSAGE_TYPE_CLUSTER_CONFIG`; because type and compression are both proto3 zero values, the serialized header can be empty while still decoding to cluster-config/none.",
+            "Raw LZ4 BEP payload blocks use the upstream big-endian uncompressed-length prefix and decode the Syncthing 1.18.6 compatibility fixture from `TestLZ4CompressionUpdate`.",
+            "Native LZ4 compression emits the same literal-only compatibility fixture for short data and round-trips compressed post-auth message payloads without shelling out.",
+            "Compressed post-auth BEP frames decode header compression `MESSAGE_COMPRESSION_LZ4`, decompress the message payload, and then reuse the existing Request/Response/ClusterConfig protobuf decoders.",
+            "Compression mode decisions follow upstream thresholds: messages below 128 bytes remain uncompressed, metadata mode does not compress responses, and compression falls back to uncompressed output when the LZ4 block cannot save at least one thirty-second of the payload."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 32 focused lane tests against a 264-path upstream behavior/test inventory denominator."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 39 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, and BEP Hello/Request/Response protobuf plus uncompressed frame serialization."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, and uncompressed plus LZ4-compressed post-auth frame handling."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, and emitting a native BEP Request frame for a missing media block.",
-    "nextTask": "Port native LZ4-compressed BEP message frames or cluster config protobuf serialization from focused upstream protocol tests."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, and compressing repeated WordPress folder/device metadata with native LZ4 frames.",
+    "nextTask": "Port native Index/IndexUpdate FileInfo protobuf payloads, including block info, version vector counters, deleted/invalid/no-permission flags, and blocks_hash fields from focused upstream `bep_index_updates.go`, `bep_fileinfo.go`, and `proto/bep/bep.proto` behavior."
 }
