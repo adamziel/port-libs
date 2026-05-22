@@ -72,6 +72,10 @@ TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type litera
 
 TypeScript mode now also maps module import/export declaration lists using the upstream TypeScript parser configuration's delimiter-list semantics. The WordPress block module fixture applies this to `index.ts` registration code where `BlockConfiguration`, `sprintf`, and `deprecatedSave` are inserted into existing import/export lists. Retained imports such as `__` and retained exports such as `save` stay aligned under `$ts.import[...]` and `$ts.export.local[...]` paths instead of being shown as deleted and re-added whole module statements.
 
+TypeScript module mode now maps default imports, namespace imports, and re-export source changes in the same upstream parser boundary. The WordPress block module asset fixture compares a block entry point that adds a named `supports` import alongside retained default `metadata`, renames an `@wordpress/block-editor` namespace alias, and moves the `save` re-export to `./frontend/save`. The diff reports these as `$ts.import[...]`, `$ts.import.namespace[...]`, and `$ts.export.source[...]` changes without deleting the retained metadata import or retained `save` specifier.
+
+TypeScript module mode now maps export-star declarations, namespace re-exports, and import assertion/attribute lists in that parser boundary. The WordPress block import attribute fixture compares `block.json` metadata imports moving from `assert { type: "json" }` to `with { type: "json" }`, a retained default `metadata` import gaining a named `supports` import, `export * as icons` becoming `export * as blockIcons`, and `export type * from "./types"` moving to `./frontend/types`. The diff reports those as `$ts.import[...]`, `$ts.import.attributes[...]`, `$ts.export.namespace[...]`, and `$ts.export.type.source["*"]` changes without deleting the retained default import or treating the attribute object as a named import list.
+
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
 
 TSX mode now maps the upstream `sample_files/whitespace_*.tsx` formatting shape. The WordPress block editor whitespace fixture applies this to editor controls where Prettier or manual formatting moves `{" "}` spacer expressions around retained text. The renderer reports no syntactic changes, keeping retained `ToolbarButton` markup and screen-reader copy out of the review stream.
@@ -90,6 +94,8 @@ php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
+php lanes/difftastic/examples/wordpress-block-module-assets-ts-diff.php
+php lanes/difftastic/examples/wordpress-block-import-attributes-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-jsx-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-whitespace-tsx-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
@@ -110,4 +116,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Broaden TypeScript default imports, namespace imports, and re-export source-change matching.
+Map dynamic import attributes and JSON display for TypeScript module metadata changes.

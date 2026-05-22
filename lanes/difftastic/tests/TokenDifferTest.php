@@ -264,6 +264,41 @@ return [
         $t->true(!str_contains($encoded, '- $ts.import["@wordpress/i18n"][0] __'), 'Retained import specifiers should stay aligned after a new specifier is inserted.');
         $t->true(!str_contains($encoded, '- $ts.export.local[1] save'), 'Retained local export specifiers should stay aligned after a new export is inserted.');
     },
+    'maps typescript default namespace and re-export source changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/typescript-module-import-shapes-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/typescript-module-import-shapes-after.ts');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'typescript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $ts.import["@wordpress/i18n"][1] sprintf', $encoded);
+        $t->contains('+ $ts.import["./edit"][0] EditPreview', $encoded);
+        $t->contains('~ $ts.import.namespace["@wordpress/block-editor"] blockEditor editor', $encoded);
+        $t->contains('~ $ts.export.source["save"] "./save" "./frontend/save"', $encoded);
+        $t->contains('~ $ts.export.type.source["BlockAttributes"] "./types" "./frontend/types"', $encoded);
+        $t->true(!str_contains($encoded, '- $ts.import.default["./edit"] Edit'), 'Retained default imports should stay aligned when a named import is added.');
+        $t->true(!str_contains($encoded, '- $ts.export["./save"]'), 'Re-export source changes should not delete the retained export specifier.');
+    },
+    'maps typescript export star and import attributes as module shapes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/typescript-module-attributes-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/typescript-module-attributes-after.ts');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'typescript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $ts.import["./block.json"][0] supports', $encoded);
+        $t->contains('~ $ts.import.attributes["./block.json"]/keyword assert with', $encoded);
+        $t->contains('~ $ts.import.attributes["./view.js"][0] type:"javascript" type:"module"', $encoded);
+        $t->contains('~ $ts.export.namespace["./icons"] icons blockIcons', $encoded);
+        $t->contains('~ $ts.export.type.source["*"] "./types" "./frontend/types"', $encoded);
+        $t->true(!str_contains($encoded, '- $ts.import.default["./block.json"] metadata'), 'Retained default imports should stay aligned when import attributes and named specifiers change.');
+        $t->true(!str_contains($encoded, '$ts.export.star["./frontend"]'), 'Unchanged export-star declarations should stay out of the change stream.');
+        $t->true(!str_contains($encoded, '- $ts.export.type.star["./types"]'), 'Export-star source changes should not delete the retained star shape.');
+    },
     'maps upstream jsx sample as tag list changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-1.jsx');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-2.jsx');
@@ -792,6 +827,44 @@ return [
         $t->contains('deprecatedSave', $html);
         $t->true(!str_contains($html, 'data-op="-" data-path="$ts.import[&quot;@wordpress/i18n&quot;][0]">__'), 'Retained __ import should stay aligned after sprintf is inserted.');
         $t->true(!str_contains($html, 'data-op="-" data-path="$ts.export.local[1]">save'), 'Retained save export should stay aligned after deprecatedSave is inserted.');
+    },
+    'wordpress block module asset diff keeps default and namespace imports aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-module-assets-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-module-assets-after.ts');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'typescript',
+            'title' => 'Block module asset import diff',
+        ]);
+
+        $t->contains('Block module asset import diff', $html);
+        $t->contains('data-path="$ts.import[&quot;./block.json&quot;][0]"', $html);
+        $t->contains('supports', $html);
+        $t->contains('data-path="$ts.import.namespace[&quot;@wordpress/block-editor&quot;]"', $html);
+        $t->contains('<del>blockEditor</del><ins>editor</ins>', $html);
+        $t->contains('data-path="$ts.export.source[&quot;save&quot;]"', $html);
+        $t->contains('<del>&quot;./save&quot;</del><ins>&quot;./frontend/save&quot;</ins>', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.import.default[&quot;./block.json&quot;]"'), 'Retained default metadata import should stay aligned when named block metadata is added.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.export[&quot;./save&quot;]"'), 'Retained save re-export should stay aligned when only its source path changes.');
+    },
+    'wordpress block import attribute diff keeps metadata imports and export stars aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-import-attributes-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-import-attributes-after.ts');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'typescript',
+            'title' => 'Block import attribute diff',
+        ]);
+
+        $t->contains('Block import attribute diff', $html);
+        $t->contains('data-path="$ts.import[&quot;./block.json&quot;][0]"', $html);
+        $t->contains('supports', $html);
+        $t->contains('data-path="$ts.import.attributes[&quot;./block.json&quot;]/keyword"', $html);
+        $t->contains('<del>assert</del><ins>with</ins>', $html);
+        $t->contains('data-path="$ts.export.namespace[&quot;./icons&quot;]"', $html);
+        $t->contains('<del>icons</del><ins>blockIcons</ins>', $html);
+        $t->contains('data-path="$ts.export.type.source[&quot;*&quot;]"', $html);
+        $t->contains('<del>&quot;./types&quot;</del><ins>&quot;./frontend/types&quot;</ins>', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.import.default[&quot;./block.json&quot;]"'), 'Retained default block metadata import should stay aligned while import attributes change.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.export.type.star[&quot;./types&quot;]"'), 'Export-star source changes should not render as a delete/add pair.');
     },
     'wordpress block editor tsx diff reports jsx tag attribute changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-jsx-before.tsx');

@@ -1413,33 +1413,35 @@ final class TokenDiffer
         $matchedNewKeys = [];
 
         foreach ($oldDeclarations as $key => $oldDeclaration) {
-            $path = $this->typeScriptModuleDeclarationPath($oldDeclaration);
-            if (!isset($newDeclarations[$key])) {
-                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldDeclaration['text']];
-                continue;
-            }
+            $matchKey = isset($newDeclarations[$key]) && (($matchedNewKeys[$key] ?? false) === false)
+                ? $key
+                : $this->typeScriptModuleFallbackMatch($oldDeclaration, $newDeclarations, $matchedNewKeys);
 
-            $matchedNewKeys[$key] = true;
-            $newDeclaration = $newDeclarations[$key];
-            if (($oldDeclaration['list'] ?? null) !== null && ($newDeclaration['list'] ?? null) !== null) {
-                if ($this->nodeText($oldDeclaration['list']) !== $this->nodeText($newDeclaration['list'])) {
-                    $this->diffListNode($oldDeclaration['list'], $newDeclaration['list'], $path, $options, $changes);
+            if ($matchKey === null) {
+                if (!$this->isEmptySyntheticTypeScriptModuleDeclaration($oldDeclaration)) {
+                    $changes[] = [
+                        'op' => '-',
+                        'path' => $this->typeScriptModuleDeclarationPath($oldDeclaration),
+                        'text' => $oldDeclaration['text'],
+                    ];
                 }
                 continue;
             }
 
-            if ($oldDeclaration['text'] !== $newDeclaration['text']) {
-                $changes[] = [
-                    'op' => '~',
-                    'path' => $path,
-                    'old' => $oldDeclaration['text'],
-                    'new' => $newDeclaration['text'],
-                ];
-            }
+            $matchedNewKeys[$matchKey] = true;
+            $this->diffTypeScriptModuleDeclarationPair(
+                $oldDeclaration,
+                $newDeclarations[$matchKey],
+                $options,
+                $changes,
+            );
         }
 
         foreach ($newDeclarations as $key => $newDeclaration) {
             if (($matchedNewKeys[$key] ?? false) === true) {
+                continue;
+            }
+            if ($this->isEmptySyntheticTypeScriptModuleDeclaration($newDeclaration)) {
                 continue;
             }
 
@@ -1449,30 +1451,23 @@ final class TokenDiffer
 
     /**
      * @param list<array<string, mixed>> $nodes
-     * @return array<string, array{kind:string, modifier:?string, source:?string, list:?array<string, mixed>, text:string}>
+     * @return array<string, array<string, mixed>>
      */
     private function typeScriptModuleDeclarations(array $nodes): array
     {
         $declarations = [];
         foreach ($this->topLevelStatements($nodes) as $statement) {
-            $declaration = $this->typeScriptModuleDeclaration($statement);
-            if ($declaration === null) {
-                continue;
-            }
+            foreach ($this->typeScriptModuleDeclarationsFromStatement($statement) as $declaration) {
+                $keyBase = $this->typeScriptModuleDeclarationKey($declaration);
+                $key = $keyBase;
+                $index = 1;
+                while (isset($declarations[$key])) {
+                    $key = $keyBase . "\0" . $index;
+                    $index++;
+                }
 
-            $keyBase = implode("\0", [
-                $declaration['kind'],
-                $declaration['modifier'] ?? '',
-                $declaration['source'] ?? 'local',
-            ]);
-            $key = $keyBase;
-            $index = 1;
-            while (isset($declarations[$key])) {
-                $key = $keyBase . "\0" . $index;
-                $index++;
+                $declarations[$key] = $declaration;
             }
-
-            $declarations[$key] = $declaration;
         }
 
         return $declarations;
@@ -1480,14 +1475,14 @@ final class TokenDiffer
 
     /**
      * @param list<array<string, mixed>> $statement
-     * @return ?array{kind:string, modifier:?string, source:?string, list:?array<string, mixed>, text:string}
+     * @return list<array<string, mixed>>
      */
-    private function typeScriptModuleDeclaration(array $statement): ?array
+    private function typeScriptModuleDeclarationsFromStatement(array $statement): array
     {
         $atoms = $this->statementAtomTexts($statement);
         $first = $this->firstNonCommentAtom($statement);
         if ($first === null || !in_array($first, ['import', 'export'], true)) {
-            return null;
+            return [];
         }
 
         $modifier = null;
@@ -1498,23 +1493,395 @@ final class TokenDiffer
 
         $source = $this->typeScriptModuleSource($statement, $atoms, $first);
         $list = $this->firstNamedModuleList($statement);
-        if ($first === 'export' && $source === null && $list !== null && !$this->startsWithNamedExportList($statement)) {
-            return null;
+        $attributes = $source === null ? null : $this->typeScriptModuleAttributeList($statement);
+        $text = $this->statementText($statement);
+        $declarations = [];
+
+        if ($first === 'import') {
+            if ($source === null) {
+                return [];
+            }
+
+            $defaultName = $this->typeScriptDefaultImportName($statement, $modifier !== null);
+            if ($defaultName !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                    'import',
+                    $modifier,
+                    $source,
+                    'default',
+                    null,
+                    $defaultName,
+                    $defaultName,
+                );
+            }
+
+            $namespaceName = $this->typeScriptNamespaceImportName($atoms);
+            if ($namespaceName !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                    'import',
+                    $modifier,
+                    $source,
+                    'namespace',
+                    null,
+                    $namespaceName,
+                    $namespaceName,
+                );
+            }
+
+            if ($list !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord('import', $modifier, $source, 'named', $list, null, $text);
+            } elseif ($defaultName !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                    'import',
+                    $modifier,
+                    $source,
+                    'named',
+                    $this->emptyTypeScriptNamedModuleList(),
+                    null,
+                    '',
+                    true,
+                );
+            }
+
+            if ($declarations === []) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord('import', $modifier, $source, 'side-effect', null, null, $text);
+            }
+            if ($attributes !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                    'import',
+                    $modifier,
+                    $source,
+                    'attributes',
+                    $attributes['list'],
+                    $attributes['keyword'],
+                    $attributes['keyword'] . $this->nodeText($attributes['list']),
+                );
+            }
+
+            return $declarations;
         }
-        if ($source === null && $first === 'import' && $list === null) {
-            return null;
+
+        if ($list !== null) {
+            if ($source === null && !$this->startsWithNamedExportList($statement)) {
+                return [];
+            }
+
+            $declarations[] = $this->typeScriptModuleDeclarationRecord('export', $modifier, $source, 'named', $list, null, $text);
+            if ($attributes !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                    'export',
+                    $modifier,
+                    $source,
+                    'attributes',
+                    $attributes['list'],
+                    $attributes['keyword'],
+                    $attributes['keyword'] . $this->nodeText($attributes['list']),
+                );
+            }
+
+            return $declarations;
         }
-        if ($source === null && $first === 'export' && $list === null) {
+
+        if ($source !== null && in_array('*', $atoms, true)) {
+            $namespaceName = $this->typeScriptNamespaceImportName($atoms);
+            $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                'export',
+                $modifier,
+                $source,
+                $namespaceName === null ? 'star' : 'namespace',
+                null,
+                $namespaceName ?? '*',
+                $namespaceName ?? '*',
+            );
+            if ($attributes !== null) {
+                $declarations[] = $this->typeScriptModuleDeclarationRecord(
+                    'export',
+                    $modifier,
+                    $source,
+                    'attributes',
+                    $attributes['list'],
+                    $attributes['keyword'],
+                    $attributes['keyword'] . $this->nodeText($attributes['list']),
+                );
+            }
+
+            return $declarations;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function typeScriptModuleDeclarationRecord(
+        string $kind,
+        ?string $modifier,
+        ?string $source,
+        string $variant,
+        ?array $list,
+        ?string $name,
+        string $text,
+        bool $synthetic = false,
+    ): array {
+        $specifierTexts = $list === null ? [] : array_map(
+            fn (array $item): string => $this->itemText($item),
+            $this->listItems($list, ['language' => 'typescript']),
+        );
+
+        return [
+            'kind' => $kind,
+            'modifier' => $modifier,
+            'source' => $source,
+            'variant' => $variant,
+            'list' => $list,
+            'name' => $name,
+            'text' => $text,
+            'synthetic' => $synthetic,
+            'specifierSignature' => implode("\0", $specifierTexts),
+            'specifierLabel' => implode(',', $specifierTexts),
+        ];
+    }
+
+    /**
+     * @return array{type:string, open:string, close:string, children:list<array<string, mixed>>}
+     */
+    private function emptyTypeScriptNamedModuleList(): array
+    {
+        return [
+            'type' => 'list',
+            'open' => '{',
+            'close' => '}',
+            'children' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private function typeScriptModuleDeclarationKey(array $declaration): string
+    {
+        return implode("\0", [
+            $declaration['kind'],
+            $declaration['modifier'] ?? '',
+            $declaration['variant'],
+            $declaration['source'] ?? 'local',
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $oldDeclaration
+     * @param array<string, array<string, mixed>> $newDeclarations
+     * @param array<string, bool> $matchedNewKeys
+     */
+    private function typeScriptModuleFallbackMatch(array $oldDeclaration, array $newDeclarations, array $matchedNewKeys): ?string
+    {
+        $fallbackKey = $this->typeScriptModuleFallbackKey($oldDeclaration);
+        if ($fallbackKey === null) {
             return null;
         }
 
-        return [
-            'kind' => $first,
-            'modifier' => $modifier,
-            'source' => $source,
-            'list' => $list,
-            'text' => $this->statementText($statement),
-        ];
+        foreach ($newDeclarations as $key => $newDeclaration) {
+            if (($matchedNewKeys[$key] ?? false) === true) {
+                continue;
+            }
+            if ($this->typeScriptModuleFallbackKey($newDeclaration) === $fallbackKey) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private function typeScriptModuleFallbackKey(array $declaration): ?string
+    {
+        if (
+            $declaration['kind'] !== 'export'
+            || $declaration['source'] === null
+        ) {
+            return null;
+        }
+
+        if ($declaration['variant'] === 'named' && ($declaration['specifierSignature'] ?? '') !== '') {
+            return implode("\0", [
+                $declaration['kind'],
+                $declaration['modifier'] ?? '',
+                $declaration['variant'],
+                $declaration['specifierSignature'],
+            ]);
+        }
+
+        if ($declaration['variant'] === 'namespace' && ($declaration['name'] ?? '') !== '') {
+            return implode("\0", [
+                $declaration['kind'],
+                $declaration['modifier'] ?? '',
+                $declaration['variant'],
+                $declaration['name'],
+            ]);
+        }
+
+        if ($declaration['variant'] === 'star') {
+            return implode("\0", [
+                $declaration['kind'],
+                $declaration['modifier'] ?? '',
+                $declaration['variant'],
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $oldDeclaration
+     * @param array<string, mixed> $newDeclaration
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffTypeScriptModuleDeclarationPair(array $oldDeclaration, array $newDeclaration, array $options, array &$changes): void
+    {
+        $path = $this->typeScriptModuleDeclarationPath($newDeclaration);
+        if ($oldDeclaration['source'] !== $newDeclaration['source']) {
+            $changes[] = [
+                'op' => '~',
+                'path' => $this->typeScriptModuleSourceChangePath($newDeclaration),
+                'old' => $this->quotedTypeScriptModuleSource($oldDeclaration['source']),
+                'new' => $this->quotedTypeScriptModuleSource($newDeclaration['source']),
+            ];
+        }
+
+        if (in_array($newDeclaration['variant'], ['default', 'namespace'], true)) {
+            if ($oldDeclaration['name'] !== $newDeclaration['name']) {
+                $changes[] = [
+                    'op' => '~',
+                    'path' => $path,
+                    'old' => (string) $oldDeclaration['name'],
+                    'new' => (string) $newDeclaration['name'],
+                ];
+            }
+
+            return;
+        }
+
+        if ($newDeclaration['variant'] === 'attributes') {
+            if ($oldDeclaration['name'] !== $newDeclaration['name']) {
+                $changes[] = [
+                    'op' => '~',
+                    'path' => $path . '/keyword',
+                    'old' => (string) $oldDeclaration['name'],
+                    'new' => (string) $newDeclaration['name'],
+                ];
+            }
+            if (($oldDeclaration['list'] ?? null) !== null && ($newDeclaration['list'] ?? null) !== null) {
+                if ($this->nodeText($oldDeclaration['list']) !== $this->nodeText($newDeclaration['list'])) {
+                    $this->diffListNode($oldDeclaration['list'], $newDeclaration['list'], $path, $options, $changes);
+                }
+            }
+
+            return;
+        }
+
+        if (($oldDeclaration['list'] ?? null) !== null && ($newDeclaration['list'] ?? null) !== null) {
+            if ($this->nodeText($oldDeclaration['list']) !== $this->nodeText($newDeclaration['list'])) {
+                $this->diffListNode($oldDeclaration['list'], $newDeclaration['list'], $path, $options, $changes);
+            }
+
+            return;
+        }
+
+        if ($oldDeclaration['text'] !== $newDeclaration['text'] && $oldDeclaration['source'] === $newDeclaration['source']) {
+            $changes[] = [
+                'op' => '~',
+                'path' => $path,
+                'old' => $oldDeclaration['text'],
+                'new' => $newDeclaration['text'],
+            ];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private function isEmptySyntheticTypeScriptModuleDeclaration(array $declaration): bool
+    {
+        return ($declaration['synthetic'] ?? false) === true
+            && ($declaration['specifierSignature'] ?? '') === '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     */
+    private function typeScriptDefaultImportName(array $statement, bool $hasImportTypeModifier): ?string
+    {
+        $seenImport = false;
+        $skippedTypeModifier = false;
+        foreach ($statement as $node) {
+            if (($node['type'] ?? '') === 'list') {
+                return null;
+            }
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                continue;
+            }
+
+            $token = $node['token'];
+            if ($token->kind === 'comment') {
+                continue;
+            }
+            if (!$seenImport) {
+                if ($token->text !== 'import') {
+                    continue;
+                }
+                $seenImport = true;
+                continue;
+            }
+            if ($hasImportTypeModifier && !$skippedTypeModifier && $token->text === 'type') {
+                $skippedTypeModifier = true;
+                continue;
+            }
+            if (in_array($token->text, ['from', '*', ','], true)) {
+                return null;
+            }
+
+            return $this->isTypeScriptIdentifierAtom($token->text) ? $token->text : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $atoms
+     */
+    private function typeScriptNamespaceImportName(array $atoms): ?string
+    {
+        $firstIndex = null;
+        foreach ($atoms as $index => $atom) {
+            if ($atom === 'import' || $atom === 'export') {
+                $firstIndex = $index;
+                break;
+            }
+        }
+        if ($firstIndex === null) {
+            return null;
+        }
+
+        $index = $firstIndex + 1;
+        if (($atoms[$index] ?? null) === 'type') {
+            $index++;
+        }
+        if (($atoms[$index] ?? null) !== '*' || ($atoms[$index + 1] ?? null) !== 'as') {
+            return null;
+        }
+
+        $name = $atoms[$index + 2] ?? null;
+        return is_string($name) && $this->isTypeScriptIdentifierAtom($name) ? $name : null;
+    }
+
+    private function isTypeScriptIdentifierAtom(string $text): bool
+    {
+        return preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $text) === 1
+            && !in_array($text, ['as', 'from', 'import', 'export', 'type'], true);
     }
 
     /**
@@ -1646,9 +2013,70 @@ final class TokenDiffer
      */
     private function firstNamedModuleList(array $statement): ?array
     {
+        $kind = $this->firstNonCommentAtom($statement);
+        if ($kind === null || !in_array($kind, ['import', 'export'], true)) {
+            return null;
+        }
+
+        $seenFrom = false;
+        $previousAtom = null;
         foreach ($statement as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                if ($node['token']->kind === 'comment') {
+                    continue;
+                }
+
+                $previousAtom = $node['token']->text;
+                if ($previousAtom === 'from') {
+                    $seenFrom = true;
+                }
+                continue;
+            }
+
             if (($node['type'] ?? '') === 'list' && ($node['open'] ?? '') === '{') {
+                if (in_array($previousAtom, ['assert', 'with'], true)) {
+                    continue;
+                }
+                if ($kind === 'import' && $seenFrom) {
+                    continue;
+                }
+
                 return $node;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     * @return ?array{keyword:string, list:array<string, mixed>}
+     */
+    private function typeScriptModuleAttributeList(array $statement): ?array
+    {
+        $keyword = null;
+        foreach ($statement as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                if ($node['token']->kind === 'comment') {
+                    continue;
+                }
+
+                $text = $node['token']->text;
+                if (in_array($text, ['assert', 'with'], true)) {
+                    $keyword = $text;
+                    continue;
+                }
+                if ($keyword !== null) {
+                    $keyword = null;
+                }
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'list' && ($node['open'] ?? '') === '{' && $keyword !== null) {
+                return [
+                    'keyword' => $keyword,
+                    'list' => $node,
+                ];
             }
         }
 
@@ -1682,7 +2110,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{kind:string, modifier:?string, source:?string} $declaration
+     * @param array<string, mixed> $declaration
      */
     private function typeScriptModuleDeclarationPath(array $declaration): string
     {
@@ -1690,11 +2118,44 @@ final class TokenDiffer
         if ($declaration['modifier'] !== null) {
             $path .= '.' . $declaration['modifier'];
         }
+        if ($declaration['variant'] === 'default') {
+            $path .= '.default';
+        } elseif ($declaration['variant'] === 'namespace') {
+            $path .= '.namespace';
+        } elseif ($declaration['variant'] === 'side-effect') {
+            $path .= '.side_effect';
+        } elseif ($declaration['variant'] === 'star') {
+            $path .= '.star';
+        } elseif ($declaration['variant'] === 'attributes') {
+            $path .= '.attributes';
+        }
         if ($declaration['source'] === null) {
             return $path . '.local';
         }
 
         return $path . '[' . json_encode($declaration['source'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private function typeScriptModuleSourceChangePath(array $declaration): string
+    {
+        $path = '$ts.' . $declaration['kind'];
+        if ($declaration['modifier'] !== null) {
+            $path .= '.' . $declaration['modifier'];
+        }
+
+        $label = (string) (($declaration['specifierLabel'] ?? '') !== ''
+            ? $declaration['specifierLabel']
+            : ($declaration['name'] ?? $declaration['text']));
+
+        return $path . '.source[' . json_encode($label, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
+    private function quotedTypeScriptModuleSource(?string $source): string
+    {
+        return json_encode((string) $source, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
     /**
