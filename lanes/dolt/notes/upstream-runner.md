@@ -208,11 +208,11 @@
 ## Skipped Suites
 
 - Full `go test ./...`: skipped as too broad for this runner slice because it hydrates and compiles the full Dolt workspace and broad dependency graph.
-- Full BATS directory: skipped even after the expanded 179-test diff/schema local BATS pass and the additional 74-test merge/conflict local BATS pass because the remaining upstream BATS coverage includes Python package requirements, parquet/Hadoop tooling, server tests, compatibility tests, client integration tests, and other live-service style coverage.
+- Full BATS directory: skipped even after the combined 253-plan local BATS diff/schema/merge/conflict pass because the remaining upstream BATS coverage includes Python package requirements, parquet/Hadoop tooling, server tests, compatibility tests, client integration tests, and other live-service style coverage.
 - MySQL-server, cloud, Hadoop/parquet, benchmark, and remote-service suites: intentionally skipped per runner boundary.
 
 ## Remaining Runner Boundary
 
 - This is bounded upstream evidence, not full upstream parity.
 - The cache has build/test artifacts under `.upstream-cache/dolt/.gomodcache`, `.upstream-cache/dolt/.gocache`, and `.upstream-cache/dolt/bats-home`.
-- Runner metadata is part of the current Dolt lane batch with the skinny projection, where/limit filtering, summary/stat primary-key warning/error boundaries, dolt_ignore implementation evidence, and expanded local upstream diff/schema/merge/status BATS evidence.
+- Runner metadata is part of the current Dolt lane batch with the skinny projection, where/limit filtering, summary/stat primary-key warning/error boundaries, dolt_ignore implementation evidence, and combined local upstream diff/schema/merge/status BATS evidence.
