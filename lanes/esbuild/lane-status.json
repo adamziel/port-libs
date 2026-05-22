@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: upstream make test previously passed locally; esbuild lane PHP verification passes 4 test files, 106 behavior tests, 541 assertion calls, and 0 failures, not full upstream parity. Required root `php tools/run-tests.php` passes with 135 test files, 12082 assertions, and 0 failures.",
     "currentWork": "Native TypeScript module lowerer now erases type annotations from top-level `using` declarations, including multi-declarator forms, and rejects upstream-invalid `export using` at top level and inside namespaces. A WordPress block fixture lowers typed disposable preview/worker asset handles before registration without Node.",
     "blocker": "No current esbuild implementation blocker. Esbuild lane verification passes with 4 test files, 106 behavior tests, 541 assertion calls, and 0 failures; `php lanes/esbuild/examples/wordpress-asset-preflight.php` runs. Required root `php tools/run-tests.php` passes with 135 test files, 12082 assertions, and 0 failures. Remaining esbuild upstream release-extra coverage is `make test-all` with Deno, WASM browser/node, typecheck, and Yarn PnP targets.",
-    "latestCommit": "pending; previous esbuild lane commit 9402bd3",
+    "latestCommit": "4c8dd1c",
     "nextTask": "Continue multiline `using` declaration handling, target-version-specific static field lowering, broader auto-accessor lowering for older JS targets, broader TypeScript class side-effect-order matrices, and namespace/class/enum merge matrices while keeping analyzer metadata separate from broader JS printing."
 }
