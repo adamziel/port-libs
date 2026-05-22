@@ -168,7 +168,7 @@ final class SparseTree
             throw new \InvalidArgumentException('proof range begin must be <= end');
         }
 
-        [$root, $nodesById] = $this->fullProofTree();
+        [$root, $nodesById] = $this->proofTreeForExport();
         $items = [];
         $reverseMap = [];
         $currentPath = Key::null();
@@ -177,7 +177,7 @@ final class SparseTree
 
         return new Proof(
             array_map(static fn (array $item): ProofStrand => $item['strand'], $items),
-            $this->exportProofCommands($items, $reverseMap, $nodesById, $root['id'])
+            $this->exportProofCommands($items, $reverseMap, $nodesById, $this->nodeIdFromPartialNode($root))
         );
     }
 
@@ -520,7 +520,7 @@ final class SparseTree
      */
     private function exportProofForKeyHashes(array $keyHashes): Proof
     {
-        [$root, $nodesById] = $this->fullProofTree();
+        [$root, $nodesById] = $this->proofTreeForExport();
         $items = [];
         $reverseMap = [];
 
@@ -528,8 +528,23 @@ final class SparseTree
 
         return new Proof(
             array_map(static fn (array $item): ProofStrand => $item['strand'], $items),
-            $this->exportProofCommands($items, $reverseMap, $nodesById, $root['id'])
+            $this->exportProofCommands($items, $reverseMap, $nodesById, $this->nodeIdFromPartialNode($root))
         );
+    }
+
+    /**
+     * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>}
+     */
+    private function proofTreeForExport(): array
+    {
+        if ($this->partialRoot === null) {
+            return $this->fullProofTree();
+        }
+
+        $nodesById = [];
+        $this->indexProofNodes($this->partialRoot, $nodesById);
+
+        return [$this->partialRoot, $nodesById];
     }
 
     /**
@@ -645,6 +660,8 @@ final class SparseTree
             return;
         }
 
+        $nodeId = $this->nodeIdFromPartialNode($node);
+
         if ($node['type'] === 'empty') {
             $key = Key::fromHex(array_key_first($keyHashes));
             $key->keepPrefixBits($node['depth']);
@@ -656,10 +673,14 @@ final class SparseTree
             return;
         }
 
-        if ($node['type'] === 'leaf') {
+        if ($node['type'] === 'leaf' || $node['type'] === 'witnessLeaf') {
             if (array_key_exists($node['keyHash'], $keyHashes)) {
+                if ($node['type'] === 'witnessLeaf') {
+                    throw new \RuntimeException('incomplete tree, missing leaf to make proof');
+                }
+
                 $items[] = [
-                    'nodeId' => $node['id'],
+                    'nodeId' => $nodeId,
                     'parentNodeId' => $parentNodeId,
                     'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value'], $keyHashes[$node['keyHash']]),
                 ];
@@ -667,9 +688,14 @@ final class SparseTree
             }
 
             $items[] = [
-                'nodeId' => $node['id'],
+                'nodeId' => $nodeId,
                 'parentNodeId' => $parentNodeId,
-                'strand' => new ProofStrand(ProofStrand::WITNESS_LEAF, $node['depth'], $node['keyHash'], $this->hashTree->valueHash($node['value'])),
+                'strand' => new ProofStrand(
+                    ProofStrand::WITNESS_LEAF,
+                    $node['depth'],
+                    $node['keyHash'],
+                    $node['type'] === 'witnessLeaf' ? $node['valueHash'] : $this->hashTree->valueHash($node['value'])
+                ),
             ];
             return;
         }
@@ -678,11 +704,14 @@ final class SparseTree
             throw new \RuntimeException('encountered witness node: incomplete tree');
         }
 
-        if ($node['left']['id'] !== 0) {
-            $reverseMap[$node['left']['id']] = $node['id'];
+        $leftNodeId = $this->nodeIdFromPartialNode($node['left']);
+        $rightNodeId = $this->nodeIdFromPartialNode($node['right']);
+
+        if ($leftNodeId !== 0) {
+            $reverseMap[$leftNodeId] = $nodeId;
         }
-        if ($node['right']['id'] !== 0) {
-            $reverseMap[$node['right']['id']] = $node['id'];
+        if ($rightNodeId !== 0) {
+            $reverseMap[$rightNodeId] = $nodeId;
         }
 
         $leftKeys = [];
@@ -695,11 +724,11 @@ final class SparseTree
             }
         }
 
-        if ($node['left']['id'] !== 0 || $rightKeys === []) {
-            $this->exportProofAux($node['left'], $node['id'], $leftKeys, $items, $reverseMap);
+        if ($leftNodeId !== 0 || $rightKeys === []) {
+            $this->exportProofAux($node['left'], $nodeId, $leftKeys, $items, $reverseMap);
         }
-        if ($node['right']['id'] !== 0 || $leftKeys === []) {
-            $this->exportProofAux($node['right'], $node['id'], $rightKeys, $items, $reverseMap);
+        if ($rightNodeId !== 0 || $leftKeys === []) {
+            $this->exportProofAux($node['right'], $nodeId, $rightKeys, $items, $reverseMap);
         }
     }
 
@@ -719,24 +748,33 @@ final class SparseTree
             return;
         }
 
+        $nodeId = $this->nodeIdFromPartialNode($node);
+
         if ($node['type'] === 'leaf') {
             $items[] = [
-                'nodeId' => $node['id'],
+                'nodeId' => $nodeId,
                 'parentNodeId' => $parentNodeId,
                 'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value']),
             ];
             return;
         }
 
+        if ($node['type'] === 'witnessLeaf') {
+            throw new \RuntimeException('incomplete tree, missing leaf to make proof');
+        }
+
         if ($node['type'] !== 'branch') {
             throw new \RuntimeException('encountered witness node: incomplete tree');
         }
 
-        if ($node['left']['id'] !== 0) {
-            $reverseMap[$node['left']['id']] = $node['id'];
+        $leftNodeId = $this->nodeIdFromPartialNode($node['left']);
+        $rightNodeId = $this->nodeIdFromPartialNode($node['right']);
+
+        if ($leftNodeId !== 0) {
+            $reverseMap[$leftNodeId] = $nodeId;
         }
-        if ($node['right']['id'] !== 0) {
-            $reverseMap[$node['right']['id']] = $node['id'];
+        if ($rightNodeId !== 0) {
+            $reverseMap[$rightNodeId] = $nodeId;
         }
 
         $boundary = clone $currentPath;
@@ -746,12 +784,12 @@ final class SparseTree
 
         $currentPath->setBit($node['depth'], 0);
         if ($doLeft) {
-            $this->exportProofRangeAux($node['left'], $node['id'], $begin, $end, $currentPath, $items, $reverseMap);
+            $this->exportProofRangeAux($node['left'], $nodeId, $begin, $end, $currentPath, $items, $reverseMap);
         }
 
         $currentPath->setBit($node['depth'], 1);
         if ($doRight) {
-            $this->exportProofRangeAux($node['right'], $node['id'], $begin, $end, $currentPath, $items, $reverseMap);
+            $this->exportProofRangeAux($node['right'], $nodeId, $begin, $end, $currentPath, $items, $reverseMap);
         }
 
         $currentPath->setBit($node['depth'], 0);
@@ -916,9 +954,9 @@ final class SparseTree
                 }
 
                 $parentNode = $nodesById[$currentParent];
-                $siblingNode = $parentNode['left']['id'] === $accums[$i]['nodeId'] ? $parentNode['right'] : $parentNode['left'];
+                $siblingNode = $this->nodeIdFromPartialNode($parentNode['left']) === $accums[$i]['nodeId'] ? $parentNode['right'] : $parentNode['left'];
 
-                if ($siblingNode['id'] !== 0) {
+                if ($this->nodeIdFromPartialNode($siblingNode) !== 0) {
                     $accums[$i]['commands'][] = new ProofCommand(ProofCommand::HASH_PROVIDED, $i, $siblingNode['hash']);
                 } else {
                     $accums[$i]['commands'][] = new ProofCommand(ProofCommand::HASH_EMPTY, $i);
@@ -1607,6 +1645,23 @@ final class SparseTree
     private function allocatePartialNodeId(): int
     {
         return $this->nextPartialNodeId++;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array<string, mixed>> $nodesById
+     */
+    private function indexProofNodes(array $node, array &$nodesById): void
+    {
+        $nodeId = $this->nodeIdFromPartialNode($node);
+        if ($nodeId !== 0) {
+            $nodesById[$nodeId] = $node;
+        }
+
+        if ($node['type'] === 'branch') {
+            $this->indexProofNodes($node['left'], $nodesById);
+            $this->indexProofNodes($node['right'], $nodesById);
+        }
     }
 
     /**

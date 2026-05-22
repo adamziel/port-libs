@@ -97,6 +97,41 @@ return [
             $t->throws(RuntimeException::class, static fn () => $partial->getKey(Key::fromInteger($i)));
         }
     },
+    'maps upstream range sub proof export from an imported partial tree' => static function (TestRunner $t): void {
+        $full = new SparseTree();
+        $changes = $full->change();
+        for ($i = 1; $i < 1000; $i++) {
+            $changes->putKey(Key::fromInteger($i), (string) $i);
+        }
+        $changes->apply();
+
+        $root = $full->rootHash();
+        $wide = SparseTree::importProof(
+            Proof::decode($full->exportProofRange(Key::fromInteger(50), Key::fromInteger(60))->encode()),
+            $root
+        );
+
+        $subProof = Proof::decode($wide->exportProofRange(Key::fromInteger(52), Key::fromInteger(54))->encode());
+        $narrow = SparseTree::importProof($subProof, $root);
+
+        foreach ([52, 53, 54] as $i) {
+            $t->same((string) $i, $narrow->getKey(Key::fromInteger($i)));
+        }
+
+        foreach ([51, 55, 60] as $i) {
+            $t->throws(RuntimeException::class, static fn () => $narrow->getKey(Key::fromInteger($i)));
+        }
+
+        $singleKeyOnly = SparseTree::importProof(
+            Proof::decode($full->exportRawProof([Key::fromInteger(53)])->encode()),
+            $root
+        );
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $singleKeyOnly->exportProofRange(Key::fromInteger(52), Key::fromInteger(54))
+        );
+    },
     'wordpress ordered snapshot can be authenticated as a compact range proof' => static function (TestRunner $t): void {
         $fixturePath = __DIR__ . '/../fixtures/wordpress-ordered-snapshot.json';
         $records = json_decode((string) file_get_contents($fixturePath), true, flags: JSON_THROW_ON_ERROR);
@@ -116,5 +151,31 @@ return [
         $t->same('wp_postmeta:1:_thumbnail_id=42', $partial->getKey(Key::fromInteger(4)));
         $t->throws(RuntimeException::class, static fn () => $partial->getKey(Key::fromInteger(1)));
         $t->throws(RuntimeException::class, static fn () => $partial->getKey(Key::fromInteger(5)));
+    },
+    'wordpress partial snapshot can delegate a narrower range proof' => static function (TestRunner $t): void {
+        $fixturePath = __DIR__ . '/../fixtures/wordpress-ordered-snapshot.json';
+        $records = json_decode((string) file_get_contents($fixturePath), true, flags: JSON_THROW_ON_ERROR);
+
+        $full = new SparseTree();
+        $changes = $full->change();
+        foreach ($records as $record) {
+            $changes->putKey(Key::fromInteger((int) $record['key']), (string) $record['value']);
+        }
+        $changes->apply();
+
+        $root = $full->rootHash();
+        $wide = SparseTree::importProof(
+            Proof::decode($full->exportProofRange(Key::fromInteger(1), Key::fromInteger(5))->encode()),
+            $root
+        );
+
+        $subProof = Proof::decode($wide->exportProofRange(Key::fromInteger(2), Key::fromInteger(3))->encode());
+        $delegated = SparseTree::importProof($subProof, $root);
+
+        $t->same($root, $delegated->rootHash());
+        $t->same('wp_options:home=https://example.test', $delegated->getKey(Key::fromInteger(2)));
+        $t->same('wp_posts:1=Hello world', $delegated->getKey(Key::fromInteger(3)));
+        $t->throws(RuntimeException::class, static fn () => $delegated->getKey(Key::fromInteger(1)));
+        $t->throws(RuntimeException::class, static fn () => $delegated->getKey(Key::fromInteger(4)));
     },
 ];
