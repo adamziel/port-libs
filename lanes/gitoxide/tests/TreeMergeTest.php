@@ -642,6 +642,34 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline non-tree-to-tree-with-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([$blobEntry('a', "original\n1\n2\n3\n4\n5\n")]);
+        $ours = new Tree([$blobEntry('a', "1\n2\n3\n4\n5\n6\n")]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([
+                $blobEntry('d', ''),
+                $blobEntry('e', ''),
+                $treeEntry('sub', new Tree([
+                    $blobEntry('b', "original\n1\n2\n3\n4\n5\n"),
+                    $blobEntry('c', ''),
+                ])),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $subTree = Tree::fromObject($read($aTree->entryNamed('sub', true)?->oid ?? ''));
+
+        $t->true($result->isClean());
+        $t->same(['a'], $names($result->tree));
+        $t->same(['d', 'e', 'sub'], $names($aTree));
+        $t->same(['b', 'c'], $names($subTree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($subTree->entryNamed('b')?->oid ?? '')->body);
+        $t->same([], $result->conflicts);
+        $t->same([], $result->indexEntries());
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline tree-to-non-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([

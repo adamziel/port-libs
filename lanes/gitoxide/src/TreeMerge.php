@@ -173,10 +173,10 @@ final class TreeMerge
                 continue;
             }
 
-            $fileDirectory = self::tryMergeFileToDirectoryConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry);
+            $fileDirectory = self::tryMergeFileToDirectoryConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
             if ($fileDirectory !== null) {
                 array_push($merged, ...$fileDirectory['merged']);
-                $conflicts[] = $fileDirectory['conflict'];
+                array_push($conflicts, ...$fileDirectory['conflicts']);
                 continue;
             }
 
@@ -385,7 +385,9 @@ final class TreeMerge
     }
 
     /**
-     * @return null|array{merged:list<TreeEntry>,conflict:TreeMergeConflict}
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return null|array{merged:list<TreeEntry>,conflicts:list<TreeMergeConflict>}
      */
     private static function tryMergeFileToDirectoryConflict(
         string $path,
@@ -393,6 +395,9 @@ final class TreeMerge
         ?TreeEntry $baseEntry,
         ?TreeEntry $ourEntry,
         ?TreeEntry $theirEntry,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
     ): ?array {
         if ($baseEntry === null || $baseEntry->isTree() || $ourEntry === null || $theirEntry === null) {
             return null;
@@ -408,6 +413,23 @@ final class TreeMerge
         }
 
         $fileIsOurs = !$ourEntry->isTree();
+        $directoryTree = Tree::fromObject(self::readTypedObject($readObject, $directoryEntry->oid, 'tree'));
+        $renameIntoDirectory = self::tryMergeFileChangeIntoDirectoryRename(
+            $path,
+            $fullPath,
+            $baseEntry,
+            $fileEntry,
+            $directoryEntry,
+            $directoryTree,
+            $fileIsOurs,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+        if ($renameIntoDirectory !== null) {
+            return $renameIntoDirectory;
+        }
+
         $relocatedName = $path . ($fileIsOurs ? '~A' : '~B');
         $relocatedPath = $fullPath . ($fileIsOurs ? '~A' : '~B');
         $baseRelocated = new TreeEntry($baseEntry->mode, $relocatedName, $baseEntry->oid);
@@ -418,14 +440,91 @@ final class TreeMerge
                 new TreeEntry($directoryEntry->mode, $path, $directoryEntry->oid),
                 $fileRelocated,
             ],
-            'conflict' => new TreeMergeConflict(
-                $relocatedPath,
-                'delete-modify',
-                $baseRelocated,
-                $fileIsOurs ? $fileRelocated : null,
-                $fileIsOurs ? null : $fileRelocated,
-            ),
+            'conflicts' => [
+                new TreeMergeConflict(
+                    $relocatedPath,
+                    'delete-modify',
+                    $baseRelocated,
+                    $fileIsOurs ? $fileRelocated : null,
+                    $fileIsOurs ? null : $fileRelocated,
+                ),
+            ],
         ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return null|array{merged:list<TreeEntry>,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeFileChangeIntoDirectoryRename(
+        string $path,
+        string $fullPath,
+        TreeEntry $baseEntry,
+        TreeEntry $fileEntry,
+        TreeEntry $directoryEntry,
+        Tree $directoryTree,
+        bool $fileIsOurs,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+    ): ?array {
+        $matches = self::matchingLeafPaths($directoryTree, $baseEntry, $readObject);
+        if (count($matches) !== 1) {
+            return null;
+        }
+
+        $targetPath = $matches[0]['path'];
+        $targetEntry = $matches[0]['entry'];
+        $targetFilename = basename($targetPath);
+        $baseAtTarget = new TreeEntry($baseEntry->mode, $targetFilename, $baseEntry->oid);
+        $fileAtTarget = new TreeEntry($fileEntry->mode, $targetFilename, $fileEntry->oid);
+        $contentMerge = self::tryMergeChangedEntry(
+            $targetFilename,
+            self::joinPath($fullPath, $targetPath),
+            $baseAtTarget,
+            $fileIsOurs ? $fileAtTarget : $targetEntry,
+            $fileIsOurs ? $targetEntry : $fileAtTarget,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+        if ($contentMerge === null || $contentMerge['entry'] === null) {
+            return null;
+        }
+
+        $mergedTree = self::replaceTreeEntryAtPath($directoryTree, explode('/', $targetPath), $contentMerge['entry'], $readObject, $writeObject);
+
+        return [
+            'merged' => [new TreeEntry($directoryEntry->mode, $path, $writeObject($mergedTree->toObject()))],
+            'conflicts' => $contentMerge['conflicts'],
+        ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @return list<array{path:string,entry:TreeEntry}>
+     */
+    private static function matchingLeafPaths(Tree $tree, TreeEntry $target, callable $readObject, string $prefix = ''): array
+    {
+        $matches = [];
+        foreach ($tree->entries as $entry) {
+            $path = self::joinPath($prefix, $entry->filename);
+            if ($entry->isTree()) {
+                array_push($matches, ...self::matchingLeafPaths(
+                    Tree::fromObject(self::readTypedObject($readObject, $entry->oid, 'tree')),
+                    $target,
+                    $readObject,
+                    $path,
+                ));
+                continue;
+            }
+            if (self::sameEntry(new TreeEntry($target->mode, $entry->filename, $target->oid), $entry)) {
+                $matches[] = ['path' => $path, 'entry' => $entry];
+            }
+        }
+
+        return $matches;
     }
 
     /**
