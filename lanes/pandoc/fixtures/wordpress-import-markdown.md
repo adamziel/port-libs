@@ -108,6 +108,10 @@ HTML reader quote import paragraph:
 <p>Reviewer source says <q cite="https://example.test/import-log#quote">ready for block import</q><br />
 Confirm citation metadata before publishing.</p>
 
+HTML reader editorial inline marks:
+
+<p><span style="font-variant: small-caps;">source glossary</span> flags <u>underlined source text</u>, <ins>inserted reviewer note</ins>, <s>stale caption</s>, <strike>old shortcode</strike>, and <del>deleted widget</del>.</p>
+
 Empty import audit table:
 
 <table>

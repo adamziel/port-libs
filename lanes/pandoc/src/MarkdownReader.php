@@ -1659,6 +1659,15 @@ final class MarkdownReader
         if ($name === 'sub') {
             return [new AstNode('subscript', [], $children)];
         }
+        if ($name === 'span' && $this->htmlElementHasSmallCapsStyle($node)) {
+            return [new AstNode('small_caps', [], $children)];
+        }
+        if (in_array($name, ['u', 'ins'], true)) {
+            return [new AstNode('underline', [], $children)];
+        }
+        if (in_array($name, ['s', 'strike', 'del'], true)) {
+            return [new AstNode('strikeout', [], $children)];
+        }
         if (in_array($name, ['code', 'kbd', 'samp'], true)) {
             return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];
         }
@@ -1690,6 +1699,17 @@ final class MarkdownReader
         }
 
         return $children;
+    }
+
+    private function htmlElementHasSmallCapsStyle(\DOMElement $element): bool
+    {
+        $style = strtolower($element->getAttribute('style'));
+        if ($style === '') {
+            return false;
+        }
+
+        return preg_match('/(?:^|;)\s*font-variant\s*:\s*small-caps\b/', $style) === 1
+            || preg_match('/(?:^|;)\s*font-variant-caps\s*:\s*small-caps\b/', $style) === 1;
     }
 
     /**
@@ -2733,6 +2753,9 @@ final class MarkdownReader
                 'text' => $this->escapeHtml((string) $node->attr('text', '')),
                 'emph' => '<em>' . $this->renderInlineHtml($node->children) . '</em>',
                 'strong' => '<strong>' . $this->renderInlineHtml($node->children) . '</strong>',
+                'small_caps' => '<span style="font-variant:small-caps">'
+                    . $this->renderInlineHtml($node->children) . '</span>',
+                'underline' => '<u>' . $this->renderInlineHtml($node->children) . '</u>',
                 'strikeout' => '<del>' . $this->renderInlineHtml($node->children) . '</del>',
                 'superscript' => '<sup>' . $this->renderInlineHtml($node->children) . '</sup>',
                 'subscript' => '<sub>' . $this->renderInlineHtml($node->children) . '</sub>',

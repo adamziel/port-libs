@@ -103,6 +103,11 @@ standalone HTML paragraphs can now carry Pandoc-style hard line breaks and
 inline `<q>` quote semantics through the native AST. Citation metadata from
 `<q cite="...">` is kept on a span child and rendered into WordPress-safe inline
 HTML, so imported review quotes keep their source URL without invoking Pandoc.
+The next HTML-reader inline style slice is now represented as well:
+`font-variant: small-caps` spans, `<u>`, `<ins>`, `<s>`, `<strike>`, and
+`<del>` map to native inline nodes before WordPress output. This keeps
+source-glossary labels, underlined reviewer notes, inserted text, and deleted
+legacy-caption markers semantic instead of flattening them to plain text.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -335,5 +340,4 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map the next bounded non-table slice from `test/html-reader.html`, starting with
-small-caps, underline, and strikeout inline element behavior, then expose it
-through WordPress blocks.
+`<pre><code>` code block behavior, then expose it through WordPress blocks.

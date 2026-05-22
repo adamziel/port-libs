@@ -1226,6 +1226,34 @@ HTML);
         $t->contains('<p>Normal text but then a “<span cite="https://www.imdb.com/title/tt0062622/quotes/qt0396921">inline quote</span>”.</p>', $blocks);
         $t->contains('<p>“Missing a cite attribute means its just normal text”</p>', $blocks);
     },
+    'maps upstream html reader small caps underline and strikeout inlines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p>This is <span style="font-variant: small-caps;">small caps</span>.</p>
+<p>These are all underlined: <u>foo</u> and <ins>bar</ins>.</p>
+<p>These are all strikethrough: <s>foo</s>, <strike>bar</strike>, and <del>baz</del>.</p>
+HTML);
+        $smallCaps = $document->children[0]->children[1];
+        $underlined = $document->children[1];
+        $struck = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('small_caps', $smallCaps->type);
+        $t->same('small caps', $smallCaps->children[0]->attr('text'));
+        $t->same('underline', $underlined->children[1]->type);
+        $t->same('foo', $underlined->children[1]->children[0]->attr('text'));
+        $t->same('underline', $underlined->children[3]->type);
+        $t->same('bar', $underlined->children[3]->children[0]->attr('text'));
+        $t->same('strikeout', $struck->children[1]->type);
+        $t->same('foo', $struck->children[1]->children[0]->attr('text'));
+        $t->same('strikeout', $struck->children[3]->type);
+        $t->same('bar', $struck->children[3]->children[0]->attr('text'));
+        $t->same('strikeout', $struck->children[5]->type);
+        $t->same('baz', $struck->children[5]->children[0]->attr('text'));
+        $t->contains('<p>This is <span style="font-variant:small-caps">small caps</span>.</p>', $blocks);
+        $t->contains('<p>These are all underlined: <u>foo</u> and <u>bar</u>.</p>', $blocks);
+        $t->contains('<p>These are all strikethrough: <del>foo</del>, <del>bar</del>, and <del>baz</del>.</p>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -2575,6 +2603,26 @@ XML;
         $t->same(['text', 'quoted', 'linebreak', 'text'], array_map(static fn ($node): string => $node->type, $quotedParagraph->children));
         $t->contains('<p>HTML reader quote import paragraph:</p>', $blocks);
         $t->contains('<p>Reviewer source says “<span cite="https://example.test/import-log#quote">ready for block import</span>”<br/>Confirm citation metadata before publishing.</p>', $blocks);
+    },
+    'writes wordpress html reader editorial inline marks from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $markedParagraph = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'paragraph'
+                && ($node->children[0] ?? null)?->type === 'small_caps'
+            ) {
+                $markedParagraph = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($markedParagraph !== null, 'HTML reader editorial marks should stay semantic on the native path');
+        $t->same(['small_caps', 'text', 'underline', 'text', 'underline', 'text', 'strikeout', 'text', 'strikeout', 'text', 'strikeout', 'text'], array_map(static fn ($node): string => $node->type, $markedParagraph->children));
+        $t->contains('<p>HTML reader editorial inline marks:</p>', $blocks);
+        $t->contains('<p><span style="font-variant:small-caps">source glossary</span> flags <u>underlined source text</u>, <u>inserted reviewer note</u>, <del>stale caption</del>, <del>old shortcode</del>, and <del>deleted widget</del>.</p>', $blocks);
     },
     'writes wordpress pipe table blocks for import metrics' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

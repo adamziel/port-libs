@@ -142,6 +142,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   text nodes, and lines 360-405 show two `Quoted DoubleQuote` nodes, including
   one citation-bearing `Span` child with the source URL preserved in native
   key-value attributes.
+- `test/html-reader.html` inline style slice inspected in this run: upstream
+  lines 323-325 cover one `font-variant: small-caps` span, `<u>` and `<ins>`
+  underline inputs, and `<s>`, `<strike>`, and `<del>` strikeout inputs.
+- `test/html-reader.native` inline style rendered native AST slice inspected in
+  this run: upstream lines 922-958 show one `SmallCaps`, two `Underline`, and
+  three `Strikeout` nodes for those HTML inputs.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -405,11 +411,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `thead`/`tbody`/`tfoot` become `table_head`/`table_body`/`table_foot`, and
   the WordPress writer emits `<thead>`, `<tbody>`, `<tfoot>`, and `rowspan`
   attributes without shelling out to Pandoc.
+- The inline style shape from `test/html-reader.html` is now mapped for a
+  narrow HTML reader slice: `font-variant: small-caps` spans become
+  `small_caps` AST nodes, `<u>` and `<ins>` become `underline`, and `<s>`,
+  `<strike>`, and `<del>` become `strikeout`. The WordPress writer renders
+  those as safe inline small-caps, underline, and deletion markup without
+  invoking Pandoc.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-115 tests, 890 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command was run after this slice and passed with 135
-test files, 12,065 assertions, and 0 failures.
+117 tests, 910 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command was run after this slice and passed with 138
+test files, 12,219 assertions, and 0 failures. The final required rerun for
+this batch passed with 139 test files, 12,328 assertions, and 0 failures.
