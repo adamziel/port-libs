@@ -335,6 +335,7 @@ final class CssMinifier
         $value = $this->minifyFilterValue($property, $value);
         $value = $this->minifyBoxShadowValue($property, $value);
         $value = $this->minifyTextEmphasisValue($property, $value);
+        $value = $this->minifyCaretValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
@@ -1075,6 +1076,123 @@ final class CssMinifier
     }
 
     private function isTextEmphasisColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return in_array(strtolower($token), [
+            'black',
+            'blue',
+            'currentcolor',
+            'green',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
+    }
+
+    private function minifyCaretValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'caret' => $this->minifyCaretShorthand($value),
+            'caret-shape' => strtolower(trim($value)),
+            default => $value,
+        };
+    }
+
+    private function minifyCaretShorthand(string $value): string
+    {
+        $components = $this->parseCaretShorthandComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeCaretComponents($components);
+    }
+
+    /**
+     * @return array{color:?string,shape:?string}|null
+     */
+    private function parseCaretShorthandComponents(string $value): ?array
+    {
+        $color = null;
+        $shape = null;
+        $auto = 0;
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'auto') {
+                $auto++;
+                continue;
+            }
+
+            if ($this->isCaretShapeToken($lower)) {
+                if ($shape !== null) {
+                    return null;
+                }
+                $shape = $lower;
+                continue;
+            }
+
+            if ($this->isCaretColorToken($token)) {
+                if ($color !== null) {
+                    return null;
+                }
+                $color = trim($token);
+                continue;
+            }
+
+            if ($shape !== null) {
+                return null;
+            }
+            $shape = trim($token);
+        }
+
+        while ($auto > 0) {
+            if ($color === null) {
+                $color = 'auto';
+            } elseif ($shape === null) {
+                $shape = 'auto';
+            } else {
+                return null;
+            }
+            $auto--;
+        }
+
+        return [
+            'color' => $color,
+            'shape' => $shape,
+        ];
+    }
+
+    /**
+     * @param array{color:?string,shape:?string} $components
+     */
+    private function serializeCaretComponents(array $components): string
+    {
+        $parts = [];
+        if ($components['color'] !== null && strtolower($components['color']) !== 'auto') {
+            $parts[] = $components['color'];
+        }
+        if ($components['shape'] !== null && strtolower($components['shape']) !== 'auto') {
+            $parts[] = $components['shape'];
+        }
+
+        return $parts === [] ? 'auto' : implode(' ', $parts);
+    }
+
+    private function isCaretShapeToken(string $token): bool
+    {
+        return in_array($token, ['bar', 'block', 'underscore'], true);
+    }
+
+    private function isCaretColorToken(string $token): bool
     {
         $token = trim($token);
         if ($token === '') {

@@ -118,10 +118,13 @@ final class TransitionPrefixer
         $textEmphasisChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteTextEmphasisPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
+        $caretChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteCaretFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -1200,6 +1203,187 @@ final class TransitionPrefixer
     }
 
     private function isTextEmphasisColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return in_array(strtolower($token), [
+            'black',
+            'blue',
+            'currentcolor',
+            'green',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteCaretFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !in_array($entry['property'], ['caret', 'caret-color', 'caret-shape'], true)) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $entry['value'] = $this->normalizeCaretPropertyValue($entry['property'], $entry['value']);
+            if ($entry['property'] === 'caret-shape') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $fallback = ($targetOptions['boxShadowSupportsAdvancedColor'] ?? false)
+                ? null
+                : $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $hasCustomPropertyReference = $this->containsCustomPropertyReference($entry['value']);
+            $p3Fallback = $hasCustomPropertyReference || !($targetOptions['advancedColorUsesP3Fallback'] ?? false)
+                ? null
+                : $this->advancedColorP3FallbackValue($entry['value']);
+
+            if (($targetOptions['advancedColorNeedsSrgbFallback'] ?? true) || $p3Fallback === null) {
+                $rewritten[] = $this->entryWithValue($entry, $this->normalizeCaretPropertyValue($entry['property'], $fallback));
+            }
+            if (($targetOptions['advancedColorUsesP3Fallback'] ?? false) && $p3Fallback !== null && $p3Fallback !== $fallback) {
+                $rewritten[] = $this->entryWithValue($entry, $this->normalizeCaretPropertyValue($entry['property'], $p3Fallback));
+            }
+
+            if ($hasCustomPropertyReference) {
+                $labFallback = $this->advancedColorLabFallbackValue($entry['value'], true);
+                if ($labFallback !== null) {
+                    $supportRules[] = $this->supportsLabRule(
+                        $selectors,
+                        [$this->entryWithValue($entry, $this->normalizeCaretPropertyValue($entry['property'], $labFallback))]
+                    );
+                }
+                $changed = true;
+                continue;
+            }
+
+            $finalValue = $this->advancedColorLabTargetValue($entry['value']) ?? $entry['value'];
+            $rewritten[] = $this->entryWithValue($entry, $this->normalizeCaretPropertyValue($entry['property'], $finalValue));
+            $changed = true;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    private function normalizeCaretPropertyValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'caret' => $this->normalizeCaretShorthand($value),
+            'caret-shape' => strtolower(trim($value)),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeCaretShorthand(string $value): string
+    {
+        $components = $this->parseCaretShorthandComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeCaretComponents($components);
+    }
+
+    /**
+     * @return array{color:?string,shape:?string}|null
+     */
+    private function parseCaretShorthandComponents(string $value): ?array
+    {
+        $color = null;
+        $shape = null;
+        $auto = 0;
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'auto') {
+                $auto++;
+                continue;
+            }
+
+            if ($this->isCaretShapeToken($lower)) {
+                if ($shape !== null) {
+                    return null;
+                }
+                $shape = $lower;
+                continue;
+            }
+
+            if ($this->isCaretColorToken($token)) {
+                if ($color !== null) {
+                    return null;
+                }
+                $color = trim($token);
+                continue;
+            }
+
+            if ($shape !== null) {
+                return null;
+            }
+            $shape = trim($token);
+        }
+
+        while ($auto > 0) {
+            if ($color === null) {
+                $color = 'auto';
+            } elseif ($shape === null) {
+                $shape = 'auto';
+            } else {
+                return null;
+            }
+            $auto--;
+        }
+
+        return [
+            'color' => $color,
+            'shape' => $shape,
+        ];
+    }
+
+    /**
+     * @param array{color:?string,shape:?string} $components
+     */
+    private function serializeCaretComponents(array $components): string
+    {
+        $parts = [];
+        if ($components['color'] !== null && strtolower($components['color']) !== 'auto') {
+            $parts[] = $components['color'];
+        }
+        if ($components['shape'] !== null && strtolower($components['shape']) !== 'auto') {
+            $parts[] = $components['shape'];
+        }
+
+        return $parts === [] ? 'auto' : implode(' ', $parts);
+    }
+
+    private function isCaretShapeToken(string $token): bool
+    {
+        return in_array($token, ['bar', 'block', 'underscore'], true);
+    }
+
+    private function isCaretColorToken(string $token): bool
     {
         $token = trim($token);
         if ($token === '') {

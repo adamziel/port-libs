@@ -389,6 +389,21 @@ return [
             $minifier->minify('.foo { text-shadow: 1px 1px yellow, 2px 3px red; }')
         );
     },
+    'css minifier maps upstream caret values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{caret-color:auto}', $minifier->minify('.foo { caret-color: auto }'));
+        $t->same('.foo{caret-color:#ff0}', $minifier->minify('.foo { caret-color: yellow }'));
+        $t->same('.foo{caret-shape:block}', $minifier->minify('.foo { caret-shape: block }'));
+        $t->same('.foo{caret:#ff0 block}', $minifier->minify('.foo { caret: yellow block }'));
+        $t->same('.foo{caret:#ff0 block}', $minifier->minify('.foo { caret: block yellow }'));
+        $t->same('.foo{caret:block}', $minifier->minify('.foo { caret: block }'));
+        $t->same('.foo{caret:#ff0}', $minifier->minify('.foo { caret: yellow }'));
+        $t->same('.foo{caret:auto}', $minifier->minify('.foo { caret: auto auto }'));
+        $t->same('.foo{caret:auto}', $minifier->minify('.foo { caret: auto }'));
+        $t->same('.foo{caret:#ff0}', $minifier->minify('.foo { caret: yellow auto }'));
+        $t->same('.foo{caret:block}', $minifier->minify('.foo { caret: auto block }'));
+    },
     'css minifier maps upstream text emphasis values and composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

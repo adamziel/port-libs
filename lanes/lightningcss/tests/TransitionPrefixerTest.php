@@ -407,6 +407,26 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-emphasis: lab(50.998% 125.506 -50.7078) var(--style); } }', ['safari' => 8])
         );
     },
+    'transition prefixer maps upstream caret advanced color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{caret-color:#ee00be;caret-color:color(display-p3 .972962 -.362078 .804206);caret-color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { caret-color: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{caret:#ee00be block;caret:color(display-p3 .972962 -.362078 .804206) block;caret:lch(50.998% 135.363 338) block}',
+            $prefixer->prefixForTargets('.foo { caret: lch(50.998% 135.363 338) block }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{caret:#ee00be var(--foo)}@supports (color:lab(0% 0 0)){.foo{caret:lab(50.998% 125.506 -50.7078) var(--foo)}}',
+            $prefixer->prefixForTargets('.foo { caret: lch(50.998% 135.363 338) var(--foo) }', ['chrome' => 90])
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{caret:lab(50.998% 125.506 -50.7078) var(--foo)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { caret: lab(50.998% 125.506 -50.7078) var(--foo); } }', ['chrome' => 90])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -541,6 +561,18 @@ CSS;
         $t->same(
             '.wp-block-post-content .has-annotation-emphasis{text-emphasis:#ee00be var(--wp--custom--annotation-emphasis)}@supports (color:lab(0% 0 0)){.wp-block-post-content .has-annotation-emphasis{text-emphasis:lab(50.998% 125.506 -50.7078) var(--wp--custom--annotation-emphasis)}}',
             (new TransitionPrefixer())->prefixForTargets($css, ['safari' => 8])
+        );
+    },
+    'wordpress editor inputs get caret color fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-search .wp-block-search__input {
+  caret: lch(50.998% 135.363 338) var(--wp--custom--editor-caret-shape);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-search .wp-block-search__input{caret:#ee00be var(--wp--custom--editor-caret-shape)}@supports (color:lab(0% 0 0)){.wp-block-search .wp-block-search__input{caret:lab(50.998% 125.506 -50.7078) var(--wp--custom--editor-caret-shape)}}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 90])
         );
     },
     'wordpress cover frame mask-border longhands compose and prefix without node' => static function (TestRunner $t): void {
