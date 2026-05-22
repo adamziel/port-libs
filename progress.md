@@ -12,7 +12,7 @@
 - [ ] Keep each lane moving through native PHP implementation slices with mapped upstream behavior.
 - [x] Add capped tmux worker/auditor launch scripts.
 - [ ] Run an independent auditor loop that challenges shallow progress and updates lane blockers.
-- [ ] Reach the required baseline for every lane: upstream manifest, native PHP slice, passing PHP tests, WordPress scenarios, and visible `porting.html` status.
+- [x] Reach the required baseline for every lane: upstream manifest, native PHP slice, passing PHP tests, WordPress scenarios, and visible `porting.html` status.
 
 ## Environment
 
@@ -38,7 +38,7 @@
 | 8 | syncthing | stopped | cloned static upstream inventory + scanner block parity slice | 4% | Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures. |
 | 9 | difftastic | stopped | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
 | 10 | rclone | stopped | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
-| 11 | dolt | port-dolt | cloned static upstream inventory + Dolt diff table row slice | 5% | Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes. |
+| 11 | dolt | stopped | cloned static upstream inventory + Dolt diff table row slice | 5% | Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes. |
 | 12 | esbuild | stopped | cloned static upstream inventory + lexer numeric/hashbang slice | 4% | Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports. |
 
 ## Completed Milestones
@@ -92,9 +92,9 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: `port-auditor` tmux session exists; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: `port-dolt` is the active Dolt lane worker for the current reauthorized slice; no other worker sessions observed.
+- Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: none active after integrating the latest Dolt slice.
 
 ## Next Best Step
 
-Continue Dolt with schema/tag-aware row conversion and table delta matching for renamed tables and primary key set changes. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs or focused upstream fixture parity.
+Return capacity to the highest-priority gaps: target Gitoxide object/ref storage with a controlled checkout and map one markerPDF benchmark/reference pair or documented surrogate. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs or focused upstream fixture parity.
