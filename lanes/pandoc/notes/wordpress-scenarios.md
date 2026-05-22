@@ -93,6 +93,16 @@ bounded too: td-only body tables, omitted-`tbody` tables, empty-head tables, and
 explicit body-plus-foot tables become native headerless table blocks when cell
 content is plain scalar text, while Markdown-looking legacy review tables stay
 on the raw HTML path for reviewer inspection.
+The remaining bounded table-body header-row shapes from `test/html-reader.html`
+are now represented as well: leading all-`th` rows inside a `tbody` are kept as
+body-local table head rows instead of being flattened into ordinary body rows or
+promoted to a top-level `thead`. WordPress output preserves those rows inside
+the same `tbody` before the ordinary review rows.
+The next bounded non-table HTML-reader paragraph slice is represented too:
+standalone HTML paragraphs can now carry Pandoc-style hard line breaks and
+inline `<q>` quote semantics through the native AST. Citation metadata from
+`<q cite="...">` is kept on a span child and rendered into WordPress-safe inline
+HTML, so imported review quotes keep their source URL without invoking Pandoc.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -205,6 +215,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes a plain td-only HTML reader import table, exercising
   the upstream headerless table body path without changing Markdown-looking raw
   review tables.
+- The fixture now includes a body-headed HTML reader import table, exercising
+  upstream body-local `TableBody` head rows for migration review queues that
+  carry headers inside `tbody` plus a table footer.
+- The fixture now includes an HTML reader quote import paragraph with a
+  citation-bearing `<q>` and a hard `<br />` line break, exercising non-table
+  HTML reader inline semantics for migration reviewer source notes.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -263,6 +279,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   preserved `<thead>`, `<tbody>`, `<tfoot>`, `<colgroup>`, caption inline
   markup, row-header `<th>` cell treatment, inferred header rows, omitted
   section-end normalization, and superscript units without invoking Pandoc.
+- HTML reader quote/cite paragraphs render as WordPress paragraph blocks with
+  Pandoc-style typographic quotes, preserved citation metadata, and hard
+  `<br/>` line breaks without invoking Pandoc.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -315,5 +334,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the remaining bounded `test/html-reader.html` Tables without Headers
-shapes: tbody-tags-omitted, empty-head, and explicit body-plus-foot tables.
+Map the next bounded non-table slice from `test/html-reader.html`, starting with
+small-caps, underline, and strikeout inline element behavior, then expose it
+through WordPress blocks.

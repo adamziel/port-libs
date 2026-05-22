@@ -247,6 +247,14 @@ final class WordPressBlockWriter
         }
         foreach ($bodies as $body) {
             $html .= '<tbody>';
+            $bodyHeadRows = $body->attr('headRows', []);
+            if (is_array($bodyHeadRows)) {
+                foreach ($bodyHeadRows as $row) {
+                    if ($row instanceof AstNode) {
+                        $html .= $this->renderTableRow($row, $node, true);
+                    }
+                }
+            }
             foreach ($body->children as $row) {
                 $html .= $this->renderTableRow($row, $node, false);
             }
@@ -374,6 +382,8 @@ final class WordPressBlockWriter
             'superscript',
             'subscript',
             'softbreak',
+            'linebreak',
+            'span',
             'quoted',
             'math',
             'raw_tex',
@@ -724,6 +734,8 @@ final class WordPressBlockWriter
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
             'softbreak' => "\n",
+            'linebreak' => '<br/>',
+            'span' => '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>',
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
             'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
@@ -770,6 +782,37 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function renderInlineSpanAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+            return '';
+        }
+
+        $attrs = '';
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function isAllowedInlineHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
     }
 
     private function renderMathInline(AstNode $node): string

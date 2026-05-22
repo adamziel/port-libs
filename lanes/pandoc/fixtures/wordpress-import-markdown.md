@@ -90,6 +90,24 @@ Plain HTML reader import table:
 <tr><td>Media files</td><td>7</td><td>Ready</td></tr>
 </table>
 
+Body-headed HTML reader import table:
+
+<table>
+<tbody data-batch="audit">
+<tr><th>Queue</th><th>Items</th><th>Status</th></tr>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+<tr><td colspan="3">Review body-local headers before publish</td></tr>
+</tbody>
+<tfoot>
+<tr><th>Total</th><td>42</td><td>Ready</td></tr>
+</tfoot>
+</table>
+
+HTML reader quote import paragraph:
+
+<p>Reviewer source says <q cite="https://example.test/import-log#quote">ready for block import</q><br />
+Confirm citation metadata before publishing.</p>
+
 Empty import audit table:
 
 <table>

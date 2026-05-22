@@ -126,13 +126,22 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `<thead` starts, 17 `<tbody` starts, 5 `<tfoot` starts, 20 native
   `TableBody` nodes, two native tables with multiple `TableBody` sections, one
   `Cell ... [ Para [ Str "2" ] ]` paragraph-bearing table cell in the second
-  multiple-body case, and one native `RowHeadColumns 1` body shape. The bounded
-  PHP mapping now includes the two native colspan/rowspan table shapes, the
-  attribute-carrying table shape, the two multiple-body table shapes, the
-  paragraph-bearing cell from the second multiple-body case, the four plain
-  `Tables without Headers` body-only/body-omitted/empty-head/body-plus-foot
-  shapes, plus the two empty table inputs omitted from the upstream native
-  output.
+  multiple-body case, one native `RowHeadColumns 1` body shape, and four native
+  `TableBody` nodes with body-local head rows before ordinary body rows. The
+  bounded PHP mapping now includes the two native colspan/rowspan table shapes,
+  the attribute-carrying table shape, the two multiple-body table shapes, the
+  paragraph-bearing cell from the second multiple-body case, the four
+  body-local `TableBody` head-row cases, the four plain `Tables without
+  Headers` body-only/body-omitted/empty-head/body-plus-foot shapes, plus the two
+  empty table inputs omitted from the upstream native output.
+- `test/html-reader.html` paragraph and inline-quote slice inspected in this
+  run: upstream lines 33-86 cover a paragraph hard line break and two `<q>`
+  examples, one with a `cite` attribute and one without.
+- `test/html-reader.native` paragraph and inline-quote rendered native AST
+  slice inspected in this run: upstream lines 213-228 show `LineBreak` between
+  text nodes, and lines 360-405 show two `Quoted DoubleQuote` nodes, including
+  one citation-bearing `Span` child with the source URL preserved in native
+  key-value attributes.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -262,10 +271,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `caption`, `colgroup`, `thead`, or `tfoot` parse into table AST nodes,
   caption inline emphasis is preserved, col widths become `ColWidth`-style
   fractions, table head/body/foot sections remain distinct, row-header cells
-  stay marked as headers in the AST, `<br>` becomes a soft break, and
+  stay marked as headers in the AST, `<br>` becomes a hard `linebreak`, and
   `<sup>`/`<sub>` inline content maps to script nodes. Simple non-structured
   raw HTML tables still use the raw HTML path so legacy import-review markup
   is not over-normalized.
+- Bounded non-table HTML-reader paragraph cases from `test/html-reader.html`
+  and `test/html-reader.native` are now represented: standalone HTML
+  paragraphs parse through the native inline path, `<br />` becomes a
+  `linebreak` node matching Pandoc's `LineBreak`, `<q>` becomes a double
+  `quoted` node, and q `cite` metadata is preserved as a Pandoc-style `span`
+  child. The WordPress writer emits `<br/>` for the hard break and preserves
+  citation metadata on the rendered inline span.
 - Bounded HTML-reader table cases from `test/html-reader.html` and
   `test/html-reader.native` are now represented: a first all-`th` row without
   explicit `<thead>`/`<tbody>` tags is inferred as `table_head`, bodies whose
@@ -278,15 +294,20 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   attributes, the two upstream multiple-`tbody` tables stay as distinct
   `table_body` AST nodes instead of being flattened, and the second
   multiple-body table's direct `<p>` cell becomes a paragraph block child
-  rather than inline text. The plain `Tables without Headers` body-only,
-  tbody-omitted, empty-head, and explicit body-plus-foot shapes now parse as
-  native table AST nodes too when the cells are plain scalar text. The
-  WordPress writer now emits body row-header cells as `<th>` instead of
-  flattening them to `<td>`, preserves table identity attributes, carries
-  practical cell attributes such as `abbr`, `valign`, `data-*`, and
-  non-alignment `style` values, emits one `<tbody>` per `table_body` node,
-  preserves paragraph cells as `<td><p>...</p></td>`, and emits headerless
-  plain import grids as core table blocks. The upstream empty-table section is
+  rather than inline text. Four body-local `TableBody` head-row cases now keep
+  leading all-`th` rows in `headRows` metadata before ordinary body rows,
+  covering explicit tbody plus foot/details, omitted tbody after a promoted
+  top-level header, explicit tbody-only body heads, and empty-thead body heads.
+  The plain `Tables without Headers` body-only, tbody-omitted, empty-head, and
+  explicit body-plus-foot shapes now parse as native table AST nodes too when
+  the cells are plain scalar text. The WordPress writer now emits body
+  row-header cells as `<th>` instead of flattening them to `<td>`, renders
+  body-local head rows inside `<tbody>` before ordinary body rows, preserves
+  table identity attributes, carries practical cell attributes such as `abbr`,
+  `valign`, `data-*`, and non-alignment `style` values, emits one `<tbody>` per
+  `table_body` node, preserves paragraph cells as `<td><p>...</p></td>`, and
+  emits headerless plain import grids as core table blocks. The upstream
+  empty-table section is
   mapped too: the empty `<tbody>` table and the fully empty `<table></table>`
   input are consumed and omitted, matching `test/html-reader.native`.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
@@ -389,6 +410,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-108 tests, 799 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command was run after this slice and passed with 127
-test files, 11,420 assertions, and 0 failures.
+115 tests, 890 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command was run after this slice and passed with 135
+test files, 12,065 assertions, and 0 failures.

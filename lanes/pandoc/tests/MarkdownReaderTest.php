@@ -1184,10 +1184,47 @@ HTML;
         $t->same(true, $body->children[0]->children[0]->attr('header'));
         $t->same('Denmark', $body->children[0]->children[0]->attr('text'));
         $t->same('Copenhagen', $body->children[0]->children[1]->attr('text'));
-        $t->same(['text', 'softbreak', 'text', 'superscript', 'text'], array_map(static fn ($node): string => $node->type, $areaHeader->children));
+        $t->same(['text', 'linebreak', 'text', 'superscript', 'text'], array_map(static fn ($node): string => $node->type, $areaHeader->children));
         $t->same('2', $areaHeader->children[3]->children[0]->attr('text'));
         $t->same('Total', $foot->children[0]->children[0]->attr('text'));
         $t->same('27,376,022', $foot->children[0]->children[2]->attr('text'));
+    },
+    'maps upstream html reader hard line breaks in paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p>There should be a hard line break<br />
+ here.</p>
+HTML);
+        $paragraph = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $paragraph->type);
+        $t->same("There should be a hard line break\nhere.", $paragraph->attr('text'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('There should be a hard line break', $paragraph->children[0]->attr('text'));
+        $t->same('here.', $paragraph->children[2]->attr('text'));
+        $t->contains('<p>There should be a hard line break<br/>here.</p>', $blocks);
+    },
+    'maps upstream html reader inline q cite as quoted spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p>Normal text but then a <q cite="https://www.imdb.com/title/tt0062622/quotes/qt0396921">inline quote</q>.</p>
+<p><q>Missing a cite attribute means its just normal text</q></p>
+HTML);
+        $quotedWithCite = $document->children[0]->children[1];
+        $span = $quotedWithCite->children[0];
+        $plainQuoted = $document->children[1]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('quoted', $quotedWithCite->type);
+        $t->same('double', $quotedWithCite->attr('kind'));
+        $t->same('span', $span->type);
+        $t->same(['cite' => 'https://www.imdb.com/title/tt0062622/quotes/qt0396921'], $span->attr('attributes'));
+        $t->same('inline quote', $span->children[0]->attr('text'));
+        $t->same('quoted', $plainQuoted->type);
+        $t->same('Missing a cite attribute means its just normal text', $plainQuoted->children[0]->attr('text'));
+        $t->contains('<p>Normal text but then a “<span cite="https://www.imdb.com/title/tt0062622/quotes/qt0396921">inline quote</span>”.</p>', $blocks);
+        $t->contains('<p>“Missing a cite attribute means its just normal text”</p>', $blocks);
     },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
@@ -1478,6 +1515,140 @@ HTML);
         $t->same('4', $bodyAndFoot->children[2]->children[0]->children[0]->attr('text'));
         $t->same('6', $bodyAndFoot->children[2]->children[0]->children[2]->attr('text'));
         $t->contains('<tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot>', $bodyAndFootBlocks);
+    },
+    'maps upstream html reader body-local table head rows' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+
+        $bodyWithFootDocument = $reader->read(<<<'HTML'
+<table>
+    <tbody>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td colspan="3">Details</td>
+    </tr>
+    </tbody>
+    <tfoot>
+    <tr>
+        <th>4</th>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tfoot>
+</table>
+HTML);
+        $omittedBodyDocument = $reader->read(<<<'HTML'
+<table>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    <tr>
+        <th>1</th>
+        <th>2</th>
+        <th>3</th>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+</table>
+HTML);
+        $explicitBody = $reader->read(<<<'HTML'
+<table>
+    <tbody>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML)->children[0];
+        $emptyHead = $reader->read(<<<'HTML'
+<table>
+    <thead>
+    </thead>
+    <tbody>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML)->children[0];
+
+        $bodyWithFoot = $bodyWithFootDocument->children[0];
+        $bodyWithFootBody = $bodyWithFoot->children[1];
+        $bodyHeadRows = $bodyWithFootBody->attr('headRows');
+        $bodyWithFootBlocks = (new WordPressBlockWriter())->write($bodyWithFootDocument);
+        $omittedBody = $omittedBodyDocument->children[0];
+        $omittedBodyBody = $omittedBody->children[1];
+        $omittedBodyHeadRows = $omittedBodyBody->attr('headRows');
+        $omittedBodyBlocks = (new WordPressBlockWriter())->write($omittedBodyDocument);
+
+        $t->same('table', $bodyWithFoot->type);
+        $t->same([], $bodyWithFoot->children[0]->children);
+        $t->same(true, is_array($bodyHeadRows));
+        $t->same(1, $bodyWithFootBody->attr('headRowCount'));
+        $t->same('X', $bodyHeadRows[0]->children[0]->attr('text'));
+        $t->same('Z', $bodyHeadRows[0]->children[2]->attr('text'));
+        $t->same(2, count($bodyWithFootBody->children));
+        $t->same('1', $bodyWithFootBody->children[0]->children[0]->attr('text'));
+        $t->same('Details', $bodyWithFootBody->children[1]->children[0]->attr('text'));
+        $t->same(3, $bodyWithFootBody->children[1]->children[0]->attr('colspan'));
+        $t->contains('<tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td colspan="3">Details</td></tr></tbody><tfoot><tr><th>4</th><td>5</td><td>6</td></tr></tfoot>', $bodyWithFootBlocks);
+
+        $t->same('X', $omittedBody->children[0]->children[0]->children[0]->attr('text'));
+        $t->same(true, is_array($omittedBodyHeadRows));
+        $t->same(1, $omittedBodyBody->attr('headRowCount'));
+        $t->same('1', $omittedBodyHeadRows[0]->children[0]->attr('text'));
+        $t->same('3', $omittedBodyHeadRows[0]->children[2]->attr('text'));
+        $t->same(1, count($omittedBodyBody->children));
+        $t->same('4', $omittedBodyBody->children[0]->children[0]->attr('text'));
+        $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><th>2</th><th>3</th></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody>', $omittedBodyBlocks);
+
+        foreach ([$explicitBody, $emptyHead] as $table) {
+            $body = $table->children[1];
+            $headRows = $body->attr('headRows');
+            $t->same([], $table->children[0]->children);
+            $t->same(true, is_array($headRows));
+            $t->same('X', $headRows[0]->children[0]->attr('text'));
+            $t->same(2, count($body->children));
+            $t->same('1', $body->children[0]->children[0]->attr('text'));
+            $t->same('4', $body->children[1]->children[0]->attr('text'));
+        }
     },
     'maps upstream html reader colspans without table headers' => static function (TestRunner $t): void {
         $html = <<<'HTML'
@@ -2360,6 +2531,50 @@ XML;
         $t->true($plainTable !== null, 'Plain td-only HTML import grid should use the native table path');
         $t->contains('<p>Plain HTML reader import table:</p>', $blocks);
         $t->contains('<tbody><tr><td>Draft posts</td><td>12</td><td>Needs review</td></tr><tr><td>Media files</td><td>7</td><td>Ready</td></tr></tbody>', $blocks);
+    },
+    'writes wordpress body-headed html reader table blocks for import queues' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $bodyHeadedTable = null;
+        foreach ($document->children as $node) {
+            $body = $node->children[1] ?? null;
+            if (
+                $node->type === 'table'
+                && $body?->type === 'table_body'
+                && ($body->attr('headRows')[0] ?? null)?->children[0]?->attr('text') === 'Queue'
+            ) {
+                $bodyHeadedTable = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($bodyHeadedTable !== null, 'Body-local HTML reader head rows should stay on the native table path');
+        $t->same(1, $bodyHeadedTable->children[1]->attr('headRowCount'));
+        $t->same('Posts', $bodyHeadedTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->contains('<p>Body-headed HTML reader import table:</p>', $blocks);
+        $t->contains('<tbody><tr><th>Queue</th><th>Items</th><th>Status</th></tr><tr><td>Posts</td><td>42</td><td>Ready</td></tr><tr><td colspan="3">Review body-local headers before publish</td></tr></tbody><tfoot><tr><th>Total</th><td>42</td><td>Ready</td></tr></tfoot>', $blocks);
+    },
+    'writes wordpress html reader quote citations and hard breaks from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $quotedParagraph = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'paragraph'
+                && ($node->children[1] ?? null)?->type === 'quoted'
+                && ($node->children[1]->children[0] ?? null)?->type === 'span'
+            ) {
+                $quotedParagraph = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($quotedParagraph !== null, 'HTML reader quote/cite paragraph should stay semantic on the native path');
+        $t->same(['text', 'quoted', 'linebreak', 'text'], array_map(static fn ($node): string => $node->type, $quotedParagraph->children));
+        $t->contains('<p>HTML reader quote import paragraph:</p>', $blocks);
+        $t->contains('<p>Reviewer source says “<span cite="https://example.test/import-log#quote">ready for block import</span>”<br/>Confirm citation metadata before publishing.</p>', $blocks);
     },
     'writes wordpress pipe table blocks for import metrics' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

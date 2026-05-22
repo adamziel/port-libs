@@ -63,6 +63,11 @@ final class MarkdownReader
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
+            $htmlParagraph = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
+            if ($htmlParagraph !== null) {
+                $blocks[] = $htmlParagraph;
+                continue;
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -914,6 +919,86 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     */
+    private function tryReadHtmlParagraphBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<p(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'p');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $paragraph = $this->parseHtmlParagraphElement($html);
+        if ($paragraph === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $paragraph;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectHtmlBlockUntilClosingTag(array $lines, int $index, string $tag): ?array
+    {
+        $content = [];
+        $count = count($lines);
+        $closingPattern = '/<\/' . preg_quote($tag, '/') . '\s*>/i';
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $content[] = $line;
+            if (preg_match($closingPattern, $line) === 1) {
+                return [implode("\n", $content), $cursor];
+            }
+        }
+
+        return null;
+    }
+
+    private function parseHtmlParagraphElement(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $paragraph = $this->firstChildElement($body, 'p');
+        if (!$paragraph instanceof \DOMElement) {
+            return null;
+        }
+
+        $children = $this->parseHtmlInlineChildren($paragraph);
+
+        return new AstNode(
+            'paragraph',
+            ['text' => $this->plainTextFromInlines($children)],
+            $children
+        );
+    }
+
+    /**
+     * @param list<string> $lines
      * @return array{0:string, 1:int}|null
      */
     private function collectBalancedHtmlTableBlock(array $lines, int $index): ?array
@@ -1149,10 +1234,11 @@ final class MarkdownReader
         if ($bodySections !== []) {
             foreach ($bodySections as $tbody) {
                 $rows = $this->readHtmlTableRows($tbody, false, $maxColumns);
+                [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($rows);
                 $bodyNodes[] = new AstNode(
                     'table_body',
-                    array_merge($this->htmlElementPandocAttrs($tbody), $this->htmlTableBodyAttrs($rows)),
-                    $rows
+                    array_merge($this->htmlElementPandocAttrs($tbody), $this->htmlTableBodyAttrs($bodyRows, $bodyHeadRows)),
+                    $bodyRows
                 );
             }
         } else {
@@ -1163,7 +1249,8 @@ final class MarkdownReader
                     $headRows[] = $this->markHtmlTableRowAsHeader($headRow);
                 }
             }
-            $bodyNodes[] = new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows), $bodyRows);
+            [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($bodyRows);
+            $bodyNodes[] = new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows, $bodyHeadRows), $bodyRows);
         }
         $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
 
@@ -1203,11 +1290,34 @@ final class MarkdownReader
     private function firstHtmlTableRowIsHeader(array $rows): bool
     {
         $first = $rows[0] ?? null;
-        if (!$first instanceof AstNode || $first->children === []) {
+
+        return $first instanceof AstNode && $this->htmlTableRowIsAllHeaders($first);
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return array{0:list<AstNode>, 1:list<AstNode>}
+     */
+    private function splitHtmlTableBodyRows(array $rows): array
+    {
+        $headRows = [];
+        while ($rows !== [] && $this->htmlTableRowIsAllHeaders($rows[0])) {
+            $headRow = array_shift($rows);
+            if ($headRow instanceof AstNode) {
+                $headRows[] = $this->markHtmlTableRowAsHeader($headRow);
+            }
+        }
+
+        return [$headRows, $rows];
+    }
+
+    private function htmlTableRowIsAllHeaders(AstNode $row): bool
+    {
+        if ($row->children === []) {
             return false;
         }
 
-        foreach ($first->children as $cell) {
+        foreach ($row->children as $cell) {
             if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
                 return false;
             }
@@ -1227,13 +1337,20 @@ final class MarkdownReader
 
     /**
      * @param list<AstNode> $rows
-     * @return array<string, int>
+     * @param list<AstNode> $headRows
+     * @return array<string, mixed>
      */
-    private function htmlTableBodyAttrs(array $rows): array
+    private function htmlTableBodyAttrs(array $rows, array $headRows = []): array
     {
         $rowHeadColumns = $this->countHtmlTableRowHeadColumns($rows);
 
-        return $rowHeadColumns > 0 ? ['rowHeadColumns' => $rowHeadColumns] : [];
+        $attrs = $rowHeadColumns > 0 ? ['rowHeadColumns' => $rowHeadColumns] : [];
+        if ($headRows !== []) {
+            $attrs['headRows'] = $headRows;
+            $attrs['headRowCount'] = count($headRows);
+        }
+
+        return $attrs;
     }
 
     /**
@@ -1545,6 +1662,23 @@ final class MarkdownReader
         if (in_array($name, ['code', 'kbd', 'samp'], true)) {
             return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];
         }
+        if ($name === 'q') {
+            $quotedChildren = $children;
+            $attrs = $this->htmlElementPandocAttrs($node);
+            if ($attrs !== []) {
+                $quotedChildren = [new AstNode('span', $attrs, $children)];
+            }
+
+            return [new AstNode('quoted', ['kind' => 'double'], $quotedChildren)];
+        }
+        if ($name === 'span') {
+            $attrs = $this->htmlElementPandocAttrs($node);
+            if ($attrs !== []) {
+                return [new AstNode('span', $attrs, $children)];
+            }
+
+            return $children;
+        }
         if ($name === 'a') {
             return [new AstNode('link', [
                 'url' => $node->getAttribute('href'),
@@ -1552,7 +1686,7 @@ final class MarkdownReader
             ], $children)];
         }
         if ($name === 'br') {
-            return [new AstNode('softbreak')];
+            return [new AstNode('linebreak')];
         }
 
         return $children;
@@ -1565,10 +1699,32 @@ final class MarkdownReader
     {
         $children = [];
         foreach ($element->childNodes as $child) {
-            array_push($children, ...$this->parseHtmlInlineNode($child));
+            $this->appendHtmlInlineNodes($children, $this->parseHtmlInlineNode($child));
         }
 
         return $children;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @param list<AstNode> $nodes
+     */
+    private function appendHtmlInlineNodes(array &$children, array $nodes): void
+    {
+        foreach ($nodes as $node) {
+            $lastKey = array_key_last($children);
+            $last = $lastKey === null ? null : $children[$lastKey];
+            if ($last instanceof AstNode && $last->type === 'linebreak' && $node->type === 'text') {
+                $text = ltrim((string) $node->attr('text', ''));
+                if ($text === '') {
+                    continue;
+                }
+
+                $node = new AstNode('text', array_merge($node->attrs, ['text' => $text]), $node->children);
+            }
+
+            $children[] = $node;
+        }
     }
 
     /**
@@ -2581,6 +2737,9 @@ final class MarkdownReader
                 'superscript' => '<sup>' . $this->renderInlineHtml($node->children) . '</sup>',
                 'subscript' => '<sub>' . $this->renderInlineHtml($node->children) . '</sub>',
                 'softbreak' => "\n",
+                'linebreak' => '<br/>',
+                'span' => '<span' . $this->renderInlineSpanAttributesHtml($node) . '>'
+                    . $this->renderInlineHtml($node->children) . '</span>',
                 'quoted' => $this->renderQuotedInlineHtml($node),
                 'math' => $this->renderMathInlineHtml($node),
                 'raw_tex' => '<span class="pandoc-raw-tex">' . $this->escapeHtml((string) $node->attr('tex', '')) . '</span>',
@@ -2592,6 +2751,37 @@ final class MarkdownReader
         }
 
         return $html;
+    }
+
+    private function renderInlineSpanAttributesHtml(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+            return '';
+        }
+
+        $attrs = '';
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->escapeHtml((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function isAllowedInlineHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
     }
 
     private function renderLinkAttributesHtml(AstNode $node): string
@@ -3903,6 +4093,10 @@ final class MarkdownReader
                 continue;
             }
             if ($node->type === 'softbreak') {
+                $text .= "\n";
+                continue;
+            }
+            if ($node->type === 'linebreak') {
                 $text .= "\n";
                 continue;
             }
