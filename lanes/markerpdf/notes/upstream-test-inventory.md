@@ -9,6 +9,7 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 - Committed Python unit tests: 0 found.
 - CI benchmark workflow: 1 integration workflow, `.github/workflows/tests.yml`.
 - Benchmark/scoring scripts inspected: `benchmarks/overall.py`, `marker/benchmark/scoring.py`, and `scripts/verify_benchmark_scores.py`.
+- Benchmark scoring functions inspected: 3 (`chunk_text`, `overlap_score`, and `score_text`).
 - Published benchmark documents in the README accuracy table: 6 (`multicolcnn.pdf`, `switch_trans.pdf`, `thinkpython.pdf`, `thinkos.pdf`, `thinkdsp.pdf`, `crowd.pdf`).
 - CI score assertions: 2 marker thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
@@ -21,7 +22,8 @@ The lane manifest counts 18 inspected benchmark/test artifacts for dashboard pur
 - PDF text movement operators define block-ready line boundaries before WordPress import.
 - `marker/postprocessors/markdown.py` hyphenated line dewrapping is mapped by `MarkdownPostProcessor::mergeLines`.
 - `marker/postprocessors/markdown.py` heading/list/text wrapping and hash escaping are mapped by `MarkdownPostProcessor::surroundBlock`.
+- `marker/benchmark/scoring.py` chunking, local-window overlap, and text score aggregation are mapped by `BenchmarkScorer`.
 
 ## Runner Status
 
-The full upstream runner was not executed. The workflow downloads `benchmark_data` from Google Drive and then installs Poetry dependencies including `torch`, `surya-ocr`, `pdftext`, `pypdfium2`, and `tabled-pdf`; the shallow clone contains no benchmark PDFs or references. Under the lane resource constraints, the defensible denominator for now is the cloned static inventory above, not a local benchmark run.
+The full upstream runner was not executed. The workflow downloads `benchmark_data` from Google Drive and then installs Poetry dependencies including `torch`, `surya-ocr`, `pdftext`, `pypdfium2`, and `tabled-pdf`; the shallow clone contains no benchmark PDFs or references. Under the lane resource constraints, the defensible denominator for now is the cloned static inventory above, plus the natively ported benchmark scoring functions, not a local benchmark run.

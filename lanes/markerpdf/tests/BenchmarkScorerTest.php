@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\BenchmarkScorer;
+use PortLibs\MarkerPDF\MarkdownPostProcessor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+return [
+    'chunks benchmark text like upstream scoring' => static function (TestRunner $t): void {
+        $scorer = new BenchmarkScorer();
+
+        $t->same([], $scorer->chunkText('short text'));
+        $t->same(
+            ['WordPress PDF import paragraph'],
+            $scorer->chunkText('WordPress PDF import paragraph')
+        );
+    },
+    'scores exact extracted text as perfect overlap' => static function (TestRunner $t): void {
+        $text = 'WordPress migration exports need stable paragraph text for imported document archives.';
+
+        $t->same(1.0, (new BenchmarkScorer())->scoreText($text, $text));
+    },
+    'applies rapidfuzz-style indel ratio cutoff for fuzzy benchmark overlap' => static function (TestRunner $t): void {
+        $scorer = new BenchmarkScorer();
+
+        $t->same(75.0, $scorer->ratio('abcd', 'abxd'));
+        $t->same(0.0, $scorer->ratio('abcd', 'wxyz', 30.0));
+    },
+    'scores WordPress import output against expected clean content' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-wrapped-content.pdf');
+        $t->true(is_string($fixture), 'Fixture should be readable');
+
+        $lines = (new PdfTextExtractor())->extractTextLines($fixture);
+        array_shift($lines);
+        $markdown = (new MarkdownPostProcessor())->mergeLines($lines);
+        $reference = 'Clean hyphenated paragraphs keep WordPress imports readable.';
+
+        $t->same(1.0, (new BenchmarkScorer())->scoreText($markdown, $reference));
+    },
+];

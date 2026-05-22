@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "18 inspected upstream benchmark/test artifacts: 1 CI workflow, 1 benchmark runner, 1 scoring module, 1 score verifier, 6 benchmark documents, and 8 committed reference-like markdown outputs",
-        "mapped": 4,
+        "mapped": 5,
         "mappedBenchmarkPairs": 0,
         "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, and data/examples/*/*.md paths.",
         "inventory": {
@@ -23,6 +23,8 @@
             "ciBenchmarkWorkflows": 1,
             "benchmarkRunnerScripts": 1,
             "benchmarkScoringModules": 1,
+            "benchmarkScoringFunctions": 3,
+            "mappedBenchmarkScoringFunctions": 3,
             "scoreVerifierScripts": 1,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
@@ -52,22 +54,24 @@
             "PDF content stream text operators feed Marker-style Markdown conversion.",
             "PDF text movement operators define block-ready line boundaries before WordPress import.",
             "marker.postprocessors.markdown line_separator hyphen dewrapping joins split words across extracted lines.",
-            "marker.postprocessors.markdown block_surround heading/list/text wrapping and hash escaping."
+            "marker.postprocessors.markdown block_surround heading/list/text wrapping and hash escaping.",
+            "marker.benchmark.scoring chunk_text, overlap_score, and score_text chunked text-alignment workflow."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 4 focused upstream source semantics; no upstream benchmark PDF/reference pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 5 focused upstream source semantics, including benchmark scoring; no upstream benchmark PDF/reference pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction plus Marker markdown post-processing for hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and hash escaping.",
-        "phpBehaviorTests": 9,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, and upstream-style benchmark text scoring for chunked overlap quality checks.",
+        "phpBehaviorTests": 13,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
             "marker.postprocessors.markdown line_separator hyphen and sentence boundary rules",
-            "marker.postprocessors.markdown block_surround heading/list/text Markdown wrapping"
+            "marker.postprocessors.markdown block_surround heading/list/text Markdown wrapping",
+            "marker.benchmark.scoring chunk_text, overlap_score, and score_text benchmark quality scoring"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output and wrapped-line dehyphenation before WordPress block rendering.",
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, and a CI-style quality score for expected imported content.",
     "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior."
 }

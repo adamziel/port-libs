@@ -18,6 +18,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 <!-- /wp:paragraph -->
 ```
 
+`examples/wordpress-quality-score.php` uses the native `BenchmarkScorer` port of `marker/benchmark/scoring.py` to compare extracted and dewrapped import text against expected WordPress post content. It emits a JSON score and checks whether the result clears a Marker CI-style quality threshold.
+
 ## Next Task
 
-Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior.
+Acquire or sample one upstream benchmark PDF/reference pair and map it through the native `BenchmarkScorer` before broadening layout/table/OCR behavior.
