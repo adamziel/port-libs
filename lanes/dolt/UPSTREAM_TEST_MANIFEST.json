@@ -10,10 +10,10 @@
         "architecture": "Go Git-for-data database versioning system with SQL engine integration, Prolly table storage, commits, branches, diffs, merges, system tables, CLI workflows, MySQL-compatible server behavior, BATS integration tests, and Go package tests."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory",
+        "status": "cloned-static-inventory-plus-bounded-upstream-runner",
         "total": "613 upstream executable test files counted: 399 Go _test.go files and 214 BATS files; 3,808 BATS @test cases were counted from targeted BATS hydration, plus 256 fixture/data artifact paths by static inventory",
-        "mapped": 5,
-        "source": "Shallow blob-filtered upstream clone in .upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef; counted with git ls-tree -r --name-only HEAD and targeted reads of LICENSE, integration-tests/bats/README.md, go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go, go/libraries/doltcore/sqle/dtables/diff_iter.go, and related diff files.",
+        "mapped": 18,
+        "source": "Shallow blob-filtered upstream clone in .upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef; counted with git ls-tree -r --name-only HEAD and targeted reads of LICENSE, integration-tests/bats/README.md, go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go, go/libraries/doltcore/sqle/dtables/diff_iter.go, go/libraries/doltcore/sqle/dtables/prolly_row_conv.go, go/libraries/doltcore/sqle/dtables/diff_table.go, go/libraries/doltcore/diff/table_deltas.go, go/libraries/doltcore/diff/schema_diff.go, go/libraries/doltcore/schema/schema.go, and focused tests/BATS files.",
         "inventory": {
             "repositoryPaths": 2387,
             "testRelatedPaths": 701,
@@ -44,8 +44,62 @@
             }
         },
         "runnerStatus": {
-            "executed": false,
-            "reason": "The full upstream runners were not executed. `go version` fails with `go: command not found`, so Go package tests and the Dolt CLI build cannot run. `bats --version` fails with `bats: command not found`. Upstream BATS documentation also requires building dolt, noms, and remotesrv with Go, plus Python packages such as mysql-connector-python, pyarrow, and pandas, and some parquet/hadoop tooling. The cache is blob-filtered and not fully checked out to keep this lane run modest.",
+            "executed": true,
+            "reason": "The full upstream runners were not executed. Go and BATS are now installed, `.upstream-cache/dolt` was sparsely hydrated for `go/` and `integration-tests/bats`, cache-local Dolt utilities were built, and bounded local Go/BATS diff/schema/table/rename/primary-key evidence passed. Full `go test ./...` and full BATS remain out of scope because they hydrate/compile the full Dolt workspace and run Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice.",
+            "boundedRunner": {
+                "executed": true,
+                "worktree": ".upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef with blob:none partial clone and sparse checkout entries `go` and `integration-tests/bats`",
+                "toolingInstalled": [
+                    "sudo -n dnf install -y golang bats -> golang-1.26.3-2.fc44.x86_64, golang-bin-1.26.3-2.fc44.x86_64, golang-src-1.26.3-2.fc44.noarch, bats-1.13.0-3.fc44.noarch",
+                    "Verified present after tool setup: libicu-devel-77.1-2.fc44.x86_64"
+                ],
+                "commands": [
+                    {
+                        "command": "env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache go test ./libraries/doltcore/diff -count=1 -timeout 5m",
+                        "result": "PASS: github.com/dolthub/dolt/go/libraries/doltcore/diff"
+                    },
+                    {
+                        "command": "env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache go test ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json -count=1 -timeout 5m",
+                        "result": "PASS: 6 Dolt table/table-format Go packages"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache go install ./cmd/dolt ./store/cmd/noms ./utils/remotesrv",
+                        "result": "PASS: built cache-local dolt, noms, and remotesrv; `dolt version` reports 2.0.5"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 5m bats --filter 'diff: clean working set' diff.bats",
+                        "result": "PASS: 1 BATS test"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 8m bats --filter 'diff: (data diff only|schema changes only|with limit|allowed across primary key renames|--filter=renamed filters to only renamed tables)' diff.bats",
+                        "result": "PASS: 5 BATS tests"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache go test ./libraries/doltcore/sqle/enginetest -run 'TestDiffTableFunction/dolt_diff: SELECT \\\\* skinny schema visibility' -count=1 -timeout 8m",
+                        "result": "PASS: github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest focused `dolt_diff()` subtest"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 8m bats --filter 'diff: row, line, in-place, context diff modes' diff.bats",
+                        "result": "PASS: 1 BATS test"
+                    },
+                    {
+                        "command": "from .upstream-cache/dolt-runner/go: timeout 180s go test ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/sqle/dtables",
+                        "result": "PASS: diff and schema packages; sqle/dtables compiled and reported no test files"
+                    },
+                    {
+                        "command": "env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding -count=1 -timeout 5m",
+                        "result": "PASS: 3 Dolt schema Go packages"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 8m bats --filter 'rename-tables: (rename a table with sql|diff a renamed table|sql diff a renamed table)' rename-tables.bats",
+                        "result": "PASS: 3 BATS rename-table tests"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'primary-key-changes: (diff on primary key schema change shows schema level diff but does not show row level diff|dolt diff table returns top-down diff until schema change|same primary key set in different order is detected and blocked on merge)' primary-key-changes.bats",
+                        "result": "PASS: 3 BATS primary-key-change tests"
+                    }
+                ]
+            },
             "probes": [
                 {
                     "command": "git ls-tree -r --name-only HEAD",
@@ -57,7 +111,15 @@
                 },
                 {
                     "command": "go version; bats --version",
-                    "result": "go: command not found; bats: command not found"
+                    "result": "go version go1.26.3-X:nodwarf5 linux/amd64; Bats 1.13.0"
+                },
+                {
+                    "command": "bounded upstream runner pass count",
+                    "result": "Go package tests passed for 1 diff package, 6 table/table-format packages, 3 schema packages, and 1 focused sqle/enginetest subtest; BATS passed 13 focused cases: 7 diff.bats, 3 rename-tables.bats, and 3 primary-key-changes.bats"
+                },
+                {
+                    "command": "targeted schema-aware diff inventory",
+                    "result": "counted 22 schema-aware diff ScriptTest names in go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go covering column drop/recreate/rename, coercion warnings, and primary-key-change warnings"
                 }
             ]
         },
@@ -66,17 +128,28 @@
             "Dolt-style diff table rows project `to_*` columns before `from_*` columns with commit metadata and `diff_type`.",
             "Added rows have null `from_*` values, removed rows have null `to_*` values, and modified rows include both sides, matching the focused upstream `DOLT_DIFF_t` expectations.",
             "Composite primary keys are encoded structurally instead of by lossy string concatenation.",
-            "WordPress `wp_posts` migration fixture renders inspectable Dolt-shaped content changes."
+            "Schema column diffs pair columns by stable Dolt tags and classify none, added, removed, and modified changes across renames, type changes, PK movement, and constraints.",
+            "Primary-key set diffability follows Dolt tag, order, and SQL-type semantics, including same-tag PK renames and order mismatch rejection.",
+            "Table delta matching prefers exact table names, then matches table renames only when schemas overlap by unchanged column tag and name.",
+            "Unchanged exact-name table deltas are filtered from summaries after matching.",
+            "Row-level change types map into table-level diff filter names: added, dropped, and modified.",
+            "Schema-aware diff rows convert stored rows into target diff schemas before emitting `to_*` and `from_*` fields.",
+            "Non-primary-key row conversion maps columns by name instead of tag, preserving Dolt's drop/recreate and rename behavior.",
+            "Integer-to-varchar row conversion emits string values and uncoercible varchar-to-int conversion emits Dolt warning code 1105 with null projected values.",
+            "Primary-key set changes report Dolt's primary key warning and stop non-fuzzy row rendering.",
+            "WordPress `wp_posts` migration fixture renders inspectable Dolt-shaped content changes.",
+            "WordPress table-delta fixture detects a renamed content table separately from dropped legacy links and added import audit tables.",
+            "WordPress plugin schema-drift fixture projects a dropped/recreated event-count column through the latest diff schema."
         ],
         "inventoryPath": "lanes/dolt/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 5 focused lane tests against a 613-test-file upstream denominator."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream package runner evidence, not full upstream runner parity. Native PHP progress maps 18 focused lane tests against a 613-test-file upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native table diff classification plus Dolt-style `DOLT_DIFF_*` row projection for added, removed, and modified rows.",
-        "phpBehaviorTests": 5
+        "currentSlice": "Native table diff classification, Dolt-style `DOLT_DIFF_*` row projection, tag-aware schema column diffs, primary-key set diffability checks, table delta matching for same-name and renamed tables, and schema-aware row projection with Dolt warning collection.",
+        "phpBehaviorTests": 18
     },
-    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixture shows `wp_posts` publish/remove/import changes as Dolt-shaped diff rows.",
-    "nextTask": "Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes."
+    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show `wp_posts` publish/remove/import row changes, a `wp_posts` to `wp_content_posts` table rename summary, and plugin table schema-drift projection.",
+    "nextTask": "Map skinny diff schema filtering and --include-cols behavior from upstream `dolt_diff('--skinny', ...)` tests."
 }

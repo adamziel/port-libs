@@ -105,6 +105,94 @@ final class TableDiff
     }
 
     /**
+     * Project row changes through explicit Dolt schemas. This mirrors the
+     * upstream diff iterator boundary where stored rows are converted into the
+     * schema chosen for the diff table before `to_*` and `from_*` columns are
+     * emitted.
+     *
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @param non-empty-string|list<non-empty-string> $primaryKey
+     * @param list<array{code:int, message:string}> $warnings
+     * @return list<array<string, scalar|null>>
+     */
+    public function diffTableRowsForSchemas(
+        array $fromRows,
+        array $toRows,
+        string|array $primaryKey,
+        TableSchema $fromSchema,
+        TableSchema $toSchema,
+        ?TableSchema $targetFromSchema = null,
+        ?TableSchema $targetToSchema = null,
+        string $fromCommit = 'FROM',
+        ?string $fromCommitDate = null,
+        string $toCommit = 'TO',
+        ?string $toCommitDate = null,
+        array &$warnings = [],
+    ): array {
+        $targetFromSchema ??= $fromSchema;
+        $targetToSchema ??= $toSchema;
+
+        $diffability = TableSchema::partitionDiffability($fromSchema, $toSchema, $fromCommit, $toCommit);
+        if ($diffability['warning'] !== null) {
+            $warnings[] = $diffability['warning'];
+        }
+        if (!$diffability['simple'] && !$diffability['fuzzy']) {
+            return [];
+        }
+
+        $from = $this->index($fromRows, $primaryKey);
+        $to = $this->index($toRows, $primaryKey);
+        $rows = [];
+        foreach ($this->orderedKeys($from, $to) as $key) {
+            $fromRow = $from[$key] ?? null;
+            $toRow = $to[$key] ?? null;
+            $projectedFromRow = $fromRow === null ? null : $fromSchema->projectRowTo($targetFromSchema, $fromRow, $warnings);
+            $projectedToRow = $toRow === null ? null : $toSchema->projectRowTo($targetToSchema, $toRow, $warnings);
+
+            if ($fromRow === null) {
+                $rows[] = $this->formatSchemaDiffTableRow(
+                    self::DIFF_ADDED,
+                    null,
+                    $projectedToRow,
+                    $targetFromSchema,
+                    $targetToSchema,
+                    $fromCommit,
+                    $fromCommitDate,
+                    $toCommit,
+                    $toCommitDate
+                );
+            } elseif ($toRow === null) {
+                $rows[] = $this->formatSchemaDiffTableRow(
+                    self::DIFF_REMOVED,
+                    $projectedFromRow,
+                    null,
+                    $targetFromSchema,
+                    $targetToSchema,
+                    $fromCommit,
+                    $fromCommitDate,
+                    $toCommit,
+                    $toCommitDate
+                );
+            } elseif (!$this->rowsEqual($fromRow, $toRow)) {
+                $rows[] = $this->formatSchemaDiffTableRow(
+                    self::DIFF_MODIFIED,
+                    $projectedFromRow,
+                    $projectedToRow,
+                    $targetFromSchema,
+                    $targetToSchema,
+                    $fromCommit,
+                    $fromCommitDate,
+                    $toCommit,
+                    $toCommitDate
+                );
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array<string, scalar|null>> $rows
      * @param non-empty-string|list<non-empty-string> $primaryKey
      * @return array<string, array<string, scalar|null>>
@@ -264,6 +352,38 @@ final class TableDiff
         $row['to_commit_date'] = $toCommitDate;
         foreach ($columns as $column) {
             $row['from_' . $column] = $fromRow[$column] ?? null;
+        }
+        $row['from_commit'] = $fromCommit;
+        $row['from_commit_date'] = $fromCommitDate;
+        $row['diff_type'] = $diffType;
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, scalar|null>|null $fromRow
+     * @param array<string, scalar|null>|null $toRow
+     * @return array<string, scalar|null>
+     */
+    private function formatSchemaDiffTableRow(
+        string $diffType,
+        ?array $fromRow,
+        ?array $toRow,
+        TableSchema $targetFromSchema,
+        TableSchema $targetToSchema,
+        string $fromCommit,
+        ?string $fromCommitDate,
+        string $toCommit,
+        ?string $toCommitDate,
+    ): array {
+        $row = [];
+        foreach ($targetToSchema->columns() as $column) {
+            $row['to_' . $column['name']] = $toRow[$column['name']] ?? null;
+        }
+        $row['to_commit'] = $toCommit;
+        $row['to_commit_date'] = $toCommitDate;
+        foreach ($targetFromSchema->columns() as $column) {
+            $row['from_' . $column['name']] = $fromRow[$column['name']] ?? null;
         }
         $row['from_commit'] = $fromCommit;
         $row['from_commit_date'] = $fromCommitDate;

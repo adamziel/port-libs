@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "dolt",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static inventory: 613 upstream executable test files counted; upstream runners not executed",
-    "phpPass": 5,
+    "estimatedProgress": 7,
+    "suiteProgress": "cloned static inventory: 613 upstream executable test files counted; bounded upstream Go diff/table/schema/enginetest tests and 13 focused BATS diff/rename/primary-key cases pass; full Go/BATS runners not executed",
+    "phpPass": 18,
     "phpFail": 0,
-    "wordpressScenarios": "Versioned WordPress content/data migrations and inspectable database change sets; current fixture shows wp_posts publish/remove/import changes as Dolt-shaped diff rows.",
-    "phase": "cloned static upstream inventory + Dolt diff table row slice",
-    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native table diff classification plus Dolt-style DOLT_DIFF_* row projection with to/from columns, commit metadata, diff_type values, composite primary keys, and WordPress wp_posts fixture coverage.",
-    "blocker": "No upstream runner parity yet: go and bats are unavailable, and upstream BATS also requires building Dolt utilities plus Python/parquet dependencies.",
-    "latestCommit": "e47acb6152ce",
-    "nextTask": "Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes."
+    "wordpressScenarios": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show wp_posts publish/remove/import row changes, wp_posts to wp_content_posts table rename summary, and wp_plugin_events schema-drift projection.",
+    "phase": "cloned static upstream inventory + bounded diff/schema/table upstream runner + schema-aware row projection slice",
+    "audit": "audited 2026-05-22: 18 Dolt PHP behavior tests pass with 72 assertions; bounded upstream Go and BATS diff/schema/table/rename/primary-key runner evidence passes; no full upstream runner parity",
+    "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* row projection, tag-aware schema column diffs, primary-key set diffability, table delta matching/filtering, schema-aware target row projection, Dolt warning collection for coercion/primary-key changes, and WordPress row/table/schema-drift fixtures.",
+    "blocker": "No full upstream runner parity: full Go/BATS suites still require hydrating and compiling the full Dolt workspace and running Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice. Root PHP suite is green for this batch.",
+    "latestCommit": "pending",
+    "nextTask": "Map skinny diff schema filtering and --include-cols behavior from upstream dolt_diff('--skinny', ...) tests."
 }
