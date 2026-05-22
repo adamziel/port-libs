@@ -66,6 +66,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-table-recognition-handoff.php` maps the supplied table-recognition handoff into a Gutenberg table import path. It accepts tabled-style cell/row/column geometry from a later detector adapter, applies native `assign_rows_columns`-style row/column assignment, preserves row/column span metadata for multi-column headers and row-spanning labels, renders spans as table-cell attributes, cleans dot leaders and embedded newlines, formats Markdown, and then reuses Marker's `format_tables` replacement path before rendering a core table block.
 
+`examples/wordpress-table-heuristic-columns.php` maps the locked `tabled.heuristics.cells` fallback into a Gutenberg table import path. It records DBSCAN-derived column separator metadata, assigns table cells without supplied model row/column boxes, and renders the resulting Markdown as a core table block.
+
 `examples/wordpress-table-cleanup-import.php` maps `marker/tables/utils.py` into a Gutenberg table cleanup path. It sorts recognized cell blocks into row order, removes long dot leaders used as visual fillers, collapses embedded table-cell newlines, and emits the cleaned result as a core table block.
 
 `examples/wordpress-image-import.php` maps Marker's upstream image insertion path into a Gutenberg image-block import. It uses deterministic `page_image_index.png` filenames, Figure/Picture layout-box matching, intersecting text-span removal, and Marker-style Markdown image spans before rendering a core image block. The native slice intentionally stops before raster crop rendering because upstream delegates that work to `pypdfium2` and PIL.
@@ -84,4 +86,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Tighten the tabled heuristic layout edge cases, especially DBSCAN-style column separator clustering, then use the two external CI benchmark pairs for a larger document-level extraction parity slice.
+Use the two external CI benchmark pairs for a larger document-level extraction parity slice, starting with `switch_trans` structure beyond excerpt scoring.

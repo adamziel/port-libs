@@ -23,6 +23,31 @@ final class TableRecognizer
     }
 
     /**
+     * Native boundary for tabled.heuristics.cells::find_column_separators.
+     *
+     * The locked upstream helper normalizes x coordinates, filters values that
+     * occur only once, clusters the remaining left/right/center coordinates
+     * with one-dimensional DBSCAN, then chooses the coordinate family that
+     * yields the most separators.
+     *
+     * @param list<list<array<string, mixed>>> $rows
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return list<float>
+     */
+    public function heuristicColumnSeparators(array $rows, array $imageSize, float $roundFactor = 0.002, int $minCount = 1): array
+    {
+        $normalizedRows = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new InvalidArgumentException('Heuristic table rows must be arrays.');
+            }
+            $normalizedRows[] = $this->normalizeCells($row);
+        }
+
+        return $this->findColumnSeparators($normalizedRows, $this->imageSize($imageSize), $roundFactor, $minCount);
+    }
+
+    /**
      * Native boundary for tabled.inference.recognition::get_cells.
      *
      * Upstream uses supplied pdf text lines when they produce table blocks, and
@@ -714,20 +739,226 @@ final class TableRecognizer
             $rows[] = $current;
         }
 
-        $assigned = [];
+        return $this->assignCellsToColumns($rows, $imageSize);
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $rows
+     * @param array{width: int, height: int} $imageSize
+     * @return list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>}>
+     */
+    private function assignCellsToColumns(array $rows, array $imageSize, float $roundFactor = 0.002, float $tolerance = 0.01): array
+    {
+        $separators = $this->findColumnSeparators($rows, $imageSize, $roundFactor);
+        $rowDicts = [];
+
         foreach ($rows as $rowIndex => $row) {
-            usort($row, static fn (array $left, array $right): int => $left['bbox'][0] <=> $right['bbox'][0]);
-            foreach ($row as $colIndex => $cell) {
+            $newRow = [];
+            $lastColumnIndex = -1;
+            $additionalColumnIndex = 0;
+
+            foreach ($row as $cell) {
+                $leftEdge = $cell['bbox'][0] / max(1.0, (float) $imageSize['width']);
+                $columnIndex = -1;
+                foreach ($separators as $index => $separator) {
+                    if (($leftEdge - $tolerance) < $separator && $lastColumnIndex < $index) {
+                        $columnIndex = $index;
+                        break;
+                    }
+                }
+
+                if ($columnIndex === -1) {
+                    $columnIndex = count($separators) + $additionalColumnIndex;
+                    $additionalColumnIndex++;
+                }
+
+                $newRow[$columnIndex] = $cell;
+                $lastColumnIndex = $columnIndex;
+            }
+
+            ksort($newRow, SORT_NUMERIC);
+            $rowDicts[$rowIndex] = $newRow;
+        }
+
+        $assigned = [];
+        foreach ($rowDicts as $rowIndex => $row) {
+            $column = 0;
+            foreach ($row as $cell) {
                 $assigned[] = [
                     'bbox' => $cell['bbox'],
                     'text' => (string) $cell['text'],
                     'row_ids' => [$rowIndex],
-                    'col_ids' => [$colIndex],
+                    'col_ids' => [$column],
                 ];
+                $column++;
             }
         }
 
         return $assigned;
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $rows
+     * @param array{width: int, height: int} $imageSize
+     * @return list<float>
+     */
+    private function findColumnSeparators(array $rows, array $imageSize, float $roundFactor = 0.002, int $minCount = 1): array
+    {
+        $leftEdges = [];
+        $rightEdges = [];
+        $centers = [];
+
+        foreach ($rows as $row) {
+            foreach ($row as $cell) {
+                $bbox = $this->bbox($cell['bbox'] ?? null);
+                $normalized = [
+                    $bbox[0] / max(1.0, (float) $imageSize['width']),
+                    $bbox[1] / max(1.0, (float) $imageSize['height']),
+                    $bbox[2] / max(1.0, (float) $imageSize['width']),
+                    $bbox[3] / max(1.0, (float) $imageSize['height']),
+                ];
+
+                // Upstream's round_factor arithmetic is algebraically neutral;
+                // keep the same shape so this boundary stays traceable.
+                $leftEdges[] = $normalized[0] / $roundFactor * $roundFactor;
+                $rightEdges[] = $normalized[2] / $roundFactor * $roundFactor;
+                $centers[] = (($normalized[0] + $normalized[2]) / 2.0) * $roundFactor / $roundFactor;
+            }
+        }
+
+        $clusteredSets = [
+            $this->clusterCoords($this->coordinatesAboveMinCount($leftEdges, $minCount), count($rows)),
+            $this->clusterCoords($this->coordinatesAboveMinCount($rightEdges, $minCount), count($rows)),
+            $this->clusterCoords($this->coordinatesAboveMinCount($centers, $minCount), count($rows)),
+        ];
+
+        $separators = [];
+        foreach ($clusteredSets as $candidate) {
+            if (count($candidate) > count($separators)) {
+                $separators = $candidate;
+            }
+        }
+
+        $separators[] = 1.0;
+        array_unshift($separators, 0.0);
+
+        return $separators;
+    }
+
+    /**
+     * @param list<float> $coords
+     * @return list<float>
+     */
+    private function clusterCoords(array $coords, int $rowCount): array
+    {
+        if ($coords === []) {
+            return [];
+        }
+
+        $coords = array_values(array_unique($coords, SORT_REGULAR));
+        sort($coords, SORT_NUMERIC);
+
+        $labels = array_fill(0, count($coords), null);
+        $visited = array_fill(0, count($coords), false);
+        $clusterId = 0;
+        $minSamples = max(2, intdiv($rowCount, 4));
+
+        foreach (array_keys($coords) as $pointIndex) {
+            if ($visited[$pointIndex]) {
+                continue;
+            }
+            $visited[$pointIndex] = true;
+            $neighbors = $this->regionQuery($coords, $pointIndex);
+            if (count($neighbors) < $minSamples) {
+                $labels[$pointIndex] = -1;
+                continue;
+            }
+
+            $this->expandCluster($coords, $labels, $visited, $pointIndex, $neighbors, $clusterId, $minSamples);
+            $clusterId++;
+        }
+
+        $byLabel = [];
+        foreach ($labels as $index => $label) {
+            $label ??= -1;
+            $byLabel[$label][] = $coords[$index];
+        }
+
+        $separators = [];
+        foreach ($byLabel as $points) {
+            $separators[] = array_sum($points) / count($points);
+        }
+        sort($separators, SORT_NUMERIC);
+
+        return $separators;
+    }
+
+    /**
+     * @param list<float> $coords
+     * @param list<int|null> $labels
+     * @param list<bool> $visited
+     * @param list<int> $neighbors
+     */
+    private function expandCluster(array $coords, array &$labels, array &$visited, int $pointIndex, array $neighbors, int $clusterId, int $minSamples): void
+    {
+        $labels[$pointIndex] = $clusterId;
+        $queue = array_values($neighbors);
+        for ($cursor = 0; $cursor < count($queue); $cursor++) {
+            $neighborIndex = $queue[$cursor];
+            if (!$visited[$neighborIndex]) {
+                $visited[$neighborIndex] = true;
+                $neighborNeighbors = $this->regionQuery($coords, $neighborIndex);
+                if (count($neighborNeighbors) >= $minSamples) {
+                    foreach ($neighborNeighbors as $candidate) {
+                        if (!in_array($candidate, $queue, true)) {
+                            $queue[] = $candidate;
+                        }
+                    }
+                }
+            }
+
+            if ($labels[$neighborIndex] === null || $labels[$neighborIndex] === -1) {
+                $labels[$neighborIndex] = $clusterId;
+            }
+        }
+    }
+
+    /**
+     * @param list<float> $coords
+     * @return list<int>
+     */
+    private function regionQuery(array $coords, int $pointIndex, float $eps = 0.01): array
+    {
+        $neighbors = [];
+        foreach ($coords as $index => $coord) {
+            if (abs($coord - $coords[$pointIndex]) <= $eps) {
+                $neighbors[] = $index;
+            }
+        }
+
+        return $neighbors;
+    }
+
+    /**
+     * @param list<float> $coords
+     * @return list<float>
+     */
+    private function coordinatesAboveMinCount(array $coords, int $minCount): array
+    {
+        $counts = [];
+        foreach ($coords as $coord) {
+            $key = (string) $coord;
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        $out = [];
+        foreach ($coords as $coord) {
+            if (($counts[(string) $coord] ?? 0) > $minCount) {
+                $out[] = $coord;
+            }
+        }
+
+        return $out;
     }
 
     /**

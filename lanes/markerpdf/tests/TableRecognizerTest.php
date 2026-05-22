@@ -58,6 +58,22 @@ $tablePage = static function (): array {
     ];
 };
 
+$heuristicRows = static function (): array {
+    $rows = [];
+    for ($row = 0; $row < 8; $row++) {
+        $jitter = $row < 4 ? 0.0 : 2.0;
+        $top = 10.0 + ($row * 30.0);
+        $bottom = $top + 16.0;
+        $rows[] = [
+            ['bbox' => [10.0 + $jitter, $top, 70.0 + $jitter, $bottom], 'text' => 'Block ' . $row],
+            ['bbox' => [210.0 + $jitter, $top, 270.0 + $jitter, $bottom], 'text' => 'Status ' . $row],
+            ['bbox' => [410.0 + $jitter, $top, 470.0 + $jitter, $bottom], 'text' => 'Owner ' . $row],
+        ];
+    }
+
+    return $rows;
+};
+
 $wordpressTable = static function (string $tableMarkdown): string {
     $rows = array_values(array_filter(
         preg_split('/\R/', trim($tableMarkdown)) ?: [],
@@ -231,6 +247,33 @@ return [
 
         $t->same([[0], [0], [1], [1]], array_column($assigned, 'row_ids'));
         $t->same([[0], [1], [0], [1]], array_column($assigned, 'col_ids'));
+    },
+    'clusters heuristic column separators with locked tabled DBSCAN semantics' => static function (TestRunner $t) use ($heuristicRows): void {
+        $recognizer = new TableRecognizer();
+        $separators = array_map(
+            static fn (float $separator): float => round($separator, 3),
+            $recognizer->heuristicColumnSeparators($heuristicRows(), ['width' => 1000, 'height' => 800])
+        );
+
+        $t->same([0.0, 0.011, 0.211, 0.411, 1.0], $separators);
+    },
+    'uses clustered heuristic separators when model row and column boxes are unavailable' => static function (TestRunner $t) use ($heuristicRows): void {
+        $recognizer = new TableRecognizer();
+        $cells = [];
+        foreach ($heuristicRows() as $row) {
+            foreach ($row as $cell) {
+                $cells[] = $cell;
+            }
+        }
+
+        $assigned = $recognizer->assignRowsColumns(
+            ['cells' => $cells],
+            ['width' => 1000, 'height' => 800]
+        );
+
+        $t->same([[0], [0], [0], [1], [1], [1]], array_column(array_slice($assigned, 0, 6), 'row_ids'));
+        $t->same([[0], [1], [2], [0], [1], [2]], array_column(array_slice($assigned, 0, 6), 'col_ids'));
+        $t->same('Owner 7', $assigned[23]['text']);
     },
     'renders a WordPress table from supplied recognition output before model-backed inference exists' => static function (TestRunner $t) use ($tableResult, $tablePage, $wordpressTable): void {
         $recognizer = new TableRecognizer();
