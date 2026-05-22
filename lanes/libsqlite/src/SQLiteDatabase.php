@@ -337,6 +337,24 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForIntegerCastRangeLookup(
+        string $tableName,
+        string $columnName,
+        ?int $lowerInclusive = null,
+        ?int $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?int {
+        $lookup = $this->indexLookupForIntegerCastExpressionColumnRange(
+            $tableName,
+            $columnName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     /**
      * @param list<mixed> $lengths
      */
@@ -783,6 +801,53 @@ final class SQLiteDatabase
         }
         if (!$hasNonNullValue) {
             return null;
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstIntegerCastExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForIntegerCastExpressionColumnRange(
+        string $tableName,
+        string $columnName,
+        ?int $lowerInclusive = null,
+        ?int $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?array {
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite CAST AS INTEGER expression index range lookup requires at least one bound');
         }
 
         foreach ($this->indexRecordsForTable($tableName) as $record) {
@@ -1692,6 +1757,79 @@ final class SQLiteDatabase
 
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($option->optionValue), $indexLookup['collation'])) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedIntegerOptionValueRange(
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumnRange(
+            'wp_options',
+            'option_value',
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) expression range index is not present');
+        }
+        if ($lowerInclusive !== null && $upperBound !== null) {
+            $boundaryComparison = self::compareSQLiteScalar($lowerInclusive, $upperBound, $indexLookup['collation']);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueRange(
+                $indexLookup['rootPage'],
+                $lowerInclusive,
+                $upperBound,
+                $indexLookup['collation'],
+                $upperInclusive,
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::firstValueIsInRange(
+                self::sqliteCastAsInteger($option->optionValue),
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $indexLookup['collation'],
+            )) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
                     break;

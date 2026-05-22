@@ -1044,6 +1044,66 @@ return [
         $t->same(['db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
         $t->same(['58796'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
     },
+    'uses integer cast expression index for wordpress numeric option value ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_numeric_value', 'wp_options', 3, 'CREATE INDEX wp_options_numeric_value ON wp_options(CAST(option_value AS INTEGER) DESC) WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'db_version', '58796', 'yes'], 1),
+            $schemaCell([null, 'legacy_db_version', '58796abc', 'no'], 2),
+            $schemaCell([null, 'cron_lock', '123.9', 'no'], 3),
+            $schemaCell([null, 'non_numeric_counter', 'abc', 'no'], 4),
+            $schemaCell([null, 'empty_numeric_counter', '', 'no'], 5),
+            $schemaCell([null, 'future_db_version', '60000', 'no'], 6),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([60000, 6]),
+            $indexCell([58796, 1]),
+            $indexCell([58796, 2]),
+            $indexCell([123, 3]),
+            $indexCell([0, 4]),
+            $indexCell([0, 5]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $bounded = $database->wordpressOptionsByIndexedIntegerOptionValueRange(100, 60000);
+        $limited = $database->wordpressOptionsByIndexedIntegerOptionValueRange(100, 60000, 2);
+        $inclusiveSingle = $database->wordpressOptionsByIndexedIntegerOptionValueRange(60000, 60000, null, true);
+        $exclusiveEmpty = $database->wordpressOptionsByIndexedIntegerOptionValueRange(100, 100);
+        $zeroBucket = $database->wordpressOptionsByIndexedIntegerOptionValueRange(null, 1);
+
+        $t->same(3, $database->indexRootPageForIntegerCastRangeLookup('wp_options', 'option_value', 100, 60000));
+        $t->same(['db_version', 'legacy_db_version', 'cron_lock'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $bounded));
+        $t->same(['58796', '58796abc', '123.9'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $bounded));
+        $t->same(['db_version', 'legacy_db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same(['future_db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusiveSingle));
+        $t->same([], $exclusiveEmpty);
+        $t->same(['non_numeric_counter', 'empty_numeric_counter'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $zeroBucket));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedIntegerOptionValueRange(null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedIntegerOptionValueRange(100, 60000, -1));
+    },
+    'uses integer cast expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_numeric_value', 'wp_options', 2, 'CREATE INDEX wp_options_numeric_value ON wp_options(CAST(option_value AS INTEGER)) WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, [123, 99]]], 5);
+        $page3 = str_repeat("\0", 512);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'db_version', '58796', 'yes'], 1),
+        ]);
+        $page5 = $indexLeafPage([
+            $indexCell([58796, 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedIntegerOptionValueRange(50000, 60000);
+
+        $t->same(2, $database->indexRootPageForIntegerCastRangeLookup('wp_options', 'option_value', 50000, 60000));
+        $t->same(['db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
     'uses length expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
