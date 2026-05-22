@@ -64,6 +64,11 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` Links rendered native AST slice inspected in this
   run: 290 lines, including 25 `Link` nodes plus the code-block and code-span
   cases where autolinks must not fire
+- `test/testsuite.txt` Images section slice inspected in this run: 12 Markdown
+  lines through the start of `# Footnotes`, covering a standalone collapsed
+  reference image with title metadata and an inline image inside a paragraph
+- `test/testsuite.native` Images rendered native AST slice inspected in this
+  run: 48 lines, including 2 `Image` nodes and 1 `Figure` node
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -199,11 +204,16 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   remains an indented code block; ampersands remain intact in URLs, link text,
   and titles; URI and email autolinks work in paragraphs, lists, and block
   quotes; autolinks do not fire inside code spans or indented code blocks.
+- Images cases from `test/testsuite.txt`, cross-checked against
+  `test/testsuite.native`: `![lalune][]` resolves through an up-to-three-space
+  indented reference definition into a standalone `figure` block with image alt,
+  source, title, and caption metadata, while `![movie](movie.jpg)` remains an
+  inline `image` node inside its paragraph.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-67 tests, 403 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 95 test files, 6,358 assertions, and
-0 failures after this Links lane batch in the shared dirty worktree.
+69 tests, 419 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed after this Images lane batch with 98 test
+files, 6,539 assertions, and 0 failures.

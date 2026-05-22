@@ -79,6 +79,10 @@ forms, nested brackets in link text, and up-to-three-space reference
 definitions; ampersands stay intact in URLs, link text, and titles; URI and
 email autolinks work inside paragraphs, lists, and quotes; and code spans or
 indented code blocks keep angle-bracket URLs as literal code.
+The bounded Images section is now mapped for import-safe media preservation:
+standalone reference images become WordPress image blocks with caption/title
+metadata, and inline image spans remain inside paragraph text with escaped alt
+and title attributes.
 
 ## Scenario Fixture
 
@@ -93,7 +97,8 @@ indented code blocks keep angle-bracket URLs as literal code.
   labels, smart import-editor quotes, apostrophes, ellipses, date-range en
   dashes, em-dash review notes, HTML entity text that must not double-escape,
   literal comparison characters, reference audit links with WordPress edit-link
-  titles, autolinked audit URLs, importer email contacts, raw TeX citations,
+  titles, autolinked audit URLs, importer email contacts, a standalone
+  referenced release image, an inline thumbnail image, raw TeX citations,
   inline/display math notes, a raw TeX table source block, and a fenced PHP
   migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
@@ -147,7 +152,10 @@ indented code blocks keep angle-bracket URLs as literal code.
 - Reference audit links render as normal WordPress paragraph links with title
   attributes preserved, URI autolinks render as escaped clickable URLs, and
   importer email autolinks render as `mailto:` links without invoking Pandoc.
+- Referenced import images render as core WordPress image blocks with preserved
+  captions/titles, and inline thumbnail images render inside paragraph blocks
+  without invoking Pandoc.
 
 ## Next Task
 
-Map a bounded `test/testsuite.txt` Images alt/title/reference-link slice.
+Map a bounded `test/testsuite.txt` Footnotes inline note/reference slice.
