@@ -99,7 +99,7 @@ php tools/run-tests.php
 The exact required root test run after the HTML raw-text de-duplication slice is green:
 
 ```text
-111 test files, 8,178 assertions, 0 failures
+112 test files, 8,231 assertions, 0 failures
 ```
 
 The difftastic-focused test file remains green with 61 tests, 274 assertions, and 0 failures via a direct `TestRunner` invocation.
