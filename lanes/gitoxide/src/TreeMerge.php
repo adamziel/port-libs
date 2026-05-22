@@ -152,6 +152,13 @@ final class TreeMerge
                 continue;
             }
 
+            $addedSymlinkConflict = self::tryMergeAddedSymlinkConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry);
+            if ($addedSymlinkConflict !== null) {
+                $merged[] = $addedSymlinkConflict['entry'];
+                $conflicts[] = $addedSymlinkConflict['conflict'];
+                continue;
+            }
+
             $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
@@ -214,6 +221,13 @@ final class TreeMerge
             ];
         }
 
+        if (($baseEntry->isBlob() || $baseEntry->isLink()) && $ourEntry->isLink() && $theirEntry->isLink()) {
+            return [
+                'entry' => new TreeEntry($ourEntry->mode, $path, $ourEntry->oid),
+                'conflicts' => [new TreeMergeConflict($fullPath, 'content-conflict', $baseEntry, $ourEntry, $theirEntry)],
+            ];
+        }
+
         if (!$baseEntry->isBlob() || !$ourEntry->isBlob() || !$theirEntry->isBlob()) {
             return null;
         }
@@ -246,6 +260,26 @@ final class TreeMerge
         return [
             'entry' => new TreeEntry($mergedMode, $path, $writeObject(new GitObject('blob', $merge->content))),
             'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @return null|array{entry:TreeEntry,conflict:TreeMergeConflict}
+     */
+    private static function tryMergeAddedSymlinkConflict(
+        string $path,
+        string $fullPath,
+        ?TreeEntry $baseEntry,
+        ?TreeEntry $ourEntry,
+        ?TreeEntry $theirEntry,
+    ): ?array {
+        if ($baseEntry !== null || $ourEntry === null || $theirEntry === null || !$ourEntry->isLink() || !$theirEntry->isLink()) {
+            return null;
+        }
+
+        return [
+            'entry' => new TreeEntry($ourEntry->mode, $path, $ourEntry->oid),
+            'conflict' => new TreeMergeConflict($fullPath, 'add-add', null, $ourEntry, $theirEntry),
         ];
     }
 
