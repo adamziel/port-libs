@@ -206,7 +206,7 @@
   - Result: exit 1 with plan `1..277`.
   - Failure: `status: dolt reset works with commit hash ref`.
   - Observed cause: `status.bats` defines `get_head_commit()` with a fixed `cut -c 13-44` over `dolt log`; current Dolt log output made that return a truncated commit-hash suffix, and `dolt reset` reported `branch not found`.
-  - Boundary: this stale upstream status helper was not fixed in this lane because runner work should not patch upstream or native PHP implementation; focused status rename/conflict evidence was rerun separately and passed.
+  - Boundary: the pristine upstream `status.bats` file was left unchanged. A later runner-local copied file fixes only this helper so the bounded status suite can be exercised without claiming pristine upstream pass parity.
 - Focused repro command this session:
   - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
   - Result: exit 1 with plan `1..1`; the helper returned a truncated suffix such as `5o2n53uuvt9n1uanth99i3igh4r`, and `dolt reset` failed with `branch not found`.
@@ -243,6 +243,40 @@
 - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
   - Result: exit 1 with plan `1..1`; the helper's `cut -c 13-44` returned truncated suffix `joqcbc13neenpuul9iscj3vartf` from commit `qmvnfjoqcbc13neenpuul9iscj3vartf`, and `dolt reset` reported `branch not found`.
 
+## Status Helper Patched-Copy Runner Refresh
+
+- Cache inspection before this refresh:
+  - `.upstream-cache/dolt` remained at `b2274926e0dcd84aab000ee242df5b5e75689eef`.
+  - `git -C .upstream-cache/dolt rev-parse --is-shallow-repository`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.partialclonefilter`: `blob:none`.
+  - `git -C .upstream-cache/dolt sparse-checkout list`: `go`, `integration-tests/bats`.
+  - The known sparse/no-checkout index deletions and untracked build caches remained; no delete, reset, or broad hydration was run.
+- `sudo -n dnf install -y golang bats expect`
+  - Result: `golang-1.26.3-2.fc44.x86_64`, `bats-1.13.0-3.fc44.noarch`, and `expect-5.45.4-31.fc44.x86_64` were already installed; `Nothing to do.`
+- `rpm -q golang golang-bin golang-src bats expect libicu-devel`; `go version`; `bats --version`; `expect -version`
+  - Result: `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, `expect-5.45.4-31.fc44.x86_64`, `libicu-devel-77.1-2.fc44.x86_64`; `go version go1.26.3-X:nodwarf5 linux/amd64`; `Bats 1.13.0`; `expect version 5.45.4`.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install ./cmd/dolt ./store/cmd/noms ./utils/remotesrv`
+  - Result: cache-local `dolt`, `noms`, and `remotesrv` rebuilt.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version`
+  - Result: `dolt version 2.0.5`.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
+  - Result: exit 1 with plan `1..1`; the pristine upstream helper truncated `nadnnhmv0m5703n4pch0qqddolkkg7kp` to `hmv0m5703n4pch0qqddolkkg7kp`, and `dolt reset` reported `branch not found`.
+- `cp status.bats status-local-fixed.bats`; runner-local patch to `status-local-fixed.bats`
+  - Patch: only `get_head_commit()` changed from fixed-width `cut -c 13-44` to `awk '/^commit / { print $2; exit }'`.
+  - Boundary: this copied file lives under `.upstream-cache/dolt/integration-tests/bats`; the pristine upstream `status.bats` file was not changed.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 5m bats --filter 'status: dolt reset works with commit hash ref' status-local-fixed.bats`
+  - Result: `1..1`, exit 0; the copied helper version of the stale repro passed.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 30m bats status-local-fixed.bats sql-status.bats`
+  - Result: `1..31`, exit 0; 30 runnable status/sql-status tests passed and 1 upstream-declared skip remained for `status: roots runs even if status fails`.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltScripts/dolt_status_ignored' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.346s`; focused `dolt_status_ignored` engine script coverage passed.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltDTableScripts(Prepared)?$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.175s`; focused `dolt_status` normal and prepared table script coverage passed.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltConflictsTableNameTable$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.363s`; focused `dolt_conflicts` table-name evidence passed.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 40m bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats`
+  - Result: `1..68`, exit 0; 67 runnable commit-diff/log/status/sql-status tests passed and 1 upstream-declared skip remained.
+
 ## Repository Check
 
 - `php tools/run-tests.php`
@@ -250,12 +284,14 @@
   - Two transient non-Dolt failures were observed while other lanes were active: one readability fixture failure and one pandoc footnote fixture failure.
   - A later required rerun after those transient failures passed: 102 test files, 6,955 assertions, 0 failures.
   - Required rerun after the native commit-log slice passed: 104 test files, 7,219 assertions, 0 failures.
+  - Current reruns after the status-helper runner refresh passed: 106 test files, 7,406 assertions, 0 failures; then 106 test files, 7,467 assertions, 0 failures after a transient aggregate failure cleared on immediate rerun.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits` commit metadata projection and the WordPress commit-log review fixture.
 - Lane-only Dolt PHP test command:
   - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $runner=new TestRunner(); foreach (glob("lanes/dolt/tests/*Test.php") as $file) { $runner->runTests(require $file, $file); } fwrite(STDOUT, "\nDolt: " . count(glob("lanes/dolt/tests/*Test.php")) . " test files, " . $runner->assertions() . " assertions, " . $runner->failures() . " failures\n"); exit($runner->failures() === 0 ? 0 : 1);'`
   - Previous result before the commit-log slice: pass with 6 Dolt test files, 64 behavior tests, 273 assertions, and 0 failures.
   - Current result after the commit-log slice: pass with 7 Dolt test files, 70 behavior tests, 306 assertions, and 0 failures.
+  - Current rerun after the status-helper runner refresh also passed with 7 Dolt test files, 70 behavior tests, 306 assertions, and 0 failures.
 
 ## Skipped Suites
 
@@ -267,4 +303,5 @@
 
 - This is bounded upstream evidence, not full upstream parity.
 - The cache has build/test artifacts under `.upstream-cache/dolt/.gomodcache`, `.upstream-cache/dolt/.gocache`, and `.upstream-cache/dolt/bats-home`.
-- Runner metadata is part of the current Dolt lane batch with the skinny projection, where/limit filtering, summary/stat primary-key warning/error boundaries, dolt_ignore implementation evidence, schema-history/schema-diff evidence, procedure-history/procedure-diff evidence, commit-diff evidence, and combined local upstream diff/schema/merge/status BATS evidence.
+- The pristine upstream `status.bats` helper still fails on fixed-width commit-hash extraction; the runner-local copied `status-local-fixed.bats` file resolves that helper boundary and lets the full local status suite pass, but it is documented as a patched-copy runner aid rather than pristine upstream pass parity.
+- Runner metadata is part of the current Dolt lane batch with the skinny projection, where/limit filtering, summary/stat primary-key warning/error boundaries, dolt_ignore implementation evidence, schema-history/schema-diff evidence, procedure-history/procedure-diff evidence, commit-diff/log evidence, and combined local upstream diff/schema/merge/status BATS evidence.

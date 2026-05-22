@@ -82,7 +82,8 @@ Targeted upstream files inspected for the current native slice:
 - `go/libraries/doltcore/sqle/dtables/commit_ancestors_table.go`: parent row shape was read as adjacent commit metadata context for root commits and parent indexes.
 - `go/libraries/doltcore/sqle/dtablefunctions/dolt_log.go`: `dolt_log()` revision range, `--not`, `--parents`, `--show-signature`, `--decorate`, and table-filter behavior.
 - `go/libraries/doltcore/sqle/dtablefunctions/dolt_log_test.go`: focused bind-variable, type-validation, fixed-schema, and `--parents` option tests.
-- `integration-tests/bats/status.bats`: focused status coverage for conflict tables, renamed tables, and reset with a renamed table; full file exposed one stale fixed-width commit-hash helper.
+- `integration-tests/bats/status.bats`: focused status coverage for conflict tables, renamed tables, and reset with a renamed table; pristine full file exposed one stale fixed-width commit-hash helper.
+- `.upstream-cache/dolt/integration-tests/bats/status-local-fixed.bats`: runner-local copy of `status.bats` with only `get_head_commit()` changed from fixed-width `cut -c 13-44` to full-hash `awk` extraction; used to prove the underlying status/reset behavior after documenting the pristine helper failure.
 - `go/libraries/doltcore/sqle/dtables/status_table.go`: `dolt_status` row shape (`table_name`, staged byte, status), staged/unstaged table-delta collection, merge/schema/data conflict rows, constraint violation rows, merged rows, and status strings.
 - `go/libraries/doltcore/sqle/dtables/status_ignored_table.go`: `dolt_status_ignored` row shape plus the rule that only unstaged new tables are evaluated against ignore patterns; conflicting ignore rules leave the row visible.
 - `go/libraries/doltcore/sqle/dtables/merge_status_table.go`: `dolt_merge_status` row shape (`is_merging`, `source`, `source_commit`, `target`, `unmerged_tables`), inactive null metadata, active source/target metadata, and unmerged data/constraint/schema table aggregation.
@@ -99,7 +100,7 @@ Targeted upstream files inspected for the current native slice:
 
 ## Runner Status
 
-The full upstream runners were not executed for this lane slice, but bounded upstream Go package, Go engine, Dolt CLI build, and local BATS diff/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status runners were executed after installing directly relevant tooling.
+The full upstream runners were not executed for this lane slice, but bounded upstream Go package, Go engine, Dolt CLI build, and local BATS diff/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status/log runners were executed after installing directly relevant tooling.
 
 - Tooling probes now return `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, and `expect version 5.45.4`.
 - Installed/probed commands used in this lane: `sudo -n dnf install -y golang bats` and `sudo -n dnf install -y expect`; resulting direct versions include `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, and `expect-5.45.4-31.fc44.x86_64`.
@@ -141,10 +142,13 @@ The full upstream runners were not executed for this lane slice, but bounded ups
 - Fresh focused sqle runners passed: `sqle/enginetest` diff/schema/system table-function group including `DiffStatTableFunctionPrepared` in `3.825s`, and `sqle/integration_test` schema/procedure/history diff tests in `0.220s`.
 - Fresh focused procedure runner passed: `sqle/integration_test -run 'TestDoltProcedures(History|Diff)Table$'` in `0.152s`.
 - Fresh focused commit-diff/log engine runner passed: `sqle/enginetest -run 'Test(CommitDiffSystemTable|CommitDiffSystemTablePrepared|LogTableFunction|LogTableFunctionPrepared)$'` in `0.987s`.
+- Fresh focused status/conflict Go runners passed: `sqle/enginetest -run 'TestDoltScripts/dolt_status_ignored'` in `0.346s`, `sqle/enginetest -run 'TestDoltDTableScripts(Prepared)?$'` in `0.175s`, and `sqle/enginetest -run 'TestDoltConflictsTableNameTable$'` in `0.363s`.
 - Fresh combined local BATS extension `bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats` passed with `1..253`: 238 runnable tests passed and 15 upstream-declared skips remained.
 - Fresh focused status BATS rerun passed again with `1..3`.
 - Fresh standalone `bats sql-commit-diff.bats` rerun passed with `1..2`, covering `DOLT_COMMIT_DIFF` range predicates over `to_` and `from_` primary-key columns and compound primary-key plan boundaries.
 - Fresh local `bats sql-commit-diff.bats log.bats` runner passed with `1..37`: 2 commit-diff tests and 35 log tests passed.
+- Fresh pristine one-test `status.bats` rerun still failed with `1..1` because `get_head_commit()` truncated `nadnnhmv0m5703n4pch0qqddolkkg7kp` to `hmv0m5703n4pch0qqddolkkg7kp`.
+- Fresh runner-local patched-copy status evidence passed: `bats --filter 'status: dolt reset works with commit hash ref' status-local-fixed.bats` passed with `1..1`; `bats status-local-fixed.bats sql-status.bats` passed with `1..31` (30 runnable passes and 1 upstream-declared skip); and `bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats` passed with `1..68` (67 runnable passes and 1 upstream-declared skip).
 - Full `go test ./...` was not run because it would hydrate and compile the full Dolt workspace and broad dependency graph beyond this lane slice.
 - Full BATS directory was not run because upstream BATS also runs Python/parquet/Hadoop/server/compatibility/client integration dependencies.
 - Live-service, MySQL-server, cloud, Hadoop/parquet, and benchmark suites were intentionally skipped.

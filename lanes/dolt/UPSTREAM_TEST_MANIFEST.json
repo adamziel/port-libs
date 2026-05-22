@@ -45,7 +45,7 @@
         },
         "runnerStatus": {
             "executed": true,
-            "reason": "The full upstream runners were not executed. Go, BATS, and expect are installed, `.upstream-cache/dolt` was inspected as a shallow blob:none sparse checkout for `go/` and `integration-tests/bats`, cache-local Dolt utilities were rebuilt, and bounded local Go/BATS diff/schema/table/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status/log evidence passed. Fresh 2026-05-22 evidence includes a 16-package Go batch, focused sqle/enginetest diff/schema/system table-function tests, focused sqle integration schema/procedure/history tests, a focused `TestDoltProcedures(History|Diff)Table` rerun in 0.152s, a combined 12-file local BATS slice with 253 planned tests (238 runnable passes and 15 upstream-declared skips), a focused `CommitDiffSystemTable`/`LogTableFunction` Go pass in 0.987s, a fresh focused `Test(LogTableFunction|LogTableFunctionPrepared|DoltCommit)` engine pass in 0.749s, a fresh `sqle/dtablefunctions -run TestDoltLog` pass in 0.045s, a local `sql-commit-diff.bats`/`log.bats` pass with 37 planned tests, a standalone `sql-commit-diff.bats` pass with 2 DOLT_COMMIT_DIFF tests, and 3 focused status tests. A fresh targeted one-test status rerun confirmed the stale upstream `status.bats` commit-hash helper failure. Earlier evidence also includes the expanded 179-plan local BATS slice, a focused DiffSummaryTableFunction rerun for dolt_ignore behavior, a focused TestDoltScripts/dolt_status_ignored conflicting-pattern subtest, status_table/status_ignored_table source inspection, and sql-status.bats/status.bats targeted reads. A broader 277-plan local BATS attempt exposed the same stale upstream status.bats helper; full `go test ./...` and the full BATS directory remain out of scope because they hydrate/compile the full Dolt workspace and run Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice.",
+            "reason": "The full upstream runners were not executed. Go, BATS, and expect are installed, `.upstream-cache/dolt` was inspected as a shallow blob:none sparse checkout for `go` and `integration-tests/bats`, cache-local Dolt utilities were rebuilt, and bounded local Go/BATS diff/schema/table/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status/log evidence passed. Fresh 2026-05-22 evidence includes a 16-package Go batch, focused sqle/enginetest diff/schema/system table-function tests, focused sqle integration schema/procedure/history tests, a focused `TestDoltProcedures(History|Diff)Table` rerun in 0.152s, a combined 12-file local BATS slice with 253 planned tests (238 runnable passes and 15 upstream-declared skips), focused commit-diff/log Go evidence, focused status/conflict Go evidence (`TestDoltScripts/dolt_status_ignored`, `TestDoltDTableScripts(Prepared)?$`, and `TestDoltConflictsTableNameTable$`), a local `sql-commit-diff.bats`/`log.bats` pass with 37 planned tests, a standalone `sql-commit-diff.bats` pass with 2 DOLT_COMMIT_DIFF tests, and earlier 3 focused pristine status tests. A fresh targeted one-test status rerun confirmed the stale pristine upstream `status.bats` commit-hash helper failure; a runner-local copied `status-local-fixed.bats` changes only `get_head_commit()` from fixed-width cut to full-hash awk extraction, after which the focused repro, full status plus sql-status suite, and a combined `sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats` slice passed with 68 planned tests, 67 runnable passes, and 1 upstream-declared skip. Earlier evidence also includes the expanded 179-plan local BATS slice, a focused DiffSummaryTableFunction rerun for dolt_ignore behavior, a focused TestDoltScripts/dolt_status_ignored conflicting-pattern subtest, status_table/status_ignored_table source inspection, and sql-status.bats/status.bats targeted reads. A broader 277-plan local BATS attempt exposed the same stale pristine status.bats helper; full `go test ./...` and the full BATS directory remain out of scope because they hydrate/compile the full Dolt workspace and run Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice.",
             "boundedRunner": {
                 "executed": true,
                 "worktree": ".upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef with blob:none partial clone and sparse checkout entries `go` and `integration-tests/bats`",
@@ -245,10 +245,42 @@
                         "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test ./libraries/doltcore/sqle/dtablefunctions -run TestDoltLog -count=1 -timeout 5m",
                         "result": "PASS: fresh focused dtablefunctions Dolt log unit tests passed in 0.045s"
                     },
-                    {
-                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats",
-                        "result": "FAIL: targeted stale upstream status helper reproduced with plan 1..1; cut -c 13-44 returned truncated suffix joqcbc13neenpuul9iscj3vartf from commit qmvnfjoqcbc13neenpuul9iscj3vartf, and dolt reset reported branch not found"
-                    }
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats",
+                    "result": "FAIL: targeted stale upstream status helper reproduced with plan 1..1; cut -c 13-44 returned truncated suffix joqcbc13neenpuul9iscj3vartf from commit qmvnfjoqcbc13neenpuul9iscj3vartf, and dolt reset reported branch not found"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats",
+                    "result": "FAIL: fresh pristine status.bats repro exited 1 with plan 1..1; fixed-width helper truncated nadnnhmv0m5703n4pch0qqddolkkg7kp to hmv0m5703n4pch0qqddolkkg7kp, and dolt reset reported branch not found"
+                },
+                {
+                    "command": "cp status.bats status-local-fixed.bats, then patch only get_head_commit() in status-local-fixed.bats from `cut -c 13-44` to `awk '/^commit / { print $2; exit }'`",
+                    "result": "PASS: runner-local copied BATS file created under .upstream-cache/dolt/integration-tests/bats; pristine status.bats left unchanged"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 5m bats --filter 'status: dolt reset works with commit hash ref' status-local-fixed.bats",
+                    "result": "PASS: runner-local patched-copy repro exited 0 with plan 1..1"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 30m bats status-local-fixed.bats sql-status.bats",
+                    "result": "PASS: runner-local status/sql-status slice exited 0 with plan 1..31; 30 runnable tests passed and 1 upstream-declared skip remained"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltScripts/dolt_status_ignored' -count=1 -timeout 10m",
+                    "result": "PASS: focused dolt_status_ignored Go engine script coverage passed in 0.346s"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltDTableScripts(Prepared)?$' -count=1 -timeout 10m",
+                    "result": "PASS: focused dolt_status normal and prepared table script coverage passed in 0.175s"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltConflictsTableNameTable$' -count=1 -timeout 10m",
+                    "result": "PASS: focused dolt_conflicts table-name coverage passed in 0.363s"
+                },
+                {
+                    "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 40m bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats",
+                    "result": "PASS: combined commit-diff/log/status/sql-status patched-copy BATS slice exited 0 with plan 1..68; 67 runnable tests passed and 1 upstream-declared skip remained"
+                }
                 ]
             },
             "probes": [
@@ -270,15 +302,15 @@
                 },
                 {
                     "command": "bounded upstream runner pass count",
-                    "result": "Fresh 2026-05-22 rerun passed a 16-package Go batch for diff/schema/table/rowconv/sqlfmt/expreval/dtables/dtablefunctions/merge with 14 package passes and 2 no-test compile-only packages, focused sqle/enginetest diff/schema/system table-function entry points including DiffStat prepared coverage in 3.825s, focused sqle integration schema/procedure/history tests in 0.220s, focused schema-history/schema-diff tests in 0.138s, and focused procedure-history/procedure-diff tests in 0.152s. BATS evidence now includes a combined 12-file local slice with 253 planned tests, 238 runnable passes, and 15 upstream-declared skips, a standalone sql-commit-diff.bats pass with 2 DOLT_COMMIT_DIFF tests, a local sql-commit-diff.bats/log.bats pass with 37 planned tests, plus a fresh 3-test focused status pass. Fresh commit-diff/log Go engine evidence passed in 0.987s. Earlier BATS evidence includes the 179-plan diff/schema/sql-diff slice and 74-plan merge/conflict slice. A fresh targeted one-test status rerun and a broader 277-plan local BATS attempt failed on one stale upstream status.bats commit-hash helper."
+                    "result": "Fresh 2026-05-22 rerun passed a 16-package Go batch for diff/schema/table/rowconv/sqlfmt/expreval/dtables/dtablefunctions/merge with 14 package passes and 2 no-test compile-only packages, focused sqle/enginetest diff/schema/system table-function entry points including DiffStat prepared coverage in 3.825s, focused sqle integration schema/procedure/history tests in 0.220s, focused schema-history/schema-diff tests in 0.138s, focused procedure-history/procedure-diff tests in 0.152s, focused commit-diff/log Go engine tests in 0.987s, focused log/commit metadata engine tests in 0.749s, focused dolt_log dtablefunction tests in 0.045s, focused dolt_status_ignored scripts in 0.346s, focused dolt_status normal/prepared scripts in 0.175s, and focused dolt_conflicts table-name tests in 0.363s. BATS evidence includes a combined 12-file local slice with 253 planned tests, 238 runnable passes, and 15 upstream-declared skips; a standalone sql-commit-diff.bats pass with 2 DOLT_COMMIT_DIFF tests; a local sql-commit-diff.bats/log.bats pass with 37 planned tests; a fresh 3-test focused status pass; and a runner-local patched-copy sql-commit-diff/log/status/sql-status slice with 68 planned tests, 67 runnable passes, and 1 upstream-declared skip. Earlier BATS evidence includes the 179-plan diff/schema/sql-diff slice and 74-plan merge/conflict slice. Pristine status.bats still fails one stale commit-hash helper, while the copied helper-fixed status-local-fixed.bats passes."
                 },
                 {
                     "command": "php tools/run-tests.php",
-                    "result": "PASS on post-metadata rerun: 102 test files, 6,868 assertions, 0 failures. Transient non-Dolt readability and pandoc failures were observed while other lanes were active. A later required rerun passed: 102 test files, 6,955 assertions, 0 failures."
+                    "result": "PASS on post-metadata reruns: 102 test files with 6,868 assertions, then 102 test files with 6,955 assertions after transient non-Dolt lane failures cleared, 104 test files with 7,219 assertions during the native commit-log slice, and current status-helper refresh reruns with 106 test files and 7,406 assertions, then 106 test files and 7,467 assertions after an immediate transient aggregate retry, 0 failures."
                 },
                 {
                     "command": "lane-only Dolt PHP tests",
-                    "result": "PASS: 6 Dolt test files, 64 behavior tests, 273 assertions, 0 failures."
+                    "result": "PASS: 7 Dolt test files, 70 behavior tests, 306 assertions, 0 failures."
                 },
                 {
                     "command": "targeted schema-aware diff inventory",
@@ -298,7 +330,7 @@
                 },
                 {
                     "command": "targeted merge/status inventory",
-                    "result": "inspected and ran local merge package tests, focused sqle integration diff/history tests, merge.bats, schema-conflicts.bats, conflict-detection.bats, sql-commit-diff.bats, and focused status.bats rename/conflict/reset cases; full status.bats exposed a stale fixed-width commit hash helper"
+                    "result": "inspected and ran local merge package tests, focused sqle integration diff/history tests, merge.bats, schema-conflicts.bats, conflict-detection.bats, sql-commit-diff.bats, focused pristine status.bats rename/conflict/reset cases, focused Go dolt_status/dolt_status_ignored/dolt_conflicts tests, and a runner-local status-local-fixed.bats copy; pristine status.bats still exposes a stale fixed-width commit hash helper"
                 },
                 {
                     "command": "targeted DOLT_COMMIT_DIFF inventory",
@@ -306,7 +338,7 @@
                 },
                 {
                     "command": "targeted dolt_status inventory",
-                    "result": "inspected go/libraries/doltcore/sqle/dtables/status_table.go, status_ignored_table.go, merge_status_table.go, table_of_tables_in_conflict.go, integration-tests/bats/sql-status.bats, and status.bats for staged/unstaged rows, renames, conflict rows, constraint/schema states, merged rows, and ignored unstaged new-table filtering"
+                    "result": "inspected go/libraries/doltcore/sqle/dtables/status_table.go, status_ignored_table.go, merge_status_table.go, table_of_tables_in_conflict.go, integration-tests/bats/sql-status.bats, and status.bats for staged/unstaged rows, renames, conflict rows, constraint/schema states, merged rows, and ignored unstaged new-table filtering; copied status.bats to status-local-fixed.bats with only get_head_commit full-hash extraction patched and ran the copied status suite with sql-status.bats"
                 },
                 {
                     "command": "targeted dolt_schemas history/diff inventory",
