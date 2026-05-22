@@ -177,6 +177,20 @@ executed for this focused slice only: `go test ./lib/model -run
 '^TestServiceMap$' -count=1` passed in a throwaway worktree at commit
 `3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
 parity.
+The folder-completion slice now maps focused upstream `lib/model/model.go`,
+`lib/model/model_test.go`, and `lib/model/folderstate.go` behavior:
+`newFolderCompletion` computes completion from global and needed bytes,
+`FolderCompletion.add` recomputes aggregate completion across folders,
+downloaded temporary bytes are subtracted from needed bytes without underflow,
+remote folder states render as upstream API strings, `Map` exposes the
+completion/global/need/sequence payload shape, and delete-only work reports 95%
+instead of 100% complete. A bounded upstream runner was executed for this
+focused slice only: `go test ./lib/model -run
+'TestAddFolderCompletion|TestCompletionEmptyGlobal' -count=1` passed in a
+throwaway worktree at commit `3962a237232473c20a44945a6c8ce8c930375360`; this
+is not full upstream runner parity. The WordPress example
+`wordpress-folder-completion.php` shows a media folder progress payload after
+temporary downloaded-byte credit plus a delete-only cleanup row for sync UI.
 The indexhandler sender slice now maps focused upstream
 `lib/model/indexhandler.go` and `indexhandler_test.go` behavior: the first
 send from sequence zero emits a full Index, subsequent sends emit IndexUpdate
@@ -484,10 +498,14 @@ folder workers using upstream service-map lifecycle semantics: a private folder
 worker can be stopped while its retained configuration remains inspectable, a
 media indexer can be replaced for a rescan after stopping the old worker, and a
 stopped folder can be removed after maintenance.
+`examples/wordpress-folder-completion.php` shows a WordPress media sync status
+payload using upstream completion math: temporary downloaded bytes reduce the
+remaining need count, delete-only work is displayed as 95% complete, and an
+aggregate payload keeps the API-style completion fields stable for UI code.
 
 ## Next Task
 
 Map upstream ReceiveIndex database/global-state effects such as index resets,
-deleted FileInfo interactions, and remote sequence edge cases, or run another
-focused upstream model package test before the next protocol/model behavior
-slice.
+deleted FileInfo interactions, and remote sequence edge cases, or broaden
+folder/model completion toward aggregate multi-folder state once another
+focused upstream model package test is selected.
