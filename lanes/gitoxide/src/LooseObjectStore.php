@@ -6,8 +6,16 @@ namespace PortLibs\Gitoxide;
 
 final class LooseObjectStore
 {
-    public function __construct(private readonly string $gitDirectory)
+    private readonly string $objectsDirectory;
+
+    public function __construct(string $gitDirectory, bool $pathIsObjectsDirectory = false)
     {
+        $this->objectsDirectory = rtrim($pathIsObjectsDirectory ? $gitDirectory : $gitDirectory . '/objects', '/');
+    }
+
+    public static function fromObjectsDirectory(string $objectsDirectory): self
+    {
+        return new self($objectsDirectory, true);
     }
 
     public function write(GitObject $object): string
@@ -67,7 +75,7 @@ final class LooseObjectStore
      */
     public function objectIds(): array
     {
-        $objectsDirectory = rtrim($this->gitDirectory, '/') . '/objects';
+        $objectsDirectory = $this->objectsDirectory;
         if (!is_dir($objectsDirectory)) {
             return [];
         }
@@ -94,7 +102,7 @@ final class LooseObjectStore
     {
         $oid = strtolower($oid);
 
-        return rtrim($this->gitDirectory, '/') . '/objects/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
+        return $this->objectsDirectory . '/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
     }
 
     private static function assertObjectId(string $oid): void

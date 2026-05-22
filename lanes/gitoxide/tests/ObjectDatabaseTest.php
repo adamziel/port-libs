@@ -21,6 +21,20 @@ $writeWordPressPackFixture = static function (): array {
     return [$gitDir, $fixture];
 };
 
+$writePackFixtureToObjectsDirectory = static function (string $objectsDirectory): array {
+    $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
+    $packDir = $objectsDirectory . '/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create pack fixture directory: {$packDir}");
+    }
+
+    $basename = 'pack-' . $fixture['packChecksum'];
+    file_put_contents($packDir . '/' . $basename . '.pack', $fixture['packBytes']);
+    file_put_contents($packDir . '/' . $basename . '.idx', $fixture['indexBytes']);
+
+    return $fixture;
+};
+
 return [
     'object database reads packed delta and loose objects' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
@@ -89,5 +103,50 @@ return [
 
         $database = new ObjectDatabase($gitDir);
         $t->throws(RuntimeException::class, static fn () => $database->packedObjectCount());
+    },
+    'object database resolves loose and packed alternates' => static function (TestRunner $t) use ($writePackFixtureToObjectsDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/package-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjectsDir}");
+        }
+
+        $fixture = $writePackFixtureToObjectsDirectory($alternateObjectsDir);
+        $sharedOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir)->write(new GitObject('blob', 'Shared plugin package from cache'));
+        file_put_contents($objectsDir . '/info/alternates', "# shared package object database\n{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same([realpath($alternateObjectsDir)], $database->alternateObjectDirectories());
+        $t->same(3, $database->packedObjectCount());
+        $t->same('Shared plugin package from cache', $database->read($sharedOid)->body);
+        $t->contains('reconstructed packed edit', $database->read($fixture['objects'][2]['oid'])->body);
+        $t->true($database->contains($fixture['objects'][0]['oid']));
+        $t->same('found', $database->lookupPrefix(substr($sharedOid, 0, 8))['status']);
+    },
+    'object database resolves relative quoted alternates and rejects cycles' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/cache with tab' . "\t" . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir . '/info', 0777, true) && !is_dir($alternateObjectsDir . '/info')) {
+            throw new RuntimeException("Unable to create alternate objects info directory: {$alternateObjectsDir}/info");
+        }
+
+        $alternateOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir)->write(new GitObject('blob', 'Relative alternate object'));
+        file_put_contents($objectsDir . '/info/alternates', "\"../../../cache with tab\\t/objects\"\n");
+        $database = new ObjectDatabase($gitDir);
+        $t->same('Relative alternate object', $database->read($alternateOid)->body);
+
+        file_put_contents($alternateObjectsDir . '/info/alternates', "../../site/.git/objects\n");
+        $cycleDatabase = new ObjectDatabase($gitDir);
+        $t->throws(RuntimeException::class, static fn () => $cycleDatabase->alternateObjectDirectories());
     },
 ];

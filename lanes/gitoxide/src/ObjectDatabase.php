@@ -13,11 +13,17 @@ final class ObjectDatabase
      * @var null|list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string}>
      */
     private ?array $packs = null;
-    private readonly LooseObjectStore $loose;
+    /**
+     * @var null|list<string>
+     */
+    private ?array $objectDirectories = null;
+    /**
+     * @var null|list<LooseObjectStore>
+     */
+    private ?array $looseStores = null;
 
     public function __construct(private readonly string $gitDirectory)
     {
-        $this->loose = new LooseObjectStore($gitDirectory);
     }
 
     public function contains(string $oid): bool
@@ -31,7 +37,13 @@ final class ObjectDatabase
             }
         }
 
-        return $this->loose->contains($oid);
+        foreach ($this->looseStores() as $store) {
+            if ($store->contains($oid)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function read(string $oid): GitObject
@@ -45,9 +57,11 @@ final class ObjectDatabase
             }
         }
 
-        $object = $this->loose->tryRead($oid);
-        if ($object !== null) {
-            return $object;
+        foreach ($this->looseStores() as $store) {
+            $object = $store->tryRead($oid);
+            if ($object !== null) {
+                return $object;
+            }
         }
 
         throw new \RuntimeException("Object not found in database: {$oid}");
@@ -85,9 +99,11 @@ final class ObjectDatabase
             }
         }
 
-        foreach ($this->loose->objectIds() as $oid) {
-            if (str_starts_with($oid, $prefix)) {
-                $matches[$oid] = true;
+        foreach ($this->looseStores() as $store) {
+            foreach ($store->objectIds() as $oid) {
+                if (str_starts_with($oid, $prefix)) {
+                    $matches[$oid] = true;
+                }
             }
         }
 
@@ -129,7 +145,19 @@ final class ObjectDatabase
             }
         }
 
-        return array_merge($ids, $this->loose->objectIds());
+        foreach ($this->looseStores() as $store) {
+            $ids = array_merge($ids, $store->objectIds());
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function alternateObjectDirectories(): array
+    {
+        return array_slice($this->objectDirectories(), 1);
     }
 
     /**
@@ -141,34 +169,158 @@ final class ObjectDatabase
             return $this->packs;
         }
 
-        $packDirectory = rtrim($this->gitDirectory, '/') . '/objects/pack';
-        $indexPaths = is_dir($packDirectory) ? glob($packDirectory . '/*.idx') ?: [] : [];
-        sort($indexPaths, SORT_STRING);
-
         $this->packs = [];
-        foreach ($indexPaths as $indexPath) {
-            $packPath = substr($indexPath, 0, -4) . '.pack';
-            if (!is_file($packPath)) {
-                throw new \RuntimeException("Pack data file not found for index: {$indexPath}");
-            }
+        foreach ($this->objectDirectories() as $objectsDirectory) {
+            $packDirectory = $objectsDirectory . '/pack';
+            $indexPaths = is_dir($packDirectory) ? glob($packDirectory . '/*.idx') ?: [] : [];
+            sort($indexPaths, SORT_STRING);
 
-            $index = PackIndex::open($indexPath);
-            $data = PackData::open($packPath);
-            $index->verifyChecksum();
-            $data->verifyChecksum();
-            if ($index->packChecksum() !== $data->checksum()) {
-                throw new \RuntimeException("Pack index checksum does not match pack data: {$indexPath}");
-            }
+            foreach ($indexPaths as $indexPath) {
+                $packPath = substr($indexPath, 0, -4) . '.pack';
+                if (!is_file($packPath)) {
+                    throw new \RuntimeException("Pack data file not found for index: {$indexPath}");
+                }
 
-            $this->packs[] = [
-                'index' => $index,
-                'data' => $data,
-                'indexPath' => $indexPath,
-                'packPath' => $packPath,
-            ];
+                $index = PackIndex::open($indexPath);
+                $data = PackData::open($packPath);
+                $index->verifyChecksum();
+                $data->verifyChecksum();
+                if ($index->packChecksum() !== $data->checksum()) {
+                    throw new \RuntimeException("Pack index checksum does not match pack data: {$indexPath}");
+                }
+
+                $this->packs[] = [
+                    'index' => $index,
+                    'data' => $data,
+                    'indexPath' => $indexPath,
+                    'packPath' => $packPath,
+                ];
+            }
         }
 
         return $this->packs;
+    }
+
+    /**
+     * @return list<LooseObjectStore>
+     */
+    private function looseStores(): array
+    {
+        if ($this->looseStores !== null) {
+            return $this->looseStores;
+        }
+
+        $this->looseStores = array_map(
+            static fn (string $objectsDirectory): LooseObjectStore => LooseObjectStore::fromObjectsDirectory($objectsDirectory),
+            $this->objectDirectories()
+        );
+
+        return $this->looseStores;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function objectDirectories(): array
+    {
+        if ($this->objectDirectories !== null) {
+            return $this->objectDirectories;
+        }
+
+        $primary = rtrim($this->gitDirectory, '/') . '/objects';
+        $this->objectDirectories = array_merge([$primary], self::resolveAlternates($primary));
+
+        return $this->objectDirectories;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function resolveAlternates(string $objectsDirectory): array
+    {
+        $stack = [[0, $objectsDirectory]];
+        $out = [];
+        $primaryRealPath = realpath($objectsDirectory);
+        $seen = [$primaryRealPath === false ? $objectsDirectory : $primaryRealPath];
+
+        while ($stack !== []) {
+            [$depth, $directory] = array_pop($stack);
+            $alternatesFile = $directory . '/info/alternates';
+            if (is_file($alternatesFile)) {
+                $contents = file_get_contents($alternatesFile);
+                if ($contents === false) {
+                    throw new \RuntimeException("Unable to read alternates file: {$alternatesFile}");
+                }
+
+                foreach (self::parseAlternates($contents) as $path) {
+                    $candidate = str_starts_with($path, '/') ? $path : $directory . '/' . $path;
+                    $realPath = realpath($candidate);
+                    if ($realPath === false || !is_dir($realPath)) {
+                        throw new \RuntimeException("Alternate object directory not found: {$candidate}");
+                    }
+                    if (in_array($realPath, $seen, true)) {
+                        throw new \RuntimeException('Alternates form a cycle');
+                    }
+                    $seen[] = $realPath;
+                    $stack[] = [$depth + 1, $realPath];
+                }
+            }
+
+            if ($depth !== 0) {
+                $out[] = $directory;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function parseAlternates(string $contents): array
+    {
+        $paths = [];
+        foreach (explode("\n", $contents) as $line) {
+            $line = rtrim($line, "\r");
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            $paths[] = str_starts_with($line, '"') ? self::unquoteAlternatePath($line) : $line;
+        }
+
+        return $paths;
+    }
+
+    private static function unquoteAlternatePath(string $line): string
+    {
+        if (!str_ends_with($line, '"') || strlen($line) < 2) {
+            throw new \RuntimeException('Could not unquote alternate path');
+        }
+
+        $body = substr($line, 1, -1);
+        $out = '';
+        $length = strlen($body);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $body[$i];
+            if ($char !== '\\') {
+                $out .= $char;
+                continue;
+            }
+            if ($i + 1 >= $length) {
+                throw new \RuntimeException('Could not unquote alternate path');
+            }
+            $next = $body[++$i];
+            $out .= match ($next) {
+                'n' => "\n",
+                'r' => "\r",
+                't' => "\t",
+                '\\' => '\\',
+                '"' => '"',
+                default => $next,
+            };
+        }
+
+        return $out;
     }
 
     private static function assertObjectId(string $oid): void
