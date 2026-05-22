@@ -10,6 +10,15 @@ This **legacy post** links back to the [source archive](https://example.test/arc
 1. Convert Markdown to the shared AST
 2. Write WordPress block comments and HTML
 
+Import note
+: Keep the archive URL attached
+and mention reviewer follow-up.
+
+Cleanup pass
+: Check legacy shortcodes after block conversion.
+
+    Record manual remediation notes.
+
 ```php
 do_shortcode('[legacy-gallery]');
 ```

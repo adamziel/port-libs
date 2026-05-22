@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "pandoc",
-    "estimatedProgress": 10,
-    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list, definition-list, inline-code list-marker, test/command/indented-fences.md fenced-code, and test/testsuite.txt block quote slices mapped; full Haskell runner not executed",
-    "phpPass": 19,
+    "estimatedProgress": 11,
+    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list, seven definition-list cases, inline-code list-marker, test/command/indented-fences.md fenced-code, and test/testsuite.txt block quote slices mapped; full Haskell runner not executed",
+    "phpPass": 24,
     "phpFail": 0,
-    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, reviewer quotes, ordered conversion steps, nested editorial checklists, glossary-style definition lists, and migration code snippets as WordPress blocks or HTML.",
-    "phase": "cloned inventory plus Markdown reader/list/definition-list/code-span/fenced-code/block-quote slices",
+    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, reviewer quotes, ordered conversion steps, nested editorial checklists, glossary-style definition lists with lazy and multi-paragraph import notes, and migration code snippets as WordPress blocks or HTML.",
+    "phase": "cloned inventory plus Markdown reader/list/definition-list-continuation/code-span/fenced-code/block-quote slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, definition-list cases, inline code spans containing list-marker-looking text from Tests.Readers.Markdown, indented fenced code blocks from test/command/indented-fences.md, and block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt; WordPress writer renders escaped block output, nested list markup, definition-list HTML, code blocks, and quote blocks.",
-    "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable; upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout.",
-    "latestCommit": "495e34b",
-    "nextTask": "Map loose definition-list paragraphs from Tests.Readers.Markdown or another bounded block family from test/testsuite.txt."
+    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, seven Tests.Readers.Markdown definition-list cases including loose first definitions, lazy continuation lines, continuation paragraphs, blank-before-second definitions, column-zero markers, and lists inside definitions, inline code spans containing list-marker-looking text, indented fenced code blocks from test/command/indented-fences.md, and block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt; WordPress writer renders escaped block output, nested list markup, definition-list HTML with multi-paragraph dd content, code blocks, and quote blocks.",
+    "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable in this shell, the upstream cache is blob-filtered/no-checkout, and upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout before command/golden/HUnit/QuickCheck tests can run.",
+    "latestCommit": "4d62119",
+    "nextTask": "Map the remaining Tests.Readers.Markdown in-div definition-list case or move to another bounded block family from test/testsuite.txt."
 }

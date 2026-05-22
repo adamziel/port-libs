@@ -4,22 +4,25 @@ Document conversion kernel for Data Liberation imports and block-oriented output
 
 ## Current Native Slice
 
-Native Markdown block reader and WordPress block writer for headings, paragraphs,
-Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered
-lists, nested lists, and definition lists. Code spans now preserve
+Native Markdown block reader and WordPress block writer for headings,
+paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists,
+ordered lists, nested lists, and definition lists. Code spans now preserve
 list-marker-looking text such as `- x` and `#. x` inside imported list items.
+Definition lists now cover Pandoc-style loose first definitions, lazy
+continuation lines, blank-before-second definitions, and indented continuation
+paragraphs, which keeps imported FAQ, glossary, and release-note metadata
+grouped under the intended term.
 Fenced code blocks map the upstream `test/command/indented-fences.md`
-indentation-stripping behavior and render as WordPress code blocks.
-Block quotes now map Pandoc's `test/testsuite.txt` block quote section,
-including quoted paragraphs, nested quotes, ordered lists, and indented code
-inside a quote.
+indentation-stripping behavior and render as WordPress code blocks. Block quotes
+now map Pandoc's `test/testsuite.txt` block quote section, including quoted
+paragraphs, nested quotes, ordered lists, and indented code inside a quote.
 
 ## Scenario Fixture
 
 - `fixtures/wordpress-import-markdown.md` is a small Data Liberation import
   sample with editorial emphasis, a source archive link, visible shortcode-like
-  code spans, a reviewer quote, conversion steps, and a fenced PHP migration
-  snippet.
+  code spans, a reviewer quote, conversion steps, definition-list import notes,
+  and a fenced PHP migration snippet.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -31,5 +34,5 @@ inside a quote.
 
 ## Next Task
 
-Map loose definition-list paragraphs from `Tests.Readers.Markdown` or another
-bounded block family from `test/testsuite.txt`.
+Map the remaining `Tests.Readers.Markdown` in-div definition-list case, or move
+to another bounded block family from `test/testsuite.txt`.

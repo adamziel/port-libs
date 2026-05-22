@@ -21,6 +21,8 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.txt` top-level Markdown sections: 14
 - `test/testsuite.native` rendered native AST lines: 2,238
 - `test/testsuite.native` `BlockQuote` nodes in the full rendered suite: 7
+- `Tests.Readers.Markdown` definition-list cases: 8, of which 7 are now mapped
+  by focused PHP tests
 - Markdown fixture files under `test/`: 1,096
 - Office/archive fixtures (`docx`, `odt`, `epub`, `pptx`, `xlsx`, `rtf`): 309
 - HTML/XML/JATS fixtures: 29
@@ -58,6 +60,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   quote-contained indented code, ordered lists, nested block quotes, and the
   lazy-continuation case where `> 1.` stays inside a paragraph instead of
   starting a quote.
+- Definition-list cases from `Tests.Readers.Markdown`: no blank space,
+  blank space before the first definition, lazy continuation lines, indented
+  continuation paragraphs, blank space before the second definition, first-line
+  marker at column zero, and a list inside a definition. The remaining focused
+  case is a definition list nested inside an HTML div.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.

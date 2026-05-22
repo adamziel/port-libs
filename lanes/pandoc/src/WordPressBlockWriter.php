@@ -184,6 +184,14 @@ final class WordPressBlockWriter
     private function renderDefinitionBlocks(AstNode $definition): string
     {
         $html = '';
+        $paragraphCount = 0;
+        foreach ($definition->children as $child) {
+            if ($child->type === 'paragraph') {
+                $paragraphCount++;
+            }
+        }
+        $wrapParagraphs = (bool) $definition->attr('loose', false) || $paragraphCount > 1;
+
         foreach ($definition->children as $child) {
             if ($child->type === 'bullet_list') {
                 $html .= $this->renderListHtml($child, false);
@@ -194,7 +202,8 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($child->type === 'paragraph') {
-                $html .= $this->renderInlines($child);
+                $rendered = $this->renderInlines($child);
+                $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
                 continue;
             }
 

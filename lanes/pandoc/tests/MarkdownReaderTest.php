@@ -92,6 +92,46 @@ return [
         $t->same('foo', $list->children[0]->children[0]->attr('text'));
         $t->same('bar', $list->children[0]->children[1]->children[0]->attr('text'));
     },
+    'maps upstream markdown loose first definition paragraph' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo1\n\n  :  bar\n\nfoo2\n\n  : bar2\n  : bar3\n");
+        $firstDefinition = $document->children[0]->children[0]->children[1];
+        $secondItem = $document->children[0]->children[1];
+
+        $t->same('definition', $firstDefinition->type);
+        $t->true((bool) $firstDefinition->attr('loose'));
+        $t->same('bar', $firstDefinition->children[0]->attr('text'));
+        $t->same(false, (bool) $secondItem->children[1]->attr('loose'));
+        $t->same('bar2', $secondItem->children[1]->children[0]->attr('text'));
+        $t->true((bool) $secondItem->children[2]->attr('loose'));
+        $t->same('bar3', $secondItem->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream markdown lazy definition continuations' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo1\n  :  bar\nbaz\n  : bar2\n");
+        $item = $document->children[0]->children[0];
+
+        $t->same('definition_item', $item->type);
+        $t->same(3, count($item->children));
+        $t->same('bar baz', $item->children[1]->children[0]->attr('text'));
+        $t->same('bar2', $item->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream markdown paragraph continuation inside definition' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo1\n  : bar\n\n    baz\n");
+        $definition = $document->children[0]->children[0]->children[1];
+
+        $t->same('definition', $definition->type);
+        $t->same(2, count($definition->children));
+        $t->same('bar', $definition->children[0]->attr('text'));
+        $t->same('baz', $definition->children[1]->attr('text'));
+    },
+    'maps upstream markdown blank before second definition' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo1\n  :  bar\n\nfoo2\n  : bar2\n\n  : bar3\n");
+        $secondItem = $document->children[0]->children[1];
+
+        $t->same('foo2', $secondItem->attr('term'));
+        $t->same(3, count($secondItem->children));
+        $t->same('bar2', $secondItem->children[1]->children[0]->attr('text'));
+        $t->same('bar3', $secondItem->children[2]->children[0]->attr('text'));
+    },
     'maps upstream markdown list inside definition' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("foo\n:   - bar\n");
         $definition = $document->children[0]->children[0]->children[1];
@@ -153,6 +193,13 @@ return [
 
         $t->contains('<!-- wp:html -->', $blocks);
         $t->contains('<dl><dt>Plugin</dt><dd>Stable release</dd><dt>Checklist</dt><dd><ul><li>Verify imports</li></ul></dd></dl>', $blocks);
+    },
+    'writes wordpress definition paragraphs from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<dt>Import note</dt><dd>Keep the archive URL attached and mention reviewer follow-up.</dd>', $blocks);
+        $t->contains('<dt>Cleanup pass</dt><dd><p>Check legacy shortcodes after block conversion.</p><p>Record manual remediation notes.</p></dd>', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
