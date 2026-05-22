@@ -45,6 +45,7 @@ final class ArticleExtractor
             $text,
             $excerpt,
             $this->metadataValue($xpath, [
+                '//meta[@name="parsely-author"]/@content',
                 '//meta[@name="author"]/@content',
                 '//meta[@property="article:author"]/@content',
                 '//*[contains(concat(" ", normalize-space(@class), " "), " byline ")]',
@@ -55,6 +56,7 @@ final class ArticleExtractor
                 '//meta[@name="application-name"]/@content',
             ]),
             $this->metadataValue($xpath, [
+                '//meta[@name="parsely-pub-date"]/@content',
                 '//meta[@property="article:published_time"]/@content',
                 '//meta[@name="pubdate"]/@content',
                 '//time[@datetime]/@datetime',
@@ -171,6 +173,7 @@ final class ArticleExtractor
     private function title(\DOMXPath $xpath, \DOMDocument $dom): string
     {
         foreach ([
+            '//meta[@name="parsely-title"]/@content',
             '//meta[@property="og:title"]/@content',
             '//meta[@name="twitter:title"]/@content',
             '//title',
