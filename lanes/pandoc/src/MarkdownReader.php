@@ -262,11 +262,17 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === '`') {
-                $end = strpos($text, '`', $offset + 1);
-                if ($end !== false && $end > $offset + 1) {
+                $tickCount = $this->countBackticks($text, $offset);
+                $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
+                if ($end !== null && $end > $offset + $tickCount) {
+                    $code = substr($text, $offset + $tickCount, $end - $offset - $tickCount);
+                    $code = str_replace(["\r\n", "\r", "\n"], ' ', $code);
+                    if (strlen($code) >= 2 && $code[0] === ' ' && $code[strlen($code) - 1] === ' ' && trim($code) !== '') {
+                        $code = substr($code, 1, -1);
+                    }
                     $this->flushText($buffer, $nodes);
-                    $nodes[] = new AstNode('code', ['text' => substr($text, $offset + 1, $end - $offset - 1)]);
-                    $offset = $end + 1;
+                    $nodes[] = new AstNode('code', ['text' => $code]);
+                    $offset = $end + $tickCount;
                     continue;
                 }
             }
@@ -309,6 +315,33 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    private function countBackticks(string $text, int $offset): int
+    {
+        $count = 0;
+        $length = strlen($text);
+        while ($offset + $count < $length && $text[$offset + $count] === '`') {
+            $count++;
+        }
+
+        return $count;
+    }
+
+    private function findMatchingBacktickRun(string $text, int $offset, int $tickCount): ?int
+    {
+        $needle = str_repeat('`', $tickCount);
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            $runLength = $this->countBackticks($text, $position);
+            if ($runLength === $tickCount) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + $runLength);
+        }
+
+        return null;
     }
 
     /**

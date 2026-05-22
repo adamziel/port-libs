@@ -27,6 +27,18 @@ return [
         $t->same('https://example.test/source', $paragraph->children[5]->attr('url'));
         $t->same('code', $paragraph->children[7]->type);
     },
+    'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
+        $ordered = $document->children[0];
+        $bullet = $document->children[1];
+
+        $t->same('ordered_list', $ordered->type);
+        $t->same('#. x', $ordered->children[0]->children[0]->attr('text'));
+        $t->same('x``#. x', $ordered->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $bullet->type);
+        $t->same('- x', $bullet->children[0]->children[0]->attr('text'));
+        $t->same('x``- x', $bullet->children[1]->children[0]->attr('text'));
+    },
     'groups ordered lists as a list block' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("3. Export WXR\n4. Convert Markdown\n5. Publish blocks");
         $list = $document->children[0];
