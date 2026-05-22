@@ -9,6 +9,7 @@ final class PackBuilder
     private const VERSION = 2;
     private const FANOUT_ENTRIES = 256;
     private const LARGE_OFFSET_FLAG = 0x80000000;
+    private const OFS_DELTA_TYPE_ID = 6;
     private const REF_DELTA_TYPE_ID = 7;
     private const MAX_DELTA_INSERT = 127;
     private const MAX_DELTA_COPY = 0x10000;
@@ -35,6 +36,48 @@ final class PackBuilder
     public static function buildWithRefDeltas(array $objects, array $baseObjects = []): PackBuildResult
     {
         return self::buildInternal($objects, $baseObjects, true);
+    }
+
+    /**
+     * @param list<GitObject> $objects Objects to include in the pack, with later objects allowed to delta against earlier ones.
+     */
+    public static function buildWithOffsetDeltas(array $objects): PackBuildResult
+    {
+        $pack = 'PACK' . pack('N2', self::VERSION, count($objects));
+        $entries = [];
+        $availableBases = [];
+
+        foreach ($objects as $object) {
+            self::assertGitObject($object);
+
+            $offset = strlen($pack);
+            $encoded = self::encodeBestOffsetEntry($object, $availableBases, $offset);
+            $entryBytes = $encoded['bytes'];
+            $pack .= $entryBytes;
+
+            $entry = [
+                'oid' => $object->oid(),
+                'type' => $object->type,
+                'size' => strlen($object->body),
+                'offset' => $offset,
+                'crc32' => hexdec(hash('crc32b', $entryBytes)),
+                'storage' => $encoded['storage'],
+            ];
+            if ($encoded['baseOid'] !== null) {
+                $entry['baseOid'] = $encoded['baseOid'];
+            }
+            if ($encoded['baseOffset'] !== null) {
+                $entry['baseOffset'] = $encoded['baseOffset'];
+            }
+            if ($encoded['baseDistance'] !== null) {
+                $entry['baseDistance'] = $encoded['baseDistance'];
+            }
+
+            $entries[] = $entry;
+            $availableBases[$object->oid()] = ['object' => $object, 'offset' => $offset];
+        }
+
+        return self::finalizePack($pack, $entries);
     }
 
     /**
@@ -76,12 +119,7 @@ final class PackBuilder
             $availableBases[$object->oid()] = $object;
         }
 
-        $packChecksum = hash('sha1', $pack);
-        $pack .= hex2bin($packChecksum);
-        $indexBytes = self::buildIndexBytes($entries, $packChecksum);
-        $indexChecksum = bin2hex(substr($indexBytes, -20));
-
-        return new PackBuildResult($pack, $indexBytes, $packChecksum, $indexChecksum, $entries);
+        return self::finalizePack($pack, $entries);
     }
 
     private static function assertGitObject(mixed $object): void
@@ -131,6 +169,47 @@ final class PackBuilder
     }
 
     /**
+     * @param array<string,array{object:GitObject,offset:int}> $availableBases
+     * @return array{bytes:string,storage:string,baseOid:?string,baseOffset:?int,baseDistance:?int}
+     */
+    private static function encodeBestOffsetEntry(GitObject $object, array $availableBases, int $offset): array
+    {
+        $best = self::encodeWholeEntry($object) + ['baseOffset' => null, 'baseDistance' => null];
+        $bestLength = strlen($best['bytes']);
+
+        foreach ($availableBases as $baseOid => $base) {
+            $baseObject = $base['object'];
+            $baseOffset = $base['offset'];
+            if ($baseObject->type !== $object->type || $baseObject->oid() === $object->oid()) {
+                continue;
+            }
+
+            $baseDistance = $offset - $baseOffset;
+            if ($baseDistance <= 0) {
+                continue;
+            }
+
+            $delta = self::encodeDelta($baseObject->body, $object->body);
+            $bytes = self::encodeEntryHeader(self::OFS_DELTA_TYPE_ID, strlen($delta))
+                . self::encodeOffsetDeltaDistance($baseDistance)
+                . self::deflate($delta);
+
+            if (strlen($bytes) < $bestLength) {
+                $best = [
+                    'bytes' => $bytes,
+                    'storage' => 'ofs-delta',
+                    'baseOid' => $baseOid,
+                    'baseOffset' => $baseOffset,
+                    'baseDistance' => $baseDistance,
+                ];
+                $bestLength = strlen($bytes);
+            }
+        }
+
+        return $best;
+    }
+
+    /**
      * @return array{bytes:string,storage:string,baseOid:?string}
      */
     private static function encodeWholeEntry(GitObject $object): array
@@ -163,6 +242,36 @@ final class PackBuilder
                 $byte |= 0x80;
             }
             $bytes .= chr($byte);
+        }
+
+        return $bytes;
+    }
+
+    private static function encodeOffsetDeltaDistance(int $distance): string
+    {
+        if ($distance <= 0) {
+            throw new \InvalidArgumentException('OFS_DELTA base distance must be greater than zero');
+        }
+
+        $buffer = array_fill(0, 10, 0);
+        $index = 9;
+        $buffer[$index] = $distance & 0x7f;
+        while (true) {
+            $distance >>= 7;
+            if ($distance === 0) {
+                break;
+            }
+            $distance--;
+            $index--;
+            if ($index < 0) {
+                throw new \InvalidArgumentException('OFS_DELTA base distance is too large');
+            }
+            $buffer[$index] = 0x80 | ($distance & 0x7f);
+        }
+
+        $bytes = '';
+        for (; $index < 10; $index++) {
+            $bytes .= chr($buffer[$index]);
         }
 
         return $bytes;
@@ -355,6 +464,19 @@ final class PackBuilder
         $bytes .= $packChecksumBytes;
 
         return $bytes . hex2bin(hash('sha1', $bytes));
+    }
+
+    /**
+     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int}> $entries
+     */
+    private static function finalizePack(string $pack, array $entries): PackBuildResult
+    {
+        $packChecksum = hash('sha1', $pack);
+        $pack .= hex2bin($packChecksum);
+        $indexBytes = self::buildIndexBytes($entries, $packChecksum);
+        $indexChecksum = bin2hex(substr($indexBytes, -20));
+
+        return new PackBuildResult($pack, $indexBytes, $packChecksum, $indexChecksum, $entries);
     }
 
     private static function packUInt64(int $value): string
