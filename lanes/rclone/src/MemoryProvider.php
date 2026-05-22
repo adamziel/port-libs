@@ -136,16 +136,81 @@ final class MemoryProvider
 
     public function moveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
     {
+        if ($this === $target) {
+            return $this->renameObject($sourcePath, $targetPath);
+        }
+
         $sourcePath = $this->canonicalPath($sourcePath);
         $entry = $this->entry($sourcePath);
         $targetInfo = $target->putEntry($targetPath, $entry);
         $targetPath = $target->canonicalPath($targetPath);
 
-        if ($this !== $target || $sourcePath !== $targetPath) {
-            $this->forget($sourcePath);
-        }
+        $this->forget($sourcePath);
 
         return $targetInfo;
+    }
+
+    public function renameObject(string $sourcePath, string $targetPath): ObjectInfo
+    {
+        $sourcePath = $this->canonicalPath($sourcePath);
+        $targetPath = $this->normalize($targetPath);
+        $entry = $this->entry($sourcePath);
+        if ($sourcePath === $targetPath) {
+            return $this->info($sourcePath);
+        }
+
+        $this->forget($sourcePath);
+
+        return $this->putEntry($targetPath, $entry);
+    }
+
+    public function renameDirectory(string $sourcePath, string $targetPath): ObjectInfo
+    {
+        $sourcePath = $this->canonicalDirectoryPath($sourcePath);
+        $targetPath = $this->normalize($targetPath);
+        if (!$this->directoryExists($sourcePath)) {
+            throw new \RuntimeException("Directory not found: {$sourcePath}");
+        }
+        if ($sourcePath === $targetPath) {
+            return $this->directoryInfo($sourcePath);
+        }
+
+        $directoryMoves = [];
+        foreach ($this->directories as $path => $entry) {
+            if (self::pathIsOrUnder($path, $sourcePath)) {
+                $directoryMoves[] = [
+                    'old' => $path,
+                    'new' => self::replacePathPrefix($path, $sourcePath, $targetPath),
+                    'entry' => $entry,
+                ];
+            }
+        }
+
+        $objectMoves = [];
+        foreach ($this->objects as $path => $entry) {
+            if (self::pathIsOrUnder($path, $sourcePath)) {
+                $objectMoves[] = [
+                    'old' => $path,
+                    'new' => self::replacePathPrefix($path, $sourcePath, $targetPath),
+                    'entry' => $entry,
+                ];
+            }
+        }
+
+        foreach ($directoryMoves as $move) {
+            $this->forgetDirectory($move['old']);
+        }
+        foreach ($objectMoves as $move) {
+            $this->forget($move['old']);
+        }
+        foreach ($directoryMoves as $move) {
+            $this->putDirectoryEntry($move['new'], $move['entry']);
+        }
+        foreach ($objectMoves as $move) {
+            $this->putEntry($move['new'], $move['entry']);
+        }
+
+        return $this->directoryInfo($targetPath);
     }
 
     public function openReader(string $path, int $offset = 0, ?int $length = null): object
@@ -411,6 +476,14 @@ final class MemoryProvider
         }
     }
 
+    private function forgetDirectory(string $path): void
+    {
+        unset($this->directories[$path]);
+        if ($this->caseInsensitive) {
+            unset($this->directoryCaseIndex[$this->lookupPath($path)]);
+        }
+    }
+
     private function normalizeModTime(\DateTimeInterface|string|null $modTime): ?string
     {
         if ($modTime === null || $modTime === '') {
@@ -531,5 +604,19 @@ final class MemoryProvider
         }
 
         return str_starts_with(strtolower($path), strtolower($prefix));
+    }
+
+    private static function pathIsOrUnder(string $path, string $prefix): bool
+    {
+        return $path === $prefix || str_starts_with($path, $prefix . '/');
+    }
+
+    private static function replacePathPrefix(string $path, string $sourcePrefix, string $targetPrefix): string
+    {
+        if ($path === $sourcePrefix) {
+            return $targetPrefix;
+        }
+
+        return $targetPrefix . substr($path, strlen($sourcePrefix));
     }
 }

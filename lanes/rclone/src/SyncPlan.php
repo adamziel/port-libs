@@ -149,7 +149,12 @@ final class SyncPlan
         int $modifyWindowSeconds = 1,
         bool $checksum = false,
         bool $refreshTimes = false,
+        bool $fixCase = false,
     ): array {
+        if ($fixCase && !$noCheckDest) {
+            $this->fixCase($source, $target, $filter, $immutable);
+        }
+
         $copied = [];
         foreach ($source->list() as $sourceInfo) {
             $path = $sourceInfo->path;
@@ -204,6 +209,61 @@ final class SyncPlan
         }
 
         return $copied;
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    public function fixCase(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        bool $immutable = false,
+    ): array {
+        if ($immutable || !$target->isCaseInsensitive()) {
+            return [];
+        }
+
+        $renamed = [];
+        $sourceDirs = $source->directories();
+        usort(
+            $sourceDirs,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathLevel($a->path) <=> self::pathLevel($b->path),
+        );
+
+        foreach ($sourceDirs as $sourceDir) {
+            if ($sourceDir->path === '' || !$this->filterAllowsDirectory($source, $sourceDir->path, $filter)) {
+                continue;
+            }
+
+            try {
+                $targetDir = $target->directoryInfo($sourceDir->path);
+            } catch (\RuntimeException) {
+                continue;
+            }
+
+            if ($this->samePathDifferentCase($sourceDir->path, $targetDir->path)) {
+                $renamed[] = $target->renameDirectory($targetDir->path, $sourceDir->path);
+            }
+        }
+
+        foreach ($source->list() as $sourceInfo) {
+            if ($filter !== null && !$filter->includes($sourceInfo->path)) {
+                continue;
+            }
+
+            try {
+                $targetInfo = $target->info($sourceInfo->path);
+            } catch (\RuntimeException) {
+                continue;
+            }
+
+            if ($this->samePathDifferentCase($sourceInfo->path, $targetInfo->path)) {
+                $renamed[] = $target->renameObject($targetInfo->path, $sourceInfo->path);
+            }
+        }
+
+        return $renamed;
     }
 
     /**
@@ -557,6 +617,21 @@ final class SyncPlan
         }
 
         return true;
+    }
+
+    private function filterAllowsDirectory(MemoryProvider $source, string $dir, ?FilterRuleSet $filter): bool
+    {
+        if ($filter === null || $filter->includes($dir)) {
+            return true;
+        }
+
+        foreach ($source->list() as $info) {
+            if (self::pathUnderPrefix($info->path, $dir) && $filter->includes($info->path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function needsTransfer(
@@ -931,6 +1006,14 @@ final class SyncPlan
         $path = self::normalizePath($path);
 
         return $path === '' ? 0 : substr_count($path, '/') + 1;
+    }
+
+    private function samePathDifferentCase(string $left, string $right): bool
+    {
+        $left = self::normalizePath($left);
+        $right = self::normalizePath($right);
+
+        return $left !== $right && strtolower($left) === strtolower($right);
     }
 
     private static function normalizeRoot(string $root): string
