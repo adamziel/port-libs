@@ -11,11 +11,11 @@
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": "78 tracked upstream repository paths inventoried from the cloned repository, with 62 targeted upstream lane-relevant paths inspected (workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/equation/table/output/settings/schema/source modules, and support scripts), plus 6 README benchmark document identifiers; 0 committed Python unit test files found",
-        "mapped": 67,
-        "mappedBenchmarkPairs": 0,
+        "total": "78 tracked upstream repository paths inventoried from the cloned repository, with 62 targeted upstream lane-relevant paths inspected (workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/equation/table/output/settings/schema/source modules, and support scripts), plus 6 README benchmark document identifiers and 2 actual CI benchmark PDF/reference pairs from benchmark_data_short.zip; 0 committed Python unit test files found",
+        "mapped": 70,
+        "mappedBenchmarkPairs": 2,
         "mappedBenchmarkSurrogatePairs": 4,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus git ls-tree inventory of all 78 tracked upstream paths, with targeted reads of 62 workflow/benchmark/example/source/support paths: README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/pdf/utils.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, marker/layout/layout.py, marker/layout/order.py, marker/ocr/heuristics.py, marker/ocr/utils.py, marker/ocr/lang.py, marker/ocr/tesseract.py, marker/images/save.py, marker/images/extract.py, marker/schema/block.py, marker/schema/bbox.py, marker/schema/merged.py, marker/schema/page.py, marker/equations/equations.py, marker/equations/inference.py, marker/tables/table.py, marker/tables/utils.py, marker/output.py, marker/settings.py, and data/examples/*/*.md paths. The Surya language-code boundary was cross-checked against the locked surya-ocr 0.6.13 wheel hash from poetry.lock (94 code entries). The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus git ls-tree inventory of all 78 tracked upstream paths, with targeted reads of 62 workflow/benchmark/example/source/support paths: README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/pdf/utils.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, marker/layout/layout.py, marker/layout/order.py, marker/ocr/heuristics.py, marker/ocr/utils.py, marker/ocr/lang.py, marker/ocr/tesseract.py, marker/images/save.py, marker/images/extract.py, marker/schema/block.py, marker/schema/bbox.py, marker/schema/merged.py, marker/schema/page.py, marker/equations/equations.py, marker/equations/inference.py, marker/tables/table.py, marker/tables/utils.py, marker/output.py, marker/settings.py, and data/examples/*/*.md paths. The CI Drive archive from .github/workflows/tests.yml was header-probed and downloaded to /tmp for inspection: benchmark_data_short.zip, 6,212,657 bytes, sha256 c7511a4f5055e949a7a7c293be5541942433059d7841965f056d7f9b441a41ad, containing benchmark_data/pdfs/{multicolcnn.pdf,switch_trans.pdf} and benchmark_data/references/{multicolcnn.md,switch_trans.md}. The Surya language-code boundary was cross-checked against the locked surya-ocr 0.6.13 wheel hash from poetry.lock (94 code entries). The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md; the mapped external CI fixture records hash-identified excerpts from the two benchmark_data PDF/reference pairs.",
         "inventory": {
             "repositoryFiles": 78,
             "targetedLaneRelevantPaths": 62,
@@ -68,7 +68,12 @@
             "mappedSettingsBehaviors": 8,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
-            "committedNougatMarkdownExamples": 4
+            "committedNougatMarkdownExamples": 4,
+            "ciBenchmarkArchiveZipFiles": 1,
+            "ciBenchmarkArchivePdfFiles": 2,
+            "ciBenchmarkArchiveReferenceFiles": 2,
+            "mappedExternalBenchmarkPairs": 2,
+            "mappedScoreVerifierFunctions": 2
         },
         "benchmarkDocuments": [
             "multicolcnn.pdf",
@@ -80,6 +85,32 @@
         ],
         "ciAssertions": 3,
         "ciAssertionSource": "scripts/verify_benchmark_scores.py checks multicolcnn.pdf > 0.34 and switch_trans.pdf > 0.40 for marker output, plus average table score >= 0.7 for table reports.",
+        "externalBenchmarkArchive": {
+            "downloadId": "1NHrdYatR1rtqs2gPVfdvO0BAvocH8CJi",
+            "filename": "benchmark_data_short.zip",
+            "bytes": 6212657,
+            "sha256": "c7511a4f5055e949a7a7c293be5541942433059d7841965f056d7f9b441a41ad",
+            "mappedPairs": [
+                {
+                    "document": "multicolcnn.pdf",
+                    "pdfPath": "benchmark_data/pdfs/multicolcnn.pdf",
+                    "pdfBytes": 851968,
+                    "pdfSha256": "2b0e8314ff2c2680dd309ce46a49d740084d66eb39549337d2daa91215c426f8",
+                    "referencePath": "benchmark_data/references/multicolcnn.md",
+                    "referenceBytes": 30542,
+                    "referenceSha256": "3ff96757b43e82595410f0fa50643945fec7c5c51f7c3d7562edefbd555aaa96"
+                },
+                {
+                    "document": "switch_trans.pdf",
+                    "pdfPath": "benchmark_data/pdfs/switch_trans.pdf",
+                    "pdfBytes": 1304157,
+                    "pdfSha256": "f340f6ace31abf7d0730ef461404279f40d3c890e9cc2daeb7068b3304afdbd6",
+                    "referencePath": "benchmark_data/references/switch_trans.md",
+                    "referenceBytes": 82456,
+                    "referenceSha256": "74f8f6cbe23873304aa182b3a46edc8df896d35542aeade95bb93254823d58e1"
+                }
+            ]
+        },
         "committedReferenceLikeArtifacts": {
             "markerMarkdownExamples": 4,
             "nougatMarkdownExamples": 4,
@@ -89,7 +120,7 @@
             ]
         },
         "runnerStatus": "not-executed",
-        "runnerBlocker": "The upstream CI benchmark downloads benchmark_data from Google Drive and requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, Texify, and model downloads. The shallow clone contains no benchmark PDFs or references, so the full runner cannot execute locally under the modest network/CPU constraint.",
+        "runnerBlocker": "The upstream CI benchmark archive was downloaded and inspected for static evidence, but the full upstream runner still requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, Texify, and model downloads. The defensible local denominator is the cloned source inventory plus the two hash-identified benchmark_data_short.zip PDF/reference pairs; full conversion cannot execute locally under the modest network/CPU constraint without installing and running the ML/PDF model stack.",
         "mappedSemantics": [
             "PDF content stream text operators feed Marker-style Markdown conversion.",
             "PDF text movement operators define block-ready line boundaries before WordPress import.",
@@ -105,12 +136,15 @@
             "marker.cleaners.fontstyle find_bold_italic detects bold/italic spans from font names and font weights while skipping heading font-name bias.",
             "marker.postprocessors.markdown surround_text and the styled-span branch of merge_spans emit upstream-style Markdown emphasis markers with the first/last-span guard.",
             "marker.postprocessors.markdown merge_spans converts Page/Block/Line/Span trees into MergedBlock arrays, lowercases span fonts, skips empty-span lines, emits first/last-span guarded emphasis markers, and supplies the upstream empty-page Text fallback.",
-            "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
+            "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair alongside the external CI reference fixture.",
             "README-linked switch_trans Marker/Nougat committed markdown outputs can be scored as a second upstream-derived surrogate pair and checked against the upstream switch_trans CI threshold boundary.",
+            "CI benchmark_data_short.zip multicolcnn.pdf and benchmark_data/references/multicolcnn.md are mapped as an actual external upstream benchmark pair with recorded hashes and native scoring excerpts.",
+            "CI benchmark_data_short.zip switch_trans.pdf and benchmark_data/references/switch_trans.md are mapped as an actual external upstream benchmark pair with recorded hashes and native scoring excerpts.",
+            "scripts/verify_benchmark_scores.py marker and table threshold checks are represented by a native BenchmarkReportVerifier for WordPress import quality gates.",
             "marker.cleaners.headers filter_common_elements and filter_header_footer repeated edge-line detection remove common PDF page headers/footers after the upstream three-page minimum.",
             "marker.cleaners.headers replace_leading_trailing_digits, find_overlap_elements, and filter_common_titles remove repeated numbered titles before WordPress block rendering.",
-            "README-linked thinkpython Marker/Nougat committed markdown outputs can be scored as a third upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
-            "README-linked thinkos Marker/Nougat committed markdown outputs can be scored as a fourth upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
+            "README-linked thinkpython Marker/Nougat committed markdown outputs can be scored as a third upstream-derived surrogate pair for a README document not present in the CI short archive.",
+            "README-linked thinkos Marker/Nougat committed markdown outputs can be scored as a fourth upstream-derived surrogate pair for a README document not present in the CI short archive.",
             "marker.cleaners.code is_code_linelen and comment_count heuristics detect code-like PDF lines from short alphanumeric line ratios and upstream-supported comment prefixes.",
             "marker.cleaners.code identify_code_blocks indentation/comment majority and optional small-font checks classify code blocks before WordPress block rendering.",
             "marker.cleaners.code indent_blocks reconstructs indentation from PDF line geometry and suppresses repeated blank lines before code block output.",
@@ -159,13 +193,13 @@
             "marker.settings OCR_ENGINE Literal boundary accepts surya and ocrmypdf and rejects unsupported values.",
             "marker.settings PAGE_SEPARATOR, BAD_SPAN_TYPES, OCR, pagination, and image-extraction flags drive a WordPress PDF import preflight."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 67 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched. Layout annotation maps the post-Surya assignment/merge boundary with supplied layout boxes, but layout detection still depends on upstream Surya models. Table formatting maps the post-recognition insertion boundary with supplied Markdown tables, and table utilities map row ordering plus dot/newline cleanup, but detection/recognition still depends on upstream tabled/Surya models. Equation replacement maps Marker structural semantics at the native boundary, but Texify model inference and PDF equation raster rendering remain unported. Output artifact persistence, settings preflight, and OCR language-code normalization now map marker/output.py, marker/settings.py, marker/ocr/lang.py, and marker/ocr/tesseract.py at native boundaries, but full upstream conversion still depends on pdftext/pypdfium/Surya/Texify/tabled."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus two inspected CI benchmark archive PDF/reference pairs, not upstream runner parity. Native PHP progress maps 70 focused upstream source semantics plus two actual external benchmark pairs and four committed upstream-derived benchmark surrogate pairs. Layout annotation maps the post-Surya assignment/merge boundary with supplied layout boxes, but layout detection still depends on upstream Surya models. Table formatting maps the post-recognition insertion boundary with supplied Markdown tables, and table utilities map row ordering plus dot/newline cleanup, but detection/recognition still depends on upstream tabled/Surya models. Equation replacement maps Marker structural semantics at the native boundary, but Texify model inference and PDF equation raster rendering remain unported. Output artifact persistence, settings preflight, OCR language-code normalization, and CI report threshold verification now map marker/output.py, marker/settings.py, marker/ocr/lang.py, marker/ocr/tesseract.py, and scripts/verify_benchmark_scores.py at native boundaries, but full upstream conversion still depends on pdftext/pypdfium/Surya/Texify/tabled."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream merge_spans page-to-MergedBlock assembly, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, full block-merge/pagination Markdown assembly, upstream layout annotation and reading-order sorting for WordPress imports, OCR triage heuristics and OCR language-code normalization for scanned or garbled pages, upstream image filename/dictionary/insertion placeholder semantics for WordPress image blocks, upstream Formula-region equation replacement with supplied LaTeX predictions, upstream post-recognition Markdown table block insertion with supplied table output, upstream table utility row sorting plus dot/newline cleanup, upstream output artifact path/Markdown/metadata/image persistence, and upstream settings defaults/environment preflight before Gutenberg table rendering and WordPress import handoff.",
-        "phpBehaviorTests": 99,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream merge_spans page-to-MergedBlock assembly, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, actual CI benchmark_data_short.zip multicolcnn/switch_trans PDF-reference pair scoring excerpts, native scripts/verify_benchmark_scores.py report threshold verification, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, full block-merge/pagination Markdown assembly, upstream layout annotation and reading-order sorting for WordPress imports, OCR triage heuristics and OCR language-code normalization for scanned or garbled pages, upstream image filename/dictionary/insertion placeholder semantics for WordPress image blocks, upstream Formula-region equation replacement with supplied LaTeX predictions, upstream post-recognition Markdown table block insertion with supplied table output, upstream table utility row sorting plus dot/newline cleanup, upstream output artifact path/Markdown/metadata/image persistence, and upstream settings defaults/environment preflight before Gutenberg table rendering and WordPress import handoff.",
+        "phpBehaviorTests": 103,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -183,6 +217,10 @@
             "marker.postprocessors.markdown merge_spans Page/Block/Line/Span assembly into MergedBlock arrays",
             "README-linked data/examples/marker and data/examples/nougat multicolcnn outputs as a committed benchmark surrogate pair",
             "README-linked data/examples/marker and data/examples/nougat switch_trans outputs as a committed benchmark surrogate pair",
+            "CI benchmark_data_short.zip multicolcnn.pdf and benchmark_data/references/multicolcnn.md as an actual external benchmark pair with hash-recorded fixture excerpts",
+            "CI benchmark_data_short.zip switch_trans.pdf and benchmark_data/references/switch_trans.md as an actual external benchmark pair with hash-recorded fixture excerpts",
+            "scripts/verify_benchmark_scores.py marker score threshold verification",
+            "scripts/verify_benchmark_scores.py table average threshold verification",
             "marker.cleaners.headers common edge-line filtering for repeated headers and footers",
             "marker.cleaners.headers common title filtering with digit stripping and fuzzy overlap thresholding",
             "README-linked data/examples/marker and data/examples/nougat thinkpython outputs as a committed benchmark surrogate pair",
@@ -236,6 +274,6 @@
             "marker.settings WordPress import preflight flags for image extraction, pagination, and OCR"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, upstream merge_spans assembly of styled PDF spans into Gutenberg-ready paragraphs, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, layout-label annotation before Gutenberg heading/paragraph/image filtering, model reading-order sorting for two-column imports, OCR triage for scanned or garbled pages before block rendering, multilingual OCR language-code metadata preflight before OCRmyPDF/Tesseract handoff, deterministic image placeholder insertion before Gutenberg image block rendering, supplied-LaTeX equation replacement before WordPress math/HTML block rendering, post-recognition Markdown table replacement before Gutenberg table rendering, upstream table-cell row sorting plus dot-leader/newline cleanup before Gutenberg table rendering, converted Markdown/metadata/image output artifact persistence for WordPress import handoff, settings-driven shared-hosting import preflight for MIME support, image extraction, pagination, OCR, and page separators, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map focused table-layout/raster-rendering behavior or exact Texify tokenizer/model boundaries against a concrete upstream artifact."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, upstream merge_spans assembly of styled PDF spans into Gutenberg-ready paragraphs, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, layout-label annotation before Gutenberg heading/paragraph/image filtering, model reading-order sorting for two-column imports, OCR triage for scanned or garbled pages before block rendering, multilingual OCR language-code metadata preflight before OCRmyPDF/Tesseract handoff, deterministic image placeholder insertion before Gutenberg image block rendering, supplied-LaTeX equation replacement before WordPress math/HTML block rendering, post-recognition Markdown table replacement before Gutenberg table rendering, upstream table-cell row sorting plus dot-leader/newline cleanup before Gutenberg table rendering, converted Markdown/metadata/image output artifact persistence for WordPress import handoff, settings-driven shared-hosting import preflight for MIME support, image extraction, pagination, OCR, and page separators, CI-style text and table quality scores for expected imported content, actual upstream CI benchmark reference score gating for imported block content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
+    "nextTask": "Use the acquired benchmark_data_short.zip pairs to map a fuller document-level benchmark report slice or a focused table-layout/raster-rendering boundary against one concrete upstream PDF/reference artifact."
 }

@@ -20,7 +20,9 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-quality-score.php` uses the native `BenchmarkScorer` port of `marker/benchmark/scoring.py` to compare extracted and dewrapped import text against expected WordPress post content. It emits a JSON score and checks whether the result clears a Marker CI-style quality threshold.
 
-`examples/upstream-surrogate-score.php` scores a small README-linked `multicolcnn.pdf` surrogate pair sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. This keeps benchmark scoring tied to an upstream document-output pair while the external `benchmark_data` PDF/reference archive remains unavailable in this VM.
+`examples/wordpress-benchmark-report.php` uses the native `BenchmarkReportVerifier` port of `scripts/verify_benchmark_scores.py` against the actual CI `benchmark_data_short.zip` references for `multicolcnn.pdf` and `switch_trans.pdf`. This gives WordPress import tooling a review gate: imported block content can be scored against upstream benchmark references and rejected before editorial review if either Marker threshold fails.
+
+`examples/upstream-surrogate-score.php` scores small README-linked surrogate pairs sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. These remain useful comparison fixtures alongside the now-inspected external CI benchmark archive.
 
 `examples/wordpress-list-import.php` maps Marker's upstream bullet/text cleaners into a Gutenberg list import path. It extracts PDF text lines containing Marker-supported bullet glyphs, normalizes them to Markdown `- ` markers with `TextCleaner`, and emits a core list block.
 
@@ -60,4 +62,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, then map focused table-layout/raster-rendering behavior or exact Texify tokenizer/model boundaries against a concrete upstream artifact.
+Use the acquired `benchmark_data_short.zip` pairs to map a fuller document-level benchmark report slice, or map focused table-layout/raster-rendering behavior against one concrete upstream PDF/reference artifact.
