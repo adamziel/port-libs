@@ -22,7 +22,16 @@ Primary deliverables for every iteration:
    - specific nudge recommendations for the supervisor
    - status-page/publication recommendation
 2. If the tree is clean enough to publish status safely, update `progress.md` with a concise evaluator note, run `php tools/generate-dashboard.php`, and commit/push only coherent status/audit/dashboard changes so `https://adamziel.github.io/port-libs/porting.html` stays current.
-3. If the tree contains active uncommitted implementation work from lane workers, do not stage or commit their files. In that case, update only `audits/evaluator-feedback.md` if safe, and explain that status-page publication should wait for supervisor integration.
+3. If the tree contains active uncommitted implementation work from lane workers, do not stage or commit their files. In that case, update only `audits/evaluator-feedback.md` if safe. You may still publish the latest committed `HEAD` snapshot from a clean temporary clone if it verifies cleanly, because that does not touch or imply acceptance of dirty worker files.
+
+Committed-HEAD publication fallback:
+
+- Use this only when the source worktree is dirty but committed `HEAD` contains a newer `porting-summary.json` / `porting.html` than the live GitHub Pages page.
+- Create a clean temporary clone outside `/home/claude/port-libs`, for example under `/tmp/port-libs-publish-*`, from the local repository at `/home/claude/port-libs`.
+- In the clean clone, set `origin` to `https://github.com/adamziel/port-libs.git`, checkout `main`, confirm `git status --short` is empty, run `php tools/run-tests.php`, and run `git diff --check`.
+- Do not regenerate the dashboard and do not create commits in the temporary clone. Publish only the already-committed snapshot with `git push origin main`.
+- After pushing, verify the GitHub Pages workflow or live `https://adamziel.github.io/port-libs/porting-summary.json` when practical. Record exact commands/results and the committed dashboard timestamp in `audits/evaluator-feedback.md`.
+- If verification fails, do not push and record the failure.
 
 Rules:
 
