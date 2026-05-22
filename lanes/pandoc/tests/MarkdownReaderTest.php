@@ -39,6 +39,22 @@ return [
         $t->same('- x', $bullet->children[0]->children[0]->attr('text'));
         $t->same('x``- x', $bullet->children[1]->children[0]->attr('text'));
     },
+    'maps upstream indented backtick fenced code command example' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("  ```haskell\n  let x = y\nin y\n   ```");
+        $code = $document->children[0];
+
+        $t->same('code_block', $code->type);
+        $t->same(['haskell'], $code->attr('classes'));
+        $t->same("let x = y\nin y", $code->attr('text'));
+    },
+    'maps upstream indented tilde fenced code attributes example' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(" ~~~ {.haskell}\n  let x = y\n in y +\ny +\n y\n~~~");
+        $code = $document->children[0];
+
+        $t->same('code_block', $code->type);
+        $t->same(['haskell'], $code->attr('classes'));
+        $t->same(" let x = y\nin y +\ny +\ny", $code->attr('text'));
+    },
     'groups ordered lists as a list block' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("3. Export WXR\n4. Convert Markdown\n5. Publish blocks");
         $list = $document->children[0];
@@ -106,6 +122,13 @@ return [
 
         $t->contains('<!-- wp:html -->', $blocks);
         $t->contains('<dl><dt>Plugin</dt><dd>Stable release</dd><dt>Checklist</dt><dd><ul><li>Verify imports</li></ul></dd></dl>', $blocks);
+    },
+    'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<!-- wp:code -->', $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-gallery]&#039;);</code></pre>', $blocks);
     },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');

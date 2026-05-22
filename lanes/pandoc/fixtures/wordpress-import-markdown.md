@@ -7,3 +7,7 @@ This **legacy post** links back to the [source archive](https://example.test/arc
 
 1. Convert Markdown to the shared AST
 2. Write WordPress block comments and HTML
+
+```php
+do_shortcode('[legacy-gallery]');
+```

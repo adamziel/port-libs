@@ -33,6 +33,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderList($node, true);
             } elseif ($node->type === 'definition_list') {
                 $blocks[] = $this->renderDefinitionList($node);
+            } elseif ($node->type === 'code_block') {
+                $blocks[] = $this->renderCodeBlock($node);
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -142,6 +144,22 @@ final class WordPressBlockWriter
         $html .= '</dl>';
 
         return '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderCodeBlock(AstNode $node): string
+    {
+        $classes = $node->attr('classes', []);
+        $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
+        $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+
+        return '<!-- wp:code -->'
+            . "\n" . '<pre class="wp-block-code"><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>'
+            . "\n" . '<!-- /wp:code -->';
+    }
+
+    private function sanitizeCodeClass(string $class): string
+    {
+        return preg_replace('/[^A-Za-z0-9_-]/', '', $class) ?? '';
     }
 
     private function renderDefinitionBlocks(AstNode $definition): string

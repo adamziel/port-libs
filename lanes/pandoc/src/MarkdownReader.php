@@ -11,10 +11,17 @@ final class MarkdownReader
         $blocks = [];
         $paragraph = [];
         $listStack = [];
-        $lines = preg_split('/\R/', trim($markdown)) ?: [];
+        $lines = preg_split('/\R/', rtrim($markdown, "\r\n")) ?: [];
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
+            $codeBlock = $this->tryReadFencedCodeBlock($lines, $index);
+            if ($codeBlock !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = $codeBlock;
+                continue;
+            }
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -55,6 +62,116 @@ final class MarkdownReader
         $this->flushListStack($listStack, $blocks);
 
         return new AstNode('document', [], $blocks);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadFencedCodeBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^( {0,3})(`{3,}|~{3,})[ \t]*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $indent = strlen($m[1]);
+        $fence = $m[2];
+        $fenceChar = $fence[0];
+        $fenceLength = strlen($fence);
+        $info = trim($m[3]);
+        if ($fenceChar === '`' && str_contains($info, '`')) {
+            return null;
+        }
+
+        $content = [];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while ($cursor < $count) {
+            if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, $fenceLength)) {
+                $attrs = $this->parseCodeInfo($info);
+                $attrs['text'] = implode("\n", $content);
+                if ($info !== '') {
+                    $attrs['info'] = $info;
+                }
+                $index = $cursor;
+
+                return new AstNode('code_block', $attrs);
+            }
+
+            $content[] = $this->stripFenceContentIndent($lines[$cursor], $indent);
+            $cursor++;
+        }
+
+        $attrs = $this->parseCodeInfo($info);
+        $attrs['text'] = implode("\n", $content);
+        if ($info !== '') {
+            $attrs['info'] = $info;
+        }
+        $index = $cursor - 1;
+
+        return new AstNode('code_block', $attrs);
+    }
+
+    private function isClosingCodeFence(string $line, string $fenceChar, int $fenceLength): bool
+    {
+        return preg_match('/^ {0,3}' . preg_quote($fenceChar, '/') . '{' . $fenceLength . ',}[ \t]*$/', $line) === 1;
+    }
+
+    private function stripFenceContentIndent(string $line, int $indent): string
+    {
+        if ($indent === 0) {
+            return $line;
+        }
+
+        $spaces = min($indent, strspn($line, ' '));
+
+        return substr($line, $spaces);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseCodeInfo(string $info): array
+    {
+        $info = trim($info);
+        if ($info === '') {
+            return ['classes' => [], 'attributes' => []];
+        }
+
+        $classes = [];
+        $attributes = [];
+        $id = null;
+
+        if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
+            $inside = trim(substr($info, 1, -1));
+            $tokens = preg_split('/\s+/', $inside, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($tokens as $token) {
+                if (str_starts_with($token, '.')) {
+                    $classes[] = substr($token, 1);
+                    continue;
+                }
+                if (str_starts_with($token, '#')) {
+                    $id = substr($token, 1);
+                    continue;
+                }
+                if (str_contains($token, '=')) {
+                    [$name, $value] = explode('=', $token, 2);
+                    $attributes[$name] = trim($value, "\"'");
+                }
+            }
+        } else {
+            $tokens = preg_split('/\s+/', $info, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if ($tokens !== []) {
+                $classes[] = $tokens[0];
+            }
+        }
+
+        $attrs = ['classes' => $classes, 'attributes' => $attributes];
+        if ($id !== null) {
+            $attrs['id'] = $id;
+        }
+
+        return $attrs;
     }
 
     /**

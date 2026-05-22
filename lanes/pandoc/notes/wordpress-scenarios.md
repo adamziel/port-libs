@@ -8,12 +8,14 @@ Native Markdown block reader and WordPress block writer for headings, paragraphs
 Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered
 lists, nested lists, and definition lists. Code spans now preserve
 list-marker-looking text such as `- x` and `#. x` inside imported list items.
+Fenced code blocks map the upstream `test/command/indented-fences.md`
+indentation-stripping behavior and render as WordPress code blocks.
 
 ## Scenario Fixture
 
 - `fixtures/wordpress-import-markdown.md` is a small Data Liberation import
   sample with editorial emphasis, a source archive link, visible shortcode-like
-  code spans, and conversion steps.
+  code spans, conversion steps, and a fenced PHP migration snippet.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -22,5 +24,5 @@ list-marker-looking text such as `- x` and `#. x` inside imported list items.
 
 ## Next Task
 
-Map block quotes, fenced code blocks, or loose definition-list paragraphs from
-`Tests.Readers.Markdown`.
+Map block quotes from `test/testsuite.txt` or loose definition-list paragraphs
+from `Tests.Readers.Markdown`.

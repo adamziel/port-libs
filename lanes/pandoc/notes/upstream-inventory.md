@@ -47,6 +47,9 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 - Inline strong with `**text**`
 - Inline code spans
 - Inline links with `[label](url)`
+- Indented fenced code blocks from `test/command/indented-fences.md`, including
+  Pandoc's opening-fence indentation stripping and both bare language and
+  `{.class}` info strings
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
