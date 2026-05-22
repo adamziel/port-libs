@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\BlobMerge;
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\MergeIndexEntry;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\TreeMerge;
@@ -92,6 +93,13 @@ return [
         $t->same(null, $result->conflicts[0]->ours);
         $t->same($oid('2'), $result->conflicts[0]->theirs?->oid);
         $t->same($oid('1'), $result->tree->entryNamed('wp-content/plugins/acme.php')?->oid);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'oid' => $oid('1')],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'oid' => $oid('2')],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'oid' => $entry->oid],
+            $result->indexEntries(),
+        ));
     },
     'resolves identical add add entries but reports divergent additions' => static function (TestRunner $t) use ($oid, $entry): void {
         $same = TreeMerge::mergeFlat(
@@ -130,6 +138,8 @@ return [
 
         $t->true($result->isClean());
         $t->same("title: Demo Import\nslug: demo\nstatus: publish\n", $mergedPost->body);
+        $t->same([], $result->indexEntries());
+        $t->same([], $result->worktreeConflictFiles($read));
     },
     'recursive tree merge records content conflicts with full paths and marker blobs' => static function (TestRunner $t) use ($objectStore): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
@@ -174,5 +184,20 @@ return [
         $t->contains('<<<<<<< ours/wp-content/themes/acme/theme.json', $mergedThemeJson->body);
         $t->contains('||||||| base/wp-content/themes/acme/theme.json', $mergedThemeJson->body);
         $t->contains('>>>>>>> theirs/wp-content/themes/acme/theme.json', $mergedThemeJson->body);
+        $t->same([
+            MergeIndexEntry::STAGE_ANCESTOR,
+            MergeIndexEntry::STAGE_OURS,
+            MergeIndexEntry::STAGE_THEIRS,
+        ], array_map(static fn (MergeIndexEntry $entry): int => $entry->stage, $result->indexEntries()));
+        $t->same([
+            'ancestor',
+            'ours',
+            'theirs',
+        ], array_map(static fn (MergeIndexEntry $entry): string => $entry->side(), $result->indexEntries()));
+        $t->same([
+            'wp-content/themes/acme/theme.json',
+        ], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+        $t->same($mergedThemeJson->oid(), $result->worktreeConflictFiles($read)[0]->oid);
+        $t->contains('<<<<<<< ours/wp-content/themes/acme/theme.json', $result->worktreeConflictFiles($read)[0]->content);
     },
 ];

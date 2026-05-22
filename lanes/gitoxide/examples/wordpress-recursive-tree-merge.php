@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\BlobMerge;
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\MergeIndexEntry;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\TreeMerge;
@@ -61,6 +62,23 @@ echo json_encode([
     'conflicts' => array_map(
         static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
         $result->conflicts,
+    ),
+    'indexStages' => array_map(
+        static fn (MergeIndexEntry $entry): array => [
+            'path' => $entry->path,
+            'stage' => $entry->stage,
+            'side' => $entry->side(),
+            'oid' => $entry->oid,
+        ],
+        $result->indexEntries(),
+    ),
+    'worktreeConflictFiles' => array_map(
+        static fn ($file): array => [
+            'path' => $file->path,
+            'oid' => $file->oid,
+            'containsMarkers' => str_contains($file->content, '<<<<<<<'),
+        ],
+        $result->worktreeConflictFiles($read),
     ),
     'mergedMetadata' => $metadata->body,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
