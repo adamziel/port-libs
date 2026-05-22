@@ -87,6 +87,33 @@ return [
 
         $t->same($remote->rootHash(), $reconstructed->rootHash());
     },
+    'maps upstream sync fragment request path ordering guard' => static function (TestRunner $t): void {
+        $remote = new SparseTree();
+        $remote->change()
+            ->putKey(Key::fromInteger(1), 'one')
+            ->putKey(Key::fromInteger(2), 'two')
+            ->putKey(Key::fromInteger(128), 'one twenty eight')
+            ->apply();
+
+        $validRequests = [
+            new SyncRequest(Key::null(), 0, 1, false),
+            new SyncRequest(Key::max(), 1, 1, false),
+        ];
+        $t->same(2, count($remote->handleSyncRequests($validRequests, 4096)));
+
+        $samePathNestedRequests = [
+            new SyncRequest(Key::null(), 0, 1, false),
+            new SyncRequest(Key::null(), 1, 1, false),
+            new SyncRequest(Key::max(), 1, 1, false),
+        ];
+        $t->throws(InvalidArgumentException::class, static fn () => $remote->handleSyncRequests($samePathNestedRequests, 4096));
+
+        $outOfOrderRequests = [
+            new SyncRequest(Key::max(), 1, 1, false),
+            new SyncRequest(Key::null(), 0, 1, false),
+        ];
+        $t->throws(InvalidArgumentException::class, static fn () => $remote->handleSyncRequests($outOfOrderRequests, 4096));
+    },
     'wordpress sync diffs reconstruct a changed authenticated snapshot' => static function (TestRunner $t): void {
         $local = quadrableSyncWordPressSnapshotTree();
         $remote = quadrableSyncWordPressSnapshotTree();
@@ -127,6 +154,20 @@ return [
         $t->same('wp_posts:1=Hello synced world', $reconstructed->getKey(Key::fromInteger(3)));
         $t->same(null, $reconstructed->getKey(Key::fromInteger(4)));
         $t->same('wp_posts:2=' . str_repeat('Imported block ', 4), $reconstructed->getKey(Key::fromInteger(6)));
+    },
+    'wordpress sync request guard rejects overlapping proof fragment paths' => static function (TestRunner $t): void {
+        $remote = quadrableSyncWordPressSnapshotTree();
+        $remote->change()
+            ->putKey(Key::fromInteger(3), 'wp_posts:1=Guarded proof fragment')
+            ->apply();
+
+        $requests = [
+            new SyncRequest(Key::null(), 0, 1, false),
+            new SyncRequest(Key::null(), 1, 1, false),
+            new SyncRequest(Key::max(), 1, 1, false),
+        ];
+
+        $t->throws(InvalidArgumentException::class, static fn () => $remote->handleSyncRequests($requests, 2048));
     },
     'wordpress sync scan callback matches final authenticated diff' => static function (TestRunner $t): void {
         $local = quadrableSyncWordPressSnapshotTree();

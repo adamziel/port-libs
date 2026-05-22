@@ -196,11 +196,11 @@ final class SparseTree
                 throw new \InvalidArgumentException('handleSyncRequests expects SyncRequest instances');
             }
 
-            $pathKey = $request->pathHex() . ':' . str_pad((string) $request->startDepth, 3, '0', STR_PAD_LEFT);
-            if ($lastPath !== null && strcmp($pathKey, $lastPath) <= 0) {
+            $pathHex = $request->pathHex();
+            if ($lastPath !== null && strcmp($pathHex, $lastPath) <= 0) {
                 throw new \InvalidArgumentException('fragments request out of order');
             }
-            $lastPath = $pathKey;
+            $lastPath = $pathHex;
         }
 
         $responses = [];
