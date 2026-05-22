@@ -31,6 +31,37 @@ return [
         $t->same('new sql bytes', $provider->get('DATABASE/SITE.SQL'));
         $t->same(['database/site.sql'], array_map(static fn ($info) => $info->path, $provider->list('DATABASE')));
     },
+    'memory provider creates explicit directories with upstream modtime metadata boundaries' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(true);
+        $provider->mkdirModTime('wp-content/uploads/2026/05', '2026-05-22T00:00:00Z');
+        $provider->put('wp-content/uploads/2026/05/Hero.JPG', 'image bytes');
+        $provider->put('exports/site.wxr', '<rss></rss>');
+
+        $t->same([
+            'exports',
+            'wp-content',
+            'wp-content/uploads',
+            'wp-content/uploads/2026',
+            'wp-content/uploads/2026/05',
+        ], array_map(static fn ($info) => $info->path, $provider->directories()));
+        $t->same('2026-05-22T00:00:00Z', $provider->directoryInfo('WP-CONTENT/UPLOADS/2026/05')->modTime);
+
+        $provider->setDirectoryModTime('WP-CONTENT/UPLOADS/2026/05', '2026-05-23T00:00:00Z');
+        $t->same('2026-05-23T00:00:00Z', $provider->directoryInfo('wp-content/uploads/2026/05')->modTime);
+        $t->same(null, $provider->directoryInfo('wp-content/uploads/2026')->modTime);
+    },
+    'set directory modtime obeys upstream no update and missing directory behavior' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('sub/file.txt', 'content');
+
+        $t->same(null, $provider->setDirectoryModTime('sub', '2026-05-22T00:00:00Z', true));
+        $t->same(null, $provider->directoryInfo('sub')->modTime);
+
+        $updated = $provider->setDirectoryModTime('sub', '2026-05-22T00:00:00Z');
+        $t->same('sub', $updated?->path);
+        $t->same('2026-05-22T00:00:00Z', $provider->directoryInfo('sub')->modTime);
+        $t->throws(RuntimeException::class, static fn () => $provider->setDirectoryModTime('missing', '2026-05-22T00:00:00Z'));
+    },
     'sync plan reports missing and checksum changed paths' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

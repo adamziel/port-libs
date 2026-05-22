@@ -265,6 +265,26 @@ return [
         $t->same(['three'], array_map(static fn ($info) => $info->path, $copied));
         $t->same('three', $target->get('three'));
     },
+    'directory equality follows upstream DirsEqual modtime options' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->mkdirModTime('wp-content/uploads/2026/05', '2026-05-22T00:00:00Z');
+        $target->mkdirModTime('wp-content/uploads/2026/05', '2026-05-22T00:00:00Z');
+
+        $plan = new SyncPlan();
+        $t->same(true, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05'));
+
+        $target->setDirectoryModTime('wp-content/uploads/2026/05', '2026-05-22T00:00:00.500000Z');
+        $t->same(true, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05', modifyWindowSeconds: 1));
+
+        $target->setDirectoryModTime('wp-content/uploads/2026/05', '2026-05-23T00:00:00Z');
+        $t->same(false, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05'));
+        $t->same(true, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05', updateOlder: true));
+        $t->same(false, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05', ignoreTimes: true));
+        $t->same(true, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05', immutable: true));
+        $t->same(true, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/05', setDirModTime: false, setDirMetadata: false));
+        $t->same(false, $plan->dirsEqual($source, $target, 'wp-content/uploads/2026/06'));
+    },
     'compare dest skips copies when an upstream reference matches source bytes' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

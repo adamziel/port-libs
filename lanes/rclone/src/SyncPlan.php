@@ -331,6 +331,51 @@ final class SyncPlan
         return $backupRoot;
     }
 
+    public function dirsEqual(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        string $sourcePath,
+        ?string $targetPath = null,
+        bool $setDirModTime = true,
+        bool $setDirMetadata = false,
+        bool $ignoreTimes = false,
+        bool $immutable = false,
+        bool $ignoreExisting = false,
+        bool $updateOlder = false,
+        bool $sizeOnly = false,
+        ?int $modifyWindowSeconds = 1,
+    ): bool {
+        try {
+            $sourceInfo = $source->directoryInfo($sourcePath);
+            $targetInfo = $target->directoryInfo($targetPath ?? $sourcePath);
+        } catch (\RuntimeException) {
+            return false;
+        }
+
+        if ($sizeOnly || $immutable || $ignoreExisting || $modifyWindowSeconds === null) {
+            return true;
+        }
+        if ($ignoreTimes) {
+            return false;
+        }
+        if (!$setDirModTime && !$setDirMetadata) {
+            return true;
+        }
+
+        $dt = $this->modTimeDeltaSeconds($sourceInfo, $targetInfo);
+        if ($dt === null) {
+            return false;
+        }
+        if ($dt < $modifyWindowSeconds && $dt > -$modifyWindowSeconds) {
+            return true;
+        }
+        if ($updateOlder && $dt >= $modifyWindowSeconds) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * @return array<string, ObjectInfo>
      */

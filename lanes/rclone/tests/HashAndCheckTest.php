@@ -387,6 +387,38 @@ return [
         $metadataItem = LsJsonListing::items($provider, '', ['filesOnly' => true, 'metadata' => true])[0];
         $t->same(['mtime' => '2001-02-03T04:05:06Z'], $metadataItem['Metadata']);
     },
+    'formats lsjson explicit directory modtimes and metadata like upstream listjson entries' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('wp-content/uploads/2026/05', [
+            'modTime' => '2026-05-22T00:00:00Z',
+            'metadata' => ['mtime' => '2026-05-22T00:00:00Z', 'wp-scope' => 'uploads'],
+            'id' => 'dir-uploads-may',
+        ]);
+        $provider->mkdirModTime('exports/incremental', '2026-05-21T00:00:00Z');
+        $provider->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes', [
+            'modTime' => '2026-05-22T00:05:00Z',
+        ]);
+
+        $items = LsJsonListing::items($provider, '', [
+            'recurse' => true,
+            'metadata' => true,
+        ]);
+        $byPath = [];
+        foreach ($items as $item) {
+            $byPath[$item['Path']] = $item;
+        }
+
+        $t->same('2026-05-22T00:00:00Z', $byPath['wp-content/uploads/2026/05']['ModTime']);
+        $t->same(['mtime' => '2026-05-22T00:00:00Z', 'wp-scope' => 'uploads'], $byPath['wp-content/uploads/2026/05']['Metadata']);
+        $t->same('dir-uploads-may', $byPath['wp-content/uploads/2026/05']['ID']);
+        $t->same('2026-05-21T00:00:00Z', $byPath['exports/incremental']['ModTime']);
+        $t->same('', $byPath['wp-content/uploads/2026']['ModTime']);
+        $t->same('hero.jpg', $byPath['wp-content/uploads/2026/05/hero.jpg']['Name']);
+
+        $dirNoModtime = LsJsonListing::stat($provider, 'wp-content/uploads/2026/05', ['noModTime' => true, 'metadata' => true]);
+        $t->same('', $dirNoModtime['ModTime']);
+        $t->same(['mtime' => '2026-05-22T00:00:00Z', 'wp-scope' => 'uploads'], $dirNoModtime['Metadata']);
+    },
     'formats lsjson stat entries from upstream table cases' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('file1', 'file1', ['modTime' => '2001-02-03T04:05:06Z']);

@@ -12,9 +12,19 @@ final class MemoryProvider
     private array $objects = [];
 
     /**
+     * @var array<string, array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string}>
+     */
+    private array $directories = [];
+
+    /**
      * @var array<string, string>
      */
     private array $caseIndex = [];
+
+    /**
+     * @var array<string, string>
+     */
+    private array $directoryCaseIndex = [];
 
     /**
      * @var list<array{path: string, offset: int, length: ?int}>
@@ -60,6 +70,49 @@ final class MemoryProvider
                 : $this->normalizeReadErrorAfterBytes($options),
             'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
         ]);
+    }
+
+    /**
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null} $options
+     */
+    public function mkdir(string $path, array $options = []): ObjectInfo
+    {
+        return $this->putDirectoryEntry($path, [
+            'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
+            'mimeType' => $options['mimeType'] ?? null,
+            'metadata' => $options['metadata'] ?? [],
+            'id' => $options['id'] ?? null,
+        ]);
+    }
+
+    public function mkdirModTime(string $path, \DateTimeInterface|string|null $modTime): ObjectInfo
+    {
+        return $this->mkdir($path, ['modTime' => $modTime]);
+    }
+
+    public function setDirectoryModTime(
+        string $path,
+        \DateTimeInterface|string|null $modTime,
+        bool $noUpdateDirModTime = false,
+    ): ?ObjectInfo {
+        if ($noUpdateDirModTime) {
+            return null;
+        }
+
+        $path = $this->canonicalDirectoryPath($path);
+        if (!$this->directoryExists($path)) {
+            throw new \RuntimeException("Directory not found: {$path}");
+        }
+
+        $entry = $this->directories[$path] ?? [
+            'modTime' => null,
+            'mimeType' => null,
+            'metadata' => [],
+            'id' => null,
+        ];
+        $entry['modTime'] = $this->normalizeModTime($modTime);
+
+        return $this->putDirectoryEntry($path, $entry);
     }
 
     public function isCaseInsensitive(): bool
@@ -224,6 +277,51 @@ final class MemoryProvider
         return $items;
     }
 
+    public function directoryInfo(string $path): ObjectInfo
+    {
+        $path = $this->canonicalDirectoryPath($path);
+        if (!$this->directoryExists($path)) {
+            throw new \RuntimeException("Directory not found: {$path}");
+        }
+
+        $entry = $this->directories[$path] ?? [
+            'modTime' => null,
+            'mimeType' => null,
+            'metadata' => [],
+            'id' => null,
+        ];
+
+        return new ObjectInfo(
+            $path,
+            -1,
+            '',
+            $entry['modTime'],
+            $entry['mimeType'],
+            $entry['metadata'],
+            $entry['id'],
+        );
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    public function directories(string $prefix = ''): array
+    {
+        $prefix = $this->normalize($prefix);
+        $items = [];
+        foreach (array_keys($this->allDirectoryPaths()) as $path) {
+            if ($path === '') {
+                continue;
+            }
+            if ($prefix === '' || $path === $prefix || $this->pathStartsWith($path, $prefix)) {
+                $items[] = $this->directoryInfo($path);
+            }
+        }
+        usort($items, static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path);
+
+        return $items;
+    }
+
     public function copyTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
     {
         $entry = $this->entry($sourcePath);
@@ -286,6 +384,25 @@ final class MemoryProvider
         return $this->info($path);
     }
 
+    /**
+     * @param array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string} $entry
+     */
+    private function putDirectoryEntry(string $path, array $entry): ObjectInfo
+    {
+        $path = $this->normalize($path);
+        if ($this->caseInsensitive) {
+            $lookup = $this->lookupPath($path);
+            if (isset($this->directoryCaseIndex[$lookup]) && $this->directoryCaseIndex[$lookup] !== $path) {
+                unset($this->directories[$this->directoryCaseIndex[$lookup]]);
+            }
+            $this->directoryCaseIndex[$lookup] = $path;
+        }
+
+        $this->directories[$path] = $entry;
+
+        return $this->directoryInfo($path);
+    }
+
     private function forget(string $path): void
     {
         unset($this->objects[$path]);
@@ -338,6 +455,68 @@ final class MemoryProvider
         }
 
         return $this->caseIndex[$this->lookupPath($path)] ?? $path;
+    }
+
+    private function canonicalDirectoryPath(string $path): string
+    {
+        $path = $this->normalize($path);
+        if ($path === '' || !$this->caseInsensitive) {
+            return $path;
+        }
+
+        $lookup = $this->lookupPath($path);
+        if (isset($this->directoryCaseIndex[$lookup])) {
+            return $this->directoryCaseIndex[$lookup];
+        }
+
+        foreach (array_keys($this->allDirectoryPaths()) as $candidate) {
+            if ($this->lookupPath($candidate) === $lookup) {
+                return $candidate;
+            }
+        }
+
+        return $path;
+    }
+
+    private function directoryExists(string $path): bool
+    {
+        $path = $this->canonicalDirectoryPath($path);
+
+        return $path === '' || isset($this->allDirectoryPaths()[$path]);
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function allDirectoryPaths(): array
+    {
+        $dirs = ['' => true];
+
+        foreach (array_keys($this->objects) as $path) {
+            $this->addParentDirectories($dirs, $path);
+        }
+
+        foreach (array_keys($this->directories) as $path) {
+            $dirs[$path] = true;
+            $this->addParentDirectories($dirs, $path);
+        }
+
+        return $dirs;
+    }
+
+    /**
+     * @param array<string, true> $dirs
+     */
+    private function addParentDirectories(array &$dirs, string $path): void
+    {
+        $segments = explode('/', $path);
+        $prefix = '';
+        for ($i = 0; $i < count($segments) - 1; $i++) {
+            $prefix = $prefix === '' ? $segments[$i] : $prefix . '/' . $segments[$i];
+            if ($prefix !== '') {
+                $dirs[$prefix] = true;
+            }
+        }
     }
 
     private function lookupPath(string $path): string

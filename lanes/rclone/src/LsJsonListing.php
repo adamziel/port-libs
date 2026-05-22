@@ -102,6 +102,17 @@ final class LsJsonListing
         $item['IsDir'] = $entry['dir'];
 
         if ($entry['dir']) {
+            $info = $provider->directoryInfo($entry['path']);
+            if (!($options['noModTime'] ?? false) && $info->modTime !== null) {
+                $item['ModTime'] = $info->modTime;
+            }
+            if (($options['metadata'] ?? false) && $info->metadata !== []) {
+                $item['Metadata'] = $info->metadata;
+            }
+            if ($info->id !== null && $info->id !== '') {
+                $item['ID'] = $info->id;
+            }
+
             return $item;
         }
 
@@ -142,6 +153,22 @@ final class LsJsonListing
     {
         $files = [];
         $dirs = [];
+
+        foreach ($provider->directories() as $dirInfo) {
+            if (!self::insideOrEqualRemote($provider, $dirInfo->path, $remote)) {
+                continue;
+            }
+
+            $relative = self::relativePath($dirInfo->path, $remote);
+            if ($relative === '') {
+                continue;
+            }
+            if (!$recurse && str_contains($relative, '/')) {
+                continue;
+            }
+
+            $dirs[$dirInfo->path] = true;
+        }
 
         foreach ($provider->list() as $info) {
             if (!self::insideRemote($provider, $info->path, $remote)) {
@@ -188,23 +215,11 @@ final class LsJsonListing
             return '';
         }
 
-        $dirs = [];
-        foreach ($provider->list() as $info) {
-            $segments = explode('/', $info->path);
-            $prefix = '';
-            for ($i = 0; $i < count($segments) - 1; $i++) {
-                $prefix = $prefix === '' ? $segments[$i] : $prefix . '/' . $segments[$i];
-                $dirs[$prefix] = true;
-            }
+        try {
+            return $provider->directoryInfo($remote)->path;
+        } catch (\RuntimeException) {
+            return null;
         }
-
-        foreach (array_keys($dirs) as $dir) {
-            if (self::pathsEqual($provider, $dir, $remote)) {
-                return $dir;
-            }
-        }
-
-        return null;
     }
 
     private static function insideRemote(MemoryProvider $provider, string $path, string $remote): bool
@@ -220,9 +235,27 @@ final class LsJsonListing
         return str_starts_with($path, $remote . '/');
     }
 
-    private static function pathsEqual(MemoryProvider $provider, string $a, string $b): bool
+    private static function insideOrEqualRemote(MemoryProvider $provider, string $path, string $remote): bool
     {
-        return $provider->isCaseInsensitive() ? strtolower($a) === strtolower($b) : $a === $b;
+        if ($remote === '') {
+            return true;
+        }
+
+        if ($provider->isCaseInsensitive()) {
+            $path = strtolower($path);
+            $remote = strtolower($remote);
+        }
+
+        return $path === $remote || str_starts_with($path, $remote . '/');
+    }
+
+    private static function relativePath(string $path, string $remote): string
+    {
+        if ($remote === '') {
+            return $path;
+        }
+
+        return $path === $remote ? '' : substr($path, strlen($remote) + 1);
     }
 
     private static function normalize(string $path): string
