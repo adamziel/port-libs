@@ -102,6 +102,13 @@ commits while Dolt, libsqlite, markerPDF, Quadrable, Readability, Syncthing,
 dashboard/status, and untracked evidence work remained dirty. This confirms the
 tree was still actively integrating elsewhere during this pass.
 
+Fourth post-write drift note: before this status-only commit was finalized, at
+2026-05-22T20:40:07Z, `HEAD` had advanced to `6bc65b8` (`Update LightningCSS
+lane status`) with `a583a7d` (`Stamp pandoc lane status`) also landing after
+the previous note. This pass staged only `audits/integration-status.md`; no
+lane files, dashboard files, or untracked evidence files were staged by this
+pass.
+
 ## Integration Worker Snapshot - 2026-05-22T20:32:32Z
 
 No lane output was integrated, staged, committed, dashboard-regenerated, or
