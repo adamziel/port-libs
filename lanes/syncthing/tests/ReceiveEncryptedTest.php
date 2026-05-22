@@ -5,15 +5,20 @@ declare(strict_types=1);
 use PortLibs\Syncthing\BepWire;
 use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
+use PortLibs\Syncthing\DownloadProgress;
 use PortLibs\Syncthing\EncryptionKey;
+use PortLibs\Syncthing\EncryptedDownloadProgress;
+use PortLibs\Syncthing\FileDownloadProgressUpdate;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\Index;
 use PortLibs\Syncthing\IndexUpdate;
 use PortLibs\Syncthing\ProtocolValidation;
 use PortLibs\Syncthing\ReceiveEncrypted;
+use PortLibs\Syncthing\RemoteDownloadProgressTracker;
 use PortLibs\Syncthing\Request;
 use PortLibs\Syncthing\Response;
 use PortLibs\Syncthing\VersionVector;
+use PortLibs\Syncthing\WireProgressConnection;
 
 return [
     'maps upstream XChaCha20 encrypted bytes fixture' => static function (TestRunner $t): void {
@@ -451,6 +456,96 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::encryptFileInfos([new stdClass()], $folderKey));
         $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::decryptFileInfos([new stdClass()], $folderKey));
+    },
+    'maps encryptedConnection DownloadProgress no-op for encrypted folders' => static function (TestRunner $t): void {
+        $router = EncryptedDownloadProgress::fromPasswords([
+            'wordpress-private-media' => 'wordpress media sync secret',
+        ]);
+        $version = VersionVector::fromCounters([42 => 1]);
+        $privateProgress = new DownloadProgress('wordpress-private-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content\\uploads\\private\\hero.jpg',
+                version: $version,
+                blockIndexes: [0, 2],
+                blockSize: BlockList::MIN_BLOCK_SIZE,
+            ),
+        ]);
+        $publicProgress = new DownloadProgress('wordpress-public-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content\\uploads\\public\\hero.jpg',
+                version: $version,
+                blockIndexes: [1],
+                blockSize: BlockList::MIN_BLOCK_SIZE,
+            ),
+        ]);
+        $frames = [];
+        $connection = new WireProgressConnection(
+            'untrusted-peer',
+            static function (string $deviceId, string $frame, DownloadProgress $progress) use (&$frames): void {
+                $frames[] = [$deviceId, $frame, $progress];
+            },
+            directorySeparator: '\\',
+        );
+
+        $t->true($router->hasFolderKey('wordpress-private-media'));
+        $t->same(null, $router->outgoingToEncryptedPeer($privateProgress));
+        $t->same($publicProgress, $router->outgoingToEncryptedPeer($publicProgress));
+        $t->true(!$router->sendOutgoing($connection, $privateProgress));
+        $t->same([], $frames);
+
+        $t->true($router->sendOutgoing($connection, $publicProgress));
+        $t->same(1, count($frames));
+        $t->same('untrusted-peer', $frames[0][0]);
+        $decoded = BepWire::decodeDownloadProgressMessage($frames[0][1]);
+        $t->same('wordpress-public-media', $decoded->folder);
+        $t->same('wp-content/uploads/public/hero.jpg', $decoded->updates[0]->name);
+        $t->same([1], $decoded->updates[0]->blockIndexes);
+
+        $t->throws(LengthException::class, static fn () => new EncryptedDownloadProgress(['wordpress-private-media' => 'short']));
+    },
+    'maps encryptedModel DownloadProgress no-op before temporary state mutation' => static function (TestRunner $t): void {
+        $router = new EncryptedDownloadProgress([
+            'wordpress-private-media' => EncryptionKey::folderKeyFromPassword('wordpress-private-media', 'wordpress media sync secret'),
+        ]);
+        $version = VersionVector::fromCounters([42 => 2]);
+        $tracker = new RemoteDownloadProgressTracker([
+            'wordpress-private-media' => ['untrusted-peer'],
+            'wordpress-public-media' => ['trusted-peer'],
+        ]);
+        $privateProgress = new DownloadProgress('wordpress-private-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content/uploads/private/hero.jpg',
+                version: $version,
+                blockIndexes: [0, 1, 2],
+                blockSize: 4096,
+            ),
+        ]);
+        $publicProgress = new DownloadProgress('wordpress-public-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content/uploads/public/hero.jpg',
+                version: $version,
+                blockIndexes: [4],
+                blockSize: 4096,
+            ),
+        ]);
+
+        $t->same(null, $router->incomingFromEncryptedPeer($privateProgress));
+        $t->same(null, $router->receiveIncoming($tracker, 'untrusted-peer', $privateProgress));
+        $t->same([], $tracker->remoteDownloadProgressEvents());
+        $t->same([], $tracker->remoteBlockCounts('untrusted-peer', 'wordpress-private-media'));
+
+        $t->same($publicProgress, $router->incomingFromEncryptedPeer($publicProgress));
+        $event = $router->receiveIncoming($tracker, 'trusted-peer', $publicProgress);
+        $t->same([
+            'device' => 'trusted-peer',
+            'folder' => 'wordpress-public-media',
+            'state' => ['wp-content/uploads/public/hero.jpg' => 1],
+        ], $event);
+        $t->same(4096, $tracker->bytesDownloaded('trusted-peer', 'wordpress-public-media'));
     },
     'maps encrypted file info consistency for ignored symlink metadata' => static function (TestRunner $t): void {
         $folderKey = str_repeat("\0", EncryptionKey::KEY_SIZE);

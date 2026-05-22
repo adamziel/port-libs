@@ -161,6 +161,12 @@ outgoing Index and IndexUpdate payloads normalize WordPress paths before
 encrypting every FileInfo wrapper for the untrusted peer, while incoming
 encrypted collections decrypt those wrappers and keep folder, last sequence,
 previous sequence, and peer-controlled FileInfo sequence metadata intact.
+The encrypted DownloadProgress slice maps upstream
+`encryptedConnection.DownloadProgress` and `encryptedModel.DownloadProgress`:
+temporary-block progress for folders with registered encryption keys is
+intentionally dropped instead of translated to encrypted temporary files, while
+plain WordPress media folders still forward unchanged to the normal progress
+connection and model-level temporary-download state.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -237,6 +243,11 @@ encrypted size, block size, metadata byte count, decrypted plaintext name, and a
 full encrypted IndexUpdate collection round trip. The same example now includes
 an encrypted response block, showing 1024-byte padded plaintext, 40-byte
 nonce/tag overhead, and trusted-side trimming back to the requested media block.
+`examples/wordpress-encrypted-download-progress.php` shows why receive-encrypted
+private media folders do not advertise or accept temporary-block progress:
+encrypted-folder progress is suppressed before a BEP frame or remote progress
+event is created, while a plain WordPress media folder still emits a message
+type 5 frame and updates temporary block counts.
 `examples/wordpress-encryption-consistency.php` shows the cluster-config
 boundary for that same WordPress media folder: a plain untrusted peer is
 rejected, a receive-encrypted peer's real Syncthing password token is accepted
@@ -245,5 +256,5 @@ upstream different-password error.
 
 ## Next Task
 
-Map encrypted DownloadProgress no-op behavior from
-`encryptedConnection.DownloadProgress` and `encryptedModel.DownloadProgress`.
+Map receive-encrypted folder finalization and trailer verification from
+`folder_recvenc.go` and `folder_sendrecv.go`.
