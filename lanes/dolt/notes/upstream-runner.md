@@ -103,6 +103,7 @@
   - Result: `1..74`, exit 0; 64 runnable tests passed and 10 upstream-declared skips remained across merge hangs/key-collision/check-constraint/schema-conflict TODOs and documented conflict-detection TODOs.
 - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: (tables in conflict|renamed table|dolt reset with a renamed table)' status.bats`
   - Result: `1..3`, exit 0; all three focused status tests passed.
+- Native status-table source inventory for this slice inspected `go/libraries/doltcore/sqle/dtables/status_table.go`, `status_ignored_table.go`, `merge_status_table.go`, `table_of_tables_in_conflict.go`, `integration-tests/bats/sql-status.bats`, and `integration-tests/bats/status.bats`.
 
 ## Passed Upstream Commands
 
@@ -170,9 +171,9 @@
 ## Repository Check
 
 - `php tools/run-tests.php`
-  - Latest rerun after final Dolt runner metadata cleanup: pass.
-  - Summary: 80 test files, 5,554 assertions, 0 failures.
-  - Dolt lane tests reached by the root runner all passed, including the 41 current Dolt behavior tests and 173 Dolt assertions.
+  - Latest rerun after the Dolt status-table slice: pass.
+  - Summary: 85 test files, 5,757 assertions, 0 failures.
+  - Dolt lane tests reached by the root runner all passed, including the 46 current Dolt behavior tests and 186 Dolt assertions.
 
 ## Skipped Suites
 
