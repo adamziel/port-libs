@@ -79,12 +79,20 @@ Focused multi-pack-index inventory inspected on 2026-05-22:
 - `gix-pack/src/multi_index/init.rs` defines the mapped v1 parser semantics: `MIDX` signature, hash-kind validation, chunk-table decoding with a sentinel, required `PNAM`/`OIDF`/`OIDL`/`OOFF` chunks, optional `LOFF`, sorted null-terminated pack index names, monotonic 256-entry fanout, object counts from fanout[255], exact chunk sizes, and trailing object-hash checksum bytes.
 - `gix-pack/src/multi_index/access.rs` and `verify.rs` define the mapped access semantics: object IDs are fanout-bounded, full lookups binary-search the object-id table, prefix lookups return missing/ambiguous/found, entries map object IDs to pack-index IDs and pack offsets, high-bit 32-bit offsets use `LOFF` when present, and fast verification covers checksum, non-empty object sets, object order, and pack-offset consistency.
 
+Focused protocol v2 inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol` command, `ls_refs`, handshake ref parsing, and `gix-transport` capability files inspected with targeted `git ls-tree`, `git show`, and `git grep`.
+- 15 Rust `#[test]` attributes counted across `gix-protocol/tests/protocol/command.rs`, `gix-protocol/tests/protocol/handshake.rs`, `gix-protocol/src/ls_refs.rs`, and `gix-transport/tests/client/capabilities.rs`.
+- `gix-transport/src/client/capabilities.rs` defines the mapped capability semantics: v1 capabilities are parsed after the NUL delimiter, v2 capabilities require a `version 2` first line, capability names come before `=`, values are space-separated, and callers can test whether a capability value is supported.
+- `gix-protocol/src/command.rs` and `ls_refs.rs` define the mapped `ls-refs` command semantics: default arguments are `symrefs` and `peel`, `unborn` is requested only when the `ls-refs` capability supports it, ref-prefix arguments preserve first-seen order while de-duplicating duplicates, and validation rejects unknown arguments or unsupported non-agent features.
+- `gix-protocol/src/handshake/refs/shared.rs` and `tests/protocol/handshake.rs` define the mapped v2 ref-line semantics: direct refs, symbolic refs, unborn symbolic refs, `(null)` symref targets, peeled refs, and symbolic peeled refs are all normalized into typed remote refs with explicit tag/object/target fields.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either materialize only the needed object/ref/pack crate paths and try a controlled `cargo test -p gix-pack --no-run --locked --offline` probe before any live runner attempt, or start protocol v2 capability and `ls-refs` semantics.
+- The next inventory slice should either materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, or continue with fetch negotiation argument semantics.
 
 Current PHP mapping:
 
@@ -98,3 +106,4 @@ Current PHP mapping:
 - `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, OFS_DELTA/REF_DELTA resolution, Git delta copy/insert application, object ID verification, unsupported/corrupt pack errors, direct delta-entry rejection, and a WordPress packed commit/blob/delta fixture.
 - `ObjectDatabaseTest.php` maps `gix-odb` pack-before-loose object lookup, packed object counts, prefix lookup across packed and loose objects, duplicate id de-duplication, ambiguous prefix reporting, pack-missing error behavior, pack lexicographic iteration, pack-offset iteration, loose and packed alternates, quoted relative alternate paths, cycle rejection, loose and packed replacement refs, replacement ignore mode, sorted replacement mappings, MIDX-backed pack selection/de-duplication with missing-pack rejection, and WordPress pack+loose+alternate+replacement plus multi-pack object database fixtures.
 - `MultiPackIndexTest.php` maps `gix-pack` multi-index v1 header and chunk-table parsing, SHA-1/SHA-256 hash-kind recognition, sorted pack index names, fanout and chunk size validation, full object ID lookup, prefix missing/ambiguous/found outcomes, high-bit raw offsets without `LOFF`, large 64-bit offsets through `LOFF`, checksum verification, fast object-order and pack-id integrity checks, and a WordPress content/template/media multi-pack-index fixture.
+- `ProtocolV2Test.php` maps `gix-transport` v1/v2 capability parsing and capability value support, `gix-protocol` `ls-refs` default arguments, `unborn` negotiation, first-seen ref-prefix de-duplication, unknown argument/capability validation errors, v2 remote ref parsing for direct/symbolic/unborn/peeled/symbolic-peeled lines, malformed ref-line errors, and a WordPress protocol v2 `ls-refs` fixture for active branch/release tag/unborn staging ref discovery.

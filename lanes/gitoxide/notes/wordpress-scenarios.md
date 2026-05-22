@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.
 
 ## WordPress Deploy Tree Example
 
@@ -21,6 +21,10 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 ## WordPress Reference Store Example
 
 `examples/wordpress-reference-store.php` combines loose `HEAD` with packed branch and release-tag refs. This models a shared-hosting deployment tool resolving the active WordPress branch from loose refs while reading compacted branch/tag state from `packed-refs`.
+
+## WordPress Protocol V2 ls-refs Example
+
+`examples/wordpress-protocol-v2-ls-refs.php` parses a deterministic protocol v2 capability advertisement, builds an `ls-refs` request with de-duplicated `ref-prefix` arguments and `unborn` support, then parses the remote response into active branch, peeled release tag, and unborn staging branch refs. This models a PHP deployment or package manager discovering remote WordPress repo state before deciding what to fetch.
 
 ## WordPress Pack Index Example
 
@@ -44,4 +48,4 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## Next Task
 
-Run a controlled gix-odb/gix-pack crate no-run probe or map protocol v2 capability and `ls-refs` semantics if the VM remains clear.
+Run a controlled gix-protocol/gix-transport crate no-run probe or map fetch negotiation arguments if the VM remains clear.
