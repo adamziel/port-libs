@@ -102,12 +102,20 @@ Focused fetch response and sideband inventory inspected on 2026-05-22:
 - `gix-protocol/src/fetch/response/mod.rs` defines the mapped line semantics: `ACK <id>`, `ACK <id> common`, `ACK <id> ready`, `ready`, `NAK`, `shallow <id>`, `unshallow <id>`, and wanted-ref `<id> <path>` lines are parsed into typed response values.
 - `gix-packetline/src/lib.rs` and `blocking_io/sidebands.rs` define the mapped sideband semantics: sideband channel 1 carries pack bytes, channel 2 carries progress text with one trailing newline trimmed, and channel 3 carries error text with one trailing newline trimmed.
 
+Focused partial clone/promisor inventory inspected on 2026-05-22:
+
+- Selected `gix-protocol/src/fetch/arguments/mod.rs` and `gix-pack/tests/pack/iter.rs` with targeted `git show`/`git grep`; broad partial-clone scans were stopped because they hydrate too much changelog and fixture history in the filtered checkout.
+- 5 `gix-pack` pack iterator tests counted, including `restore_partial_pack`; the 9 fetch argument tests counted in the fetch-negotiation slice also cover the upstream protocol boundary where `filter <spec>` is attached to a fetch request.
+- `gix-protocol/src/fetch/arguments/mod.rs` defines the mapped fetch-filter boundary: a filter is sent as `filter <spec>` when the server advertised `filter`.
+- Local `git rev-list(1)` and `git clone(1)` documentation were used as the filter-spec reference for `blob:none`, `blob:limit=<n>[kmg]`, `tree:<depth>`, and `sparse:oid=<oid>` semantics. This is Git behavior documentation, not a Gitoxide runner result.
+- `gix-pack/tests/pack/iter.rs` includes partial-pack restoration coverage; the PHP slice maps the local object database side by discovering `.promisor` sidecars, reporting promisor-present objects, and distinguishing promised-but-missing object IDs from ordinary missing IDs.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, or continue with sparse/partial clone filter semantics.
+- The next inventory slice should either materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, or continue with lazy promisor fetch and sparse checkout path semantics.
 
 Current PHP mapping:
 
@@ -124,3 +132,4 @@ Current PHP mapping:
 - `ProtocolV2Test.php` maps `gix-transport` v1/v2 capability parsing and capability value support, `gix-protocol` `ls-refs` default arguments, `unborn` negotiation, first-seen ref-prefix de-duplication, unknown argument/capability validation errors, v2 remote ref parsing for direct/symbolic/unborn/peeled/symbolic-peeled lines, malformed ref-line errors, and a WordPress protocol v2 `ls-refs` fixture for active branch/release tag/unborn staging ref discovery.
 - `FetchNegotiationTest.php` maps `gix-protocol` fetch feature defaults, protocol v2 initial fetch arguments, protocol v1 first-want feature baking, stateless protocol v2 request argument construction, guarded shallow/filter/ref-in-want/deepen/include-tag support, unknown argument/capability validation, and a WordPress shallow blobless ref-in-want fetch fixture.
 - `FetchResponseTest.php` maps `gix-protocol` fetch acknowledgements, shallow updates, wanted-ref response lines, required V1 response features, protocol v2 response section parsing, no-pack responses, unknown section errors, sideband channel decoding for pack/progress/error bytes, and a WordPress protocol v2 fetch response fixture.
+- `PartialCloneTest.php` maps common fetch filter specs (`blob:none`, `blob:limit`, `tree:<depth>`, `sparse:oid`), `FetchCommand` value-object filter emission, `.promisor` pack sidecar discovery, promisor-present object reporting, promised-missing object state, and a WordPress blobless partial-clone tree where an omitted media blob stays promised rather than ordinary-missing.
