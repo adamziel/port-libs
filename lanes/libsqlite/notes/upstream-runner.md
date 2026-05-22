@@ -961,7 +961,8 @@ The `examples/wordpress-option-name-prefix.php` script maps transient/cache
 bucket inspection on hosts where only a database image is available. Remaining
 expression-index work includes variable-start `substr(a,b,3)`, expression
 `IN` lookups beyond the literal-start prefix-list slice, `abs()`,
-`json_extract()`, arbitrary deterministic expressions, and custom collations.
+broader `json_extract()` paths beyond the later strict `$.key` point slice,
+arbitrary deterministic expressions, and custom collations.
 
 ## Focused Native Mapping: Substr Expression Index Prefix IN Lists
 
@@ -1205,3 +1206,59 @@ audit tools that need one or more numeric option values without a full table
 scan or the PHP SQLite extension. The new
 `examples/wordpress-option-value-integer-range.php` script maps numeric option
 audits such as version/counter ranges through the same native index path.
+
+## Focused Native Mapping: JSON Extract Expression Indexes
+
+This slice adds a bounded expression-index family for
+`json_extract(column,'$.key')`. The native PHP reader parses first-term
+`json_extract(option_value,'$.key')` expression indexes, preserves collation
+and `DESC` metadata, rejects the expression as an ordinary column index,
+accepts only safe `option_value IS NOT NULL` partial predicates, and searches
+stored JSON scalar expression keys before resolving rowids through
+`wp_options`. The verification step evaluates strict JSON option values with
+the same simple object-member path before returning a row.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr3.test
+```
+
+Result: 1 Tcl script, 0 errors out of 14 tests in 00:00.
+
+Focused IN-list runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr3.test where2.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 106 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr3.test` creates
+  `CREATE INDEX i1 ON t1( json_extract(j, '$.x') )` and verifies SQLite can
+  satisfy `json_extract()` reads from expression-index payloads without
+  re-running the function for covered cases.
+- The same file creates `CREATE INDEX i1 ON t1( a, json_extract(j, '$.x') )`
+  and checks the composite expression-index planner boundary for `a=?`.
+- `test/where2.test` covers indexed `IN (...)` lookup behavior, including
+  duplicate RHS values not producing duplicate output rows.
+
+The native PHP tests now cover parsing `json_extract(option_value,'$.enabled')`
+metadata with qualified/quoted column names, literal JSON paths, collation,
+`DESC`, and safe partial predicates; rejecting constant JSON arguments and
+multi-path calls for this bounded slice; and a WordPress-shaped plugin settings
+lookup that reads boolean/number JSON scalar keys from
+`wp_options(option_value)` without scanning the full table. The IN-list tests
+read multiple JSON scalar buckets in one index pass, honor `COLLATE NOCASE`,
+ignore `NULL` RHS values for matching, suppress duplicate RHS output, reject
+unsupported lookup values, and skip an intentionally invalid out-of-range index
+branch. The new `examples/wordpress-json-option-value.php` and
+`examples/wordpress-json-option-value-list.php` scripts map recovery or audit
+tools that need one or more indexed plugin/theme JSON settings such as enabled
+flags or mode lists on hosts where the PHP SQLite extension is unavailable.

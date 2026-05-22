@@ -1080,6 +1080,34 @@ return [
         $t->same(false, str_contains($article->text, 'Canonical Import Title'), 'duplicate title heading should still be removed from block content');
         $t->contains('plugin-injected structured data', $blocks);
     },
+    'maps Mozilla schema-org context object fixture without leading news chrome' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/schema-org-context-object';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+        $expectedParagraphs = array_map($normalizedText, $attributeValues($expected, '//p'));
+        $articleParagraphs = array_map($normalizedText, $attributeValues($article->contentHtml, '//p'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(array_slice($expectedParagraphs, 0, 4), array_slice($articleParagraphs, 0, 4));
+        $t->true(str_starts_with($articleParagraphs[0] ?? '', 'SEOUL, South Korea'), 'article text should start at the first editorial paragraph');
+        $t->same(false, str_contains($article->text, 'Dec. 6, 2024, 10:00 PM UTC'), 'timestamp chrome should not enter article text');
+        $t->same(false, str_contains($article->text, 'By Stella Kim and Jennifer Jett'), 'inline byline chrome should not enter article text');
+        $t->contains('<!-- wp:paragraph -->', $blocks);
+        $t->contains('SEOUL, South Korea', $blocks);
+        $t->same(false, str_contains($blocks, 'article-body-timestamp'), 'timestamp wrappers should not enter WordPress blocks');
+    },
     'maps Mozilla mozilla-2 fixture metadata and retained content markers' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/mozilla-2';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1200,14 +1228,14 @@ return [
         $t->contains('srcset="https://cdn.example.test/photo-320.jpg 320w, https://cdn.example.test/photo-800.jpg 800w"', $article->contentHtml);
         $t->contains('alt="Migration screenshot"', $article->contentHtml);
     },
-    'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($elementChildTags, $imageAttributeRows, $normalizedText): void {
+    'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
         $source = (string) file_get_contents($fixture . '/source.html');
         $expected = (string) file_get_contents($fixture . '/expected.html');
         $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
 
         $extractor = new ArticleExtractor();
-        $article = $extractor->extract($source);
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
         $expectedSources = array_values(array_column($imageAttributeRows($expected), 'src'));
         $articleSources = array_values(array_column($imageAttributeRows($article->contentHtml), 'src'));
 
@@ -1222,7 +1250,10 @@ return [
         $t->same(9, count($expectedSources));
         $t->same($expectedSources, $articleSources);
         $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same($elementChildTags($expected, '//div[@id="readability-page-1"]'), $elementChildTags($article->contentHtml, '//main/*[1]'));
         $t->same(['p'], $elementChildTags($article->contentHtml, '//blockquote'));
+        $t->same([], $attributeValues($article->contentHtml, '//section'));
         foreach ($expectedSources as $sourceUrl) {
             $t->true(in_array($sourceUrl, $articleSources, true), 'expected lazy-image-1 image source should be preserved: ' . $sourceUrl);
         }
@@ -1240,6 +1271,26 @@ return [
         $t->true(!str_contains($article->contentHtml, 'fit/c/160/160'), 'recommended-author avatars should be removed with the footer');
         $t->true(!str_contains($article->contentHtml, 'CPU profiling before optimization'), 'out-of-band Medium full-width figure wrapper should be removed');
         $t->true(!str_contains($article->contentHtml, 'Zoom in the CPU profiling'), 'out-of-band Medium zoom figure wrapper should be removed');
+    },
+    'unwraps transparent WordPress section wrappers before block output' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Section Wrapper Cleanup"></head><body><article>'
+            . '<h1>Section Wrapper Cleanup</h1>'
+            . '<section class="wp-block-group alignwide"><div class="wp-block-group__inner-container">'
+            . '<p>' . str_repeat('Legacy page builders often wrap migrated article copy in section shells that only carry layout classes. ', 3) . '</p>'
+            . '<p>' . str_repeat('The native extractor should keep the editorial paragraphs while dropping transparent section wrappers. ', 3) . '</p>'
+            . '</div></section>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Section Wrapper Cleanup', $article->title);
+        $t->contains('migrated article copy', $article->text);
+        $t->contains('transparent section wrappers', $blocks);
+        $t->same(false, str_contains($article->contentHtml, '<section'), 'transparent source section wrappers should not survive extraction');
+        $t->same(false, str_contains($blocks, '<section'), 'transparent source section wrappers should not become WordPress block markup');
+        $t->same(false, str_contains($article->contentHtml, 'wp-block-group'), 'layout-only source classes should still be stripped');
     },
     'drops out-of-band full-width figure wrappers during WordPress migration cleanup' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Block Media Cleanup"></head><body><article class="article-body">'

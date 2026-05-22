@@ -372,6 +372,37 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForJsonExtractPointLookup(
+        string $tableName,
+        string $columnName,
+        string $path,
+        mixed $value,
+    ): ?int {
+        self::sqliteJsonScalar($value);
+        $lookup = $this->indexLookupForJsonExtractExpressionColumn($tableName, $columnName, $path);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    public function indexRootPageForJsonExtractInLookup(
+        string $tableName,
+        string $columnName,
+        string $path,
+        array $values,
+    ): ?int {
+        $lookupValues = self::sqliteJsonScalarList($values);
+        if (!self::containsNonNullValue($lookupValues)) {
+            return null;
+        }
+
+        $lookup = $this->indexLookupForJsonExtractExpressionColumn($tableName, $columnName, $path);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForLengthRangeLookup(
         string $tableName,
         string $columnName,
@@ -1055,6 +1086,54 @@ final class SQLiteDatabase
                 'rootPage' => $record->rootPage,
                 'collation' => $firstExpression->collation,
                 'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool,path:string}
+     */
+    private function indexLookupForJsonExtractExpressionColumn(
+        string $tableName,
+        string $columnName,
+        string $path,
+    ): ?array {
+        self::parseSimpleJsonPath($path);
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $expression = SQLiteCreateIndex::firstJsonExtractExpression($record->sql);
+            if (
+                $expression === null
+                || strcasecmp($expression->columnName, $columnName) !== 0
+                || $expression->path !== $path
+            ) {
+                continue;
+            }
+
+            if (
+                $expression->partial
+                && (
+                    $expression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $expression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $expression->collation,
+                'descending' => $expression->descending,
+                'path' => $expression->path,
             ];
         }
 
@@ -2176,6 +2255,131 @@ final class SQLiteDatabase
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedJsonOptionValue(string $jsonPath, mixed $value, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $lookupValue = self::sqliteJsonScalar($value);
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForJsonExtractExpressionColumn(
+            'wp_options',
+            'option_value',
+            $jsonPath,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) expression index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $lookupValue,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (
+                self::compareSQLiteScalar(
+                    self::sqliteJsonExtract($option->optionValue, $jsonPath),
+                    $lookupValue,
+                    $indexLookup['collation'],
+                ) === 0
+            ) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedJsonOptionValues(string $jsonPath, array $values, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) IN-list lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $values === []) {
+            return [];
+        }
+
+        $lookupValues = self::sqliteJsonScalarList($values);
+        if (!self::containsNonNullValue($lookupValues)) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForJsonExtractExpressionColumn(
+            'wp_options',
+            'option_value',
+            $jsonPath,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) expression IN-list index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueList(
+                $indexLookup['rootPage'],
+                $lookupValues,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (
+                self::inListContainsSQLiteScalar(
+                    $lookupValues,
+                    self::sqliteJsonExtract($option->optionValue, $jsonPath),
+                    $indexLookup['collation'],
+                )
+            ) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
                     break;
@@ -4014,6 +4218,133 @@ final class SQLiteDatabase
         $parsed = (int) $digits;
 
         return $negative ? -$parsed : $parsed;
+    }
+
+    private static function sqliteJsonExtract(mixed $json, string $path): mixed
+    {
+        $segments = self::parseSimpleJsonPath($path);
+        if ($json === null) {
+            return null;
+        }
+        if (!is_string($json)) {
+            $json = (string) self::sqliteJsonScalar($json);
+        }
+
+        try {
+            $value = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \InvalidArgumentException('SQLite json_extract expression index value is not valid strict JSON', 0, $exception);
+        }
+
+        foreach ($segments as $segment) {
+            if (!is_array($value) || array_is_list($value) || !array_key_exists($segment, $value)) {
+                return null;
+            }
+
+            $value = $value[$segment];
+        }
+
+        return self::sqliteJsonScalar($value);
+    }
+
+    private static function sqliteJsonScalar(mixed $value): mixed
+    {
+        if ($value === null || is_int($value) || is_float($value) || is_string($value)) {
+            return $value;
+        }
+        if (is_bool($value)) {
+            return $value ? 1 : 0;
+        }
+        if (is_array($value)) {
+            $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if (!is_string($json)) {
+                throw new \InvalidArgumentException('SQLite json_extract lookup value cannot be encoded as JSON');
+            }
+
+            return $json;
+        }
+
+        throw new \InvalidArgumentException('SQLite json_extract lookup value must be null, scalar, or JSON-encodable array');
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<mixed>
+     */
+    private static function sqliteJsonScalarList(array $values): array
+    {
+        $scalars = [];
+        foreach ($values as $value) {
+            $scalars[] = self::sqliteJsonScalar($value);
+        }
+
+        return $scalars;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function parseSimpleJsonPath(string $path): array
+    {
+        $length = strlen($path);
+        if ($length === 0 || $path[0] !== '$') {
+            throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice require paths that start with $');
+        }
+        if ($path === '$') {
+            return [];
+        }
+
+        $segments = [];
+        $offset = 1;
+        while ($offset < $length) {
+            if ($path[$offset] !== '.') {
+                throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only object-member paths');
+            }
+            $offset++;
+            if ($offset >= $length) {
+                throw new \InvalidArgumentException('SQLite json_extract expression index path has an empty object member');
+            }
+
+            if ($path[$offset] === '"') {
+                $end = self::jsonPathQuotedMemberEnd($path, $offset);
+                $literal = substr($path, $offset, $end - $offset + 1);
+                try {
+                    $member = json_decode($literal, true, 512, JSON_THROW_ON_ERROR);
+                } catch (\JsonException $exception) {
+                    throw new \InvalidArgumentException('SQLite json_extract expression index quoted path member is invalid', 0, $exception);
+                }
+                if (!is_string($member)) {
+                    throw new \InvalidArgumentException('SQLite json_extract expression index quoted path member must decode to text');
+                }
+                $segments[] = $member;
+                $offset = $end + 1;
+                continue;
+            }
+
+            if (!preg_match('/[A-Za-z_][A-Za-z0-9_]*/A', substr($path, $offset), $matches)) {
+                throw new \InvalidArgumentException('SQLite json_extract expression index path member is outside the supported subset');
+            }
+            $segments[] = $matches[0];
+            $offset += strlen($matches[0]);
+        }
+
+        return $segments;
+    }
+
+    private static function jsonPathQuotedMemberEnd(string $path, int $offset): int
+    {
+        $length = strlen($path);
+        for ($i = $offset + 1; $i < $length; $i++) {
+            if ($path[$i] === '\\') {
+                $i++;
+                continue;
+            }
+            if ($path[$i] === '"') {
+                return $i;
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite json_extract expression index quoted path member is unterminated');
     }
 
     private static function sqliteScalarRank(mixed $value): int

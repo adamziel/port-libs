@@ -149,6 +149,39 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstJsonExtractExpression(string $sql): ?SQLiteJsonExtractIndexExpression
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $expression = self::parseJsonExtractExpressionColumn($term);
+        if ($expression === null) {
+            return null;
+        }
+
+        return new SQLiteJsonExtractIndexExpression(
+            $expression['name'],
+            $expression['path'],
+            $expression['collation'],
+            $expression['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     public static function firstSubstringExpression(string $sql): ?SQLiteSubstringIndexExpression
     {
         $index = self::indexedTermsAndTail($sql);
@@ -494,6 +527,60 @@ final class SQLiteCreateIndex
 
         return [
             'name' => $column[0],
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
+    /**
+     * @return null|array{name:string,path:string,collation:string,descending:bool}
+     */
+    private static function parseJsonExtractExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $function = self::readIdentifier($term, 0);
+        if ($function === null || strcasecmp($function[0], 'json_extract') !== 0) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $function[1]);
+        if (!isset($term[$offset]) || $term[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($term, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $arguments = self::topLevelTerms(substr($term, $offset + 1, $close - $offset - 1));
+        if (count($arguments) !== 2) {
+            return null;
+        }
+
+        $columnArgument = trim($arguments[0]);
+        if ($columnArgument === '' || $columnArgument[0] === "'") {
+            return null;
+        }
+
+        $column = self::readPossiblyQualifiedIdentifier($columnArgument, 0);
+        if ($column === null || trim(substr($columnArgument, $column[1])) !== '') {
+            return null;
+        }
+
+        $path = self::readLiteral($arguments[1], 0);
+        if ($path === null || trim(substr($arguments[1], $path[1])) !== '' || !is_string($path[0])) {
+            return null;
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $close + 1);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $column[0],
+            'path' => $path[0],
             'collation' => $modifiers['collation'],
             'descending' => $modifiers['descending'],
         ];

@@ -134,6 +134,18 @@ or inclusive upper bounds. Recovery and audit tools can inspect numeric option
 families such as version counters or plugin migration markers through
 `CAST(option_value AS INTEGER) >= 100 AND < 60000`, while still using SQLite's
 text-prefix integer cast rules and avoiding unrelated index branches.
+First-term `json_extract(option_value,'$.key')` expression indexes are now
+parsed for exact scalar lookups over strict JSON option values. Recovery and
+audit tools can find plugin/theme settings such as `{"enabled":true}` through
+the stored JSON expression key, with SQLite-style boolean scalars mapped to
+`1`/`0`, without treating the expression index as a normal `option_value`
+column index. This slice accepts only simple object-member paths and safe
+`option_value IS NOT NULL` partial predicates.
+The same JSON-expression path now supports bounded `IN (...)` reads for
+multiple scalar buckets. Recovery and preload tools can request values such as
+`enabled,disabled`, honor `COLLATE NOCASE`, ignore `NULL` RHS values for
+matching, suppress duplicate RHS output, and skip unrelated JSON-key subtrees
+before page decoding.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -159,14 +171,15 @@ when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
 First-column range, lower-expression IN-list/range, length-expression IN-list/range,
-CAST-expression IN-list/range, first-column IN-list, and composite
-equality-prefix range scans now use bounded index b-tree traversal instead of
+CAST-expression IN-list/range, first-column IN-list, JSON expression point/IN-list,
+and composite equality-prefix range scans now use bounded index b-tree traversal instead of
 decoding every index page. This matters for WordPress recovery and import tools
 that inspect a narrow option-name range or a small known option-name set from a
 large or partially damaged database image: an unrelated out-of-range index
 branch no longer has to be readable before constrained `wp_options(option_name)`,
 `wp_options(lower(option_name))`, `wp_options(CAST(option_value AS INTEGER))`,
-or `wp_options(autoload, option_name)` lookups can return matching rows.
+`wp_options(json_extract(option_value,'$.key'))`, or
+`wp_options(autoload, option_name)` lookups can return matching rows.
 
 The reader now also exposes `sqlite_sequence` records for AUTOINCREMENT tables.
 WordPress import, recovery, or Data Liberation tooling can inspect sequence
@@ -335,6 +348,20 @@ options whose cast values are inside caller supplied integer bounds. This maps
 version/counter audits and recovery checks that need numeric ranges without
 scanning every `wp_options` row.
 
+`examples/wordpress-json-option-value.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term
+`wp_options(json_extract(option_value,'$.key'))` expression index, and returns
+options whose strict JSON scalar value matches a requested path/value pair.
+This maps plugin/theme settings recovery such as indexed enabled flags without
+requiring the PHP SQLite extension or a full table scan.
+
+`examples/wordpress-json-option-value-list.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term
+`wp_options(json_extract(option_value,'$.key'))` expression index, and returns
+options whose strict JSON scalar value is in a caller supplied list. This maps
+multi-state plugin/theme settings recovery such as enabled/disabled mode lists
+without scanning every `wp_options` row.
+
 `examples/wordpress-sequence-counters.php` reads a WordPress-oriented SQLite
 database file, resolves the internal `sqlite_sequence` table, and reports all
 AUTOINCREMENT rows plus selected counters such as `wp_posts`, `wp_comments`,
@@ -355,8 +382,7 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 
 Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, `upper(column)`, literal-start
-`substr(column,...)`, `length(column)`, and `CAST(column AS INTEGER)`
-point/list/range buckets; broader expression `IN (...)` lookup families beyond
-`lower(column)`, `upper(column)`, and literal-start `substr(column,1,N)` plus
-`length(column)` and `CAST(column AS INTEGER)` buckets; custom collations; and
-composite-key ranges beyond one equality prefix plus one range column.
+`substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and simple
+`json_extract(column,'$.key')` point/list buckets; broader JSON path/value
+semantics; custom collations; and composite-key ranges beyond one equality
+prefix plus one range column.

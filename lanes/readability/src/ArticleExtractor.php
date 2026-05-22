@@ -1383,13 +1383,17 @@ final class ArticleExtractor
     private function removeLeadingBylineActionBar(\DOMElement $scope): void
     {
         $xpath = new \DOMXPath($scope->ownerDocument);
-        $firstHeading = $xpath->query('.//h1|.//h2|.//h3', $scope)?->item(0);
-        if (!$firstHeading instanceof \DOMElement) {
+        $firstContent = $xpath->query('.//h1|.//h2|.//h3', $scope)?->item(0);
+        if (!$firstContent instanceof \DOMElement) {
+            $firstContent = $this->firstSubstantialContentParagraph($xpath, $scope);
+        }
+
+        if (!$firstContent instanceof \DOMElement) {
             return;
         }
 
         $remove = [];
-        foreach ($this->elementsBefore($xpath, $scope, $firstHeading) as $node) {
+        foreach ($this->elementsBefore($xpath, $scope, $firstContent) as $node) {
             if (!$this->isLeadingBylineChrome($xpath, $node)) {
                 continue;
             }
@@ -1402,6 +1406,22 @@ final class ArticleExtractor
                 $node->parentNode?->removeChild($node);
             }
         }
+    }
+
+    private function firstSubstantialContentParagraph(\DOMXPath $xpath, \DOMElement $scope): ?\DOMElement
+    {
+        foreach ($xpath->query('.//p', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement || $this->isLeadingBylineChrome($xpath, $node)) {
+                continue;
+            }
+
+            $text = $this->normalizeWhitespace($node->textContent);
+            if (mb_strlen($text) >= 80 && preg_match('/[.!?]["\']?$/u', $text) === 1) {
+                return $node;
+            }
+        }
+
+        return null;
     }
 
     private function removeTrailingArticleChrome(\DOMElement $scope): void
@@ -1485,8 +1505,19 @@ final class ArticleExtractor
             return false;
         }
 
-        $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id') . ' ' . $text);
+        $matchString = strtolower(
+            $node->getAttribute('class') . ' '
+            . $node->getAttribute('id') . ' '
+            . $node->getAttribute('data-activity-map') . ' '
+            . $node->getAttribute('data-testid') . ' '
+            . $text
+        );
         if (preg_match('/\b(byline|author|dateline|writtenby|p-author)\b/', $matchString) === 1) {
+            return true;
+        }
+
+        if (str_contains($matchString, 'inline-byline')
+            || str_contains($matchString, 'article-body-timestamp')) {
             return true;
         }
 
@@ -1742,6 +1773,7 @@ final class ArticleExtractor
         $this->removeCommentNodes($scope);
         $this->cleanPresentationalAttributes($scope);
         $this->cleanClasses($scope);
+        $this->unwrapTransparentSectionWrappers($scope);
 
         return $scope;
     }
@@ -2685,6 +2717,58 @@ final class ArticleExtractor
                 $this->cleanClasses($child);
             }
         }
+    }
+
+    private function unwrapTransparentSectionWrappers(\DOMElement $scope): void
+    {
+        do {
+            $changed = false;
+            $sections = [];
+            foreach ($scope->getElementsByTagName('section') as $section) {
+                if ($section instanceof \DOMElement) {
+                    $sections[] = $section;
+                }
+            }
+
+            foreach ($sections as $section) {
+                if (!$section->parentNode instanceof \DOMNode || !$this->isTransparentSectionWrapper($section)) {
+                    continue;
+                }
+
+                while ($section->firstChild instanceof \DOMNode) {
+                    $section->parentNode->insertBefore($section->firstChild, $section);
+                }
+                $section->parentNode->removeChild($section);
+                $changed = true;
+                break;
+            }
+        } while ($changed);
+    }
+
+    private function isTransparentSectionWrapper(\DOMElement $section): bool
+    {
+        if (strtolower($section->tagName) !== 'section' || ($section->attributes?->length ?? 0) > 0) {
+            return false;
+        }
+
+        $elementChildren = 0;
+        foreach ($section->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (!in_array(strtolower($child->tagName), ['article', 'div', 'section'], true)) {
+                return false;
+            }
+
+            $elementChildren++;
+        }
+
+        return $elementChildren > 0;
     }
 
     private function replaceElementTag(\DOMElement $element, string $tagName): \DOMElement
