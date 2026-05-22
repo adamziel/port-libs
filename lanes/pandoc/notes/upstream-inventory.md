@@ -50,6 +50,13 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` LaTeX rendered native AST slice inspected in this
   run: 152 lines, including 6 `InlineMath` markers, 1 `DisplayMath` marker,
   1 TeX `RawInline`, and 1 TeX `RawBlock`
+- `test/testsuite.txt` Special Characters section slice inspected in this run:
+  54 Markdown lines through the start of `# Links`, including five Unicode
+  bullet-list item lines, one HTML entity line, sixteen punctuation
+  backslash-escape lines, and a dashed horizontal rule
+- `test/testsuite.native` Special Characters rendered native AST slice
+  inspected in this run: 86 lines, including one `BulletList`, 45 `Str`
+  markers, 22 `Para` markers, and one `HorizontalRule`
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -171,11 +178,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `$x$'s` parses as inline math followed by a right apostrophe text node, and
   the trailing possessive apostrophe in `systems' condition` normalizes to
   Pandoc's right single quotation mark.
+- Special Characters cases from `test/testsuite.txt`, cross-checked against
+  `test/testsuite.native`: Unicode list item text stays literal, `AT&amp;T`
+  decodes to `AT&T` in the inline text node, literal `&`, `<`, and `>` examples
+  stay text rather than HTML, Pandoc's punctuation backslash escapes collapse to
+  their literal characters, and the dashed divider remains a `HorizontalRule`.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-61 tests, 341 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 89 test files, 6,056 assertions, and
-0 failures after this LaTeX lane batch in the shared dirty worktree.
+63 tests, 358 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 93 test files, 6,257 assertions, and
+0 failures after this Special Characters lane batch in the shared dirty
+worktree.

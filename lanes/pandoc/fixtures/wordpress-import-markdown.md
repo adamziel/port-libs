@@ -8,6 +8,8 @@ Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.
 
 Migration editor said, "Don't flatten 'legacy' captions..." Keep dates 1987--1999 and one---two review notes.
 
+Entity import note: AT&amp;T sponsor text and 4 < 5 comparator stay visible for review.
+
 Migration math note: $x \in y$ and \cite[22-23]{smith.1899} stay visible for reviewer checks.
 
 Display math for import proof:

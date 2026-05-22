@@ -241,6 +241,81 @@ return [
         $t->contains('Cat    & 1      \\\\ \hline', $table->attr('tex'));
         $t->same('horizontal_rule', $document->children[2]->type);
     },
+    'maps upstream testsuite special characters unicode entities and escapes' => static function (TestRunner $t): void {
+        $markdown = implode("\n\n", [
+            '# Special Characters',
+            'Here is some unicode:',
+            implode("\n", [
+                '- I hat: Î',
+                '- o umlaut: ö',
+                '- section: § ',
+                '- set membership: ∈',
+                '- copyright: ©',
+            ]),
+            'AT&T has an ampersand in their name.',
+            'AT&amp;T is another way to write it.',
+            'This & that.',
+            '4 < 5.',
+            '6 > 5.',
+            'Backslash: \\\\',
+            'Backtick: \`',
+            'Asterisk: \*',
+            'Underscore: \_',
+            'Left brace: \{',
+            'Right brace: \}',
+            'Left bracket: \[',
+            'Right bracket: \]',
+            'Left paren: \(',
+            'Right paren: \)',
+            'Greater-than: \>',
+            'Hash: \#',
+            'Period: \.',
+            'Bang: \!',
+            'Plus: \+',
+            'Minus: \-',
+            '- - - - - - - - - - - - -',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $unicodeList = $document->children[2];
+        $escapeParagraphs = array_slice($document->children, 8, 16);
+        $escapeTexts = array_map(
+            static fn ($node): string => (string) $node->children[0]->attr('text'),
+            $escapeParagraphs
+        );
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Special Characters', $document->children[0]->attr('text'));
+        $t->same('bullet_list', $unicodeList->type);
+        $t->same('I hat: Î', $unicodeList->children[0]->children[0]->attr('text'));
+        $t->same('o umlaut: ö', $unicodeList->children[1]->children[0]->attr('text'));
+        $t->same('section: §', $unicodeList->children[2]->children[0]->attr('text'));
+        $t->same('set membership: ∈', $unicodeList->children[3]->children[0]->attr('text'));
+        $t->same('copyright: ©', $unicodeList->children[4]->children[0]->attr('text'));
+        $t->same('AT&T has an ampersand in their name.', $document->children[3]->children[0]->attr('text'));
+        $t->same('AT&T is another way to write it.', $document->children[4]->children[0]->attr('text'));
+        $t->same('This & that.', $document->children[5]->children[0]->attr('text'));
+        $t->same('4 < 5.', $document->children[6]->children[0]->attr('text'));
+        $t->same('6 > 5.', $document->children[7]->children[0]->attr('text'));
+        $t->same([
+            'Backslash: \\',
+            'Backtick: `',
+            'Asterisk: *',
+            'Underscore: _',
+            'Left brace: {',
+            'Right brace: }',
+            'Left bracket: [',
+            'Right bracket: ]',
+            'Left paren: (',
+            'Right paren: )',
+            'Greater-than: >',
+            'Hash: #',
+            'Period: .',
+            'Bang: !',
+            'Plus: +',
+            'Minus: -',
+        ], $escapeTexts);
+        $t->same('horizontal_rule', $document->children[24]->type);
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -819,6 +894,13 @@ return [
         $t->contains('<span class="math display">\[\alpha + \omega \times x^2\]</span>', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-tex">\begin{tabular}{|l|l|}\hline', $blocks);
         $t->contains('Field &amp; Value \\\\ \hline', $blocks);
+    },
+    'writes wordpress entity decoded text without double escaping import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Entity import note: AT&amp;T sponsor text and 4 &lt; 5 comparator stay visible for review.</p>', $blocks);
+        $t->same(false, str_contains($blocks, 'AT&amp;amp;T'));
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

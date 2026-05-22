@@ -67,6 +67,11 @@ citations render as escaped inline TeX spans, `$...$` and `$$...$$` math render
 as WordPress-safe math spans, currency-like dollar examples and escaped dollars
 stay plain text, and raw `tabular` blocks render as escaped TeX code blocks
 instead of shelling out to Pandoc.
+The bounded Special Characters section is now mapped for import-safe text
+round-tripping: Unicode text stays literal, `AT&amp;T` decodes once before the
+WordPress writer escapes output, literal comparison characters stay text, and
+Pandoc's punctuation backslash escapes collapse to visible characters without
+starting emphasis, links, headings, block quotes, or lists.
 
 ## Scenario Fixture
 
@@ -79,7 +84,8 @@ instead of shelling out to Pandoc.
   underscore-delimited reviewer emphasis, nested urgent cleanup emphasis,
   strikeout cleanup notes, superscript draft status, subscript chemical/media
   labels, smart import-editor quotes, apostrophes, ellipses, date-range en
-  dashes, em-dash review notes, raw TeX citations, inline/display math notes,
+  dashes, em-dash review notes, HTML entity text that must not double-escape,
+  literal comparison characters, raw TeX citations, inline/display math notes,
   a raw TeX table source block, and a fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
@@ -125,8 +131,11 @@ instead of shelling out to Pandoc.
   source render as escaped WordPress-safe markup, preserving technical import
   notes for later MathJax/KaTeX or citation-processing passes without shelling
   out to Pandoc.
+- HTML entity text and comparison characters render as normal escaped
+  WordPress paragraph text: `AT&amp;T` is decoded into the AST and emitted once
+  as `AT&amp;T`, while `<` is emitted as `&lt;` instead of being treated as raw
+  HTML.
 
 ## Next Task
 
-Map a bounded `test/testsuite.txt` Special Characters entity/unicode/escape
-slice.
+Map a bounded `test/testsuite.txt` Links explicit/reference/autolink slice.

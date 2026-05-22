@@ -2056,7 +2056,12 @@ final class MarkdownReader
             return;
         }
 
-        $nodes[] = new AstNode('text', ['text' => $buffer]);
+        $nodes[] = new AstNode('text', ['text' => $this->decodeHtmlEntities($buffer)]);
         $buffer = '';
+    }
+
+    private function decodeHtmlEntities(string $text): string
+    {
+        return html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
     }
 }
