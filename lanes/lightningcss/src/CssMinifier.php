@@ -58,7 +58,7 @@ final class CssMinifier
             $output .= $char;
         }
 
-        return $this->minifyDeclarationValues(str_replace(';}', '}', trim($output)));
+        return $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
     }
 
     private function stripComments(string $css): string
@@ -173,6 +173,85 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function minifyMediaQueries(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+        $parser = new MediaQueryParser();
+
+        while ($cursor < $length) {
+            $position = stripos($css, '@media', $cursor);
+            if ($position === false) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+            $before = $position === 0 ? '' : $css[$position - 1];
+            $after = $css[$position + 6] ?? '';
+            if (($before !== '' && preg_match('/[-_a-zA-Z0-9]/', $before) === 1)
+                || ($after !== '' && preg_match('/[-_a-zA-Z0-9]/', $after) === 1)
+            ) {
+                $output .= substr($css, $cursor, $position + 6 - $cursor);
+                $cursor = $position + 6;
+                continue;
+            }
+
+            $open = $this->findNextTopLevel($css, '{', $position + 6);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $prelude = trim(substr($css, $position + 6, $open - ($position + 6)));
+            $output .= substr($css, $cursor, $position - $cursor) . '@media';
+            if ($prelude !== '') {
+                $output .= ' ' . $parser->minifyList($prelude);
+            }
+            $output .= '{';
+            $cursor = $open + 1;
+        }
+
+        return $output;
+    }
+
+    private function findNextTopLevel(string $css, string $needle, int $start): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === $needle && $parenDepth === 0 && $bracketDepth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function currentPropertyCandidate(string $output): string
@@ -364,6 +443,7 @@ final class CssMinifier
             'aqua' => '#0ff',
             'black' => '#000',
             'blue' => '#00f',
+            'chartreuse' => '#7fff00',
             'cyan' => '#0ff',
             'fuchsia' => '#f0f',
             'magenta' => '#f0f',
