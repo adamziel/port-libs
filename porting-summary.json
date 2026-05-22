@@ -1,5 +1,5 @@
 {
-    "generated": "2026-05-22 14:01:45 UTC",
+    "generated": "2026-05-22 14:02:21 UTC",
     "averageProgressPercent": "11.8",
     "lanes": [
         {
@@ -96,7 +96,7 @@
             "audit": "audited 2026-05-22",
             "nextTarget": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing,...",
             "blocker": "Resolved the prior missing dependency blockers: node_modules/uvu is insta...",
-            "commit": "5947906"
+            "commit": "e0966ed"
         },
         {
             "library": "markerPDF",

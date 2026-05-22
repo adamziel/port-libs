@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: core upstream Rust and Node CI runners pass locally; WASM runners pass with documented local compatibility override; local PHP remains focused smoke/mapping coverage",
     "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct, margin/padding, background, and flex-flow shorthand access with !important priority handling, background color/image/repeat/position/size composition, prefixed and unprefixed flex-flow direction/wrap get/set/remove behavior, color keyword shortening, calc/min/max/clamp operator spacing, stylesheet rule parsing for selectors, at-rule statements/blocks, nested rules, selector specificity packing/comparison, media query range/feature/list normalization, a WordPress block-theme parser example, and verified upstream LightningCSS Rust/Node/WASM runner setup evidence.",
     "blocker": "Resolved the prior missing dependency blockers: node_modules/uvu is installed, napi-derive resolves online, native Node tests pass, Rust cargo test --all-features passes, TypeScript passes, and WASM Node/browser tests pass with a documented local upstream-cache compatibility override for getrandom/export-table.",
-    "latestCommit": "5947906",
+    "latestCommit": "e0966ed",
     "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, custom media, prefixing, or transformer semantics."
 }
