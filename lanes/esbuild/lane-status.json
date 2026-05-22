@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native JavaScript lexer for identifiers, esbuild-style numeric literals, strings, hashbangs, comments, and punctuators.",
     "blocker": "Full upstream runner not executed: no go or deno binary in this environment, and make test also requires hydrating checkout plus installing Node dependencies.",
-    "latestCommit": "pending this esbuild lane commit",
+    "latestCommit": "e8f8ce0b9272",
     "nextTask": "Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports."
 }
