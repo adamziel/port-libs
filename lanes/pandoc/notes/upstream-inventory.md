@@ -118,8 +118,8 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/html-reader.html` table section inspected in this run: 366 HTML lines
   from the upstream HTML reader fixture covering table head/body/foot sections,
   omitted section tags, row headers, colspan, rowspan, two tables with multiple
-  `<tbody>` sections, and empty tables. This run used it as bounded reader
-  context without claiming full HTML reader parity.
+  `<tbody>` sections, plain tables without headers, and empty tables. This run
+  used it as bounded reader context without claiming full HTML reader parity.
 - `test/html-reader.native` table section inspected in this run: 1,393 native
   AST lines covering 18 `Table` nodes from the upstream HTML reader fixture.
   The inspected HTML slice contains 19 `<table` starts, 47 `<th` cells, 10
@@ -129,8 +129,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   multiple-body case, and one native `RowHeadColumns 1` body shape. The bounded
   PHP mapping now includes the two native colspan/rowspan table shapes, the
   attribute-carrying table shape, the two multiple-body table shapes, the
-  paragraph-bearing cell from the second multiple-body case, plus the two empty
-  table inputs omitted from the upstream native output.
+  paragraph-bearing cell from the second multiple-body case, the four plain
+  `Tables without Headers` body-only/body-omitted/empty-head/body-plus-foot
+  shapes, plus the two empty table inputs omitted from the upstream native
+  output.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -276,14 +278,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   attributes, the two upstream multiple-`tbody` tables stay as distinct
   `table_body` AST nodes instead of being flattened, and the second
   multiple-body table's direct `<p>` cell becomes a paragraph block child
-  rather than inline text. The WordPress writer now emits body row-header cells
-  as `<th>` instead of flattening them to `<td>`, preserves table identity
-  attributes, carries practical cell attributes such as `abbr`, `valign`,
-  `data-*`, and non-alignment `style` values, emits one `<tbody>` per
-  `table_body` node, and preserves paragraph cells as `<td><p>...</p></td>`.
-  The upstream empty-table section is mapped too: the empty `<tbody>` table and
-  the fully empty `<table></table>` input are consumed and omitted, matching
-  `test/html-reader.native`.
+  rather than inline text. The plain `Tables without Headers` body-only,
+  tbody-omitted, empty-head, and explicit body-plus-foot shapes now parse as
+  native table AST nodes too when the cells are plain scalar text. The
+  WordPress writer now emits body row-header cells as `<th>` instead of
+  flattening them to `<td>`, preserves table identity attributes, carries
+  practical cell attributes such as `abbr`, `valign`, `data-*`, and
+  non-alignment `style` values, emits one `<tbody>` per `table_body` node,
+  preserves paragraph cells as `<td><p>...</p></td>`, and emits headerless
+  plain import grids as core table blocks. The upstream empty-table section is
+  mapped too: the empty `<tbody>` table and the fully empty `<table></table>`
+  input are consumed and omitted, matching `test/html-reader.native`.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
   single and double quotes become `quoted` AST nodes, apostrophes inside words

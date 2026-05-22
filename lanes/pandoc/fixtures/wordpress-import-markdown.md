@@ -83,6 +83,13 @@ Raw import table:
 </tr>
 </table>
 
+Plain HTML reader import table:
+
+<table>
+<tr><td>Draft posts</td><td>12</td><td>Needs review</td></tr>
+<tr><td>Media files</td><td>7</td><td>Ready</td></tr>
+</table>
+
 Empty import audit table:
 
 <table>

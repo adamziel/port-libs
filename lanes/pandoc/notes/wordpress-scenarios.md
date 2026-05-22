@@ -88,6 +88,11 @@ The second upstream multiple-`tbody` case also keeps block-level paragraph
 content inside a table cell: a direct `<p>` cell becomes a paragraph block
 child, so WordPress emits `<td><p>...</p></td>` instead of flattening the cell
 to inline text.
+The plain `Tables without Headers` cases from `test/html-reader.html` are now
+bounded too: td-only body tables, omitted-`tbody` tables, empty-head tables, and
+explicit body-plus-foot tables become native headerless table blocks when cell
+content is plain scalar text, while Markdown-looking legacy review tables stay
+on the raw HTML path for reviewer inspection.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -197,6 +202,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   multiple-`tbody` reader cases, exercising separate body groups for published
   and media-review batches plus paragraph-bearing table cells in WordPress
   table block output.
+- The fixture now includes a plain td-only HTML reader import table, exercising
+  the upstream headerless table body path without changing Markdown-looking raw
+  review tables.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -259,6 +267,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
   paragraphs inside their table cells without invoking Pandoc.
+- Plain headerless HTML reader tables render as core WordPress table blocks
+  when the cells contain scalar review data rather than Markdown audit markup.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.

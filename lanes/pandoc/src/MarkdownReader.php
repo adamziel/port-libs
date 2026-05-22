@@ -1046,7 +1046,9 @@ final class MarkdownReader
             }
         }
 
-        return $this->htmlTableHasHeaderCells($table) || $this->htmlTableHasSpans($table);
+        return $this->htmlTableHasHeaderCells($table)
+            || $this->htmlTableHasSpans($table)
+            || $this->htmlTableHasPlainBodyRows($table);
     }
 
     private function htmlTableHasHeaderCells(\DOMElement $table): bool
@@ -1078,6 +1080,60 @@ final class MarkdownReader
         }
 
         return false;
+    }
+
+    private function htmlTableHasPlainBodyRows(\DOMElement $table): bool
+    {
+        $sections = $this->childElements($table, 'tbody');
+        if ($sections === []) {
+            $sections = [$table];
+        }
+
+        $rowCount = 0;
+        foreach ($sections as $section) {
+            foreach ($this->childElements($section, 'tr') as $row) {
+                $cellCount = 0;
+                foreach ($row->childNodes as $child) {
+                    if (!$child instanceof \DOMElement) {
+                        continue;
+                    }
+
+                    if (strtolower($child->localName) !== 'td' || !$this->htmlTableCellIsPlainScalar($child)) {
+                        return false;
+                    }
+
+                    $cellCount++;
+                }
+
+                if ($cellCount > 0) {
+                    $rowCount++;
+                }
+            }
+        }
+
+        return $rowCount > 0;
+    }
+
+    private function htmlTableCellIsPlainScalar(\DOMElement $cell): bool
+    {
+        foreach ($cell->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                continue;
+            }
+
+            if ($child instanceof \DOMComment) {
+                continue;
+            }
+
+            return false;
+        }
+
+        $text = trim(preg_replace('/\s+/', ' ', $cell->textContent) ?? $cell->textContent);
+        if ($text === '') {
+            return false;
+        }
+
+        return preg_match('/[*_`~\[\]\\\\$]/', $text) !== 1;
     }
 
     private function parseHtmlTableElement(\DOMElement $table): AstNode

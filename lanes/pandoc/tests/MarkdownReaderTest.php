@@ -1390,6 +1390,95 @@ HTML;
         $t->same('6', $secondBody->children[0]->children[2]->attr('text'));
         $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td><p>2</p></td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody>', $blocks);
     },
+    'maps upstream html reader tables without headers body and foot variants' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+
+        $explicitBody = $reader->read(<<<'HTML'
+<table>
+    <tbody>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML)->children[0];
+        $omittedBody = $reader->read(<<<'HTML'
+<table>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+</table>
+HTML)->children[0];
+        $emptyHead = $reader->read(<<<'HTML'
+<table>
+    <thead>
+    </thead>
+    <tbody>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML)->children[0];
+        $bodyAndFootDocument = $reader->read(<<<'HTML'
+<table>
+    <tbody>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    </tbody>
+    <tfoot>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tfoot>
+</table>
+HTML);
+        $bodyAndFoot = $bodyAndFootDocument->children[0];
+        $bodyAndFootBlocks = (new WordPressBlockWriter())->write($bodyAndFootDocument);
+
+        foreach ([$explicitBody, $omittedBody, $emptyHead, $bodyAndFoot] as $table) {
+            $t->same('table', $table->type);
+            $t->same([], $table->children[0]->children);
+            $t->same('table_body', $table->children[1]->type);
+            $t->same(3, count($table->attr('alignments')));
+            $t->same('1', $table->children[1]->children[0]->children[0]->attr('text'));
+            $t->same('3', $table->children[1]->children[0]->children[2]->attr('text'));
+        }
+
+        $t->same(2, count($explicitBody->children[1]->children));
+        $t->same(2, count($omittedBody->children[1]->children));
+        $t->same(2, count($emptyHead->children[1]->children));
+        $t->same('table_foot', $bodyAndFoot->children[2]->type);
+        $t->same('4', $bodyAndFoot->children[2]->children[0]->children[0]->attr('text'));
+        $t->same('6', $bodyAndFoot->children[2]->children[0]->children[2]->attr('text'));
+        $t->contains('<tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot>', $bodyAndFootBlocks);
+    },
     'maps upstream html reader colspans without table headers' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -2250,6 +2339,27 @@ XML;
         $t->true(!str_contains($blocks, '<table>' . "\n" . '</table>'), 'Empty fixture tables should be omitted');
         $t->contains('<!-- Preserve migration audit marker -->', $blocks);
         $t->contains('<hr class="legacy-import-divider" />', $blocks);
+    },
+    'writes wordpress headerless html reader table blocks for plain import grids' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $plainTable = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'table'
+                && ($node->children[0] ?? null)?->type === 'table_head'
+                && ($node->children[0] ?? null)?->children === []
+                && ($node->children[1] ?? null)?->children[0]?->children[0]?->attr('text') === 'Draft posts'
+            ) {
+                $plainTable = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($plainTable !== null, 'Plain td-only HTML import grid should use the native table path');
+        $t->contains('<p>Plain HTML reader import table:</p>', $blocks);
+        $t->contains('<tbody><tr><td>Draft posts</td><td>12</td><td>Needs review</td></tr><tr><td>Media files</td><td>7</td><td>Ready</td></tr></tbody>', $blocks);
     },
     'writes wordpress pipe table blocks for import metrics' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
