@@ -610,6 +610,43 @@ return [
             $result->indexEntries(),
         ));
     },
+    'maps upstream gix-merge tree-baseline rename-add-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
+        $base = new Tree([$blobEntry('foo', "original\n1\n2\n3\n4\n5\n")]);
+        $ours = new Tree([
+            $blobEntry('foo', "1\n2\n3\n4\n5\n"),
+            $linkEntry('bar', 'foo'),
+        ]);
+        $theirs = new Tree([$blobEntry('bar', "original\n1\n2\n3\n4\n5\n6\n")]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+
+        $t->same(false, $result->isClean());
+        $t->same(['foo'], $names($result->tree));
+        $t->same([
+            ['path' => 'foo', 'reason' => 'rename-modify'],
+            ['path' => 'bar', 'reason' => 'rename-target-add'],
+        ], array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'bar', 'kind' => 'link'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'bar', 'kind' => 'blob'],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'foo', 'kind' => 'blob'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'foo', 'kind' => 'blob'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'foo', 'kind' => 'blob'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind(),
+            ],
+            $result->indexEntries(),
+        ));
+    },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
