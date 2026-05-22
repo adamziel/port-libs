@@ -1202,6 +1202,152 @@ final class TokenDiffer
         $this->diffJavaScriptBlockWrappers($oldNodes, $newNodes, $basePath, $changes);
         $this->diffJavaScriptCalls($oldNodes, $newNodes, $options, $changes, $basePath);
         $this->diffJavaScriptArrays($oldNodes, $newNodes, $options, $changes, $basePath);
+        if ($this->isTypeScriptLanguage($options)) {
+            $this->diffTypeScriptDeclarations($oldNodes, $newNodes, $options, $changes);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffTypeScriptDeclarations(array $oldNodes, array $newNodes, array $options, array &$changes): void
+    {
+        $oldDeclarations = $this->typeScriptObjectDeclarations($oldNodes);
+        $newDeclarations = $this->typeScriptObjectDeclarations($newNodes);
+        $matchedNewKeys = [];
+
+        foreach ($oldDeclarations as $key => $oldDeclaration) {
+            $path = $this->typeScriptDeclarationPath($oldDeclaration);
+            if (!isset($newDeclarations[$key])) {
+                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldDeclaration['text']];
+                continue;
+            }
+
+            $matchedNewKeys[$key] = true;
+            $newDeclaration = $newDeclarations[$key];
+            if ($this->nodeText($oldDeclaration['list']) !== $this->nodeText($newDeclaration['list'])) {
+                $this->diffListNode($oldDeclaration['list'], $newDeclaration['list'], $path, $options, $changes);
+            }
+        }
+
+        foreach ($newDeclarations as $key => $newDeclaration) {
+            if (($matchedNewKeys[$key] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = ['op' => '+', 'path' => $this->typeScriptDeclarationPath($newDeclaration), 'text' => $newDeclaration['text']];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return array<string, array{kind:string, name:string, list:array<string, mixed>, text:string}>
+     */
+    private function typeScriptObjectDeclarations(array $nodes): array
+    {
+        $declarations = [];
+        foreach ($nodes as $index => $node) {
+            if (($node['type'] ?? '') !== 'list' || ($node['open'] ?? '') !== '{') {
+                continue;
+            }
+
+            $context = $this->typeScriptDeclarationContext($nodes, $index);
+            if ($context === null) {
+                continue;
+            }
+
+            $key = $context['kind'] . ':' . $context['name'];
+            $declarations[$key] = [
+                'kind' => $context['kind'],
+                'name' => $context['name'],
+                'list' => $node,
+                'text' => $context['prefix'] . $this->nodeText($node),
+            ];
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return ?array{kind:string, name:string, prefix:string}
+     */
+    private function typeScriptDeclarationContext(array $nodes, int $listIndex): ?array
+    {
+        $atoms = [];
+        for ($index = 0; $index < $listIndex; $index++) {
+            $node = $nodes[$index];
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                $atoms = [];
+                continue;
+            }
+
+            $token = $node['token'];
+            if ($token->kind === 'comment') {
+                continue;
+            }
+            if ($token->text === ';') {
+                $atoms = [];
+                continue;
+            }
+
+            $atoms[] = $token->text;
+        }
+
+        $interfaceIndex = array_search('interface', $atoms, true);
+        if ($interfaceIndex !== false) {
+            $name = $this->nextIdentifier($atoms, $interfaceIndex + 1);
+            if ($name !== null) {
+                return [
+                    'kind' => 'interface',
+                    'name' => $name,
+                    'prefix' => 'interface' . $name,
+                ];
+            }
+        }
+
+        $equalsIndex = array_search('=', $atoms, true);
+        $typeIndex = array_search('type', $atoms, true);
+        if ($equalsIndex === false || $typeIndex === false || $typeIndex > $equalsIndex) {
+            return null;
+        }
+
+        $name = $this->nextIdentifier(array_slice($atoms, 0, $equalsIndex), $typeIndex + 1);
+        if ($name === null) {
+            return null;
+        }
+
+        return [
+            'kind' => 'type',
+            'name' => $name,
+            'prefix' => 'type' . $name . '=',
+        ];
+    }
+
+    /**
+     * @param list<string> $atoms
+     */
+    private function nextIdentifier(array $atoms, int $start): ?string
+    {
+        for ($index = $start; $index < count($atoms); $index++) {
+            $atom = $atoms[$index];
+            if (preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $atom) === 1) {
+                return $atom;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{kind:string, name:string, list:array<string, mixed>, text:string} $declaration
+     */
+    private function typeScriptDeclarationPath(array $declaration): string
+    {
+        return '$ts.' . $declaration['kind'] . '[' . json_encode($declaration['name'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
     }
 
     /**
@@ -2330,6 +2476,11 @@ final class TokenDiffer
                 $items[] = $current;
                 $current = [];
             }
+
+            if ($this->isTypeScriptMemberSeparator($list, $child, $options)) {
+                $items[] = $current;
+                $current = [];
+            }
         }
         if ($current !== []) {
             $items[] = $current;
@@ -2458,6 +2609,20 @@ final class TokenDiffer
     }
 
     /**
+     * @param array<string, mixed> $list
+     * @param array<string, mixed> $child
+     * @param array{language?: string} $options
+     */
+    private function isTypeScriptMemberSeparator(array $list, array $child, array $options): bool
+    {
+        return $this->isTypeScriptLanguage($options)
+            && ($list['open'] ?? '') === '{'
+            && ($child['type'] ?? '') === 'atom'
+            && $child['token'] instanceof Token
+            && $child['token']->text === ';';
+    }
+
+    /**
      * @param array<string, mixed> $node
      */
     private function firstAtomText(array $node): string
@@ -2499,6 +2664,14 @@ final class TokenDiffer
     private function isJavaScriptLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isTypeScriptLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['typescript', 'ts', 'tsx'], true);
     }
 
     /**

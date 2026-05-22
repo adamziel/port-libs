@@ -68,6 +68,8 @@ Standalone JavaScript mode now maps the upstream `sample_files/javascript_simple
 
 Standalone JavaScript mode now also maps the larger upstream `sample_files/javascript_*.js` repeated callback shape. Named callback calls such as Jest `describe(...)` / `test(...)` and WordPress `wp.hooks.addAction(...)` / `addFilter(...)` use their first string label plus enclosing named callback labels when matching repeated calls. The WordPress hook-registration fixture applies this to a block plugin `view.js` change where a new analytics action is inserted before the retained `acme.card.init` callback; the diff reports the new hook and the added `bindCard()` call without pairing the retained init hook with the analytics hook by callee name alone.
 
+TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
+
 Run:
 
 ```sh
@@ -80,6 +82,7 @@ php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
 php lanes/difftastic/examples/wordpress-multi-asset-html-diff.php
 php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
+php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-scss-diff.php
 php lanes/difftastic/examples/wordpress-nested-at-rule-css-diff.php
@@ -98,4 +101,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map TypeScript/JSX sample pairs with import/export-heavy syntax, or broaden indexed HTML raw-text pairing to deletion-heavy/reordered script blocks with non-call statements.
+Map upstream JSX/TSX sample pairs or broaden TypeScript module import/export declaration alignment.

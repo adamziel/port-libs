@@ -233,6 +233,18 @@ return [
         $t->true(!str_contains($encoded, '+ $js.call["test"] test("/new GET",done=>{request(app).get("/new").auth("admin",ADMIN_PASSWORD)'), 'Stable Editing /new GET test should remain matched under its describe label.');
         $t->true(!str_contains($encoded, '+ $js.call["test"] test("/new POST",done=>{request(app).post("/new").type("form").send({name:"FooBar",content:"hello world"}).auth("admin",ADMIN_PASSWORD)'), 'Stable Editing /new POST test should remain matched under its describe label.');
     },
+    'maps upstream typescript sample as a type member insertion' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-typescript-1.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-typescript-2.ts');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'typescript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $ts.type["Symbol"][1] name:string;', $encoded);
+        $t->true(!str_contains($encoded, '- $ts.type["Symbol"][1] items:string[];'), 'Inserted TypeScript members should not delete retained following members.');
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -700,6 +712,21 @@ return [
         $t->contains('bindCard', $html);
         $t->true(!str_contains($html, '<del>&#039;acme.card.init&#039;</del><ins>&#039;acme.card.analytics&#039;</ins>'), 'A newly inserted hook callback should not be paired with the retained init hook by callee name alone.');
         $t->true(!str_contains($html, 'data-op="-" data-path="$js.call[&quot;wp.hooks.addFilter&quot;]"'), 'The stable addFilter registration should remain matched.');
+    },
+    'wordpress block editor typescript props diff keeps retained props aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-props-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-props-after.ts');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'typescript',
+            'title' => 'Block editor TypeScript props diff',
+        ]);
+
+        $t->contains('Block editor TypeScript props diff', $html);
+        $t->contains('data-path="$ts.interface[&quot;BlockEditProps&quot;][1]"', $html);
+        $t->contains('context:&quot;edit&quot;;', $html);
+        $t->contains('data-path="$ts.interface[&quot;BlockEditProps&quot;][1]/{0}[1]"', $html);
+        $t->contains('mediaId:number;', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.interface[&quot;BlockEditProps&quot;][1]/{0}[1]">ctaText'), 'Retained nested ctaText prop should stay aligned after the mediaId insertion.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');
