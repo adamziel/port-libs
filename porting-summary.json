@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 14:02:21 UTC",
-    "averageProgressPercent": "11.8",
+    "generated": "2026-05-22 14:09:36 UTC",
+    "averageProgressPercent": "11.9",
     "lanes": [
         {
             "library": "difftastic",
@@ -164,18 +164,18 @@
         },
         {
             "library": "Readability/content rewrite engine",
-            "progressPercent": "9.0",
-            "suite": "cloned-static-inventory-plus-three-fixtures-and-lazy-im...",
-            "benchmark": "cloned-static-inventory-plus-three-fixtures-and-lazy-im...",
+            "progressPercent": "10.0",
+            "suite": "cloned-static-inventory-plus-runner-evidence-and-three-...",
+            "benchmark": "cloned-static-inventory-plus-runner-evidence-and-three-...",
             "denominator": "1984",
             "mapped": "47",
             "coverage": "47 / 1984",
             "php": "12 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static inventory plus Mozilla fixture/media mapp...",
+            "phase": "cloned static inventory plus upstream npm runner eviden...",
             "audit": "audited 2026-05-22",
             "nextTarget": "Map another Mozilla media fixture such as embedded-videos/videos-2 or copy a full lazy-im...",
-            "blocker": "upstream runner not executed",
+            "blocker": "Resolved the previous missing dependency blocker: upstream package-lock/s...",
             "commit": "39bcdee"
         },
         {

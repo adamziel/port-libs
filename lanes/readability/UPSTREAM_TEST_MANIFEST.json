@@ -10,10 +10,10 @@
         "architecture": "JavaScript DOM scoring/extraction engine, readerable preflight, JSDOM parser shim, metadata extraction, content cleanup, and fixture-driven expected HTML/metadata parity."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory-plus-three-fixtures-and-lazy-image-semantics",
+        "status": "cloned-static-inventory-plus-runner-evidence-and-three-fixtures-lazy-image-semantics",
         "total": 1984,
         "mapped": 47,
-        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories. The Mozilla normalize-spaces, parsely-metadata, and mozilla-2 source.html, expected.html, and expected-metadata.json fixtures are copied into the lane and mapped by native PHP tests. Focused lazy-image media cleanup semantics are mapped from Mozilla lazy-image fixture shapes without copying the full large pages.",
+        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories. The sparse checkout now also includes the upstream source files and package-lock.json needed by the canonical runner. `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies and `npm test` passed all 1984 upstream Mocha tests locally. The Mozilla normalize-spaces, parsely-metadata, and mozilla-2 source.html, expected.html, and expected-metadata.json fixtures are copied into the lane and mapped by native PHP tests. Focused lazy-image media cleanup semantics are mapped from Mozilla lazy-image fixture shapes without copying the full large pages.",
         "runner": "npm test",
         "inventory": {
             "mochaTests": 1984,
@@ -36,14 +36,30 @@
             }
         },
         "runnerStatus": {
-            "executed": false,
-            "reason": "The full upstream runner could not execute in the sparse cache because dependencies were not installed. Probe command `npm test` reached the package script `mocha test/test-*.js` and failed before running tests with `sh: line 1: mocha: command not found`. Installing upstream npm dependencies was deferred to keep this lane slice modest.",
-            "probes": [
+            "executed": true,
+            "summary": "The old missing node_modules/mocha blocker is resolved. The sparse checkout was expanded to include index.js, Readability.js, Readability-readerable.js, JSDOMParser.js, package-lock.json, and LICENSE.md; upstream npm dependencies were installed from the lockfile; and the canonical upstream Mocha runner passes locally.",
+            "environment": {
+                "node": "22.20.0",
+                "npm": "10.9.3"
+            },
+            "commands": [
+                {
+                    "command": "git sparse-checkout add index.js Readability.js Readability-readerable.js JSDOMParser.js package-lock.json LICENSE.md",
+                    "result": "passed; hydrated the upstream implementation files and lockfile required by the test harness"
+                },
+                {
+                    "command": "npm ci --no-audit --fund=false",
+                    "result": "passed; installed 513 packages from package-lock.json, including Mocha and jsdom"
+                },
                 {
                     "command": "npm test",
-                    "result": "failed before upstream tests: sh: line 1: mocha: command not found"
+                    "result": "passed: 1984 Mocha tests, 0 failures"
                 }
-            ]
+            ],
+            "previousProbe": {
+                "command": "npm test",
+                "result": "previously failed before upstream tests with `sh: line 1: mocha: command not found` because dependencies were absent"
+            }
         },
         "mappedSemantics": [
             "Readability-readerable default minContentLength 140 and minScore 20 scoring thresholds.",
@@ -59,7 +75,7 @@
             "Mozilla lazy-image fixture semantics: single-image noscript fallbacks replace placeholder images while preserving the placeholder URL in data-old-src.",
             "Mozilla lazy media cleanup semantics: lazy data-srcset values are promoted to srcset so responsive images survive JavaScript-free extraction."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory and maps three Mozilla page fixtures plus focused lazy-image semantics locally, but it is still not upstream runner parity. Native PHP progress maps 12 local behavior tests and 47 local checks against a 1984-test upstream Mocha denominator."
+        "warning": "The canonical upstream Mozilla Readability npm runner now passes locally against the upstream JavaScript implementation at this checkout. Native PHP progress still maps 12 local behavior tests and 47 local checks against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet."
     },
     "nativeImplementation": {
         "language": "PHP",

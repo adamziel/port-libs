@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "Readability/content rewrite engine",
-    "estimatedProgress": 9,
-    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; normalize-spaces, parsely-metadata, mozilla-2, and lazy-image media cleanup semantics mapped; upstream runner probe failed before tests",
+    "estimatedProgress": 10,
+    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; upstream `npm test` now passes 1984/1984 after lockfile install; normalize-spaces, parsely-metadata, mozilla-2, and lazy-image media cleanup semantics mapped",
     "phpPass": 12,
     "phpFail": 0,
     "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, preserved lazy-loaded images, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, and OpenGraph site/lang/dir metadata.",
-    "phase": "cloned static inventory plus Mozilla fixture/media mappings",
-    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and lazy-loaded media, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, and mozilla-2 fixtures plus lazy-image media cleanup semantics, and emits simple WordPress blocks.",
-    "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed. Three Mozilla page fixtures and focused lazy-image semantics are mapped locally; broader video handling, cleanup, and exact expected-HTML parity remain incomplete.",
+    "phase": "cloned static inventory plus upstream npm runner evidence and Mozilla fixture/media mappings",
+    "audit": "audited 2026-05-22: upstream npm test passes locally; native PHP smoke coverage still maps 12 tests / 47 checks, not full upstream fixture parity",
+    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and lazy-loaded media, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, and mozilla-2 fixtures plus lazy-image media cleanup semantics, emits simple WordPress blocks, and now has upstream `npm test` runner evidence from the hydrated sparse cache.",
+    "blocker": "Resolved the previous missing dependency blocker: upstream package-lock/source files were hydrated into the sparse cache, `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies, and `npm test` passes 1984/1984. Remaining gaps are native PHP fixture parity: broader video handling, cleanup, and exact expected-HTML parity remain incomplete.",
     "latestCommit": "39bcdee",
     "nextTask": "Map another Mozilla media fixture such as embedded-videos/videos-2 or copy a full lazy-image fixture locally for closer expected-HTML parity."
 }

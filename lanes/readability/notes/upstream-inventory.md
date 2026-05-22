@@ -18,15 +18,32 @@ License: Apache-2.0
 
 The `test-readability.js` count includes both jsdom and upstream `JSDOMParser` runs for every fixture. Per DOM parser pass, each fixture has six required assertions plus conditional `dir`, `lang`, and `publishedTime` checks. The metadata inventory contains 17 `dir`, 73 `lang`, and 33 `publishedTime` conditional checks.
 
-## Runner Probe
+## Runner Evidence
 
-`npm test` was attempted in the sparse upstream cache. It reached the package script but failed before executing upstream tests:
+The previous sparse-cache probe reached the package script but failed before executing upstream tests because `node_modules` was absent:
 
 ```text
 sh: line 1: mocha: command not found
 ```
 
-The exact blocker is missing upstream npm dependencies in `.upstream-cache/readability/node_modules`. Installing dependencies was deferred for this lane slice to keep network and CPU use modest.
+That blocker is now resolved. The sparse checkout was expanded with the upstream implementation files and lockfile required by the test harness:
+
+```text
+git sparse-checkout add index.js Readability.js Readability-readerable.js JSDOMParser.js package-lock.json LICENSE.md
+```
+
+Dependencies were installed from the lockfile:
+
+```text
+npm ci --no-audit --fund=false
+```
+
+The canonical upstream runner now passes locally:
+
+```text
+npm test
+1984 passing (30s)
+```
 
 ## PHP Mapping
 
@@ -40,6 +57,9 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Semantic article/main/section scoring preference.
 - WordPress block serialization for extracted heading/paragraph content.
 - Mozilla `test-pages/normalize-spaces` source/expected/metadata fixture copied into the lane and mapped for document-title precedence, readerable classification, null byline/site/published/dir metadata, whitespace-normalized excerpt, and extracted article text parity against `expected.html`.
+- Mozilla `test-pages/parsely-metadata` copied into the lane and mapped for Parse.ly title, author, publication date, readerable classification, excerpt normalization, and text parity.
+- Mozilla `test-pages/mozilla-2` copied into the lane and mapped for OpenGraph site name/description metadata, lang/dir extraction, false readerable classification, and preserved in-main header markers.
+- Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
 
 ## Next Slice
 
