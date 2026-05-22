@@ -124,6 +124,27 @@ final class TableDeltaMatcher
     }
 
     /**
+     * @param list<array{pattern:string, ignore:bool}> $ignorePatterns
+     */
+    public function ignoreResultForTable(
+        string $tableName,
+        array $ignorePatterns,
+        bool $conflictingPatternsAreVisible = false,
+    ): string {
+        $ignorePatterns = $this->normalizeIgnorePatterns($ignorePatterns);
+
+        try {
+            return $this->ignoreResult($tableName, $ignorePatterns);
+        } catch (\RuntimeException $e) {
+            if ($conflictingPatternsAreVisible && str_contains($e->getMessage(), 'matches conflicting patterns in dolt_ignore')) {
+                return 'dont_ignore';
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
      * @param list<array{name:string, schema:TableSchema, rowHash?:string|null, rowCount?:int}> $tables
      * @return array<string, array{name:non-empty-string, schema:TableSchema, rowHash:string|null, rowCount:int|null}>
      */
