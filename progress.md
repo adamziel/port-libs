@@ -34,11 +34,11 @@
 | 4 | libsqlite | `port-libsqlite` | seed implementation | 4% | Parse first b-tree page headers and map SQLite file-format tests. |
 | 5 | readability | `port-readability` | seed implementation | 3% | Compare against Mozilla Readability fixture corpus and improve scoring. |
 | 6 | pandoc | `port-pandoc` | seed implementation | 3% | Add inline marks/list handling and map Pandoc native AST tests. |
-| 7 | quadrable | `port-quadrable` | seed implementation | 2% | Inventory upstream tests and port the core coordinate/data model next. |
+| 7 | quadrable | `port-quadrable` | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
 | 8 | syncthing | `port-syncthing` | seed implementation | 2% | Map protocol tests and add block hash/vector tests. |
 | 9 | difftastic | `port-difftastic` | seed implementation | 2% | Map parser fixtures and replace line-only diff with syntax token anchors. |
 | 10 | rclone | `port-rclone` | seed implementation | 2% | Map filter/checksum tests and add filesystem provider contract tests. |
-| 11 | dolt | `port-dolt` | seed implementation | 2% | Map table-diff tests and add row schema/key encoding. |
+| 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
 | 12 | esbuild | `port-esbuild` | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
 
 ## Completed Milestones
@@ -47,15 +47,18 @@
 - Added a zero-dependency PHP test runner so native slices can be verified without waiting on PHPUnit.
 - Added generated `porting.html` dashboard support backed by lane manifests/status files.
 - Added seed native PHP slices and WordPress scenarios for all 12 lanes.
-- Verified the seed suite: `php tools/run-tests.php` passes 12 test files, 58 assertions, 0 failures.
+- Verified the seed suite: `php tools/run-tests.php` passes 13 test files, 75 assertions, 0 failures.
 - Added `scripts/start-tmux-team.sh`, `scripts/check-tmux-team.sh`, and durable worker/auditor prompts under `.tmux-team/`.
+- Replaced Quadrable's seed denominator with a static upstream `check.cpp` inventory: 34 top-level scenarios, 29 `equivHeads` subcases, 136 `verify` checks, and 20 `verifyThrow` checks.
 
 ## Open Blockers
 
 - Upstream benchmark denominators are currently static seed inventories until upstream repos are cloned or queried and their test suites counted.
+- Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
 - Independent audit on 2026-05-22 found zero lanes with committed real upstream denominators; current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped to avoid saturating the 6-core VM.
+- Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
 
 ## Current Owner / Session
 

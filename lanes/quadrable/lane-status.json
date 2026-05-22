@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "quadrable",
-    "estimatedProgress": 2,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 3,
+    "estimatedProgress": 4,
+    "suiteProgress": "static upstream check.cpp inventory counted; 8 PHP tests mapped to hashing/key behavior",
+    "phpPass": 8,
     "phpFail": 0,
     "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases.",
-    "phase": "seed implementation",
-    "audit": "needs independent auditor review",
-    "currentWork": "Native hash primitives for empty branches, leaf domain separation, and path-bit addressing.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "phase": "upstream inventory plus key primitive slice",
+    "audit": "needs auditor review against check.cpp denominator",
+    "currentWork": "Native hash/key primitives for empty branches, leaf domain separation, path-bit addressing, integer key encoding, and prefix retention.",
+    "blocker": "C++ runner not executed yet; upstream build requires LMDB, BLAKE2, and initialized submodules. Most tree/proof/sync scenarios remain unported.",
     "latestCommit": "079f990fce6d",
-    "nextTask": "Port core coordinate/data model and inventory check.cpp assertions."
+    "nextTask": "Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios."
 }

@@ -107,14 +107,16 @@ $lanes = [
         'upstream' => 'hoytech/quadrable',
         'url' => 'https://github.com/hoytech/quadrable',
         'commit' => '4f44437dc9b951a91986ad69e2856938387be614',
-        'license' => 'BSD-2-Clause style license in upstream LICENSE; verify SPDX mapping',
-        'architecture' => 'Header-only C++ sparse binary Merkle tree, proofs, sync, and copy-on-write store.',
-        'testSuite' => 'make test / check.cpp plus docs examples; denominator pending upstream inventory.',
-        'nativeTests' => 3,
-        'progress' => 2,
-        'phase' => 'seed implementation',
-        'currentWork' => 'Native hash primitives for empty branches, leaf domain separation, and path-bit addressing.',
-        'nextTask' => 'Port core coordinate/data model and inventory check.cpp assertions.',
+        'license' => 'BSD-2-Clause',
+        'architecture' => 'Header-only C++ sparse binary Merkle tree, compact proofs, sync, copy-on-write LMDB-backed store, MemStore, and quadb CLI.',
+        'testSuite' => 'Static inventory of upstream check.cpp and Makefile: 34 top-level scenarios, 29 equivHeads subcases, 136 verify checks, 20 verifyThrow checks.',
+        'nativeTests' => 8,
+        'progress' => 4,
+        'phase' => 'upstream inventory plus key primitive slice',
+        'suiteProgress' => 'static upstream check.cpp inventory counted; 8 PHP tests mapped to hashing/key behavior',
+        'currentWork' => 'Native hash/key primitives for empty branches, leaf domain separation, path-bit addressing, integer key encoding, and prefix retention.',
+        'blocker' => 'C++ runner not executed yet; upstream build requires LMDB, BLAKE2, and initialized submodules. Most tree/proof/sync scenarios remain unported.',
+        'nextTask' => 'Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios.',
         'wp' => 'Authenticated local-first state sync for Playground snapshots and content databases.',
     ],
     'syncthing' => [
@@ -176,9 +178,11 @@ $lanes = [
         'testSuite' => 'Go tests/BATS integration tests; denominator pending upstream inventory.',
         'nativeTests' => 1,
         'progress' => 2,
-        'phase' => 'seed implementation',
-        'currentWork' => 'Native table diff classification by primary key.',
-        'nextTask' => 'Map table-diff tests and add row schema/key encoding.',
+        'phase' => 'deferred',
+        'audit' => 'deferred by user direction until non-dolt lanes reach baseline',
+        'currentWork' => 'Sidetracked by user direction; no active worker should be assigned until the other lanes reach the required baseline.',
+        'blocker' => 'User deferred Dolt until the rest of the portfolio has stronger baselines.',
+        'nextTask' => 'Do not schedule Dolt work until the other lanes have real upstream denominators, native slices, passing tests, WordPress scenarios, and dashboard status.',
         'wp' => 'Versioned content/data migrations and inspectable database change sets.',
     ],
     'esbuild' => [
@@ -217,8 +221,10 @@ foreach ($lanes as $slug => $lane) {
             'architecture' => $lane['architecture'],
         ],
         'benchmarkDenominator' => [
-            'status' => 'static-seed',
-            'total' => 'pending full upstream inventory',
+            'status' => isset($lane['suiteProgress']) ? 'static-upstream-inventory' : 'static-seed',
+            'total' => isset($lane['suiteProgress']) && $slug === 'quadrable'
+                ? '34 top-level check.cpp scenarios; 29 equivHeads subcases; 136 verify checks; 20 verifyThrow checks'
+                : 'pending full upstream inventory',
             'mapped' => $lane['nativeTests'],
             'source' => $lane['testSuite'],
             'warning' => 'This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress.',
@@ -231,19 +237,31 @@ foreach ($lanes as $slug => $lane) {
         'wordpressScenario' => $lane['wp'],
         'nextTask' => $lane['nextTask'],
     ];
+    if ($slug === 'quadrable') {
+        $manifest['benchmarkDenominator']['runner'] = 'make test';
+        $manifest['benchmarkDenominator']['runnerStatus'] = 'not executed in this lane slice; upstream runner requires LMDB, BLAKE2, and initialized submodules';
+        $manifest['benchmarkDenominator']['inventoryPath'] = 'lanes/quadrable/notes/upstream-inventory.md';
+        $manifest['benchmarkDenominator']['warning'] = 'The denominator is counted from upstream sources, but parity is still partial. Native PHP tests only map a small subset of hashing/key behavior.';
+    }
+    if (!empty($lane['phase']) && $lane['phase'] === 'deferred') {
+        $manifest['deferred'] = [
+            'status' => true,
+            'reason' => 'User requested this lane be sidetracked until the rest of the portfolio is established.',
+        ];
+    }
 
     $status = [
         'schemaVersion' => 1,
         'library' => $lane['library'],
         'estimatedProgress' => $lane['progress'],
-        'suiteProgress' => 'static manifest seed; upstream suite not yet executed',
+        'suiteProgress' => $lane['suiteProgress'] ?? 'static manifest seed; upstream suite not yet executed',
         'phpPass' => $lane['nativeTests'],
         'phpFail' => 0,
         'wordpressScenarios' => $lane['wp'],
         'phase' => $lane['phase'],
-        'audit' => 'needs independent auditor review',
+        'audit' => $lane['audit'] ?? 'needs independent auditor review',
         'currentWork' => $lane['currentWork'],
-        'blocker' => 'Full upstream benchmark denominator still needs cloned/tested inventory.',
+        'blocker' => $lane['blocker'] ?? 'Full upstream benchmark denominator still needs cloned/tested inventory.',
         'latestCommit' => 'pending first repository commit',
         'nextTask' => $lane['nextTask'],
     ];
@@ -259,4 +277,3 @@ foreach ($lanes as $slug => $lane) {
 }
 
 fwrite(STDOUT, 'Seeded metadata for ' . count($lanes) . " lanes\n");
-

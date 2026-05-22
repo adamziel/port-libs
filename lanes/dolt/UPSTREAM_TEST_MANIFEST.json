@@ -22,5 +22,9 @@
         "currentSlice": "Native table diff classification by primary key."
     },
     "wordpressScenario": "Versioned content/data migrations and inspectable database change sets.",
-    "nextTask": "Map table-diff tests and add row schema/key encoding."
+    "deferred": {
+        "status": true,
+        "reason": "User requested Dolt be sidetracked and ignored until the other lanes are established."
+    },
+    "nextTask": "Do not schedule Dolt work until the other lanes have reached the required baseline."
 }
