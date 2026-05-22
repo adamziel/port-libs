@@ -9,15 +9,27 @@ final class SyncPlan
     /**
      * @return list<string>
      */
-    public function changedPaths(MemoryProvider $source, MemoryProvider $target, ?FilterRuleSet $filter = null): array
+    public function changedPaths(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        bool $ignoreCaseSync = false,
+    ): array
     {
         $changed = [];
+        $targetPaths = $ignoreCaseSync ? $this->listedPaths($target, $filter, true) : [];
+        $seenSourceKeys = [];
         foreach ($source->list() as $sourceInfo) {
             if ($filter !== null && !$filter->includes($sourceInfo->path)) {
                 continue;
             }
+            if ($this->skipCaseFoldedDuplicate($sourceInfo->path, $seenSourceKeys, $ignoreCaseSync)) {
+                continue;
+            }
 
-            $targetInfo = $this->optionalInfo($target, $sourceInfo->path);
+            $targetInfo = $ignoreCaseSync
+                ? ($targetPaths[$this->syncPathKey($sourceInfo->path)] ?? null)
+                : $this->optionalInfo($target, $sourceInfo->path);
             if ($targetInfo === null) {
                 $changed[] = $sourceInfo->path;
                 continue;
@@ -150,19 +162,27 @@ final class SyncPlan
         bool $checksum = false,
         bool $refreshTimes = false,
         bool $fixCase = false,
+        bool $ignoreCaseSync = false,
     ): array {
         if ($fixCase && !$noCheckDest) {
             $this->fixCase($source, $target, $filter, $immutable);
         }
 
         $copied = [];
+        $targetPaths = $ignoreCaseSync && !$noCheckDest ? $this->listedPaths($target, $filter, true) : [];
+        $seenSourceKeys = [];
         foreach ($source->list() as $sourceInfo) {
             $path = $sourceInfo->path;
             if ($filter !== null && !$filter->includes($path)) {
                 continue;
             }
+            if ($this->skipCaseFoldedDuplicate($path, $seenSourceKeys, $ignoreCaseSync)) {
+                continue;
+            }
 
-            $targetInfo = $noCheckDest ? null : $this->optionalInfo($target, $path);
+            $targetInfo = $noCheckDest
+                ? null
+                : ($ignoreCaseSync ? ($targetPaths[$this->syncPathKey($path)] ?? null) : $this->optionalInfo($target, $path));
             if (!$noCheckDest && $targetInfo !== null && $ignoreExisting) {
                 continue;
             }
@@ -189,10 +209,11 @@ final class SyncPlan
 
             $copyDestReference = $this->findEqualReference($sourceInfo, $targetInfo, $copyDest);
             if ($copyDestReference !== null) {
+                $destinationPath = $targetInfo?->path ?? $path;
                 if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
-                    $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+                    $this->moveToBackup($target, $targetInfo->path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
                 }
-                $copied[] = $copyDestReference['provider']->copyTo($copyDestReference['path'], $target, $path);
+                $copied[] = $copyDestReference['provider']->copyTo($copyDestReference['path'], $target, $destinationPath);
                 continue;
             }
 
@@ -202,10 +223,11 @@ final class SyncPlan
 
             if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
                 if ($targetInfo !== null) {
-                    $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+                    $this->moveToBackup($target, $targetInfo->path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+                    $targetInfo = null;
                 }
             }
-            $copied[] = $source->copyTo($path, $target, $path);
+            $copied[] = $source->copyTo($path, $target, $targetInfo?->path ?? $path);
         }
 
         return $copied;
@@ -275,14 +297,15 @@ final class SyncPlan
         ?FilterRuleSet $filter = null,
         string $deleteMode = DeleteMode::DEFAULT,
         bool $deleteExcluded = false,
+        bool $ignoreCaseSync = false,
     ): array {
         $deleteMode = DeleteMode::normalize($deleteMode);
         if ($deleteMode === DeleteMode::OFF) {
             return [];
         }
 
-        $sourcePaths = $this->listedPaths($source, $filter);
-        $targetPaths = $this->listedPaths($target, $deleteExcluded ? null : $filter);
+        $sourcePaths = $this->listedPaths($source, $filter, $ignoreCaseSync);
+        $targetPaths = $this->listedPaths($target, $deleteExcluded ? null : $filter, $ignoreCaseSync);
         $delete = [];
         foreach ($targetPaths as $path => $targetInfo) {
             if (!isset($sourcePaths[$path])) {
@@ -310,11 +333,12 @@ final class SyncPlan
         string $backupPrefix = '',
         string $suffix = '',
         bool $suffixKeepExtension = false,
+        bool $ignoreCaseSync = false,
     ): array {
         $deleted = [];
         $deleteCount = 0;
         $deleteBytes = 0;
-        foreach ($this->deletePaths($source, $target, $filter, $deleteMode, $deleteExcluded) as $path) {
+        foreach ($this->deletePaths($source, $target, $filter, $deleteMode, $deleteExcluded, $ignoreCaseSync) as $path) {
             if ($backupPrefix !== '' && self::pathUnderPrefix($path, $backupPrefix)) {
                 continue;
             }
@@ -511,7 +535,7 @@ final class SyncPlan
     /**
      * @return array<string, ObjectInfo>
      */
-    private function listedPaths(MemoryProvider $provider, ?FilterRuleSet $filter): array
+    private function listedPaths(MemoryProvider $provider, ?FilterRuleSet $filter, bool $ignoreCaseSync = false): array
     {
         $paths = [];
         foreach ($provider->list() as $info) {
@@ -519,10 +543,39 @@ final class SyncPlan
                 continue;
             }
 
-            $paths[$info->path] = $info;
+            $key = $ignoreCaseSync ? $this->syncPathKey($info->path) : $info->path;
+            if (!isset($paths[$key])) {
+                $paths[$key] = $info;
+            }
         }
 
         return $paths;
+    }
+
+    /**
+     * @param array<string, true> $seen
+     */
+    private function skipCaseFoldedDuplicate(string $path, array &$seen, bool $ignoreCaseSync): bool
+    {
+        if (!$ignoreCaseSync) {
+            return false;
+        }
+
+        $key = $this->syncPathKey($path);
+        if (isset($seen[$key])) {
+            return true;
+        }
+
+        $seen[$key] = true;
+
+        return false;
+    }
+
+    private function syncPathKey(string $path): string
+    {
+        $path = self::normalizePath($path);
+
+        return function_exists('mb_strtolower') ? mb_strtolower($path, 'UTF-8') : strtolower($path);
     }
 
     private function downloadComparison(MemoryProvider $source, MemoryProvider $target, string $path): ReaderComparisonResult
