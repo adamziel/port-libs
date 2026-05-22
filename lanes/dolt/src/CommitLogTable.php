@@ -40,7 +40,7 @@ final class CommitLogTable
      * upstream's opt-in cost boundary.
      *
      * @param list<array<string, mixed>> $commits
-     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool} $options
+     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, number?:int|null, n?:int|null, minParents?:int, min_parents?:int, merges?:bool} $options
      * @return list<array<string, scalar|null>>
      */
     public function logRows(array $commits, array $options = []): array
@@ -64,7 +64,7 @@ final class CommitLogTable
             ? in_array('signature', $projected, true)
             : (bool) ($options['showSignature'] ?? false);
         $decorate = $this->normalizeDecoration($options['decorate'] ?? 'short');
-        $limit = $this->normalizeLimit($options['limit'] ?? null);
+        $limit = $this->normalizeLimitOption($options);
         $minParents = $this->normalizeMinParents($options);
         if (array_key_exists('merges', $options)) {
             if (!is_bool($options['merges'])) {
@@ -110,6 +110,9 @@ final class CommitLogTable
 
         $rows = [];
         foreach ($this->orderedCommits($commits, $visible) as $commit) {
+            if ($limit !== null && count($rows) >= $limit) {
+                break;
+            }
             if (count($commit['parents']) < $minParents) {
                 continue;
             }
@@ -117,9 +120,6 @@ final class CommitLogTable
                 continue;
             }
             $rows[] = $this->logRow($commit, $logHeadHash, $showParents, $showSignature, $decorate);
-            if ($limit !== null && count($rows) >= $limit) {
-                break;
-            }
         }
 
         return $rows;
@@ -140,6 +140,9 @@ final class CommitLogTable
 
         $rows = [];
         foreach ($this->orderedCommits($commits) as $commit) {
+            if ($limit !== null && count($rows) >= $limit) {
+                break;
+            }
             $rows[] = [
                 'commit_hash' => $commit['commit_hash'],
                 'committer' => $commit['committer'],
@@ -150,9 +153,6 @@ final class CommitLogTable
                 'author_email' => $commit['author_email'],
                 'author_date' => $commit['author_date'],
             ];
-            if ($limit !== null && count($rows) >= $limit) {
-                break;
-            }
         }
 
         return $rows;
@@ -166,7 +166,7 @@ final class CommitLogTable
      * `--oneline`, `--parents`, and `--stat`.
      *
      * @param list<array<string, mixed>> $commits
-     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, stdoutIsTty?:bool, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool, graph?:bool, oneline?:bool, parents?:bool, stat?:bool, diffStats?:array<string, list<array<string, mixed>>>, diffStatsByCommit?:array<string, list<array<string, mixed>>>} $options
+     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, stdoutIsTty?:bool, limit?:int|null, number?:int|null, n?:int|null, minParents?:int, min_parents?:int, merges?:bool, graph?:bool, oneline?:bool, parents?:bool, stat?:bool, diffStats?:array<string, list<array<string, mixed>>>, diffStatsByCommit?:array<string, list<array<string, mixed>>>} $options
      */
     public function renderLog(array $commits, array $options = []): string
     {
@@ -818,6 +818,31 @@ final class CommitLogTable
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function normalizeLimitOption(array $options): ?int
+    {
+        $limits = [];
+        foreach (['limit', 'number', 'n'] as $name) {
+            if (!array_key_exists($name, $options) || $options[$name] === null) {
+                continue;
+            }
+            $limits[$name] = $this->normalizeLimit($options[$name]);
+        }
+
+        if ($limits === []) {
+            return null;
+        }
+
+        $unique = array_unique(array_values($limits), SORT_REGULAR);
+        if (count($unique) > 1) {
+            throw new \InvalidArgumentException('Dolt log limit, number, and n options must agree.');
+        }
+
+        return $unique[0];
     }
 
     /**

@@ -42,6 +42,9 @@
   - This included the `expect`-dependent `diff: --system preserves dolt_show_system_tables value in sql-shell`, the log rendering cases for `--decorate=auto`, `--stat`, `--graph`, and `--all`, plus the patched-copy status reset helper case.
   - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 25m bats branch.bats sql-branch.bats`
   - Result: exit 0 with plan `1..39`; 30 local branch CLI tests and 9 SQL branch procedure/table tests passed.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 20m bats --filter 'log: (with -n specified|Log on a table works with -n)' log.bats`
+  - Result: exit 0 with plan `1..2`; the focused upstream `-n` log-limit cases passed.
+  - Direct cache-local probe recreated a one-table repository and confirmed `dolt log -n 0` exits 0 with zero output lines, `dolt log --number=1` includes the latest commit but not `Initialize data repository`, and `dolt log -n -1` exits 1 with `fatal: invalid --number argument: -1`.
 - Fresh negative-control blocker:
   - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
   - Result: exit 1 with plan `1..1`; pristine `status.bats` still truncates commit hashes with `cut -c 13-44`, turning `hg00qu4ih64urob79vp4t34j3a731gd5` into `u4ih64urob79vp4t34j3a731gd5`, and `dolt reset` reports `branch not found`.
@@ -558,6 +561,7 @@
   - Required rerun after native `dolt log --graph` / `--decorate=auto` rendering passed: 124 test files, 10,849 assertions, 0 failures.
   - Required rerun after native dense multi-branch `dolt log --graph` default rendering passed: 126 test files, 11,197 assertions, 0 failures.
   - Required rerun after native dense multi-branch `dolt log --graph --oneline` exact spacing/ref-placement rendering passed: 127 test files, 11,352 assertions, 0 failures.
+  - Required rerun after native `dolt log -n` / `--number` limit aliases and zero-limit handling passed: 129 test files, 11,605 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, fan-in commit-graph, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
@@ -574,6 +578,7 @@
   - Current result after native `dolt log --oneline` / `--stat` rendering: pass with 10 Dolt test files, 93 behavior tests, 495 assertions, and 0 failures.
   - Current result after native `dolt log --graph` / `--decorate=auto` rendering: pass with 10 Dolt test files, 95 behavior tests, 515 assertions, and 0 failures.
   - Current result after native dense multi-branch `dolt log --graph --oneline` exact spacing/ref-placement rendering: pass with 10 Dolt test files, 98 behavior tests, 524 assertions, and 0 failures.
+  - Current result after native `dolt log -n` / `--number` limit aliases and zero-limit handling: pass with 10 Dolt test files, 99 behavior tests, 534 assertions, and 0 failures.
 
 ## Skipped Suites
 

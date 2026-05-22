@@ -338,6 +338,45 @@ return [
         $t->same('main-2, feature-1', $fullDecorated[0]['parents']);
         $t->same('', $noDecorations[0]['refs']);
     },
+    'dolt log number aliases follow upstream n limit boundaries' => static function (TestRunner $t) use ($commitLogGraph, $tableFilterGraph): void {
+        $table = new CommitLogTable();
+        $commits = $commitLogGraph();
+        $messages = static fn (array $rows): array => array_column($rows, 'message');
+
+        $numberRows = $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'number' => 1,
+        ]);
+        $shortRows = $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'n' => 2,
+        ]);
+        $tableRows = $table->logRows($tableFilterGraph(), [
+            'headHash' => 'main-6',
+            'tableNames' => ['test'],
+            'n' => 1,
+        ]);
+
+        $t->same(['merge feature'], $messages($numberRows));
+        $t->same(['merge feature', 'feature row'], $messages($shortRows));
+        $t->same([], $table->logRows($commits, ['headHash' => 'merge-1', 'n' => 0]));
+        $t->same([], $table->commitsRows($commits, 0));
+        $t->same('merge-1 (HEAD -> main, tag: v1) merge feature', $table->renderLog($commits, [
+            'headHash' => 'merge-1',
+            'oneline' => true,
+            'number' => 1,
+        ]));
+        $t->same(['inserted 2 into test [6M]'], $messages($tableRows));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'number' => '1',
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'limit' => 1,
+            'number' => 2,
+        ]));
+    },
     'dolt commits rows expose all branch commits without log-only columns' => static function (TestRunner $t) use ($commitLogGraph): void {
         $rows = (new CommitLogTable())->commitsRows($commitLogGraph());
 
@@ -1041,6 +1080,7 @@ GRAPH;
         $t->same($fixture['expectedLogMessages'], array_column($rows, 'message'));
         $t->same($fixture['expectedHeadRefs'], $rows[0]['refs']);
         $t->same($fixture['expectedMergeParents'], $rows[0]['parents']);
+        $t->same($fixture['expectedLatestReviewMessages'], array_column($example['latestReviewLog'], 'message'));
         $t->same($fixture['expectedMainlineMessages'], array_column($mainlineRows, 'message'));
         $t->same($fixture['expectedReviewRangeMessages'], array_column($reviewRangeRows, 'message'));
         $t->same($fixture['expectedMediaPromotionMessages'], array_column($mediaPromotionRows, 'message'));
@@ -1052,6 +1092,7 @@ GRAPH;
         $t->same($fixture['expectedAllBranchMessages'], array_column($allBranchRows, 'message'));
         $t->same($fixture['expectedAllBranchPostMessages'], array_column($allBranchPostRows, 'message'));
         $t->same($rows, $example['log']);
+        $t->same($fixture['expectedLatestReviewMessages'], array_column($example['latestReviewLog'], 'message'));
         $t->same($reviewRangeRows, $example['reviewRange']);
         $t->same($mediaPromotionRows, $example['mediaPromotionRange']);
         $t->same($postTableRows, $example['postTableLog']);

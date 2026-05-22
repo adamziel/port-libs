@@ -87,6 +87,9 @@ return [
     ],
     'expectedHeadRefs' => 'HEAD -> main, tag: import-reviewed',
     'expectedMergeParents' => 'wp-review-main, wp-media-branch',
+    'expectedLatestReviewMessages' => [
+        'Merge media backfill into reviewed import',
+    ],
     'expectedMainlineMessages' => [
         'Review public post statuses',
         'Import WXR posts and pages',
