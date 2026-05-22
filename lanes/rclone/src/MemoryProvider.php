@@ -333,7 +333,10 @@ final class MemoryProvider
         return $targetInfo;
     }
 
-    public function serverSideCopyTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    /**
+     * @param array{metadataSet?: array<string, scalar|null>} $options
+     */
+    public function serverSideCopyTo(string $sourcePath, self $target, string $targetPath, array $options = []): ObjectInfo
     {
         if (!$target->serverSideCopy) {
             throw new \RuntimeException(self::ERROR_CANT_COPY);
@@ -341,15 +344,18 @@ final class MemoryProvider
 
         $target->throwConfiguredError($target->serverSideCopyError);
 
-        return $this->copyTo($sourcePath, $target, $targetPath);
+        return $this->copyTo($sourcePath, $target, $targetPath, $options);
     }
 
-    public function serverSideMoveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    /**
+     * @param array{metadataSet?: array<string, scalar|null>} $options
+     */
+    public function serverSideMoveTo(string $sourcePath, self $target, string $targetPath, array $options = []): ObjectInfo
     {
         $sourcePath = $this->canonicalPath($sourcePath);
         $targetPath = $target->normalize($targetPath);
         if ($this === $target && $sourcePath === $targetPath) {
-            return $this->info($sourcePath);
+            return $this->applyMetadataSet($sourcePath, $options);
         }
 
         $mayFallbackToCopy = false;
@@ -357,7 +363,9 @@ final class MemoryProvider
             try {
                 $target->throwConfiguredError($target->serverSideMoveError);
 
-                return $this->renameObject($sourcePath, $targetPath);
+                $moved = $this->renameObject($sourcePath, $targetPath);
+
+                return $this->applyMetadataSet($moved->path, $options);
             } catch (\RuntimeException $throwable) {
                 if (!self::isCantMoveException($throwable)) {
                     throw $throwable;
@@ -380,13 +388,16 @@ final class MemoryProvider
             }
         }
 
-        $targetInfo = $this->copyTo($sourcePath, $target, $targetPath);
+        $targetInfo = $this->copyTo($sourcePath, $target, $targetPath, $options);
         $this->forget($sourcePath);
 
         return $targetInfo;
     }
 
-    public function directServerSideMoveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    /**
+     * @param array{metadataSet?: array<string, scalar|null>} $options
+     */
+    public function directServerSideMoveTo(string $sourcePath, self $target, string $targetPath, array $options = []): ObjectInfo
     {
         if ($this !== $target || !$this->serverSideMove) {
             throw new \RuntimeException(self::ERROR_CANT_MOVE);
@@ -394,7 +405,9 @@ final class MemoryProvider
 
         $this->throwConfiguredError($this->serverSideMoveError);
 
-        return $this->renameObject($sourcePath, $targetPath);
+        $moved = $this->renameObject($sourcePath, $targetPath);
+
+        return $this->applyMetadataSet($moved->path, $options);
     }
 
     public function renameObject(string $sourcePath, string $targetPath): ObjectInfo
@@ -933,11 +946,46 @@ final class MemoryProvider
         return $items;
     }
 
-    public function copyTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    /**
+     * @param array{metadataSet?: array<string, scalar|null>} $options
+     */
+    public function copyTo(string $sourcePath, self $target, string $targetPath, array $options = []): ObjectInfo
     {
         $entry = $this->entry($sourcePath);
+        if (isset($options['metadataSet'])) {
+            $entry = $target->entryWithMetadataSet($entry, $options['metadataSet']);
+        }
 
         return $target->putEntry($targetPath, $entry);
+    }
+
+    /**
+     * Model fs.SetMetadataer on objects: metadata is replaced, and the common
+     * mtime/content-type system keys update the visible object modtime/mimetype.
+     *
+     * @param array<string, scalar|null> $metadata
+     */
+    public function setObjectMetadata(string $path, array $metadata): ObjectInfo
+    {
+        $path = $this->canonicalPath($path);
+        $entry = $this->entryWithMetadataSet($this->entry($path), $metadata);
+
+        return $this->putEntry($path, $entry);
+    }
+
+    /**
+     * @param array<string, scalar|null> $metadata
+     */
+    public function setDirectoryMetadata(string $path, array $metadata): ObjectInfo
+    {
+        $path = $this->canonicalDirectoryPath($path);
+        if (!$this->directoryExists($path)) {
+            throw new \RuntimeException("Directory not found: {$path}");
+        }
+
+        $entry = $this->directoryEntryWithMetadataSet($this->listedDirectoryEntry($this->directoryInfo($path)), $metadata);
+
+        return $this->putDirectoryEntry($path, $entry);
     }
 
     /**
@@ -1204,6 +1252,70 @@ final class MemoryProvider
                 : $this->normalizeReadErrorAfterBytes($options),
             'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
         ];
+    }
+
+    /**
+     * @param array{metadataSet?: array<string, scalar|null>} $options
+     */
+    private function applyMetadataSet(string $path, array $options): ObjectInfo
+    {
+        if (!isset($options['metadataSet'])) {
+            return $this->info($path);
+        }
+
+        return $this->setObjectMetadata($path, $options['metadataSet']);
+    }
+
+    /**
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array<string, scalar|null> $metadata
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     */
+    private function entryWithMetadataSet(array $entry, array $metadata): array
+    {
+        $metadata = $this->normalizeMetadata($metadata);
+        $entry['metadata'] = $metadata;
+        if (($metadata['mtime'] ?? '') !== '') {
+            $entry['modTime'] = $this->normalizeModTime($metadata['mtime']);
+        }
+        if (($metadata['content-type'] ?? '') !== '') {
+            $entry['mimeType'] = $metadata['content-type'];
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @param array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string} $entry
+     * @param array<string, scalar|null> $metadata
+     * @return array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string}
+     */
+    private function directoryEntryWithMetadataSet(array $entry, array $metadata): array
+    {
+        $metadata = $this->normalizeMetadata($metadata);
+        $entry['metadata'] = $metadata;
+        if (($metadata['mtime'] ?? '') !== '') {
+            $entry['modTime'] = $this->normalizeModTime($metadata['mtime']);
+        }
+        if (($metadata['content-type'] ?? '') !== '') {
+            $entry['mimeType'] = $metadata['content-type'];
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @param array<string, scalar|null> $metadata
+     * @return array<string, string>
+     */
+    private function normalizeMetadata(array $metadata): array
+    {
+        $normalized = [];
+        foreach ($metadata as $key => $value) {
+            $normalized[(string) $key] = (string) $value;
+        }
+
+        return $normalized;
     }
 
     private function duplicateInfo(string $key): ObjectInfo

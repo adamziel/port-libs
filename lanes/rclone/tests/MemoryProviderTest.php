@@ -207,6 +207,56 @@ return [
         $t->same('2026-05-22T00:00:00Z', $provider->directoryInfo('sub')->modTime);
         $t->throws(RuntimeException::class, static fn () => $provider->setDirectoryModTime('missing', '2026-05-22T00:00:00Z'));
     },
+    'memory provider set object metadata updates mtime and mimetype like upstream' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('exports/site.wxr', '<rss>portable export</rss>', [
+            'modTime' => '2003-02-03T04:05:06.499999999Z',
+            'mimeType' => 'text/plain',
+            'metadata' => [
+                'mtime' => '2003-02-03T04:05:06.499999999Z',
+                'potato' => 'jersey',
+            ],
+        ]);
+
+        $updated = $provider->setObjectMetadata('exports/site.wxr', [
+            'mtime' => '2004-03-03T04:05:06.499999999Z',
+            'potato' => 'royal',
+            'content-type' => 'application/rss+xml',
+        ]);
+
+        $t->same('exports/site.wxr', $updated->path);
+        $t->same('2004-03-03T04:05:06.499999999Z', $updated->modTime);
+        $t->same('application/rss+xml', $updated->mimeType);
+        $t->same([
+            'mtime' => '2004-03-03T04:05:06.499999999Z',
+            'potato' => 'royal',
+            'content-type' => 'application/rss+xml',
+        ], $provider->info('exports/site.wxr')->metadata);
+        $t->same('<rss>portable export</rss>', $provider->get('exports/site.wxr'));
+    },
+    'memory provider set directory metadata replaces existing metadata like upstream' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('wp-content/uploads/2026/05', [
+            'modTime' => '2001-02-03T04:05:06.499999999Z',
+            'metadata' => [
+                'mtime' => '2001-02-03T04:05:06.499999999Z',
+                'potato' => 'jersey',
+            ],
+        ]);
+
+        $updated = $provider->setDirectoryMetadata('wp-content/uploads/2026/05', [
+            'mtime' => '2002-02-03T04:05:06.499999999Z',
+            'potato' => 'king edwards',
+        ]);
+
+        $t->same('wp-content/uploads/2026/05', $updated->path);
+        $t->same('2002-02-03T04:05:06.499999999Z', $updated->modTime);
+        $t->same([
+            'mtime' => '2002-02-03T04:05:06.499999999Z',
+            'potato' => 'king edwards',
+        ], $provider->directoryInfo('wp-content/uploads/2026/05')->metadata);
+        $t->throws(RuntimeException::class, static fn () => $provider->setDirectoryMetadata('wp-content/uploads/2026/04', ['potato' => 'missing']));
+    },
     'sync plan reports missing and checksum changed paths' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

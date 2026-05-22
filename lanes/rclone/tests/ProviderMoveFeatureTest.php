@@ -50,6 +50,50 @@ return [
         $t->same(true, $sameObject['skipped']);
         $t->same('file1 contents updated', $remote->get('sub/file2'));
     },
+    'server side copy and move apply upstream metadata set values' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->put('exports/site.wxr', '<rss>portable export</rss>', [
+            'modTime' => '2003-02-03T04:05:06.499999999Z',
+            'mimeType' => 'text/plain',
+            'metadata' => [
+                'mtime' => '2003-02-03T04:05:06.499999999Z',
+                'potato' => 'jersey',
+            ],
+        ]);
+        $remote->put('uploads/hero-old.jpg', 'image bytes', [
+            'modTime' => '2003-02-03T04:05:06.499999999Z',
+            'metadata' => [
+                'mtime' => '2003-02-03T04:05:06.499999999Z',
+                'potato' => 'jersey',
+            ],
+        ]);
+
+        $metadataSet = [
+            'mtime' => '2004-03-03T04:05:06.499999999Z',
+            'potato' => 'royal',
+        ];
+        $plan = new SyncPlan();
+        $copied = $plan->copyFile($remote, $remote, 'exports/site-copy.wxr', 'exports/site.wxr', [
+            'metadataSet' => $metadataSet,
+        ]);
+        $moved = $plan->moveFile($remote, $remote, 'uploads/hero.jpg', 'uploads/hero-old.jpg', [
+            'metadataSet' => $metadataSet,
+        ]);
+
+        $t->same('exports/site-copy.wxr', $copied['copied']?->path);
+        $t->same('<rss>portable export</rss>', $remote->get('exports/site-copy.wxr'));
+        $t->same('2004-03-03T04:05:06.499999999Z', $remote->info('exports/site-copy.wxr')->modTime);
+        $t->same($metadataSet, $remote->info('exports/site-copy.wxr')->metadata);
+        $t->same('2003-02-03T04:05:06.499999999Z', $remote->info('exports/site.wxr')->modTime);
+        $t->same(['mtime' => '2003-02-03T04:05:06.499999999Z', 'potato' => 'jersey'], $remote->info('exports/site.wxr')->metadata);
+
+        $t->same('uploads/hero.jpg', $moved['moved']?->path);
+        $t->same(null, $moved['deletedSource']);
+        $t->same('image bytes', $remote->get('uploads/hero.jpg'));
+        $t->same('2004-03-03T04:05:06.499999999Z', $remote->info('uploads/hero.jpg')->modTime);
+        $t->same($metadataSet, $remote->info('uploads/hero.jpg')->metadata);
+        $t->throws(RuntimeException::class, static fn () => $remote->get('uploads/hero-old.jpg'));
+    },
     'move file with ignore existing leaves modified source untouched' => static function (TestRunner $t): void {
         $local = new MemoryProvider();
         $remote = new MemoryProvider();
@@ -508,6 +552,27 @@ return [
         $t->same(true, $ignored['skipped']);
         $t->same($tree['exports/site.wxr'], $local->get('exports/site.wxr'));
         $t->same('<rss>remote recovery export</rss>', $remote->get('exports/site.wxr'));
+    },
+    'wordpress metadata-set copy move example publishes handoff metadata' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-metadata-set-copy-move.php';
+
+        $expectedMetadata = [
+            'mtime' => '2004-03-03T04:05:06.499999999Z',
+            'wp-artifact' => 'migration-handoff',
+            'content-type' => 'application/rss+xml',
+        ];
+
+        $t->same('handoff/site.wxr', $example['copiedPath']);
+        $t->same('2004-03-03T04:05:06.499999999Z', $example['copiedModTime']);
+        $t->same('application/rss+xml', $example['copiedMimeType']);
+        $t->same($expectedMetadata, $example['copiedMetadata']);
+        $t->same([
+            'mtime' => '2003-02-03T04:05:06.499999999Z',
+            'wp-artifact' => 'draft-export',
+        ], $example['sourceMetadata']);
+        $t->same('wp-content/uploads/2026/05/hero.jpg', $example['movedPath']);
+        $t->same($expectedMetadata, $example['movedMetadata']);
+        $t->same(false, $example['temporaryUploadVisible']);
     },
     'track renames can use copy delete providers without direct move support' => static function (TestRunner $t): void {
         $source = new MemoryProvider();

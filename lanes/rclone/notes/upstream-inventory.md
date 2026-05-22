@@ -25,6 +25,7 @@
 - Focused fstest object contract reads: targeted `fstest/fstests/fstests.go`, `fs/object/object_test.go`, and `fs/open_options.go`. This covers `ObjectOpenSeek`, `ObjectOpenRange`, `ObjectUpdate`, `FsPutStream`, and `FsUploadUnknownSize` boundaries: seek reads from an offset, inclusive ranges cap at object length, negative range starts fetch the final N bytes, object update ignores the source remote name while preserving the existing remote path, and unknown-size source uploads/updates must not panic and report the stored byte length after success.
 - Focused fstest list/root/purge reads: targeted `fstest/fstests/fstests.go`, `fs/operations/operations.go`, and `fs/operations/operations_test.go`. This covers `walk.GetAll` direct-depth listings, `FsListDirFile2`, `FsListDirRoot`, `FsListSubdir`, `FsListLevel2`, `FsPurge`, `FsPurgeRoot`, `FsListRootedSubdir`, `FsRmdirNotFound`, `FsRmdirEmpty`, `FsRmdirFull`, and `operations.Purge` fallback behavior without running live provider remotes.
 - Focused PublicLink reads: targeted `fstest/fstests/fstests.go` and `fs/operations/operations.go`. This covers missing-path errors, non-empty file links, distinct links for different files, repeated share calls, directory links, and sharing the root of a rooted subremote.
+- Focused metadata-set reads: targeted `fstest/fstests/fstests.go` around `FsCopy/Metadata`, `FsMove/Metadata`, `ObjectSetMetadata`, `FsMkdirMetadata`, and `FsDirectory/WriteDirMetadata`. This covers `--metadata-set` replacement metadata on copied/moved destination objects, system `mtime` propagation into visible modtime, source-object preservation on copy, object `SetMetadata`, directory metadata replacement, and `MkdirMetadata` updating an existing directory.
 
 ## Counted Test-Related Inventory
 
@@ -41,6 +42,7 @@
 - Focused fstest object contract inventory: 3 targeted file reads (`fstest/fstests/fstests.go`, `fs/object/object_test.go`, `fs/open_options.go`), 4 `ObjectOpenRange` table runs, 1 `ObjectOpenSeek` run, 1 `ObjectUpdate` test function, 1 `FsPutStream` test function with 2 size cases, 2 `FsUploadUnknownSize` subtests, 4 `RangeOption.Decode`/`FixRangeOption` branches, and 4 native boundary cases (range/seek reads, update path preservation, unknown-size put stream, unknown-size update).
 - Focused fstest list/root/purge inventory: 3 targeted file reads (`fstest/fstests/fstests.go`, `fs/operations/operations.go`, `fs/operations/operations_test.go`), 9 focused upstream test functions/subtest families (`FsListDirFile2`, `FsListDirRoot`, `FsListSubdir`, `FsListLevel2`, `FsPurge`, `FsPurgeRoot`, `FsListRootedSubdir`, `FsRmdirNotFound`/`FsRmdirEmpty`/`FsRmdirFull`, and operations purge/rmdir tests), 4 native list/purge boundary cases, and 3 rooted provider boundary cases.
 - Focused PublicLink inventory: 2 targeted file reads (`fstest/fstests/fstests.go`, `fs/operations/operations.go`), 1 upstream `PublicLink` subtest family, 1 implementation wrapper, 3 native provider boundary cases, and 1 rooted provider boundary case.
+- Focused metadata-set inventory: 1 targeted upstream file (`fstest/fstests/fstests.go`) with 4 focused upstream subtest families (`FsCopy/Metadata`, `FsMove/Metadata`, `ObjectSetMetadata`, and directory `FsMkdirMetadata`/`WriteDirMetadata`), plus 4 native boundary cases for object metadata replacement, directory metadata replacement, server-side copy metadata-set, server-side move metadata-set, and a WordPress handoff example.
 - Filter Go test files: 2
 - Hash Go test files: 1
 - Testdata paths: 836
@@ -207,6 +209,8 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - WordPress rooted upload-month maintenance can list direct media files and generated thumbnail directories, purge generated thumbnails from the rooted monthly view, and preserve adjacent upload months plus WXR exports in the backing provider.
 - `fstest PublicLink` provider behavior: missing paths raise an error, existing files return non-empty stable links, different files produce distinct links, existing directories can be shared, and rooted subremote roots can be shared through the same provider feature.
 - WordPress public-link sharing can publish a WXR export and a rooted upload-month directory for migration review, then explicitly unlink the WXR share without exposing unrelated provider paths.
+- `fstest` metadata-set behavior is modeled for objects and directories: object `SetMetadata` replaces metadata, `mtime` updates visible modtime, `content-type` updates mimetype, directory metadata can be created or replaced, and server-side copy/move can apply `--metadata-set` to the destination while preserving copy sources.
+- WordPress migration handoff copy/move workflows can stamp WXR exports and upload artifacts with review metadata, MIME type, and handoff mtimes without shelling out to rclone.
 
 ## Current PHP Verification
 
@@ -288,3 +292,5 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - Required root `php tools/run-tests.php` on 2026-05-22 after the fstest list/root/purge slice: 148 test files, 13,193 assertions, 1 unrelated failure in `lanes/syncthing/tests/IndexHandlerRegistryTest.php` (`updates attached folder index state from received Index and IndexUpdate batches`, expected `3`, actual `4`). All rclone tests in that root run passed.
 - Rclone-only PHP lane check on 2026-05-22 after the PublicLink slice: 15 rclone test files, 179 behavior tests, 2,025 assertions, 0 failures.
 - Required root `php tools/run-tests.php` on 2026-05-22 after the PublicLink slice: 148 test files, 13,358 assertions, 0 failures in the current shared dirty worktree.
+- Rclone-only PHP lane check on 2026-05-22 after the metadata-set copy/move slice: 15 rclone test files, 183 behavior tests, 2,054 assertions, 0 failures.
+- Required root `php tools/run-tests.php` on 2026-05-22 after the metadata-set copy/move slice: 149 test files, 13,543 assertions, 0 failures in the current shared dirty worktree.

@@ -397,7 +397,8 @@ final class SyncPlan
      *     refreshTimes?: bool,
      *     partialUploads?: bool,
      *     partialSuffix?: string,
-     *     simulatePartialTransferError?: bool
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>
      * } $options
      * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
      */
@@ -430,7 +431,8 @@ final class SyncPlan
      *     refreshTimes?: bool,
      *     partialUploads?: bool,
      *     partialSuffix?: string,
-     *     simulatePartialTransferError?: bool
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>
      * } $options
      * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
      */
@@ -1337,7 +1339,8 @@ final class SyncPlan
      *     refreshTimes?: bool,
      *     partialUploads?: bool,
      *     partialSuffix?: string,
-     *     simulatePartialTransferError?: bool
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>
      * } $options
      * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
      */
@@ -1362,6 +1365,9 @@ final class SyncPlan
         $sourceInfo = $source->info($sourcePath);
         if (!$copy && $this->needsCaseInsensitiveFileMove($destination, $source, $destinationPath, $sourcePath)) {
             $result['moved'] = $this->moveCaseInsensitiveFile($destination, $destinationPath, $sourcePath);
+            if (isset($options['metadataSet'])) {
+                $result['moved'] = $destination->setObjectMetadata($result['moved']->path, $options['metadataSet']);
+            }
             $result['caseInsensitiveMove'] = true;
 
             return $result;
@@ -1430,6 +1436,7 @@ final class SyncPlan
                 $copyDestReference['path'],
                 $destination,
                 $targetInfo?->path ?? $destinationPath,
+                $options,
             );
             if ($copy) {
                 $result['copied'] = $copied;
@@ -1479,7 +1486,12 @@ final class SyncPlan
         }
 
         if ($source === $destination) {
-            $result['moved'] = $source->serverSideMoveTo($sourceInfo->path, $destination, $targetInfo?->path ?? $destinationPath);
+            $result['moved'] = $source->serverSideMoveTo(
+                $sourceInfo->path,
+                $destination,
+                $targetInfo?->path ?? $destinationPath,
+                $options,
+            );
 
             return $result;
         }
@@ -1547,7 +1559,7 @@ final class SyncPlan
     }
 
     /**
-     * @param array{partialUploads?: bool, partialSuffix?: string, simulatePartialTransferError?: bool} $options
+     * @param array{partialUploads?: bool, partialSuffix?: string, simulatePartialTransferError?: bool, metadataSet?: array<string, scalar|null>} $options
      * @return array{object: ObjectInfo, partialPath: ?string}
      */
     private function copyFileObject(
@@ -1572,7 +1584,7 @@ final class SyncPlan
             $copyPath = $partialPath;
         }
 
-        $copied = $source->copyTo($sourcePath, $destination, $copyPath);
+        $copied = $source->copyTo($sourcePath, $destination, $copyPath, $options);
         if ((bool) ($options['simulatePartialTransferError'] ?? false)) {
             if ($partialPath !== null) {
                 $destination->delete($partialPath);
