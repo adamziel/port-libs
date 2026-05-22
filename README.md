@@ -6,7 +6,8 @@ The durable coordination files are:
 
 - `goal.md`: source objective.
 - `progress.md`: human-readable status and next work per lane.
-- `porting.html`: generated dashboard.
+- `porting.html`: generated compact dashboard.
+- `porting-summary.json`: generated low-context dashboard summary for agents.
 - `lanes/*/UPSTREAM_TEST_MANIFEST.json`: upstream source and benchmark denominator mapping.
 - `lanes/*/lane-status.json`: current implementation/audit status consumed by the dashboard.
 
