@@ -943,6 +943,28 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline rename-and-modification fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', "original\n1\n2\n3\n4\n5\n")])),
+        ]);
+        $ours = new Tree([
+            $blobEntry('x.f', "original\n1\n2\n3\n4\n5\n"),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', "1\n2\n3\n4\n5\n6\n")])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $x = $result->tree->entryNamed('x.f');
+
+        $t->true($result->isClean());
+        $t->same(['x.f'], $names($result->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($x?->oid ?? '')->body);
+        $t->same([], $result->conflicts);
+        $t->same([], $result->indexEntries());
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "1\n2\n3\n4\n5\n")]);

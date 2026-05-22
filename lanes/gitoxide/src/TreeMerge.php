@@ -354,9 +354,18 @@ final class TreeMerge
             $writeObject,
             $conflictStyle,
         );
-        $conflicts = [];
-        $consumed = $directoryFileRelocations['consumed'];
-        $merged = [];
+        $singleLeafDirectoryRenames = self::singleLeafDirectoryRenameModifyMerges(
+            $baseEntries,
+            $ourEntries,
+            $theirEntries,
+            $pathPrefix,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+        $conflicts = $singleLeafDirectoryRenames['conflicts'];
+        $consumed = $directoryFileRelocations['consumed'] + $singleLeafDirectoryRenames['consumed'];
+        $merged = $singleLeafDirectoryRenames['merged'];
 
         $paths = array_keys($baseEntries);
         sort($paths, SORT_STRING);
@@ -574,6 +583,140 @@ final class TreeMerge
         }
 
         return [$conflicts, $consumed, $merged];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $ourEntries
+     * @param array<string, TreeEntry> $theirEntries
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     * @return array{conflicts:list<TreeMergeConflict>,consumed:array<string,true>,merged:list<TreeEntry>}
+     */
+    private static function singleLeafDirectoryRenameModifyMerges(
+        array $baseEntries,
+        array $ourEntries,
+        array $theirEntries,
+        string $pathPrefix,
+        ?callable $readObject,
+        ?callable $writeObject,
+        string $conflictStyle,
+    ): array {
+        if ($readObject === null || $writeObject === null) {
+            return ['conflicts' => [], 'consumed' => [], 'merged' => []];
+        }
+
+        $ours = self::collectSingleLeafDirectoryRenameModifyMerges(
+            $baseEntries,
+            $ourEntries,
+            $theirEntries,
+            $pathPrefix,
+            true,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+        $theirs = self::collectSingleLeafDirectoryRenameModifyMerges(
+            $baseEntries,
+            $theirEntries,
+            $ourEntries,
+            $pathPrefix,
+            false,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+
+        return [
+            'conflicts' => [...$ours['conflicts'], ...$theirs['conflicts']],
+            'consumed' => $ours['consumed'] + $theirs['consumed'],
+            'merged' => [...$ours['merged'], ...$theirs['merged']],
+        ];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $renamedSideEntries
+     * @param array<string, TreeEntry> $otherSideEntries
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return array{conflicts:list<TreeMergeConflict>,consumed:array<string,true>,merged:list<TreeEntry>}
+     */
+    private static function collectSingleLeafDirectoryRenameModifyMerges(
+        array $baseEntries,
+        array $renamedSideEntries,
+        array $otherSideEntries,
+        string $pathPrefix,
+        bool $renamedByOurs,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+    ): array {
+        $conflicts = [];
+        $consumed = [];
+        $merged = [];
+
+        foreach ($baseEntries as $directoryPath => $baseDirectory) {
+            $otherDirectory = $otherSideEntries[$directoryPath] ?? null;
+            if (
+                !$baseDirectory->isTree()
+                || isset($renamedSideEntries[$directoryPath])
+                || $otherDirectory === null
+                || !$otherDirectory->isTree()
+            ) {
+                continue;
+            }
+
+            $baseCount = 0;
+            $otherCount = 0;
+            $baseLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $baseDirectory->oid, 'tree')), $readObject, '', 0, $baseCount);
+            $otherLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $otherDirectory->oid, 'tree')), $readObject, '', 0, $otherCount);
+            if ($baseLeaves === null || $otherLeaves === null || count($baseLeaves) !== 1 || count($otherLeaves) !== 1) {
+                continue;
+            }
+
+            $relativePath = array_key_first($baseLeaves);
+            if ($relativePath === null || !isset($otherLeaves[$relativePath])) {
+                continue;
+            }
+
+            $baseLeaf = $baseLeaves[$relativePath];
+            $otherLeaf = $otherLeaves[$relativePath];
+            if (!$baseLeaf->isBlob() || !$otherLeaf->isBlob()) {
+                continue;
+            }
+
+            foreach ($renamedSideEntries as $targetPath => $renamedEntry) {
+                if (isset($baseEntries[$targetPath]) || isset($consumed[$targetPath]) || !$renamedEntry->isBlob() || $baseLeaf->mode !== $renamedEntry->mode) {
+                    continue;
+                }
+                if (self::blobSimilarity($baseLeaf, $renamedEntry, $readObject) < 60) {
+                    continue;
+                }
+
+                $merge = self::tryMergeChangedEntry(
+                    $targetPath,
+                    self::joinPath($pathPrefix, $targetPath),
+                    $baseLeaf,
+                    $renamedByOurs ? $renamedEntry : $otherLeaf,
+                    $renamedByOurs ? $otherLeaf : $renamedEntry,
+                    $readObject,
+                    $writeObject,
+                    $conflictStyle,
+                );
+                if ($merge === null || $merge['entry'] === null) {
+                    continue;
+                }
+
+                $merged[] = $merge['entry'];
+                array_push($conflicts, ...$merge['conflicts']);
+                $consumed[$directoryPath] = true;
+                $consumed[$targetPath] = true;
+                break;
+            }
+        }
+
+        return ['conflicts' => $conflicts, 'consumed' => $consumed, 'merged' => $merged];
     }
 
     /**
