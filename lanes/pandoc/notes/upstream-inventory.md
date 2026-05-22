@@ -28,22 +28,25 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - Office/archive fixtures (`docx`, `odt`, `epub`, `pptx`, `xlsx`, `rtf`): 309
 - HTML/XML/JATS fixtures: 29
 - `pandoc-lua-engine/test/**/*.hs` modules: 5
+- `pandoc-lua-engine/test/` artifacts: 54
 - `benchmark/` files: 1
 - `data/` files: 247
 
-The dashboard denominator is 1,979 inspected upstream test files/artifacts:
-1,974 under `test/` plus 5 `pandoc-lua-engine` test modules.
+The dashboard denominator is now 2,028 inspected upstream test files/artifacts:
+1,974 under `test/` plus all 54 tracked artifacts under
+`pandoc-lua-engine/test/`. This replaces the earlier 1,979 count that only
+included the five Lua-engine Haskell test modules.
 
 ## Runner Blocker
 
 The full upstream suite was not executed in this run. This environment does not
-have `ghc`, `cabal`, or `stack`, Pandoc's `test-pandoc` suite must be built as a
-Haskell Tasty executable before it can run command, golden, HUnit, and
-QuickCheck tests, and the upstream cache is intentionally blob-filtered and not
-checked out to keep network and disk use modest. The defensible denominator used
-for this lane is therefore the cloned static `git ls-tree` inventory plus
-targeted `git show` reads from the upstream object database, not upstream runner
-parity.
+have `ghc`, `cabal`, or `stack`, Pandoc's `test-pandoc` and
+`test-pandoc-lua-engine` suites must be built as Haskell Tasty executables
+before they can run command, golden, HUnit, QuickCheck, and Lua tests, and the
+upstream cache is intentionally blob-filtered and not checked out to keep
+network and disk use modest. The defensible denominator used for this lane is
+therefore the cloned static `git ls-tree` inventory plus targeted `git show`
+reads from the upstream object database, not upstream runner parity.
 
 ## Native PHP Mapping Added
 
@@ -69,6 +72,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   quote-contained indented code, ordered lists, nested block quotes, and the
   lazy-continuation case where `> 1.` stays inside a paragraph instead of
   starting a quote.
+- Horizontal rules from the `# Code Blocks` and `# Lists` sections of
+  `test/testsuite.txt`, cross-checked against `test/testsuite.native`: the
+  underscore divider before the Lists section and the indented spaced-asterisk
+  divider after `B. Williams` both become `HorizontalRule` nodes instead of
+  paragraphs or bullet lists.
 - Definition-list cases from `Tests.Readers.Markdown`: no blank space,
   blank space before the first definition, lazy continuation lines, indented
   continuation paragraphs, blank space before the second definition, first-line
@@ -79,7 +87,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-28 tests, 114 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed after this lane batch in the shared
-worktree; the global assertion count is moving during this high-concurrency run
-as other lanes add tests.
+31 tests, 125 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 59 test files, 3296 assertions, and
+0 failures after this lane batch in the shared worktree.

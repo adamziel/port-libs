@@ -84,6 +84,23 @@ return [
         $t->same('code_block', $document->children[3]->type);
         $t->same('    this code block is indented by two tabs' . "\n\n" . 'These should not be escaped:  \$ \\\\ \> \[ \{', $document->children[3]->attr('text'));
     },
+    'maps upstream testsuite horizontal rules without treating spaced asterisks as a list' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("___________\n\nM.A. 2007\n\nB. Williams\n\n  *   *   *   *   *");
+
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('M.A. 2007', $document->children[1]->attr('text'));
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same('B. Williams', $document->children[2]->attr('text'));
+        $t->same('horizontal_rule', $document->children[3]->type);
+    },
+    'maps pandoc markdown dash and asterisk horizontal rule forms' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("---\n\n* * *\n\n___");
+
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('horizontal_rule', $document->children[1]->type);
+        $t->same('horizontal_rule', $document->children[2]->type);
+    },
     'groups ordered lists as a list block' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("3. Export WXR\n4. Convert Markdown\n5. Publish blocks");
         $list = $document->children[0];
@@ -269,6 +286,13 @@ return [
 
         $t->contains('<!-- wp:quote -->', $blocks);
         $t->contains('<blockquote class="wp-block-quote"><p>Reviewer note: keep the archive URL attached to the imported post.</p></blockquote>', $blocks);
+    },
+    'writes wordpress separator block for imported markdown section breaks' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<!-- wp:separator -->', $blocks);
+        $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity"/>', $blocks);
     },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');

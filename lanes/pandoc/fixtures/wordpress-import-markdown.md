@@ -5,6 +5,8 @@ This **legacy post** links back to the [source archive](https://example.test/arc
 - Preserve editorial emphasis in imported paragraphs
 - Keep source links clickable for reviewer audits
 
+  *   *   *   *   *
+
 > Reviewer note: keep the archive URL attached to the imported post.
 
 1. Convert Markdown to the shared AST

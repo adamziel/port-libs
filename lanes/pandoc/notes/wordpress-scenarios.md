@@ -23,6 +23,11 @@ Indented code blocks from the `test/testsuite.txt` Code Blocks section now also
 preserve blank lines, literal backslashes, and Pandoc's tab-expanded remaining
 indentation, which matters for older Markdown exports that used tab-indented PHP
 or template snippets instead of fenced code.
+Horizontal rules from the `test/testsuite.txt` Code Blocks and Lists sections
+now map to `horizontal_rule` AST nodes and WordPress separator blocks. This
+keeps archive section breaks while avoiding the common import bug where a spaced
+asterisk divider such as `*   *   *   *   *` becomes an empty-looking bullet
+list.
 
 ## Scenario Fixture
 
@@ -43,8 +48,11 @@ or template snippets instead of fenced code.
   paragraphs.
 - Tab-indented legacy snippets render as core WordPress code blocks with the
   remaining tab indentation expanded to spaces, matching Pandoc's native AST.
+- Spaced-asterisk and underscore section dividers render as WordPress separator
+  blocks, preserving migration-era article breaks without turning them into list
+  markup.
 
 ## Next Task
 
-Move to another bounded block family from `test/testsuite.txt`, starting with
-the Lists section after the now-mapped code-block examples.
+Continue the bounded Lists section from `test/testsuite.txt` by mapping
+tight/loose list paragraph shape and continuation-line semantics.

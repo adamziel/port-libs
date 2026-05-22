@@ -11,10 +11,10 @@
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": "1979 upstream test files/artifacts inspected from a blob-filtered shallow clone: 1974 under test/ plus 5 pandoc-lua-engine test modules",
-        "mapped": 28,
-        "source": ".upstream-cache/pandoc at 0640c4c9859aa5a3ede082c190fcd5883c24ac83 using git ls-tree path inventory and targeted reads of pandoc.cabal, COPYRIGHT, test/test-pandoc.hs, Tests.Command, Tests.Readers.Markdown, Tests.Writers.Native, test/command/indented-fences.md, test/testsuite.txt, and test/testsuite.native",
-        "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because ghc, cabal, and stack are not installed in this environment; upstream test-pandoc must be built as a Haskell Tasty executable and run from a full checkout, and the current cache is blob-filtered/no-checkout for modest resource use. Native PHP progress maps 28 focused Markdown/WordPress writer checks, including the Tests.Readers.Markdown nested list case, all eight definition-list cases, inline-code list-marker regression cases, two test/command/indented-fences.md fenced-code examples, block quote cases from test/testsuite.txt, and the test/testsuite.txt indented code-block tab-expansion cases cross-checked against test/testsuite.native."
+        "total": "2028 upstream test files/artifacts inspected from a blob-filtered shallow clone: 1974 under test/ plus all 54 artifacts under pandoc-lua-engine/test",
+        "mapped": 31,
+        "source": ".upstream-cache/pandoc at 0640c4c9859aa5a3ede082c190fcd5883c24ac83 using git ls-tree path inventory and targeted reads of pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, COPYRIGHT, test/test-pandoc.hs, Tests.Command, Tests.Readers.Markdown, Tests.Writers.Native, test/command/indented-fences.md, test/testsuite.txt, and test/testsuite.native",
+        "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because ghc, cabal, and stack are not installed in this environment; upstream test-pandoc and test-pandoc-lua-engine must be built as Haskell Tasty executables and run from a full checkout, and the current cache is blob-filtered/no-checkout for modest resource use. Native PHP progress maps 31 focused Markdown/WordPress writer checks, including the Tests.Readers.Markdown nested list case, all eight definition-list cases, inline-code list-marker regression cases, two test/command/indented-fences.md fenced-code examples, block quote cases from test/testsuite.txt, the test/testsuite.txt indented code-block tab-expansion cases cross-checked against test/testsuite.native, and horizontal-rule forms from the Code Blocks/Lists sections including spaced asterisks that must not become a bullet list."
     },
     "inventory": {
         "mainTestSuite": "pandoc.cabal test-suite test-pandoc",
@@ -36,14 +36,15 @@
         "officeArchiveFixtures": 309,
         "htmlXmlJatsFixtures": 29,
         "pandocLuaEngineTestModules": 5,
+        "pandocLuaEngineTestArtifacts": 54,
         "benchmarkFiles": 1,
         "dataFiles": 247
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native Markdown reader and WordPress block writer for headings, paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered lists, the Tests.Readers.Markdown nested indented bullet-list shape, all eight Tests.Readers.Markdown definition-list cases including the definition list nested inside an HTML div, inline code spans containing list-marker-looking text, indented fenced code blocks from test/command/indented-fences.md, test/testsuite.txt indented code blocks with tab expansion and literal backslashes, and block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt."
+        "currentSlice": "Native Markdown reader and WordPress block writer for headings, paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered lists, the Tests.Readers.Markdown nested indented bullet-list shape, all eight Tests.Readers.Markdown definition-list cases including the definition list nested inside an HTML div, inline code spans containing list-marker-looking text, indented fenced code blocks from test/command/indented-fences.md, test/testsuite.txt indented code blocks with tab expansion and literal backslashes, block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt, and test/testsuite.txt horizontal rules including spaced asterisks that are disambiguated from list items."
     },
-    "wordpressScenario": "Data Liberation Markdown import path that preserves editorial emphasis, source links, code spans, reviewer quotes, ordered conversion steps, nested editorial checklists, glossary-style definition lists with lazy and multi-paragraph import notes, div-wrapped glossary notes from legacy imports, and fenced or tab-indented migration code snippets as WordPress blocks or HTML.",
-    "nextTask": "Move to another bounded block family from test/testsuite.txt, starting with the Lists section after the now-mapped code-block examples."
+    "wordpressScenario": "Data Liberation Markdown import path that preserves editorial emphasis, source links, code spans, reviewer quotes, section dividers, ordered conversion steps, nested editorial checklists, glossary-style definition lists with lazy and multi-paragraph import notes, div-wrapped glossary notes from legacy imports, and fenced or tab-indented migration code snippets as WordPress blocks or HTML.",
+    "nextTask": "Continue the bounded Lists section from test/testsuite.txt by mapping tight/loose list paragraph shape and continuation-line semantics."
 }

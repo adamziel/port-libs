@@ -32,6 +32,12 @@ final class MarkdownReader
                 $blocks[] = $divBlock;
                 continue;
             }
+            if ($this->isHorizontalRule($line)) {
+                $this->flushParagraph($paragraph, $blocks);
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = new AstNode('horizontal_rule');
+                continue;
+            }
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -211,6 +217,13 @@ final class MarkdownReader
     private function stripBlockQuoteMarker(string $line): string
     {
         return preg_replace('/^ {0,3}>[ \t]?/', '', $line, 1) ?? $line;
+    }
+
+    private function isHorizontalRule(string $line): bool
+    {
+        return preg_match('/^ {0,3}(?:\*[ \t]*){3,}$/', $line) === 1
+            || preg_match('/^ {0,3}(?:-[ \t]*){3,}$/', $line) === 1
+            || preg_match('/^ {0,3}(?:_[ \t]*){3,}$/', $line) === 1;
     }
 
     /**

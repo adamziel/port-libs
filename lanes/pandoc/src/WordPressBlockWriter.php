@@ -39,6 +39,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderBlockQuote($node);
             } elseif ($node->type === 'div') {
                 $blocks[] = $this->renderDivBlock($node);
+            } elseif ($node->type === 'horizontal_rule') {
+                $blocks[] = $this->renderHorizontalRule();
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -185,6 +187,13 @@ final class WordPressBlockWriter
             . "\n" . '<!-- /wp:html -->';
     }
 
+    private function renderHorizontalRule(): string
+    {
+        return '<!-- wp:separator -->'
+            . "\n" . '<hr class="wp-block-separator has-alpha-channel-opacity"/>'
+            . "\n" . '<!-- /wp:separator -->';
+    }
+
     private function sanitizeCodeClass(string $class): string
     {
         return preg_replace('/[^A-Za-z0-9_-]/', '', $class) ?? '';
@@ -256,6 +265,10 @@ final class WordPressBlockWriter
             }
             if ($block->type === 'blockquote') {
                 $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+                continue;
+            }
+            if ($block->type === 'horizontal_rule') {
+                $html .= '<hr/>';
                 continue;
             }
             if ($block->type === 'div') {
