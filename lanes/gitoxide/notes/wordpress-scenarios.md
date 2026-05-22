@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, common partial-clone fetch filter specs, sparse checkout path matching, lazy promisor object hydration, protocol v2 fetch response section and sideband parsing, protocol v1 receive-pack push request building, receive-pack advertisement parsing, generated pack handoff, send-pack session orchestration, status parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate+promisor object database lookup/prefix/iteration with replacement refs.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, common partial-clone fetch filter specs, sparse checkout path matching, lazy promisor object hydration, protocol v2 fetch response section and sideband parsing, protocol v1 receive-pack push request building, receive-pack advertisement parsing, generated pack handoff, REF_DELTA pack generation, thin send-pack request building, send-pack session orchestration, status parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate+promisor object database lookup/prefix/iteration with replacement refs.
 
 ## WordPress Deploy Tree Example
 
@@ -50,6 +50,10 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 `examples/wordpress-send-pack-session.php` parses advertised receive-pack refs and capabilities, plans a WordPress branch update plus release-tag creation, generates native pack bytes for the commit/tree/blob payload, builds the receive-pack request, and parses the status response. This models the local orchestration around a WordPress deployment push before actual transport I/O is ported.
 
+## WordPress Thin Send-Pack Example
+
+`examples/wordpress-send-pack-thin.php` builds a thin receive-pack request for a WordPress content update. It uses remote base objects to encode changed content as REF_DELTA entries, omits those bases from the transit pack, and preserves the update command envelope without invoking `git pack-objects` or `git push`.
+
 ## WordPress Partial Clone Example
 
 `examples/wordpress-partial-clone.php` writes a deterministic WordPress pack/index pair with a `.promisor` sidecar, builds a blobless `FetchFilterSpec`, and stores a tree that references both packed content and an omitted media blob. This models a PHP deployment or package manager distinguishing local packed WordPress content from media bytes promised by a partial clone without invoking `git cat-file`.
@@ -84,4 +88,4 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## Next Task
 
-Map delta/thin-pack generation for efficient send-pack payloads, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear.
+Map receive-pack transport I/O adapters, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear.
