@@ -109,6 +109,40 @@ return [
         $t->same(3, $list->attr('start'));
         $t->same('Convert Markdown', $list->children[1]->attr('text'));
     },
+    'maps upstream testsuite loose bullet list items as paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("*\tasterisk 1\n\n*\tasterisk 2\n\n*\tasterisk 3");
+        $list = $document->children[0];
+
+        $t->same('bullet_list', $list->type);
+        $t->true((bool) $list->attr('loose'));
+        $t->same('paragraph', $list->children[0]->children[0]->type);
+        $t->same('asterisk 1', $list->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $list->children[2]->children[0]->type);
+        $t->same('asterisk 3', $list->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite ordered list continuation paragraphs' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            "1.\tItem 1, graf one.",
+            '',
+            "\tItem 1. graf two. The quick brown fox jumped over the lazy dog's",
+            "\tback.",
+            "\t",
+            "2.\tItem 2.",
+            '',
+            "3.\tItem 3.",
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $firstItem = $list->children[0];
+
+        $t->same('ordered_list', $list->type);
+        $t->true((bool) $list->attr('loose'));
+        $t->same(2, count($firstItem->children));
+        $t->same('paragraph', $firstItem->children[0]->type);
+        $t->same('Item 1, graf one.', $firstItem->children[0]->attr('text'));
+        $t->same('Item 1. graf two. The quick brown fox jumped over the lazy dog\'s back.', $firstItem->children[1]->attr('text'));
+        $t->same('Item 2.', $list->children[1]->children[0]->attr('text'));
+    },
     'maps upstream markdown nested list item shape' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");
         $list = $document->children[0];
@@ -118,6 +152,99 @@ return [
         $t->same('c', $list->children[2]->children[0]->attr('text'));
         $t->same('bullet_list', $nested->type);
         $t->same('d', $nested->children[0]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite list continuation lines indented with tabs and spaces' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            "+\tthis is a list item",
+            "\tindented with tabs",
+            '',
+            '+   this is a list item',
+            '    indented with spaces',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+
+        $t->same('bullet_list', $list->type);
+        $t->true((bool) $list->attr('loose'));
+        $t->same('this is a list item indented with tabs', $list->children[0]->children[0]->attr('text'));
+        $t->same('this is a list item indented with spaces', $list->children[1]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite loose nested list paragraph shape' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("1. First\n\n2. Second:\n\n\t* Fee\n\t* Fie\n\t* Foe\n\n3. Third");
+        $list = $document->children[0];
+        $secondItem = $list->children[1];
+        $nested = $secondItem->children[1];
+
+        $t->same('ordered_list', $list->type);
+        $t->same('paragraph', $secondItem->children[0]->type);
+        $t->same('Second:', $secondItem->children[0]->attr('text'));
+        $t->same('bullet_list', $nested->type);
+        $t->same('Fee', $nested->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $list->children[2]->children[0]->type);
+        $t->same('Third', $list->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite parenthesized decimal roman and alpha list markers' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '(2) begins with 2',
+            '(3) and now 3',
+            '',
+            '    with a continuation',
+            '',
+            '    iv. sublist with roman numerals,',
+            '        starting with 4',
+            '    v.  more items',
+            '        (A)  a subsublist',
+            '        (B)  a subsublist',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $secondItem = $list->children[1];
+        $roman = $secondItem->children[2];
+        $alpha = $roman->children[1]->children[1];
+
+        $t->same('ordered_list', $list->type);
+        $t->same(2, $list->attr('start'));
+        $t->same('decimal', $list->attr('style'));
+        $t->same('two_parens', $list->attr('delimiter'));
+        $t->same('paragraph', $secondItem->children[0]->type);
+        $t->same('with a continuation', $secondItem->children[1]->attr('text'));
+        $t->same(4, $roman->attr('start'));
+        $t->same('lower_roman', $roman->attr('style'));
+        $t->same('sublist with roman numerals, starting with 4', $roman->children[0]->children[0]->attr('text'));
+        $t->same('upper_alpha', $alpha->attr('style'));
+        $t->same('a subsublist', $alpha->children[1]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite nested upper alpha upper roman decimal and lower alpha markers' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("A.  Upper Alpha\n    I.  Upper Roman.\n        (6) Decimal start with 6\n            c)  Lower alpha with paren");
+        $alpha = $document->children[0];
+        $roman = $alpha->children[0]->children[1];
+        $decimal = $roman->children[0]->children[1];
+        $lowerAlpha = $decimal->children[0]->children[1];
+
+        $t->same('ordered_list', $alpha->type);
+        $t->same('upper_alpha', $alpha->attr('style'));
+        $t->same(1, $alpha->attr('start'));
+        $t->same('upper_roman', $roman->attr('style'));
+        $t->same(1, $roman->attr('start'));
+        $t->same('decimal', $decimal->attr('style'));
+        $t->same(6, $decimal->attr('start'));
+        $t->same('lower_alpha', $lowerAlpha->attr('style'));
+        $t->same(3, $lowerAlpha->attr('start'));
+        $t->same('Lower alpha with paren', $lowerAlpha->children[0]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite autonumbered list markers and nested autonumbering' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.");
+        $list = $document->children[0];
+        $nested = $list->children[1]->children[1];
+
+        $t->same('ordered_list', $list->type);
+        $t->same(1, $list->attr('start'));
+        $t->same('default', $list->attr('style'));
+        $t->same('default', $list->attr('delimiter'));
+        $t->same('More.', $list->children[1]->children[0]->attr('text'));
+        $t->same('ordered_list', $nested->type);
+        $t->same('default', $nested->attr('style'));
+        $t->same('Nested.', $nested->children[0]->children[0]->attr('text'));
     },
     'maps upstream markdown definition lists without blank space' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("foo1\n  :  bar\n\nfoo2\n  : bar2\n  : bar3\n");
@@ -243,6 +370,18 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->contains('<ul><li>a</li><li>b</li><li>c<ul><li>d</li></ul></li></ul>', $blocks);
+    },
+    'writes wordpress loose list paragraphs from migration follow-up steps' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<li><p>Record reviewer follow-up.</p><p>Confirm shortcode cleanup in the migration log.</p></li>', $blocks);
+    },
+    'writes wordpress imported fancy ordered lists with nested starts' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<ol start="2"><li>Confirm source identifiers</li><li>Schedule staged import<ol start="4"><li>Review roman checkpoint</li><li>Approve nested audit</li></ol></li></ol>', $blocks);
     },
     'writes wordpress definition list html from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Plugin\n: Stable release\n\nChecklist\n:   - Verify imports");

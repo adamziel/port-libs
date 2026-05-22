@@ -8,6 +8,16 @@ Native Markdown block reader and WordPress block writer for headings,
 paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists,
 ordered lists, nested lists, and definition lists. Code spans now preserve
 list-marker-looking text such as `- x` and `#. x` inside imported list items.
+List parsing now also maps the bounded `test/testsuite.txt` loose-list and
+continuation-line shape: blank-separated list items become paragraph-bearing
+loose items, tab/space-indented continuation lines stay inside the current
+item, and multi-paragraph ordered steps render as multiple paragraphs inside
+one WordPress list item.
+The same upstream Lists section now contributes fancy ordered-list markers:
+parenthesized decimal starts, lower/upper roman numerals, upper/lower alphabetic
+markers, and Pandoc autonumbering. The AST keeps marker style/delimiter
+metadata and the WordPress writer preserves start values for nested ordered
+lists.
 Definition lists now cover Pandoc-style loose first definitions, lazy
 continuation lines, blank-before-second definitions, and indented continuation
 paragraphs, which keeps imported FAQ, glossary, and release-note metadata
@@ -33,8 +43,10 @@ list.
 
 - `fixtures/wordpress-import-markdown.md` is a small Data Liberation import
   sample with editorial emphasis, a source archive link, visible shortcode-like
-  code spans, a reviewer quote, conversion steps, definition-list import notes,
-  a div-wrapped glossary audit note, and a fenced PHP migration snippet.
+  code spans, a reviewer quote, conversion steps with a multi-paragraph
+  reviewer follow-up item, parenthesized source-ID steps with nested roman
+  reviewer checkpoints, definition-list import notes, a div-wrapped glossary
+  audit note, and a fenced PHP migration snippet.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -46,6 +58,12 @@ list.
 - Quote support maps imported reviewer notes, citations, and legacy editorial
   callouts into core WordPress quote blocks instead of flattening them into
   paragraphs.
+- Loose ordered-list support keeps a reviewer follow-up paragraph attached to
+  the same conversion step instead of emitting a separate paragraph outside the
+  list.
+- Fancy ordered-list support keeps imported source-ID sequences and nested
+  roman reviewer checkpoints grouped as ordered WordPress list markup with the
+  correct `start` values.
 - Tab-indented legacy snippets render as core WordPress code blocks with the
   remaining tab indentation expanded to spaces, matching Pandoc's native AST.
 - Spaced-asterisk and underscore section dividers render as WordPress separator
@@ -54,5 +72,5 @@ list.
 
 ## Next Task
 
-Continue the bounded Lists section from `test/testsuite.txt` by mapping
-tight/loose list paragraph shape and continuation-line semantics.
+Map alternate definition-list markers (`~`) and multiple-block definition
+bodies from the `test/testsuite.txt` Definition Lists section.

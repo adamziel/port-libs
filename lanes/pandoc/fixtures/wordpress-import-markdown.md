@@ -11,6 +11,14 @@ This **legacy post** links back to the [source archive](https://example.test/arc
 
 1. Convert Markdown to the shared AST
 2. Write WordPress block comments and HTML
+3. Record reviewer follow-up.
+
+    Confirm shortcode cleanup in the migration log.
+
+(2) Confirm source identifiers
+(3) Schedule staged import
+    iv. Review roman checkpoint
+    v.  Approve nested audit
 
 Import note
 : Keep the archive URL attached

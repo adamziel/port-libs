@@ -22,8 +22,15 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` rendered native AST lines: 2,238
 - `test/testsuite.native` `BlockQuote` nodes in the full rendered suite: 7
 - `test/testsuite.native` `CodeBlock` nodes in the full rendered suite: 11
+- `test/testsuite.native` `BulletList`/`OrderedList` nodes in the full rendered
+  suite: 36
+- `test/testsuite.txt` Lists section slice inspected in this run: 163 Markdown
+  lines from `# Lists` through the start of `# Definition Lists`
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
+- Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
+  checks covering parenthesized decimal starts, lower/upper roman numerals,
+  upper/lower alphabetic markers, and Pandoc autonumbering
 - Markdown fixture files under `test/`: 1,096
 - Office/archive fixtures (`docx`, `odt`, `epub`, `pptx`, `xlsx`, `rtf`): 309
 - HTML/XML/JATS fixtures: 29
@@ -77,6 +84,19 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   underscore divider before the Lists section and the indented spaced-asterisk
   divider after `B. Williams` both become `HorizontalRule` nodes instead of
   paragraphs or bullet lists.
+- Tight/loose list item shape and continuation paragraphs from the
+  `# Lists` section of `test/testsuite.txt`, cross-checked against
+  `test/testsuite.native`: blank lines between list items mark the list loose
+  and turn item text into paragraph blocks, tab/space-indented continuation
+  lines remain inside the current list item, multi-paragraph ordered items keep
+  both paragraphs under the same item, and loose nested lists keep the parent
+  item paragraph before the nested `BulletList`.
+- Fancy ordered-list markers from the same `# Lists` section: `(2)` and `(3)`
+  produce a decimal `OrderedList` starting at 2 with a two-parentheses
+  delimiter, `iv.`/`v.` produce a lower-roman nested list starting at 4,
+  `(A)`/`(B)` produce an upper-alpha nested list, `A.`/`I.`/`(6)`/`c)` produce
+  the nested upper-alpha, upper-roman, decimal, and lower-alpha shape shown in
+  `test/testsuite.native`, and `#.` produces Pandoc-style autonumbered lists.
 - Definition-list cases from `Tests.Readers.Markdown`: no blank space,
   blank space before the first definition, lazy continuation lines, indented
   continuation paragraphs, blank space before the second definition, first-line
@@ -87,6 +107,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-31 tests, 125 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 59 test files, 3296 assertions, and
+40 tests, 180 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 67 test files, 3,687 assertions, and
 0 failures after this lane batch in the shared worktree.

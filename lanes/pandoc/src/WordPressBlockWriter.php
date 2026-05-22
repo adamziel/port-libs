@@ -109,6 +109,14 @@ final class WordPressBlockWriter
     private function renderListItem(AstNode $item): string
     {
         $html = '';
+        $paragraphCount = 0;
+        foreach ($item->children as $child) {
+            if ($child->type === 'paragraph') {
+                $paragraphCount++;
+            }
+        }
+        $wrapParagraphs = (bool) $item->attr('loose', false) || $paragraphCount > 1;
+
         foreach ($item->children as $child) {
             if ($child->type === 'bullet_list') {
                 $html .= $this->renderListHtml($child, false);
@@ -116,6 +124,11 @@ final class WordPressBlockWriter
             }
             if ($child->type === 'ordered_list') {
                 $html .= $this->renderListHtml($child, true);
+                continue;
+            }
+            if ($child->type === 'paragraph') {
+                $rendered = $this->renderInlines($child);
+                $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
                 continue;
             }
 

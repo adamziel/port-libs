@@ -49,14 +49,11 @@ final class MarkdownReader
                 );
                 continue;
             }
-            if (preg_match('/^(\s*)[-*+]\s+(.+)$/', $line, $m)) {
+            $listBlock = $paragraph === [] ? $this->tryReadListBlock($lines, $index) : null;
+            if ($listBlock !== null) {
                 $this->flushParagraph($paragraph, $blocks);
-                $this->appendListItem($listStack, $blocks, false, null, strlen($m[1]), trim($m[2]));
-                continue;
-            }
-            if (preg_match('/^(\s*)(\d+)[.)]\s+(.+)$/', $line, $m)) {
-                $this->flushParagraph($paragraph, $blocks);
-                $this->appendListItem($listStack, $blocks, true, (int) $m[2], strlen($m[1]), trim($m[3]));
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = $listBlock;
                 continue;
             }
             $indentedCodeBlock = $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
@@ -224,6 +221,455 @@ final class MarkdownReader
         return preg_match('/^ {0,3}(?:\*[ \t]*){3,}$/', $line) === 1
             || preg_match('/^ {0,3}(?:-[ \t]*){3,}$/', $line) === 1
             || preg_match('/^ {0,3}(?:_[ \t]*){3,}$/', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadListBlock(array $lines, int &$index): ?AstNode
+    {
+        $marker = $this->matchListMarker($lines[$index] ?? '');
+        if ($marker === null || $marker['indent'] > 3) {
+            return null;
+        }
+
+        $result = $this->parseList($lines, $index, $marker);
+        if ($result === null) {
+            return null;
+        }
+
+        $index = $result['next'] - 1;
+
+        return $result['node'];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null} $firstMarker
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function parseList(array $lines, int $cursor, array $firstMarker): ?array
+    {
+        $count = count($lines);
+        $items = [];
+        $start = null;
+        $listLoose = false;
+        $baseIndent = $firstMarker['indent'];
+        $ordered = $firstMarker['ordered'];
+        $style = $firstMarker['style'];
+        $delimiter = $firstMarker['delimiter'];
+
+        while ($cursor < $count) {
+            $marker = $this->matchListMarker($lines[$cursor]);
+            if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter)) {
+                break;
+            }
+
+            $start ??= $marker['start'];
+            $item = $this->parseListItem($lines, $cursor, $marker, $ordered, $style, $delimiter);
+            $items[] = $item;
+            $cursor = $item['next'];
+            $listLoose = $listLoose || $item['loose'];
+
+            $blankCursor = $cursor;
+            while ($blankCursor < $count && trim($lines[$blankCursor]) === '') {
+                $blankCursor++;
+            }
+
+            if ($blankCursor > $cursor) {
+                $nextMarker = $blankCursor < $count ? $this->matchListMarker($lines[$blankCursor]) : null;
+                if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter)) {
+                    $listLoose = true;
+                    $cursor = $blankCursor;
+                    continue;
+                }
+            }
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        $children = [];
+        foreach ($items as $item) {
+            $children[] = $this->buildListItem($item, $listLoose || $item['loose']);
+        }
+
+        $attrs = ['loose' => $listLoose];
+        if ($ordered) {
+            $attrs['start'] = $start ?? 1;
+            $attrs['style'] = $style ?? 'decimal';
+            $attrs['delimiter'] = $delimiter ?? 'period';
+        }
+
+        return [
+            'node' => new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $children),
+            'next' => $cursor,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null} $marker
+     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null}
+     */
+    private function parseListItem(
+        array $lines,
+        int $cursor,
+        array $marker,
+        bool $ordered,
+        ?string $style,
+        ?string $delimiter
+    ): array {
+        $count = count($lines);
+        $baseIndent = $marker['indent'];
+        $contentIndent = $marker['contentIndent'];
+        $parts = [];
+        $paragraph = [];
+        $loose = false;
+        $firstText = trim($marker['text']);
+
+        if ($firstText !== '') {
+            $paragraph[] = $firstText;
+        }
+        $cursor++;
+
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $next = $cursor;
+                while ($next < $count && trim($lines[$next]) === '') {
+                    $next++;
+                }
+
+                if ($next >= $count) {
+                    break;
+                }
+
+                if ($this->isHorizontalRule($lines[$next])) {
+                    break;
+                }
+
+                $nextMarker = $this->matchListMarker($lines[$next]);
+                if ($nextMarker !== null && $nextMarker['indent'] <= $baseIndent) {
+                    break;
+                }
+
+                $nextIndent = $this->countIndentColumns($lines[$next]);
+                if (($nextMarker !== null && $nextMarker['indent'] > $baseIndent) || $nextIndent >= $contentIndent) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $loose = true;
+                    $cursor = $next;
+                    continue;
+                }
+
+                break;
+            }
+
+            if ($this->isHorizontalRule($line)) {
+                break;
+            }
+
+            $lineMarker = $this->matchListMarker($line);
+            if ($lineMarker !== null) {
+                if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter)) {
+                    break;
+                }
+
+                if ($lineMarker['indent'] <= $baseIndent) {
+                    break;
+                }
+
+                $this->flushListItemParagraph($paragraph, $parts);
+                $nested = $this->parseList($lines, $cursor, $lineMarker);
+                if ($nested === null) {
+                    break;
+                }
+
+                $parts[] = $nested['node'];
+                $cursor = $nested['next'];
+                continue;
+            }
+
+            $indent = $this->countIndentColumns($line);
+            if ($indent >= $contentIndent) {
+                $paragraph[] = trim($this->stripIndentColumns($line, $contentIndent));
+                $cursor++;
+                continue;
+            }
+
+            if ($paragraph !== [] && $this->isLazyListContinuation($line)) {
+                $paragraph[] = trim($line);
+                $cursor++;
+                continue;
+            }
+
+            break;
+        }
+
+        $this->flushListItemParagraph($paragraph, $parts);
+
+        return [
+            'parts' => $parts,
+            'next' => $cursor,
+            'loose' => $loose,
+            'text' => $firstText,
+            'number' => $marker['start'],
+        ];
+    }
+
+    private function isLazyListContinuation(string $line): bool
+    {
+        return trim($line) !== ''
+            && !$this->isHorizontalRule($line)
+            && !$this->isBlockQuoteLine($line)
+            && !$this->isDefinitionMarker($line)
+            && preg_match('/^(#{1,6})\s+/', $line) !== 1;
+    }
+
+    /**
+     * @param list<string> $paragraph
+     * @param list<array{type:string, text:string}|AstNode> $parts
+     */
+    private function flushListItemParagraph(array &$paragraph, array &$parts): void
+    {
+        if ($paragraph === []) {
+            return;
+        }
+
+        $parts[] = ['type' => 'paragraph', 'text' => implode(' ', $paragraph)];
+        $paragraph = [];
+    }
+
+    /**
+     * @param array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null} $item
+     */
+    private function buildListItem(array $item, bool $loose): AstNode
+    {
+        $paragraphCount = 0;
+        foreach ($item['parts'] as $part) {
+            if (is_array($part) && ($part['type'] ?? null) === 'paragraph') {
+                $paragraphCount++;
+            }
+        }
+
+        $forceParagraphBlocks = $loose || $paragraphCount > 1;
+        $children = [];
+        foreach ($item['parts'] as $part) {
+            if ($part instanceof AstNode) {
+                $children[] = $part;
+                continue;
+            }
+
+            $text = $part['text'];
+            if ($forceParagraphBlocks) {
+                $children[] = new AstNode('paragraph', ['text' => $text], $this->parseInlines($text));
+                continue;
+            }
+
+            foreach ($this->parseInlines($text) as $inline) {
+                $children[] = $inline;
+            }
+        }
+
+        $attrs = ['text' => $item['text'], 'loose' => $forceParagraphBlocks];
+        if ($item['number'] !== null) {
+            $attrs['number'] = $item['number'];
+        }
+
+        return new AstNode('list_item', $attrs, $children);
+    }
+
+    /**
+     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null}|null
+     */
+    private function matchListMarker(string $line): ?array
+    {
+        if ($this->isHorizontalRule($line)) {
+            return null;
+        }
+
+        $expanded = $this->expandTabsToSpaces($line);
+        if (preg_match('/^( *)([-*+])( +)(.*)$/', $expanded, $m) === 1) {
+            return [
+                'indent' => strlen($m[1]),
+                'ordered' => false,
+                'start' => null,
+                'text' => $m[4],
+                'contentIndent' => strlen($m[1]) + 1 + strlen($m[3]),
+                'style' => null,
+                'delimiter' => null,
+            ];
+        }
+
+        if (preg_match('/^( *)#([.)])( +)(.*)$/', $expanded, $m) === 1) {
+            return [
+                'indent' => strlen($m[1]),
+                'ordered' => true,
+                'start' => 1,
+                'text' => $m[4],
+                'contentIndent' => strlen($m[1]) + 2 + strlen($m[3]),
+                'style' => 'default',
+                'delimiter' => 'default',
+            ];
+        }
+
+        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)( +)(.*)$/', $expanded, $m) === 1) {
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', strlen($m[3]));
+            if ($ordinal === null) {
+                return null;
+            }
+
+            return [
+                'indent' => strlen($m[1]),
+                'ordered' => true,
+                'start' => $ordinal['start'],
+                'text' => $m[4],
+                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 2 + strlen($m[3]),
+                'style' => $ordinal['style'],
+                'delimiter' => 'two_parens',
+            ];
+        }
+
+        if (preg_match('/^( *)(\d{1,9})([.)])( +)(.*)$/', $expanded, $m) === 1) {
+            return [
+                'indent' => strlen($m[1]),
+                'ordered' => true,
+                'start' => (int) $m[2],
+                'text' => $m[5],
+                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + strlen($m[4]),
+                'style' => 'decimal',
+                'delimiter' => $m[3] === ')' ? 'one_paren' : 'period',
+            ];
+        }
+
+        if (preg_match('/^( *)([A-Za-z]+)([.)])( +)(.*)$/', $expanded, $m) === 1) {
+            $delimiter = $m[3] === ')' ? 'one_paren' : 'period';
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, strlen($m[4]));
+            if ($ordinal === null) {
+                return null;
+            }
+
+            return [
+                'indent' => strlen($m[1]),
+                'ordered' => true,
+                'start' => $ordinal['start'],
+                'text' => $m[5],
+                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + strlen($m[4]),
+                'style' => $ordinal['style'],
+                'delimiter' => $delimiter,
+            ];
+        }
+
+        return null;
+    }
+
+    private function isSameListMarker(
+        ?array $marker,
+        int $baseIndent,
+        bool $ordered,
+        ?string $style,
+        ?string $delimiter
+    ): bool {
+        return $marker !== null
+            && $marker['indent'] === $baseIndent
+            && $marker['ordered'] === $ordered
+            && $marker['style'] === $style
+            && $marker['delimiter'] === $delimiter;
+    }
+
+    /**
+     * @return array{start:int, style:string}|null
+     */
+    private function parseOrderedMarkerOrdinal(string $token, string $delimiter, int $spacesAfterMarker): ?array
+    {
+        if (ctype_digit($token)) {
+            return ['start' => (int) $token, 'style' => 'decimal'];
+        }
+
+        if (!ctype_alpha($token)) {
+            return null;
+        }
+
+        $roman = $delimiter === 'period' ? $this->romanToInt($token) : null;
+        if ($roman !== null && (strlen($token) > 1 || $spacesAfterMarker >= 2)) {
+            return [
+                'start' => $roman,
+                'style' => ctype_upper($token) ? 'upper_roman' : 'lower_roman',
+            ];
+        }
+
+        if (strlen($token) === 1 && $spacesAfterMarker >= 2) {
+            $start = ord(strtolower($token)) - ord('a') + 1;
+
+            return [
+                'start' => $start,
+                'style' => ctype_upper($token) ? 'upper_alpha' : 'lower_alpha',
+            ];
+        }
+
+        return null;
+    }
+
+    private function romanToInt(string $token): ?int
+    {
+        $roman = strtoupper($token);
+        if (preg_match('/^(?=[MDCLXVI]+$)M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/', $roman) !== 1) {
+            return null;
+        }
+
+        $values = [
+            'I' => 1,
+            'V' => 5,
+            'X' => 10,
+            'L' => 50,
+            'C' => 100,
+            'D' => 500,
+            'M' => 1000,
+        ];
+        $total = 0;
+        $previous = 0;
+        for ($offset = strlen($roman) - 1; $offset >= 0; $offset--) {
+            $value = $values[$roman[$offset]];
+            if ($value < $previous) {
+                $total -= $value;
+            } else {
+                $total += $value;
+                $previous = $value;
+            }
+        }
+
+        return $total;
+    }
+
+    private function countIndentColumns(string $line): int
+    {
+        return strspn($this->expandTabsToSpaces($line), ' ');
+    }
+
+    private function stripIndentColumns(string $line, int $columns): string
+    {
+        return substr($this->expandTabsToSpaces($line), $columns);
+    }
+
+    private function expandTabsToSpaces(string $line): string
+    {
+        $expanded = '';
+        $column = 0;
+        $length = strlen($line);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($line[$offset] === "\t") {
+                $spaces = 4 - ($column % 4);
+                $expanded .= str_repeat(' ', $spaces);
+                $column += $spaces;
+                continue;
+            }
+
+            $expanded .= $line[$offset];
+            $column++;
+        }
+
+        return $expanded;
     }
 
     /**
