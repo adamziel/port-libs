@@ -171,6 +171,9 @@ final class BlobMerge
             if ($start === null) {
                 return;
             }
+            if ($end < $start) {
+                $end = $start;
+            }
             $hunks[] = ['start' => $start, 'end' => $end, 'replacement' => $replacement];
             $start = null;
             $end = 0;
@@ -216,11 +219,7 @@ final class BlobMerge
      */
     private static function hunkComesBefore(array $left, array $right): bool
     {
-        if ($left['end'] <= $right['start']) {
-            return !($left['start'] === $left['end'] && $right['start'] === $right['end'] && $left['start'] === $right['start']);
-        }
-
-        return false;
+        return $left['end'] < $right['start'];
     }
 
     /**

@@ -309,8 +309,19 @@ final class TreeMerge
     {
         $ourRenames = self::detectedRenames($baseEntries, $ourEntries, $readObject);
         $theirRenames = self::detectedRenames($baseEntries, $theirEntries, $readObject);
+        $directoryFileRelocations = self::directoryRenameFileRelocations(
+            $baseEntries,
+            $ourEntries,
+            $theirEntries,
+            $ourRenames,
+            $theirRenames,
+            $pathPrefix,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
         $conflicts = [];
-        $consumed = [];
+        $consumed = $directoryFileRelocations['consumed'];
         $merged = [];
 
         $paths = array_keys($baseEntries);
@@ -408,7 +419,12 @@ final class TreeMerge
                         $ourRename['path'],
                         $baseEntry,
                         $ourRename['entry'],
-                        $theirEntry,
+                        self::applyDirectoryFileRelocations(
+                            $theirEntry,
+                            $directoryFileRelocations['byDirectory'][$path] ?? [],
+                            $readObject,
+                            $writeObject,
+                        ),
                         $readObject,
                         $writeObject,
                         $conflictStyle,
@@ -417,6 +433,7 @@ final class TreeMerge
                         if ($renameModifyMerge['entry'] !== null) {
                             $merged[] = $renameModifyMerge['entry'];
                         }
+                        array_push($conflicts, ...self::relocationConflicts($directoryFileRelocations['byDirectory'][$path] ?? []));
                         array_push($conflicts, ...$renameModifyMerge['conflicts']);
                         $consumed[$path] = true;
                         $consumed[$ourRename['path']] = true;
@@ -486,7 +503,12 @@ final class TreeMerge
                         $pathPrefix,
                         $theirRename['path'],
                         $baseEntry,
-                        $ourEntry,
+                        self::applyDirectoryFileRelocations(
+                            $ourEntry,
+                            $directoryFileRelocations['byDirectory'][$path] ?? [],
+                            $readObject,
+                            $writeObject,
+                        ),
                         $theirRename['entry'],
                         $readObject,
                         $writeObject,
@@ -496,6 +518,7 @@ final class TreeMerge
                         if ($renameModifyMerge['entry'] !== null) {
                             $merged[] = $renameModifyMerge['entry'];
                         }
+                        array_push($conflicts, ...self::relocationConflicts($directoryFileRelocations['byDirectory'][$path] ?? []));
                         array_push($conflicts, ...$renameModifyMerge['conflicts']);
                         $consumed[$path] = true;
                         $consumed[$theirRename['path']] = true;
@@ -517,6 +540,273 @@ final class TreeMerge
         }
 
         return [$conflicts, $consumed, $merged];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $ourEntries
+     * @param array<string, TreeEntry> $theirEntries
+     * @param array<string, array{path:string,entry:TreeEntry}> $ourRenames
+     * @param array<string, array{path:string,entry:TreeEntry}> $theirRenames
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     * @return array{byDirectory:array<string,list<array{relativePath:string,entry:TreeEntry,conflicts:list<TreeMergeConflict>}>>,consumed:array<string,true>}
+     */
+    private static function directoryRenameFileRelocations(
+        array $baseEntries,
+        array $ourEntries,
+        array $theirEntries,
+        array $ourRenames,
+        array $theirRenames,
+        string $pathPrefix,
+        ?callable $readObject,
+        ?callable $writeObject,
+        string $conflictStyle,
+    ): array {
+        if ($readObject === null || $writeObject === null) {
+            return ['byDirectory' => [], 'consumed' => []];
+        }
+
+        $ours = self::collectDirectoryRenameFileRelocations(
+            $baseEntries,
+            $ourEntries,
+            $theirEntries,
+            $ourRenames,
+            $pathPrefix,
+            true,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+        $theirs = self::collectDirectoryRenameFileRelocations(
+            $baseEntries,
+            $theirEntries,
+            $ourEntries,
+            $theirRenames,
+            $pathPrefix,
+            false,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+
+        return [
+            'byDirectory' => $ours['byDirectory'] + $theirs['byDirectory'],
+            'consumed' => $ours['consumed'] + $theirs['consumed'],
+        ];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $renamedSideEntries
+     * @param array<string, TreeEntry> $otherSideEntries
+     * @param array<string, array{path:string,entry:TreeEntry}> $directoryRenames
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return array{byDirectory:array<string,list<array{relativePath:string,entry:TreeEntry,conflicts:list<TreeMergeConflict>}>>,consumed:array<string,true>}
+     */
+    private static function collectDirectoryRenameFileRelocations(
+        array $baseEntries,
+        array $renamedSideEntries,
+        array $otherSideEntries,
+        array $directoryRenames,
+        string $pathPrefix,
+        bool $renamedByOurs,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+    ): array {
+        $byDirectory = [];
+        $consumed = [];
+
+        foreach ($directoryRenames as $directoryPath => $directoryRename) {
+            $baseDirectory = $baseEntries[$directoryPath] ?? null;
+            $otherDirectory = $otherSideEntries[$directoryPath] ?? null;
+            if (
+                $baseDirectory === null
+                || $otherDirectory === null
+                || !$baseDirectory->isTree()
+                || !$directoryRename['entry']->isTree()
+                || !$otherDirectory->isTree()
+            ) {
+                continue;
+            }
+
+            $baseCount = 0;
+            $otherCount = 0;
+            $baseLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $baseDirectory->oid, 'tree')), $readObject, '', 0, $baseCount);
+            $otherLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $otherDirectory->oid, 'tree')), $readObject, '', 0, $otherCount);
+            if ($baseLeaves === null || $otherLeaves === null) {
+                continue;
+            }
+
+            $addedLeaves = array_diff_key($otherLeaves, $baseLeaves);
+            if ($addedLeaves === []) {
+                continue;
+            }
+
+            $candidatesByBasePath = [];
+            foreach ($baseEntries as $basePath => $baseEntry) {
+                $renamedSideEntry = $renamedSideEntries[$basePath] ?? null;
+                if (
+                    $basePath === $directoryPath
+                    || isset($otherSideEntries[$basePath])
+                    || $renamedSideEntry === null
+                    || !$baseEntry->isBlob()
+                    || !$renamedSideEntry->isBlob()
+                    || self::sameEntry($baseEntry, $renamedSideEntry)
+                ) {
+                    continue;
+                }
+
+                foreach ($addedLeaves as $relativePath => $otherLeaf) {
+                    if (!$otherLeaf->isBlob() || $baseEntry->kind() !== $otherLeaf->kind()) {
+                        continue;
+                    }
+                    $score = self::blobSimilarity($baseEntry, $otherLeaf, $readObject);
+                    if ($score < 60) {
+                        continue;
+                    }
+                    $candidatesByBasePath[$basePath][$relativePath] = ['score' => $score, 'entry' => $otherLeaf];
+                }
+            }
+
+            foreach (self::strictBestRelocationCandidates($candidatesByBasePath) as $basePath => $candidate) {
+                $baseEntry = $baseEntries[$basePath];
+                $renamedSideEntry = $renamedSideEntries[$basePath];
+                $otherLeaf = $candidate['entry'];
+                $relativePath = $candidate['path'];
+                $targetPath = self::joinPath($directoryRename['path'], $relativePath);
+                $merge = self::tryMergeChangedEntry(
+                    basename($relativePath),
+                    self::joinPath($pathPrefix, $targetPath),
+                    $baseEntry,
+                    $renamedByOurs ? $renamedSideEntry : $otherLeaf,
+                    $renamedByOurs ? $otherLeaf : $renamedSideEntry,
+                    $readObject,
+                    $writeObject,
+                    $conflictStyle,
+                );
+                if ($merge === null || $merge['entry'] === null) {
+                    continue;
+                }
+
+                $byDirectory[$directoryPath][] = [
+                    'relativePath' => $relativePath,
+                    'entry' => $merge['entry'],
+                    'conflicts' => $merge['conflicts'],
+                ];
+                $consumed[$basePath] = true;
+            }
+        }
+
+        return ['byDirectory' => $byDirectory, 'consumed' => $consumed];
+    }
+
+    /**
+     * @param array<string, array<string, array{score:int,entry:TreeEntry}>> $candidatesByBasePath
+     * @return array<string, array{path:string,entry:TreeEntry}>
+     */
+    private static function strictBestRelocationCandidates(array $candidatesByBasePath): array
+    {
+        $selected = [];
+        $selectedTargetCounts = [];
+        foreach ($candidatesByBasePath as $basePath => $candidates) {
+            uasort(
+                $candidates,
+                static fn (array $left, array $right): int => $right['score'] <=> $left['score'],
+            );
+            $candidatePaths = array_keys($candidates);
+            $bestPath = $candidatePaths[0] ?? null;
+            if ($bestPath === null) {
+                continue;
+            }
+            $secondPath = $candidatePaths[1] ?? null;
+            if ($secondPath !== null && $candidates[$secondPath]['score'] === $candidates[$bestPath]['score']) {
+                continue;
+            }
+
+            $selected[$basePath] = ['path' => $bestPath, 'entry' => $candidates[$bestPath]['entry']];
+            $selectedTargetCounts[$bestPath] = ($selectedTargetCounts[$bestPath] ?? 0) + 1;
+        }
+
+        foreach ($selected as $basePath => $candidate) {
+            if (($selectedTargetCounts[$candidate['path']] ?? 0) !== 1) {
+                unset($selected[$basePath]);
+            }
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param ?TreeEntry $treeEntry
+     * @param list<array{relativePath:string,entry:TreeEntry,conflicts:list<TreeMergeConflict>}> $relocations
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     */
+    private static function applyDirectoryFileRelocations(?TreeEntry $treeEntry, array $relocations, ?callable $readObject, ?callable $writeObject): ?TreeEntry
+    {
+        if ($treeEntry === null || $relocations === [] || $readObject === null || $writeObject === null || !$treeEntry->isTree()) {
+            return $treeEntry;
+        }
+
+        $tree = Tree::fromObject(self::readTypedObject($readObject, $treeEntry->oid, 'tree'));
+        foreach ($relocations as $relocation) {
+            $tree = self::replaceTreeEntryAtPath($tree, explode('/', $relocation['relativePath']), $relocation['entry'], $readObject, $writeObject);
+        }
+
+        return new TreeEntry($treeEntry->mode, $treeEntry->filename, $writeObject($tree->toObject()));
+    }
+
+    /**
+     * @param list<string> $parts
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function replaceTreeEntryAtPath(Tree $tree, array $parts, TreeEntry $replacement, callable $readObject, callable $writeObject): Tree
+    {
+        $name = array_shift($parts);
+        if ($name === null || $name === '') {
+            return $tree;
+        }
+
+        $entries = self::entriesByName($tree);
+        if ($parts === []) {
+            $entries[$name] = new TreeEntry($replacement->mode, $name, $replacement->oid);
+        } else {
+            $entry = $entries[$name] ?? null;
+            if ($entry === null || !$entry->isTree()) {
+                return $tree;
+            }
+            $nested = self::replaceTreeEntryAtPath(
+                Tree::fromObject(self::readTypedObject($readObject, $entry->oid, 'tree')),
+                $parts,
+                $replacement,
+                $readObject,
+                $writeObject,
+            );
+            $entries[$name] = new TreeEntry($entry->mode, $entry->filename, $writeObject($nested->toObject()));
+        }
+
+        $values = array_values($entries);
+        self::sortEntries($values);
+
+        return new Tree($values);
+    }
+
+    /**
+     * @param list<array{relativePath:string,entry:TreeEntry,conflicts:list<TreeMergeConflict>}> $relocations
+     * @return list<TreeMergeConflict>
+     */
+    private static function relocationConflicts(array $relocations): array
+    {
+        $conflicts = [];
+        foreach ($relocations as $relocation) {
+            array_push($conflicts, ...$relocation['conflicts']);
+        }
+
+        return $conflicts;
     }
 
     /**

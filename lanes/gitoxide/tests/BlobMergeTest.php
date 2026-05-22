@@ -44,6 +44,22 @@ return [
         $t->same(1, $result->conflictCount);
         $t->same("<<<<<<< current\ntheme: ours\n=======\ntheme: theirs\n>>>>>>> incoming\n", $result->content);
     },
+    'text merge conflicts when an append touches a modified final line' => static function (TestRunner $t): void {
+        $result = BlobMerge::mergeText(
+            "1\n2\n3\n4\n5\n",
+            "1\n2\n3\n4\n5\n6\n",
+            "1\n2\n3\n4\n5 six\n",
+            BlobMerge::STYLE_MERGE,
+            'base',
+            'ours',
+            'theirs',
+        );
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $result->resolution);
+        $t->contains('<<<<<<< ours', $result->content);
+        $t->contains("5\n6\n", $result->content);
+        $t->contains("5 six\n", $result->content);
+    },
     'text merge emits diff3 base section when requested' => static function (TestRunner $t): void {
         $result = BlobMerge::mergeText(
             "theme: base\n",
