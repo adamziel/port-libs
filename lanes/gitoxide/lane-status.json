@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native loose Git object storage, commit header parsing, tree entry parsing/serialization, and loose direct/symbolic reference parsing/storage.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
-    "latestCommit": "c2ee31a",
+    "latestCommit": "6a7ea34",
     "nextTask": "Map packed-ref fixture parsing and lookup rules from gix-ref, starting with without-header and unsorted fixtures."
 }
