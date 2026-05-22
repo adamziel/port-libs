@@ -1125,6 +1125,68 @@ return [
         $t->same(['db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
         $t->same(['58796'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
     },
+    'uses length expression index for wordpress option_name length ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name_length', 'wp_options', 3, 'CREATE INDEX wp_options_option_name_length ON wp_options(length(option_name) DESC) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'cron', '1', 'no'], 3),
+            $schemaCell([null, 'café', 'unicode-name', 'no'], 4),
+            $schemaCell([null, 'db_version', '58796', 'yes'], 5),
+            $schemaCell([null, 'very_long_option', 'payload', 'no'], 6),
+            $schemaCell([null, null, 'draft option without name', 'no'], 7),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([16, 6]),
+            $indexCell([10, 5]),
+            $indexCell([7, 1]),
+            $indexCell([4, 2]),
+            $indexCell([4, 3]),
+            $indexCell([4, 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $medium = $database->wordpressOptionsByIndexedNameLengthRange(5, 11);
+        $limited = $database->wordpressOptionsByIndexedNameLengthRange(5, 11, 1);
+        $inclusiveSingle = $database->wordpressOptionsByIndexedNameLengthRange(4, 4, null, true);
+        $exclusiveEmpty = $database->wordpressOptionsByIndexedNameLengthRange(4, 4);
+        $shortNames = $database->wordpressOptionsByIndexedNameLengthRange(null, 5);
+
+        $t->same(3, $database->indexRootPageForLengthRangeLookup('wp_options', 'option_name', 5, 11));
+        $t->same(['db_version', 'siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $medium));
+        $t->same(['58796', 'https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $medium));
+        $t->same(['db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusiveSingle));
+        $t->same([], $exclusiveEmpty);
+        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $shortNames));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLengthRange(null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLengthRange(-1, 10));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLengthRange(1, 10, -1));
+    },
+    'uses length expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name_length', 'wp_options', 2, 'CREATE INDEX wp_options_option_name_length ON wp_options(length(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, [5, 99]]], 5);
+        $page3 = str_repeat("\0", 512);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'db_version', '58796', 'yes'], 1),
+        ]);
+        $page5 = $indexLeafPage([
+            $indexCell([10, 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedNameLengthRange(9, 12);
+
+        $t->same(2, $database->indexRootPageForLengthRangeLookup('wp_options', 'option_name', 9, 12));
+        $t->same(['db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
     'uses substr expression index for wordpress option_name prefix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

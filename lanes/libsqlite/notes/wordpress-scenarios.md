@@ -106,6 +106,11 @@ The same length-expression path now supports bounded `IN (...)` reads for
 multiple integer buckets. Recovery and audit tools can request lengths such as
 `4,10` in one index pass, ignore `NULL` RHS values, reject invalid length
 terms before lookup, and skip unrelated length subtrees before page decoding.
+The length-expression path also supports bounded integer range scans with
+open or inclusive upper bounds. Recovery and audit tools can inspect suspicious
+option-name length bands such as medium-length migration markers without
+scanning every `wp_options` row, while still using SQLite-style UTF-8 text
+length behavior for the current fixture boundary.
 First-term `CAST(option_value AS INTEGER)` expression indexes are now parsed
 for exact integer lookups. Recovery and audit tools can find numeric-looking
 option values such as `db_version` through SQLite's integer cast behavior,
@@ -146,7 +151,7 @@ subtrees before page decoding, so a small preload list can still be recovered
 when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
-First-column range, lower-expression IN-list/range, length-expression IN-list,
+First-column range, lower-expression IN-list/range, length-expression IN-list/range,
 CAST-expression IN-list/range, first-column IN-list, and composite
 equality-prefix range scans now use bounded index b-tree traversal instead of
 decoding every index page. This matters for WordPress recovery and import tools
@@ -287,6 +292,12 @@ SQLite database file, resolves a first-term `wp_options(length(option_name))`
 expression index, and returns options whose name lengths are in a caller
 supplied list such as `4,10`. This maps multi-bucket option-name audits and
 preload checks without scanning every `wp_options` row.
+
+`examples/wordpress-option-name-length-range.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term `wp_options(length(option_name))`
+expression index, and returns options whose name lengths fall inside caller
+supplied bounds. This maps option-name length anomaly audits and recovery
+checks without requiring the PHP SQLite extension or a full table scan.
 
 `examples/wordpress-option-value-integer.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term

@@ -1069,6 +1069,41 @@ branch. The new `examples/wordpress-option-name-length-list.php` script maps
 multi-bucket option-name audits on hosts where the PHP SQLite extension is
 unavailable.
 
+## Focused Native Mapping: Length Expression Index Ranges
+
+SQLite indexed range behavior also applies to expression-index keys. This
+slice extends the first-term `length(option_name)` expression path from exact
+and `IN (...)` buckets to bounded integer ranges. The native PHP reader
+accepts nullable lower/upper bounds, optional inclusive upper bounds, rejects
+negative length bounds, honors `DESC` metadata, accepts only safe
+`option_name IS NOT NULL` partial predicates, and prunes out-of-range index
+subtrees before page decoding.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test where.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 425 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` covers `length(a)` expression-index keys and nearby
+  expression-index planner matching.
+- `test/where.test` covers indexed lower/upper range constraints and inclusive
+  bound behavior used by the native bounded expression-index range traversal.
+
+The native PHP tests now cover a WordPress-shaped
+`wp_options(length(option_name) DESC)` index that reads medium-length option
+names such as `db_version` and `siteurl`, supports exact inclusive single
+length ranges, open bounds, limit handling, UTF-8 character length checks, and
+skips an intentionally invalid out-of-range index branch. The new
+`examples/wordpress-option-name-length-range.php` script maps option-name
+length audits on hosts where the PHP SQLite extension is unavailable.
+
 ## Focused Native Mapping: CAST AS INTEGER Expression Indexes
 
 This slice adds a bounded expression-index family for
