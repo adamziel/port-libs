@@ -11,11 +11,11 @@
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": "31 inspected upstream benchmark/test/cleanup/layout-order/OCR artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, 1 Markdown postprocessor, 1 layout ordering module, 1 PDF utility module, and 2 OCR heuristic/helper modules",
-        "mapped": 35,
+        "total": "35 inspected upstream benchmark/test/cleanup/layout-order/OCR/image artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, 1 Markdown postprocessor, 1 layout ordering module, 1 PDF utility module, 2 OCR heuristic/helper modules, and 4 image insertion/schema helper artifacts",
+        "mapped": 40,
         "mappedBenchmarkPairs": 0,
         "mappedBenchmarkSurrogatePairs": 4,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/pdf/utils.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, marker/layout/order.py, marker/ocr/heuristics.py, marker/ocr/utils.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/pdf/utils.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, marker/layout/order.py, marker/ocr/heuristics.py, marker/ocr/utils.py, marker/images/save.py, marker/images/extract.py, marker/schema/block.py, marker/schema/bbox.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
         "inventory": {
             "repositoryFiles": 78,
             "pythonFiles": 47,
@@ -38,6 +38,9 @@
             "ocrHeuristicModules": 2,
             "ocrHeuristicFunctions": 5,
             "mappedOcrHeuristicFunctions": 5,
+            "imageInsertionArtifacts": 4,
+            "imageInsertionFunctions": 5,
+            "mappedImageInsertionFunctions": 5,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
             "committedNougatMarkdownExamples": 4
@@ -96,15 +99,20 @@
             "marker.ocr.heuristics detect_bad_ocr flags empty text, excessive whitespace/newlines, low alphanumeric ratio, and repeated replacement characters.",
             "marker.ocr.heuristics no_text_found detects all-empty documents before full-document OCR fallback.",
             "marker.ocr.heuristics detected_line_coverage rescales Surya-detected line boxes and checks extracted-line intersection coverage.",
-            "marker.ocr.heuristics should_ocr_page combines no-text, bad-OCR, line-coverage, and force-OCR flags before WordPress import."
+            "marker.ocr.heuristics should_ocr_page combines no-text, bad-OCR, line-coverage, and force-OCR flags before WordPress import.",
+            "marker.images.save get_image_filename generates deterministic page-indexed PNG filenames for extracted images.",
+            "marker.images.save images_to_dict exports page image payloads keyed by upstream filename while skipping pages with no images.",
+            "marker.schema.block find_insert_block selects the nearest block by top-left distance for image regions with no detected text lines.",
+            "marker.images.extract find_image_blocks rescales Figure/Picture layout boxes, clears intersecting text spans, and records insertion line positions.",
+            "marker.images.extract extract_page_images inserts upstream Markdown image spans into existing or newly-created lines before WordPress image-block rendering; native PHP supplies placeholder payloads because upstream raster rendering depends on pypdfium/PIL."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 35 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 40 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, full block-merge/pagination Markdown assembly, upstream reading-order sorting for two-column WordPress imports, and OCR triage heuristics for scanned or garbled pages.",
-        "phpBehaviorTests": 56,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, full block-merge/pagination Markdown assembly, upstream reading-order sorting for two-column WordPress imports, OCR triage heuristics for scanned or garbled pages, and upstream image filename/dictionary/insertion placeholder semantics for WordPress image blocks.",
+        "phpBehaviorTests": 61,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -139,9 +147,14 @@
             "marker.ocr.heuristics detect_bad_ocr whitespace/newline/garble/replacement-character checks",
             "marker.ocr.heuristics no_text_found all-empty document detection",
             "marker.ocr.heuristics detected_line_coverage bbox rescaling and extracted-line coverage checks",
-            "marker.ocr.heuristics should_ocr_page OCR fallback triage"
+            "marker.ocr.heuristics should_ocr_page OCR fallback triage",
+            "marker.images.save deterministic image filenames",
+            "marker.images.save page image dictionary export",
+            "marker.schema.block nearest-block fallback insertion for images with no detected text",
+            "marker.images.extract Figure/Picture region matching and intersecting text-span clearing",
+            "marker.images.extract Markdown image span insertion for existing or newly-created lines"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, model reading-order sorting for two-column imports, OCR triage for scanned or garbled pages before block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map another focused table/image/OCR behavior against a concrete upstream artifact."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, model reading-order sorting for two-column imports, OCR triage for scanned or garbled pages before block rendering, deterministic image placeholder insertion before Gutenberg image block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map a focused equation, table-layout, or raster-rendering behavior against a concrete upstream artifact."
 }

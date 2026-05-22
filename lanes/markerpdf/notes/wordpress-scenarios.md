@@ -40,6 +40,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
+`examples/wordpress-image-import.php` maps Marker's upstream image insertion path into a Gutenberg image-block import. It uses deterministic `page_image_index.png` filenames, Figure/Picture layout-box matching, intersecting text-span removal, and Marker-style Markdown image spans before rendering a core image block. The native slice intentionally stops before raster crop rendering because upstream delegates that work to `pypdfium2` and PIL.
+
 ## Next Task
 
-Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, then map another focused table/image/OCR behavior against a concrete upstream artifact.
+Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, then map a focused equation, table-layout, or raster-rendering behavior against a concrete upstream artifact.
