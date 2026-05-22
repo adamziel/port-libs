@@ -218,7 +218,7 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor/session status: `tmux ls` currently shows `port-auditor`, all lane sessions, `port-evaluator`, `port-integrator`, and `port-watchdog` active; latest independent audit after `36031aa` is recorded in `audits/latest.md`.
+- Auditor/session status: `tmux ls` currently shows `port-auditor`, all lane sessions, `port-evaluator`, `port-integrator`, and `port-watchdog` active; latest independent audit after `f68237d` is recorded in `audits/latest.md`.
 - Worker sessions: active despite the prior stopped status; quiesce or explicitly coordinate them before treating `progress.md` or `porting.html` as a stable integration snapshot.
 
 ## Next Best Step
