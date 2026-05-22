@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\PackBuilder;
 use PortLibs\Gitoxide\PackData;
 use PortLibs\Gitoxide\PackIndex;
 
@@ -74,11 +75,18 @@ $buildPackFixture = static function (array $objects): array {
             }
             $entryPrefix = $encodeOfsDeltaDistance($offset - $base['offset']);
         } elseif ($object['typeId'] === 7) {
-            $base = $entries[$object['baseEntry']] ?? null;
-            if ($base === null) {
-                throw new RuntimeException('REF_DELTA test fixture is missing its base entry');
+            if (isset($object['baseOid'])) {
+                $entryPrefix = hex2bin($object['baseOid']);
+                if ($entryPrefix === false) {
+                    throw new RuntimeException('REF_DELTA test fixture has an invalid external base object id');
+                }
+            } else {
+                $base = $entries[$object['baseEntry']] ?? null;
+                if ($base === null) {
+                    throw new RuntimeException('REF_DELTA test fixture is missing its base entry');
+                }
+                $entryPrefix = hex2bin($base['oid']);
             }
-            $entryPrefix = hex2bin($base['oid']);
         }
 
         $entryBytes = $encodeEntryHeader($object['typeId'], strlen($objectBody)) . $entryPrefix . gzcompress($objectBody);
@@ -124,6 +132,18 @@ $copyThenInsertDelta = static function (string $base, string $insert) use ($enco
         . chr(strlen($base))
         . chr(strlen($insert))
         . $insert;
+};
+
+$buildThinWordPressBlobs = static function (): array {
+    $stableRows = '';
+    for ($i = 0; $i < 80; $i++) {
+        $stableRows .= hash('sha1', 'wordpress-thin-repair-row-' . $i) . "\n";
+    }
+
+    return [
+        new GitObject('blob', "wp_posts export\n{$stableRows}post_status=draft\nchecksum=old\n"),
+        new GitObject('blob', "wp_posts export\n{$stableRows}post_status=publish\nchecksum=new\n"),
+    ];
 };
 
 return [
@@ -206,6 +226,74 @@ return [
         $t->same('blob', $object->type);
         $t->same($final, $object->body);
     },
+    'resolves and repairs thin ref-delta packs with external bases' => static function (TestRunner $t) use ($buildThinWordPressBlobs): void {
+        [$base, $target] = $buildThinWordPressBlobs();
+        $thin = PackBuilder::buildWithRefDeltas([$target], [$base]);
+        $pack = PackData::fromBytes($thin->packBytes());
+        $index = PackIndex::fromBytes($thin->indexBytes());
+
+        $t->same(true, $thin->isThin());
+        $t->throws(RuntimeException::class, static fn () => $pack->readObject($index, $target->oid()));
+
+        $read = $pack->readObjectWithExternalBases($index, $target->oid(), [$base->oid() => $base]);
+        $t->same('blob', $read->type);
+        $t->same($target->body, $read->body);
+        $t->throws(RuntimeException::class, static fn () => $pack->readObjectWithExternalBases($index, $target->oid(), []));
+        $t->throws(InvalidArgumentException::class, static fn () => $pack->readObjectWithExternalBases($index, $target->oid(), [$base->oid() => $target]));
+
+        $repaired = $pack->repairThinPack($index, [$base->oid() => $base]);
+        $repairedPack = PackData::fromBytes($repaired->packBytes());
+        $repairedIndex = PackIndex::fromBytes($repaired->indexBytes());
+        $entries = $repaired->entries();
+        $repairedTarget = $repairedPack->readObject($repairedIndex, $target->oid());
+
+        $t->same(false, $repaired->isThin());
+        $t->same(true, $repaired->hasDeltaEntries());
+        $t->same(2, $repairedPack->count());
+        $t->same($base->oid(), $entries[0]['oid']);
+        $t->same('whole', $entries[0]['storage']);
+        $t->same($target->oid(), $entries[1]['oid']);
+        $t->same('ofs-delta', $entries[1]['storage']);
+        $t->same($base->oid(), $entries[1]['baseOid']);
+        $t->same($target->body, $repairedTarget->body);
+    },
+    'carries external bases through ofs-delta chains' => static function (TestRunner $t) use ($buildPackFixture, $copyThenInsertDelta): void {
+        $externalBase = new GitObject('blob', 'wp_posts baseline');
+        $middle = 'wp_posts baseline staged';
+        $final = 'wp_posts baseline staged published';
+        [$packBytes, $indexBytes, $entries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $copyThenInsertDelta($externalBase->body, ' staged'),
+                'baseOid' => $externalBase->oid(),
+                'finalType' => 'blob',
+                'finalBody' => $middle,
+            ],
+            [
+                'type' => 'ofs-delta',
+                'typeId' => 6,
+                'body' => $copyThenInsertDelta($middle, ' published'),
+                'baseEntry' => 0,
+                'finalType' => 'blob',
+                'finalBody' => $final,
+            ],
+        ]);
+        $pack = PackData::fromBytes($packBytes);
+        $index = PackIndex::fromBytes($indexBytes);
+
+        $t->throws(RuntimeException::class, static fn () => $pack->readObject($index, $entries[1]['oid']));
+        $object = $pack->readObjectWithExternalBases($index, $entries[1]['oid'], [$externalBase->oid() => $externalBase]);
+        $t->same('blob', $object->type);
+        $t->same($final, $object->body);
+
+        $repaired = $pack->repairThinPack($index, [$externalBase->oid() => $externalBase]);
+        $repairedPack = PackData::fromBytes($repaired->packBytes());
+        $repairedIndex = PackIndex::fromBytes($repaired->indexBytes());
+        $t->same(false, $repaired->isThin());
+        $t->same(3, $repairedPack->count());
+        $t->same($final, $repairedPack->readObject($repairedIndex, $entries[1]['oid'])->body);
+    },
     'rejects corrupt delta instructions during object resolution' => static function (TestRunner $t) use ($buildPackFixture, $encodeDeltaSize): void {
         [$packBytes, $indexBytes, $entries] = $buildPackFixture([
             ['type' => 'blob', 'typeId' => 3, 'body' => 'base'],
@@ -229,5 +317,27 @@ return [
         $t->contains('wp_posts export', $blob->body);
         $t->same('blob', $deltaBlob->type);
         $t->contains('reconstructed packed edit', $deltaBlob->body);
+    },
+    'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-thin-pack-repair.php';
+        $thinPack = PackData::fromBytes($fixture['thinPackBytes']);
+        $repairedPack = PackData::fromBytes($fixture['repairedPackBytes']);
+        $repairedIndex = PackIndex::fromBytes($fixture['repairedIndexBytes']);
+        $updatedBlob = $repairedPack->readObject($repairedIndex, $fixture['updatedBlob']);
+
+        $t->same(true, $fixture['thin']);
+        $t->same('ref-delta', $fixture['thinEntries'][0]['storage']);
+        $t->same(1, $thinPack->count());
+        $t->same(false, $fixture['repairedThin']);
+        $t->same(true, $fixture['repairedHasDelta']);
+        $t->same(2, $repairedPack->count());
+        $t->same('ofs-delta', $fixture['repairedEntries'][1]['storage']);
+        $t->same($fixture['baseBlob'], $fixture['repairedEntries'][1]['baseOid']);
+        $t->same($fixture['resolvedBody'], $updatedBlob->body);
+        $t->contains('post_status=publish', $updatedBlob->body);
+        $t->same($fixture['repairedThin'], $summary['repairedThin']);
+        $t->same($fixture['repairedHasDelta'], $summary['repairedHasDelta']);
+        $t->same('ofs-delta', $summary['repairedDeltaStorage']);
     },
 ];

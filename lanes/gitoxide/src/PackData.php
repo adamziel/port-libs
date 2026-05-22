@@ -144,6 +144,65 @@ final class PackData
         return $this->readObjectAtVerifiedOffset($index, $oid, $entry->packOffset);
     }
 
+    /**
+     * @param array<string,GitObject> $externalBases
+     */
+    public function readObjectWithExternalBases(PackIndex $index, string $oid, array $externalBases): GitObject
+    {
+        return $this->readObjectWithExternalBaseResolver($index, $oid, self::externalBaseResolver($externalBases));
+    }
+
+    /**
+     * @param callable(string):(?GitObject) $externalBaseResolver
+     */
+    public function readObjectWithExternalBaseResolver(PackIndex $index, string $oid, callable $externalBaseResolver): GitObject
+    {
+        $entry = $index->lookup($oid);
+        if ($entry === null) {
+            throw new \RuntimeException("Object id not found in pack index: {$oid}");
+        }
+
+        return $this->readObjectAtVerifiedOffset($index, $oid, $entry->packOffset, $externalBaseResolver);
+    }
+
+    /**
+     * @param array<string,GitObject> $externalBases
+     */
+    public function repairThinPack(PackIndex $index, array $externalBases): PackBuildResult
+    {
+        if ($index->packChecksum() !== $this->checksum) {
+            throw new \RuntimeException('Pack index checksum does not match pack data checksum');
+        }
+
+        $resolver = self::externalBaseResolver($externalBases);
+        $indexEntries = $index->entries();
+        usort($indexEntries, static fn (PackIndexEntry $a, PackIndexEntry $b): int => $a->packOffset <=> $b->packOffset);
+
+        $objects = [];
+        $emitted = [];
+        foreach ($indexEntries as $indexEntry) {
+            $packEntry = $this->entryAtOffset($indexEntry->packOffset, $this->nextOffset($index, $indexEntry->packOffset));
+            if (
+                $packEntry->kind === 'ref-delta'
+                && $packEntry->baseObjectId !== null
+                && $index->lookup($packEntry->baseObjectId) === null
+                && !isset($emitted[$packEntry->baseObjectId])
+            ) {
+                $base = self::resolveExternalBase($packEntry->baseObjectId, $resolver);
+                $objects[] = $base;
+                $emitted[$base->oid()] = true;
+            }
+
+            $object = $this->readObjectAtVerifiedOffset($index, $indexEntry->oid, $indexEntry->packOffset, $resolver);
+            if (!isset($emitted[$object->oid()])) {
+                $objects[] = $object;
+                $emitted[$object->oid()] = true;
+            }
+        }
+
+        return PackBuilder::buildWithOffsetDeltas($objects);
+    }
+
     public function readObjectAtOffset(PackIndex $index, string $oid, int $packOffset): GitObject
     {
         $entry = $index->lookup($oid);
@@ -157,14 +216,14 @@ final class PackData
         return $this->readObjectAtVerifiedOffset($index, $oid, $packOffset);
     }
 
-    private function readObjectAtVerifiedOffset(PackIndex $index, string $oid, int $packOffset): GitObject
+    private function readObjectAtVerifiedOffset(PackIndex $index, string $oid, int $packOffset, ?callable $externalBaseResolver = null): GitObject
     {
         if ($index->packChecksum() !== $this->checksum) {
             throw new \RuntimeException('Pack index checksum does not match pack data checksum');
         }
 
         $packEntry = $this->entryAtOffset($packOffset, $this->nextOffset($index, $packOffset));
-        $object = $this->resolveEntry($index, $packEntry);
+        $object = $this->resolveEntry($index, $packEntry, 0, $externalBaseResolver);
         if ($object->oid() !== strtolower($oid)) {
             throw new \RuntimeException('Pack entry object id does not match index lookup');
         }
@@ -172,7 +231,7 @@ final class PackData
         return $object;
     }
 
-    private function resolveEntry(PackIndex $index, PackDataEntry $entry, int $depth = 0): GitObject
+    private function resolveEntry(PackIndex $index, PackDataEntry $entry, int $depth = 0, ?callable $externalBaseResolver = null): GitObject
     {
         if ($depth > 50) {
             throw new \RuntimeException('Pack delta chain is too deep');
@@ -189,20 +248,30 @@ final class PackData
             if ($baseOffset < self::HEADER_BYTES) {
                 throw new \RuntimeException('OFS_DELTA base offset points before pack data');
             }
-            $base = $this->resolveEntry($index, $this->entryAtOffset($baseOffset, $this->nextOffset($index, $baseOffset)), $depth + 1);
+            $base = $this->resolveEntry(
+                $index,
+                $this->entryAtOffset($baseOffset, $this->nextOffset($index, $baseOffset)),
+                $depth + 1,
+                $externalBaseResolver
+            );
         } elseif ($entry->kind === 'ref-delta') {
             if ($entry->baseObjectId === null) {
                 throw new \RuntimeException('REF_DELTA entry is missing its base object id');
             }
             $baseIndexEntry = $index->lookup($entry->baseObjectId);
             if ($baseIndexEntry === null) {
-                throw new \RuntimeException("REF_DELTA base object not found in pack index: {$entry->baseObjectId}");
+                if ($externalBaseResolver === null) {
+                    throw new \RuntimeException("REF_DELTA base object not found in pack index: {$entry->baseObjectId}");
+                }
+                $base = self::resolveExternalBase($entry->baseObjectId, $externalBaseResolver);
+            } else {
+                $base = $this->resolveEntry(
+                    $index,
+                    $this->entryAtOffset($baseIndexEntry->packOffset, $this->nextOffset($index, $baseIndexEntry->packOffset)),
+                    $depth + 1,
+                    $externalBaseResolver
+                );
             }
-            $base = $this->resolveEntry(
-                $index,
-                $this->entryAtOffset($baseIndexEntry->packOffset, $this->nextOffset($index, $baseIndexEntry->packOffset)),
-                $depth + 1
-            );
         } else {
             throw new \RuntimeException("Unsupported delta entry kind: {$entry->kind}");
         }
@@ -342,5 +411,48 @@ final class PackData
         }
 
         return $distance;
+    }
+
+    /**
+     * @param array<string,GitObject> $externalBases
+     * @return callable(string):(?GitObject)
+     */
+    private static function externalBaseResolver(array $externalBases): callable
+    {
+        $normalized = [];
+        foreach ($externalBases as $oid => $object) {
+            if (!$object instanceof GitObject) {
+                throw new \InvalidArgumentException('External pack bases must be GitObject instances keyed by object id');
+            }
+            $oid = strtolower((string) $oid);
+            if (preg_match('/^[0-9a-f]{40}$/', $oid) !== 1) {
+                throw new \InvalidArgumentException('External pack base keys must be SHA-1 object ids');
+            }
+            if ($object->oid() !== $oid) {
+                throw new \InvalidArgumentException('External pack base object id does not match its key');
+            }
+            $normalized[$oid] = $object;
+        }
+
+        return static fn (string $baseOid): ?GitObject => $normalized[strtolower($baseOid)] ?? null;
+    }
+
+    /**
+     * @param callable(string):(?GitObject) $externalBaseResolver
+     */
+    private static function resolveExternalBase(string $baseOid, callable $externalBaseResolver): GitObject
+    {
+        $base = $externalBaseResolver($baseOid);
+        if ($base === null) {
+            throw new \RuntimeException("REF_DELTA base object not found in pack index or external bases: {$baseOid}");
+        }
+        if (!$base instanceof GitObject) {
+            throw new \RuntimeException('External REF_DELTA base resolver must return GitObject or null');
+        }
+        if ($base->oid() !== strtolower($baseOid)) {
+            throw new \RuntimeException('External REF_DELTA base object id does not match requested base');
+        }
+
+        return $base;
     }
 }
