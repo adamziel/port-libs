@@ -83,7 +83,7 @@ Targeted upstream files inspected for the current native slice:
 
 ## Runner Status
 
-The full upstream runners were not executed for this lane slice, but bounded upstream Go package, Go engine, Dolt CLI build, and local BATS diff/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff runners were executed after installing directly relevant tooling.
+The full upstream runners were not executed for this lane slice, but bounded upstream Go package, Go engine, Dolt CLI build, and local BATS diff/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status runners were executed after installing directly relevant tooling.
 
 - Tooling probes now return `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, and `expect version 5.45.4`.
 - Installed/probed commands used in this lane: `sudo -n dnf install -y golang bats` and `sudo -n dnf install -y expect`; resulting direct versions include `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, and `expect-5.45.4-31.fc44.x86_64`.
@@ -118,6 +118,11 @@ The full upstream runners were not executed for this lane slice, but bounded ups
 - Clean local merge/conflict BATS extension `bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats` passed with `1..74`: 64 runnable tests passed and 10 upstream-declared skips remained.
 - Focused status BATS rerun `bats --filter 'status: (tables in conflict|renamed table|dolt reset with a renamed table)' status.bats` passed with `1..3`.
 - Native status-table source inventory for this slice inspected `status_table.go`, `status_ignored_table.go`, `merge_status_table.go`, `table_of_tables_in_conflict.go`, `sql-status.bats`, and `status.bats`.
+- Fresh combined runner refresh confirmed `.upstream-cache/dolt` still at `b2274926e0dcd84aab000ee242df5b5e75689eef` as a shallow `blob:none` sparse checkout for `go` and `integration-tests/bats`, with the known sparse/no-checkout index deletions left untouched.
+- Fresh combined Go runner `go test ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 15m` passed: 14 packages passed, and `rowconv` plus `sqle/dtables` compiled with no test files.
+- Fresh focused sqle runners passed: `sqle/enginetest` diff/schema/system table-function group including `DiffStatTableFunctionPrepared` in `3.726s`, and `sqle/integration_test` schema/procedure/history diff tests in `0.206s`.
+- Fresh combined local BATS extension `bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats` passed with `1..253`: 241 runnable tests passed and 12 upstream-declared skips remained.
+- Fresh focused status BATS rerun passed again with `1..3`.
 - Full `go test ./...` was not run because it would hydrate and compile the full Dolt workspace and broad dependency graph beyond this lane slice.
 - Full BATS directory was not run because upstream BATS also runs Python/parquet/Hadoop/server/compatibility/client integration dependencies.
 - Live-service, MySQL-server, cloud, Hadoop/parquet, and benchmark suites were intentionally skipped.
