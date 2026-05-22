@@ -17,7 +17,12 @@ if ($databasePath === null || $jsonLabelOrPath === null || $value === null) {
     exit(1);
 }
 
-$jsonPath = str_starts_with($jsonLabelOrPath, '$') ? $jsonLabelOrPath : '$.' . $jsonLabelOrPath;
+$jsonPath = match (true) {
+    str_starts_with($jsonLabelOrPath, '$') => $jsonLabelOrPath,
+    str_starts_with($jsonLabelOrPath, '[') => '$' . $jsonLabelOrPath,
+    preg_match('/^\d+$/', $jsonLabelOrPath) === 1 => '$[' . (int) $jsonLabelOrPath . ']',
+    default => '$.' . $jsonLabelOrPath,
+};
 $lookupValue = match (strtolower($value)) {
     'true' => true,
     'false' => false,

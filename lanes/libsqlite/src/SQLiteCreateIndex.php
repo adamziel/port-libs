@@ -732,7 +732,7 @@ final class SQLiteCreateIndex
         }
 
         $path = self::readLiteral($term, $offset + 3);
-        if ($path === null || !is_string($path[0])) {
+        if ($path === null) {
             return null;
         }
 
@@ -754,13 +754,22 @@ final class SQLiteCreateIndex
         ];
     }
 
-    private static function normalizeJsonTextOperatorPath(string $operand): ?string
+    private static function normalizeJsonTextOperatorPath(mixed $operand): ?string
     {
+        if (is_int($operand)) {
+            return $operand < 0 ? null : '$[' . $operand . ']';
+        }
+        if (!is_string($operand)) {
+            return null;
+        }
         if ($operand === '') {
             return null;
         }
         if (str_starts_with($operand, '$')) {
             return $operand;
+        }
+        if (preg_match('/^\[\d+\]$/', $operand) === 1) {
+            return '$' . $operand;
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $operand) === 1) {
             return '$.' . $operand;

@@ -167,6 +167,13 @@ databases that use the JSON text-operator shorthand instead of
 `json_extract(...)`: recovery tools can still request `$.enabled`, resolve the
 arrow expression index, and verify the strict JSON scalar before returning
 matching `wp_options` rows.
+JSON expression paths now also support non-negative array indexes such as
+`$.rules[0].enabled` and `$[0]`. This maps plugin/theme settings that store
+ordered rule lists, feature channels, or migration stages in JSON arrays:
+native recovery tools can resolve `json_extract(option_value,
+'$.rules[0].enabled')`, `option_value ->> '[0]'`, or `option_value ->> 0`
+expression indexes, distinguish arrays from object labels, and reject broader
+`[#]`/`[#-1]` path forms until that upstream behavior is ported.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -383,6 +390,13 @@ options whose strict JSON scalar value matches a requested path/value pair.
 This maps plugin/theme settings recovery such as indexed enabled flags without
 requiring the PHP SQLite extension or a full table scan.
 
+`examples/wordpress-json-array-option-value.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term
+`wp_options(json_extract(option_value,'$.rules[0].enabled'))`-style expression
+index, and returns options whose strict JSON scalar at a non-negative array
+path matches the requested value. This maps ordered plugin rule/channel
+settings without scanning every serialized option row.
+
 `examples/wordpress-json-option-value-list.php` reads a WordPress-oriented
 SQLite database file, resolves a first-term
 `wp_options(json_extract(option_value,'$.key'))` expression index, and returns
@@ -432,6 +446,7 @@ Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `trim/ltrim/rtrim(column[, literal characters])` point lookups, literal-start
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and simple
-`json_extract(column,'$.key')`/`column ->> 'key'` point/list/range buckets;
-broader JSON path/value semantics; custom collations; and composite-key ranges
-beyond one equality prefix plus one range column.
+`json_extract(column,path)`/`column ->> path` object-member plus non-negative
+array-index point/list/range buckets; broader JSON path/value semantics such as
+`[#]` and `[#-1]`; custom collations; and composite-key ranges beyond one
+equality prefix plus one range column.

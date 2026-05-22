@@ -1243,7 +1243,7 @@ final class SQLiteDatabase
     }
 
     /**
-     * @param list<string> $requestedPath
+     * @param list<int|string> $requestedPath
      */
     private static function jsonExpressionPathMatches(string $expressionPath, array $requestedPath): bool
     {
@@ -4702,10 +4702,18 @@ final class SQLiteDatabase
         }
 
         foreach ($segments as $segment) {
+            if (is_int($segment)) {
+                if (!is_array($value) || !array_is_list($value) || !array_key_exists($segment, $value)) {
+                    return null;
+                }
+
+                $value = $value[$segment];
+                continue;
+            }
+
             if (!is_array($value) || array_is_list($value) || !array_key_exists($segment, $value)) {
                 return null;
             }
-
             $value = $value[$segment];
         }
 
@@ -4747,7 +4755,7 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<string>
+     * @return list<int|string>
      */
     private static function parseSimpleJsonPath(string $path): array
     {
@@ -4762,8 +4770,30 @@ final class SQLiteDatabase
         $segments = [];
         $offset = 1;
         while ($offset < $length) {
+            if ($path[$offset] === '[') {
+                $close = strpos($path, ']', $offset + 1);
+                if ($close === false) {
+                    throw new \InvalidArgumentException('SQLite json_extract expression index array path is unterminated');
+                }
+
+                $indexText = substr($path, $offset + 1, $close - $offset - 1);
+                if ($indexText === '' || preg_match('/^\d+$/', $indexText) !== 1) {
+                    throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only non-negative array indexes');
+                }
+                $maxIndexText = (string) PHP_INT_MAX;
+                if (
+                    strlen($indexText) > strlen($maxIndexText)
+                    || (strlen($indexText) === strlen($maxIndexText) && strcmp($indexText, $maxIndexText) > 0)
+                ) {
+                    throw new \InvalidArgumentException('SQLite json_extract expression index array index is too large for this slice');
+                }
+
+                $segments[] = (int) $indexText;
+                $offset = $close + 1;
+                continue;
+            }
             if ($path[$offset] !== '.') {
-                throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only object-member paths');
+                throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only object-member and non-negative array-index paths');
             }
             $offset++;
             if ($offset >= $length) {

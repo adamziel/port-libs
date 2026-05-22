@@ -1299,6 +1299,46 @@ tools that need one or more indexed plugin/theme JSON settings such as enabled
 flags, mode lists, or priority bands on hosts where the PHP SQLite extension is
 unavailable.
 
+## Focused Native Mapping: JSON Array Path Expression Indexes
+
+This slice extends the bounded JSON expression-index path parser from simple
+object members to non-negative array indexes. The native PHP reader now treats
+paths such as `$.rules[0].enabled`, `$."rules"[0].enabled`, and `$[0]` as
+valid supported paths for `json_extract(...)` and compatible `->>` expression
+indexes. Reverse indexes such as `[#-1]`, append indexes `[#]`, JSONB, JSON5,
+and full JSON path mutation behavior remain outside this slice.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr3.test json101.test json102.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 609 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr3.test` keeps the expression-index payload baseline for
+  `json_extract(j,'$.x')` and composite expression-index reads.
+- `test/json101.test` covers nested array/object paths such as
+  `$[1].""[1].hi`.
+- `test/json102.test` covers `json_extract(...,'$[N]')` and `->>` array-index
+  path behavior, including the distinction between object labels and array
+  indexes.
+
+The native PHP tests now cover parsing `json_extract(option_value,
+'$.rules[0].enabled')`, matching a quoted object-member request
+`$."rules"[0].enabled` to the same stored expression path, rejecting the
+unsupported `[#-1]` reverse-index form, and resolving WordPress plugin settings
+where a first rule's `enabled` flag is stored inside a JSON array. A second
+WordPress-shaped fixture covers `option_value ->> '[0]'` expression indexes for
+root-array settings such as plugin channel lists. The updated
+`examples/wordpress-json-option-arrow.php` accepts bracket and numeric array
+operands, and the new `examples/wordpress-json-array-option-value.php` script
+documents the array-path recovery flow directly.
+
 ## Focused Native Mapping: JSON `->>` Expression Indexes
 
 This slice extends the bounded JSON expression-index family to SQLite's
