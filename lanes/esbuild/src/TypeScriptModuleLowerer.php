@@ -1258,6 +1258,23 @@ final class TypeScriptModuleLowerer
 
         $body = $this->rewriteDeadFalseSuperCalls($body);
         foreach ($body as $index => $line) {
+            $controlSplit = $this->splitTopLevelCommaSuperControlStatement($line);
+            if ($controlSplit !== null) {
+                $replacement = [];
+                if ($controlSplit['before'] !== null) {
+                    $replacement[] = $controlSplit['before'];
+                }
+                $replacement[] = $controlSplit['super'];
+                $indent = $controlSplit['indent'];
+                foreach ($assignments as $assignment) {
+                    $replacement[] = $indent . $assignment;
+                }
+                $replacement[] = $controlSplit['after'];
+                array_splice($body, $index, 1, $replacement);
+
+                return $body;
+            }
+
             $split = $this->splitTopLevelCommaSuperExpressionStatement($line);
             if ($split !== null) {
                 $replacement = [];
@@ -1305,6 +1322,10 @@ final class TypeScriptModuleLowerer
 
             $liveSuperCalls += $superCalls;
             if ($superCalls > 1 || (!$this->constructorLineHasDirectSuperCall($line) && $this->splitTopLevelCommaSuperExpressionStatement($line) === null)) {
+                if ($this->splitTopLevelCommaSuperControlStatement($line) !== null) {
+                    continue;
+                }
+
                 return true;
             }
         }
@@ -1323,6 +1344,30 @@ final class TypeScriptModuleLowerer
     }
 
     /**
+     * @return array{indent:string, before:?string, super:string, after:string}|null
+     */
+    private function splitTopLevelCommaSuperControlStatement(string $line): ?array
+    {
+        if (preg_match('/^(\s*)(return|throw)\s+(.+);$/s', $line, $match) !== 1) {
+            return null;
+        }
+
+        $indent = $match[1];
+        $keyword = $match[2];
+        $split = $this->splitTopLevelCommaSuperExpression(trim($match[3]));
+        if ($split === null || $split['after'] === []) {
+            return null;
+        }
+
+        return [
+            'indent' => $indent,
+            'before' => $split['before'] === [] ? null : $indent . implode(', ', $split['before']) . ';',
+            'super' => $indent . $split['super'] . ';',
+            'after' => $indent . $keyword . ' ' . implode(', ', $split['after']) . ';',
+        ];
+    }
+
+    /**
      * @return array{indent:string, before:?string, super:string, after:?string}|null
      */
     private function splitTopLevelCommaSuperExpressionStatement(string $line): ?array
@@ -1338,6 +1383,28 @@ final class TypeScriptModuleLowerer
             || str_starts_with($expression, 'throw ')
             || preg_match('/^(if|switch|for|while)\b/', $expression) === 1
         ) {
+            return null;
+        }
+
+        $split = $this->splitTopLevelCommaSuperExpression($expression);
+        if ($split === null) {
+            return null;
+        }
+
+        return [
+            'indent' => $indent,
+            'before' => $split['before'] === [] ? null : $indent . implode(', ', $split['before']) . ';',
+            'super' => $indent . $split['super'] . ';',
+            'after' => $split['after'] === [] ? null : $indent . implode(', ', $split['after']) . ';',
+        ];
+    }
+
+    /**
+     * @return array{before:list<string>, super:string, after:list<string>}|null
+     */
+    private function splitTopLevelCommaSuperExpression(string $expression): ?array
+    {
+        if ($expression === '') {
             return null;
         }
 
@@ -1362,14 +1429,10 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
-        $before = array_slice($parts, 0, $superIndex);
-        $after = array_slice($parts, $superIndex + 1);
-
         return [
-            'indent' => $indent,
-            'before' => $before === [] ? null : $indent . implode(', ', $before) . ';',
-            'super' => $indent . $parts[$superIndex] . ';',
-            'after' => $after === [] ? null : $indent . implode(', ', $after) . ';',
+            'before' => array_slice($parts, 0, $superIndex),
+            'super' => $parts[$superIndex],
+            'after' => array_slice($parts, $superIndex + 1),
         ];
     }
 

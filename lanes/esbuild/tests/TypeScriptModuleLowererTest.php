@@ -571,6 +571,34 @@ JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { foo(
         $lowered = $lowerer->lower('class A extends B { constructor(public x = 1) { foo(), super(1), bar(); } }', false);
         $t->true(!str_contains($lowered, '__super'));
     },
+    'splits upstream return and throw comma expression derived super calls before assignment injection' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+    return bar();
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { return foo(), super(1), bar(); } }', false));
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+    throw bar();
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { throw foo(), super(1), bar(); } }', false));
+
+        $helper = $lowerer->lower('class A extends B { constructor(public x = 1) { return super(1); } }', false);
+        $t->contains('return __super(1);', $helper);
+    },
     'lowers upstream private class fields in assign semantics super insertion' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -784,6 +812,21 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('this.blockName = blockName;', $lowered);
         $t->contains('hydrateAssets(), markReady();', $lowered);
         $t->contains('this.blocks.registerBlockType(this.blockName, this.settings);', $lowered);
+        $t->true(!str_contains($lowered, '__super'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress return super controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-return-super-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('preparePreview();', $lowered);
+        $t->contains('super(metadata);', $lowered);
+        $t->contains('this.settings = {supports:{html:false}};', $lowered);
+        $t->contains('this.blockName = blockName;', $lowered);
+        $t->contains('return this;', $lowered);
+        $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this.settings ='));
+        $t->true(strpos($lowered, 'this.blocks = blocks;') < strpos($lowered, 'return this;'));
         $t->true(!str_contains($lowered, '__super'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
