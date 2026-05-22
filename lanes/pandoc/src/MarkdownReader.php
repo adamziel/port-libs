@@ -1089,10 +1089,15 @@ final class MarkdownReader
         $bodySections = $this->childElements($table, 'tbody');
 
         $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns) : [];
-        $bodyRows = [];
+        $bodyNodes = [];
         if ($bodySections !== []) {
             foreach ($bodySections as $tbody) {
-                array_push($bodyRows, ...$this->readHtmlTableRows($tbody, false, $maxColumns));
+                $rows = $this->readHtmlTableRows($tbody, false, $maxColumns);
+                $bodyNodes[] = new AstNode(
+                    'table_body',
+                    array_merge($this->htmlElementPandocAttrs($tbody), $this->htmlTableBodyAttrs($rows)),
+                    $rows
+                );
             }
         } else {
             $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns);
@@ -1102,6 +1107,7 @@ final class MarkdownReader
                     $headRows[] = $this->markHtmlTableRowAsHeader($headRow);
                 }
             }
+            $bodyNodes[] = new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows), $bodyRows);
         }
         $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
 
@@ -1122,15 +1128,11 @@ final class MarkdownReader
         }
 
         $headAttrs = $thead instanceof \DOMElement ? $this->htmlElementPandocAttrs($thead) : [];
-        $bodyAttrs = $this->htmlTableBodyAttrs($bodyRows);
-        if (count($bodySections) === 1) {
-            $bodyAttrs = array_merge($this->htmlElementPandocAttrs($bodySections[0]), $bodyAttrs);
-        }
         $footAttrs = $tfoot instanceof \DOMElement ? $this->htmlElementPandocAttrs($tfoot) : [];
 
         $children = [
             new AstNode('table_head', $headAttrs, $headRows),
-            new AstNode('table_body', $bodyAttrs, $bodyRows),
+            ...$bodyNodes,
         ];
         if ($footRows !== []) {
             $children[] = new AstNode('table_foot', $footAttrs, $footRows);
@@ -1422,6 +1424,17 @@ final class MarkdownReader
         foreach ($cell->childNodes as $child) {
             if ($child instanceof \DOMElement && strtolower($child->localName) === 'table') {
                 $children[] = $this->parseHtmlTableElement($child);
+                continue;
+            }
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'p') {
+                $inlines = $this->parseHtmlInlineChildren($child);
+                if ($inlines !== []) {
+                    $children[] = new AstNode(
+                        'paragraph',
+                        ['text' => trim(preg_replace('/\s+/', ' ', $child->textContent) ?? $child->textContent)],
+                        $inlines
+                    );
+                }
                 continue;
             }
 

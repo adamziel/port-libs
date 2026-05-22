@@ -117,17 +117,20 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   rather than applying the AsciiDoc-specific downgrade.
 - `test/html-reader.html` table section inspected in this run: 366 HTML lines
   from the upstream HTML reader fixture covering table head/body/foot sections,
-  omitted section tags, row headers, colspan, rowspan, and empty tables. This
-  run used it as bounded reader context without claiming full HTML reader
-  parity.
+  omitted section tags, row headers, colspan, rowspan, two tables with multiple
+  `<tbody>` sections, and empty tables. This run used it as bounded reader
+  context without claiming full HTML reader parity.
 - `test/html-reader.native` table section inspected in this run: 1,393 native
   AST lines covering 18 `Table` nodes from the upstream HTML reader fixture.
   The inspected HTML slice contains 19 `<table` starts, 47 `<th` cells, 10
-  `<thead` starts, 17 `<tbody` starts, 5 `<tfoot` starts, and one native
-  `RowHeadColumns 1` body shape. The bounded PHP mapping now includes the
-  two native colspan/rowspan table shapes and the attribute-carrying table
-  shape from this slice, plus the two empty table inputs omitted from the
-  upstream native output.
+  `<thead` starts, 17 `<tbody` starts, 5 `<tfoot` starts, 20 native
+  `TableBody` nodes, two native tables with multiple `TableBody` sections, one
+  `Cell ... [ Para [ Str "2" ] ]` paragraph-bearing table cell in the second
+  multiple-body case, and one native `RowHeadColumns 1` body shape. The bounded
+  PHP mapping now includes the two native colspan/rowspan table shapes, the
+  attribute-carrying table shape, the two multiple-body table shapes, the
+  paragraph-bearing cell from the second multiple-body case, plus the two empty
+  table inputs omitted from the upstream native output.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -268,14 +271,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `</tbody>`, and `</tfoot>` end tags are normalized into distinct
   head/body/foot AST sections, no-header HTML tables with only `colspan`
   metadata parse through the native table AST, headed tables preserve
-  `colspan`/`rowspan`, and Pandoc-style table, section, row, and cell
-  attributes are captured with `data-*` keys normalized to native-style
-  key-value attributes. The WordPress writer now emits body row-header cells as
-  `<th>` instead of flattening them to `<td>`, preserves table identity
-  attributes, and carries practical cell attributes such as `abbr`, `valign`,
-  `data-*`, and non-alignment `style` values. The upstream empty-table section
-  is mapped too: the empty `<tbody>` table and the fully empty
-  `<table></table>` input are consumed and omitted, matching
+  `colspan`/`rowspan`, Pandoc-style table, section, row, and cell attributes
+  are captured with `data-*` keys normalized to native-style key-value
+  attributes, the two upstream multiple-`tbody` tables stay as distinct
+  `table_body` AST nodes instead of being flattened, and the second
+  multiple-body table's direct `<p>` cell becomes a paragraph block child
+  rather than inline text. The WordPress writer now emits body row-header cells
+  as `<th>` instead of flattening them to `<td>`, preserves table identity
+  attributes, carries practical cell attributes such as `abbr`, `valign`,
+  `data-*`, and non-alignment `style` values, emits one `<tbody>` per
+  `table_body` node, and preserves paragraph cells as `<td><p>...</p></td>`.
+  The upstream empty-table section is mapped too: the empty `<tbody>` table and
+  the fully empty `<table></table>` input are consumed and omitted, matching
   `test/html-reader.native`.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
@@ -377,6 +384,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-105 tests, 769 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command also passed after this slice with 126 test
-files, 11,230 assertions, and 0 failures in the current shared worktree.
+108 tests, 799 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command was run after this slice and passed with 127
+test files, 11,420 assertions, and 0 failures.

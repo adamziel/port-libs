@@ -80,6 +80,14 @@ and section attrs in the AST for later export tooling.
 The upstream empty-table case is now mapped as well: legacy HTML table shells
 with no cells are consumed and omitted instead of becoming empty WordPress
 table blocks or raw HTML review blocks.
+The upstream multiple-`tbody` HTML-reader cases are now mapped too: segmented
+legacy tables keep each body group as a separate `table_body` AST node and the
+WordPress writer emits one `<tbody>` per group instead of flattening review
+batches into a single body.
+The second upstream multiple-`tbody` case also keeps block-level paragraph
+content inside a table cell: a direct `<p>` cell becomes a paragraph block
+child, so WordPress emits `<td><p>...</p></td>` instead of flattening the cell
+to inline text.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -185,6 +193,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   `test/tables/nordics.html5` shape, exercising caption emphasis, colgroup
   widths, thead/tbody/tfoot section preservation, row-header cells, soft line
   breaks, and superscript units in WordPress table block output.
+- The fixture now includes a segmented HTML import table based on the upstream
+  multiple-`tbody` reader cases, exercising separate body groups for published
+  and media-review batches plus paragraph-bearing table cells in WordPress
+  table block output.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -243,6 +255,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   preserved `<thead>`, `<tbody>`, `<tfoot>`, `<colgroup>`, caption inline
   markup, row-header `<th>` cell treatment, inferred header rows, omitted
   section-end normalization, and superscript units without invoking Pandoc.
+- Segmented HTML import tables preserve multiple `<tbody>` groups without
+  invoking Pandoc, keeping source batches visually grouped for reviewer scans.
+- Paragraph-bearing cells inside segmented HTML import tables stay as block
+  paragraphs inside their table cells without invoking Pandoc.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.
@@ -289,6 +305,5 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map multiple tbody table body sections from `test/html-reader.html` and
-`test/html-reader.native` instead of collapsing them into a single
-`table_body` node.
+Map the remaining bounded `test/html-reader.html` Tables without Headers
+shapes: tbody-tags-omitted, empty-head, and explicit body-plus-foot tables.

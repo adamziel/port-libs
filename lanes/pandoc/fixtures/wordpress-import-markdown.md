@@ -184,6 +184,20 @@ Structured HTML import table:
 
 </table>
 
+Segmented HTML import table:
+
+<table>
+<thead>
+<tr><th>Batch</th><th>Posts</th><th>Status</th></tr>
+</thead>
+<tbody data-batch="published">
+<tr><td>May archive</td><td><p>12</p></td><td>Published</td></tr>
+</tbody>
+<tbody data-batch="review">
+<tr><td>June archive</td><td>8</td><td>Needs media review</td></tr>
+</tbody>
+</table>
+
 Import metrics:
 
 | Item | Count | Notes |

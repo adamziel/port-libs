@@ -217,7 +217,7 @@ final class WordPressBlockWriter
     private function renderTableHtml(AstNode $node): string
     {
         $head = null;
-        $body = null;
+        $bodies = [];
         $foot = null;
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
@@ -225,7 +225,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($child->type === 'table_body') {
-                $body = $child;
+                $bodies[] = $child;
                 continue;
             }
             if ($child->type === 'table_foot') {
@@ -242,13 +242,16 @@ final class WordPressBlockWriter
             $html .= '</thead>';
         }
 
-        $html .= '<tbody>';
-        if ($body instanceof AstNode) {
+        if ($bodies === []) {
+            $bodies[] = new AstNode('table_body');
+        }
+        foreach ($bodies as $body) {
+            $html .= '<tbody>';
             foreach ($body->children as $row) {
                 $html .= $this->renderTableRow($row, $node, false);
             }
+            $html .= '</tbody>';
         }
-        $html .= '</tbody>';
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot>';
             foreach ($foot->children as $row) {

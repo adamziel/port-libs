@@ -1300,6 +1300,96 @@ HTML;
         $t->same('4', $foot->children[0]->children[0]->attr('text'));
         $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot>', $blocks);
     },
+    'maps upstream html reader multiple table body sections without flattening' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <thead>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    </tbody>
+    <tbody>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $firstBody = $table->children[1];
+        $secondBody = $table->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('table_head', $head->type);
+        $t->same('table_body', $firstBody->type);
+        $t->same('table_body', $secondBody->type);
+        $t->same(3, count($table->children));
+        $t->same(1, count($firstBody->children));
+        $t->same(1, count($secondBody->children));
+        $t->same('1', $firstBody->children[0]->children[0]->attr('text'));
+        $t->same('3', $firstBody->children[0]->children[2]->attr('text'));
+        $t->same('4', $secondBody->children[0]->children[0]->attr('text'));
+        $t->same('6', $secondBody->children[0]->children[2]->attr('text'));
+        $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody>', $blocks);
+    },
+    'maps upstream html reader paragraph block inside a multiple body table cell' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <thead>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>1</td>
+        <td><p>2</p></td>
+        <td>3</td>
+    </tr>
+    </tbody>
+    <tbody>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $firstBody = $table->children[1];
+        $secondBody = $table->children[2];
+        $paragraphCell = $firstBody->children[0]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('table_body', $firstBody->type);
+        $t->same('table_body', $secondBody->type);
+        $t->same('1', $firstBody->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $paragraphCell->children[0]->type);
+        $t->same('2', $paragraphCell->children[0]->attr('text'));
+        $t->same('2', $paragraphCell->children[0]->children[0]->attr('text'));
+        $t->same('3', $firstBody->children[0]->children[2]->attr('text'));
+        $t->same('6', $secondBody->children[0]->children[2]->attr('text'));
+        $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td><p>2</p></td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody>', $blocks);
+    },
     'maps upstream html reader colspans without table headers' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -1450,6 +1540,28 @@ HTML;
         $t->contains('<tbody><tr><th style="text-align:center">Denmark</th><td style="text-align:left">Copenhagen</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">States belonging to the <em>Nordics.</em></figcaption>', $blocks);
         $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:left"></td><td style="text-align:left">27,376,022</td><td style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
+    },
+    'writes wordpress multiple html table bodies from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $segmentedTables = array_values(array_filter(
+            $document->children,
+            static fn ($node): bool => $node->type === 'table'
+                && ($node->children[1] ?? null)?->type === 'table_body'
+                && ($node->children[2] ?? null)?->type === 'table_body'
+        ));
+        $segmented = $segmentedTables[0];
+
+        $t->contains('<p>Segmented HTML import table:</p>', $blocks);
+        $t->same('table_body', $segmented->children[1]->type);
+        $t->same(['batch' => 'published'], $segmented->children[1]->attr('attributes'));
+        $t->same('paragraph', $segmented->children[1]->children[0]->children[1]->children[0]->type);
+        $t->same('12', $segmented->children[1]->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('table_body', $segmented->children[2]->type);
+        $t->same(['batch' => 'review'], $segmented->children[2]->attr('attributes'));
+        $t->contains('<thead><tr><th>Batch</th><th>Posts</th><th>Status</th></tr></thead><tbody><tr><td>May archive</td><td><p>12</p></td><td>Published</td></tr></tbody><tbody><tr><td>June archive</td><td>8</td><td>Needs media review</td></tr></tbody>', $blocks);
     },
     'maps upstream testsuite raw html comments hr blocks and indented html code' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
