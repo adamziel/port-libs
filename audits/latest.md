@@ -1,53 +1,53 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, current dirty worktree state, bridge/shell-out usage, and recent Git history through `a26e045`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status summaries, current dirty worktree state, bridge/shell-out usage, and recent Git history through `f14db3f`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: `HEAD` advanced during this audit from `f225568` through `a26e045`; the worktree remained dirty. Findings below are against the latest dirty worktree observed after the final manifest/status read. The root test command recorded below ran during the same moving audit window and exited green.
+Audit boundary: `HEAD` advanced during this audit from `77e9cf3` to `f14db3f`, and the worktree remained dirty with lane implementation, manifest, status, dashboard, and untracked fixture/audit changes. The root test result changed during the same audit window: the first run failed, then a later rerun passed after additional work landed. Findings below are against the latest observed dirty worktree after the final manifest/status read.
 
 ## Findings
 
-1. **Critical - the repo is still a moving dirty integration target, so coordination files are not a stable release signal.**
-   - Paths: current `git status --short`, recent history through `a26e045`, `progress.md:229`, `progress.md:231`, `porting.html:32`.
-   - Evidence: `HEAD` advanced while audit evidence was being gathered, and the worktree still contains modified lane implementation files, manifests, status files, notes, `porting.html`, `porting-summary.json`, plus untracked audit/status files and lane fixtures. The latest root test run is green, but it was run against this dirty moving state.
-   - Goal requirement at risk: `goal.md` requires small reviewable committed slices, verified finished agent work, cleanup of accidental unrelated changes, durable coordination, and honest status tracking.
-   - Audit judgment: active writers need to be quiesced or explicitly coordinated before accepting any dashboard, lane status, or progress file as authoritative.
+1. **Critical - the repo is still a moving dirty integration target, so no coordination surface is a stable release signal.**
+   - Paths: current `git status --short --untracked-files=all`, recent history `77e9cf3..f14db3f`, `progress.md:229-231`, `porting.html:32`, `porting-summary.json:2`.
+   - Evidence: `HEAD` advanced from `77e9cf3` to `6867d11` while evidence was being gathered, then advanced again through `8ac8f39` to `f14db3f` before the final status read. The root suite changed from `87 test files, 5876 assertions, 2 failures` to `89 test files, 6056 assertions, 0 failures` during this audit. The worktree still contains modified lane implementation files, manifests/status files, modified `porting.html`/`porting-summary.json`, plus untracked fixtures/examples/audit files.
+   - Goal requirement at risk: `goal.md` requires durable coordination, verified finished agent work, cleanup of unrelated changes, passing tests, and small committed slices.
+   - Audit judgment: quiesce or explicitly coordinate active writers before accepting any dashboard, lane status, progress file, or root-suite result as authoritative.
 
-2. **Critical - `porting.html` and `porting-summary.json` are stale against current lane manifests.**
-   - Paths: `porting.html:32`, `porting.html:53-64`, `porting-summary.json:2-207`, `lanes/*/UPSTREAM_TEST_MANIFEST.json`.
-   - Evidence: the dashboard was generated at `2026-05-22 15:40:20 UTC` and still shows old mapped counts. Current manifest mapped counts are: difftastic `39` vs dashboard `15`, Dolt `46` vs `5`, esbuild `44` vs `16`, Gitoxide `856` vs `737`, libsqlite `44` vs `18`, LightningCSS `143` vs `78`, markerPDF `49` vs `11`, Pandoc `60` vs `19`, Quadrable `51` vs `24`, rclone `64` vs `20`, Readability `220` vs `89`, and Syncthing `67` vs `27`.
-   - Additional evidence: the dashboard still reports Quadrable's blocker as a failed C++ runner (`porting.html:61`), while the manifest says `make -r test` passes (`lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:13-18`). It also carries old denominators for LightningCSS (`312` dashboard vs `382` manifest), markerPDF (`27` vs `39`), and Pandoc (`1979` vs `2028`).
-   - Goal requirement at risk: `goal.md` requires `porting.html` to show current suite progress, benchmark source, upstream denominator, mapped tests, PHP pass/fail, WordPress scenarios, phase, audit, current work, blocker, and commit.
-   - Audit judgment: regenerate the dashboard and compact JSON only after the dirty lane batches are accepted from one committed green state.
+2. **High - the root suite was red during the audit before later moving green, proving the current evidence is not reproducible from one stable state.**
+   - Paths: `lanes/pandoc/tests/MarkdownReaderTest.php:215`, `lanes/pandoc/tests/MarkdownReaderTest.php:821`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:15-17`, `progress.md:194`.
+   - Evidence: the first required `php tools/run-tests.php` run exited 1 with Pandoc failures in `maps upstream markdown apostrophe after math` (`Expected: 'math'; Actual: 'quoted'`) and `writes wordpress math and raw tex preservation markup from import notes`. A later rerun exited 0 after the tree changed under audit. The old `progress.md:194` green result was stale before this audit update, and the final green result is still dirty/uncommitted.
+   - Goal requirement at risk: `goal.md` requires honest, periodically recorded repo-wide tests and small reviewable slices with passing tests.
+   - Audit judgment: do not publish or stamp the green result until the exact passing state is committed and dashboard/progress are regenerated from that same state.
 
-3. **High - `progress.md` Active Lanes and audit notes are stale enough to misdirect the supervisor.**
-   - Paths: `progress.md:31-42`, `progress.md:194`, `progress.md:199`, `progress.md:205-206`, `progress.md:235`.
-   - Evidence: the Active Lanes table still shows old stopped phases and old next tasks. `progress.md:194` still records the previous audit test result as `81 test files, 5622 assertions`, while the current audit result is `85 test files, 5757 assertions`. `progress.md:205` says Readability maps `15` local behavior tests and `89` checks, but the current manifest maps `27` behavior tests and `187` checks (`lanes/readability/UPSTREAM_TEST_MANIFEST.json:95-101`). `progress.md:206` still says `go` is not on PATH for Syncthing, while the lane status now says `/usr/bin/go` is available (`lanes/syncthing/lane-status.json:12`).
-   - Goal requirement at risk: `goal.md` requires `progress.md` to include current active lanes, phase, blocker, next task, owner/session, and percentage estimates.
-   - Audit judgment: keep the audit warning in `progress.md`, but do not hand-edit the whole lane table until the supervisor chooses which dirty lane batches to accept.
+3. **High - `porting.html` and `porting-summary.json` are stale against every current manifest/status count.**
+   - Paths: `porting.html:32`, `porting.html:53-64`, `porting-summary.json:2-207`, `lanes/*/UPSTREAM_TEST_MANIFEST.json`, `lanes/*/lane-status.json`.
+   - Evidence: the dashboard is still generated at `2026-05-22 15:40:20 UTC`. Current manifest/status values are difftastic `42` mapped/`42` PHP vs dashboard `15`/`15`, Dolt `51`/`51` vs `5`/`5`, esbuild `47`/`47` vs `16`/`16`, Gitoxide `857`/`1459` vs `737`/`1257`, libsqlite `44`/`44` vs `18`/`18`, LightningCSS `148`/`224` vs `78`/`141`, markerPDF `53`/`81` vs `11`/`23`, Pandoc `74`/`61` vs `19`/`19`, Quadrable `52`/`52` vs `24`/`24`, rclone `67`/`67` vs `20`/`20`, Readability `218`/`30` vs `89`/`15`, and Syncthing `69`/`69` vs `27`/`27`.
+   - Additional evidence: denominator/status mismatches remain visible for LightningCSS (`382` manifest vs `312` dashboard), markerPDF (`58` vs `27`), Pandoc (`2028` vs `1979`), and Quadrable's dashboard blocker still says the C++ runner failed while the manifest/status now claim `make -r test` passes.
+   - Goal requirement at risk: `goal.md` requires `porting.html` to show current suite progress, upstream denominator, mapped tests, PHP pass/fail, phase, audit, current work, blocker, and commit.
+   - Audit judgment: regenerate dashboard artifacts only after the dirty lane batches are accepted from one committed green state.
 
-4. **High - lane status files and dashboard fields still mix PHP count units.**
-   - Paths: `lanes/difftastic/lane-status.json:6-12`, `lanes/dolt/lane-status.json:6-12`, `lanes/esbuild/lane-status.json:6-12`, `lanes/gitoxide/lane-status.json:6-12`, `lanes/lightningcss/lane-status.json:6-12`, `lanes/readability/lane-status.json:6-12`, `porting.html:53-64`, `lanes/*/UPSTREAM_TEST_MANIFEST.json`.
-   - Evidence: `phpPass` still mixes behavior-test and assertion units. Gitoxide reports `phpPass: 1457` as assertions and LightningCSS reports `218` assertions, while Dolt/esbuild/rclone/readability report behavior-test counts. Several manifests still omit `nativeImplementation.phpBehaviorTests`, and the dashboard's `pass / fail` label makes these mixed units look comparable.
-   - Goal requirement at risk: `goal.md` requires honest per-lane PHP pass/fail counts and precise blocker recording.
-   - Audit judgment: split status fields into PHP test files, behavior tests, assertions, and failures; expire old root-suite text whenever a newer root result exists.
+4. **High - `progress.md` still gives supervisors stale lane guidance even after the audit status update.**
+   - Paths: `progress.md:31-42`, `progress.md:194`, `progress.md:199`, `progress.md:205-210`, `progress.md:235`.
+   - Evidence: the Active Lanes table still lists old stopped phases and next tasks. Several blocker bullets remain stale: Readability still says `15` tests/`89` checks while the manifest/status now report `220` mapped/`29` PHP tests; Syncthing still says Go is unavailable while status now says `/usr/bin/go` exists; Pandoc, difftastic, Dolt, LightningCSS, rclone, and Syncthing have moved past the next-task text shown in the table.
+   - Goal requirement at risk: `goal.md` requires `progress.md` to include current active lanes, phase, blocker, next task, audit status, and next best intervention.
+   - Audit judgment: keep the warning status, but do not hand-reconcile the whole lane table until the supervisor decides which dirty lane batches to accept.
 
-5. **High - upstream runner status remains inconsistently modeled, making bounded evidence easy to confuse with full parity.**
-   - Paths: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:46`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:18`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:75`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:13-17`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:18`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:91`.
-   - Evidence: Dolt has `runnerStatus.executed: true` while the warning says it is bounded evidence and not full parity; Gitoxide, markerPDF, and Quadrable use string runner statuses; Pandoc has no explicit runner-status object; Syncthing uses a structured non-executed object. Bounded runner evidence is useful, but the schema does not force readers to distinguish bounded from full upstream parity.
-   - Goal requirement at risk: `goal.md` requires a defensible upstream benchmark denominator and precise blocker status when upstream runners cannot execute.
-   - Audit judgment: normalize runner fields as full-run executed, bounded-run executed, scope, exact commands/results, and not-run reason.
+5. **High - upstream runner status is still modeled inconsistently, making bounded evidence easy to confuse with full parity.**
+   - Paths: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:46-50`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:17-20`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:80-81`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12-18`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:13-18`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json` runner status.
+   - Evidence: Dolt has `runnerStatus.executed: true` while the reason says full upstream runners were not executed and only bounded Go/BATS evidence passed; Gitoxide and markerPDF use string statuses; Pandoc has no explicit runner-status object; Quadrable uses a string pass note; Syncthing uses structured `executed: false` with probes. These are not comparable dashboard inputs.
+   - Goal requirement at risk: `goal.md` requires defensible upstream benchmark denominators and precise blockers when upstream runners cannot execute.
+   - Audit judgment: normalize runner fields into `fullRunner.executed`, `boundedRunner.executed`, scope, exact commands/results, and not-run reason before increasing estimates based on runner evidence.
 
-6. **High - markerPDF still has no real upstream benchmark PDF/reference pair mapped.**
-   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13-16`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:75`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:128`.
-   - Evidence: markerPDF maps source, OCR/image/equation/table-formatting/table-utility semantics and surrogate outputs, but `mappedBenchmarkPairs` remains `0`; the real benchmark runner remains `not-executed` because the external benchmark PDFs/references and heavy dependencies are absent. The manifest also reports `mapped: 49` over a `total` of `39` inspected artifacts, which mixes semantic checks with artifact denominator units.
-   - Goal requirement at risk: `goal.md` scopes markerPDF as PDF-to-structured-content extraction and requires meaningful fixture parity, not only surrogate Markdown comparisons.
-   - Audit judgment: acquire and map at least one actual `benchmark_data` PDF/reference pair before more cleaner/OCR/image/equation/table-formatting breadth counts as high-value markerPDF progress.
+6. **High - markerPDF still lacks a real upstream benchmark PDF/reference pair.**
+   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13-18`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:80-81`.
+   - Evidence: the manifest reports `mappedBenchmarkPairs: 0` and `mappedBenchmarkSurrogatePairs: 4`; the upstream benchmark runner remains `not-executed` because benchmark PDFs/references and heavy dependencies are absent. The lane has useful source-semantics work, but no actual PDF/reference parity for the priority-3 PDF extraction goal.
+   - Goal requirement at risk: `goal.md` scopes markerPDF as PDF-to-structured-content extraction and requires meaningful fixture parity, not only surrogate Markdown/source semantics.
+   - Audit judgment: acquire and map at least one real `benchmark_data` PDF/reference pair before counting more cleaner/OCR/table breadth as high-value markerPDF progress.
 
-7. **Medium - Gitoxide progress remains ahead of upstream evidence quality for the priority-1 lane.**
+7. **Medium - Gitoxide remains ahead of its upstream evidence quality for the priority-1 lane.**
    - Paths: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:13-20`, `lanes/gitoxide/lane-status.json:6-13`, `porting.html:56`, `porting-summary.json:57-71`.
-   - Evidence: Gitoxide reports high progress and `856` mapped items, but the Cargo runner is still not executed. The manifest uses a large prose inventory rather than normalized upstream fixture IDs, native test IDs, and uncovered-category accounting. Dashboard/status counts also disagree: dashboard `737` mapped and `1257 pass`; manifest `856` mapped; lane status `1457` assertions.
+   - Evidence: Gitoxide reports `857` mapped items and high progress, but the Cargo runner is still not executed and the manifest relies on a very large prose inventory instead of normalized upstream fixture IDs, native test IDs, and uncovered-category accounting. Dashboard/status values are also stale: dashboard `737` mapped and `1257` pass vs manifest `857` mapped and status `1459` assertions.
    - Goal requirement at risk: `goal.md` prioritizes Gitoxide and requires upstream tests as the source of truth whenever possible.
-   - Audit judgment: keep Gitoxide estimates conservative until it has normalized fixture/test IDs and uncovered-category accounting, or a controlled crate-level upstream runner probe.
+   - Audit judgment: keep Gitoxide estimates conservative until the lane has normalized fixture/test IDs with uncovered-category accounting, or a controlled crate-level upstream runner probe.
 
 ## Bridge / Shell-Out Check
 
@@ -59,18 +59,39 @@ rg -n 'shell_exec|exec\(|passthru|proc_open|system\(|popen\(|Symfony\\Component\
 
 Result: no PHP process-execution bridge calls found.
 
-## Test Run
+## Test Runs
 
-Command: `php tools/run-tests.php`
+First command: `php tools/run-tests.php`
+
+Exit status: 1
+
+Exact result:
+
+```text
+87 test files, 5876 assertions, 2 failures
+```
+
+Failing tests:
+
+```text
+FAIL maps upstream markdown apostrophe after math (lanes/pandoc/tests/MarkdownReaderTest.php)
+Expected: 'math'
+Actual: 'quoted'
+
+FAIL writes wordpress math and raw tex preservation markup from import notes (lanes/pandoc/tests/MarkdownReaderTest.php)
+String does not contain 'Field &amp; Value \\ \hline'
+```
+
+Final rerun command: `php tools/run-tests.php`
 
 Exit status: 0
 
 Exact result:
 
 ```text
-86 test files, 5790 assertions, 0 failures
+89 test files, 6056 assertions, 0 failures
 ```
 
 ## Recommended Next Intervention
 
-Freeze or explicitly coordinate active writers, then integrate or reject the remaining dirty lane batches from one state. Regenerate `progress.md`, `porting.html`, and `porting-summary.json`, refresh lane-status blockers, normalize status/dashboard schema fields, and prioritize markerPDF real benchmark PDF/reference parity plus Gitoxide normalized fixture IDs or a controlled crate-level runner probe.
+Freeze or explicitly coordinate active writers, then integrate or reject the remaining dirty lane batches from one state and keep the passing root-suite result tied to that exact commit. Regenerate `progress.md`, `porting.html`, and `porting-summary.json`, refresh lane-status blockers, normalize runner/PHP count schema fields, and prioritize markerPDF real benchmark PDF/reference parity plus Gitoxide normalized fixture IDs or a controlled crate-level runner probe.
