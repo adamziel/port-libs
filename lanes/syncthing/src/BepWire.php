@@ -673,6 +673,7 @@ final class BepWire
         }
         $payload .= self::fieldBytes(17, $file->symlinkTarget);
         $payload .= self::fieldBytes(18, self::hexToBytes($file->blocksHash, 'blocks hash'));
+        $payload .= self::fieldBytes(19, $file->encryptedPayload);
         $payload .= self::fieldBytes(20, self::hexToBytes($file->previousBlocksHash, 'previous blocks hash'));
 
         return $payload;
@@ -712,6 +713,7 @@ final class BepWire
             unixUid: $platform['unixUid'],
             unixGid: $platform['unixGid'],
             modifiedBy: self::lastInt($fields, 12),
+            encryptedPayload: self::lastBytes($fields, 19),
         );
     }
 

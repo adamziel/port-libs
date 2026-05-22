@@ -7,8 +7,10 @@ use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
+use PortLibs\Syncthing\IndexUpdate;
 use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\Request;
+use PortLibs\Syncthing\Response;
 use PortLibs\Syncthing\VersionVector;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -52,6 +54,27 @@ $file = new FileInfo(
 );
 $withTrailer = ReceiveEncrypted::appendEncryptionTrailer($bytes, $file, '\\');
 $trailer = ReceiveEncrypted::extractEncryptionTrailer($withTrailer);
+$wireFile = $file->withName('wp-content/uploads/2026/encrypted-media.bin');
+$encryptedFileInfo = ReceiveEncrypted::encryptFileInfo($wireFile, $folderKey);
+$decodedFileInfo = ReceiveEncrypted::decryptFileInfo($encryptedFileInfo, $folderKey);
+$encryptedIndexUpdate = ReceiveEncrypted::encryptIndexUpdate(
+    new IndexUpdate('wordpress-media', [$file], lastSequence: 91, prevSequence: 90),
+    $folderKey,
+    '\\',
+);
+$decodedEncryptedUpdate = BepWire::decodeIndexUpdateMessage(BepWire::encodeIndexUpdateMessage($encryptedIndexUpdate));
+$decryptedIndexUpdate = ReceiveEncrypted::decryptIndexUpdate($decodedEncryptedUpdate, $folderKey);
+$encryptedPeerResponse = ReceiveEncrypted::encryptResponseForEncryptedPeer(
+    new Response($plainRequest->id, substr($bytes, 0, $plainRequest->size)),
+    $fileKey,
+    str_repeat('W', ReceiveEncrypted::MIN_PADDED_SIZE),
+    str_repeat("\7", ReceiveEncrypted::NONCE_SIZE),
+);
+$decryptedPeerResponse = ReceiveEncrypted::decryptResponseFromEncryptedPeer(
+    $encryptedPeerResponse,
+    $fileKey,
+    $plainRequest->size,
+);
 
 echo json_encode([
     'encryptedRequest' => [
@@ -71,5 +94,28 @@ echo json_encode([
         'trailerBytes' => $trailer['trailerSize'],
         'wireName' => $trailer['file']->name,
         'version' => $trailer['file']->version->humanString(),
+    ],
+    'encryptedIndexFile' => [
+        'name' => $encryptedFileInfo->name,
+        'decryptedName' => $decodedFileInfo->name,
+        'type' => $encryptedFileInfo->type,
+        'size' => $encryptedFileInfo->size,
+        'blockSize' => $encryptedFileInfo->rawBlockSize,
+        'fakeVersion' => $encryptedFileInfo->version->humanString(),
+        'encryptedMetadataBytes' => strlen($encryptedFileInfo->encryptedPayload),
+    ],
+    'encryptedIndexUpdate' => [
+        'messageType' => BepWire::decodeMessageFrame(BepWire::encodeIndexUpdateMessage($encryptedIndexUpdate))['type'],
+        'wireName' => $decodedEncryptedUpdate->files[0]->name,
+        'plaintextName' => $decryptedIndexUpdate->files[0]->name,
+        'lastSequence' => $decryptedIndexUpdate->lastSequence,
+        'prevSequence' => $decryptedIndexUpdate->prevSequence,
+        'encryptedMetadataBytes' => strlen($decodedEncryptedUpdate->files[0]->encryptedPayload),
+    ],
+    'encryptedResponse' => [
+        'encryptedBytes' => strlen($encryptedPeerResponse->data),
+        'decryptedBytes' => strlen($decryptedPeerResponse->data),
+        'trimmedToRequestSize' => $decryptedPeerResponse->data === substr($bytes, 0, $plainRequest->size),
+        'paddedPlainBytes' => strlen(ReceiveEncrypted::decryptBytes($encryptedPeerResponse->data, $fileKey)),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

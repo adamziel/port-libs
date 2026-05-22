@@ -62,6 +62,203 @@ final class ReceiveEncrypted
         }
     }
 
+    public static function encryptBytes(string $data, string $fileKey, ?string $nonce = null): string
+    {
+        self::assertFileKey($fileKey);
+        self::assertSodiumAvailable();
+
+        $nonce ??= random_bytes(self::NONCE_SIZE);
+        if (strlen($nonce) !== self::NONCE_SIZE) {
+            throw new \LengthException('XChaCha20-Poly1305 nonce must be 24 bytes');
+        }
+
+        return $nonce . sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($data, '', $nonce, $fileKey);
+    }
+
+    public static function decryptBytes(string $encryptedBytes, string $fileKey): string
+    {
+        self::assertFileKey($fileKey);
+        self::assertSodiumAvailable();
+
+        if (strlen($encryptedBytes) < self::BLOCK_OVERHEAD) {
+            throw new \LengthException('Encrypted data is too short');
+        }
+
+        $nonce = substr($encryptedBytes, 0, self::NONCE_SIZE);
+        $ciphertext = substr($encryptedBytes, self::NONCE_SIZE);
+        $plaintext = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt($ciphertext, '', $nonce, $fileKey);
+        if ($plaintext === false) {
+            throw new \RuntimeException('XChaCha20-Poly1305 authentication failed');
+        }
+
+        return $plaintext;
+    }
+
+    public static function encryptFileInfo(FileInfo $file, string $folderKey, ?string $nonce = null): FileInfo
+    {
+        $fileKey = self::fileKey($file->name, $folderKey);
+        $encryptedPayload = self::encryptBytes(BepWire::encodeFileInfoPayload($file), $fileKey, $nonce);
+        $blocks = [];
+        $encryptedOffset = 0;
+
+        foreach ($file->blocks as $block) {
+            $paddedSize = max($block->size, self::MIN_PADDED_SIZE);
+            $encryptedSize = $paddedSize + self::BLOCK_OVERHEAD;
+            $blocks[] = new Block(
+                offset: $encryptedOffset,
+                size: $encryptedSize,
+                hashHex: self::encryptBlockHashHex($block->hashHex, $block->offset, $fileKey),
+            );
+            $encryptedOffset += $encryptedSize;
+        }
+
+        $encryptedType = $file->type === FileInfo::TYPE_FILE ? FileInfo::TYPE_FILE : FileInfo::TYPE_DIRECTORY;
+        $fakeVersionValue = array_sum($file->version->toArray());
+
+        return new FileInfo(
+            name: self::encryptName($file->name, $folderKey),
+            modifiedS: 1234567890,
+            version: VersionVector::fromCounters([1 => $fakeVersionValue]),
+            deleted: $file->deleted,
+            localFlags: $file->isInvalid() ? FileInfo::FLAG_LOCAL_REMOTE_INVALID : 0,
+            size: $encryptedType === FileInfo::TYPE_FILE ? $encryptedOffset : 0,
+            type: $encryptedType,
+            permissions: 0644,
+            rawBlockSize: $encryptedType === FileInfo::TYPE_FILE ? $file->blockSize() + self::BLOCK_OVERHEAD : 0,
+            sequence: $file->sequence,
+            blocks: $encryptedType === FileInfo::TYPE_FILE ? $blocks : [],
+            encryptedPayload: $encryptedPayload,
+        );
+    }
+
+    public static function decryptFileInfo(FileInfo $encryptedFile, string $folderKey): FileInfo
+    {
+        $plainName = self::decryptName($encryptedFile->name, $folderKey);
+        $fileKey = self::fileKey($plainName, $folderKey);
+        $payload = self::decryptBytes($encryptedFile->encryptedPayload, $fileKey);
+
+        return BepWire::decodeFileInfoPayload($payload)->withSequence($encryptedFile->sequence);
+    }
+
+    /**
+     * @param list<FileInfo> $files
+     *
+     * @return list<FileInfo>
+     */
+    public static function encryptFileInfos(
+        array $files,
+        string $folderKey,
+        string $directorySeparator = DIRECTORY_SEPARATOR,
+    ): array {
+        $encrypted = [];
+        foreach ($files as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException('Expected only FileInfo instances');
+            }
+
+            $encrypted[] = self::encryptFileInfo(
+                $file->withName(ProtocolValidation::normalizeWireName($file->name, $directorySeparator)),
+                $folderKey,
+            );
+        }
+
+        return $encrypted;
+    }
+
+    /**
+     * @param list<FileInfo> $files
+     *
+     * @return list<FileInfo>
+     */
+    public static function decryptFileInfos(array $files, string $folderKey): array
+    {
+        $decrypted = [];
+        foreach ($files as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException('Expected only FileInfo instances');
+            }
+
+            $decrypted[] = self::decryptFileInfo($file, $folderKey);
+        }
+
+        return $decrypted;
+    }
+
+    public static function encryptIndex(
+        Index $index,
+        string $folderKey,
+        string $directorySeparator = DIRECTORY_SEPARATOR,
+    ): Index {
+        return new Index(
+            folder: $index->folder,
+            files: self::encryptFileInfos($index->files, $folderKey, $directorySeparator),
+            lastSequence: $index->lastSequence,
+        );
+    }
+
+    public static function decryptIndex(Index $index, string $folderKey): Index
+    {
+        return new Index(
+            folder: $index->folder,
+            files: self::decryptFileInfos($index->files, $folderKey),
+            lastSequence: $index->lastSequence,
+        );
+    }
+
+    public static function encryptIndexUpdate(
+        IndexUpdate $indexUpdate,
+        string $folderKey,
+        string $directorySeparator = DIRECTORY_SEPARATOR,
+    ): IndexUpdate {
+        return new IndexUpdate(
+            folder: $indexUpdate->folder,
+            files: self::encryptFileInfos($indexUpdate->files, $folderKey, $directorySeparator),
+            lastSequence: $indexUpdate->lastSequence,
+            prevSequence: $indexUpdate->prevSequence,
+        );
+    }
+
+    public static function decryptIndexUpdate(IndexUpdate $indexUpdate, string $folderKey): IndexUpdate
+    {
+        return new IndexUpdate(
+            folder: $indexUpdate->folder,
+            files: self::decryptFileInfos($indexUpdate->files, $folderKey),
+            lastSequence: $indexUpdate->lastSequence,
+            prevSequence: $indexUpdate->prevSequence,
+        );
+    }
+
+    public static function encryptRequestForEncryptedPeer(Request $request, string $folderKey): Request
+    {
+        $fileKey = self::fileKey($request->name, $folderKey);
+
+        return self::requestToEncryptedPeer(
+            $request,
+            self::encryptName($request->name, $folderKey),
+            self::encryptBlockHashHex($request->hashHex, $request->offset, $fileKey),
+        );
+    }
+
+    public static function decryptRequestFromEncryptedPeer(Request $request, string $folderKey): Request
+    {
+        $plainName = self::decryptName($request->name, $folderKey);
+        $realOffset = $request->offset - ($request->blockNo * self::BLOCK_OVERHEAD);
+        if ($realOffset < 0) {
+            throw new \InvalidArgumentException('encrypted request offset is shorter than block overhead');
+        }
+
+        $plainHashHex = '';
+        if ($request->hashHex !== '') {
+            $plainHashHex = self::decryptBlockHashHex(
+                $request->hashHex,
+                $realOffset,
+                self::fileKey($plainName, $folderKey),
+            );
+        }
+
+        return self::requestFromEncryptedPeer($request, $plainName, $plainHashHex);
+    }
+
     public static function requestToEncryptedPeer(
         Request $request,
         string $encryptedName,
@@ -102,6 +299,59 @@ final class ReceiveEncrypted
             hashHex: $plainHashHex,
             fromTemporary: $request->fromTemporary,
             blockNo: $request->blockNo,
+        );
+    }
+
+    public static function encryptResponseForEncryptedPeer(
+        Response $response,
+        string $fileKey,
+        ?string $paddingBytes = null,
+        ?string $nonce = null,
+    ): Response {
+        if ($response->code !== Response::CODE_NO_ERROR) {
+            return $response;
+        }
+
+        $data = $response->data;
+        $paddingLength = self::MIN_PADDED_SIZE - strlen($data);
+        if ($paddingLength > 0) {
+            if ($paddingBytes === null) {
+                $paddingBytes = random_bytes($paddingLength);
+            }
+            if (strlen($paddingBytes) < $paddingLength) {
+                throw new \LengthException('Not enough response padding bytes supplied');
+            }
+            $data .= substr($paddingBytes, 0, $paddingLength);
+        }
+
+        return new Response(
+            id: $response->id,
+            data: self::encryptBytes($data, $fileKey, $nonce),
+            code: $response->code,
+        );
+    }
+
+    public static function decryptResponseFromEncryptedPeer(
+        Response $response,
+        string $fileKey,
+        int $plainSize,
+    ): Response {
+        if ($plainSize < 0) {
+            throw new \InvalidArgumentException('Plain response size must not be negative');
+        }
+        if ($response->code !== Response::CODE_NO_ERROR) {
+            return $response;
+        }
+
+        $data = self::decryptBytes($response->data, $fileKey);
+        if (strlen($data) < $plainSize) {
+            throw new \LengthException('Decrypted response is shorter than the requested plaintext size');
+        }
+
+        return new Response(
+            id: $response->id,
+            data: substr($data, 0, $plainSize),
+            code: $response->code,
         );
     }
 
@@ -234,6 +484,20 @@ final class ReceiveEncrypted
     {
         if ($hex !== '' && !preg_match('/^(?:[0-9a-f]{2})+$/', $hex)) {
             throw new \InvalidArgumentException('Expected lowercase even-length hex for ' . $label);
+        }
+    }
+
+    private static function assertFileKey(string $key): void
+    {
+        if (strlen($key) !== EncryptionKey::KEY_SIZE) {
+            throw new \LengthException('Syncthing file keys must be 32 bytes');
+        }
+    }
+
+    private static function assertSodiumAvailable(): void
+    {
+        if (!function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_encrypt')) {
+            throw new \RuntimeException('The sodium extension is required for XChaCha20-Poly1305 encryption');
         }
     }
 

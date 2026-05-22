@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 84,
+        "mapped": 90,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
@@ -55,7 +55,7 @@
             "targetClusterConfigStructs": 3,
             "targetClusterConfigWireConversionMethods": 6,
             "targetIndexFileInfoWireMethods": 10,
-            "targetFileInfoProtoFieldsMapped": 18,
+            "targetFileInfoProtoFieldsMapped": 19,
             "targetDownloadProgressWireConversionMethods": 4,
             "targetDownloadProgressProtoMessages": 2,
             "targetDownloadProgressUpdateTypes": 2,
@@ -91,12 +91,22 @@
             "targetEncryptedNameCases": 7,
             "targetDecryptNameInvalidCases": 4,
             "targetEncryptedRequestTransformMethods": 2,
+            "targetEncryptedConnectionRequestMethods": 1,
+            "targetEncryptedModelRequestMethods": 1,
+            "targetEncryptedResponsePaddingTrimMappedPhpTests": 2,
             "targetFileKeyDerivationMethods": 1,
             "targetEncryptedBlockHashMethods": 2,
             "targetEncryptedBlockHashInvariants": 4,
             "targetEncryptedPathHelperMethods": 3,
             "targetEncryptionTrailerMethods": 3,
-            "targetReceiveEncryptedMappedPhpTests": 6,
+            "targetEncryptedBytesMethods": 3,
+            "targetEncryptedBytesTestFunctions": 1,
+            "targetEncryptedFileInfoMethods": 4,
+            "targetEncryptedFileInfoTestFunctions": 2,
+            "targetEncryptedFileInfoFixtureBlocks": 2,
+            "targetEncryptedIndexCollectionMethods": 6,
+            "targetEncryptedIndexCollectionMappedPhpTests": 1,
+            "targetReceiveEncryptedMappedPhpTests": 12,
             "targetCcCheckEncryptionTestFunctions": 1,
             "targetCcCheckEncryptionTableCases": 11,
             "targetClusterConfigEncryptedTestFunctions": 1,
@@ -190,6 +200,18 @@
                     "result": "inspected TestEnDecryptName, TestDecryptNameInvalid, KeyGenerator.FileKey HKDF derivation, encryptBlockHash offset additional data, legacy no-offset decrypt fallback, and TestEnDecryptFileInfo block-hash stability/different-offset invariants without hydrating broad blobs"
                 },
                 {
+                    "command": "targeted git show reads of lib/protocol/encryption.go",
+                    "result": "inspected encryptedConnection.Request and encryptedModel.Request size inflation, offset overhead, encrypted hash-token decryption, response padding to minPaddedSize, XChaCha20-Poly1305 response encryption, and trusted-side plaintext trimming without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go, lib/protocol/encryption_test.go, lib/protocol/bep_fileinfo.go, and proto/bep/bep.proto",
+                    "result": "inspected encryptBytes/DecryptBytes XChaCha20-Poly1305 nonce-prefix layout, the TestKeyDerivation encrypted-bytes fixture, encryptFileInfo/DecryptFileInfo metadata wrapping, fake encrypted FileInfo fields, encrypted protobuf field 19, symlink-as-directory wrapping, invalid-flag projection, and sequence preservation without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/encryption.go and lib/protocol/bep_index_updates.go",
+                    "result": "inspected encryptedConnection.Index, encryptedConnection.IndexUpdate, encryptedModel.Index, encryptedModel.IndexUpdate, encryptFileInfos, decryptFileInfos, and Index/IndexUpdate file-list wire conversion boundaries without hydrating broad blobs"
+                },
+                {
                     "command": "targeted git show reads of lib/model/model.go, lib/model/model_test.go, and lib/config/config_test.go",
                     "result": "inspected ccCheckEncryption local/remote token and encryption configuration decisions, TestCcCheckEncryption's 11 table cases, untrusted-device plain-folder rejection, token mismatch handling, and adjacent ClusterConfigEncrypted coverage without hydrating broad blobs"
                 },
@@ -244,7 +266,7 @@
             "Compression mode decisions follow upstream thresholds: messages below 128 bytes remain uncompressed, metadata mode does not compress responses, and compression falls back to uncompressed output when the LZ4 block cannot save at least one thirty-second of the payload.",
             "Index protobuf payloads preserve folder, repeated FileInfo entries, and last_sequence, and use upstream `MESSAGE_TYPE_INDEX` post-auth frames.",
             "IndexUpdate protobuf payloads preserve folder, repeated FileInfo entries, last_sequence, prev_sequence, and upstream `MESSAGE_TYPE_INDEX_UPDATE` post-auth frames.",
-            "FileInfo protobuf payloads preserve name, type, size, permissions, modified time, modified_by, version, sequence, raw block size, symlink target, deleted, no_permissions, blocks_hash, and previous_blocks_hash fields.",
+            "FileInfo protobuf payloads preserve name, type, size, permissions, modified time, modified_by, version, sequence, raw block size, symlink target, deleted, no_permissions, blocks_hash, encrypted metadata, and previous_blocks_hash fields.",
             "FileInfo wire invalidity follows upstream ToWire/FromWire behavior: outgoing local invalid flags become the protocol invalid bool, internal local_flags are not sent, and incoming invalid files become remote-invalid local entries.",
             "BlockInfo, Vector, Counter, and Unix PlatformData payloads preserve upstream field numbers for block offsets/sizes/hashes, sorted version counters, and owner/group UID/GID metadata.",
             "DownloadProgress protobuf payloads preserve folder plus repeated FileDownloadProgressUpdate messages and use upstream `MESSAGE_TYPE_DOWNLOAD_PROGRESS` post-auth frames.",
@@ -291,6 +313,13 @@
             "Per-file receive-encrypted keys use upstream HKDF-SHA256 over `folderKey || filename` with salt `syncthing`, matching `KeyGenerator.FileKey` boundaries before request/hash-token transforms.",
             "Encrypted block hash tokens use deterministic AES-SIV over raw hash bytes with the big-endian block offset as associated data, so identical data at different offsets has different stable tokens.",
             "Incoming encrypted block hash token decoding first verifies the offset-bound token, then falls back to the upstream legacy no-offset AES-SIV token form.",
+            "Outgoing encrypted-connection requests derive the file key from the plaintext name, encrypt the wire name and block hash, add per-block overhead to the request offset, and request `max(size, 1024) + 40` bytes from the untrusted peer.",
+            "Receive-encrypted model responses pad plaintext data shorter than 1024 bytes before XChaCha20-Poly1305 encryption, while trusted-side response handling decrypts the returned block and trims it back to the original requested plaintext size.",
+            "XChaCha20-Poly1305 encrypted byte payloads use Syncthing's nonce-prefix layout and 40-byte nonce/tag overhead; the upstream `TestKeyDerivation` encrypted `hello world` fixture decrypts with the derived file key.",
+            "Encrypted FileInfo wrappers encrypt the entire native FileInfo protobuf payload into field 19 with the per-file key while exposing an encrypted name, fake modified time, 0644 permissions, sequence number, and deterministic fake version for untrusted peers.",
+            "Encrypted FileInfo block lists pad small blocks to the 1024-byte receive-encrypted minimum, add per-block nonce/tag overhead, rewrite offsets to encrypted byte positions, and use stable offset-bound encrypted block-hash tokens.",
+            "Encrypted FileInfo decryption recovers the plaintext metadata with the untrusted peer's sequence number preserved, and non-file metadata such as symlinks is represented as encrypted directories while invalid plaintext metadata becomes remote-invalid for consistency checks.",
+            "Encrypted Index and IndexUpdate collection helpers map upstream encryptedConnection/encryptedModel boundaries by normalizing outgoing FileInfo wire names, encrypting every FileInfo in the collection, preserving folder and sequence metadata, and decrypting incoming untrusted FileInfo wrappers before model handling.",
             "Receive-encrypted file trailers append the native FileInfo wire payload plus a big-endian uint32 payload length at the encrypted file size boundary, and extraction recovers the normalized wire filename and version metadata.",
             "Cluster-config encryption consistency follows upstream `ccCheckEncryption`: both advertised tokens are impossible, local receive-encrypted plus remote encrypted config is impossible, encrypted tokens with plain local config are rejected, and missing-token plain/encrypted mismatches produce the upstream error boundaries.",
             "Untrusted devices are rejected for plain WordPress media folders, while either configured encrypted direction keeps the device on the encrypted sharing path.",
@@ -299,13 +328,13 @@
             "Syncthing `PasswordToken` generation derives folder keys with scrypt using `N=32768`, `r=8`, `p=1`, `keyLen=32`, and salt/input bytes from `knownBytes(folderID)`.",
             "Native AES-CMAC-SIV deterministic encryption matches upstream `TestKeyDerivation` bytes and preserves the zero-length AEAD nonce as an associated-data item, as used by Syncthing's `miscreant.NewAEAD(\"AES-SIV\", key, 0)` calls."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 84 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 90 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads, DownloadProgress append/forget protobuf frames plus remote temporary-download state, outgoing sent-download progress diff computation, connection-level ProgressEmitter subscription grouping/cleanup/event-summary behavior, timer-driven ProgressEmitter scheduling with BEP wire connection adapters, inbound remote DownloadProgress tracking with temporary-block availability/request planning, inbound Request.fromTemporary serving with temporary-file hash validation plus finalized-file fallback, request-serving ignored-path, include/escape-aware ignore parsing, receive-encrypted hash-token guards, receive-encrypted request envelope geometry, deterministic encrypted filename and block-hash token transforms, encrypted path parent detection, receive-encrypted FileInfo trailer append/extract behavior, cluster-config encryption consistency decisions, and exact PasswordToken scrypt/AES-SIV derivation."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads including encrypted metadata field 19, encrypted Index/IndexUpdate collection wrappers, DownloadProgress append/forget protobuf frames plus remote temporary-download state, outgoing sent-download progress diff computation, connection-level ProgressEmitter subscription grouping/cleanup/event-summary behavior, timer-driven ProgressEmitter scheduling with BEP wire connection adapters, inbound remote DownloadProgress tracking with temporary-block availability/request planning, inbound Request.fromTemporary serving with temporary-file hash validation plus finalized-file fallback, request-serving ignored-path, include/escape-aware ignore parsing, receive-encrypted hash-token guards, receive-encrypted request envelope geometry, encrypted request/response padding and trimming, deterministic encrypted filename and block-hash token transforms, encrypted path parent detection, receive-encrypted FileInfo trailer append/extract behavior, XChaCha20-Poly1305 encrypted byte payloads, encrypted FileInfo metadata wrapping/decryption, cluster-config encryption consistency decisions, and exact PasswordToken scrypt/AES-SIV derivation."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull, grouping those deltas per subscribed WordPress peer with event-style completed-byte summaries, scheduling real BEP DownloadProgress frames for a WordPress media peer only when the puller registry changes, planning an inbound Request.fromTemporary for a WordPress media block advertised only from a peer's temporary file, serving a WordPress media restore request by rejecting stale temporary bytes before returning a native BEP Response frame from the finalized file, serving a receive-encrypted WordPress media restore while an ignored private export path remains blocked, shaping a receive-encrypted WordPress media request envelope with deterministic encrypted names and offset-bound block-hash tokens plus a FileInfo trailer without exposing the plaintext filename to the untrusted peer, deriving exact Syncthing receive-encrypted password tokens for WordPress media peers, and rejecting untrusted WordPress media peers unless the cluster config advertises compatible receive-encrypted tokens.",
-    "nextTask": "Port encrypted FileInfo metadata wrapping/decryption from `encryptFileInfo` and `DecryptFileInfo`, then map XChaCha20-Poly1305 data encryption/decryption boundaries."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull, grouping those deltas per subscribed WordPress peer with event-style completed-byte summaries, scheduling real BEP DownloadProgress frames for a WordPress media peer only when the puller registry changes, planning an inbound Request.fromTemporary for a WordPress media block advertised only from a peer's temporary file, serving a WordPress media restore request by rejecting stale temporary bytes before returning a native BEP Response frame from the finalized file, serving a receive-encrypted WordPress media restore while an ignored private export path remains blocked, shaping a receive-encrypted WordPress media request envelope with deterministic encrypted names, offset-bound block-hash tokens, encrypted response padding, and trusted-side plaintext trimming without exposing the plaintext filename to the untrusted peer, wrapping full WordPress media IndexUpdate collections into Syncthing encrypted FileInfo metadata for untrusted index exchange, deriving exact Syncthing receive-encrypted password tokens for WordPress media peers, and rejecting untrusted WordPress media peers unless the cluster config advertises compatible receive-encrypted tokens.",
+    "nextTask": "Map encrypted DownloadProgress no-op behavior from `encryptedConnection.DownloadProgress` and `encryptedModel.DownloadProgress`."
 }

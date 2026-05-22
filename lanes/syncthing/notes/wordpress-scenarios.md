@@ -106,6 +106,15 @@ overhead before dispatch, synthetic encrypted parent directories are detected
 with the upstream `.syncthing-enc` and 200-character component rules, and
 receive-encrypted file trailers append a FileInfo wire payload followed by a
 big-endian payload length.
+The encrypted request/response data slice now maps the adjacent
+`encryptedConnection.Request` and `encryptedModel.Request` behavior: outgoing
+trusted requests derive the encrypted name/hash token, inflate offsets by the
+per-block 40-byte overhead, request at least 1024 plaintext bytes plus
+nonce/tag overhead from the untrusted peer, decrypt returned bytes, and trim the
+padding back to the original requested WordPress media block size. Inbound
+receive-encrypted requests decrypt the name/hash/geometry before model serving,
+then pad short plaintext responses to 1024 bytes before XChaCha20-Poly1305
+encryption.
 The cluster-config encryption consistency slice maps focused upstream
 `model.ccCheckEncryption`, `TestCcCheckEncryption`, and adjacent
 `TestClusterConfigEncrypted` behavior: untrusted devices cannot share plain
@@ -134,6 +143,24 @@ plaintext is exposed; per-file keys use HKDF-SHA256 over `folderKey ||
 filename` with salt `syncthing`; and encrypted block hash tokens are stable for
 the same hash at the same offset while differing for the same hash at a
 different offset because the big-endian offset is associated data.
+The encrypted metadata slice now maps upstream `encryptBytes`, `DecryptBytes`,
+`encryptFileInfo`, `DecryptFileInfo`, `TestEnDecryptBytes`,
+`TestEnDecryptFileInfo`, and `TestEncryptedFileInfoConsistency`: XChaCha20-
+Poly1305 payloads use Syncthing's 24-byte nonce prefix plus 16-byte tag
+overhead, the upstream encrypted `hello world` fixture decrypts with the
+derived file key, FileInfo protobuf field 19 carries encrypted metadata, fake
+encrypted FileInfo wrappers expose encrypted names, 0644 permissions, the
+upstream fixed modified time, sequence numbers, deterministic fake versions,
+padded encrypted block sizes, encrypted byte offsets, and offset-bound block
+hash tokens, and decryption restores the plaintext metadata while preserving
+the untrusted peer's sequence number.
+The encrypted index collection slice maps upstream `encryptedConnection.Index`,
+`encryptedConnection.IndexUpdate`, `encryptedModel.Index`,
+`encryptedModel.IndexUpdate`, `encryptFileInfos`, and `decryptFileInfos`:
+outgoing Index and IndexUpdate payloads normalize WordPress paths before
+encrypting every FileInfo wrapper for the untrusted peer, while incoming
+encrypted collections decrypt those wrappers and keep folder, last sequence,
+previous sequence, and peer-controlled FileInfo sequence metadata intact.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -204,7 +231,12 @@ untrusted-peer boundary: a WordPress media block request is reshaped into an
 encrypted-name request with padded size, per-block overhead, a deterministic
 encrypted filename, and an offset-bound block-hash token, while the encrypted
 file bytes carry a recoverable normalized FileInfo trailer for later metadata
-reconstruction.
+reconstruction. It also wraps the WordPress media FileInfo into Syncthing's
+encrypted metadata field 19, showing the fake untrusted-peer name, fake version,
+encrypted size, block size, metadata byte count, decrypted plaintext name, and a
+full encrypted IndexUpdate collection round trip. The same example now includes
+an encrypted response block, showing 1024-byte padded plaintext, 40-byte
+nonce/tag overhead, and trusted-side trimming back to the requested media block.
 `examples/wordpress-encryption-consistency.php` shows the cluster-config
 boundary for that same WordPress media folder: a plain untrusted peer is
 rejected, a receive-encrypted peer's real Syncthing password token is accepted
@@ -213,6 +245,5 @@ upstream different-password error.
 
 ## Next Task
 
-Port encrypted FileInfo metadata wrapping/decryption from `encryptFileInfo` and
-`DecryptFileInfo`, then map XChaCha20-Poly1305 data encryption/decryption
-boundaries.
+Map encrypted DownloadProgress no-op behavior from
+`encryptedConnection.DownloadProgress` and `encryptedModel.DownloadProgress`.

@@ -7,11 +7,51 @@ use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
+use PortLibs\Syncthing\Index;
+use PortLibs\Syncthing\IndexUpdate;
+use PortLibs\Syncthing\ProtocolValidation;
 use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\Request;
+use PortLibs\Syncthing\Response;
 use PortLibs\Syncthing\VersionVector;
 
 return [
+    'maps upstream XChaCha20 encrypted bytes fixture' => static function (TestRunner $t): void {
+        $folderKey = EncryptionKey::folderKeyFromPassword('my folder', 'my password');
+        $fileKey = ReceiveEncrypted::fileKey('filename.txt', $folderKey);
+        $decodeBase32Hex = static function (string $token): string {
+            $alphabet = array_flip(str_split('0123456789ABCDEFGHIJKLMNOPQRSTUV'));
+            $buffer = 0;
+            $bits = 0;
+            $out = '';
+
+            foreach (str_split($token) as $char) {
+                $buffer = ($buffer << 5) | $alphabet[$char];
+                $bits += 5;
+                if ($bits >= 8) {
+                    $out .= chr(($buffer >> ($bits - 8)) & 0xff);
+                    $bits -= 8;
+                    $buffer &= $bits === 0 ? 0 : (1 << $bits) - 1;
+                }
+            }
+
+            return $out;
+        };
+
+        $fixture = 'A1IPD28ISL7VNPRSSSQM2L31L3IJPC08283RO89J5UG0TI9P38DO9RFGK12DK0KD7PKQP6U51UL2B6H96O';
+        $encrypted = $decodeBase32Hex($fixture);
+
+        $t->same('hello world', ReceiveEncrypted::decryptBytes($encrypted, $fileKey));
+
+        $nonce = str_repeat("\0", ReceiveEncrypted::NONCE_SIZE);
+        $roundTrip = ReceiveEncrypted::encryptBytes('wordpress media plaintext', $fileKey, $nonce);
+        $t->same(ReceiveEncrypted::NONCE_SIZE + strlen('wordpress media plaintext') + ReceiveEncrypted::TAG_SIZE, strlen($roundTrip));
+        $t->same($nonce, substr($roundTrip, 0, ReceiveEncrypted::NONCE_SIZE));
+        $t->same('wordpress media plaintext', ReceiveEncrypted::decryptBytes($roundTrip, $fileKey));
+        $tamperedRoundTrip = substr($roundTrip, 0, -1) . chr(ord(substr($roundTrip, -1)) ^ 1);
+        $t->throws(RuntimeException::class, static fn () => ReceiveEncrypted::decryptBytes($tamperedRoundTrip, $fileKey));
+        $t->throws(LengthException::class, static fn () => ReceiveEncrypted::decryptBytes('short', $fileKey));
+    },
     'maps encrypted request geometry and opaque hash token fields' => static function (TestRunner $t): void {
         $request = new Request(
             id: 31,
@@ -44,6 +84,93 @@ return [
         $t->same($hashToken, $decoded->hashHex);
         $t->same($request->name, ReceiveEncrypted::decryptName($decoded->name, $folderKey));
         $t->same($request->hashHex, ReceiveEncrypted::decryptBlockHashHex($decoded->hashHex, $request->offset, $fileKey));
+    },
+    'maps encryptedConnection request response padding and trim semantics' => static function (TestRunner $t): void {
+        $plainBytes = 'wordpress encrypted media preview block';
+        $request = new Request(
+            id: 41,
+            folder: 'wordpress-media',
+            name: 'wp-content/uploads/2026/encrypted-preview.jpg',
+            offset: 4 * BlockList::MIN_BLOCK_SIZE,
+            size: strlen($plainBytes),
+            hashHex: hash('sha256', $plainBytes),
+            fromTemporary: true,
+            blockNo: 4,
+        );
+        $folderKey = EncryptionKey::folderKeyFromPassword($request->folder, 'wordpress media sync secret');
+        $fileKey = ReceiveEncrypted::fileKey($request->name, $folderKey);
+
+        $encryptedRequest = ReceiveEncrypted::encryptRequestForEncryptedPeer($request, $folderKey);
+        $decodedRequest = BepWire::decodeRequestMessage(BepWire::encodeRequestMessage($encryptedRequest));
+
+        $t->same(ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD, $decodedRequest->size);
+        $t->same($request->offset + (4 * ReceiveEncrypted::BLOCK_OVERHEAD), $decodedRequest->offset);
+        $t->true(!$decodedRequest->fromTemporary);
+        $t->same($request->name, ReceiveEncrypted::decryptName($decodedRequest->name, $folderKey));
+        $t->same($request->hashHex, ReceiveEncrypted::decryptBlockHashHex($decodedRequest->hashHex, $request->offset, $fileKey));
+
+        $encryptedResponse = ReceiveEncrypted::encryptResponseForEncryptedPeer(
+            new Response($request->id, $plainBytes),
+            $fileKey,
+            str_repeat('P', ReceiveEncrypted::MIN_PADDED_SIZE),
+            str_repeat("\4", ReceiveEncrypted::NONCE_SIZE),
+        );
+
+        $t->same(ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD, strlen($encryptedResponse->data));
+        $t->true(!str_contains($encryptedResponse->data, $plainBytes));
+        $paddedPlaintext = ReceiveEncrypted::decryptBytes($encryptedResponse->data, $fileKey);
+        $t->same(ReceiveEncrypted::MIN_PADDED_SIZE, strlen($paddedPlaintext));
+        $t->same($plainBytes, substr($paddedPlaintext, 0, strlen($plainBytes)));
+        $t->same(str_repeat('P', ReceiveEncrypted::MIN_PADDED_SIZE - strlen($plainBytes)), substr($paddedPlaintext, strlen($plainBytes)));
+
+        $trimmed = ReceiveEncrypted::decryptResponseFromEncryptedPeer($encryptedResponse, $fileKey, $request->size);
+        $t->same($request->id, $trimmed->id);
+        $t->same(Response::CODE_NO_ERROR, $trimmed->code);
+        $t->same($plainBytes, $trimmed->data);
+
+        $shortEncrypted = new Response(
+            $request->id,
+            ReceiveEncrypted::encryptBytes('short', $fileKey, str_repeat("\5", ReceiveEncrypted::NONCE_SIZE)),
+        );
+        $t->throws(LengthException::class, static fn () => ReceiveEncrypted::decryptResponseFromEncryptedPeer($shortEncrypted, $fileKey, 6));
+    },
+    'maps encryptedModel inbound request decryption and response encryption' => static function (TestRunner $t): void {
+        $servedBytes = str_repeat('large-wordpress-media-chunk-', 50);
+        $request = new Request(
+            id: 42,
+            folder: 'wordpress-media',
+            name: 'wp-content/uploads/2026/private-export.bin',
+            offset: 2 * BlockList::MIN_BLOCK_SIZE,
+            size: strlen($servedBytes),
+            hashHex: hash('sha256', $servedBytes),
+            blockNo: 2,
+        );
+        $folderKey = EncryptionKey::folderKeyFromPassword($request->folder, 'wordpress media sync secret');
+        $fileKey = ReceiveEncrypted::fileKey($request->name, $folderKey);
+
+        $encryptedRequest = ReceiveEncrypted::encryptRequestForEncryptedPeer($request, $folderKey);
+        $plainRequest = ReceiveEncrypted::decryptRequestFromEncryptedPeer($encryptedRequest, $folderKey);
+
+        $t->same($request->id, $plainRequest->id);
+        $t->same($request->name, $plainRequest->name);
+        $t->same($request->offset, $plainRequest->offset);
+        $t->same($request->size, $plainRequest->size);
+        $t->same($request->hashHex, $plainRequest->hashHex);
+        $t->true(!$plainRequest->fromTemporary);
+        $t->same($request->blockNo, $plainRequest->blockNo);
+
+        $encryptedResponse = ReceiveEncrypted::encryptResponseForEncryptedPeer(
+            new Response($plainRequest->id, $servedBytes),
+            $fileKey,
+            nonce: str_repeat("\6", ReceiveEncrypted::NONCE_SIZE),
+        );
+        $t->same(strlen($servedBytes) + ReceiveEncrypted::BLOCK_OVERHEAD, strlen($encryptedResponse->data));
+        $roundTrip = ReceiveEncrypted::decryptResponseFromEncryptedPeer($encryptedResponse, $fileKey, $request->size);
+        $t->same($servedBytes, $roundTrip->data);
+
+        $error = new Response($plainRequest->id, '', Response::CODE_NO_SUCH_FILE);
+        $t->same($error, ReceiveEncrypted::encryptResponseForEncryptedPeer($error, $fileKey));
+        $t->same($error, ReceiveEncrypted::decryptResponseFromEncryptedPeer($error, $fileKey, $request->size));
     },
     'maps upstream deterministic encrypted name fixtures and invalid cases' => static function (TestRunner $t): void {
         $key = str_repeat("\0", EncryptionKey::KEY_SIZE);
@@ -200,5 +327,153 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::appendEncryptionTrailer($bytes . 'extra', $file, '\\'));
         $t->throws(LengthException::class, static fn () => ReceiveEncrypted::extractEncryptionTrailer('abc'));
+    },
+    'maps upstream encrypted file info wrapper invariants' => static function (TestRunner $t): void {
+        $folderKey = str_repeat("\0", EncryptionKey::KEY_SIZE);
+        $file = new FileInfo(
+            name: 'wp-content/uploads/2026/encrypted-media.bin',
+            modifiedS: 8080,
+            version: VersionVector::fromCounters([42 => 7, 77 => 5]),
+            size: 90,
+            permissions: 0755,
+            rawBlockSize: 45,
+            sequence: 1000,
+            blocks: [
+                new Block(0, 45, bin2hex("\x01\x02\x03")),
+                new Block(45, 45, bin2hex("\x01\x02\x03")),
+            ],
+        );
+
+        $encrypted = ReceiveEncrypted::encryptFileInfo($file, $folderKey, str_repeat("\1", ReceiveEncrypted::NONCE_SIZE));
+        $again = ReceiveEncrypted::encryptFileInfo($file, $folderKey, str_repeat("\2", ReceiveEncrypted::NONCE_SIZE));
+
+        $t->same('wp-content/uploads/2026/encrypted-media.bin', ReceiveEncrypted::decryptName($encrypted->name, $folderKey));
+        $t->same(FileInfo::TYPE_FILE, $encrypted->type);
+        $t->same(0644, $encrypted->permissions);
+        $t->same(1234567890, $encrypted->modifiedS);
+        $t->same([1 => 12], $encrypted->version->toArray());
+        $t->same(1000, $encrypted->sequence);
+        $t->same(2 * (ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD), $encrypted->size);
+        $t->same(BlockList::MIN_BLOCK_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD, $encrypted->rawBlockSize);
+        $t->same(2, count($encrypted->blocks));
+        $t->same(0, $encrypted->blocks[0]->offset);
+        $t->same(ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD, $encrypted->blocks[1]->offset);
+        $t->same(ReceiveEncrypted::MIN_PADDED_SIZE + ReceiveEncrypted::BLOCK_OVERHEAD, $encrypted->blocks[0]->size);
+        $t->true($encrypted->blocks[0]->hashHex !== $encrypted->blocks[1]->hashHex);
+        $t->same($encrypted->blocks[0]->hashHex, $again->blocks[0]->hashHex);
+        $t->same($encrypted->blocks[1]->hashHex, $again->blocks[1]->hashHex);
+        $t->same(ReceiveEncrypted::NONCE_SIZE + strlen(BepWire::encodeFileInfoPayload($file)) + ReceiveEncrypted::TAG_SIZE, strlen($encrypted->encryptedPayload));
+        $t->true(!str_contains($encrypted->encryptedPayload, $file->name));
+
+        $decodedWire = BepWire::decodeFileInfoPayload(BepWire::encodeFileInfoPayload($encrypted));
+        $t->same($encrypted->encryptedPayload, $decodedWire->encryptedPayload);
+
+        $remoteSequenced = $decodedWire->withSequence(10);
+        $decrypted = ReceiveEncrypted::decryptFileInfo($remoteSequenced, $folderKey);
+        $t->same(10, $decrypted->sequence);
+        $decrypted = $decrypted->withSequence($file->sequence);
+        $t->same($file->name, $decrypted->name);
+        $t->same($file->permissions, $decrypted->permissions);
+        $t->same($file->modifiedS, $decrypted->modifiedS);
+        $t->same($file->version->toArray(), $decrypted->version->toArray());
+        $t->same($file->blocks[0]->hashHex, $decrypted->blocks[0]->hashHex);
+        $t->same($file->blocks[1]->hashHex, $decrypted->blocks[1]->hashHex);
+
+        $tamperedPayload = substr($encrypted->encryptedPayload, 0, -1) . chr(ord(substr($encrypted->encryptedPayload, -1)) ^ 1);
+        $tampered = new FileInfo(
+            name: $encrypted->name,
+            modifiedS: $encrypted->modifiedS,
+            version: $encrypted->version,
+            size: $encrypted->size,
+            type: $encrypted->type,
+            permissions: $encrypted->permissions,
+            rawBlockSize: $encrypted->rawBlockSize,
+            sequence: $encrypted->sequence,
+            blocks: $encrypted->blocks,
+            encryptedPayload: $tamperedPayload,
+        );
+        $t->throws(RuntimeException::class, static fn () => ReceiveEncrypted::decryptFileInfo($tampered, $folderKey));
+    },
+    'maps encrypted index and index update collection wrappers' => static function (TestRunner $t): void {
+        $folderKey = str_repeat("\0", EncryptionKey::KEY_SIZE);
+        $blocks = (new BlockList())->fromBytes('wordpress encrypted index bytes', 12);
+        $file = new FileInfo(
+            name: 'wp-content\\uploads\\2026\\encrypted-index.bin',
+            modifiedS: 1700001800,
+            version: VersionVector::fromCounters([42 => 8, 77 => 3]),
+            size: strlen('wordpress encrypted index bytes'),
+            blocksHash: (new BlockList())->hashBlocks($blocks),
+            permissions: 0644,
+            rawBlockSize: 12,
+            sequence: 120,
+            blocks: [
+                new Block($blocks[0]->offset, $blocks[0]->size, $blocks[0]->hashHex),
+                new Block($blocks[1]->offset, $blocks[1]->size, $blocks[1]->hashHex),
+                new Block($blocks[2]->offset, $blocks[2]->size, $blocks[2]->hashHex),
+            ],
+        );
+        $index = new Index('wordpress-media', [$file], lastSequence: 120);
+
+        $encryptedIndex = ReceiveEncrypted::encryptIndex($index, $folderKey, '\\');
+        $encryptedFile = $encryptedIndex->files[0];
+        ProtocolValidation::checkIndexConsistency($encryptedIndex->files);
+
+        $t->same('wordpress-media', $encryptedIndex->folder);
+        $t->same(120, $encryptedIndex->lastSequence);
+        $t->true(!str_contains($encryptedFile->name, 'encrypted-index.bin'));
+        $t->same('wp-content/uploads/2026/encrypted-index.bin', ReceiveEncrypted::decryptName($encryptedFile->name, $folderKey));
+        $t->same(1234567890, $encryptedFile->modifiedS);
+        $t->same([1 => 11], $encryptedFile->version->toArray());
+        $t->same(120, $encryptedFile->sequence);
+        $t->same('', $encryptedFile->blocksHash);
+        $t->same(ReceiveEncrypted::NONCE_SIZE + strlen(BepWire::encodeFileInfoPayload($file->withName('wp-content/uploads/2026/encrypted-index.bin'))) + ReceiveEncrypted::TAG_SIZE, strlen($encryptedFile->encryptedPayload));
+
+        $decodedEncryptedIndex = BepWire::decodeIndexMessage(BepWire::encodeIndexMessage($encryptedIndex));
+        $decryptedIndex = ReceiveEncrypted::decryptIndex($decodedEncryptedIndex, $folderKey);
+
+        $t->same(120, $decryptedIndex->lastSequence);
+        $t->same('wp-content/uploads/2026/encrypted-index.bin', $decryptedIndex->files[0]->name);
+        $t->same($file->version->toArray(), $decryptedIndex->files[0]->version->toArray());
+        $t->same($file->blocks[2]->hashHex, $decryptedIndex->files[0]->blocks[2]->hashHex);
+        $t->same(120, $decryptedIndex->files[0]->sequence);
+
+        $update = new IndexUpdate('wordpress-media', [$file], lastSequence: 123, prevSequence: 120);
+        $decodedEncryptedUpdate = BepWire::decodeIndexUpdateMessage(
+            BepWire::encodeIndexUpdateMessage(ReceiveEncrypted::encryptIndexUpdate($update, $folderKey, '\\')),
+        );
+        $decryptedUpdate = ReceiveEncrypted::decryptIndexUpdate($decodedEncryptedUpdate, $folderKey);
+
+        $t->same(123, $decryptedUpdate->lastSequence);
+        $t->same(120, $decryptedUpdate->prevSequence);
+        $t->same('wp-content/uploads/2026/encrypted-index.bin', $decryptedUpdate->files[0]->name);
+        $t->same($file->blocksHash, $decryptedUpdate->files[0]->blocksHash);
+        $t->same(120, $decryptedUpdate->files[0]->sequence);
+
+        $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::encryptFileInfos([new stdClass()], $folderKey));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::decryptFileInfos([new stdClass()], $folderKey));
+    },
+    'maps encrypted file info consistency for ignored symlink metadata' => static function (TestRunner $t): void {
+        $folderKey = str_repeat("\0", EncryptionKey::KEY_SIZE);
+        $symlink = new FileInfo(
+            name: 'wp-content/uploads/current',
+            type: FileInfo::TYPE_SYMLINK,
+            localFlags: FileInfo::FLAG_LOCAL_IGNORED,
+            symlinkTarget: '2026',
+            sequence: 81,
+        );
+
+        $encrypted = ReceiveEncrypted::encryptFileInfo($symlink, $folderKey, str_repeat("\3", ReceiveEncrypted::NONCE_SIZE));
+        ProtocolValidation::checkFileInfoConsistency($encrypted);
+
+        $t->same(FileInfo::TYPE_DIRECTORY, $encrypted->type);
+        $t->same([], $encrypted->blocks);
+        $t->same(0, $encrypted->size);
+        $t->same(FileInfo::FLAG_LOCAL_REMOTE_INVALID, $encrypted->localFlags);
+
+        $decrypted = ReceiveEncrypted::decryptFileInfo($encrypted, $folderKey);
+        $t->same(FileInfo::TYPE_SYMLINK, $decrypted->type);
+        $t->same('2026', $decrypted->symlinkTarget);
+        $t->same(81, $decrypted->sequence);
+        $t->same(FileInfo::FLAG_LOCAL_REMOTE_INVALID, $decrypted->localFlags);
     },
 ];

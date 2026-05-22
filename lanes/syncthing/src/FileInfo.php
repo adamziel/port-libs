@@ -53,6 +53,7 @@ final class FileInfo
         public readonly ?int $unixUid = null,
         public readonly ?int $unixGid = null,
         public readonly int $modifiedBy = 0,
+        public readonly string $encryptedPayload = '',
     ) {
         if (
             $this->modifiedS < 0
@@ -116,6 +117,35 @@ final class FileInfo
             unixUid: $this->unixUid,
             unixGid: $this->unixGid,
             modifiedBy: $this->modifiedBy,
+            encryptedPayload: $this->encryptedPayload,
+        );
+    }
+
+    public function withSequence(int $sequence): self
+    {
+        return new self(
+            name: $this->name,
+            modifiedS: $this->modifiedS,
+            modifiedNs: $this->modifiedNs,
+            version: $this->version,
+            deleted: $this->deleted,
+            localFlags: $this->localFlags,
+            size: $this->size,
+            blocksHash: $this->blocksHash,
+            previousBlocksHash: $this->previousBlocksHash,
+            type: $this->type,
+            permissions: $this->permissions,
+            noPermissions: $this->noPermissions,
+            rawBlockSize: $this->rawBlockSize,
+            sequence: $sequence,
+            symlinkTarget: $this->symlinkTarget,
+            blocks: $this->blocks,
+            unixOwnerName: $this->unixOwnerName,
+            unixGroupName: $this->unixGroupName,
+            unixUid: $this->unixUid,
+            unixGid: $this->unixGid,
+            modifiedBy: $this->modifiedBy,
+            encryptedPayload: $this->encryptedPayload,
         );
     }
 
