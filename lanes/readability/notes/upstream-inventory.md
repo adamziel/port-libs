@@ -87,6 +87,13 @@ npm test
 1984 passing (40s)
 ```
 
+It was rerun on 2026-05-22 after the native single-article/empty-paragraph cleanup slice and still passed:
+
+```text
+npm test
+1984 passing (42s)
+```
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -119,6 +126,8 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
 - Mozilla post-process semantics from `_simplifyNestedElements`, div-to-paragraph cleanup, and `_cleanClasses`: empty `div`/`section` containers are removed, single nested `div`/`section` wrappers are collapsed, `div` nodes without descendant block elements are converted to paragraphs, and source `class` attributes are stripped by default while the reserved `page` class remains eligible for preservation.
 - Mozilla scoring cleanup semantics: `div` nodes that only wrap one paragraph and have link density below `0.25` are collapsed to the paragraph, matching the expected Medium blockquote shape.
+- Mozilla `_prepArticle` extra paragraph cleanup: empty `p` nodes with no image/embed/object/iframe payload are removed before WordPress block serialization.
+- Single-article body promotion for Medium/WordPress exports: when the selected body/main wrapper contains one substantial article, the native extractor uses that article as the content scope so surrounding document wrappers and empty body placeholders are not imported.
 - WordPress migration class cleanup: source theme and block wrapper classes are removed while IDs, article text, and promoted media sources remain available for clean block serialization.
 - Mozilla `_prepArticle` interactive cleanup: `button`, `input`, `textarea`, and `select` controls plus source platform share/action links are removed from article content.
 - WordPress/Medium migration leading action-bar cleanup: byline, follow, read-time, and share controls before the first content heading are removed while author/avatar media remains available.
@@ -127,13 +136,13 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link mappings.
-- Native PHP lane tests: 29 passing, 0 failing, 220 assertions.
-- Latest root verification: `php tools/run-tests.php` passes 87 test files, 5816 assertions, 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/single-article/empty-paragraph mappings.
+- Native PHP lane tests: 30 passing, 0 failing, 218 assertions.
+- Latest root verification: `php tools/run-tests.php` passes 90 test files, 6101 assertions, 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
 - Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures, including root wrapper, blockquote/id, and figure paragraph wrapper differences.
-- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, converts text/phrasing-only `div` blocks to paragraphs, collapses low-link-density `div` wrappers around a single paragraph, strips source classes, resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, avoids document-head fallback on body-only pages, cleans platform chrome, and emits WordPress block output.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, promotes a single substantial article out of body/main wrappers, removes empty paragraphs with no media/embed payload, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, converts text/phrasing-only `div` blocks to paragraphs, collapses low-link-density `div` wrappers around a single paragraph, strips source classes, resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, avoids document-head fallback on body-only pages, cleans platform chrome, and emits WordPress block output.
 
 ## Next Slice
 
-Return to remaining Medium lazy-image structural HTML parity, especially root wrapper, blockquote/id, and figure paragraph wrapper differences, after the base URL and javascript link fixture family mapping.
+Continue remaining Medium lazy-image structural HTML parity, especially the readability-page root wrapper and figure paragraph wrapper differences after single-article wrapper and empty paragraph cleanup.

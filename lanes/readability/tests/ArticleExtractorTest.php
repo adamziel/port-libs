@@ -308,6 +308,26 @@ return [
         $t->contains('Open inline note', $article->contentHtml);
         $t->true(!str_contains($article->contentHtml, 'javascript:'), 'javascript links should be replaced by inert content like upstream post-processing');
     },
+    'promotes single article bodies and removes empty paragraphs before block migration' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Single Article Import</title></head><body>'
+            . '<p> </p><div class="masthead"></div>'
+            . '<article><p></p><h1>Single Article Import</h1>'
+            . '<p>' . str_repeat('The migration should import the real article body without surrounding document wrappers. ', 3) . '</p>'
+            . '<p> </p><figure><img src="/uploads/single-article.jpg" alt="Single article"></figure>'
+            . '<p>' . str_repeat('Empty source paragraphs should not become blank WordPress paragraph blocks. ', 3) . '</p></article>'
+            . '<footer>Subscribe to unrelated site updates</footer></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->contains('real article body', $article->text);
+        $t->contains('/uploads/single-article.jpg', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, '<article'), 'single article wrapper should not be imported as block content');
+        $t->true(!str_contains($article->contentHtml, '<p></p>'), 'empty source paragraphs should be removed like upstream _prepArticle');
+        $t->true(!str_contains($article->text, 'Subscribe to unrelated site updates'), 'surrounding body chrome should not be imported');
+        $t->true(!str_contains($blocks, "<p></p>"), 'empty paragraphs should not become blank WordPress blocks');
+    },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -495,6 +515,8 @@ return [
         $t->true(!str_contains($article->contentHtml, 'class='), 'upstream default post-process class cleanup should run on copied Medium fixture output');
         $t->contains('data-old-src="https://miro.medium.com/max/60/1*5o3M5niyi911waUrKWVZ0Q.png?q=20"', $article->contentHtml);
         $t->contains('Sources &amp; links', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, '<article'), 'single Medium article wrapper should not remain in extracted content');
+        $t->true(!str_contains($article->contentHtml, '<p></p>'), 'empty source paragraphs should be removed like upstream _prepArticle');
         $t->true(!str_contains($article->text, 'More From Medium'), 'post-article recommendation heading should be removed');
         $t->true(!str_contains($article->text, 'Discover Medium'), 'platform signup footer should be removed');
         $t->true(!str_contains($article->text, 'Written by Vincent Vallet'), 'author footer should be removed');

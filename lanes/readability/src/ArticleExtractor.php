@@ -38,6 +38,7 @@ final class ArticleExtractor
         $title = $this->title($xpath, $dom);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
         if ($best instanceof \DOMElement) {
+            $best = $this->promoteSingleArticleCandidate($best);
             $this->removePlatformArticleChrome($best);
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeInteractiveArticleChrome($best);
@@ -773,6 +774,31 @@ final class ArticleExtractor
         }
     }
 
+    private function promoteSingleArticleCandidate(\DOMElement $scope): \DOMElement
+    {
+        if (strtolower($scope->tagName) === 'article') {
+            return $scope;
+        }
+
+        $articles = $scope->getElementsByTagName('article');
+        if ($articles->length !== 1) {
+            return $scope;
+        }
+
+        $article = $articles->item(0);
+        if (!$article instanceof \DOMElement) {
+            return $scope;
+        }
+
+        $scopeText = mb_strlen($this->normalizeWhitespace($scope->textContent));
+        $articleText = mb_strlen($this->normalizeWhitespace($article->textContent));
+        if ($articleText < 140 || ($scopeText > 0 && ($articleText / $scopeText) < 0.5)) {
+            return $scope;
+        }
+
+        return $article;
+    }
+
     private function containsSingleArticle(\DOMElement $scope): bool
     {
         $articles = $scope->getElementsByTagName('article');
@@ -1091,9 +1117,35 @@ final class ArticleExtractor
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
+        $this->removeEmptyParagraphs($scope);
         $this->cleanClasses($scope);
 
         return $scope;
+    }
+
+    private function removeEmptyParagraphs(\DOMElement $scope): void
+    {
+        $paragraphs = [];
+        foreach ($scope->getElementsByTagName('p') as $paragraph) {
+            if ($paragraph instanceof \DOMElement) {
+                $paragraphs[] = $paragraph;
+            }
+        }
+
+        foreach ($paragraphs as $paragraph) {
+            if ($this->normalizeWhitespace($paragraph->textContent) !== '') {
+                continue;
+            }
+
+            if (($paragraph->getElementsByTagName('img')->length
+                + $paragraph->getElementsByTagName('embed')->length
+                + $paragraph->getElementsByTagName('object')->length
+                + $paragraph->getElementsByTagName('iframe')->length) > 0) {
+                continue;
+            }
+
+            $paragraph->parentNode?->removeChild($paragraph);
+        }
     }
 
     private function fixRelativeUris(\DOMElement $scope, ?string $baseUri, ?string $documentUri): void
