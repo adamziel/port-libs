@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Rclone\MemoryProvider;
+use PortLibs\Rclone\NoLowLevelRetryException;
 use PortLibs\Rclone\ReOpenReader;
 
 $readAll = static function (ReOpenReader $reader, int $chunkSize = 1024): string {
@@ -132,6 +133,53 @@ return [
         $reader->close();
         $t->throws(RuntimeException::class, static fn () => $reader->read(1));
         $t->throws(RuntimeException::class, static fn () => $reader->close());
+    },
+    'reopen reader does not retry upstream no low level retry errors' => static function (TestRunner $t): void {
+        $error = new NoLowLevelRetryException('provider rejected retryable range request');
+        $provider = new MemoryProvider();
+        $provider->put('potato', '0123456789', [
+            'readError' => $error,
+            'readBreaks' => [4],
+        ]);
+
+        $reader = new ReOpenReader($provider, 'potato', 10);
+
+        $t->same('0123', $reader->read(20));
+        $t->same([
+            ['path' => 'potato', 'offset' => 0, 'length' => 10],
+        ], $provider->openLog());
+
+        try {
+            $reader->read(1);
+            throw new RuntimeException('Expected no-low-level-retry read error was not thrown');
+        } catch (NoLowLevelRetryException $throwable) {
+            $t->same($error, $throwable);
+            $t->same('provider rejected retryable range request', $throwable->getMessage());
+        }
+
+        $t->same(1, count($provider->openLog()));
+    },
+    'reopen reader propagates upstream accounting errors without reopening' => static function (TestRunner $t): void {
+        $error = new RuntimeException('accounting failed');
+        $provider = new MemoryProvider();
+        $provider->put('potato', '0123456789');
+        $reader = new ReOpenReader($provider, 'potato', 10);
+        $reader->setAccounting(static fn (int $bytes): RuntimeException => $error);
+
+        try {
+            $reader->read(3);
+            throw new RuntimeException('Expected accounting error was not thrown');
+        } catch (RuntimeException $throwable) {
+            $t->same($error, $throwable);
+        }
+
+        $t->same([
+            ['path' => 'potato', 'offset' => 0, 'length' => 10],
+        ], $provider->openLog());
+        $t->same(3, $reader->seek(0, SEEK_CUR));
+
+        $reader->setAccounting(static fn (int $bytes): null => null);
+        $t->same('345', $reader->read(3));
     },
     'reopen reader resumes interrupted wordpress backup artifact downloads' => static function (TestRunner $t) use ($readAll): void {
         $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';

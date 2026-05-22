@@ -7,6 +7,7 @@
 - Focused listing reads: `cmd/lsjson/lsjson.go`, `fs/operations/lsjson.go`, and `fs/operations/lsjson_test.go`, including the `StatJSON` branch that compares directory entries with `strings.EqualFold` when the provider advertises `CaseInsensitive`.
 - Focused checksum/reader reads: `cmd/checksum/checksum.go`, `cmd/hashsum/hashsum.go`, `fs/operations/check.go`, `fs/operations/check_test.go`, `lib/readers/readfill.go`, `lib/readers/readfill_test.go`, `lib/readers/error.go`, `lib/readers/error_test.go`, `lib/readers/repeatable.go`, and `lib/readers/repeatable_test.go`, including `TestCheckDownload`, `TestCheckEqualReaders`, `TestCheckSumDownload`, `TestReadFill`, `TestErrorReader`, and `TestRepeatableReader`.
 - Focused reopen reads: `fs/operations/reopen.go` and `fs/operations/reopen_test.go`, including retry-at-offset behavior, range and seek options, unknown-size range streams, `SeekEnd` rejection for unknown-sized objects, `ReadAt`, close-after-error state, and delayed accounting.
+- Focused low-level retry reads: `fs/fserrors/error.go` and the `fserrors.IsNoLowLevelRetryError` branch in `fs/operations/reopen.go`, where no-low-level-retry read errors are made sticky and are not reopened.
 
 ## Counted Test-Related Inventory
 
@@ -31,6 +32,7 @@
 - Focused checksum/check static inventory: 9 upstream Go test functions in `fs/operations/check_test.go`, including 9 `ParseSumFile` line samples over LF/CRLF, 14 `CheckSum` named runs across normal and download modes, 7 `CheckDownload` table runs, 12 `CheckEqualReaders` byte/error fixtures, 10 `ApplyTransforms` path-normalization scenarios, and checksum/hashsum command boundaries in `cmd/checksum/checksum.go` and `cmd/hashsum/hashsum.go`.
 - Focused `lib/readers` static inventory: 20 reader helper paths, 9 reader Go test files, 1 `TestReadFill` function with 3 count/error scenarios, 1 `TestErrorReader` function confirming sentinel read-error propagation, and 1 `TestRepeatableReader` function with 10 read/cache/seek scenarios.
 - Focused ReOpen static inventory: 1 upstream Go test function in `fs/operations/reopen_test.go`, 4 mode runs (`Normal`, `WithRangeOption`, `WithSeekOption`, `UnknownSize`), 36 subtest executions across basics, immediate open failure, transient read failures, too many retries, `ReadAt`, `Seek`, unknown-size positive seek and `SeekEnd` error behavior, accounting, delayed accounting, and accounting-error behavior, plus 3 interface assertions for read/seek/close, reader-at, and delay-accounting contracts.
+- Focused no-low-level-retry static inventory: 1 upstream error marker constructor (`NoLowLevelRetryError`), 1 marker detection function (`IsNoLowLevelRetryError`), and 1 ReOpen read branch that suppresses low-level reopen attempts when the marker is present.
 
 ## Runner Status
 
@@ -75,10 +77,12 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - `fs/operations CheckEqualReaders` plus `lib/readers ReadFill` behavior for 64 KiB chunk filling, equal byte streams, byte differences, length differences, and read-error precedence before byte-difference reporting.
 - `fs/operations CheckDownload` provider-to-provider verification: size differences become ordinary `*` differences before download, equal-size objects are compared byte-for-byte, and open/read failures are reported through `!` error lines with failed-download wrapping.
 - `fs/operations ReOpen` retry/range reader behavior: initial open failures, reopen after transient read failures at the already-read offset, inclusive range end handling, seek-offset starts, `ReadAt` without changing the current position, seek bounds, closed-reader errors, and delayed accounting.
+- `fs/operations ReOpen` no-low-level-retry and accounting-error behavior: no-low-level-retry read errors are returned without opening a new ranged reader, remain sticky for subsequent reads, and accounting callback errors are propagated without retrying the underlying object stream.
 - `fs/operations ReOpen` unknown-size mode: objects reporting size `-1` can stream from a range start without a bounded length, reopen retries keep using unbounded range reads, positive seeks past the actual byte length are accepted, and `SeekEnd` returns the upstream unknown-size seek error.
 - `lib/readers RepeatableReader` cache-backed read/seek behavior: bytes read from the underlying reader are cached, cached prefixes can be replayed after seeking, seeking beyond the cached prefix is rejected, and `SeekCurrent`/`SeekEnd` are resolved against the cached data.
 
 ## Current PHP Verification
 
-- Rclone-only PHP lane check on 2026-05-22: 38 tests, 280 assertions, 0 failures.
-- Required root `php tools/run-tests.php` on 2026-05-22: 69 test files, 3,840 assertions, 0 failures.
+- Rclone-only PHP lane check on 2026-05-22 before the no-low-level-retry/accounting-error slice: 38 tests, 280 assertions, 0 failures.
+- Rclone-only PHP lane check on 2026-05-22 after the no-low-level-retry/accounting-error slice: 40 tests, 289 assertions, 0 failures.
+- Required root `php tools/run-tests.php` on 2026-05-22 after the no-low-level-retry/accounting-error slice: 72 test files, 4,018 assertions, 0 failures in the current shared dirty worktree.

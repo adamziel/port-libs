@@ -80,6 +80,14 @@ final class ReOpenReader
                 $chunk = $this->reader()->read($length - strlen($bytes));
             } catch (\Throwable $throwable) {
                 $this->err = $throwable;
+                if (self::isNoLowLevelRetryError($throwable)) {
+                    if ($bytes !== '') {
+                        break;
+                    }
+
+                    throw $throwable;
+                }
+
                 try {
                     $this->reopen();
                     $this->err = null;
@@ -235,7 +243,29 @@ final class ReOpenReader
             return;
         }
         if ($this->reads >= $this->accountOn) {
-            ($this->account)($bytes);
+            $error = ($this->account)($bytes);
+            if ($error instanceof \Throwable) {
+                throw $error;
+            }
+            if ($error !== null) {
+                throw new \UnexpectedValueException('Accounting callback must return null or Throwable');
+            }
         }
+    }
+
+    private static function isNoLowLevelRetryError(\Throwable $throwable): bool
+    {
+        do {
+            if ($throwable instanceof NoLowLevelRetryException) {
+                return true;
+            }
+            if (method_exists($throwable, 'noLowLevelRetry') && $throwable->noLowLevelRetry() === true) {
+                return true;
+            }
+
+            $throwable = $throwable->getPrevious();
+        } while ($throwable !== null);
+
+        return false;
     }
 }

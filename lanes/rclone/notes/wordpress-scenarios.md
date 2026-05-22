@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams, cache-backed repeatable readers, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting behavior, RepeatableReader-style cached seek/replay behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -28,8 +28,10 @@ The `../examples/wordpress-reopen-restore.php` example models a transient stream
 
 The `../examples/wordpress-unknown-size-reopen-restore.php` example models a cloud provider that reports an unknown object size for a WXR export. The native ReOpen reader keeps retrying with unbounded range opens, restores the complete artifact, and rejects `SeekEnd` for unknown-sized streams like upstream rclone.
 
+The `../examples/wordpress-nonretry-reopen-failure.php` example models a permanent provider-side WXR range failure. The native ReOpen reader surfaces the partial bytes already read, keeps the no-low-level-retry error sticky, and avoids opening another ranged request that upstream rclone would also suppress.
+
 The `../examples/wordpress-repeatable-artifact-scan.php` example models a restore preflight that reads the start of a WXR artifact to identify it, seeks back within the cached prefix, and then streams the full artifact. This maps the upstream repeatable reader behavior needed when a migration tool sniffs or hashes early bytes before handing the same download stream to an importer.
 
 ## Next Task
 
-Map the remaining ReOpen no-low-level-retry and accounting-error edge cases or `lib/readers RepeatableReader` limit/buffer constructors beyond the in-memory checksum/listing/download-check/reopen/repeatable-reader/unknown-size slices.
+Map `lib/readers RepeatableReader` limit/buffer constructors or another bounded provider contract slice beyond the in-memory checksum/listing/download-check/reopen/repeatable-reader/unknown-size/no-low-level-retry slices.
