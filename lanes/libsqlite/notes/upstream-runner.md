@@ -119,7 +119,7 @@ index b-tree traversal that preserves interior index records, index local
 payload calculations, explicit `CREATE INDEX ... ON wp_options(option_name)`
 schema discovery, option-name index lookup, rowid-backed table retrieval, and
 automatic `PRIMARY KEY` index inference for simple first-column lookups.
-Expression indexes, predicate-aware partial-index use, custom collations,
+Expression indexes, broader predicate-aware partial-index use, custom collations,
 automatic-index collation metadata, and full composite-key scans remain
 unported.
 
@@ -149,7 +149,7 @@ The native PHP tests cover column-level `option_name text UNIQUE`, table-level
 the automatic index root page, decodes the index record's rowid tail, and reads
 the target `wp_options` row through the table b-tree. Full composite-key scans,
 custom collations, automatic-index collation metadata, expression indexes, and
-predicate-aware partial-index use remain unported.
+broader predicate-aware partial-index use remain unported.
 
 ## Focused Native Mapping: Automatic PRIMARY KEY Autoindexes
 
@@ -186,9 +186,10 @@ WordPress-shaped fixture verifies lookup through `sqlite_autoindex_wp_options_2`
 when `sqlite_autoindex_wp_options_1` belongs to an earlier `autoload UNIQUE`
 constraint and `PRIMARY KEY(option_name)` backs the option-name lookup.
 
-Composite duplicate scans, custom collations, automatic-index collation
-metadata, expression indexes, predicate-aware partial-index use, and full
-WITHOUT ROWID table reads remain unported.
+Optimized composite duplicate scans with secondary constraints, custom
+collations, automatic-index collation metadata, expression indexes, broader
+predicate-aware partial-index use, and full WITHOUT ROWID table reads remain
+unported.
 
 ## Focused Native Mapping: Explicit Index Collation And DESC Order
 
@@ -259,3 +260,41 @@ point-lookup root-page helper, resolving a WordPress-shaped
 `wp_options(option_name) WHERE option_name IS NOT NULL` index, and continuing
 to reject an unsupported `WHERE autoload='yes'` partial index for generic
 option-name point lookup.
+
+## Focused Native Mapping: Duplicate First-Column Index Scans
+
+SQLite non-unique indexes allow multiple rows with the same first indexed key.
+This slice maps the bounded read-side behavior needed by WordPress recovery:
+scan an explicit first-column index for all records whose first key equals the
+requested value, decode the rowid stored as the last index-record field, and
+load the matching `wp_options` rows through the table b-tree. Composite index
+tails are preserved in the index payload but are not yet used for full
+multi-column seek bounds.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test where.test
+```
+
+Result: 4 Tcl script/permutation runs, 0 errors out of 589 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` section `index-10.*` verifies that an ordinary index may
+  contain more than one entry with the same key and that equality lookup
+  returns all matching rows.
+- `test/where.test` section `where-6.*` exercises equality constraints against
+  indexed first columns and composite-index ordering boundaries.
+
+The native PHP tests now cover a WordPress-shaped
+`CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)`
+scan that returns duplicate `autoload='yes'` options in index order, honors a
+result limit, returns an empty list for missing first-column values, and also
+uses a safe `WHERE autoload IS NOT NULL` partial index for non-null autoload
+point scans. Remaining index work includes optimized range seeks instead of
+full index traversal, composite duplicate scans with secondary constraints,
+expression indexes, custom collations, automatic-index collation metadata, and
+full composite-key range scans.

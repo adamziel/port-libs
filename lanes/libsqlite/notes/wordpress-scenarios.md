@@ -27,7 +27,9 @@ metadata into lookup, so a descending `option_name COLLATE NOCASE` index can
 serve case-insensitive option recovery. Partial `option_name` indexes are
 detected and skipped for unconstrained lookup instead of returning incomplete
 results; the safe `WHERE option_name IS NOT NULL` partial-index form is usable
-for non-null option-name point lookup.
+for non-null option-name point lookup. Non-unique first-column indexes can now
+be scanned for duplicate matches, allowing a `wp_options(autoload,
+option_name)` index to return all autoloaded options for a requested value.
 
 ## Example
 
@@ -49,6 +51,13 @@ point lookups. Unsupported partial indexes are not used for unconstrained
 option lookup, while `WHERE option_name IS NOT NULL` indexes can serve normal
 non-null option-name recovery.
 
+`examples/wordpress-autoloaded-options.php` reads a WordPress-oriented SQLite
+database file, resolves an explicit or safe partial first-column
+`wp_options(autoload, ...)` index, and returns all matching options for an
+autoload value without scanning the entire `wp_options` table. This maps the
+recovery/import use case where a site needs to inspect autoloaded options on a
+host without the PHP SQLite extension.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
@@ -56,6 +65,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: composite duplicate scans, expression indexes, broader predicate-aware
-partial indexes, custom collations, automatic-index collation metadata, and
-full composite-key range scans.
+slice: optimized composite duplicate scans with secondary constraints,
+expression indexes, broader predicate-aware partial indexes, custom collations,
+automatic-index collation metadata, and full composite-key range scans.

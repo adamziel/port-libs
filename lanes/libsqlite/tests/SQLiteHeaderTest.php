@@ -627,6 +627,53 @@ return [
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
     },
+    'uses nonunique composite autoload index to scan duplicate wordpress options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoload_name', 'wp_options', 3, 'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 2),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['no', '_transient_timeout_feed', 3]),
+            $indexCell(['yes', 'blogname', 2]),
+            $indexCell(['yes', 'siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $autoloaded = $database->wordpressOptionsByIndexedAutoload('yes');
+        $limited = $database->wordpressOptionsByIndexedAutoload('yes', 1);
+        $missing = $database->wordpressOptionsByIndexedAutoload('maybe');
+
+        $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'autoload', 'yes'));
+        $t->same(['blogname', 'siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $autoloaded));
+        $t->same(['Ported SQLite', 'https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $autoloaded));
+        $t->same(['blogname'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $missing);
+    },
+    'uses partial autoload is not null index for duplicate wordpress option scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoload_present', 'wp_options', 3, 'CREATE INDEX wp_options_autoload_present ON wp_options(autoload, option_name) WHERE autoload IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'draft_flag', '1', null], 2),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['yes', 'siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $autoloaded = $database->wordpressOptionsByIndexedAutoload('yes');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'autoload'));
+        $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'autoload', 'yes'));
+        $t->same(['siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $autoloaded));
+    },
     'infers sqlite automatic unique index columns from create table sql' => static function (TestRunner $t): void {
         $t->same([
             'option_name',

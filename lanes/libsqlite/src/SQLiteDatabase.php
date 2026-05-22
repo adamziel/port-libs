@@ -305,6 +305,14 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedAutoload(string $autoload, ?int $limit = null): array
+    {
+        return $this->wordpressOptionsByIndexedFirstColumn('autoload', $autoload, $limit);
+    }
+
+    /**
      * @param array<int, true> $visited
      * @param list<SQLiteTableLeafCell> $cells
      */
@@ -538,6 +546,64 @@ final class SQLiteDatabase
         }
 
         return $rowId;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    private function wordpressOptionsByIndexedFirstColumn(string $columnName, mixed $value, ?int $limit): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForColumn('wp_options', $columnName, $value, true);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options {$columnName} index is not present");
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByFirstValue($indexLookup['rootPage'], $value, $indexLookup['collation']) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteIndexCell>
+     */
+    private function indexCellsByFirstValue(int $rootPageNumber, mixed $value, string $collation): array
+    {
+        $matches = [];
+        foreach ($this->indexCells($rootPageNumber) as $cell) {
+            $record = $cell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+            }
+            if (self::compareSQLiteScalar($record->values[0], $value, $collation) === 0) {
+                $matches[] = $cell;
+            }
+        }
+
+        return $matches;
     }
 
     private function automaticIndexFirstColumnsForTable(string $tableName): array
