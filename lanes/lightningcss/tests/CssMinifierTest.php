@@ -22,6 +22,23 @@ return [
         $css = '.asset { background: url("/yellow/blue.svg"); content: "yellow"; --brand-color: yellow; color: var(--yellow); width: calc(100% + 8px); }';
         $t->same('.asset{background:url("/yellow/blue.svg");content:"yellow";--brand-color:yellow;color:var(--yellow);width:calc(100% + 8px)}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream animation longhand value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{animation-duration:.1s}', $minifier->minify('.foo { animation-duration: 100ms }'));
+        $t->same(
+            '.foo{animation-duration:.1s,2s;animation-delay:.1s,2s}',
+            $minifier->minify('.foo { animation-duration: 100ms, 2000ms; animation-delay: 100ms, 2000ms }')
+        );
+        $t->same(
+            '.foo{animation-iteration-count:2,infinite;animation-direction:alternate,reverse;animation-play-state:running,paused}',
+            $minifier->minify('.foo { animation-iteration-count: 2.0, infinite; animation-direction: Alternate, reverse; animation-play-state: running, Paused }')
+        );
+        $t->same(
+            '.foo{animation-fill-mode:backwards,forwards;animation-composition:add}',
+            $minifier->minify('.foo { animation-fill-mode: Backwards,forwards; animation-composition: ADD }')
+        );
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');

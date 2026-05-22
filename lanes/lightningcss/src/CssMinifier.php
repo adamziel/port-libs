@@ -316,11 +316,126 @@ final class CssMinifier
     private function minifyDeclarationValue(string $property, string $value): string
     {
         $value = $this->normalizeMathFunctionOperators($value);
+        $value = $this->minifyAnimationLonghandValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
 
         return $value;
+    }
+
+    private function minifyAnimationLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'animation-duration',
+            'animation-delay' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTimeToken($part)),
+            'animation-iteration-count' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationIterationCount($part)),
+            'animation-direction',
+            'animation-play-state',
+            'animation-fill-mode',
+            'animation-composition' => $this->mapCommaList($value, static fn (string $part): string => strtolower(trim($part))),
+            default => $value,
+        };
+    }
+
+    private function minifyTimeToken(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(ms|s)$/i', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        $number = (float) $matches[1];
+        $unit = strtolower($matches[2]);
+        $current = $this->minifyNumber($number) . $unit;
+        $alternate = $unit === 'ms'
+            ? $this->minifyNumber($number / 1000) . 's'
+            : $this->minifyNumber($number * 1000) . 'ms';
+
+        return strlen($alternate) < strlen($current) ? $alternate : $current;
+    }
+
+    private function minifyAnimationIterationCount(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if ($value === 'infinite') {
+            return $value;
+        }
+
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1
+            ? $this->minifyNumber((float) $value)
+            : $value;
+    }
+
+    private function minifyNumber(float $number): string
+    {
+        if (abs($number) < 0.0000001) {
+            return '0';
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.6F', $number), '0'), '.');
+        if (str_starts_with($formatted, '0.')) {
+            return substr($formatted, 1);
+        }
+        if (str_starts_with($formatted, '-0.')) {
+            return '-' . substr($formatted, 2);
+        }
+
+        return $formatted;
+    }
+
+    private function mapCommaList(string $value, callable $mapper): string
+    {
+        return implode(',', array_map(
+            static fn (string $part): string => $mapper($part),
+            $this->splitTopLevel($value, ',')
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTopLevel(string $value, string $delimiter): array
+    {
+        $parts = [''];
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $parts[array_key_last($parts)] .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $parts[array_key_last($parts)] .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === $delimiter && $parenDepth === 0 && $bracketDepth === 0) {
+                $parts[] = '';
+                continue;
+            }
+
+            $parts[array_key_last($parts)] .= $char;
+        }
+
+        return array_values(array_map('trim', $parts));
     }
 
     private function normalizeMathFunctionOperators(string $value): string
