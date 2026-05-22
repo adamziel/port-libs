@@ -1,5 +1,86 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T21:06:42Z
+
+No lane implementation batch, generated public status batch, dashboard update,
+push, or lane commit was accepted by this integration pass. The checkout moved
+while being inspected, including a transient staged rclone batch that was
+committed by its owner before this pass could perform a stable lane review.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 55, behind 28]`.
+- Final observed `HEAD`: `23ec9e9` (`Port rclone RemoveExisting overwrite helper`).
+- Final staged paths: none (`git diff --cached --name-status` produced no
+  output).
+- `git status --porcelain=v1 | wc -l` reported `105` dirty/untracked paths at
+  the final check.
+- Dirty tracked source/status scopes span Difftastic, Dolt, libsqlite,
+  LightningCSS, markerPDF, Pandoc, and Readability, plus dirty generated/public
+  files `progress.md`, `porting.html`, and `porting-summary.json`.
+- Untracked lane files remain under Difftastic, libsqlite, LightningCSS,
+  markerPDF, Readability, and Syncthing. Numerous untracked audit/evidence
+  files remain review-only coordination artifacts.
+
+Active sessions/processes observed:
+
+- Active root-style `php tools/run-tests.php` processes were observed during
+  inspection (`3238286`, later `3255396`, then `3260799`), so this pass did not
+  start another root suite.
+- The final process poll showed no active `php tools/run-tests.php`, but that
+  came after repeated root-test churn and after the candidate rclone batch had
+  already been committed by its owner.
+- Supervisor/tmux evidence still shows heavy active lane and runner work,
+  including Pandoc/GHC, Gitoxide cargo, Dolt BATS/Go, rclone Go, LightningCSS
+  Rust, markerPDF benchmark, and lane verification sessions.
+
+Risk checks and lane decisions:
+
+- rclone: a coherent staged batch briefly appeared
+  (`UPSTREAM_TEST_MANIFEST.json`, lane status, notes, `MemoryProvider.php`,
+  `SyncPlan.php`, `ProviderMoveFeatureTest.php`, and the
+  `wordpress-remove-existing-overwrite.php` example), but it was committed by
+  the rclone owner as `23ec9e9` during inspection. This pass did not review,
+  modify, unstage, commit, or otherwise accept those paths.
+- Gitoxide: recent `409af4e`/`916c66f` commits landed during the same moving
+  window, and Gitoxide runner sessions remain active. No Gitoxide dirty batch
+  was accepted by this pass.
+- markerPDF: dirty `TableFormatter`/`TableRecognizer` source and tests remain,
+  and recent markerPDF audit evidence flags table heuristic/formatting risk.
+  No markerPDF batch was accepted.
+- Difftastic, Dolt, libsqlite, LightningCSS, Pandoc, Readability, and Syncthing:
+  all current dirty or untracked work remains worker-owned and lacks a stable
+  reviewed handoff/root gate from this pass.
+- Public/generated artifacts: `progress.md`, `porting.html`, and
+  `porting-summary.json` are dirty and were deliberately left out of any lane
+  decision. The live dashboard remains the verified `7caaa31` source snapshot;
+  newer local commits are not yet reflected publicly.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `git diff --cached --name-status`: final check produced no output.
+- `php tools/run-tests.php`: not started by this pass because active root runs
+  were observed and no stable lane batch was accepted.
+- Focused lane tests: not started because no stable lane-scoped batch remained
+  for this integration worker to accept.
+
+Decision:
+
+- Hold integration. There is no stable, lane-scoped batch to accept from this
+  snapshot.
+- Leave all worker-owned dirty lane files, public/generated files, and
+  untracked audit/evidence artifacts untouched.
+- Record this status-only hold in `audits/integration-status.md` only.
+
+Post-write drift note: by 2026-05-22T21:08:01Z, `HEAD` had advanced again to
+`7603296` (`Update rclone lane status`) and another root-style
+`php tools/run-tests.php` process was active (`3282907`). This pass did not
+review, stage, commit, unstage, or accept the rclone implementation/status
+commits or any new dirty Syncthing/Difftastic/audit drift that appeared after
+the snapshot above.
+
 ## Integration Worker Snapshot - 2026-05-22T21:02:03Z
 
 No lane implementation batch, generated public status batch, audit-evidence
