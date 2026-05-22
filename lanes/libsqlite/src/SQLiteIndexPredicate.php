@@ -14,6 +14,7 @@ final class SQLiteIndexPredicate
     public const GREATER_THAN = 'GREATER_THAN';
     public const GREATER_THAN_OR_EQUAL = 'GREATER_THAN_OR_EQUAL';
     public const BETWEEN = 'BETWEEN';
+    public const IN_LIST = 'IN_LIST';
     public const AND = 'AND';
     public const OR = 'OR';
 
@@ -126,6 +127,66 @@ final class SQLiteIndexPredicate
                 && self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value['upper'], true),
             default => false,
         };
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    public function isImpliedByInListLookup(string $columnName, array $values): bool
+    {
+        if ($this->operator === self::AND) {
+            if (!is_array($this->value)) {
+                return false;
+            }
+
+            foreach ($this->value as $predicate) {
+                if (!$predicate instanceof self || !$predicate->isImpliedByInListLookup($columnName, $values)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($this->operator === self::OR) {
+            if (!is_array($this->value)) {
+                return false;
+            }
+
+            foreach ($this->value as $predicate) {
+                if ($predicate instanceof self && $predicate->isImpliedByInListLookup($columnName, $values)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (strcasecmp($this->columnName, $columnName) !== 0) {
+            return false;
+        }
+
+        if ($this->operator === self::IS_NOT_NULL) {
+            foreach ($values as $value) {
+                if ($value !== null) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if ($this->operator !== self::IN_LIST || !is_array($this->value) || count($this->value) !== count($values)) {
+            return false;
+        }
+
+        foreach ($this->value as $index => $value) {
+            if (!array_key_exists($index, $values) || $value !== $values[$index]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function valuesEqual(mixed $left, mixed $right): bool

@@ -342,6 +342,34 @@ final class SQLiteCreateIndex
             return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IS_NOT_NULL);
         }
 
+        $in = self::readIdentifier($where, $offset);
+        if ($in !== null && strcasecmp($in[0], 'IN') === 0) {
+            $listOffset = self::skipWhitespace($where, $in[1]);
+            if (!isset($where[$listOffset]) || $where[$listOffset] !== '(') {
+                return null;
+            }
+
+            $close = self::matchingParen($where, $listOffset);
+            if ($close === null || trim(substr($where, $close + 1)) !== '') {
+                return null;
+            }
+
+            $listBody = substr($where, $listOffset + 1, $close - $listOffset - 1);
+            $values = [];
+            foreach (self::topLevelTerms($listBody) as $term) {
+                if (trim($term) === '') {
+                    return null;
+                }
+                $literal = self::readLiteral($term, 0);
+                if ($literal === null || trim(substr($term, $literal[1])) !== '') {
+                    return null;
+                }
+                $values[] = $literal[0];
+            }
+
+            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IN_LIST, $values);
+        }
+
         $between = self::readIdentifier($where, $offset);
         if ($between !== null && strcasecmp($between[0], 'BETWEEN') === 0) {
             $lower = self::readLiteral($where, $between[1]);

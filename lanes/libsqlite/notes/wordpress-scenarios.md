@@ -74,6 +74,14 @@ honors second-column `NOCASE` comparison, physical `DESC` index order, and
 partial predicates such as `autoload='no' AND option_name IS NOT NULL` only
 when the caller's constraints imply the predicate.
 
+First-column `IN (...)` option-name lookups now read multiple requested
+options through an `option_name` index, suppress duplicate RHS names the way
+SQLite avoids duplicate result rows, and ignore `NULL` RHS values for `WHERE`
+matching. The same path can safely use `WHERE option_name IS NOT NULL` partial
+indexes and exact-order `WHERE option_name IN ('siteurl','home')` partial
+indexes, matching the bounded SQLite planner behavior instead of treating every
+logical subset as usable.
+
 ## Example
 
 `examples/wordpress-options-root-page.php` reads a WordPress-oriented SQLite
@@ -93,6 +101,13 @@ native index and rowid b-tree traversal. Explicit and automatic first-column
 point lookups. Unsupported partial indexes are not used for unconstrained
 option lookup, while `WHERE option_name IS NOT NULL` indexes can serve normal
 non-null option-name recovery.
+
+`examples/wordpress-options-by-name-list.php` reads a WordPress-oriented SQLite
+database file, resolves an indexed `wp_options(option_name)` IN-list lookup,
+and returns a bounded set of named options such as `siteurl,home,blogname`
+without scanning the full options table or using the PHP SQLite extension. This
+maps plugin/theme preload and recovery workflows that need a small known set of
+options from a database image.
 
 `examples/wordpress-autoloaded-options.php` reads a WordPress-oriented SQLite
 database file, resolves an explicit or safe partial first-column

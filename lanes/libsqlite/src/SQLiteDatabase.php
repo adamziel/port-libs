@@ -202,6 +202,16 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param list<mixed> $values
+     */
+    public function indexRootPageForInLookup(string $tableName, string $columnName, array $values): ?int
+    {
+        $lookup = $this->indexLookupForColumnInList($tableName, $columnName, $values);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
      * @param array<string, mixed> $equalityConstraints
      */
     public function indexRootPageForPointLookupWithConstraints(
@@ -323,6 +333,69 @@ final class SQLiteDatabase
                         ) {
                             continue;
                         }
+                    }
+
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
+            }
+            if ($record->sql === null && self::isAutomaticIndex($record, $tableName)) {
+                if ($autoIndexFirstColumns === null) {
+                    $autoIndexFirstColumns = $this->automaticIndexFirstColumnsForTable($tableName);
+                }
+                $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
+                $autoIndexOrdinal++;
+                if ($firstColumn !== null && strcasecmp($firstColumn->columnName, $columnName) === 0) {
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForColumnInList(string $tableName, string $columnName, array $values): ?array
+    {
+        $hasNonNullValue = false;
+        foreach ($values as $value) {
+            if ($value !== null) {
+                $hasNonNullValue = true;
+                break;
+            }
+        }
+        if (!$hasNonNullValue) {
+            return null;
+        }
+
+        $autoIndexFirstColumns = null;
+        $autoIndexOrdinal = 0;
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql !== null) {
+                $firstColumn = SQLiteCreateIndex::firstColumn($record->sql);
+                if ($firstColumn !== null && strcasecmp($firstColumn->columnName, $columnName) === 0) {
+                    if (
+                        $firstColumn->partial
+                        && (
+                            $firstColumn->partialPredicate === null
+                            || !self::partialPredicateIsImpliedByInListConstraints(
+                                $firstColumn->partialPredicate,
+                                $columnName,
+                                $values,
+                            )
+                        )
+                    ) {
+                        continue;
                     }
 
                     return [
@@ -475,6 +548,57 @@ final class SQLiteDatabase
         }
 
         return SQLiteWordPressOption::fromTableRow($row);
+    }
+
+    /**
+     * @param list<?string> $optionNames
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNames(array $optionNames, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed IN lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $optionNames === []) {
+            return [];
+        }
+
+        $hasNonNullName = false;
+        foreach ($optionNames as $optionName) {
+            if ($optionName !== null && !is_string($optionName)) {
+                throw new \InvalidArgumentException('SQLite wp_options indexed IN lookup names must be strings or null');
+            }
+            $hasNonNullName = $hasNonNullName || $optionName !== null;
+        }
+        if (!$hasNonNullName) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForColumnInList('wp_options', 'option_name', $optionNames);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options option_name IN-list index is not present');
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByFirstValueList($indexLookup['rootPage'], $optionNames, $indexLookup['collation']) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
     }
 
     public function wordpressOptionByIndexedNameForAutoload(string $optionName, string $autoload): ?SQLiteWordPressOption
@@ -1072,6 +1196,26 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param list<mixed> $values
+     * @return list<SQLiteIndexCell>
+     */
+    private function indexCellsByFirstValueList(int $rootPageNumber, array $values, string $collation): array
+    {
+        $matches = [];
+        foreach ($this->indexCells($rootPageNumber) as $cell) {
+            $record = $cell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+            }
+            if (self::inListContainsSQLiteScalar($values, $record->values[0], $collation)) {
+                $matches[] = $cell;
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
      * @return list<SQLiteIndexCell>
      */
     private function indexCellsByFirstValueRange(
@@ -1396,6 +1540,17 @@ final class SQLiteDatabase
         return false;
     }
 
+    /**
+     * @param list<mixed> $values
+     */
+    private static function partialPredicateIsImpliedByInListConstraints(
+        SQLiteIndexPredicate $predicate,
+        string $columnName,
+        array $values,
+    ): bool {
+        return $predicate->isImpliedByInListLookup($columnName, $values);
+    }
+
     private function automaticIndexFirstColumnsForTable(string $tableName): array
     {
         foreach ($this->schemaRecords() as $record) {
@@ -1412,6 +1567,27 @@ final class SQLiteDatabase
         return $record->type === 'index'
             && $record->tableName === $tableName
             && str_starts_with($record->name, "sqlite_autoindex_{$tableName}_");
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function inListContainsSQLiteScalar(array $values, mixed $needle, string $collation): bool
+    {
+        if ($needle === null) {
+            return false;
+        }
+
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (self::compareSQLiteScalar($needle, $value, $collation) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function compareSQLiteScalar(mixed $left, mixed $right, string $collation = 'BINARY'): int

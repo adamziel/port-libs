@@ -560,6 +560,7 @@ return [
         $rangeIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_transient_name ON wp_options(option_name) WHERE option_name >= '_transient_' AND option_name < '_transient`'");
         $betweenIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_transient_autoload ON wp_options(option_name) WHERE option_name BETWEEN '_transient_' AND '_transient`' AND autoload='yes'");
         $notEqualIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_not_no_name ON wp_options(option_name) WHERE autoload <> 'no'");
+        $inListIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_hot_names ON wp_options(option_name) WHERE option_name IN ('siteurl','home')");
 
         $t->same('option_name', $index?->columnName);
         $t->same('NOCASE', $index?->collation);
@@ -594,6 +595,8 @@ return [
         ], $betweenIndex?->partialPredicate?->value[0]->value ?? null);
         $t->same(SQLiteIndexPredicate::NOT_EQUALS, $notEqualIndex?->partialPredicate?->operator);
         $t->same('no', $notEqualIndex?->partialPredicate?->value);
+        $t->same(SQLiteIndexPredicate::IN_LIST, $inListIndex?->partialPredicate?->operator);
+        $t->same(['siteurl', 'home'], $inListIndex?->partialPredicate?->value);
     },
     'parses sqlite lower expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $lowerIndex = SQLiteCreateIndex::firstLowerExpression('CREATE INDEX idx_lower_name ON wp_options(lower(main.wp_options."option_name") COLLATE nocase DESC) WHERE option_name IS NOT NULL');
@@ -647,6 +650,82 @@ return [
         $t->same(3, $option->optionId);
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
+    },
+    'uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name COLLATE NOCASE)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['blogname', 1]),
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNames(['SITEURL', 'home', 'home', null]);
+        $limited = $database->wordpressOptionsByIndexedNames(['SITEURL', 'home'], 1);
+        $nullOnly = $database->wordpressOptionsByIndexedNames([null]);
+
+        $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['SITEURL', 'home']));
+        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $nullOnly);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNames([123]));
+    },
+    'uses partial is not null option_name indexes for wordpress IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_present_name', 'wp_options', 3, 'CREATE INDEX wp_options_present_name ON wp_options(option_name) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 1),
+            $schemaCell([null, null, 'draft option without name', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 1]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNames(['siteurl', null]);
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', null]));
+        $t->same(['siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
+    'uses exact IN-list partial option_name indexes only for matching wordpress name lists' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_hot_names', 'wp_options', 3, "CREATE INDEX wp_options_hot_names ON wp_options(option_name) WHERE option_name IN ('siteurl','home')"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNames(['siteurl', 'home']);
+
+        $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'home']));
+        $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['home', 'siteurl']));
+        $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl']));
+        $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'home', null]));
+        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNames(['home', 'siteurl']));
     },
     'uses lower expression index for case folded wordpress option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

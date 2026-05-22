@@ -678,3 +678,41 @@ rowids back through the table b-tree, and refusing to use the index for a
 non-implying autoload value. Remaining partial-index work includes
 inequality/range implication, richer expression handling, and planner-style
 combinations across more query terms.
+
+## Focused Native Mapping: IN-List Option Lookups
+
+SQLite's `IN (...)` operator treats duplicate RHS values as a set for result
+rows and does not match `NULL` RHS terms in a `WHERE` predicate. The native PHP
+reader now maps that bounded first-column behavior for indexed
+`wp_options(option_name)` reads, including built-in collation handling and
+limits.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  where.test where2.test index6.test
+```
+
+Result: 4 Tcl script/permutation runs, 0 errors out of 490 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/where.test` section `where-5.*` covers indexed `IN` lookups with
+  reordered RHS values and ascending/descending output.
+- `test/where2.test` section `where2-4.6*` verifies duplicate RHS values do
+  not duplicate output rows.
+- `test/index6.test` covers partial-index planner boundaries for `IS NOT NULL`
+  and exact `IN (...)` predicates, including the upstream behavior where a
+  partial `IN` predicate is only usable for an exact matching `IN` query shape.
+
+The native PHP tests now cover bulk WordPress option-name reads through an
+explicit `option_name` index, duplicate RHS suppression, `NULL` RHS
+non-matching semantics, safe use of `WHERE option_name IS NOT NULL` partial
+indexes, and exact-order `WHERE option_name IN ('siteurl','home')` partial
+indexes. The new `examples/wordpress-options-by-name-list.php` script maps
+bulk option preload/recovery workflows on hosts without the PHP SQLite
+extension. Remaining work includes optimized b-tree seek bounds for these
+scans, expression-index `IN` lookups, custom collations, and broader composite
+`IN` constraints.
