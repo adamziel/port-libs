@@ -31,6 +31,7 @@ $controlSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/
 $privateSettingsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-settings-controller.ts');
 $autoAccessorTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-auto-accessor-controller.ts');
 $usingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-disposable.ts');
+$usingImportHoistTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-import-hoist.ts');
 $functionUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-function-using-disposable.ts');
 $blockUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-block-using-disposable.ts');
 $forUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-assets.ts');
@@ -64,6 +65,7 @@ $privateSettingsLowered = (new TypeScriptModuleLowerer())->lower($privateSetting
 $autoAccessorLowered = (new TypeScriptModuleLowerer())->lower($autoAccessorTypeScriptSource);
 $usingDisposableLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource);
 $usingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource, lowerUsingDeclarations: true);
+$usingImportHoistLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingImportHoistTypeScriptSource, lowerUsingDeclarations: true);
 $functionUsingDisposableLowered = (new TypeScriptModuleLowerer())->lower($functionUsingDisposableTypeScriptSource);
 $functionUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($functionUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $blockUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($blockUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
@@ -112,6 +114,7 @@ printf("WordPress TypeScript private settings controller bytes: %d\n", strlen($p
 printf("WordPress TypeScript auto accessor controller bytes: %d\n", strlen($autoAccessorLowered));
 printf("WordPress TypeScript using disposable asset bytes: %d\n", strlen($usingDisposableLowered));
 printf("WordPress TypeScript legacy using helper bytes: %d\n", strlen($usingDisposableLegacyLowered));
+printf("WordPress TypeScript imported using helper bytes: %d\n", strlen($usingImportHoistLegacyLowered));
 printf("WordPress TypeScript function scoped using bytes: %d\n", strlen($functionUsingDisposableLowered));
 printf("WordPress TypeScript function scoped using helper bytes: %d\n", strlen($functionUsingDisposableLegacyLowered));
 printf("WordPress TypeScript block scoped using helper bytes: %d\n", strlen($blockUsingDisposableLegacyLowered));

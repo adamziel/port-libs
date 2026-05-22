@@ -148,7 +148,10 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            if ($first->text === 'import' && ($this->tokens[$i + 1] ?? null)?->kind === 'identifier') {
+            if ($first->text === 'import'
+                && ($this->tokens[$i + 1] ?? null)?->kind === 'identifier'
+                && ($this->tokens[$i + 2] ?? null)?->text === '='
+            ) {
                 [$local, $target, $cursor] = $this->parseImportEqualsStatement($i, $effectiveEnd);
                 $this->assertStatementConsumed($cursor, $effectiveEnd);
                 $lines[] = 'const ' . $local . ' = ' . $target . ';';
@@ -4669,8 +4672,27 @@ final class TypeScriptModuleLowerer
      */
     private function wrapUsingHelperStatements(array $lines): string
     {
+        $prefix = [];
         $body = [];
+        $suffix = [];
+        $allowDirectivePrefix = true;
         foreach ($lines as $line) {
+            if ($allowDirectivePrefix && $this->isStringDirectiveStatement(ltrim($line))) {
+                $prefix[] = $line;
+                continue;
+            }
+
+            $allowDirectivePrefix = false;
+
+            if ($this->isTopLevelUsingHelperPrefixStatement($line)) {
+                $prefix[] = $line;
+                continue;
+            }
+            if ($this->isTopLevelUsingHelperSuffixStatement($line)) {
+                $suffix[] = $line;
+                continue;
+            }
+
             foreach (explode("\n", $line) as $part) {
                 if ($part === '') {
                     continue;
@@ -4683,7 +4705,11 @@ final class TypeScriptModuleLowerer
             ? "  var _promise = __callDispose(_stack, _error, _hasError);\n  _promise && await _promise;"
             : '  __callDispose(_stack, _error, _hasError);';
 
-        return $this->usingHelperRuntime()
+        $prefixText = $this->joinTopLevelUsingHelperStatements($prefix);
+        $suffixText = $this->joinTopLevelUsingHelperStatements($suffix);
+
+        return $prefixText
+            . $this->usingHelperRuntime()
             . "var _stack = [];\n"
             . "try {\n"
             . implode("\n", $body) . "\n"
@@ -4691,7 +4717,47 @@ final class TypeScriptModuleLowerer
             . "  var _error = _, _hasError = true;\n"
             . "} finally {\n"
             . $finally . "\n"
-            . "}\n";
+            . "}\n"
+            . $suffixText;
+    }
+
+    private function isTopLevelUsingHelperPrefixStatement(string $line): bool
+    {
+        $trimmed = ltrim($line);
+
+        if (preg_match('/^import(?:\s|["\'(])/', $trimmed) === 1) {
+            return true;
+        }
+
+        return preg_match('/^export\s+(?:\*|\{[\s\S]*?\}\s+from\b)/', $trimmed) === 1;
+    }
+
+    private function isTopLevelUsingHelperSuffixStatement(string $line): bool
+    {
+        $trimmed = ltrim($line);
+
+        return preg_match('/^export\s*\{/', $trimmed) === 1
+            && preg_match('/^export\s*\{[\s\S]*?\}\s+from\b/', $trimmed) !== 1;
+    }
+
+    private function isStringDirectiveStatement(string $line): bool
+    {
+        return preg_match('/^(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\');?$/', trim($line)) === 1;
+    }
+
+    /**
+     * @param list<string> $statements
+     */
+    private function joinTopLevelUsingHelperStatements(array $statements): string
+    {
+        if ($statements === []) {
+            return '';
+        }
+
+        return implode('', array_map(
+            static fn (string $statement): string => rtrim($statement) . "\n",
+            $statements,
+        ));
     }
 
     private function usingHelperRuntime(): string

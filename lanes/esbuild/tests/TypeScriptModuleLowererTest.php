@@ -222,6 +222,34 @@ TS);
         $t->same("var x = null;\n", $optimized);
         $t->true(!str_contains($optimized, '__using'));
     },
+    'keeps upstream module statements outside top level using helper scopes' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+"use strict";
+import metadata from "./block.json" with { type: "json" };
+export * from "./shared";
+using previewAsset: Disposable = acquirePreviewAsset(metadata.viewScript);
+queue(previewAsset.url);
+export { previewAsset as previewAssetHandle };
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->true(strpos($lowered, '"use strict";') < strpos($lowered, 'var __knownSymbol'));
+        $t->true(strpos($lowered, 'import metadata from "./block.json" with { type: "json" };') < strpos($lowered, 'var __knownSymbol'));
+        $t->true(strpos($lowered, 'export * from "./shared";') < strpos($lowered, 'var __knownSymbol'));
+        $t->contains("try {\n  var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript));\n  queue(previewAsset.url);\n}", $lowered);
+        $t->true(strpos($lowered, '} finally {') < strpos($lowered, 'export { previewAsset as previewAssetHandle };'));
+        $t->true(!str_contains($lowered, "try {\n  import "));
+        $t->true(!str_contains($lowered, "try {\n  export "));
+
+        $ordinaryString = (new TypeScriptModuleLowerer())->lower(
+            'using asset = acquire(); "after";',
+            lowerUsingDeclarations: true
+        );
+        $t->contains("try {\n  var asset = __using(_stack, acquire());\n  \"after\";\n}", $ordinaryString);
+        $t->true(strpos($ordinaryString, 'var asset = __using') < strpos($ordinaryString, '"after";'));
+    },
     'lowers upstream block scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'if (nested) { using x: Disposable = y; bar(x); }',
@@ -1170,6 +1198,18 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $legacyLowered);
         $t->true(strpos($legacyLowered, 'var __using') < strpos($legacyLowered, 'try {'));
         $t->true(!str_contains($legacyLowered, '@wordpress/blocks'));
+    },
+    'lowers wordpress imported using asset cleanup without trapping module statements' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-import-hoist.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->true(strpos($lowered, 'import metadata from "./block.json" with { type: "json" };') < strpos($lowered, 'var __knownSymbol'));
+        $t->contains('var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(strpos($lowered, '__callDispose(_stack, _error, _hasError);') < strpos($lowered, 'export { settings };'));
+        $t->true(!str_contains($lowered, "try {\n  import "));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': Disposable'));
     },
     'lowers wordpress function scoped disposable asset handles without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-function-using-disposable.ts');
