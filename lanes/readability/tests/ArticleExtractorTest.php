@@ -105,6 +105,45 @@ return [
 
         $t->same("That's clean metadata for a migration excerpt.", $article->excerpt);
     },
+    'maps Mozilla 005 metadata entity unescape fixture' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/005-unescape-html-entities';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(false, str_contains($article->excerpt, '&#xFFFFFFFF;'), 'out-of-range numeric references should become replacement characters');
+        $t->same(false, str_contains($article->excerpt, '&#x0;'), 'zero numeric references should become replacement characters');
+    },
+    'normalizes invalid numeric metadata entities before WordPress excerpt import' => static function (TestRunner $t): void {
+        $replacement = mb_chr(0xfffd, 'UTF-8');
+        $emoji = mb_chr(0x1f62d, 'UTF-8');
+        $html = '<html><head><title>Metadata Entity Cleanup</title>'
+            . '<meta name="description" content="Migrated excerpt keeps emoji &amp;#128557; and replaces invalid source entities &amp;#x0; before import.">'
+            . '</head><body><article><h1>Metadata Entity Cleanup</h1>'
+            . '<p>' . str_repeat('Legacy WordPress migrations sometimes carry double-escaped metadata from old templates or feeds. ', 3) . '</p>'
+            . '<p>' . str_repeat('The native cleanup should keep excerpts parser-safe before storing them as post metadata. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Migrated excerpt keeps emoji ' . $emoji . ' and replaces invalid source entities ' . $replacement . ' before import.', $article->excerpt);
+        $t->same(false, str_contains($article->excerpt, '&#128557;'), 'valid numeric entities should be decoded for imported excerpts');
+        $t->same(false, str_contains($article->excerpt, '&#x0;'), 'invalid numeric entities should not survive imported excerpts');
+        $t->contains('excerpts parser-safe', $blocks);
+    },
     'converts extracted content to block comments' => static function (TestRunner $t): void {
         $extractor = new ArticleExtractor();
         $article = $extractor->extract('<article><h2>Heading</h2><p>Paragraph</p></article>');

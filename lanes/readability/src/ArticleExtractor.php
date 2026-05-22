@@ -499,7 +499,38 @@ final class ArticleExtractor
 
     private function cleanMetadataString(string $value): string
     {
-        return trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        return trim($this->unescapeHtmlEntities($value));
+    }
+
+    private function unescapeHtmlEntities(string $value): string
+    {
+        if ($value === '') {
+            return $value;
+        }
+
+        $value = strtr($value, [
+            '&quot;' => '"',
+            '&amp;' => '&',
+            '&apos;' => "'",
+            '&lt;' => '<',
+            '&gt;' => '>',
+        ]);
+
+        return preg_replace_callback(
+            '/&#(?:x([0-9a-f]+)|([0-9]+));/i',
+            static function (array $matches): string {
+                $codepoint = isset($matches[1]) && $matches[1] !== ''
+                    ? intval($matches[1], 16)
+                    : intval($matches[2], 10);
+
+                if ($codepoint === 0 || $codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)) {
+                    $codepoint = 0xfffd;
+                }
+
+                return mb_chr($codepoint, 'UTF-8');
+            },
+            $value,
+        ) ?? $value;
     }
 
     /**
