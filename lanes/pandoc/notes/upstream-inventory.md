@@ -57,6 +57,13 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` Special Characters rendered native AST slice
   inspected in this run: 86 lines, including one `BulletList`, 45 `Str`
   markers, 22 `Para` markers, and one `HorizontalRule`
+- `test/testsuite.txt` Links section slice inspected in this run: 86 Markdown
+  lines through the start of `# Images`, covering explicit links, reference
+  links, ampersand URL/text cases, URI/email autolinks, and no-autolink code
+  contexts
+- `test/testsuite.native` Links rendered native AST slice inspected in this
+  run: 290 lines, including 25 `Link` nodes plus the code-block and code-span
+  cases where autolinks must not fire
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -183,12 +190,20 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   decodes to `AT&T` in the inline text node, literal `&`, `<`, and `>` examples
   stay text rather than HTML, Pandoc's punctuation backslash escapes collapse to
   their literal characters, and the dashed divider remains a `HorizontalRule`.
+- Links cases from `test/testsuite.txt`, cross-checked against
+  `test/testsuite.native`: explicit links support empty destinations,
+  double/single-quoted titles, quote-containing titles, backslash escapes in
+  link text, mailto URLs, and pointy-brace destinations; reference links support
+  full, collapsed, and shortcut forms, nested brackets in link text, and
+  definitions indented by up to three spaces while a four-space definition
+  remains an indented code block; ampersands remain intact in URLs, link text,
+  and titles; URI and email autolinks work in paragraphs, lists, and block
+  quotes; autolinks do not fire inside code spans or indented code blocks.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-63 tests, 358 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 93 test files, 6,257 assertions, and
-0 failures after this Special Characters lane batch in the shared dirty
-worktree.
+67 tests, 403 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 95 test files, 6,358 assertions, and
+0 failures after this Links lane batch in the shared dirty worktree.

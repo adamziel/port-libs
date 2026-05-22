@@ -2,6 +2,12 @@
 
 This **legacy post** links back to the [source archive](https://example.test/archive) and keeps `shortcodes` visible for follow-up cleanup.
 
+Reference audit links: [migration checklist][checklist] and <https://example.test/audit?post=42&status=ready>.
+
+Contact importer: <importer@example.test>.
+
+[checklist]: </wp-admin/post.php?post=42&action=edit> "Edit imported post"
+
 Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
 Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.

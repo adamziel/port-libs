@@ -72,6 +72,13 @@ round-tripping: Unicode text stays literal, `AT&amp;T` decodes once before the
 WordPress writer escapes output, literal comparison characters stay text, and
 Pandoc's punctuation backslash escapes collapse to visible characters without
 starting emphasis, links, headings, block quotes, or lists.
+The bounded Links section is now mapped for import-safe link preservation:
+explicit links keep empty destinations, pointy-brace destinations, and
+double/single-quoted titles; reference links keep collapsed and shortcut
+forms, nested brackets in link text, and up-to-three-space reference
+definitions; ampersands stay intact in URLs, link text, and titles; URI and
+email autolinks work inside paragraphs, lists, and quotes; and code spans or
+indented code blocks keep angle-bracket URLs as literal code.
 
 ## Scenario Fixture
 
@@ -85,8 +92,10 @@ starting emphasis, links, headings, block quotes, or lists.
   strikeout cleanup notes, superscript draft status, subscript chemical/media
   labels, smart import-editor quotes, apostrophes, ellipses, date-range en
   dashes, em-dash review notes, HTML entity text that must not double-escape,
-  literal comparison characters, raw TeX citations, inline/display math notes,
-  a raw TeX table source block, and a fenced PHP migration snippet.
+  literal comparison characters, reference audit links with WordPress edit-link
+  titles, autolinked audit URLs, importer email contacts, raw TeX citations,
+  inline/display math notes, a raw TeX table source block, and a fenced PHP
+  migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -135,7 +144,10 @@ starting emphasis, links, headings, block quotes, or lists.
   WordPress paragraph text: `AT&amp;T` is decoded into the AST and emitted once
   as `AT&amp;T`, while `<` is emitted as `&lt;` instead of being treated as raw
   HTML.
+- Reference audit links render as normal WordPress paragraph links with title
+  attributes preserved, URI autolinks render as escaped clickable URLs, and
+  importer email autolinks render as `mailto:` links without invoking Pandoc.
 
 ## Next Task
 
-Map a bounded `test/testsuite.txt` Links explicit/reference/autolink slice.
+Map a bounded `test/testsuite.txt` Images alt/title/reference-link slice.

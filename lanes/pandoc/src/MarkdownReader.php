@@ -130,21 +130,11 @@ final class MarkdownReader
                 continue;
             }
 
-            if (
-                preg_match(
-                    '/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(\S+)(?:[ \t]+(?:"([^"]*)"|\'([^\']*)\'|\(([^)]*)\)))?[ \t]*$/',
-                    $this->expandTabsToSpaces($line),
-                    $m
-                ) === 1
-            ) {
-                $label = $this->normalizeReferenceLabel($m[1]);
-                $url = $m[2];
-                if (str_starts_with($url, '<') && str_ends_with($url, '>')) {
-                    $url = substr($url, 1, -1);
-                }
-                $references[$label] = [
-                    'url' => $url,
-                    'title' => $m[3] ?? $m[4] ?? $m[5] ?? '',
+            $reference = $this->tryParseReferenceDefinition($this->expandTabsToSpaces($line));
+            if ($reference !== null) {
+                $references[$this->normalizeReferenceLabel($reference['label'])] = [
+                    'url' => $reference['url'],
+                    'title' => $reference['title'],
                 ];
                 continue;
             }
@@ -158,6 +148,27 @@ final class MarkdownReader
     private function normalizeReferenceLabel(string $label): string
     {
         return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
+    }
+
+    /**
+     * @return array{label:string, url:string, title:string}|null
+     */
+    private function tryParseReferenceDefinition(string $line): ?array
+    {
+        if (preg_match('/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $target = $this->parseLinkDestinationAndTitle($m[2]);
+        if ($target === null) {
+            return null;
+        }
+
+        return [
+            'label' => $m[1],
+            'url' => $target['url'],
+            'title' => $target['title'],
+        ];
     }
 
     /**
@@ -475,13 +486,24 @@ final class MarkdownReader
                 'math' => $this->renderMathInlineHtml($node),
                 'raw_tex' => '<span class="pandoc-raw-tex">' . $this->escapeHtml((string) $node->attr('tex', '')) . '</span>',
                 'code' => '<code>' . $this->escapeHtml((string) $node->attr('text', '')) . '</code>',
-                'link' => '<a href="' . $this->escapeHtml((string) $node->attr('url', '')) . '">'
+                'link' => '<a' . $this->renderLinkAttributesHtml($node) . '>'
                     . $this->renderInlineHtml($node->children) . '</a>',
                 default => $this->renderInlineHtml($node->children),
             };
         }
 
         return $html;
+    }
+
+    private function renderLinkAttributesHtml(AstNode $node): string
+    {
+        $attrs = ' href="' . $this->escapeHtml((string) $node->attr('url', '')) . '"';
+        $title = (string) $node->attr('title', '');
+        if ($title !== '') {
+            $attrs .= ' title="' . $this->escapeHtml($title) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderMathInlineHtml(AstNode $node): string
@@ -1442,7 +1464,7 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function parseInlines(string $text): array
+    private function parseInlines(string $text, bool $allowLinks = true): array
     {
         $nodes = [];
         $buffer = '';
@@ -1514,30 +1536,28 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($text[$offset] === '[' && preg_match('/\G\[([^\]\[]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/', $text, $m, 0, $offset)) {
+            $inlineLink = $allowLinks ? $this->tryParseInlineLink($text, $offset) : null;
+            if ($inlineLink !== null) {
                 $this->flushText($buffer, $nodes);
-                $attrs = ['url' => $m[2]];
-                if (isset($m[3])) {
-                    $attrs['title'] = $m[3];
-                }
-                $nodes[] = new AstNode('link', $attrs, $this->parseInlines($m[1]));
-                $offset += strlen($m[0]);
+                $nodes[] = $inlineLink['node'];
+                $offset = $inlineLink['next'];
                 continue;
             }
 
-            if ($text[$offset] === '[' && preg_match('/\G\[([^\]\[]+)\]\[([^\]\[]*)\]/', $text, $m, 0, $offset)) {
-                $label = $m[2] === '' ? $m[1] : $m[2];
-                $reference = $this->referenceLinks[$this->normalizeReferenceLabel($label)] ?? null;
-                if ($reference !== null) {
-                    $this->flushText($buffer, $nodes);
-                    $attrs = ['url' => $reference['url']];
-                    if ($reference['title'] !== '') {
-                        $attrs['title'] = $reference['title'];
-                    }
-                    $nodes[] = new AstNode('link', $attrs, $this->parseInlines($m[1]));
-                    $offset += strlen($m[0]);
-                    continue;
-                }
+            $referenceLink = $allowLinks ? $this->tryParseReferenceLink($text, $offset) : null;
+            if ($referenceLink !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $referenceLink['node'];
+                $offset = $referenceLink['next'];
+                continue;
+            }
+
+            $autolink = $allowLinks ? $this->tryParseAutolink($text, $offset) : null;
+            if ($autolink !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $autolink['node'];
+                $offset = $autolink['next'];
+                continue;
             }
 
             $replacement = $this->tryReadSmartTextReplacement($text, $offset);
@@ -1561,6 +1581,311 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseInlineLink(string $text, int $offset): ?array
+    {
+        $label = $this->parseBracketedLabel($text, $offset);
+        if ($label === null || ($text[$label['next']] ?? '') !== '(') {
+            return null;
+        }
+
+        $target = $this->parseInlineLinkTarget($text, $label['next']);
+        if ($target === null) {
+            return null;
+        }
+
+        $attrs = ['url' => $target['url']];
+        if ($target['title'] !== '') {
+            $attrs['title'] = $target['title'];
+        }
+
+        return [
+            'node' => new AstNode('link', $attrs, $this->parseInlines($label['text'], false)),
+            'next' => $target['next'],
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseReferenceLink(string $text, int $offset): ?array
+    {
+        $label = $this->parseBracketedLabel($text, $offset);
+        if ($label === null) {
+            return null;
+        }
+
+        $next = $label['next'];
+        $referenceLabel = $label['text'];
+        if (($text[$next] ?? '') === '[') {
+            $reference = $this->parseBracketedLabel($text, $next);
+            if ($reference === null) {
+                return null;
+            }
+
+            $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
+            $next = $reference['next'];
+        }
+
+        $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
+        if ($target === null) {
+            return null;
+        }
+
+        $attrs = ['url' => $target['url']];
+        if ($target['title'] !== '') {
+            $attrs['title'] = $target['title'];
+        }
+
+        return [
+            'node' => new AstNode('link', $attrs, $this->parseInlines($label['text'], false)),
+            'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseAutolink(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '<' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
+            return [
+                'node' => new AstNode(
+                    'link',
+                    ['url' => $m[1], 'classes' => ['uri']],
+                    [new AstNode('text', ['text' => $m[1]])]
+                ),
+                'next' => $offset + strlen($m[0]),
+            ];
+        }
+
+        if (
+            preg_match(
+                '/\G<([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})>/i',
+                $text,
+                $m,
+                0,
+                $offset
+            ) === 1
+        ) {
+            return [
+                'node' => new AstNode(
+                    'link',
+                    ['url' => 'mailto:' . $m[1], 'classes' => ['email']],
+                    [new AstNode('text', ['text' => $m[1]])]
+                ),
+                'next' => $offset + strlen($m[0]),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{text:string, next:int}|null
+     */
+    private function parseBracketedLabel(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $start = $offset + 1;
+        $depth = 0;
+        $length = strlen($text);
+        for ($cursor = $start; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] !== ']') {
+                continue;
+            }
+
+            if ($depth > 0) {
+                $depth--;
+                continue;
+            }
+
+            return [
+                'text' => substr($text, $start, $cursor - $start),
+                'next' => $cursor + 1,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{url:string, title:string, next:int}|null
+     */
+    private function parseInlineLinkTarget(string $text, int $openParenOffset): ?array
+    {
+        if (($text[$openParenOffset] ?? '') !== '(') {
+            return null;
+        }
+
+        $close = $this->findInlineLinkClosingParen($text, $openParenOffset + 1);
+        if ($close === null) {
+            return null;
+        }
+
+        $target = $this->parseLinkDestinationAndTitle(substr($text, $openParenOffset + 1, $close - $openParenOffset - 1));
+        if ($target === null) {
+            return null;
+        }
+
+        return [
+            'url' => $target['url'],
+            'title' => $target['title'],
+            'next' => $close + 1,
+        ];
+    }
+
+    private function findInlineLinkClosingParen(string $text, int $offset): ?int
+    {
+        $length = strlen($text);
+        $quote = null;
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($quote !== null) {
+                if ($text[$cursor] === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($text[$cursor] === '"' || $text[$cursor] === "'") {
+                $quote = $text[$cursor];
+                continue;
+            }
+
+            if ($text[$cursor] === ')') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{url:string, title:string}|null
+     */
+    private function parseLinkDestinationAndTitle(string $content): ?array
+    {
+        $content = trim($content);
+        if ($content === '') {
+            return ['url' => '', 'title' => ''];
+        }
+
+        [$destination, $rest] = $this->readLinkDestination($content);
+        if ($destination === null) {
+            return null;
+        }
+
+        $title = '';
+        $rest = trim($rest);
+        if ($rest !== '') {
+            $title = $this->parseLinkTitle($rest);
+            if ($title === null) {
+                return null;
+            }
+        }
+
+        return [
+            'url' => $this->unescapeLinkComponent($destination),
+            'title' => $title,
+        ];
+    }
+
+    /**
+     * @return array{0:string|null, 1:string}
+     */
+    private function readLinkDestination(string $content): array
+    {
+        if ($content[0] === '<') {
+            $end = $this->findUnescapedCharacter($content, '>', 1);
+            if ($end === null) {
+                return [null, ''];
+            }
+
+            return [substr($content, 1, $end - 1), substr($content, $end + 1)];
+        }
+
+        $length = strlen($content);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if ($content[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if (ctype_space($content[$cursor])) {
+                return [substr($content, 0, $cursor), substr($content, $cursor + 1)];
+            }
+        }
+
+        return [$content, ''];
+    }
+
+    private function findUnescapedCharacter(string $text, string $character, int $offset): ?int
+    {
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === $character) {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseLinkTitle(string $text): ?string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        $open = $text[0];
+        $close = match ($open) {
+            '"' => '"',
+            "'" => "'",
+            '(' => ')',
+            default => null,
+        };
+        if ($close === null || !str_ends_with($text, $close)) {
+            return null;
+        }
+
+        return $this->decodeHtmlEntities($this->unescapeLinkComponent(substr($text, 1, -1)));
+    }
+
+    private function unescapeLinkComponent(string $text): string
+    {
+        return preg_replace('/\\\\([^A-Za-z0-9\s])/', '$1', $text) ?? $text;
     }
 
     /**

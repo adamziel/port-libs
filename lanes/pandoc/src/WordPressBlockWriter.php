@@ -368,9 +368,20 @@ final class WordPressBlockWriter
             'math' => $this->renderMathInline($node),
             'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
             'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
-            'link' => '<a href="' . $this->esc((string) $node->attr('url', '')) . '">' . $this->renderInlines($node) . '</a>',
+            'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
             default => $this->renderInlines($node),
         };
+    }
+
+    private function renderLinkAttrs(AstNode $node): string
+    {
+        $attrs = ' href="' . $this->esc((string) $node->attr('url', '')) . '"';
+        $title = (string) $node->attr('title', '');
+        if ($title !== '') {
+            $attrs .= ' title="' . $this->esc($title) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderMathInline(AstNode $node): string

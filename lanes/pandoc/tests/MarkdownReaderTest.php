@@ -316,6 +316,135 @@ return [
         ], $escapeTexts);
         $t->same('horizontal_rule', $document->children[24]->type);
     },
+    'maps upstream testsuite explicit links with titles and empty destinations' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            'Just a [URL](/url/).',
+            '[URL and title](/url/ "title").',
+            '[URL and title](/url/  "title preceded by two spaces").',
+            "[URL and title](/url/\t\"title preceded by a tab\").",
+            '[URL and title](/url/ "title with "quotes" in it")',
+            "[URL and title](/url/ 'title with single quotes')",
+            '[with\_underscore](/url/with_underscore)',
+            '[Email link](mailto:nobody@nowhere.net)',
+            '[Empty]().',
+        ]));
+
+        $t->same('link', $document->children[0]->children[1]->type);
+        $t->same('/url/', $document->children[0]->children[1]->attr('url'));
+        $t->same('URL', $document->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('title', $document->children[1]->children[0]->attr('title'));
+        $t->same('title preceded by two spaces', $document->children[2]->children[0]->attr('title'));
+        $t->same('title preceded by a tab', $document->children[3]->children[0]->attr('title'));
+        $t->same('title with "quotes" in it', $document->children[4]->children[0]->attr('title'));
+        $t->same('title with single quotes', $document->children[5]->children[0]->attr('title'));
+        $t->same('with_underscore', $document->children[6]->children[0]->children[0]->attr('text'));
+        $t->same('/url/with_underscore', $document->children[6]->children[0]->attr('url'));
+        $t->same('mailto:nobody@nowhere.net', $document->children[7]->children[0]->attr('url'));
+        $t->same('', $document->children[8]->children[0]->attr('url'));
+    },
+    'maps upstream testsuite reference links shortcuts and indented definitions' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Foo [bar][a].',
+            '',
+            '[a]: /url/',
+            '',
+            'With [embedded [brackets]][b].',
+            '',
+            '[b] by itself should be a link.',
+            '',
+            'Indented [once][].',
+            '',
+            'Indented [twice][].',
+            '',
+            'Indented [thrice][].',
+            '',
+            'This should [not][] be a link.',
+            '',
+            ' [once]: /url',
+            '  [twice]: /url',
+            '',
+            '   [thrice]: /url',
+            '',
+            '    [not]: /url',
+            '',
+            '[b]: /url/',
+            '',
+            'Foo [bar][].',
+            '',
+            'Foo [biz](/url/ "Title with "quote" inside").',
+            '',
+            '  [bar]: /url/ "Title with "quotes" inside"',
+        ]));
+
+        $t->same('link', $document->children[0]->children[1]->type);
+        $t->same('/url/', $document->children[0]->children[1]->attr('url'));
+        $t->same('embedded [brackets]', $document->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('/url/', $document->children[1]->children[1]->attr('url'));
+        $t->same('link', $document->children[2]->children[0]->type);
+        $t->same('/url/', $document->children[2]->children[0]->attr('url'));
+        $t->same('/url', $document->children[3]->children[1]->attr('url'));
+        $t->same('/url', $document->children[4]->children[1]->attr('url'));
+        $t->same('/url', $document->children[5]->children[1]->attr('url'));
+        $t->same('This should [not][] be a link.', $document->children[6]->children[0]->attr('text'));
+        $t->same('code_block', $document->children[7]->type);
+        $t->same('[not]: /url', $document->children[7]->attr('text'));
+        $t->same('Title with "quotes" inside', $document->children[8]->children[1]->attr('title'));
+        $t->same('Title with "quote" inside', $document->children[9]->children[1]->attr('title'));
+    },
+    'maps upstream testsuite ampersand links and autolinks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            "Here's a [link with an ampersand in the URL][1].",
+            '',
+            "Here's a link with an amersand in the link text: [AT&T][2].",
+            '',
+            "Here's an [inline link](/script?foo=1&bar=2).",
+            '',
+            "Here's an [inline link in pointy braces](</script?foo=1&bar=2>).",
+            '',
+            '[1]: http://example.com/?foo=1&bar=2',
+            '[2]: http://att.com/  "AT&T" ',
+            '',
+            'With an ampersand: <http://example.com/?foo=1&bar=2>',
+            '',
+            '* In a list?',
+            '* <http://example.com/>',
+            '* It should.',
+            '',
+            'An e-mail address:  <nobody@nowhere.net>',
+            '',
+            '> Blockquoted: <http://example.com/>',
+            '',
+            'Auto-links should not occur here: `<http://example.com/>`',
+            '',
+            "\tor here: <http://example.com/>",
+            '',
+            '----',
+        ]));
+        $referenceUrl = $document->children[0]->children[1];
+        $referenceAmpersand = $document->children[1]->children[1];
+        $pointy = $document->children[3]->children[1];
+        $autolink = $document->children[4]->children[1];
+        $listAutolink = $document->children[5]->children[1]->children[0];
+        $email = $document->children[6]->children[1];
+        $quoteLink = $document->children[7]->children[0]->children[1];
+
+        $t->same('http://example.com/?foo=1&bar=2', $referenceUrl->attr('url'));
+        $t->same('AT&T', $referenceAmpersand->children[0]->attr('text'));
+        $t->same('AT&T', $referenceAmpersand->attr('title'));
+        $t->same('/script?foo=1&bar=2', $document->children[2]->children[1]->attr('url'));
+        $t->same('/script?foo=1&bar=2', $pointy->attr('url'));
+        $t->same('http://example.com/?foo=1&bar=2', $autolink->attr('url'));
+        $t->same(['uri'], $autolink->attr('classes'));
+        $t->same('http://example.com/', $listAutolink->attr('url'));
+        $t->same('mailto:nobody@nowhere.net', $email->attr('url'));
+        $t->same(['email'], $email->attr('classes'));
+        $t->same('http://example.com/', $quoteLink->attr('url'));
+        $t->same('code', $document->children[8]->children[1]->type);
+        $t->same('<http://example.com/>', $document->children[8]->children[1]->attr('text'));
+        $t->same('code_block', $document->children[9]->type);
+        $t->same('or here: <http://example.com/>', $document->children[9]->attr('text'));
+        $t->same('horizontal_rule', $document->children[10]->type);
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -812,6 +941,14 @@ return [
         $t->contains('<ul><li>One</li><li>Two</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3"><li>First</li><li>Second</li></ol>', $blocks);
+    },
+    'writes wordpress reference link titles and autolinks from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit imported post">migration checklist</a>', $blocks);
+        $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
+        $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
     },
     'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");
