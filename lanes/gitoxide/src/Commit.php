@@ -250,6 +250,17 @@ final class Commit
         return $this->extraHeaderValues('mergetag');
     }
 
+    /**
+     * @return list<GitTag>
+     */
+    public function mergeTags(string $algorithm = 'sha1'): array
+    {
+        return array_map(
+            static fn (string $header): GitTag => GitTag::parse($header, $algorithm),
+            $this->mergeTagHeaders(),
+        );
+    }
+
     public function pgpSignature(): ?string
     {
         $header = $this->signatureHeaderWithRange();

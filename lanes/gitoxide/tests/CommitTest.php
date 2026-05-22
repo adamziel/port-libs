@@ -114,6 +114,13 @@ return [
             ['name' => 'gpgsig', 'value' => 'iHUEABYIAB0WIQSuZwcGWSQItmusNgR5URpSUCnw'],
             ['name' => 'gpgsig', 'value' => '-----END PGP SIGNATURE-----'],
         ], $commit->allExtraHeaders());
+
+        $mergeTags = $commit->mergeTags();
+        $t->same('3333333333333333333333333333333333333333', $mergeTags[0]->target);
+        $t->same('commit', $mergeTags[0]->targetKind);
+        $t->same('wp-release-2026.05', $mergeTags[0]->name);
+        $t->same('Release Bot', $mergeTags[0]->taggerSignature()?->name);
+        $t->same('WordPress release tag provenance', $mergeTags[0]->message);
     },
     'parses gitoxide commit message summaries body trailers and attribution filters' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
@@ -219,6 +226,10 @@ return [
         $t->same(1, $summary['signatureHeaderCount']);
         $t->same($fixture['expectedMergeTagCount'], $summary['mergeTagCount']);
         $t->same([$fixture['expectedMergeTagName']], $summary['mergeTagNames']);
+        $t->same($fixture['expectedMergeTagTarget'], $summary['mergeTags'][0]['target']);
+        $t->same($fixture['expectedMergeTagKind'], $summary['mergeTags'][0]['kind']);
+        $t->same($fixture['expectedMergeTagTagger'], $summary['mergeTags'][0]['tagger']);
+        $t->same($fixture['expectedMergeTagMessage'], $summary['mergeTags'][0]['message']);
         $t->same($fixture['expectedSummary'], $summary['summary']);
         $t->same($fixture['expectedBodyWithoutTrailers'], $summary['bodyWithoutTrailers']);
         $t->same($fixture['expectedSignedOffBy'], $summary['signedOffBy']);

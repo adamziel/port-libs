@@ -36,5 +36,9 @@ return [
     'expectedSignatureHeaderPosition' => 0,
     'expectedMergeTagCount' => 1,
     'expectedMergeTagName' => 'wp-release-2026.05',
+    'expectedMergeTagTarget' => '3333333333333333333333333333333333333333',
+    'expectedMergeTagKind' => 'commit',
+    'expectedMergeTagTagger' => 'WordPress Release Bot',
+    'expectedMergeTagMessage' => 'Release tag embedded for deployment provenance',
     'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
 ];
