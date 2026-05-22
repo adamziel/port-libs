@@ -70,6 +70,11 @@ final class CommitSignature
         return new self(trim($this->name), trim($this->email), trim($this->time));
     }
 
+    public function identity(): CommitIdentity
+    {
+        return new CommitIdentity($this->name, $this->email);
+    }
+
     public function seconds(): int
     {
         $first = explode(' ', trim($this->time), 2)[0] ?? '';

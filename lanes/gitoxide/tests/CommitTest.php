@@ -416,7 +416,9 @@ return [
         $t->same($fixture['expectedTree'], $summary['tree']);
         $t->same($fixture['expectedAuthorName'], $summary['author']['name']);
         $t->same($fixture['expectedAuthorEmail'], $summary['author']['email']);
+        $t->same($fixture['expectedAuthorIdentity'], $summary['author']['identity']);
         $t->same($fixture['expectedAuthorOffset'], $summary['author']['offsetSeconds']);
+        $t->same($fixture['expectedCommitterIdentity'], $summary['committer']['identity']);
         $t->same('UTF-8', $summary['encoding']);
         $t->contains('BEGIN SSH SIGNATURE', $summary['signatureHeader']);
         $t->same($fixture['expectedSignatureHeaderPosition'], $summary['signatureHeaderPosition']);

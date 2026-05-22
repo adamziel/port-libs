@@ -9,7 +9,9 @@ use PortLibs\Gitoxide\Commit;
 $fixture = require __DIR__ . '/../fixtures/wordpress-commit-signature.php';
 $commit = Commit::parse($fixture['commitBody']);
 $author = $commit->authorSignature();
+$authorIdentity = $author->identity();
 $committer = $commit->committerSignature();
+$committerIdentity = $committer->identity();
 $trailers = $commit->messageTrailers();
 $signedData = $commit->signedDataForSignature();
 $mergeTags = $commit->mergeTags();
@@ -33,12 +35,14 @@ return [
         'email' => $author->email,
         'seconds' => $author->seconds(),
         'offsetSeconds' => $author->offsetSeconds(),
+        'identity' => $authorIdentity->storageBytes(),
     ],
     'committer' => [
         'name' => $committer->name,
         'email' => $committer->email,
         'seconds' => $committer->seconds(),
         'offsetSeconds' => $committer->offsetSeconds(),
+        'identity' => $committerIdentity->storageBytes(),
     ],
     'encoding' => $commit->encoding,
     'signatureHeader' => $commit->pgpSignature(),
