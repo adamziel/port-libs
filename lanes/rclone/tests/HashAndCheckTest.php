@@ -11,6 +11,7 @@ use PortLibs\Rclone\LsJsonListing;
 use PortLibs\Rclone\LsfListing;
 use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\MultiHasher;
+use PortLibs\Rclone\ReaderComparison;
 use PortLibs\Rclone\SyncPlan;
 
 return [
@@ -185,6 +186,135 @@ return [
         $t->same(['orange'], $result->missingOnTarget);
         $t->same(['* potato', '+ orange', '= banana'], $result->combinedLines());
     },
+    'compares download readers with upstream read fill error precedence' => static function (TestRunner $t): void {
+        $b65a = str_repeat("\0", 65 * 1024);
+        $b65b = substr($b65a, 0, -1) . "\1";
+        $b66 = str_repeat("\0", 66 * 1024);
+        $sentinel = new RuntimeException('sentinel');
+        $faulting = static function (string $bytes) use ($sentinel): object {
+            return new class($bytes, $sentinel) {
+                private int $offset = 0;
+
+                public function __construct(
+                    private readonly string $bytes,
+                    private readonly RuntimeException $error,
+                ) {
+                }
+
+                public function read(int $length): string
+                {
+                    if ($this->offset < strlen($this->bytes)) {
+                        $chunk = substr($this->bytes, $this->offset, $length);
+                        $this->offset += strlen($chunk);
+
+                        return $chunk;
+                    }
+
+                    throw $this->error;
+                }
+
+                public function eof(): bool
+                {
+                    return false;
+                }
+            };
+        };
+
+        $same = ReaderComparison::checkEqualReaders($b65a, $b65a);
+        $t->same(true, $same->equal);
+        $t->same(null, $same->error);
+
+        foreach ([[$b65a, $b65b], [$b65a, $b66], [$b66, $b65a]] as [$left, $right]) {
+            $different = ReaderComparison::checkEqualReaders($left, $right);
+            $t->same(false, $different->equal);
+            $t->same(null, $different->error);
+        }
+
+        foreach ([[$b65a, $b65a], [$b65a, $b65b], [$b65a, $b66], [$b66, $b65a]] as [$left, $right]) {
+            $leftError = ReaderComparison::checkEqualReaders($faulting($left), $right);
+            $t->same(false, $leftError->equal);
+            $t->same($sentinel, $leftError->error);
+        }
+
+        foreach ([[$b65a, $b65a], [$b65a, $b65b], [$b65a, $b66], [$b66, $b65a]] as [$left, $right]) {
+            $rightError = ReaderComparison::checkEqualReaders($left, $faulting($right));
+            $t->same(false, $rightError->equal);
+            $t->same($sentinel, $rightError->error);
+        }
+    },
+    'download check compares providers by bytes like upstream CheckDownload' => static function (TestRunner $t): void {
+        $source = new MemoryProvider(false, new HashSet());
+        $target = new MemoryProvider(false, new HashSet());
+
+        $source->put('rutabaga', 'is tasty');
+        $target->put('rutabaga', 'is tasty');
+        $source->put('potato2', str_repeat('-', 60));
+        $target->put('potato2', str_repeat('-', 60));
+        $target->put('empty space', '-');
+        $source->put('source-only.txt', 'only in source');
+        $source->put('same-size-changed.txt', 'abc');
+        $target->put('same-size-changed.txt', 'abx');
+        $source->put('length-changed.txt', 'abc');
+        $target->put('length-changed.txt', 'abcd');
+
+        $result = (new SyncPlan())->checkDownload($source, $target);
+        $t->same(['potato2', 'rutabaga'], $result->matches);
+        $t->same(['length-changed.txt', 'same-size-changed.txt'], $result->differ);
+        $t->same(['empty space'], $result->missingOnSource);
+        $t->same(['source-only.txt'], $result->missingOnTarget);
+        $t->same([], $result->errors);
+        $t->same(4, $result->differences());
+        $t->same([
+            '* length-changed.txt',
+            '* same-size-changed.txt',
+            '+ source-only.txt',
+            '- empty space',
+            '= potato2',
+            '= rutabaga',
+        ], $result->combinedLines());
+
+        $oneWay = (new SyncPlan())->checkDownload($source, $target, true);
+        $t->same([], $oneWay->missingOnSource);
+        $t->same(['+ source-only.txt'], array_values(array_filter(
+            $oneWay->combinedLines(),
+            static fn (string $line): bool => str_starts_with($line, '+ '),
+        )));
+    },
+    'download check reports upstream error sigils for open and read failures' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+
+        $source->put('plain-diff.txt', 'abc');
+        $target->put('plain-diff.txt', 'abx');
+        $source->put('read-fails-before-diff.txt', 'abc', [
+            'readError' => new RuntimeException('source read failed'),
+            'readErrorAfterBytes' => 3,
+        ]);
+        $target->put('read-fails-before-diff.txt', 'abx');
+        $source->put('source-open-fails.txt', 'same', ['openError' => 'source open unavailable']);
+        $target->put('source-open-fails.txt', 'same');
+        $source->put('target-open-fails.txt', 'same');
+        $target->put('target-open-fails.txt', 'same', ['openError' => 'target open unavailable']);
+
+        $result = (new SyncPlan())->checkDownload($source, $target);
+        $t->same(['plain-diff.txt'], $result->differ);
+        $t->same([
+            'read-fails-before-diff.txt',
+            'source-open-fails.txt',
+            'target-open-fails.txt',
+        ], $result->errors);
+        $t->same(1, $result->differences());
+        $t->same(3, $result->errors());
+        $t->same([
+            '! read-fails-before-diff.txt',
+            '! source-open-fails.txt',
+            '! target-open-fails.txt',
+            '* plain-diff.txt',
+        ], $result->combinedLines());
+        $t->same('failed to download: source read failed', $result->errorMessages['read-fails-before-diff.txt']);
+        $t->same('failed to download: failed to open "source-open-fails.txt": source open unavailable', $result->errorMessages['source-open-fails.txt']);
+        $t->same('failed to download: failed to open "target-open-fails.txt": target open unavailable', $result->errorMessages['target-open-fails.txt']);
+    },
     'lists hashes in rclone hashsum format' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('potato2', str_repeat('-', 60));
@@ -343,6 +473,41 @@ return [
             'wp-content/uploads/2026/05/hero.webp',
         ], $result->matches);
         $t->same(0, $result->differences());
+    },
+    'download check verifies wordpress restored provider artifacts without hashes' => static function (TestRunner $t): void {
+        $source = new MemoryProvider(false, new HashSet());
+        $target = new MemoryProvider(false, new HashSet());
+        foreach (require __DIR__ . '/../fixtures/wordpress-backup-tree.php' as $path => $bytes) {
+            if (str_starts_with($path, 'wp-content/cache/') || str_ends_with($path, '.log') || str_ends_with($path, '.psd')) {
+                continue;
+            }
+
+            $source->put($path, $bytes);
+            $target->put($path, $bytes);
+        }
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'old image bytes');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '- *.log',
+            '- *.psd',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $result = (new SyncPlan())->checkDownload($source, $target, false, $filter);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $result->matches);
+        $t->same(['wp-content/uploads/2026/05/hero.jpg'], $result->differ);
+        $t->same([], $result->missingOnSource);
+        $t->same([], $result->missingOnTarget);
+        $t->same(1, $result->differences());
+        $t->same(0, $result->errors());
     },
     'publishes a wordpress backup lsjson manifest with hashes and metadata' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();

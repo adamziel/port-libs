@@ -71,6 +71,60 @@ final class SyncPlan
         return new CheckResult($matches, $differ, $missingOnSource, $missingOnTarget);
     }
 
+    public function checkDownload(MemoryProvider $source, MemoryProvider $target, bool $oneWay = false, ?FilterRuleSet $filter = null): CheckResult
+    {
+        $sourcePaths = $this->listedPaths($source, $filter);
+        $targetPaths = $this->listedPaths($target, $filter);
+        $allPaths = array_keys($sourcePaths + $targetPaths);
+        sort($allPaths, SORT_STRING);
+
+        $matches = [];
+        $differ = [];
+        $missingOnSource = [];
+        $missingOnTarget = [];
+        $errors = [];
+        $errorMessages = [];
+
+        foreach ($allPaths as $path) {
+            $sourceHas = isset($sourcePaths[$path]);
+            $targetHas = isset($targetPaths[$path]);
+
+            if (!$sourceHas) {
+                if (!$oneWay) {
+                    $missingOnSource[] = $path;
+                }
+                continue;
+            }
+
+            if (!$targetHas) {
+                $missingOnTarget[] = $path;
+                continue;
+            }
+
+            $sourceInfo = $sourcePaths[$path];
+            $targetInfo = $targetPaths[$path];
+            if ($sourceInfo->size !== $targetInfo->size) {
+                $differ[] = $path;
+                continue;
+            }
+
+            $comparison = $this->downloadComparison($source, $target, $path);
+            if ($comparison->error !== null) {
+                $errors[] = $path;
+                $errorMessages[$path] = 'failed to download: ' . $comparison->error->getMessage();
+                continue;
+            }
+            if (!$comparison->equal) {
+                $differ[] = $path;
+                continue;
+            }
+
+            $matches[] = $path;
+        }
+
+        return new CheckResult($matches, $differ, $missingOnSource, $missingOnTarget, $errors, $errorMessages);
+    }
+
     /**
      * @return list<ObjectInfo>
      */
@@ -99,5 +153,30 @@ final class SyncPlan
         }
 
         return $paths;
+    }
+
+    private function downloadComparison(MemoryProvider $source, MemoryProvider $target, string $path): ReaderComparisonResult
+    {
+        try {
+            $targetReader = $target->openReader($path);
+        } catch (\Throwable $throwable) {
+            return new ReaderComparisonResult(false, new \RuntimeException(
+                'failed to open "' . $path . '": ' . $throwable->getMessage(),
+                0,
+                $throwable,
+            ));
+        }
+
+        try {
+            $sourceReader = $source->openReader($path);
+        } catch (\Throwable $throwable) {
+            return new ReaderComparisonResult(false, new \RuntimeException(
+                'failed to open "' . $path . '": ' . $throwable->getMessage(),
+                0,
+                $throwable,
+            ));
+        }
+
+        return ReaderComparison::checkEqualReaders($targetReader, $sourceReader);
     }
 }

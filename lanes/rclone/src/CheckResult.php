@@ -11,12 +11,16 @@ final class CheckResult
      * @param list<string> $differ
      * @param list<string> $missingOnSource
      * @param list<string> $missingOnTarget
+     * @param list<string> $errors
+     * @param array<string, string> $errorMessages
      */
     public function __construct(
         public readonly array $matches,
         public readonly array $differ,
         public readonly array $missingOnSource,
         public readonly array $missingOnTarget,
+        public readonly array $errors = [],
+        public readonly array $errorMessages = [],
     ) {
     }
 
@@ -28,6 +32,11 @@ final class CheckResult
     public function matches(): int
     {
         return count($this->matches);
+    }
+
+    public function errors(): int
+    {
+        return count($this->errors);
     }
 
     /**
@@ -44,6 +53,9 @@ final class CheckResult
         }
         foreach ($this->differ as $path) {
             $lines[] = '* ' . $path;
+        }
+        foreach ($this->errors as $path) {
+            $lines[] = '! ' . $path;
         }
         foreach ($this->matches as $path) {
             $lines[] = '= ' . $path;

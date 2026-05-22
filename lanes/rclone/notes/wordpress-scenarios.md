@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, list, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -18,8 +18,12 @@ The `../examples/wordpress-checksum-verify.php` example validates a published MD
 
 The `../examples/wordpress-download-checksum-verify.php` example models a provider that does not advertise MD5 or other hashes. Ordinary checksum verification rejects that provider capability, while download mode hashes the portable WordPress backup bytes locally and verifies the same manifest.
 
+The `../examples/wordpress-download-byte-compare.php` example compares restored WXR and SQL artifacts byte-for-byte and shows a corrupted upload object as unequal, matching the native download comparison slice used when checksum metadata is unavailable.
+
+The `../examples/wordpress-provider-download-check.php` example compares two no-hash providers as a restore validation pass. It reports a corrupted uploaded image with `*` and an interrupted database stream with `!`, matching the upstream `CheckDownload` distinction between content differences and download errors.
+
 The `../examples/wordpress-case-insensitive-stat.php` example models an rclone provider that advertises case-insensitive path behavior. Differently-cased upload and database requests resolve to canonical provider paths in `lsjson --stat` output, which is useful when WordPress backup manifests are moved between shared hosts, local filesystems, and cloud providers with different casing rules.
 
 ## Next Task
 
-Map `CheckDownload` equal-reader read-error classification or deeper fs provider contract behavior beyond the in-memory checksum/listing slices.
+Map `operations.ReOpen` retry/range reader behavior or deeper fs provider contract behavior beyond the in-memory checksum/listing/download-check slices.

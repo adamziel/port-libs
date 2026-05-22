@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "rclone",
-    "estimatedProgress": 11,
-    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; bounded upstream Go runner passes 299 packages with provider TestIntegration skipped and mount/FUSE packages excluded; filter, hash-set, check, copy, checksum-file, CheckSum verification including download mode, hashsum, lsf, lsjson, and case-insensitive StatJSON slices mapped",
-    "phpPass": 24,
+    "estimatedProgress": 13,
+    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; bounded upstream Go runner passes 299 packages with provider TestIntegration skipped and mount/FUSE packages excluded; filter, hash-set, check, copy, checksum-file, CheckSum verification including download mode, CheckEqualReaders read-fill/error precedence, provider-to-provider CheckDownload byte/error reporting, hashsum, lsf, lsjson, and case-insensitive StatJSON slices mapped",
+    "phpPass": 28,
     "phpFail": 0,
-    "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, checksum manifest verification including download mode for providers without advertised hashes, recursive lsjson catalogs, and shared-hosting cloud storage workflows.",
-    "phase": "cloned static inventory plus bounded upstream Go runner evidence and native filter/hash/check/copy/checksum/download-mode/listing/json/case-insensitive provider slices",
-    "audit": "audited 2026-05-22: bounded upstream Go runner passes 299 packages; rclone-only PHP coverage maps 24 tests and 166 assertions with 0 failures; root php tools/run-tests.php passes 57 files and 2998 assertions, not full upstream parity",
-    "currentWork": "Native in-memory provider contract with advertised hash sets, case-insensitive provider path lookup, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, CheckSum-style manifest verification including download-mode byte hashing when provider hashes are unavailable, hashsum output, lsf path/size/hash formatting, lsjson list/stat JSON manifests, case-insensitive StatJSON canonical path lookups, and bounded upstream Go runner evidence.",
-    "blocker": "Resolved the prior missing Go/module/tooling blocker for a bounded upstream runner: local Go 1.25.0, rebuilt rclone, local rsync, and a temporary MIME database overlay support a clean 299-package Go run. Full provider/mount parity remains open because live provider TestIntegration cases, FUSE mount packages, and Docker-backed serve/docker coverage are intentionally excluded from this bounded pass.",
-    "latestCommit": "0430be6",
-    "nextTask": "Map CheckDownload equal-reader read-error classification or deeper fs provider contract behavior beyond the in-memory checksum/listing slices."
+    "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, checksum manifest verification including download mode for providers without advertised hashes, byte-for-byte restored artifact comparison with open/read error reporting, recursive lsjson catalogs, and shared-hosting cloud storage workflows.",
+    "phase": "cloned static inventory plus bounded upstream Go runner evidence and native filter/hash/check/copy/checksum/download-mode/reader/checkdownload/listing/json/case-insensitive provider slices",
+    "audit": "audited 2026-05-22: bounded upstream Go runner passes 299 packages; rclone-only PHP coverage maps 28 tests and 213 assertions with 0 failures; required root php tools/run-tests.php passes 59 files and 3296 assertions with 0 failures. This remains bounded evidence, not full upstream provider/mount parity.",
+    "currentWork": "Native in-memory provider contract with advertised hash sets, case-insensitive provider path lookup, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, CheckSum-style manifest verification including download-mode byte hashing when provider hashes are unavailable, CheckEqualReaders-style 64 KiB read-fill byte comparison and read-error precedence, provider-to-provider CheckDownload-style byte comparison with open/read error reporting, hashsum output, lsf path/size/hash formatting, lsjson list/stat JSON manifests, case-insensitive StatJSON canonical path lookups, and bounded upstream Go runner evidence.",
+    "blocker": "No rclone-local PHP blocker. Full provider/mount parity remains open because live provider TestIntegration cases, FUSE mount packages, and Docker-backed serve/docker coverage are intentionally excluded from the bounded upstream pass.",
+    "latestCommit": "pending commit for CheckDownload slice",
+    "nextTask": "Map operations ReOpen retry/range reader behavior or deeper fs provider contract behavior beyond the in-memory checksum/listing/download-check slices."
 }
