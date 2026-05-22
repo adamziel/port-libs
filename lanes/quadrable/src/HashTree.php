@@ -20,7 +20,14 @@ final class HashTree
 
     public function leafHash(string $key, string $value): string
     {
-        return hash('sha256', hex2bin($this->keyHash($key)) . hex2bin($this->valueHash($value)) . "\0");
+        return $this->leafHashForKeyHash($this->keyHash($key), $value);
+    }
+
+    public function leafHashForKeyHash(string $keyHashHex, string $value): string
+    {
+        $this->assertHash($keyHashHex);
+
+        return hash('sha256', hex2bin($keyHashHex) . hex2bin($this->valueHash($value)) . "\0");
     }
 
     public function branchHash(string $leftHex, string $rightHex): string
@@ -51,4 +58,3 @@ final class HashTree
         }
     }
 }
-
