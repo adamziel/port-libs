@@ -5,6 +5,8 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\BlobMerge;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\MergeIndexEntry;
+use PortLibs\Gitoxide\MergeIndexFile;
+use PortLibs\Gitoxide\MergeWorktreeWriter;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\TreeMerge;
@@ -56,6 +58,10 @@ $theirs = new Tree([
 $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
+$demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
+$indexChecksum = MergeIndexFile::write($demoRoot . '/.git/index', $result->indexEntries());
+$worktreeFiles = MergeWorktreeWriter::writeMergedTree($result, $demoRoot . '/worktree', $read);
+$themeJsonPath = $demoRoot . '/worktree/wp-content/themes/acme/theme.json';
 
 echo json_encode([
     'clean' => $result->isClean(),
@@ -80,5 +86,15 @@ echo json_encode([
         ],
         $result->worktreeConflictFiles($read),
     ),
+    'writtenIndex' => [
+        'path' => $demoRoot . '/.git/index',
+        'checksum' => $indexChecksum,
+        'stages' => count(MergeIndexFile::entriesFromBytes((string) file_get_contents($demoRoot . '/.git/index'))),
+    ],
+    'writtenWorktree' => [
+        'root' => $demoRoot . '/worktree',
+        'files' => array_map(static fn ($file): string => $file->path, $worktreeFiles),
+        'themeJsonContainsMarkers' => str_contains((string) file_get_contents($themeJsonPath), '<<<<<<<'),
+    ],
     'mergedMetadata' => $metadata->body,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
