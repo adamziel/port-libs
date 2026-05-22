@@ -249,6 +249,94 @@ class A {
 }
 JS . "\n", $lowerer->lower("abstract class A { abstract \n foo(): void {} }"));
     },
+    'erases upstream class method type parameters and optional markers' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  foo() {}
+}
+JS . "\n", $lowerer->lower('class Foo { foo<T>() {} }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  foo() {}
+}
+JS . "\n", $lowerer->lower('class Foo { foo?<T>() {} }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  [foo]() {}
+}
+JS . "\n", $lowerer->lower('class Foo { [foo]<T>() {} }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  [foo]() {}
+}
+JS . "\n", $lowerer->lower('class Foo { [foo]?<T>() {} }'));
+    },
+    'rejects upstream definite assignment markers on class methods' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { foo!() {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { *foo!() {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { get foo!() {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { set foo!(x) {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { async foo!() {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { foo!<T>() {} }'));
+    },
+    'lowers upstream class fields in assign semantics mode' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+}
+JS . "\n", $lowerer->lower('class Foo { foo: number }', false));
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor() {
+    this.foo = 0;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { foo?: number = 0 }', false));
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor() {
+    this.foo = 0;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { foo!: number = 0 }', false));
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor() {
+    this["foo"] = 0;
+  }
+}
+JS . "\n", $lowerer->lower("class Foo { ['foo']: number = 0 }", false));
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor() {
+    this.foo = 0;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { [key: string]: any; foo = 0 }', false));
+    },
+    'lowers upstream static class fields in assign semantics mode' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  static {
+    this.foo = 0;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { static foo: number = 0 }', false));
+    },
     'lowers upstream constructor parameter properties' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -385,6 +473,20 @@ JS . "\n", $lowerer->lower("class Foo { constructor(protected readonly x: string
         $t->contains('blockName;', $lowered);
         $t->contains('blocks;', $lowered);
         $t->contains('register() {this.blocks.registerBlockType(this.blockName, {supports:{html:false}});}', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress class field assign semantics without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-class-fields-assign.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('const metadata = { name: \'port-libs/card\' };', $lowered);
+        $t->contains('constructor() {', $lowered);
+        $t->contains('this.blockName = metadata.name;', $lowered);
+        $t->contains('this.settings = {supports:{html:false}};', $lowered);
+        $t->contains('static {', $lowered);
+        $t->contains('this.metadata = metadata;', $lowered);
+        $t->contains('register(config = this.settings) {wp.blocks.registerBlockType(this.blockName, config);}', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
