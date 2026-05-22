@@ -238,6 +238,17 @@ final class MemoryProvider
         return $targetInfo;
     }
 
+    public function directServerSideMoveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    {
+        if ($this !== $target || !$this->serverSideMove) {
+            throw new \RuntimeException(self::ERROR_CANT_MOVE);
+        }
+
+        $this->throwConfiguredError($this->serverSideMoveError);
+
+        return $this->renameObject($sourcePath, $targetPath);
+    }
+
     public function renameObject(string $sourcePath, string $targetPath): ObjectInfo
     {
         $sourcePath = $this->canonicalPath($sourcePath);

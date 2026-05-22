@@ -120,6 +120,79 @@ return [
         ])['copied']?->path);
         $t->same('<rss>fresh export</rss>', $remote->get('exports/site.wxr'));
     },
+    'remove existing returns noop cleanup for missing files and requires direct move' => static function (TestRunner $t): void {
+        $plan = new SyncPlan();
+        $copyOnly = new MemoryProvider(serverSideMove: false, serverSideCopy: true);
+
+        $missing = $plan->removeExisting($copyOnly, 'exports/missing.wxr', 'TEST', '.12345678');
+        $t->same(false, $missing['existed']);
+        $t->same(null, $missing['savedPath']);
+        $operationError = null;
+        $missing['cleanup']($operationError);
+        $t->same(null, $operationError);
+
+        $copyOnly->put('exports/site.wxr', '<rss>previous export</rss>');
+        try {
+            $plan->removeExisting($copyOnly, 'exports/site.wxr', 'TEST', '.12345678');
+            throw new RuntimeException('Expected direct move requirement error');
+        } catch (RuntimeException $throwable) {
+            $t->same("TEST: destination file exists already and can't rename", $throwable->getMessage());
+        }
+    },
+    'remove existing deletes saved object after successful replacement' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+        $remote->put('database/site.sql', 'insert into wp_posts values (...)');
+
+        $handle = (new SyncPlan())->removeExisting($remote, 'exports/site.wxr', 'TEST', '.12345678');
+        $t->same(true, $handle['existed']);
+        $t->same('exports/site.wxr.12345678', $handle['savedPath']);
+        $t->same(['database/site.sql', 'exports/site.wxr.12345678'], array_map(static fn ($info) => $info->path, $remote->list()));
+        $t->throws(RuntimeException::class, static fn () => $remote->get('exports/site.wxr'));
+
+        $remote->put('exports/site.wxr', '<rss>fresh export</rss>');
+        $operationError = null;
+        $handle['cleanup']($operationError);
+
+        $t->same(null, $operationError);
+        $t->same(['database/site.sql', 'exports/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+        $t->same('<rss>fresh export</rss>', $remote->get('exports/site.wxr'));
+    },
+    'remove existing restores saved object after failed operation and truncates long names' => static function (TestRunner $t): void {
+        $longLeaf = 'site-export-' . str_repeat('segment-', 14) . 'final.wxr';
+        $path = 'exports/' . $longLeaf;
+        $remote = new MemoryProvider(serverSideMove: true);
+        $remote->put($path, '<rss>previous long export</rss>');
+
+        $handle = (new SyncPlan())->removeExisting($remote, $path, 'TEST', '.12345678');
+
+        $t->same(true, $handle['existed']);
+        $t->same(strlen($path), strlen($handle['savedPath'] ?? ''));
+        $t->true(str_ends_with($handle['savedPath'] ?? '', '.12345678'));
+        $t->true(!str_ends_with($handle['savedPath'] ?? '', $longLeaf . '.12345678'));
+        $t->throws(RuntimeException::class, static fn () => $remote->get($path));
+
+        $operationError = new RuntimeException('BOOM');
+        $handle['cleanup']($operationError);
+
+        $t->same('BOOM', $operationError->getMessage());
+        $t->same('<rss>previous long export</rss>', $remote->get($path));
+        $t->same([$path], array_map(static fn ($info) => $info->path, $remote->list()));
+    },
+    'remove existing reports cleanup delete failures without hiding success path' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $handle = (new SyncPlan())->removeExisting($remote, 'exports/site.wxr', 'TEST', '.12345678');
+        $remote->put('exports/site.wxr', '<rss>fresh export</rss>');
+        $remote->delete($handle['savedPath']);
+
+        $operationError = null;
+        $handle['cleanup']($operationError);
+
+        $t->same('TEST: failed to remove renamed existing file: Object not found: exports/site.wxr.12345678', $operationError?->getMessage());
+        $t->same('<rss>fresh export</rss>', $remote->get('exports/site.wxr'));
+    },
     'single file wordpress upload repair uses move ignore-existing and partial cleanup boundaries' => static function (TestRunner $t): void {
         $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
         $local = new MemoryProvider();

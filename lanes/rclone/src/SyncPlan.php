@@ -445,6 +445,70 @@ final class SyncPlan
     }
 
     /**
+     * @return array{existed: bool, savedPath: ?string, cleanup: \Closure}
+     */
+    public function removeExisting(
+        MemoryProvider $provider,
+        string $path,
+        string $operation = 'operation',
+        ?string $temporarySuffix = null,
+    ): array {
+        $path = self::normalizePath($path);
+        try {
+            $provider->info($path);
+        } catch (\RuntimeException) {
+            return [
+                'existed' => false,
+                'savedPath' => null,
+                'cleanup' => static function (?\Throwable &$operationError): void {
+                },
+            ];
+        }
+
+        if (!$provider->supportsDirectServerSideMove()) {
+            throw new \RuntimeException("{$operation}: destination file exists already and can't rename");
+        }
+
+        $temporarySuffix ??= '.' . substr(bin2hex(random_bytes(4)), 0, 8);
+        $savedPath = self::temporaryExistingPath($path, $temporarySuffix);
+        try {
+            $saved = $provider->directServerSideMoveTo($path, $provider, $savedPath);
+        } catch (\RuntimeException $throwable) {
+            throw new \RuntimeException(
+                "{$operation}: failed to rename existing file: " . $throwable->getMessage(),
+                0,
+                $throwable,
+            );
+        }
+
+        return [
+            'existed' => true,
+            'savedPath' => $saved->path,
+            'cleanup' => static function (?\Throwable &$operationError) use ($provider, $saved, $path, $operation): void {
+                if ($operationError === null) {
+                    try {
+                        $provider->delete($saved->path);
+                    } catch (\RuntimeException $throwable) {
+                        $operationError = new \RuntimeException(
+                            "{$operation}: failed to remove renamed existing file: " . $throwable->getMessage(),
+                            0,
+                            $throwable,
+                        );
+                    }
+
+                    return;
+                }
+
+                try {
+                    $provider->directServerSideMoveTo($saved->path, $provider, $path);
+                } catch (\RuntimeException) {
+                    // Upstream logs restore failures and preserves the original operation error.
+                }
+            },
+        ];
+    }
+
+    /**
      * @return array{usedDirMove: bool, fallbackReason: ?string, moved: list<ObjectInfo>}
      */
     public function moveDirectory(MemoryProvider $provider, string $sourceDir, string $targetDir): array
@@ -806,6 +870,30 @@ final class SyncPlan
         }
 
         return substr($destinationPath, 0, max(0, strlen($destinationPath) - strlen($suffix))) . $suffix;
+    }
+
+    private static function temporaryExistingPath(string $path, string $suffix): string
+    {
+        $base = self::pathBase($path);
+        if (strlen($base) <= 100) {
+            return $path . $suffix;
+        }
+
+        return self::truncateValidUtf8($path, max(0, strlen($path) - strlen($suffix))) . $suffix;
+    }
+
+    private static function truncateValidUtf8(string $value, int $bytes): string
+    {
+        $truncated = substr($value, 0, $bytes);
+        if (@preg_match('//u', $value) !== 1) {
+            return $truncated;
+        }
+
+        while ($truncated !== '' && @preg_match('//u', $truncated) !== 1) {
+            $truncated = substr($truncated, 0, -1);
+        }
+
+        return $truncated;
     }
 
     private function sameProviderObject(
