@@ -1,63 +1,63 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, bridge/shell-out usage, the current dirty worktree, and recent Git history through `89fb9c9` (`Record current independent audit snapshot`). I did not edit lane implementation files or launch agents.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status/dashboard state, bridge/shell-out usage, the dirty worktree, and recent Git history through `16ae4e5` (`Stamp pandoc code block status`). I did not edit lane implementation files, launch agents, launch tmux sessions, or push.
 
 ## Findings
 
-1. **High - The dashboard and progress file currently include uncommitted lane and supervisor changes, so they are not a clean-HEAD publication state.**
-   - Paths: `goal.md:29`, `goal.md:48`, `progress.md:31-42`, `progress.md:185`, `porting.html:56-62`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `.tmux-team/prompts/integrator.md`, `scripts/run-team-watchdog.sh`.
-   - Evidence: after `89fb9c9`, `git status --short` still shows modified files across LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, Syncthing, generated dashboard files, and progress, plus untracked lane source/fixture/test files. `porting.html` still renders several lanes as uncommitted or pending, including LightningCSS (`porting.html:58`), Quadrable (`porting.html:61`), Readability (`porting.html:63`), and Syncthing (`porting.html:64`).
-   - Goal requirement at risk: commit small reviewable slices with passing tests, verify/commit finished agent work before moving on, and track accurate latest commits.
-   - Audit judgment: integrate or reject the current libsqlite, Quadrable, dashboard, progress, and supervisor-script changes as separate reviewable commits before treating the dashboard as published state.
+1. **Critical - The repo-wide PHP suite is failing in the current integration snapshot.**
+   - Paths: `lanes/syncthing/tests/BepWireTest.php:167`, `lanes/syncthing/tests/BepWireTest.php:174`, `lanes/syncthing/src/BepWire.php:117`, `lanes/syncthing/src/BepWire.php:129`, `lanes/syncthing/src/BepWire.php:190`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:123`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:127`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:137`, `progress.md:15`.
+   - Evidence: latest `php tools/run-tests.php` exits 1 with `58 test files, 3164 assertions, 1 failure`. The failing test is `rejects unsupported compressed and malformed post-auth frames`. The test still expects `decodeMessageFrame()` to throw for an LZ4-compressed BEP message, but current `BepWire` can encode and decompress LZ4 frames. The manifest still says compressed frames are rejected in the current slice while also listing LZ4 as the next task, so implementation, tests, and manifest are out of sync.
+   - Goal requirement at risk: `goal.md` requires small reviewable slices with passing tests and every lane baseline to include passing PHP tests; coordination also requires repo-wide failures to be recorded honestly.
+   - Audit judgment: reconcile the Syncthing LZ4/compressed-frame slice by either completing the native parity tests/manifest or reverting the partial behavior before publishing status.
 
-2. **High - Gitoxide remains overstated relative to a machine-checkable upstream denominator.**
-   - Paths: `goal.md:7`, `goal.md:24-25`, `goal.md:35-38`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:12-20`, `porting.html:56`, `progress.md:31`, `progress.md:190`.
-   - Evidence: the priority-1 lane reports 66.0%, `1257 pass / 0 fail`, and `737 / 2877 mapped`, but the denominator is still a broad static inventory rather than an executed upstream test suite, and the Cargo runner remains unexecuted.
-   - Goal requirement at risk: real upstream benchmark denominator, upstream tests as source of truth, full-denominator mapping before broad slices on huge suites, and honest blockers for unported Git behavior.
-   - Audit judgment: the native Git slices are useful smoke coverage, but the percentage should remain suspect until the denominator is normalized into named upstream suites/fixtures with explicit covered and uncovered counts.
+2. **Critical - `porting.html`, `porting-summary.json`, and parts of `progress.md` are stale against the current manifests and recent commits.**
+   - Paths: `porting.html:55`, `porting.html:58`, `porting.html:59`, `porting.html:61`, `porting-summary.json:40`, `porting-summary.json:91`, `porting-summary.json:108`, `porting-summary.json:142`, `progress.md:31`, `progress.md:33`, `progress.md:37`, `progress.md:210`, `progress.md:211`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:15`, `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:15`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:15`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:13`.
+   - Evidence: the dashboard still shows esbuild as `16 / 2,567` mapped with commit `2e1fcb0`, but the manifest says `20` mapped and current history includes multiple later esbuild commits. LightningCSS is `78` mapped on the dashboard but `87` in the manifest. markerPDF is `11` mapped / `23 pass` on the dashboard but `18` mapped / `35` PHP behavior tests in the manifest after `f150123`. Quadrable's dashboard still says the C++ runner fails, while its manifest says `make -r test` passed. `progress.md` also still says esbuild maps 16 tests and Dolt lacks Go/BATS, while the Dolt manifest records bounded Go/BATS runner evidence.
+   - Goal requirement at risk: `goal.md` requires the dashboard to track mapped tests, PHP pass/fail, blockers, current work, and commit accurately for each lane.
+   - Audit judgment: regenerate `progress.md`, `porting.html`, and `porting-summary.json` from one quiesced state after the PHP suite is green.
 
-3. **High - markerPDF still has no real upstream benchmark PDF/reference pair mapped.**
-   - Paths: `goal.md:9`, `goal.md:35-37`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13-18`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:56-68`, `porting.html:59`, `progress.md:33`, `progress.md:192`.
-   - Evidence: the manifest now maps 11 focused source/scoring semantics, but it still records `mappedBenchmarkPairs: 0` and `mappedBenchmarkSurrogatePairs: 1`. The full benchmark runner is not executed because the benchmark data and heavy ML/PDF dependencies are absent.
-   - Goal requirement at risk: meaningful fixture parity for PDF-to-structured-content extraction suitable for WordPress import and Data Liberation.
-   - Audit judgment: priority 3 should pin at least one actual benchmark PDF/reference pair before broadening table/OCR/layout behavior; README-derived surrogate scoring should stay explicitly temporary.
+3. **High - The audit target is still a moving integration surface.**
+   - Paths: current `git status --short`, recent Git history from `8e3ce06` through `b37aeeb`, `progress.md:230`, `progress.md:231`.
+   - Evidence: while this audit was running, history advanced from `8e3ce06` through `f150123`, `b37aeeb`, `5778c7a`, `4c57af7`, `a6fb9aa`, `88c4491`, `c30cd41`, `5d5ddbe`, `35da84d`, `5d19e66`, `4e4697b`, `be608f8`, and `16ae4e5`. Test results moved from `57 test files, 2965 assertions, 10 failures` to `58 test files, 3080 assertions, 2 failures`, then `58 test files, 3112 assertions, 5 failures`, and finally `58 test files, 3164 assertions, 1 failure`. The worktree still has many uncommitted lane implementation, manifest, dashboard, and fixture changes.
+   - Goal requirement at risk: `goal.md` requires the supervisor to verify finished agent work, commit small passing slices, update progress, and keep dashboard state honest.
+   - Audit judgment: quiesce or explicitly coordinate active workers before treating any dashboard or progress numbers as an integration snapshot.
 
-4. **Medium - Upstream runner evidence is still easy to misread as native PHP parity.**
-   - Paths: `goal.md:1`, `goal.md:30`, `goal.md:35-38`, `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:46-127`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:38-80`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:47-93`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:47-99`, `porting.html:55`, `porting.html:58`, `porting.html:62-63`, `progress.md:189`, `progress.md:193-200`.
-   - Evidence: LightningCSS, Readability, esbuild, and rclone now have valuable upstream runner passes or bounded passes, but their native mappings remain small slices: LightningCSS `78 / 312`, Readability `89 / 1984`, esbuild `16 / 2,567`, and rclone `20 / 327` with provider integration and mount/docker coverage excluded.
-   - Goal requirement at risk: bridge/upstream binary execution may be oracle evidence only and must not count as native implementation progress.
-   - Audit judgment: keep the runner evidence, but dashboard/status wording should continue to distinguish upstream-oracle passes from native PHP coverage and avoid percentage gains driven by non-PHP runners.
+4. **High - Gitoxide remains overstated relative to a machine-checkable upstream denominator.**
+   - Paths: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:13`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:14`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:15`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:18`, `porting.html:56`.
+   - Evidence: the priority-1 lane reports 66% progress and hundreds of mapped checks, but the manifest still says the Cargo runner was not executed and relies on a very large prose static inventory rather than a normalized list of named upstream suites/fixtures with pass/fail state.
+   - Goal requirement at risk: `goal.md` requires a real upstream benchmark denominator or a clearly marked defensible static inventory, and requires upstream tests to be the source of truth for large suites.
+   - Audit judgment: Gitoxide work may be valuable, but its percentage should remain suspect until fixture IDs and uncovered upstream areas are normalized into machine-checkable counts.
 
-5. **Medium - Several lanes still rely on static inventories or partial runner coverage, so local PHP pass counts are shallow against the original scope.**
-   - Paths: `goal.md:24-40`, `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:12-59`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:12-72`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12-18`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:12-20`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:12-78`, `porting.html:53-64`, `progress.md:191`, `progress.md:196-201`.
-   - Evidence: Difftastic, Dolt, Pandoc, Quadrable, and Syncthing all explicitly say their upstream runners were not executed or failed immediately. The root PHP suite passes, but these lanes map 15/404, 5/613, 19/1979, 24/55, and 27/264 respectively, with large unported protocol, parser, proof, storage, and integration areas.
-   - Goal requirement at risk: passing tests are not enough; each lane needs meaningful fixture parity, edge-case/error coverage, and real upstream-denominator alignment.
-   - Audit judgment: these are acceptable early slices, not broad native ports. The next slices should keep tying PHP tests to named upstream fixtures instead of increasing local-only smoke tests.
+5. **Medium - markerPDF still has no real external upstream benchmark PDF/reference pair.**
+   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:16`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:17`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:56`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:57`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:78`.
+   - Evidence: the manifest reports `mappedBenchmarkPairs: 0`, `mappedBenchmarkSurrogatePairs: 3`, and `runnerStatus: not-executed`. The current code-block and cleaner work improves local behavior, but it still does not prove actual benchmark PDF/reference extraction parity.
+   - Goal requirement at risk: `goal.md` scopes markerPDF as a PDF-to-structured-content extraction pipeline for WordPress import/Data Liberation and requires meaningful fixture parity, not only surrogate source-function checks.
+   - Audit judgment: after the root PHP suite is green, acquire at least one real benchmark_data PDF/reference pair before broadening more markerPDF layout/OCR behavior.
 
-6. **Medium - Session status in progress is wrong while active agents are mutating the tree.**
-   - Paths: `goal.md:20`, `goal.md:47-48`, `progress.md:14`, `progress.md:223-227`, `.tmux-team/prompts/integrator.md`, `scripts/run-team-watchdog.sh`.
-   - Evidence: the just-updated session status now records active sessions, but `progress.md` previously claimed the auditor and all workers were stopped while `tmux ls` showed active `port-auditor`, implementation lane sessions, `port-dolt`, `port-dolt-runner`, `port-evaluator`, `port-integrator`, and `port-watchdog`. The worktree continued changing during this audit. I did not launch any sessions for this audit.
-   - Goal requirement at risk: durable supervision, independent auditor every 20 minutes, and clean integration of finished agent work.
-   - Audit judgment: the supervisor needs to quiesce or explicitly coordinate these sessions before relying on `progress.md`/`porting.html` as a stable state snapshot.
+6. **Medium - Upstream runner passes are still easy to misread as native PHP progress.**
+   - Paths: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:71`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:38`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:47`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:56`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:17`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:46`, `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json:37`.
+   - Evidence: several manifests now contain useful upstream-oracle runner evidence, but native PHP mapped coverage remains narrow relative to the upstream denominators, for example esbuild `20 / 2,567` and Dolt `12 / 613`.
+   - Goal requirement at risk: `goal.md` forbids counting JS/Rust/Go/C/C++ execution, bridge calls, generated fixtures, or shell-outs as native implementation progress except temporary oracle tooling.
+   - Audit judgment: preserve runner evidence as oracle support, but keep native PHP pass/fail and mapped upstream parity visually and textually separate.
 
 ## Bridge / Shell-Out Check
 
-Command searched committed and untracked files under `lanes`, `tools`, and `scripts` for `shell_exec`, `exec(`, `passthru`, `proc_open`, `system(`, and `popen(` using `rg --pcre2`. The only broad match was a copied Mozilla fixture's JavaScript `regex.exec(url)` in `lanes/readability/fixtures/mozilla/videos-2/source.html`; a PHP/shell-only search found no process-execution matches. I did not find bridge code or shell-outs being counted as native implementation progress.
+Command searched committed and untracked files under `lanes`, `tools`, and `scripts` for `shell_exec`, `exec(`, `passthru`, `proc_open`, `system(`, and `popen(` using `rg --pcre2`. The only match was copied Mozilla fixture JavaScript `regex.exec(url)` in `lanes/readability/fixtures/mozilla/videos-2/source.html:830`; no PHP process-execution bridge was found.
 
 ## Test Run
 
 Command: `php tools/run-tests.php`
 
-Exact result:
+Exit status: 1
+
+Exact latest result I ran during this moving snapshot:
 
 ```text
-55 test files, 2735 assertions, 0 failures
+58 test files, 3164 assertions, 1 failure
 ```
 
-Exit status: 0.
-
-Note: this result is from the current dirty working tree.
+Failing area: `lanes/syncthing/tests/BepWireTest.php`, specifically the compressed post-auth frame expectation for LZ4 BEP messages.
 
 ## Recommended Next Intervention
 
-First review and integrate or reject the current dirty lane/supervisor changes as passing, reviewable commits. Then prioritize denominator-quality work: make Gitoxide's upstream denominator machine-checkable with named fixture IDs, acquire one real markerPDF benchmark PDF/reference pair, and keep each new PHP mapping tied to upstream fixture IDs rather than upstream-runner headlines.
+Stop the moving target first: quiesce or explicitly coordinate active sessions, then fix or reject the Syncthing LZ4 compressed-frame slice until `php tools/run-tests.php` is green. After that, regenerate `progress.md`, `porting.html`, and `porting-summary.json` from the same committed state, then resume denominator-quality work: acquire a real markerPDF benchmark PDF/reference pair and normalize Gitoxide fixture IDs/coverage.
