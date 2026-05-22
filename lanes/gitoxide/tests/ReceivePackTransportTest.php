@@ -6,6 +6,7 @@ use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
 use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SendPackSession;
+use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
@@ -138,6 +139,129 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes("/bad\0repo", 'example.test'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 0));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\0extra"]));
+    },
+    'smart http receive-pack transport strips service advertisement and posts request' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress smart HTTP transport payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02Writing objects: 100% (1/1)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $requester = static function (string $method, string $url, array $headers, ?string $body, float $timeout) use (&$requests, $packet, $flush, $advertisement, $responseBytes): array {
+            $requests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => ['application/x-git-receive-pack-result; charset=utf-8']],
+                'body' => $responseBytes,
+            ];
+        };
+
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport('https://git.example.test/wp-content.git/', $requester),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['Writing objects: 100% (1/1)'], $response->progressMessages());
+        $t->same('GET', $requests[0]['method']);
+        $t->same('https://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
+        $t->same('application/x-git-receive-pack-advertisement', $requests[0]['headers']['Accept']);
+        $t->same(null, $requests[0]['body']);
+        $t->same('POST', $requests[1]['method']);
+        $t->same('https://git.example.test/wp-content.git/git-receive-pack', $requests[1]['url']);
+        $t->same('application/x-git-receive-pack-request', $requests[1]['headers']['Content-Type']);
+        $t->same('application/x-git-receive-pack-result', $requests[1]['headers']['Accept']);
+        $t->same((string) strlen($request->requestBytes()), $requests[1]['headers']['Content-Length']);
+        $t->same($request->requestBytes(), $requests[1]['body']);
+    },
+    'smart http receive-pack urls headers and response validation follow git http protocol' => static function (TestRunner $t) use ($packet, $flush): void {
+        $t->same(
+            'https://example.test/repo.git/info/refs?service=git-receive-pack',
+            SmartHttpReceivePackTransport::infoRefsUrl('https://user:pass@example.test/repo.git/')
+        );
+        $t->same(
+            'https://example.test/repo.git/git-receive-pack',
+            SmartHttpReceivePackTransport::receivePackUrl('https://example.test/repo.git/')
+        );
+        $t->same(
+            'http://example.test/daemon.cgi?svc=git&q=/info/refs&service=git-receive-pack',
+            SmartHttpReceivePackTransport::infoRefsUrl('http://example.test/daemon.cgi?svc=git&q=')
+        );
+
+        $requests = [];
+        $transport = new SmartHttpReceivePackTransport(
+            'https://word%20press:s3cret@example.test/repo.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout) use (&$requests, $packet, $flush): array {
+                $requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'headers' => $headers,
+                    'body' => $body,
+                    'timeout' => $timeout,
+                ];
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            ['version=1'],
+            12.5
+        );
+
+        $transport->readAdvertisement();
+
+        $t->same('https://example.test/repo.git/info/refs?service=git-receive-pack', $requests[0]['url']);
+        $t->same('Basic ' . base64_encode('word press:s3cret'), $requests[0]['headers']['Authorization']);
+        $t->same('version=1', $requests[0]['headers']['Git-Protocol']);
+        $t->same(12.5, $requests[0]['timeout']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('git://example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl("https://example.test/repo.git\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/repo.git#refs'));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, ['bad:param']));
+
+        $badType = new SmartHttpReceivePackTransport(
+            'https://example.test/repo.git',
+            static fn (): array => ['status' => 200, 'headers' => ['Content-Type' => 'text/plain'], 'body' => '']
+        );
+        $t->throws(RuntimeException::class, static fn () => $badType->readAdvertisement());
+
+        $badService = new SmartHttpReceivePackTransport(
+            'https://example.test/repo.git',
+            static function () use ($packet, $flush): array {
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-upload-pack\n") . $flush,
+                ];
+            }
+        );
+        $t->throws(RuntimeException::class, static fn () => $badService->readAdvertisement());
     },
     'receive-pack transport guards state order and truncated packet streams' => static function (TestRunner $t) use ($streamWith): void {
         $transport = new StreamReceivePackTransport($streamWith(''), $streamWith(''));
