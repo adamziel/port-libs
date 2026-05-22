@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, color keyword shortening, calc/min/max/clamp operator spacing, and WordPress block-theme fixture/example.",
     "blocker": "Full upstream runner not executed: npm test lacks node_modules/uvu, and offline Cargo no-run cannot resolve napi-derive for the Node workspace; full parity run requires dependency install/build beyond this modest lane slice.",
-    "latestCommit": "pending current lightningcss lane commit",
+    "latestCommit": "ee033cd72d1e",
     "nextTask": "Port a small selector/tokenizer parser slice so PHP can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics."
 }
