@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: lane-local Syncthing PHP tests pass 42/0 with 302 assertions; root `php tools/run-tests.php` passes 61 test files, 3428 assertions, 0 failures; new `php lanes/syncthing/examples/wordpress-index-update-frame.php` example runs; no upstream runner parity",
     "currentWork": "Native scanner-style block hashing, version vectors, FileInfo conflict/equivalence behavior, protocol validation/wire-path normalization, BEP Hello/Request/Response/ClusterConfig proto3 payload serialization, uncompressed plus LZ4-compressed post-auth frame handling, and Index/IndexUpdate FileInfo protobuf payloads from upstream `bep_index_updates.go`, `bep_fileinfo.go`, `vector.go`, `bep_clusterconfig.go`, `proto/bep/bep.proto`, `protocol.go`, and focused `protocol_test.go` compression tests.",
     "blocker": "Full upstream runner has not executed: `.upstream-cache/syncthing` is blob-filtered/no-checkout with mass tracked deletions, and `go test ./...` would require hydrating the full checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`. Go itself is available as `/usr/bin/go` version `go1.26.3-X:nodwarf5 linux/amd64`.",
-    "latestCommit": "pending lane commit",
+    "latestCommit": "9730b2c",
     "nextTask": "Port native DownloadProgress append/forget payloads and frames from focused upstream `proto/bep/bep.proto` and protocol inbox handling, including version vectors, block indexes, and block size fields for resumable WordPress media transfers."
 }
