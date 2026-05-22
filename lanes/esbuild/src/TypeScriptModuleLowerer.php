@@ -16,13 +16,26 @@ final class TypeScriptModuleLowerer
      */
     private array $enumConstants = [];
     private bool $useDefineForClassFields = true;
+    private bool $minifySyntax = false;
+    private bool $lowerUsingDeclarations = false;
+    private bool $hasLoweredUsingDeclarations = false;
+    private bool $hasLoweredAwaitUsingDeclarations = false;
 
-    public function lower(string $source, bool $useDefineForClassFields = true): string
+    public function lower(
+        string $source,
+        bool $useDefineForClassFields = true,
+        bool $minifySyntax = false,
+        bool $lowerUsingDeclarations = false
+    ): string
     {
         $this->source = $source;
         $this->tokens = (new JsLexer())->tokenize($source);
         $this->enumConstants = $this->collectEnumConstants();
         $this->useDefineForClassFields = $useDefineForClassFields;
+        $this->minifySyntax = $minifySyntax;
+        $this->lowerUsingDeclarations = $lowerUsingDeclarations;
+        $this->hasLoweredUsingDeclarations = false;
+        $this->hasLoweredAwaitUsingDeclarations = false;
 
         $lines = [];
         $exportAssignments = [];
@@ -121,7 +134,13 @@ final class TypeScriptModuleLowerer
 
             $usingDeclaration = $this->isUsingDeclarationStart($i);
             if ($usingDeclaration) {
-                $this->validateUsingDeclaration($i, $effectiveEnd);
+                $using = $this->parseUsingDeclaration($i, $effectiveEnd);
+                $statement = $this->printUsingDeclaration($using);
+                if ($statement !== '') {
+                    $lines[] = $statement;
+                }
+                $i = $end;
+                continue;
             }
 
             $statement = $usingDeclaration || $this->containsErasableTypeScriptSyntax($i, $effectiveEnd) || $this->containsInlineableEnumReference($i, $effectiveEnd)
@@ -135,6 +154,10 @@ final class TypeScriptModuleLowerer
 
         foreach ($exportAssignments as $assignment) {
             $lines[] = $assignment;
+        }
+
+        if ($this->hasLoweredUsingDeclarations) {
+            return $this->wrapUsingHelperStatements($lines);
         }
 
         return $lines === [] ? '' : implode("\n", $lines) . "\n";
@@ -3707,14 +3730,19 @@ final class TypeScriptModuleLowerer
         return max($start, $count - 1);
     }
 
-    private function validateUsingDeclaration(int $start, int $end): void
+    /**
+     * @return array{await:bool, declarations:list<array{name:string, valueStart:int, valueEnd:int}>}
+     */
+    private function parseUsingDeclaration(int $start, int $end): array
     {
         $using = $this->usingDeclarationKeywordIndex($start);
         if ($using === null) {
-            return;
+            throw new \InvalidArgumentException('Expected TypeScript using declaration');
         }
 
+        $isAwaitUsing = $using !== $start;
         $cursor = $using + 1;
+        $declarations = [];
         while ($cursor <= $end) {
             $name = $this->tokens[$cursor] ?? null;
             if ($name?->kind !== 'identifier') {
@@ -3731,17 +3759,253 @@ final class TypeScriptModuleLowerer
             }
 
             $cursor++;
+            $valueStart = $cursor;
             if ($cursor > $end) {
                 throw new \InvalidArgumentException('Expected initializer after TypeScript using declaration');
             }
 
             $cursor = $this->usingInitializerEnd($cursor, $end);
+            $valueEnd = ($this->tokens[$cursor] ?? null)?->text === ',' ? $cursor - 1 : $end;
+            if ($valueEnd < $valueStart) {
+                throw new \InvalidArgumentException('Expected initializer after TypeScript using declaration');
+            }
+            $declarations[] = [
+                'name' => $name->text,
+                'valueStart' => $valueStart,
+                'valueEnd' => $valueEnd,
+            ];
+
             if (($this->tokens[$cursor] ?? null)?->text !== ',') {
-                return;
+                return ['await' => $isAwaitUsing, 'declarations' => $declarations];
             }
 
             $cursor++;
         }
+
+        return ['await' => $isAwaitUsing, 'declarations' => $declarations];
+    }
+
+    /**
+     * @param array{await:bool, declarations:list<array{name:string, valueStart:int, valueEnd:int}>} $using
+     */
+    private function printUsingDeclaration(array $using): string
+    {
+        $canSkipUsingMachinery = !$using['await'] && $this->usingDeclarationsCanSkipUsingMachinery($using);
+        if ($this->minifySyntax && $canSkipUsingMachinery) {
+            $kind = $this->lowerUsingDeclarations ? 'var' : 'const';
+
+            return $kind . ' ' . $this->printUsingDeclarators($using['declarations'], false) . ';';
+        }
+
+        if ($this->lowerUsingDeclarations) {
+            $this->hasLoweredUsingDeclarations = true;
+            if ($using['await']) {
+                $this->hasLoweredAwaitUsingDeclarations = true;
+            }
+
+            return 'var ' . $this->printUsingDeclarators($using['declarations'], true, $using['await']) . ';';
+        }
+
+        $kind = $using['await'] ? 'await using' : 'using';
+
+        return $kind . ' ' . $this->printUsingDeclarators($using['declarations'], false) . ';';
+    }
+
+    /**
+     * @param list<array{name:string, valueStart:int, valueEnd:int}> $declarations
+     */
+    private function printUsingDeclarators(array $declarations, bool $wrapInHelper, bool $isAwaitUsing = false): string
+    {
+        $parts = [];
+        foreach ($declarations as $declaration) {
+            $value = $this->printUsingInitializer($declaration['valueStart'], $declaration['valueEnd']);
+            if ($wrapInHelper) {
+                $args = '_stack, ' . $value;
+                if ($isAwaitUsing) {
+                    $args .= ', true';
+                }
+                $value = '__using(' . $args . ')';
+            }
+            $parts[] = $declaration['name'] . ' = ' . $value;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * @param array{await:bool, declarations:list<array{name:string, valueStart:int, valueEnd:int}>} $using
+     */
+    private function usingDeclarationsCanSkipUsingMachinery(array $using): bool
+    {
+        if ($using['declarations'] === []) {
+            return false;
+        }
+
+        foreach ($using['declarations'] as $declaration) {
+            if (!$this->usingInitializerCanSkipUsingMachinery($declaration['valueStart'], $declaration['valueEnd'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function usingInitializerCanSkipUsingMachinery(int $start, int $end): bool
+    {
+        [$start, $end] = $this->stripOuterParentheses($start, $end);
+        $comma = $this->lastTopLevelComma($start, $end);
+        if ($comma !== null) {
+            return $this->usingInitializerCanSkipUsingMachinery($comma + 1, $end);
+        }
+
+        return $start === $end
+            && in_array(($this->tokens[$start] ?? null)?->text, ['null', 'undefined'], true);
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private function stripOuterParentheses(int $start, int $end): array
+    {
+        while (($this->tokens[$start] ?? null)?->text === '('
+            && ($this->tokens[$end] ?? null)?->text === ')'
+            && $this->findMatchingPunctuator($start, '(', ')') === $end
+        ) {
+            $start++;
+            $end--;
+        }
+
+        return [$start, $end];
+    }
+
+    private function lastTopLevelComma(int $start, int $end): ?int
+    {
+        $depth = 0;
+        $lastComma = null;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = ($this->tokens[$i] ?? null)?->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($text === ',' && $depth === 0) {
+                $lastComma = $i;
+            }
+        }
+
+        return $lastComma;
+    }
+
+    private function printUsingInitializer(int $start, int $end): string
+    {
+        $parts = [];
+        $previous = null;
+        for ($i = $start; $i <= $end; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+
+            $text = $token->text;
+            if ($token->kind === 'string') {
+                $text = '"' . addcslashes(stripcslashes(substr($token->text, 1, -1)), "\\\"") . '"';
+            } elseif ($token->kind === 'identifier' && $token->text === 'undefined') {
+                $text = 'void 0';
+            }
+
+            if ($previous !== null && $this->needsSpace($previous, $text)) {
+                $parts[] = ' ';
+            }
+            $parts[] = $text;
+            $previous = $text;
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function wrapUsingHelperStatements(array $lines): string
+    {
+        $body = [];
+        foreach ($lines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $body[] = '  ' . $part;
+            }
+        }
+
+        $finally = $this->hasLoweredAwaitUsingDeclarations
+            ? "  var _promise = __callDispose(_stack, _error, _hasError);\n  _promise && await _promise;"
+            : '  __callDispose(_stack, _error, _hasError);';
+
+        return $this->usingHelperRuntime()
+            . "var _stack = [];\n"
+            . "try {\n"
+            . implode("\n", $body) . "\n"
+            . "} catch (_) {\n"
+            . "  var _error = _, _hasError = true;\n"
+            . "} finally {\n"
+            . $finally . "\n"
+            . "}\n";
+    }
+
+    private function usingHelperRuntime(): string
+    {
+        return <<<'JS'
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __using = (stack, value, async) => {
+  if (value != null) {
+    if (typeof value !== "object" && typeof value !== "function") __typeError("Object expected");
+    var dispose, inner;
+    if (async) dispose = value[__knownSymbol("asyncDispose")];
+    if (dispose === void 0) {
+      dispose = value[__knownSymbol("dispose")];
+      if (async) inner = dispose;
+    }
+    if (typeof dispose !== "function") __typeError("Object not disposable");
+    if (inner) dispose = function() {
+      try {
+        inner.call(this);
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    };
+    stack.push([async, dispose, value]);
+  } else if (async) {
+    stack.push([async]);
+  }
+  return value;
+};
+var __callDispose = (stack, error, hasError) => {
+  var E = typeof SuppressedError === "function" ? SuppressedError : function(e, s, m, _2) {
+    return _2 = Error(m), _2.name = "SuppressedError", _2.error = e, _2.suppressed = s, _2;
+  };
+  var fail = (e) => error = hasError ? new E(e, error, "An error was suppressed during disposal") : (hasError = true, e);
+  var next = (it) => {
+    while (it = stack.pop()) {
+      try {
+        var result = it[1] && it[1].call(it[2]);
+        if (it[0]) return Promise.resolve(result).then(next, (e) => (fail(e), next()));
+      } catch (e) {
+        fail(e);
+      }
+    }
+    if (hasError) throw error;
+  };
+  return next();
+};
+JS;
     }
 
     private function usingInitializerEnd(int $start, int $end): int

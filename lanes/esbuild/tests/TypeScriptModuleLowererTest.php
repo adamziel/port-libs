@@ -188,6 +188,40 @@ TS);
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('using x: Disposable'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('using x = y, z'));
     },
+    'maps upstream using nullish initializer optimization boundaries' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same("using x = void 0;\n", $lowerer->lower('using x = undefined'));
+        $t->same("using x = (foo, void 0);\n", $lowerer->lower('using x = (foo, undefined)'));
+        $t->same("const x = null;\n", $lowerer->lower('using x = null', minifySyntax: true));
+        $t->same("const x = void 0;\n", $lowerer->lower('using x = undefined', minifySyntax: true));
+        $t->same("const x = (foo, null);\n", $lowerer->lower('using x = (foo, null)', minifySyntax: true));
+        $t->same("const x = null, y = void 0;\n", $lowerer->lower('using x = null, y = undefined', minifySyntax: true));
+        $t->same("using x = null, y = z;\n", $lowerer->lower('using x = null, y = z', minifySyntax: true));
+        $t->same("using x = z, y = void 0;\n", $lowerer->lower('using x = z, y = undefined', minifySyntax: true));
+        $t->same("await using x = null;\n", $lowerer->lower('await using x = null', minifySyntax: true));
+    },
+    'lowers upstream using declarations through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            'foo; using x: Disposable = y, z = undefined; bar',
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains('var __callDispose = (stack, error, hasError) => {', $lowered);
+        $t->contains('var _stack = [];', $lowered);
+        $t->contains("try {\n  foo;\n  var x = __using(_stack, y), z = __using(_stack, void 0);\n  bar;\n}", $lowered);
+        $t->contains("} catch (_) {\n  var _error = _, _hasError = true;\n} finally {\n  __callDispose(_stack, _error, _hasError);\n}", $lowered);
+        $t->true(strpos($lowered, 'var __using') < strpos($lowered, 'try {'));
+
+        $optimized = (new TypeScriptModuleLowerer())->lower(
+            'using x = null',
+            minifySyntax: true,
+            lowerUsingDeclarations: true
+        );
+        $t->same("var x = null;\n", $optimized);
+        $t->true(!str_contains($optimized, '__using'));
+    },
     'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1013,6 +1047,7 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
     'lowers wordpress using disposable asset handles without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-disposable.ts');
         $lowered = (new TypeScriptModuleLowerer())->lower($source);
+        $legacyLowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
 
         $t->contains('using previewAsset = acquirePreviewAsset(metadata.viewScript), workerAsset = acquireWorkerAsset("file:./card-worker.js");', $lowered);
         $t->contains('const settings = {name:metadata.name, viewScript:previewAsset.url, worker:workerAsset.url,};', $lowered);
@@ -1021,5 +1056,10 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, 'satisfies'));
+        $t->contains('var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript)), workerAsset = __using(_stack, acquireWorkerAsset("file:./card-worker.js"));', $legacyLowered);
+        $t->contains('__callDispose(_stack, _error, _hasError);', $legacyLowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $legacyLowered);
+        $t->true(strpos($legacyLowered, 'var __using') < strpos($legacyLowered, 'try {'));
+        $t->true(!str_contains($legacyLowered, '@wordpress/blocks'));
     },
 ];

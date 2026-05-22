@@ -60,6 +60,7 @@ $controlSuperLowered = (new TypeScriptModuleLowerer())->lower($controlSuperTypeS
 $privateSettingsLowered = (new TypeScriptModuleLowerer())->lower($privateSettingsTypeScriptSource, false);
 $autoAccessorLowered = (new TypeScriptModuleLowerer())->lower($autoAccessorTypeScriptSource);
 $usingDisposableLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource);
+$usingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -102,6 +103,7 @@ printf("WordPress TypeScript control super controller bytes: %d\n", strlen($cont
 printf("WordPress TypeScript private settings controller bytes: %d\n", strlen($privateSettingsLowered));
 printf("WordPress TypeScript auto accessor controller bytes: %d\n", strlen($autoAccessorLowered));
 printf("WordPress TypeScript using disposable asset bytes: %d\n", strlen($usingDisposableLowered));
+printf("WordPress TypeScript legacy using helper bytes: %d\n", strlen($usingDisposableLegacyLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
