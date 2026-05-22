@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Difftastic\HtmlDiffRenderer;
+use PortLibs\Difftastic\FileContentDecoder;
 use PortLibs\Difftastic\JsonDiffRenderer;
 use PortLibs\Difftastic\TokenDiffer;
 
@@ -1509,6 +1510,83 @@ return [
         $t->contains('rhs bar:string', $encoded);
         $t->true(!str_contains($encoded, '${{ BAR }}:normal'), 'YAML block scalar bodies should not fall back to normal token highlighting.');
         $t->true(!str_contains($encoded, '{:delimiter'), 'Expression braces inside a YAML block scalar should remain string content.');
+    },
+    'maps upstream utf16 sample bytes as text content' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-utf16-1.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-utf16-2.hex')));
+        $t->true(is_string($before));
+        $t->true(is_string($after));
+
+        $decoder = new FileContentDecoder();
+        $decodedBefore = $decoder->guessTextContent($before);
+        $t->true($decodedBefore !== null, 'UTF-16 files with a byte order mark should be decoded as text.');
+        $t->contains('print("hello ☃ snowman")', (string) $decodedBefore);
+
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileBytesDiff(
+            $before,
+            $after,
+            'sample_files/utf16_1.py',
+            'Python',
+            ['language' => 'python'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Python', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']), 'Decoded UTF-16 text should produce normal changed text chunks, not a binary status envelope.');
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs hello:string', $encoded);
+        $t->contains('lhs ☃:string', $encoded);
+        $t->contains('rhs no:string', $encoded);
+        $t->contains('rhs "こんにちは世界":string', $encoded);
+    },
+    'wordpress utf16 wxr bytes render as xml text instead of binary' => static function (TestRunner $t): void {
+        $encodeUtf16Le = static function (string $text): string {
+            $bytes = "\xff\xfe";
+            foreach (str_split($text) as $byte) {
+                $bytes .= $byte . "\0";
+            }
+
+            return $bytes;
+        };
+        $before = $encodeUtf16Le("<?xml version=\"1.0\"?>\n<rss>\n  <wp:postmeta key=\"_old_builder\">legacy</wp:postmeta>\n</rss>\n");
+        $after = $encodeUtf16Le("<?xml version=\"1.0\"?>\n<rss>\n  <wp:postmeta key=\"_wp_page_template\">default</wp:postmeta>\n  <wp:postmeta key=\"_thumbnail_id\">42</wp:postmeta>\n</rss>\n");
+
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileBytesDiff(
+            $before,
+            $after,
+            'wp-content/uploads/wordpress-export.xml',
+            'XML',
+            ['language' => 'xml'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('XML', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+
+        $contents = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $contents[] = $change['content'];
+                    }
+                }
+            }
+        }
+        $joined = implode("\n", $contents);
+        $t->contains('_old_builder', $joined);
+        $t->contains('_wp_page_template', $joined);
+        $t->contains('_thumbnail_id', $joined);
     },
     'wordpress plugin workflow yaml display keeps wp cli command changes string highlighted' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-before.yml');

@@ -23,6 +23,17 @@ final class JsonDiffRenderer
     }
 
     /**
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
+     */
+    public function renderFileBytesDiff(string $oldBytes, string $newBytes, string $path, string $language, array $options = []): string
+    {
+        return json_encode(
+            $this->fileBytesDiff($oldBytes, $newBytes, $path, $language, $options),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+        );
+    }
+
+    /**
      * @param list<array{old:string, new:string, path:string, language:string, options?:array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int}}> $files
      */
     public function renderDirectoryDiff(array $files, bool $printUnchanged = false): string
@@ -42,6 +53,23 @@ final class JsonDiffRenderer
         }
 
         return json_encode($diffs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
+     * @return array<string, mixed>
+     */
+    public function fileBytesDiff(string $oldBytes, string $newBytes, string $path, string $language, array $options = []): array
+    {
+        $decoder = new FileContentDecoder();
+        $old = $decoder->guessTextContent($oldBytes);
+        $new = $decoder->guessTextContent($newBytes);
+
+        if ($old === null || $new === null) {
+            return $this->statusFile('Binary', $path, $oldBytes === $newBytes ? 'unchanged' : 'changed');
+        }
+
+        return $this->fileDiff($old, $new, $path, $language, $options);
     }
 
     /**
