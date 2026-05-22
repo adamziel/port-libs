@@ -159,6 +159,24 @@ var ns;
 })(ns || (ns = {}));
 JS . "\n", $lowerer->lower('namespace ns { export declare let [[L2 = x, { [y]: L3 }]]; console.log(L2, L3, x, y) }'));
     },
+    'lowers upstream namespace destructuring exports' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+
+        $t->same(<<<'JS'
+var A;
+((A) => {
+  [A.a, [, A.b = c,...A.d], {[x]:[[A.y]] = z,...A.o}] = ref;
+})(A || (A = {}));
+JS . "\n", $lowerer->lower('namespace A { export var [a,[,b=c,...d],{[x]:[[y]]=z,...o}] = ref }'));
+
+        $t->same(<<<'JS'
+var A;
+((A) => {
+  [A.a, [, A.b = c,...A.d], {[x]:[[A.y]] = z,...A.o}] = ref;
+  console.log(A.a, A.b, A.d, A.y, A.o, x, c, z);
+})(A || (A = {}));
+JS . "\n", $lowerer->lower('namespace A { export var [a,[,b=c,...d],{[x]:[[y]]=z,...o}] = ref; console.log(a,b,d,y,o,x,c,z) }'));
+    },
     'lowers wordpress namespace import equals aliases without node' => static function (TestRunner $t): void {
         $source = <<<'TS'
 namespace CardBlockRuntime {
@@ -219,5 +237,12 @@ JS . "\n", $lowered);
         $t->contains('CardBlock.blocks = wp.blocks;', $lowered);
         $t->contains('CardBlock.settings = {name:metadata.name, viewScript:"file:./view.js"};', $lowered);
         $t->contains('CardBlock.blocks.registerBlockType(CardBlock.settings.name, CardBlock.settings);', $lowered);
+    },
+    'lowers wordpress destructured namespace settings without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-destructured-settings.ts');
+        $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
+
+        $t->contains('[{name:CardBlockRuntime.blockName}, CardBlockRuntime.settings, [CardBlockRuntime.viewMode],] = blockRecord;', $lowered);
+        $t->contains('CardBlockRuntime.blocks.registerBlockType(CardBlockRuntime.blockName, {...CardBlockRuntime.settings, viewMode:CardBlockRuntime.viewMode});', $lowered);
     },
 ];
