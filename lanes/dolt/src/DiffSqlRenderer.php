@@ -1,0 +1,185 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Dolt;
+
+final class DiffSqlRenderer
+{
+    /**
+     * Render projected `DOLT_DIFF_*` rows as the SQL output used by
+     * `dolt diff -r sql`.
+     *
+     * @param list<array<string, scalar|null>> $diffRows
+     * @param array{filter?:string|null} $options
+     */
+    public function render(string $tableName, TableSchema $schema, array $diffRows, array $options = []): string
+    {
+        if ($tableName === '') {
+            throw new \InvalidArgumentException('Diff SQL table name must be a non-empty string.');
+        }
+
+        $filter = $this->normalizeFilter($options['filter'] ?? null);
+        $lines = [];
+        foreach ($diffRows as $row) {
+            $diffType = $this->requiredDiffType($row['diff_type'] ?? null);
+            if ($filter !== null && $diffType !== $filter) {
+                continue;
+            }
+
+            $statement = match ($diffType) {
+                TableDiff::DIFF_ADDED => $this->insertStatement($tableName, $schema, $row),
+                TableDiff::DIFF_REMOVED => $this->deleteStatement($tableName, $schema, $row),
+                TableDiff::DIFF_MODIFIED => $this->updateStatement($tableName, $schema, $row),
+            };
+
+            if ($statement !== null) {
+                $lines[] = $statement;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function normalizeFilter(mixed $filter): ?string
+    {
+        if ($filter === null || $filter === '' || $filter === 'all') {
+            return null;
+        }
+        if (!is_string($filter)) {
+            throw new \InvalidArgumentException('Diff SQL filter must be a string.');
+        }
+        if ($filter === TableDiff::DIFF_ADDED || $filter === TableDiff::DIFF_MODIFIED) {
+            return $filter;
+        }
+        if ($filter === TableDiff::DIFF_REMOVED || $filter === TableDeltaMatcher::DIFF_DROPPED) {
+            return TableDiff::DIFF_REMOVED;
+        }
+        if ($filter === TableDeltaMatcher::DIFF_RENAMED) {
+            return TableDeltaMatcher::DIFF_RENAMED;
+        }
+
+        throw new \InvalidArgumentException(
+            "invalid filter: {$filter}. Valid values are: added, modified, renamed, dropped (or removed)"
+        );
+    }
+
+    private function requiredDiffType(mixed $value): string
+    {
+        if (!is_string($value) || $value === '') {
+            throw new \InvalidArgumentException('Diff SQL rows must include a non-empty diff_type.');
+        }
+        if (!in_array($value, [TableDiff::DIFF_ADDED, TableDiff::DIFF_REMOVED, TableDiff::DIFF_MODIFIED], true)) {
+            throw new \InvalidArgumentException("Unsupported row diff_type: {$value}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     */
+    private function insertStatement(string $tableName, TableSchema $schema, array $row): string
+    {
+        $columns = $schema->columns();
+        $names = [];
+        $values = [];
+        foreach ($columns as $column) {
+            $names[] = $this->quoteIdentifier($column['name']);
+            $values[] = $this->sqlValue($row['to_' . $column['name']] ?? null);
+        }
+
+        return 'INSERT INTO ' . $this->quoteIdentifier($tableName)
+            . ' (' . implode(',', $names) . ') VALUES (' . implode(',', $values) . ');';
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     */
+    private function deleteStatement(string $tableName, TableSchema $schema, array $row): string
+    {
+        return 'DELETE FROM ' . $this->quoteIdentifier($tableName)
+            . ' WHERE ' . implode(' AND ', $this->primaryKeyPredicates($schema, $row, 'from_')) . ';';
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     */
+    private function updateStatement(string $tableName, TableSchema $schema, array $row): ?string
+    {
+        $set = [];
+        foreach ($schema->columns() as $column) {
+            if ($column['primaryKey']) {
+                continue;
+            }
+
+            $name = $column['name'];
+            $fromValue = $row['from_' . $name] ?? null;
+            $toValue = $row['to_' . $name] ?? null;
+            if ($fromValue === $toValue) {
+                continue;
+            }
+
+            $set[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($toValue);
+        }
+
+        if ($set === []) {
+            return null;
+        }
+
+        return 'UPDATE ' . $this->quoteIdentifier($tableName)
+            . ' SET ' . implode(',', $set)
+            . ' WHERE ' . implode(' AND ', $this->primaryKeyPredicates($schema, $row, 'to_')) . ';';
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     * @return list<string>
+     */
+    private function primaryKeyPredicates(TableSchema $schema, array $row, string $prefix): array
+    {
+        $predicates = [];
+        foreach ($schema->primaryKeyColumns() as $column) {
+            $name = $column['name'];
+            $key = $prefix . $name;
+            if (!array_key_exists($key, $row) || $row[$key] === null) {
+                throw new \InvalidArgumentException("Diff SQL row is missing primary key column {$key}.");
+            }
+
+            $predicates[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($row[$key]);
+        }
+
+        if ($predicates === []) {
+            throw new \InvalidArgumentException('Diff SQL rendering requires at least one primary key column.');
+        }
+
+        return $predicates;
+    }
+
+    private function sqlValue(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('Diff SQL values must be scalar or null.');
+        }
+
+        return "'" . str_replace(["\\", "'"], ["\\\\", "\\'"], $value) . "'";
+    }
+
+    private function quoteIdentifier(string $identifier): string
+    {
+        if ($identifier === '') {
+            throw new \InvalidArgumentException('SQL identifiers must be non-empty strings.');
+        }
+
+        return '`' . str_replace('`', '``', $identifier) . '`';
+    }
+}

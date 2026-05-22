@@ -13,7 +13,7 @@ final class DiffSummaryRenderer
      * shape used by `dolt diff --summary`.
      *
      * @param list<array<string, mixed>> $summaryRows
-     * @param array{tableNames?:list<string>} $options
+     * @param array{tableNames?:list<string>, filter?:string|null} $options
      */
     public function render(array $summaryRows, array $options = []): string
     {
@@ -53,7 +53,7 @@ final class DiffSummaryRenderer
      * Render the table names used by `dolt diff --name-only`.
      *
      * @param list<array<string, mixed>> $summaryRows
-     * @param array{tableNames?:list<string>} $options
+     * @param array{tableNames?:list<string>, filter?:string|null} $options
      */
     public function renderNameOnly(array $summaryRows, array $options = []): string
     {
@@ -80,7 +80,7 @@ final class DiffSummaryRenderer
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @param array{tableNames?:list<string>} $options
+     * @param array{tableNames?:list<string>, filter?:string|null} $options
      * @return list<array<string, mixed>>
      */
     private function filteredRows(array $rows, array $options): array
@@ -90,19 +90,51 @@ final class DiffSummaryRenderer
             throw new \InvalidArgumentException('tableNames must be a list of table names.');
         }
         $tableNames = $this->normalizeTableNames($tableNames);
-        if ($tableNames === []) {
+        if ($tableNames !== []) {
+            $rows = array_values(array_filter($rows, function (array $row) use ($tableNames): bool {
+                foreach ($this->candidateNames($row) as $name) {
+                    if (in_array(strtolower($name), $tableNames, true)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }));
+        }
+
+        $filter = $this->normalizeFilter($options['filter'] ?? null);
+        if ($filter === null) {
             return $rows;
         }
 
-        return array_values(array_filter($rows, function (array $row) use ($tableNames): bool {
-            foreach ($this->candidateNames($row) as $name) {
-                if (in_array(strtolower($name), $tableNames, true)) {
-                    return true;
-                }
-            }
-
-            return false;
+        return array_values(array_filter($rows, function (array $row) use ($filter): bool {
+            return $this->requiredDiffType($row['diff_type'] ?? null) === $filter;
         }));
+    }
+
+    private function normalizeFilter(mixed $filter): ?string
+    {
+        if ($filter === null || $filter === '' || $filter === 'all') {
+            return null;
+        }
+        if (!is_string($filter)) {
+            throw new \InvalidArgumentException('Diff summary filter must be a string.');
+        }
+        if ($filter === 'removed') {
+            return TableDeltaMatcher::DIFF_DROPPED;
+        }
+        if (!in_array($filter, [
+            TableDeltaMatcher::DIFF_ADDED,
+            TableDeltaMatcher::DIFF_MODIFIED,
+            TableDeltaMatcher::DIFF_RENAMED,
+            TableDeltaMatcher::DIFF_DROPPED,
+        ], true)) {
+            throw new \InvalidArgumentException(
+                "invalid filter: {$filter}. Valid values are: added, modified, renamed, dropped (or removed)"
+            );
+        }
+
+        return $filter;
     }
 
     /**
