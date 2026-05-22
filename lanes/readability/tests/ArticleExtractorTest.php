@@ -682,7 +682,7 @@ return [
         $t->contains('Open inline note', $article->contentHtml);
         $t->true(!str_contains($article->contentHtml, 'javascript:'), 'javascript links should be replaced by inert content like upstream post-processing');
     },
-    'maps Mozilla clean-links fixture popup links and whitespace-trimmed URIs' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+    'maps Mozilla clean-links fixture popup links and whitespace-trimmed URIs' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/clean-links';
         $source = (string) file_get_contents($fixture . '/source.html');
         $expected = (string) file_get_contents($fixture . '/expected.html');
@@ -698,6 +698,7 @@ return [
         $t->same($metadata['dir'], $article->dir);
         $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
 
         $articleHrefs = $attributeValues($article->contentHtml, '//a[@href]/@href');
         $t->same($attributeValues($expected, '//a[@href]/@href'), $articleHrefs);
@@ -714,6 +715,26 @@ return [
 
         $t->same([], $attributeValues($article->contentHtml, '//a[starts-with(@href, "javascript:")]/@href'));
         $t->same([], $attributeValues($article->contentHtml, '//@onclick|//@onmouseout'));
+    },
+    'trims selected-root nonbreaking whitespace from classic WordPress exports' => static function (TestRunner $t): void {
+        $nbsp = html_entity_decode('&nbsp;', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $source = '<html><head><title>Classic NBSP Export</title></head><body>&nbsp;&nbsp;'
+            . '<table><tbody><tr><td>'
+            . '<h1>Classic NBSP Export</h1>'
+            . '<p>' . str_repeat('Classic WordPress exports sometimes leave nonbreaking layout padding before the article table. ', 3) . '</p>'
+            . '<p>This paragraph keeps&nbsp;internal nonbreaking space while the selected root drops padding-only text nodes.</p>'
+            . '</td></tr></tbody></table>&nbsp;</body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Classic NBSP Export', $article->title);
+        $t->same(false, str_starts_with($article->text, $nbsp), 'selected-root NBSP padding should not lead article text');
+        $t->same(false, str_ends_with($article->text, $nbsp), 'selected-root NBSP padding should not trail article text');
+        $t->same(false, str_starts_with($article->contentHtml, $nbsp), 'serialized content should start with article markup');
+        $t->contains('keeps' . $nbsp . 'internal nonbreaking space', $article->text);
+        $t->contains('<!-- wp:paragraph -->', $blocks);
     },
     'removes trailing WordPress footer link bars after article content' => static function (TestRunner $t): void {
         $html = '<html><head><title>Legacy Footer Link Cleanup</title></head><body><article>'

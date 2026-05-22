@@ -1830,8 +1830,20 @@ final class ArticleExtractor
         $this->cleanClasses($scope);
         $this->unwrapTransparentSectionWrappers($scope);
         $this->insertTextBoundaryWhitespace($scope);
+        $this->trimBoundaryWhitespace($scope);
 
         return $scope;
+    }
+
+    private function trimBoundaryWhitespace(\DOMElement $scope): void
+    {
+        while ($scope->firstChild instanceof \DOMNode && $this->isWhitespaceTextNode($scope->firstChild)) {
+            $scope->removeChild($scope->firstChild);
+        }
+
+        while ($scope->lastChild instanceof \DOMNode && $this->isWhitespaceTextNode($scope->lastChild)) {
+            $scope->removeChild($scope->lastChild);
+        }
     }
 
     private function insertTextBoundaryWhitespace(\DOMElement $scope): void
