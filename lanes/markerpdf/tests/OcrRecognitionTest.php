@@ -41,6 +41,56 @@ return [
         $t->same([0], $recognition->ocrPageIndexes($pages));
         $t->same([0, 1], $recognition->ocrPageIndexes($pages, ocrAllPages: true));
     },
+    'plans surya recognition polygons with upstream scaling and zero-area skip' => static function (TestRunner $t): void {
+        $recognition = new OcrRecognition(new MarkerSettings([
+            'SURYA_OCR_DPI' => '192',
+            'SURYA_DETECTOR_DPI' => '96',
+            'RECOGNITION_BATCH_SIZE' => '5',
+        ]));
+        $pages = [[
+            'text_lines' => [
+                'image_bbox' => [0.0, 0.0, 600.0, 800.0],
+                'bboxes' => [
+                    ['polygon' => [[10, 10], [30, 10], [30, 20], [10, 20]]],
+                    ['bbox' => [50.0, 50.0, 50.0, 72.0]],
+                    ['bbox' => [100.0, 80.0, 140.0, 100.0]],
+                ],
+            ],
+        ]];
+
+        $plan = $recognition->suryaRecognitionPlan($pages, [0], 2);
+
+        $t->same(10, $plan['batch_size']);
+        $t->same(2.0, $plan['box_scale']);
+        $t->same([
+            [
+                [[20, 20], [60, 20], [60, 40], [20, 40]],
+                [[200, 160], [280, 160], [280, 200], [200, 200]],
+            ],
+        ], $plan['polygons']);
+    },
+    'builds surya recognized pages with upstream bbox rescaling' => static function (TestRunner $t) use ($page): void {
+        $recognition = new OcrRecognition();
+        $pages = [$page('@@@ ### !!!')];
+        $recognizedPages = $recognition->buildSuryaRecognitionPages(
+            $pages,
+            [0],
+            [[
+                ['text' => 'Recovered OCR text for a WordPress paragraph.', 'bbox' => [120.0, 192.0, 540.0, 232.0]],
+            ]],
+            [['width' => 1200, 'height' => 1600]]
+        );
+
+        $t->same('surya', $recognizedPages[0]['ocr_method']);
+        $t->same([60.0, 96.0, 270.0, 116.0], $recognizedPages[0]['blocks'][0]['bbox']);
+        $t->same('0_0', $recognizedPages[0]['blocks'][0]['lines'][0]['spans'][0]['span_id']);
+        $t->same('', $recognizedPages[0]['blocks'][0]['lines'][0]['spans'][0]['font']);
+        $t->same('Recovered OCR text for a WordPress paragraph.', $recognizedPages[0]['blocks'][0]['lines'][0]['spans'][0]['text']);
+
+        $result = $recognition->runWithSuppliedPages($pages, $recognizedPages);
+        $t->same(1, $result['stats']['ocr_success']);
+        $t->same('Recovered OCR text for a WordPress paragraph.', $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0]['text']);
+    },
     'replaces successful supplied OCR pages and reports upstream stats' => static function (TestRunner $t) use ($page): void {
         $recognition = new OcrRecognition();
         $pages = [

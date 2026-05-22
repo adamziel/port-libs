@@ -47,6 +47,143 @@ final class OcrRecognition
     }
 
     /**
+     * Native preprocessing boundary for marker.ocr.recognition::surya_recognition.
+     *
+     * Upstream scales detector polygons from SURYA_DETECTOR_DPI to SURYA_OCR_DPI
+     * before invoking the Surya recognizer, and drops zero-area polygons.
+     *
+     * @param list<array<string, mixed>> $pages
+     * @param list<int> $pageIndexes
+     * @return array{page_indexes: list<int>, polygons: list<list<list<list<int>>>>, batch_size: int, box_scale: float}
+     */
+    public function suryaRecognitionPlan(array $pages, array $pageIndexes, int|float $batchMultiplier = 1): array
+    {
+        $detectorDpi = (float) $this->settings->get('SURYA_DETECTOR_DPI');
+        $ocrDpi = (float) $this->settings->get('SURYA_OCR_DPI');
+        $boxScale = $detectorDpi > 0.0 ? $ocrDpi / $detectorDpi : 1.0;
+        $polygons = [];
+
+        foreach ($pageIndexes as $pageIndex) {
+            if (!isset($pages[$pageIndex]) || !is_array($pages[$pageIndex])) {
+                throw new InvalidArgumentException('Missing page for OCR page index ' . $pageIndex . '.');
+            }
+
+            $pagePolygons = [];
+            foreach ($this->textLineBoxes($pages[$pageIndex]) as $box) {
+                $polygon = $this->polygon($box);
+                if ($polygon === []) {
+                    continue;
+                }
+
+                $scaled = [];
+                foreach ($polygon as $point) {
+                    $scaled[] = [
+                        (int) ((float) $point[0] * $boxScale),
+                        (int) ((float) $point[1] * $boxScale),
+                    ];
+                }
+
+                if ($this->polygonAreaBbox($scaled) <= 0.0) {
+                    continue;
+                }
+
+                $pagePolygons[] = $scaled;
+            }
+            $polygons[] = $pagePolygons;
+        }
+
+        return [
+            'page_indexes' => array_values($pageIndexes),
+            'polygons' => $polygons,
+            'batch_size' => (int) ($this->batchSize() * (float) $batchMultiplier),
+            'box_scale' => $boxScale,
+        ];
+    }
+
+    /**
+     * Native postprocessing boundary for marker.ocr.recognition::surya_recognition.
+     *
+     * @param list<array<string, mixed>> $pages
+     * @param list<int> $pageIndexes
+     * @param list<list<array{text?: string, bbox?: list<float|int>}>> $recognizedTextLines
+     * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
+     * @return list<array<string, mixed>>
+     */
+    public function buildSuryaRecognitionPages(
+        array $pages,
+        array $pageIndexes,
+        array $recognizedTextLines,
+        array $imageSizes
+    ): array {
+        $count = count($pageIndexes);
+        if (count($recognizedTextLines) !== $count || count($imageSizes) !== $count) {
+            throw new InvalidArgumentException('OCR page indexes, recognized text lines, and image sizes must have matching counts.');
+        }
+
+        $newPages = [];
+        foreach ($pageIndexes as $position => $pageIndex) {
+            if (!isset($pages[$pageIndex]) || !is_array($pages[$pageIndex])) {
+                throw new InvalidArgumentException('Missing page for OCR page index ' . $pageIndex . '.');
+            }
+
+            $oldPage = $pages[$pageIndex];
+            $imageSize = $this->imageSize($imageSizes[$position]);
+            $imageBbox = $this->bbox($oldPage['text_lines']['image_bbox'] ?? null)
+                ?? $this->bbox($oldPage['bbox'] ?? null)
+                ?? [0.0, 0.0, (float) $imageSize['width'], (float) $imageSize['height']];
+
+            $blocks = [];
+            foreach ($recognizedTextLines[$position] as $lineIndex => $line) {
+                if (!is_array($line)) {
+                    continue;
+                }
+
+                $sourceBbox = $this->bbox($line['bbox'] ?? null);
+                if ($sourceBbox === null) {
+                    continue;
+                }
+
+                $scaledBbox = $this->rescaleBbox(
+                    [0.0, 0.0, (float) $imageSize['width'], (float) $imageSize['height']],
+                    $imageBbox,
+                    $sourceBbox
+                );
+
+                $blocks[] = [
+                    'bbox' => $scaledBbox,
+                    'pnum' => (int) $pageIndex,
+                    'lines' => [
+                        [
+                            'bbox' => $scaledBbox,
+                            'spans' => [
+                                [
+                                    'text' => (string) ($line['text'] ?? ''),
+                                    'bbox' => $scaledBbox,
+                                    'span_id' => (string) $pageIndex . '_' . $lineIndex,
+                                    'font' => '',
+                                    'font_weight' => 0,
+                                    'font_size' => 0,
+                                ],
+                            ],
+                        ],
+                    ],
+                ];
+            }
+
+            $newPages[] = [
+                'blocks' => $blocks,
+                'pnum' => (int) $pageIndex,
+                'bbox' => $imageBbox,
+                'rotation' => 0,
+                'text_lines' => $oldPage['text_lines'] ?? null,
+                'ocr_method' => 'surya',
+            ];
+        }
+
+        return $newPages;
+    }
+
+    /**
      * Native boundary for marker.ocr.recognition::run_ocr. Recognition output
      * is supplied by the caller so this slice does not load Surya/Tesseract.
      *
@@ -138,6 +275,142 @@ final class OcrRecognition
         }
 
         return $byIndex;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @return list<array<string, mixed>>
+     */
+    private function textLineBoxes(array $page): array
+    {
+        $textLines = $page['text_lines'] ?? null;
+        if (!is_array($textLines)) {
+            return [];
+        }
+
+        $boxes = $textLines['bboxes'] ?? $textLines['boxes'] ?? [];
+        if (!is_array($boxes)) {
+            return [];
+        }
+
+        return array_values(array_filter($boxes, static fn (mixed $box): bool => is_array($box)));
+    }
+
+    /**
+     * @param array<string, mixed> $box
+     * @return list<array{0: float, 1: float}>
+     */
+    private function polygon(array $box): array
+    {
+        if (isset($box['polygon']) && is_array($box['polygon'])) {
+            $polygon = [];
+            foreach ($box['polygon'] as $point) {
+                if (!is_array($point) || count($point) < 2) {
+                    continue;
+                }
+                $polygon[] = [(float) $point[0], (float) $point[1]];
+            }
+
+            return count($polygon) >= 2 ? $polygon : [];
+        }
+
+        $bbox = $this->bbox($box['bbox'] ?? $box);
+        if ($bbox === null) {
+            return [];
+        }
+
+        return [
+            [$bbox[0], $bbox[1]],
+            [$bbox[2], $bbox[1]],
+            [$bbox[2], $bbox[3]],
+            [$bbox[0], $bbox[3]],
+        ];
+    }
+
+    /**
+     * @param list<array{0: int, 1: int}> $polygon
+     */
+    private function polygonAreaBbox(array $polygon): float
+    {
+        if ($polygon === []) {
+            return 0.0;
+        }
+
+        $xs = array_map(static fn (array $point): int => $point[0], $polygon);
+        $ys = array_map(static fn (array $point): int => $point[1], $polygon);
+
+        return (float) ((max($xs) - min($xs)) * (max($ys) - min($ys)));
+    }
+
+    /**
+     * @param mixed $value
+     * @return array{width: int, height: int}
+     */
+    private function imageSize(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('OCR image size must be an array.');
+        }
+        if (isset($value['width'], $value['height'])) {
+            return ['width' => (int) $value['width'], 'height' => (int) $value['height']];
+        }
+        $values = array_values($value);
+        if (count($values) >= 2) {
+            return ['width' => (int) $values[0], 'height' => (int) $values[1]];
+        }
+
+        throw new InvalidArgumentException('OCR image size must provide width and height.');
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>|null
+     */
+    private function bbox(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+        if (isset($value['bbox'])) {
+            return $this->bbox($value['bbox']);
+        }
+
+        $values = array_values($value);
+        if (count($values) !== 4) {
+            return null;
+        }
+        foreach ($values as $item) {
+            if (!is_int($item) && !is_float($item)) {
+                return null;
+            }
+        }
+
+        return array_map(static fn (int|float $item): float => (float) $item, $values);
+    }
+
+    /**
+     * @param list<float> $from
+     * @param list<float> $to
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function rescaleBbox(array $from, array $to, array $bbox): array
+    {
+        $fromWidth = $from[2] - $from[0];
+        $fromHeight = $from[3] - $from[1];
+        $toWidth = $to[2] - $to[0];
+        $toHeight = $to[3] - $to[1];
+
+        if ($fromWidth == 0.0 || $fromHeight == 0.0) {
+            return $bbox;
+        }
+
+        return [
+            round($to[0] + (($bbox[0] - $from[0]) / $fromWidth) * $toWidth, 10),
+            round($to[1] + (($bbox[1] - $from[1]) / $fromHeight) * $toHeight, 10),
+            round($to[0] + (($bbox[2] - $from[0]) / $fromWidth) * $toWidth, 10),
+            round($to[1] + (($bbox[3] - $from[1]) / $fromHeight) * $toHeight, 10),
+        ];
     }
 
     /**
