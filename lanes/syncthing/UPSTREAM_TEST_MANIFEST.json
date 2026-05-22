@@ -6,21 +6,54 @@
         "name": "syncthing/syncthing",
         "url": "https://github.com/syncthing/syncthing",
         "commit": "3962a237232473c20a44945a6c8ce8c930375360",
-        "license": "pending verification from upstream checkout",
+        "license": "MPL-2.0",
         "architecture": "Go device/folder model, block exchange, conflict handling, protocol messages, and resumable sync."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Go package tests and integration tests; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": 211,
+        "mapped": 6,
+        "source": "Shallow blob-filtered upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted test-related paths with git ls-tree without hydrating the full checkout.",
+        "inventory": {
+            "goTestFiles": 141,
+            "testAndTestdataPaths": 72,
+            "scriptPaths": 13,
+            "uniqueTestRelatedPaths": 211,
+            "targetScannerProtocolModelTestFiles": 34,
+            "targetScannerProtocolModelTestdataFiles": 1,
+            "goTestFileBreakdown": {
+                "lib": 105,
+                "test": 15,
+                "internal": 10,
+                "cmd": 8,
+                "meta": 3
+            }
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runner was not executed in this lane slice. Running `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building the Go module graph, and executing 141 Go test files plus integration test paths under `test/`; this exceeds the modest network/CPU budget for this worker run. The denominator is therefore a cloned static tree inventory, not upstream pass parity.",
+            "probes": [
+                {
+                    "command": "git ls-tree -r --name-only HEAD",
+                    "result": "counted 211 unique test-related upstream paths without full blob hydration"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Syncthing scanner empty files produce one zero-length block with the SHA-256 hash of empty bytes.",
+            "Block offsets, sizes, and SHA-256 hashes match selected fixtures from `lib/scanner/blocks_test.go`.",
+            "Block verification requires exact contiguous coverage of the local byte string.",
+            "Per-file block size selection follows `MinBlockSize`, `MaxBlockSize`, and `DesiredPerFileBlocks` from `lib/protocol`.",
+            "Block-list hashes are SHA-256 over concatenated raw block hashes, matching `protocol.BlocksHash`.",
+            "Optional hash validation follows scanner `Validate`: an empty expected hash accepts the bytes."
+        ],
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against a 211-path upstream test-related denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native content block hashing and verification primitives."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, and upstream block size selection."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders.",
-    "nextTask": "Map protocol tests and add block vector/update conflict fixtures."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset.",
+    "nextTask": "Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures."
 }
