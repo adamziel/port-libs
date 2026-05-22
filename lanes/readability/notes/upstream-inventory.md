@@ -143,6 +143,8 @@ npm test
 1984 passing (41s)
 ```
 
+For this body-byline slice, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 30 Mozilla fixture pages, including `test-pages/001`.
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -196,8 +198,10 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/social-buttons` copied into the lane and mapped for removing WordPress.com Sharedaddy/Jetpack like widget chrome while retaining the five expected article paragraphs and demoted heading.
 - Mozilla `test-pages/title-en-dash` copied into the lane and mapped for `_getArticleTitle` separator cleanup where an en-dash site suffix is removed from the document title, while readerable classification, fallback excerpt, and expected article text remain aligned with upstream.
 - Mozilla `test-pages/ol` copied into the lane and mapped for preserving ordered-list content while keeping readerable preflight false because `li p` candidates are skipped.
+- Mozilla `test-pages/001` copied into the lane and mapped for metadata-free body byline extraction, nested `itemprop=name` preference, byline metadata parity, and removing the body byline node from extracted content.
 - Mozilla `_getArticleTitle` separator semantics are now partially native: spaced `|`, hyphen, en dash, em dash, slash, backslash, `>`, and `»` separators remove the final hierarchy/site segment when the retained title remains substantial, with the upstream short-title fallback boundary.
 - Mozilla `_getLinkDensity` hash URL semantics are now native: hash-only anchors use the upstream `0.3` coefficient, so local footnote/citation links do not over-inflate wrapper link density.
+- Mozilla `_isValidByline` body byline semantics are now partially native: `rel=author`, `itemprop` containing `author` or `name`, and `byline`/`author` class or id candidates populate byline metadata when under the upstream 100-character boundary, and matched nodes are removed from article output when no stronger metadata byline already exists.
 - Mozilla `_isProbablyVisible` extraction cleanup semantics: `display:none`, `visibility:hidden`, `hidden`, and non-`fallback-image` `aria-hidden=true` nodes are removed before scoring/content selection, while `fallback-image` media can remain.
 - Mozilla article-grab cleanup removes `aria-modal=true` `role=dialog` nodes before content scoring, covering modal/cookie-consent chrome in WordPress exports.
 - Mozilla parse fallback excerpt semantics now prefer the first article paragraph when metadata does not supply an excerpt, rather than a wrapping container's combined text.
@@ -211,6 +215,7 @@ Current PHP tests map a narrow readerable/extraction slice:
 - WordPress migration URL cleanup: relative editorial links, image `src`, and responsive `srcset` candidates are made absolute against the source URL/base element before block output so import previews and media sideloading are deterministic.
 - WordPress popup-link cleanup: source note anchors with `javascript:` hrefs and event handlers are neutralized while whitespace-padded editorial link and media URLs are trimmed before absolutization.
 - WordPress footnote wrapper cleanup: legacy wrappers around local citation links collapse like upstream low-link-density single-paragraph wrappers while preserving the hash link and target.
+- WordPress body byline cleanup: legacy source templates that put `itemprop=author` or `rel=author` bylines in the article body now populate the extracted byline and drop that byline paragraph before block serialization, while author links inside unlikely footer chrome are ignored.
 - WordPress migration title cleanup: source site suffixes such as `Reusable Pattern Migration Planning Guide – Legacy Agency Site` are removed before selecting a `post_title`, while duplicate body title headings are still removed from block content.
 - WordPress table block serialization: retained multi-cell data tables are emitted as core `wp:table` blocks while one-cell layout tables are removed before block output.
 - Body-only fallback extraction: when a page has no positive-scoring article/main/div candidate, the native selector still extracts the body rather than falling back to document-head markup.
@@ -218,14 +223,14 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density mappings.
-- Native PHP lane tests: 56 passing, 0 failing, 508 assertions.
-- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 56 tests, 508 assertions, and 0 failures.
-- Latest required root verification: `php tools/run-tests.php` passes 120 test files, 9268 assertions, and 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline mappings.
+- Native PHP lane tests: 58 passing, 0 failing, 525 assertions.
+- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 58 tests, 525 assertions, and 0 failures.
+- Latest required root verification: `php tools/run-tests.php` passes 123 test files, 9537 assertions, and 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 hash-link-density/ordered-list rerun in 41s.
 - Blocker: no readability-local or root execution blocker. Exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures and the clean-links footer area, including the readability-page root wrapper, non-title h1 removal, author/avatar wrapper nesting, footer link/image removal, and remaining wrapper/id differences.
-- Current work: native extraction now removes hidden/invisible nodes and modal dialogs before scoring, preserves `fallback-image` media under upstream's `aria-hidden` exception, uses first paragraphs for metadata-free fallback excerpts, cleans document-title separators so source site suffixes do not become migrated post titles, removes duplicate title headers from content, trims and resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, weights hash-only links with Mozilla's low link-density coefficient, maps the copied `ol` fixture, cleans platform chrome, and emits WordPress paragraph, heading, image, and table block output while flattening block-only layout containers.
+- Current work: native extraction now removes hidden/invisible nodes and modal dialogs before scoring, preserves `fallback-image` media under upstream's `aria-hidden` exception, uses first paragraphs for metadata-free fallback excerpts, extracts and removes metadata-free body bylines from upstream-valid author nodes, cleans document-title separators so source site suffixes do not become migrated post titles, removes duplicate title headers from content, trims and resolves relative links/media against source/base URLs, replaces `javascript:` links with inert retained content, weights hash-only links with Mozilla's low link-density coefficient, maps the copied `ol` and `001` fixtures, cleans platform chrome, and emits WordPress paragraph, heading, image, and table block output while flattening block-only layout containers.
 
 ## Next Slice
 
-Finish exact structural `clean-links` parity around footer link/image cleanup, map another compact Mozilla fixture such as `replace-font-tags` or `data-url-image`, or continue remaining Medium lazy-image structural HTML parity around readability-page wrappers and non-title h1 removal.
+Map another compact Mozilla byline-adjacent fixture or finish exact structural `clean-links` parity around footer link/image cleanup, then continue remaining Medium lazy-image structural HTML parity around readability-page wrappers and non-title h1 removal.

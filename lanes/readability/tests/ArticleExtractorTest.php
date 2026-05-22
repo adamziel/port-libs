@@ -844,6 +844,49 @@ return [
         $t->same(false, str_contains($article->title, 'Theme Fallback Title'));
         $t->same(false, str_contains((string) $article->byline, 'Wrong Theme Author'));
     },
+    'maps Mozilla 001 fixture body itemprop author byline' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/001';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->contains('So finally you\'re testing your frontend JavaScript code?', $fixtureText($article->contentHtml));
+        $t->contains('<pre><code>// cow.js', $article->contentHtml);
+        $t->same(
+            array_slice($attributeValues($expected, '//a[@href]/@href'), 0, 5),
+            array_slice($attributeValues($article->contentHtml, '//a[@href]/@href'), 0, 5),
+        );
+        $t->same(false, str_contains($article->contentHtml, 'article-author'), 'body byline node should be removed after extracting itemprop author text');
+    },
+    'extracts WordPress itemprop body bylines without importing byline blocks' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Byline Itemprop Import</title></head><body><article>'
+            . '<h1>Byline Itemprop Import</h1>'
+            . '<p>Metadata-free source themes can still mark a byline in the body before editorial copy.</p>'
+            . '<p itemprop="author" itemscope itemtype="https://schema.org/Person">By <span itemprop="name">Sarah Gooding</span></p>'
+            . '<p>' . str_repeat('The WordPress import should preserve editorial article text while keeping source author metadata separate from migrated blocks. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Byline Itemprop Import', $article->title);
+        $t->same('Sarah Gooding', $article->byline);
+        $t->contains('editorial article text', $blocks);
+        $t->same(false, str_contains($article->contentHtml, 'itemprop="author"'), 'body byline markup should not be imported as content');
+        $t->same(false, str_contains($article->text, 'Sarah Gooding'), 'source byline should be metadata, not article text');
+        $t->same(false, str_contains($blocks, 'Sarah Gooding'), 'source byline should not become a WordPress paragraph block');
+    },
     'maps Mozilla title-en-dash fixture title separator cleanup' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/title-en-dash';
         $source = (string) file_get_contents($fixture . '/source.html');

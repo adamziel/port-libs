@@ -54,6 +54,15 @@ final class ArticleExtractor
         $this->fixLazyImages($xpath);
         $jsonLdMetadata = $this->jsonLdMetadata($xpath);
         $metaValues = $this->metaValues($xpath);
+        $metadataByline = $this->firstMetadataValue([
+            $jsonLdMetadata['byline'] ?? null,
+            $metaValues['dc:creator'] ?? null,
+            $metaValues['dcterm:creator'] ?? null,
+            $metaValues['author'] ?? null,
+            $metaValues['parsely-author'] ?? null,
+            $this->articleAuthorByline($metaValues),
+        ]);
+        $articleByline = $metadataByline === null ? $this->extractArticleByline($xpath) : null;
 
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form|//fieldset|//link') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
@@ -85,12 +94,8 @@ final class ArticleExtractor
             $text,
             $excerpt,
             $this->firstMetadataValue([
-                $jsonLdMetadata['byline'] ?? null,
-                $metaValues['dc:creator'] ?? null,
-                $metaValues['dcterm:creator'] ?? null,
-                $metaValues['author'] ?? null,
-                $metaValues['parsely-author'] ?? null,
-                $this->articleAuthorByline($metaValues),
+                $metadataByline,
+                $articleByline,
                 $this->metadataValue($xpath, [
                     '//*[contains(concat(" ", normalize-space(@class), " "), " byline ")]',
                     '//*[contains(concat(" ", normalize-space(@class), " "), " author ")]',
@@ -564,6 +569,69 @@ final class ArticleExtractor
         }
 
         return $author;
+    }
+
+    private function extractArticleByline(\DOMXPath $xpath): ?string
+    {
+        foreach ($xpath->query('//*') ?: [] as $node) {
+            if (!$node instanceof \DOMElement || !$this->isValidArticleBylineNode($node)) {
+                continue;
+            }
+
+            $byline = $this->articleBylineText($xpath, $node);
+            $node->parentNode?->removeChild($node);
+
+            return $byline;
+        }
+
+        return null;
+    }
+
+    private function isValidArticleBylineNode(\DOMElement $node): bool
+    {
+        $rel = $node->getAttribute('rel');
+        $itemprop = $node->getAttribute('itemprop');
+        $matchString = $node->getAttribute('class') . ' ' . $node->getAttribute('id');
+        $bylineLength = mb_strlen(trim($node->textContent));
+
+        return ($rel === 'author'
+                || ($itemprop !== '' && str_contains($itemprop, 'author'))
+                || preg_match('/byline|author|dateline|writtenby|p-author/i', $matchString) === 1)
+            && $bylineLength > 0
+            && $bylineLength < 100
+            && !$this->hasUnlikelyBylineAncestor($node);
+    }
+
+    private function articleBylineText(\DOMXPath $xpath, \DOMElement $node): string
+    {
+        $nameNode = $xpath->query('.//*[@itemprop and contains(@itemprop, "name")]', $node)?->item(0);
+        if ($nameNode instanceof \DOMNode) {
+            return trim($nameNode->textContent);
+        }
+
+        return trim($node->textContent);
+    }
+
+    private function hasUnlikelyBylineAncestor(\DOMElement $node): bool
+    {
+        for ($parent = $node->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            $tag = strtoupper($parent->tagName);
+            if ($tag === 'BODY' || $tag === 'HTML') {
+                continue;
+            }
+
+            $matchString = $parent->getAttribute('class') . ' ' . $parent->getAttribute('id');
+            if (preg_match(self::UNLIKELY_CANDIDATE_PATTERN, $matchString) === 1
+                && preg_match(self::OK_MAYBE_CANDIDATE_PATTERN, $matchString) !== 1) {
+                return true;
+            }
+
+            if (in_array(strtolower($parent->getAttribute('role')), self::UNLIKELY_ROLES, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
