@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\PackedReferences;
+use PortLibs\Gitoxide\CommitSignature;
 use PortLibs\Gitoxide\ReferenceName;
 use PortLibs\Gitoxide\ReferenceStore;
 use PortLibs\Gitoxide\ReferenceTarget;
@@ -10,6 +11,7 @@ use PortLibs\Gitoxide\ReferenceTarget;
 $old = '134385f6d781b7e97062102c6a483440bfda2a03';
 $new = 'a98ad44f7f0d6eae901abe9c6f10b4d9be2a190f';
 $tag = 'b3109a7e51fc593f85b145a76c70ddd1d133fafd';
+$other = '28ce6a8b26aa170e1de65536fe8abe1832bd3242';
 
 return [
     'reference store finds loose refs before packed refs' => static function (TestRunner $t) use ($old, $new, $tag): void {
@@ -228,15 +230,128 @@ return [
         $t->same($old, $deleted?->targetObjectId());
         $t->same(null, $store->tryFind('refs/heads/main'));
 
-        $packedStore = new ReferenceStore(
-            $dir,
-            PackedReferences::fromBytes("{$old} refs/heads/packed-only\n"),
+        $packedStore = new ReferenceStore($dir, PackedReferences::fromBytes("{$old} refs/heads/packed-only\n"));
+        $packedDeleted = $packedStore->deleteReference('refs/heads/packed-only');
+        $t->same($old, $packedDeleted?->targetObjectId());
+        $t->same(null, $packedStore->tryFind('refs/heads/packed-only'));
+    },
+    'reference store delete rewrites packed refs and removes stale loose overlays' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-delete-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents(
+            $dir . '/packed-refs',
+            "# pack-refs with: peeled fully-peeled sorted \n"
+            . "{$old} refs/heads/main\n"
+            . "{$other} refs/heads/side\n",
         );
-        $t->throws(
-            RuntimeException::class,
-            static fn () => $packedStore->deleteReference('refs/heads/packed-only'),
-            'packed-ref transaction rewrites are deliberately left for the next slice',
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeDirect('refs/heads/main', $new);
+        $store->appendReflog(
+            'refs/heads/main',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+            'deploy: publish content',
+            true,
         );
+
+        $deleted = $store->deleteReference(
+            'refs/heads/main',
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($new),
+        );
+
+        $t->same($new, $deleted?->targetObjectId());
+        $t->same(null, $store->tryFind('refs/heads/main'));
+        $t->same(false, is_file($dir . '/refs/heads/main'));
+        $t->same(false, $store->reflogExists('refs/heads/main'));
+        $packed = PackedReferences::open($dir . '/packed-refs');
+        $t->same(['refs/heads/side'], $packed->names());
+        $t->same($other, $packed->find('refs/heads/side')->targetObjectId());
+    },
+    'reference store update leaves default packed refs shadowed by loose refs' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-shadow-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n");
+        $store = ReferenceStore::at($dir);
+
+        $updated = $store->update(
+            'refs/heads/main',
+            ReferenceTarget::object($new),
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+        );
+
+        $t->same('loose', $updated->source);
+        $t->same($new, $updated->targetObjectId());
+        $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+    },
+    'reference store packed update mode rewrites packed refs and can prune loose source' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-update-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n{$other} refs/heads/side\n");
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+
+        $updated = $store->update(
+            'refs/heads/main',
+            ReferenceTarget::object($new),
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+            false,
+            'sha1',
+            new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+            'pack deployment branch',
+            true,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+        );
+
+        $packed = PackedReferences::open($dir . '/packed-refs');
+        $t->same('packed', $updated->source);
+        $t->same($new, $packed->find('refs/heads/main')->targetObjectId());
+        $t->same($other, $packed->find('refs/heads/side')->targetObjectId());
+        $t->same(false, is_file($dir . '/refs/heads/main'));
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tpack deployment branch\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
+    'reference store packed update mode refreshes stale packed refs even when loose value already matches' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-stale-refresh-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n");
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeDirect('refs/heads/main', $new);
+
+        $updated = $store->update(
+            'refs/heads/main',
+            ReferenceTarget::object($new),
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($new),
+            false,
+            'sha1',
+            null,
+            '',
+            false,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES,
+        );
+
+        $t->same('loose', $updated->source);
+        $t->same($new, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(null, $store->reflogContents('refs/heads/main'));
+    },
+    'reference store deletes packed refs file when all packed entries are removed' => static function (TestRunner $t) use ($old): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-remove-all-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n");
+        $store = ReferenceStore::at($dir);
+
+        $store->deleteReference('refs/heads/main');
+
+        $t->same(false, is_file($dir . '/packed-refs'));
+        $t->same(null, $store->tryFind('refs/heads/main'));
     },
     'namespaced reference transactions are transparent like upstream gix ref' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-namespaced-transaction-' . bin2hex(random_bytes(4));
@@ -278,5 +393,22 @@ return [
         $t->same($fixture['expectedVisibleRefs'], $summary['visibleRefs']);
         $t->same($fixture['expectedPhysicalHead'], $summary['physicalHead']);
         $t->same(false, $summary['reviewRefStillExists']);
+    },
+    'wordpress packed reference transaction example rewrites packed refs and records reflog' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-packed-reference-transaction.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-packed-reference-transaction.php';
+
+        $t->same($fixture['productionRef'], $summary['productionRef']);
+        $t->same($fixture['newProductionCommit'], $summary['productionCommit']);
+        $t->same($fixture['reviewCommit'], $summary['deletedReviewCommit']);
+        $t->same($fixture['expectedPackedNames'], $summary['packedNames']);
+        $t->same($fixture['newProductionCommit'], $summary['packedProductionCommit']);
+        $t->same(false, $summary['looseProductionExists']);
+        $t->same(false, $summary['reviewRefStillExists']);
+        $t->contains(
+            $fixture['oldProductionCommit'] . ' ' . $fixture['newProductionCommit'],
+            (string) $summary['productionReflog'],
+        );
+        $t->contains($fixture['message'], (string) $summary['productionReflog']);
     },
 ];
