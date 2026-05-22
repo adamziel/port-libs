@@ -8,6 +8,7 @@ final class ObjectInfo
 {
     /**
      * @param array<string, string> $metadata
+     * @param array<string, string> $hashes
      */
     public function __construct(
         public readonly string $path,
@@ -18,6 +19,7 @@ final class ObjectInfo
         public readonly array $metadata = [],
         public readonly ?string $id = null,
         public readonly ?string $tier = null,
+        public readonly array $hashes = [],
     ) {
     }
 }

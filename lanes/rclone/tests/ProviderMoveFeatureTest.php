@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use PortLibs\Rclone\MemoryProvider;
+use PortLibs\Rclone\HashSet;
+use PortLibs\Rclone\HashType;
 use PortLibs\Rclone\SyncPlan;
 
 return [
@@ -192,6 +194,294 @@ return [
 
         $t->same('TEST: failed to remove renamed existing file: Object not found: exports/site.wxr.12345678', $operationError?->getMessage());
         $t->same('<rss>fresh export</rss>', $remote->get('exports/site.wxr'));
+    },
+    'server side copy replace removes existing destination then deletes saved object' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>', ['modTime' => '2026-05-22T02:00:00Z']);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>', ['modTime' => '2026-05-21T02:00:00Z']);
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'temporarySuffix' => '.copytmp',
+        ]);
+
+        $t->same('exports/site.wxr.copytmp', $result['savedPath']);
+        $t->same('exports/site.wxr', $result['copied']->path);
+        $t->same('<rss>fresh export</rss>', $remote->get('exports/site.wxr'));
+        $t->same('2026-05-22T02:00:00Z', $remote->info('exports/site.wxr')->modTime);
+        $t->same(['exports/site.wxr', 'library/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+        $t->throws(RuntimeException::class, static fn () => $remote->get('exports/site.wxr.copytmp'));
+    },
+    'server side copy replace restores existing destination after copy failure' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>');
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+                'temporarySuffix' => '.copytmp',
+                'simulateCopyError' => 'provider copy failed',
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('provider copy failed', $error?->getMessage());
+        $t->same('<rss>previous export</rss>', $remote->get('exports/site.wxr'));
+        $t->same('<rss>fresh export</rss>', $remote->get('library/site.wxr'));
+        $t->same(['exports/site.wxr', 'library/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+    },
+    'server side copy replace rejects same remote case folded paths' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('exports/site.wxr', '<rss>portable export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'exports/site.wxr', 'EXPORTS/SITE.WXR', [
+                'guardCaseFoldSameRemote' => true,
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('can\'t copy "exports/site.wxr" -> "EXPORTS/SITE.WXR" as are same name when lowercase', $error?->getMessage());
+        $t->same('<rss>portable export</rss>', $remote->get('exports/site.wxr'));
+        $t->same(['exports/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+    },
+    'server side copy precreated destination handle is not visible after failure' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+                'precreateDestination' => true,
+                'simulateCopyError' => 'provider copy failed',
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('provider copy failed', $error?->getMessage());
+        $t->same('<rss>fresh export</rss>', $remote->get('library/site.wxr'));
+        $t->same(['library/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+        $t->throws(RuntimeException::class, static fn () => $remote->get('exports/site.wxr'));
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'precreateDestination' => true,
+        ]);
+        $t->same('exports/site.wxr', $result['precreatedPath']);
+        $t->same('<rss>fresh export</rss>', $remote->get('exports/site.wxr'));
+    },
+    'dropbox server side copy uses relocation result metadata' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>', [
+            'modTime' => '2026-05-22T02:00:00Z',
+            'metadata' => ['wp-artifact' => 'wxr'],
+            'id' => 'id:source',
+        ]);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'provider' => 'dropbox',
+            'temporarySuffix' => '.copytmp',
+            'apiResult' => [
+                'id' => 'id:dropbox-copy',
+                'clientModified' => '2026-05-22T02:03:04Z',
+                'contentHash' => 'ABCDEF0123456789',
+                'mimeType' => 'application/rss+xml',
+                'metadata' => ['dropbox_rev' => 'rev-copy'],
+            ],
+        ]);
+
+        $info = $remote->info('exports/site.wxr');
+        $t->same('id:dropbox-copy', $result['copied']->id);
+        $t->same('id:dropbox-copy', $info->id);
+        $t->same('2026-05-22T02:03:04Z', $info->modTime);
+        $t->same('application/rss+xml', $info->mimeType);
+        $t->same('abcdef0123456789', $info->metadata['dropbox_content_hash']);
+        $t->same('rev-copy', $info->metadata['dropbox_rev']);
+        $t->same(['dropbox:relocation-result-metadata'], $result['metadataRefresh']);
+    },
+    'onedrive server side copy resets source modtime and add-only permission metadata' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(
+            supportedHashes: new HashSet(HashType::SHA1, HashType::CRC32),
+            serverSideMove: true,
+            serverSideCopy: true,
+        );
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>', [
+            'modTime' => '2026-05-22T02:00:00Z',
+            'metadata' => [
+                'description' => 'portable export',
+                'permissions' => '[{"roles":["read"]}]',
+            ],
+            'id' => 'onedrive-source',
+        ]);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'provider' => 'onedrive',
+            'apiResult' => [
+                'id' => 'onedrive-copy',
+                'mimeType' => 'application/rss+xml',
+                'hashes' => [
+                    'sha1Hash' => strtoupper(hash('sha1', '<rss>fresh export</rss>')),
+                    'crc32Hash' => strtoupper(hash('crc32b', '<rss>fresh export</rss>')),
+                ],
+            ],
+        ]);
+
+        $info = $remote->info('exports/site.wxr');
+        $t->same('onedrive-copy', $result['copied']->id);
+        $t->same('2026-05-22T02:00:00Z', $info->modTime);
+        $t->same('add-only', $info->metadata['onedrive_permissions_mode']);
+        $t->same('portable export', $info->metadata['description']);
+        $t->same(hash('sha1', '<rss>fresh export</rss>'), $remote->hashes('exports/site.wxr', new HashSet(HashType::SHA1))[HashType::SHA1]);
+        $t->same(hash('crc32b', '<rss>fresh export</rss>'), $remote->hashes('exports/site.wxr', new HashSet(HashType::CRC32))[HashType::CRC32]);
+        $t->same([
+            'onedrive:async-copy-job',
+            'onedrive:set-source-modtime',
+            'onedrive:metadata-permissions-add-only',
+        ], $result['metadataRefresh']);
+    },
+    'yandex server side copy refreshes object metadata from custom rclone modtime' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(
+            supportedHashes: new HashSet(HashType::MD5),
+            serverSideMove: true,
+            serverSideCopy: true,
+        );
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>', [
+            'modTime' => '2026-05-22T02:00:00Z',
+            'mimeType' => 'application/octet-stream',
+        ]);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'provider' => 'yandex',
+            'apiResult' => [
+                'customProperties' => ['rclone_modified' => '2026-05-22T03:04:05Z'],
+                'modified' => '2026-05-20T00:00:00Z',
+                'md5' => strtoupper(hash('md5', '<rss>fresh export</rss>')),
+                'mimeType' => 'application/rss+xml',
+            ],
+        ]);
+
+        $info = $remote->info('exports/site.wxr');
+        $t->same('2026-05-22T03:04:05Z', $info->modTime);
+        $t->same('application/rss+xml', $info->mimeType);
+        $t->same(hash('md5', '<rss>fresh export</rss>'), $remote->hashes('exports/site.wxr', new HashSet(HashType::MD5))[HashType::MD5]);
+        $t->same(['yandex:new-object-metadata-read'], $result['metadataRefresh']);
+    },
+    'sugarsync server side copy records copied object location after metadata read' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(
+            supportedHashes: new HashSet(),
+            serverSideMove: true,
+            serverSideCopy: true,
+        );
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>', [
+            'modTime' => '2026-05-22T02:00:00Z',
+            'metadata' => ['wp-artifact' => 'wxr'],
+            'id' => 'sugar-source',
+        ]);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'provider' => 'sugarsync',
+            'apiResult' => [
+                'location' => 'https://api.sugarsync.com/file/copied-site-wxr',
+                'lastModified' => '2026-05-22T04:00:00Z',
+            ],
+        ]);
+
+        $info = $remote->info('exports/site.wxr');
+        $t->same('https://api.sugarsync.com/file/copied-site-wxr', $result['copied']->id);
+        $t->same('https://api.sugarsync.com/file/copied-site-wxr', $info->id);
+        $t->same('2026-05-22T04:00:00Z', $info->modTime);
+        $t->same(['wp-artifact' => 'wxr'], $info->metadata);
+        $t->same([], $remote->hashes('exports/site.wxr'));
+        $t->same(['sugarsync:metadata-read-after-copy'], $result['metadataRefresh']);
+    },
+    'dropbox server side copy restores destination when relocation result is not a file' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>');
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+                'provider' => 'dropbox',
+                'apiResult' => ['metadataType' => 'folder'],
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('is not a regular file', $error?->getMessage());
+        $t->same('<rss>previous export</rss>', $remote->get('exports/site.wxr'));
+        $t->same('<rss>fresh export</rss>', $remote->get('library/site.wxr'));
+        $t->same(['exports/site.wxr', 'library/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+    },
+    'onedrive server side copy access denied becomes cant copy and restores destination' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>');
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+                'provider' => 'onedrive',
+                'providerError' => ['kind' => 'async-access-denied'],
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same(MemoryProvider::ERROR_CANT_COPY, $error?->getMessage());
+        $t->same('<rss>previous export</rss>', $remote->get('exports/site.wxr'));
+        $t->same('<rss>fresh export</rss>', $remote->get('library/site.wxr'));
+    },
+    'yandex server side copy wraps async failure and restores destination' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>');
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+                'provider' => 'yandex',
+                'providerError' => ['kind' => 'async-failure'],
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('couldn\'t copy file: async operation returned "failure"', $error?->getMessage());
+        $t->same('<rss>previous export</rss>', $remote->get('exports/site.wxr'));
+        $t->same('<rss>fresh export</rss>', $remote->get('library/site.wxr'));
+    },
+    'sugarsync server side copy extracts provider html errors and restores destination' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.wxr', '<rss>fresh export</rss>');
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+                'provider' => 'sugarsync',
+                'providerError' => [
+                    'kind' => 'html-error',
+                    'status' => 409,
+                    'statusText' => '409 Conflict',
+                    'message' => 'Can not copy file.',
+                ],
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('HTTP error 409 (409 Conflict): Can not copy file.', $error?->getMessage());
+        $t->same('<rss>previous export</rss>', $remote->get('exports/site.wxr'));
+        $t->same('<rss>fresh export</rss>', $remote->get('library/site.wxr'));
     },
     'single file wordpress upload repair uses move ignore-existing and partial cleanup boundaries' => static function (TestRunner $t): void {
         $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';

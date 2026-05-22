@@ -12,7 +12,7 @@ final class MemoryProvider
     public const ERROR_DIR_EXISTS = "can't copy directory - destination already exists";
 
     /**
-     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
+     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
      */
     private array $objects = [];
 
@@ -77,7 +77,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -89,6 +89,7 @@ final class MemoryProvider
             'metadata' => $options['metadata'] ?? [],
             'id' => $options['id'] ?? null,
             'tier' => $options['tier'] ?? null,
+            'hashes' => $this->normalizeHashes($options['hashes'] ?? []),
             'openError' => $this->normalizeThrowable($options['openError'] ?? null),
             'readError' => $this->normalizeThrowable($options['readError'] ?? null),
             'readErrorAfterBytes' => array_key_exists('readBreaks', $options) && !array_key_exists('readErrorAfterBytes', $options)
@@ -194,6 +195,17 @@ final class MemoryProvider
         $this->forget($sourcePath);
 
         return $targetInfo;
+    }
+
+    public function serverSideCopyTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    {
+        if (!$target->serverSideCopy) {
+            throw new \RuntimeException(self::ERROR_CANT_COPY);
+        }
+
+        $target->throwConfiguredError($target->serverSideCopyError);
+
+        return $this->copyTo($sourcePath, $target, $targetPath);
     }
 
     public function serverSideMoveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
@@ -457,6 +469,7 @@ final class MemoryProvider
             $entry['metadata'],
             $entry['id'],
             $entry['tier'],
+            $entry['hashes'],
         );
     }
 
@@ -529,6 +542,36 @@ final class MemoryProvider
         return $target->putEntry($targetPath, $entry);
     }
 
+    /**
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>} $options
+     */
+    public function updateObjectInfo(string $path, array $options): ObjectInfo
+    {
+        $path = $this->canonicalPath($path);
+        $entry = $this->entry($path);
+
+        if (array_key_exists('modTime', $options)) {
+            $entry['modTime'] = $this->normalizeModTime($options['modTime']);
+        }
+        if (array_key_exists('mimeType', $options)) {
+            $entry['mimeType'] = $options['mimeType'];
+        }
+        if (array_key_exists('metadata', $options)) {
+            $entry['metadata'] = $options['metadata'] ?? [];
+        }
+        if (array_key_exists('id', $options)) {
+            $entry['id'] = $options['id'];
+        }
+        if (array_key_exists('tier', $options)) {
+            $entry['tier'] = $options['tier'];
+        }
+        if (array_key_exists('hashes', $options)) {
+            $entry['hashes'] = $this->normalizeHashes($options['hashes'] ?? []);
+        }
+
+        return $this->putEntry($path, $entry);
+    }
+
     public function setModTime(string $path, \DateTimeInterface|string|null $modTime): ObjectInfo
     {
         $path = $this->canonicalPath($path);
@@ -543,8 +586,15 @@ final class MemoryProvider
     public function hashes(string $path, ?HashSet $set = null): array
     {
         $set = ($set ?? $this->supportedHashes)->overlap($this->supportedHashes);
+        $entry = $this->entry($path);
+        $hashes = [];
+        foreach ($set->toArray() as $type) {
+            if (isset($entry['hashes'][$type])) {
+                $hashes[$type] = $entry['hashes'][$type];
+            }
+        }
 
-        return MultiHasher::hashBytes($this->get($path), $set);
+        return $hashes + MultiHasher::hashBytes($this->get($path), $set);
     }
 
     private function normalize(string $path): string
@@ -553,7 +603,7 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
      */
     private function entry(string $path): array
     {
@@ -566,7 +616,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
      */
     private function putEntry(string $path, array $entry): ObjectInfo
     {
@@ -638,6 +688,20 @@ final class MemoryProvider
         }
 
         return new \RuntimeException($error);
+    }
+
+    /**
+     * @param array<string, string> $hashes
+     * @return array<string, string>
+     */
+    private function normalizeHashes(array $hashes): array
+    {
+        $normalized = [];
+        foreach ($hashes as $type => $hash) {
+            $normalized[HashType::fromString((string) $type)] = strtolower($hash);
+        }
+
+        return $normalized;
     }
 
     /**

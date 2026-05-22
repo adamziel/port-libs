@@ -445,6 +445,83 @@ final class SyncPlan
     }
 
     /**
+     * Model `rclone dedupe --by-hash` for non-interactive modes. Duplicate
+     * names require provider internals this in-memory lane does not expose yet.
+     *
+     * @return array{hashType: string, groups: list<array{hash: string, objects: list<ObjectInfo>, kept: ?ObjectInfo, deleted: list<ObjectInfo>, skipped: bool}>}
+     */
+    public function deduplicateByHash(MemoryProvider $provider, string $mode): array
+    {
+        $mode = DeduplicateMode::normalize($mode);
+        $hashType = $provider->supportedHashes()->getOne();
+        if ($hashType === HashType::NONE) {
+            throw new \RuntimeException('provider has no hashes');
+        }
+        if ($mode === DeduplicateMode::INTERACTIVE) {
+            throw new \InvalidArgumentException('interactive dedupe mode requires a caller-supplied choice');
+        }
+        if ($mode === DeduplicateMode::RENAME) {
+            throw new \InvalidArgumentException('dedupe by hash rename mode is not available in this native slice');
+        }
+
+        $objectsByHash = [];
+        foreach ($provider->list() as $info) {
+            $hash = $provider->hashes($info->path, new HashSet($hashType))[$hashType] ?? '';
+            if ($hash === '') {
+                continue;
+            }
+            $objectsByHash[$hash][] = $info;
+        }
+        ksort($objectsByHash, SORT_STRING);
+
+        $groups = [];
+        foreach ($objectsByHash as $hash => $objects) {
+            if (count($objects) <= 1) {
+                continue;
+            }
+
+            if ($mode === DeduplicateMode::SKIP || $mode === DeduplicateMode::LIST) {
+                $groups[] = [
+                    'hash' => $hash,
+                    'objects' => $objects,
+                    'kept' => null,
+                    'deleted' => [],
+                    'skipped' => true,
+                ];
+                continue;
+            }
+
+            $ordered = $this->dedupeOrderedObjects($objects, $mode);
+            $keepIndex = match ($mode) {
+                DeduplicateMode::FIRST, DeduplicateMode::OLDEST, DeduplicateMode::SMALLEST => 0,
+                DeduplicateMode::NEWEST, DeduplicateMode::LARGEST => count($ordered) - 1,
+                default => 0,
+            };
+            $kept = $ordered[$keepIndex];
+            $deleted = [];
+            foreach ($ordered as $index => $info) {
+                if ($index === $keepIndex) {
+                    continue;
+                }
+                $deleted[] = $provider->delete($info->path);
+            }
+
+            $groups[] = [
+                'hash' => $hash,
+                'objects' => $objects,
+                'kept' => $kept,
+                'deleted' => $deleted,
+                'skipped' => false,
+            ];
+        }
+
+        return [
+            'hashType' => $hashType,
+            'groups' => $groups,
+        ];
+    }
+
+    /**
      * @return array{existed: bool, savedPath: ?string, cleanup: \Closure}
      */
     public function removeExisting(
@@ -506,6 +583,355 @@ final class SyncPlan
                 }
             },
         ];
+    }
+
+    /**
+     * Model provider Copy implementations that call RemoveExisting before
+     * invoking a remote-side copy API that cannot overwrite safely.
+     *
+     * @param array{
+     *     operation?: string,
+     *     temporarySuffix?: string,
+     *     guardCaseFoldSameRemote?: bool,
+     *     precreateDestination?: bool,
+     *     simulateCopyError?: bool|string,
+     *     provider?: string,
+     *     apiResult?: array<string, mixed>,
+     *     providerError?: string|array<string, mixed>
+     * } $options
+     * @return array{copied: ObjectInfo, savedPath: ?string, precreatedPath: ?string, metadataRefresh: list<string>}
+     */
+    public function serverSideCopyReplace(
+        MemoryProvider $provider,
+        string $sourcePath,
+        string $destinationPath,
+        array $options = [],
+    ): array {
+        $sourcePath = self::normalizePath($sourcePath);
+        $destinationPath = self::normalizePath($destinationPath);
+
+        if (!$provider->supportsServerSideCopy()) {
+            throw new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
+        }
+
+        $sourceInfo = $provider->info($sourcePath);
+        if (
+            (bool) ($options['guardCaseFoldSameRemote'] ?? false)
+            && strtolower($sourcePath) === strtolower($destinationPath)
+        ) {
+            throw new \RuntimeException(
+                sprintf('can\'t copy "%s" -> "%s" as are same name when lowercase', $sourcePath, $destinationPath),
+            );
+        }
+
+        $operation = (string) ($options['operation'] ?? 'server side copy');
+        $cleanup = $this->removeExisting(
+            $provider,
+            $destinationPath,
+            $operation,
+            $options['temporarySuffix'] ?? null,
+        );
+
+        $operationError = null;
+        $copied = null;
+        $metadataRefresh = [];
+        try {
+            if (array_key_exists('simulateCopyError', $options) && $options['simulateCopyError'] !== false) {
+                $message = $options['simulateCopyError'] === true
+                    ? 'server side copy failed'
+                    : (string) $options['simulateCopyError'];
+                throw new \RuntimeException($message);
+            }
+            if (array_key_exists('providerError', $options)) {
+                throw $this->providerCopyFailure(
+                    (string) ($options['provider'] ?? ''),
+                    $destinationPath,
+                    $options['providerError'],
+                );
+            }
+
+            $copied = $provider->serverSideCopyTo($sourceInfo->path, $provider, $destinationPath);
+            if (isset($options['provider'])) {
+                $providerResult = $this->providerCopyResultOptions(
+                    (string) $options['provider'],
+                    $sourceInfo,
+                    $options['apiResult'] ?? [],
+                );
+                $metadataRefresh = $providerResult['refresh'];
+                $copied = $provider->updateObjectInfo($copied->path, $providerResult['options']);
+            }
+        } catch (\RuntimeException $throwable) {
+            $operationError = $throwable;
+        }
+
+        $cleanupError = $operationError;
+        $cleanup['cleanup']($cleanupError);
+        if ($operationError !== null) {
+            throw $operationError;
+        }
+        if ($cleanupError !== null) {
+            throw $cleanupError;
+        }
+
+        return [
+            'copied' => $copied,
+            'savedPath' => $cleanup['savedPath'],
+            'precreatedPath' => (bool) ($options['precreateDestination'] ?? false) ? $destinationPath : null,
+            'metadataRefresh' => $metadataRefresh,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{options: array<string, mixed>, refresh: list<string>}
+     */
+    private function providerCopyResultOptions(string $provider, ObjectInfo $sourceInfo, array $apiResult): array
+    {
+        return match (strtolower($provider)) {
+            'dropbox' => $this->dropboxCopyResultOptions($sourceInfo, $apiResult),
+            'onedrive' => $this->onedriveCopyResultOptions($sourceInfo, $apiResult),
+            'yandex' => $this->yandexCopyResultOptions($sourceInfo, $apiResult),
+            'sugarsync' => $this->sugarsyncCopyResultOptions($sourceInfo, $apiResult),
+            default => throw new \InvalidArgumentException("unknown provider copy result profile: {$provider}"),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{options: array<string, mixed>, refresh: list<string>}
+     */
+    private function dropboxCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
+    {
+        $metadataType = strtolower($this->optionalString($apiResult['metadataType'] ?? $apiResult['metadata_type'] ?? 'file') ?? 'file');
+        if ($metadataType !== 'file') {
+            throw new \RuntimeException('is not a regular file');
+        }
+
+        $metadata = $sourceInfo->metadata + $this->stringMetadata($apiResult['metadata'] ?? []);
+        $contentHash = $this->optionalString($apiResult['contentHash'] ?? $apiResult['content_hash'] ?? null);
+        if ($contentHash !== null && $contentHash !== '') {
+            $metadata['dropbox_content_hash'] = strtolower($contentHash);
+        }
+
+        return [
+            'options' => [
+                'modTime' => $this->optionalString($apiResult['clientModified'] ?? $apiResult['client_modified'] ?? null) ?? $sourceInfo->modTime,
+                'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
+                'metadata' => $metadata,
+                'id' => $this->optionalString($apiResult['id'] ?? null) ?? $sourceInfo->id,
+                'tier' => $sourceInfo->tier,
+                'hashes' => $this->stringMetadata($apiResult['hashes'] ?? $sourceInfo->hashes),
+            ],
+            'refresh' => ['dropbox:relocation-result-metadata'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{options: array<string, mixed>, refresh: list<string>}
+     */
+    private function onedriveCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
+    {
+        $metadata = $sourceInfo->metadata + $this->stringMetadata($apiResult['metadata'] ?? []);
+        $refresh = ['onedrive:async-copy-job', 'onedrive:set-source-modtime'];
+        if (isset($metadata['permissions'])) {
+            $metadata['onedrive_permissions_mode'] = 'add-only';
+            $refresh[] = 'onedrive:metadata-permissions-add-only';
+        }
+
+        return [
+            'options' => [
+                'modTime' => $sourceInfo->modTime,
+                'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
+                'metadata' => $metadata,
+                'id' => $this->optionalString($apiResult['id'] ?? null) ?? $sourceInfo->id,
+                'tier' => $sourceInfo->tier,
+                'hashes' => $this->onedriveHashes($apiResult) + $sourceInfo->hashes,
+            ],
+            'refresh' => $refresh,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{options: array<string, mixed>, refresh: list<string>}
+     */
+    private function yandexCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
+    {
+        $customProperties = is_array($apiResult['customProperties'] ?? null)
+            ? $apiResult['customProperties']
+            : [];
+        $modTime = $this->optionalString($customProperties['rclone_modified'] ?? null)
+            ?? $this->optionalString($apiResult['modified'] ?? null)
+            ?? $sourceInfo->modTime;
+        $hashes = $sourceInfo->hashes;
+        $md5 = $this->optionalString($apiResult['md5'] ?? null);
+        if ($md5 !== null && $md5 !== '') {
+            $hashes[HashType::MD5] = strtolower($md5);
+        }
+
+        return [
+            'options' => [
+                'modTime' => $modTime,
+                'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
+                'metadata' => $sourceInfo->metadata + $this->stringMetadata($apiResult['metadata'] ?? []),
+                'id' => $this->optionalString($apiResult['id'] ?? null) ?? $sourceInfo->id,
+                'tier' => $sourceInfo->tier,
+                'hashes' => $hashes,
+            ],
+            'refresh' => ['yandex:new-object-metadata-read'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{options: array<string, mixed>, refresh: list<string>}
+     */
+    private function sugarsyncCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
+    {
+        return [
+            'options' => [
+                'modTime' => $this->optionalString($apiResult['lastModified'] ?? $apiResult['last_modified'] ?? null) ?? $sourceInfo->modTime,
+                'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
+                'metadata' => $sourceInfo->metadata + $this->stringMetadata($apiResult['metadata'] ?? []),
+                'id' => $this->optionalString($apiResult['location'] ?? $apiResult['id'] ?? null) ?? $sourceInfo->id,
+                'tier' => $sourceInfo->tier,
+                'hashes' => [],
+            ],
+            'refresh' => ['sugarsync:metadata-read-after-copy'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array<string, string>
+     */
+    private function onedriveHashes(array $apiResult): array
+    {
+        $hashSource = is_array($apiResult['hashes'] ?? null) ? $apiResult['hashes'] : $apiResult;
+        $hashes = [];
+        foreach ([
+            'sha1Hash' => HashType::SHA1,
+            'sha256Hash' => HashType::SHA256,
+            'crc32Hash' => HashType::CRC32,
+        ] as $apiKey => $hashType) {
+            $hash = $this->optionalString($hashSource[$apiKey] ?? null);
+            if ($hash !== null && $hash !== '') {
+                $hashes[$hashType] = strtolower($hash);
+            }
+        }
+
+        return $hashes;
+    }
+
+    /**
+     * @param mixed $metadata
+     * @return array<string, string>
+     */
+    private function stringMetadata(mixed $metadata): array
+    {
+        if (!is_array($metadata)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($metadata as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $strings[(string) $key] = (string) $value;
+            }
+        }
+
+        return $strings;
+    }
+
+    private function optionalString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return null;
+    }
+
+    private function providerCopyFailure(string $provider, string $destinationPath, mixed $failure): \RuntimeException
+    {
+        if (is_string($failure)) {
+            return new \RuntimeException($failure);
+        }
+        if (!is_array($failure)) {
+            return new \RuntimeException('server side copy failed');
+        }
+
+        $kind = (string) ($failure['kind'] ?? '');
+        $message = (string) ($failure['message'] ?? 'server side copy failed');
+
+        return match (strtolower($provider)) {
+            'dropbox' => new \RuntimeException('copy failed: ' . $message),
+            'onedrive' => $this->onedriveCopyFailure($destinationPath, $kind, $message, $failure),
+            'yandex' => $this->yandexCopyFailure($kind, $message, $failure),
+            'sugarsync' => $this->sugarsyncCopyFailure($message, $failure),
+            default => new \RuntimeException($message),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $failure
+     */
+    private function onedriveCopyFailure(string $destinationPath, string $kind, string $message, array $failure): \RuntimeException
+    {
+        if ($kind === 'async-access-denied') {
+            return new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
+        }
+        if ($kind === 'missing-location') {
+            return new \RuntimeException("didn't receive location header in copy response");
+        }
+        if ($kind === 'async-status-not-json') {
+            $body = (string) ($failure['body'] ?? '');
+
+            return new \RuntimeException(sprintf('async status result not JSON: %s: %s', json_encode($body), $message));
+        }
+        if ($kind === 'async-status') {
+            $status = (string) ($failure['status'] ?? 'failed');
+
+            return new \RuntimeException(sprintf('%s: async operation returned "%s"', $destinationPath, $status));
+        }
+
+        return new \RuntimeException($message);
+    }
+
+    /**
+     * @param array<string, mixed> $failure
+     */
+    private function yandexCopyFailure(string $kind, string $message, array $failure): \RuntimeException
+    {
+        if ($kind === 'async-info-not-json') {
+            $body = (string) ($failure['body'] ?? '');
+
+            return new \RuntimeException(sprintf('couldn\'t copy file: async info result not JSON: %s: %s', json_encode($body), $message));
+        }
+        if ($kind === 'async-failure') {
+            return new \RuntimeException('couldn\'t copy file: async operation returned "failure"');
+        }
+
+        return new \RuntimeException('couldn\'t copy file: ' . $message);
+    }
+
+    /**
+     * @param array<string, mixed> $failure
+     */
+    private function sugarsyncCopyFailure(string $message, array $failure): \RuntimeException
+    {
+        if (($failure['kind'] ?? '') === 'html-error') {
+            $statusCode = (int) ($failure['status'] ?? 500);
+            $statusText = (string) ($failure['statusText'] ?? ($statusCode . ' Error'));
+
+            return new \RuntimeException(sprintf('HTTP error %d (%s): %s', $statusCode, $statusText, $message));
+        }
+
+        return new \RuntimeException($message);
     }
 
     /**
@@ -914,6 +1340,35 @@ final class SyncPlan
         return $sourceInfo->id !== null
             && $sourceInfo->id !== ''
             && $sourceInfo->id === $targetInfo->id;
+    }
+
+    /**
+     * @param list<ObjectInfo> $objects
+     * @return list<ObjectInfo>
+     */
+    private function dedupeOrderedObjects(array $objects, string $mode): array
+    {
+        $ordered = $objects;
+        if ($mode === DeduplicateMode::NEWEST || $mode === DeduplicateMode::OLDEST) {
+            usort(
+                $ordered,
+                fn (ObjectInfo $a, ObjectInfo $b): int => $this->dedupeObjectTimestamp($a) <=> $this->dedupeObjectTimestamp($b)
+                    ?: $a->path <=> $b->path,
+            );
+        } elseif ($mode === DeduplicateMode::LARGEST || $mode === DeduplicateMode::SMALLEST) {
+            usort(
+                $ordered,
+                static fn (ObjectInfo $a, ObjectInfo $b): int => $a->size <=> $b->size
+                    ?: $a->path <=> $b->path,
+            );
+        }
+
+        return $ordered;
+    }
+
+    private function dedupeObjectTimestamp(ObjectInfo $info): float
+    {
+        return $this->timestamp($info->modTime) ?? 0.0;
     }
 
     /**
