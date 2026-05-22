@@ -455,7 +455,7 @@ final class CommitLogRenderer
             $this->graphLineText($graph, $row, $col)
                 . ' commit '
                 . $commit['hash']
-                . $this->refsSuffix($commit['row']),
+                . $this->graphRefsSuffix($commit['row']),
         ];
 
         $mergeOffset = 0;
@@ -499,6 +499,16 @@ final class CommitLogRenderer
         $refs = $this->nullableString($row['refs'] ?? null, 'Dolt log refs');
 
         return $refs !== null && $refs !== '' ? ' (' . $refs . ')' : '';
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     */
+    private function graphRefsSuffix(array $row): string
+    {
+        $refs = $this->nullableString($row['refs'] ?? null, 'Dolt log refs');
+
+        return $refs !== null && $refs !== '' ? '(' . $refs . ') ' : '';
     }
 
     /**

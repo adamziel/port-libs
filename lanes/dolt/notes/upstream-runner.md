@@ -416,6 +416,16 @@
 - Native Dolt PHP lane rerun after this slice passed with 10 test files, 93 behavior tests, 495 assertions, and 0 failures.
 - Required root `php tools/run-tests.php` initially failed outside Dolt: `lanes/pandoc/tests/MarkdownReaderTest.php` reported 2 failures (`writes wordpress nested html tables inside table cells for legacy imports` and `writes wordpress third-level nested html tables without asciidoc downgrade`), with 122 test files, 9,468 assertions, and 2 failures. Later exact reruns passed with 123 test files, 9,537 assertions, then 10,675 assertions, and 0 failures; the latest exact rerun is recorded in Repository Check.
 
+## Fresh Log Graph Dense Fan-In Runner Refresh
+
+- Focused upstream source reads for this slice:
+  - `go/cmd/dolt/commands/log_graph.go`: `printLine`, `printCommitMetadata`, `expandGraphBasedOnCommitMetaDataHeight`, and `drawCommitDotsAndBranchPaths` for default multi-line graph rows, ref suffix placement, dense merge lanes, and branch crossings.
+  - `integration-tests/bats/log.bats`: `log: --graph: graph with multiple branches`, covering four side branches merged into main and default graph metadata rows.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'log: --graph: graph with multiple branches' log.bats`
+  - Result: `1..1`, exit 0; the focused dense multi-branch graph BATS case passed.
+- Native Dolt PHP lane rerun after this slice passed with 10 test files, 97 behavior tests, 521 assertions, and 0 failures.
+- Required root `php tools/run-tests.php` passed after this slice with 126 test files, 11,197 assertions, and 0 failures.
+
 ## Fresh Tooling/Quota Runner Refresh
 
 - Cache inspection before this refresh:
@@ -500,8 +510,9 @@
   - Final current-HEAD rerun after concurrent Difftastic fixes passed: 123 test files, 10,689 assertions, 0 failures.
   - Required rerun after the final runner-status metadata cleanup passed: 123 test files, 10,737 assertions, 0 failures.
   - Required rerun after native `dolt log --graph` / `--decorate=auto` rendering passed: 124 test files, 10,849 assertions, 0 failures.
+  - Required rerun after native dense multi-branch `dolt log --graph` default rendering passed: 126 test files, 11,197 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
-  - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, commit-ancestors, has-ancestor, and branch-review fixtures.
+  - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, fan-in commit-graph, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
   - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $runner=new TestRunner(); foreach (glob("lanes/dolt/tests/*Test.php") as $file) { $runner->runTests(require $file, $file); } fwrite(STDOUT, "\nDolt: " . count(glob("lanes/dolt/tests/*Test.php")) . " test files, " . $runner->assertions() . " assertions, " . $runner->failures() . " failures\n"); exit($runner->failures() === 0 ? 0 : 1);'`
   - Previous result before the commit-log slice: pass with 6 Dolt test files, 64 behavior tests, 273 assertions, and 0 failures.
@@ -515,6 +526,7 @@
   - Current result after native `dolt_log()` `--all` branch traversal: pass with 10 Dolt test files, 91 behavior tests, 475 assertions, and 0 failures.
   - Current result after native `dolt log --oneline` / `--stat` rendering: pass with 10 Dolt test files, 93 behavior tests, 495 assertions, and 0 failures.
   - Current result after native `dolt log --graph` / `--decorate=auto` rendering: pass with 10 Dolt test files, 95 behavior tests, 515 assertions, and 0 failures.
+  - Current result after native dense multi-branch `dolt log --graph` default rendering: pass with 10 Dolt test files, 97 behavior tests, 521 assertions, and 0 failures.
 
 ## Skipped Suites
 

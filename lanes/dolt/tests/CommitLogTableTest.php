@@ -267,6 +267,38 @@ $allBranchesGraph = static function (): array {
     ];
 };
 
+$denseMergeFanInGraph = static function (): array {
+    $commit = static fn (
+        string $hash,
+        string $date,
+        string $message,
+        array $parents = [],
+        array $refs = [],
+    ): array => [
+        'commit_hash' => $hash,
+        'committer' => 'Bats Tests',
+        'email' => 'bats@email.fake',
+        'date' => $date,
+        'message' => $message,
+        'parents' => $parents,
+        'refs' => $refs,
+    ];
+
+    return [
+        $commit('init', '2026-05-22 21:03:42', 'Initialize data repository'),
+        $commit('main-1', '2026-05-22 21:03:42', 'commit 1 MAIN', ['init']),
+        $commit('branch-a-1', '2026-05-22 21:03:43', 'commit 1 BRANCHA', ['main-1'], ['refs/heads/branchA']),
+        $commit('branch-b-1', '2026-05-22 21:03:44', 'commit 1 branchB', ['main-1'], ['refs/heads/branchB']),
+        $commit('branch-c-1', '2026-05-22 21:03:44', 'commit 1 branchC', ['main-1'], ['refs/heads/branchC']),
+        $commit('branch-d-1', '2026-05-22 21:03:45', 'commit 1 branchD', ['main-1'], ['refs/heads/branchD']),
+        $commit('main-2', '2026-05-22 21:03:47', 'insert into testtable', ['main-1']),
+        $commit('merge-a', '2026-05-22 21:03:47', 'Merge branchA into main', ['main-2', 'branch-a-1']),
+        $commit('merge-b', '2026-05-22 21:03:47', 'Merge branchB into main', ['merge-a', 'branch-b-1']),
+        $commit('merge-c', '2026-05-22 21:03:47', 'Merge branchC into main', ['merge-b', 'branch-c-1']),
+        $commit('merge-d', '2026-05-22 21:03:48', 'Merge branchD into main', ['merge-c', 'branch-d-1'], ['refs/heads/main']),
+    ];
+};
+
 return [
     'dolt log rows keep fixed columns and null opt-in fields by default' => static function (TestRunner $t) use ($commitLogGraph): void {
         $rows = (new CommitLogTable())->logRows($commitLogGraph(), ['headHash' => 'merge-1']);
@@ -506,7 +538,7 @@ return [
         $t->same('|', $linearLines[3]);
         $t->contains('inserting into t', $linearLines[4]);
         $t->same('* commit main-1', $linearLines[6]);
-        $t->same('*   commit merge-1 (HEAD -> main)', $mergeLines[0]);
+        $t->same('*   commit merge-1(HEAD -> main) ', $mergeLines[0]);
         $t->same('|\\  Merge: main-2 branchA-1', $mergeLines[1]);
         $t->same('* | commit main-2', $mergeLines[7]);
         $t->same('| * commit branchA-1', $mergeLines[13]);
@@ -519,6 +551,84 @@ return [
             'headHash' => 'merge-1',
             'graph' => 'true',
         ]));
+    },
+    'dolt log graph rendering maps upstream dense branch fan in' => static function (TestRunner $t) use ($denseMergeFanInGraph): void {
+        $output = (new CommitLogTable())->renderLog($denseMergeFanInGraph(), [
+            'headHash' => 'merge-d',
+            'graph' => true,
+        ]);
+
+        $t->same([
+            '*   commit merge-d(HEAD -> main) ',
+            '|\\  Merge: merge-c branch-d-1',
+            '| | Author: Bats Tests <bats@email.fake>',
+            '| | Date: 2026-05-22 21:03:48',
+            '| |',
+            "| | \tMerge branchD into main",
+            '| |',
+            '* |   commit merge-c',
+            '|\\|   Merge: merge-b branch-c-1',
+            '| \\   Author: Bats Tests <bats@email.fake>',
+            '| |\\  Date: 2026-05-22 21:03:47',
+            '| | |',
+            "| | | \tMerge branchC into main",
+            '| | |',
+            '* | |   commit merge-b',
+            '|\\| |   Merge: merge-a branch-b-1',
+            '| \\ |   Author: Bats Tests <bats@email.fake>',
+            '| |\\|   Date: 2026-05-22 21:03:47',
+            '| | \\',
+            "| | |\\  \tMerge branchB into main",
+            '| | | |',
+            '* | | | commit merge-a',
+            '|\\| | | Merge: main-2 branch-a-1',
+            '| \\ | | Author: Bats Tests <bats@email.fake>',
+            '| |\\| | Date: 2026-05-22 21:03:47',
+            '| | \\ |',
+            "| | |\\| \tMerge branchA into main",
+            '| | | \\',
+            '* | | |\\  commit main-2',
+            '| | | | | Author: Bats Tests <bats@email.fake>',
+            '| | | | | Date: 2026-05-22 21:03:47',
+            '| | | | |',
+            "| | | | | \tinsert into testtable",
+            '| | | | |',
+            '| * | | | commit branch-d-1(branchD) ',
+            '| | | | | Author: Bats Tests <bats@email.fake>',
+            '| | | | | Date: 2026-05-22 21:03:45',
+            '| | | | |',
+            "| | | | | \tcommit 1 branchD",
+            '| | | | |',
+            '| | * | | commit branch-c-1(branchC) ',
+            '| | | | | Author: Bats Tests <bats@email.fake>',
+            '| | | | | Date: 2026-05-22 21:03:44',
+            '| | | | |',
+            "| | | | | \tcommit 1 branchC",
+            '| | | | |',
+            '| | | * | commit branch-b-1(branchB) ',
+            '| | | | | Author: Bats Tests <bats@email.fake>',
+            '| | | | | Date: 2026-05-22 21:03:44',
+            '| | | | |',
+            "| | | | | \tcommit 1 branchB",
+            '| | | | |',
+            '| | | | * commit branch-a-1(branchA) ',
+            '| | |/ /  Author: Bats Tests <bats@email.fake>',
+            '| | / /   Date: 2026-05-22 21:03:43',
+            '| |/ /',
+            "| / /     \tcommit 1 BRANCHA",
+            '|/ /',
+            '*-- commit main-1',
+            '|   Author: Bats Tests <bats@email.fake>',
+            '|   Date: 2026-05-22 21:03:42',
+            '|',
+            "|   \tcommit 1 MAIN",
+            '|',
+            '* commit init',
+            '  Author: Bats Tests <bats@email.fake>',
+            '  Date: 2026-05-22 21:03:42',
+            '',
+            "\tInitialize data repository",
+        ], explode("\n", $output));
     },
     'dolt log decorate auto follows upstream tty boundary in CLI rendering' => static function (TestRunner $t) use ($commitLogGraph): void {
         $table = new CommitLogTable();
@@ -921,5 +1031,22 @@ return [
         $t->same($fixture['expectedCliOnelineStatLines'], explode("\n", $example['cliOnelineStat']));
         $t->same($fixture['expectedCliGraphOnelineLines'], explode("\n", $example['cliGraphOneline']));
         $t->true(!str_contains($example['cliOnelineStat'], '99 rows added'));
+    },
+    'wordpress fan in commit graph fixture renders default import review lanes' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-commit-log-fan-in-review.php';
+        $example = require __DIR__ . '/../examples/wordpress-commit-log-fan-in-review.php';
+        $table = new CommitLogTable();
+
+        $graph = $table->renderLog($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'graph' => true,
+            'decorate' => 'short',
+        ]);
+
+        $t->same($fixture['expectedGraphLines'], explode("\n", $graph));
+        $t->same($graph, $example['cliGraph']);
+        $t->same('wp-merge-media, wp-redirects', $example['log'][0]['parents']);
+        $t->same('HEAD -> main, tag: import-reviewed', $example['log'][0]['refs']);
+        $t->same('product-import', $example['log'][7]['refs']);
     },
 ];
