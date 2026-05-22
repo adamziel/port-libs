@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: 22 Dolt PHP behavior tests pass with 93 assertions; bounded upstream Go and BATS diff/schema/table/rename/primary-key runner evidence passes, including a rerun of the focused skinny diff enginetest; no full upstream runner parity",
     "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* row projection, tag-aware schema column diffs, primary-key set diffability, table delta matching/filtering, schema-aware target row projection, Dolt warning collection for coercion/primary-key changes, skinny diff schema projection with include-cols, and WordPress row/table/schema-drift/skinny fixtures.",
     "blocker": "No full upstream runner parity: full Go/BATS suites still require hydrating and compiling the full Dolt workspace and running Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice. Root PHP suite is green for this Dolt batch.",
-    "latestCommit": "645702c",
+    "latestCommit": "bc06077",
     "nextTask": "Map dolt diff / dolt_diff() row filtering such as --where, --limit, and table-function predicate pushdown from focused upstream diff tests."
 }
