@@ -4,9 +4,17 @@ Readable diffs for blocks, render callbacks, templates, theme.json, code snippet
 
 ## Current Native Slice
 
-Native token-level differ that avoids raw line-only comparison, classifies comments separately, carries delimiter open/close anchors, filters comments on request, normalizes trailing commas before closing delimiters, reports recursive changes inside bracketed syntax lists, applies upstream-style word/subword splitting for punctuation, Unicode words, and number boundaries, and renders escaped HTML for token, word/subword, and syntax-list changes.
+Native token-level differ that avoids raw line-only comparison, classifies comments separately, carries delimiter open/close anchors, filters comments on request, normalizes trailing commas before closing delimiters with language-specific Python tuple handling, reports recursive changes inside bracketed syntax lists, applies upstream-style word/subword splitting for punctuation, Unicode words, and number boundaries, and renders escaped HTML for token, word/subword, and syntax-list changes.
 
 Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
+
+Python mode now adds a targeted upstream `if_*.py` mapping for indentation-sensitive blocks. It keeps a stable `if` header and retained body lines aligned when a statement moves out of the indented body, reporting the moved statement separately under `$py.if[...]` and `$py.root[...]` paths.
+
+Python mode also maps upstream `ignore_trailing_tokens` behavior from `src/parse/tree_sitter_parser.rs`: list, dict, set, argument-list, and parameter trailing commas are formatting-only, while tuple commas are still semantic. This keeps migration-script formatting churn quiet without hiding `("classic-editor",)` becoming a grouped string.
+
+Python mode now maps a targeted upstream directory fixture excerpt from `sample_files/dir_*/has_many_hunk.py` for `def` block header updates. It reports `def function041()` to `def function041(**args)` at `$py.def["function041"]/header` while keeping stable neighboring functions out of the change stream.
+
+The same indentation-block slice now recognizes bounded `for`, `while`, and `with` headers. The WordPress loop migration fixture applies this to a content migration loop where `hydrate_featured_media(post)` moves out of `for post in posts`, reporting the loop-body deletion and top-level insertion without deleting the retained loop header.
 
 HTML and XML modes add upstream-style angle-bracket delimiters without changing default code tokenization, where `<` and `>` remain punctuation/operators. This lets block markup, saved post content, and XML export diffs report tag-list changes such as class mutations, inserted `id` attributes, newly inserted inline tags, and namespaced metadata tags while still escaping the rendered review HTML.
 
@@ -49,6 +57,12 @@ The template-wrapper fixture applies upstream `nested_slider` wrapper correction
 The upstream Emacs Lisp `nested_slider` fixture now exercises the opposite outer-delimiter preference used for Lisp-family languages. This keeps the existing WordPress template-wrapper inner-delimiter behavior honest by proving the implementation can choose the delimiter direction from the mapped language instead of using one wrapper strategy for every syntax.
 
 The upstream Emacs Lisp `change_outer` fixture now exercises changed outer delimiters. The WordPress block allow-list fixture applies the same behavior to PHP array syntax modernization, where `array('core/paragraph', 'core/image')` becomes `['core/paragraph', 'core/image']` without rendering the retained block names as changed.
+
+The upstream Python `if` fixture now exercises indentation-block movement. The WordPress Python migration fixture applies this to a content migration script where `purge_builder_shortcodes(post)` moves out of a `post.get("legacy_builder")` guard; the diff reports the guarded-body deletion and top-level insertion without deleting the retained guard header or `normalize_blocks(post)` call.
+
+The targeted upstream Python trailing-comma config applies to migration scripts that collect WordPress blocks. The WordPress trailing-comma fixture hides added list/dict/call commas around `collect_blocks(...)` while preserving the tuple comma deletion in `legacy_marker = ("classic-editor",)`.
+
+The upstream Python directory fixture excerpt now exercises function-header updates. The WordPress Python loop fixture applies the broader block-header path to a migration script where `hydrate_featured_media(post)` moves out of a post loop; the diff reports `$py.for["post in posts"][1]` and `$py.root[1]` changes without presenting the loop as deleted and re-added.
 
 The upstream CSS fixture now exercises selector-block alignment and declaration property matching. The WordPress block-style CSS fixture applies this to global style review: a `.wp-block-acme-card` custom-property color changes, `border-radius` is added, and a query-title selector is introduced while a reordered `.wp-block-image` rule stays out of the rendered change stream.
 
@@ -103,6 +117,9 @@ php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-syntax-error-js-diff.php
 php lanes/difftastic/examples/wordpress-byte-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-graph-limit-fallback-diff.php
+php lanes/difftastic/examples/wordpress-python-migration-if-diff.php
+php lanes/difftastic/examples/wordpress-python-loop-migration-diff.php
+php lanes/difftastic/examples/wordpress-python-trailing-comma-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-assets-ts-diff.php
@@ -128,4 +145,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Broaden parse-error fallback beyond delimiter-shaped JavaScript/TypeScript/CSS/JSON/PHP/Rust/YAML errors, or map another upstream `sample_files` display pair.
+Map another upstream `sample_files` display pair, or broaden Python nested block extraction inside `def` bodies.

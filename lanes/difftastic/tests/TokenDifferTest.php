@@ -96,6 +96,55 @@ return [
         $t->contains('+ $[3] <stuff/>', $encoded);
         $t->true(!str_contains($encoded, '<root>'), 'Stable root tags should remain matched in XML mode.');
     },
+    'maps upstream python if sample as indentation block changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-if-1.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-if-2.py');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'python']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $py.if["x"][1] bar', $encoded);
+        $t->contains('+ $py.root[0] bar', $encoded);
+        $t->true(!str_contains($encoded, 'if x:'), 'Stable Python if headers should not be rendered as changed when only indentation moves a body item.');
+    },
+    'maps upstream python directory def excerpt as a header update' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-python-def-1.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-python-def-2.py');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'python']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $py.def["function041"]/header def function041() def function041(**args)', $encoded);
+        $t->true(!str_contains($encoded, 'function040'), 'Stable neighboring Python functions should stay matched when one signature changes.');
+        $t->true(!str_contains($encoded, 'function042'), 'Stable following Python functions should stay matched when one signature changes.');
+    },
+    'respects upstream python trailing comma tuple exception' => static function (TestRunner $t): void {
+        $differ = new TokenDiffer();
+
+        $t->same(false, $differ->hasChanges('blocks = ["core/paragraph", "core/image"]', 'blocks = ["core/paragraph", "core/image",]', ['language' => 'python']));
+        $t->same(false, $differ->hasChanges('flags = {"migrate": True}', 'flags = {"migrate": True,}', ['language' => 'python']));
+        $t->same(false, $differ->hasChanges('collect_blocks(blocks, flags)', 'collect_blocks(blocks, flags,)', ['language' => 'python']));
+        $t->same(true, $differ->hasChanges('legacy_marker = ("classic-editor")', 'legacy_marker = ("classic-editor",)', ['language' => 'python']));
+    },
+    'wordpress python trailing comma diff ignores calls but keeps tuple changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-trailing-comma-before.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-trailing-comma-after.py');
+        $ops = (new TokenDiffer())->diff($before, $after, ['language' => 'python']);
+        $changes = array_values(array_filter($ops, static fn (array $op): bool => $op['op'] !== '='));
+        $html = (new HtmlDiffRenderer())->renderTokenDiff($before, $after, [
+            'language' => 'python',
+            'title' => 'WordPress Python trailing comma diff',
+        ]);
+
+        $t->same([['op' => '-', 'text' => ',']], $changes);
+        $t->contains('WordPress Python trailing comma diff', $html);
+        $t->contains('<span class="dft-del" data-op="-">,</span>', $html);
+        $t->true(!str_contains($html, 'class="dft-add"'), 'List, dict, and call trailing commas should stay formatting-only for migration scripts.');
+    },
     'maps upstream css sample with selector and declaration alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-css-1.css');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-css-2.css');
@@ -833,6 +882,34 @@ return [
         $t->true(!str_contains($encoded, '$js.call["registerPlugin"]'), 'Parse-error fallback should avoid misleading structured JavaScript call matching.');
         $t->contains('data-path="$text.fallback"', $html);
         $t->contains('Text (6 JavaScript parse errors, exceeded DFT_PARSE_ERROR_LIMIT)', $html);
+    },
+    'wordpress python migration guard diff keeps stable if header aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-migration-if-before.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-migration-if-after.py');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'python',
+            'title' => 'WordPress Python migration guard diff',
+        ]);
+
+        $t->contains('WordPress Python migration guard diff', $html);
+        $t->contains('data-path="$py.if[&quot;post.get(\&quot;legacy_builder\&quot;)&quot;][1]"', $html);
+        $t->contains('data-path="$py.root[0]"', $html);
+        $t->contains('purge_builder_shortcodes(post)', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.if[&quot;post.get(\&quot;legacy_builder\&quot;)&quot;]">if post.get'), 'Stable Python migration guard headers should not be deleted when a cleanup call is unindented.');
+    },
+    'wordpress python migration loop diff keeps stable for header aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-loop-migration-before.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-python-loop-migration-after.py');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'python',
+            'title' => 'WordPress Python migration loop diff',
+        ]);
+
+        $t->contains('WordPress Python migration loop diff', $html);
+        $t->contains('data-path="$py.for[&quot;post in posts&quot;][1]"', $html);
+        $t->contains('data-path="$py.root[1]"', $html);
+        $t->contains('hydrate_featured_media(post)', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$py.for[&quot;post in posts&quot;]">for post in posts'), 'Stable Python for headers should not be deleted when a migration helper call is unindented.');
     },
     'wordpress block variation graph limit falls back to text diff' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-graph-limit-fallback-before.js');

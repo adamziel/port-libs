@@ -31,7 +31,11 @@ final class TokenDiffer
      */
     private function tokenizeGeneric(string $source, array $options, int $baseOffset, int &$depth): array
     {
-        $lineCommentPattern = $this->isLispLanguage($options) ? ';[^\r\n]*|\/\/[^\r\n]*' : '\/\/[^\r\n]*';
+        $lineCommentPattern = match (true) {
+            $this->isLispLanguage($options) => ';[^\r\n]*|\/\/[^\r\n]*',
+            $this->isPythonLanguage($options) => '\#[^\r\n]*',
+            default => '\/\/[^\r\n]*',
+        };
         $stringPattern = $this->isLispLanguage($options)
             ? '"(?:\\\\.|[^"\\\\])*"'
             : '"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'';
@@ -324,6 +328,11 @@ final class TokenDiffer
         }
         if ($this->isJavaScriptLanguage($options)) {
             $this->diffJavaScriptStatementSyntax($oldRoot['children'], $newRoot['children'], $options, $changes, '$js');
+
+            return $changes;
+        }
+        if ($this->isPythonLanguage($options)) {
+            $this->diffPythonBlocks($old, $new, $changes);
 
             return $changes;
         }
@@ -693,6 +702,7 @@ final class TokenDiffer
             str_starts_with($text, '/*'),
             str_starts_with($text, '//'),
             str_starts_with($text, '<!--'),
+            str_starts_with($text, '#') && $this->isPythonLanguage($options),
             str_starts_with($text, ';') && $this->isLispLanguage($options) => 'comment',
             preg_match('/^[A-Za-z_]/', $text) === 1 => 'identifier',
             preg_match('/^\d/', $text) === 1 => 'number',
@@ -775,7 +785,7 @@ final class TokenDiffer
         }
 
         if (($options['ignoreTrailingCommas'] ?? true) === true) {
-            $tokens = $this->removeIgnoredTrailingCommas($tokens);
+            $tokens = $this->removeIgnoredTrailingCommas($tokens, $options);
         }
 
         if ($this->isJsxLanguage($options)) {
@@ -789,13 +799,13 @@ final class TokenDiffer
      * @param list<Token> $tokens
      * @return list<Token>
      */
-    private function removeIgnoredTrailingCommas(array $tokens): array
+    private function removeIgnoredTrailingCommas(array $tokens, array $options): array
     {
         $kept = [];
         $count = count($tokens);
         for ($i = 0; $i < $count; $i++) {
             $token = $tokens[$i];
-            if ($token->text === ',' && $this->nextTokenClosesList($tokens, $i + 1)) {
+            if ($token->text === ',' && $this->shouldIgnoreTrailingComma($tokens, $i, $options)) {
                 continue;
             }
 
@@ -808,7 +818,46 @@ final class TokenDiffer
     /**
      * @param list<Token> $tokens
      */
-    private function nextTokenClosesList(array $tokens, int $offset): bool
+    private function shouldIgnoreTrailingComma(array $tokens, int $commaIndex, array $options): bool
+    {
+        $closeIndex = $this->nextSignificantTokenIndex($tokens, $commaIndex + 1);
+        if ($closeIndex === null || $tokens[$closeIndex]->delimiterRole !== 'close') {
+            return false;
+        }
+
+        if (!$this->isPythonLanguage($options)) {
+            return true;
+        }
+
+        $close = $tokens[$closeIndex]->text;
+        if ($close === ']' || $close === '}') {
+            return true;
+        }
+        if ($close !== ')') {
+            return false;
+        }
+
+        $openIndex = $this->matchingOpenTokenIndex($tokens, $closeIndex, $options);
+        if ($openIndex === null) {
+            return false;
+        }
+
+        $previous = $this->previousSignificantToken($tokens, $openIndex - 1);
+        if ($previous === null) {
+            return false;
+        }
+
+        if (in_array($previous->text, [')', ']', '}'], true)) {
+            return true;
+        }
+
+        return $previous->kind === 'identifier' && !$this->isPythonControlKeyword($previous->text);
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function nextSignificantTokenIndex(array $tokens, int $offset): ?int
     {
         $count = count($tokens);
         for ($i = $offset; $i < $count; $i++) {
@@ -816,10 +865,95 @@ final class TokenDiffer
                 continue;
             }
 
-            return $tokens[$i]->delimiterRole === 'close';
+            return $i;
         }
 
-        return false;
+        return null;
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function previousSignificantToken(array $tokens, int $offset): ?Token
+    {
+        for ($index = $offset; $index >= 0; $index--) {
+            if ($tokens[$index]->kind === 'comment') {
+                continue;
+            }
+
+            return $tokens[$index];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function matchingOpenTokenIndex(array $tokens, int $closeIndex, array $options): ?int
+    {
+        $delimiterPairs = $this->delimiterPairs($options);
+        $expectedCloses = [$tokens[$closeIndex]->text];
+
+        for ($index = $closeIndex - 1; $index >= 0; $index--) {
+            $token = $tokens[$index];
+            if ($token->kind === 'comment') {
+                continue;
+            }
+            if ($token->delimiterRole === 'close') {
+                $expectedCloses[] = $token->text;
+                continue;
+            }
+            if ($token->delimiterRole !== 'open') {
+                continue;
+            }
+
+            $expectedClose = $delimiterPairs[$token->text] ?? null;
+            if ($expectedClose === null || $expectedCloses === []) {
+                continue;
+            }
+            if ($expectedCloses[array_key_last($expectedCloses)] !== $expectedClose) {
+                continue;
+            }
+
+            array_pop($expectedCloses);
+            if ($expectedCloses === []) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function isPythonControlKeyword(string $text): bool
+    {
+        return in_array($text, [
+            'and',
+            'assert',
+            'await',
+            'class',
+            'def',
+            'del',
+            'elif',
+            'else',
+            'except',
+            'finally',
+            'for',
+            'from',
+            'if',
+            'import',
+            'in',
+            'is',
+            'lambda',
+            'not',
+            'or',
+            'raise',
+            'return',
+            'try',
+            'while',
+            'with',
+            'yield',
+        ], true);
     }
 
     /**
@@ -3234,6 +3368,235 @@ final class TokenDiffer
     }
 
     /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffPythonBlocks(string $old, string $new, array &$changes): void
+    {
+        $oldStructure = $this->pythonBlockStructure($old);
+        $newStructure = $this->pythonBlockStructure($new);
+        $matchedNewKeys = [];
+
+        foreach ($oldStructure['blocks'] as $key => $oldBlock) {
+            if (!isset($newStructure['blocks'][$key])) {
+                $changes[] = [
+                    'op' => '-',
+                    'path' => $this->pythonBlockPath($oldBlock),
+                    'text' => $this->pythonBlockText($oldBlock),
+                ];
+                continue;
+            }
+
+            $matchedNewKeys[$key] = true;
+            if ($oldBlock['header'] !== $newStructure['blocks'][$key]['header']) {
+                $changes[] = [
+                    'op' => '~',
+                    'path' => $this->pythonBlockPath($oldBlock) . '/header',
+                    'old' => $oldBlock['header'],
+                    'new' => $newStructure['blocks'][$key]['header'],
+                ];
+            }
+            $this->diffStringItems(
+                $oldBlock['items'],
+                $newStructure['blocks'][$key]['items'],
+                $this->pythonBlockPath($oldBlock),
+                $changes,
+            );
+        }
+
+        foreach ($newStructure['blocks'] as $key => $newBlock) {
+            if (($matchedNewKeys[$key] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '+',
+                'path' => $this->pythonBlockPath($newBlock),
+                'text' => $this->pythonBlockText($newBlock),
+            ];
+        }
+
+        $this->diffStringItems($oldStructure['root'], $newStructure['root'], '$py.root', $changes);
+    }
+
+    /**
+     * @return array{root:list<string>, blocks:array<string, array{keyword:string, label:string, header:string, items:list<string>, index:int}>}
+     */
+    private function pythonBlockStructure(string $source): array
+    {
+        $lines = preg_split('/\r\n|\n|\r/', $source);
+        if ($lines === false) {
+            $lines = [$source];
+        }
+
+        $root = [];
+        $blocks = [];
+        $seen = [];
+        $count = count($lines);
+
+        for ($index = 0; $index < $count; $index++) {
+            $line = $lines[$index];
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            $indent = $this->pythonIndentWidth($line);
+            $header = $this->pythonBlockHeader($trimmed);
+            if ($header !== null) {
+                $items = [];
+                for ($bodyIndex = $index + 1; $bodyIndex < $count; $bodyIndex++) {
+                    $bodyLine = $lines[$bodyIndex];
+                    $bodyTrimmed = trim($bodyLine);
+                    if ($bodyTrimmed === '' || str_starts_with($bodyTrimmed, '#')) {
+                        continue;
+                    }
+
+                    if ($this->pythonIndentWidth($bodyLine) <= $indent) {
+                        $index = $bodyIndex - 1;
+                        break;
+                    }
+
+                    $items[] = $bodyTrimmed;
+                    $index = $bodyIndex;
+                }
+
+                $label = $header['condition'];
+                $seenKey = $header['keyword'] . "\0" . $label;
+                $blockIndex = $seen[$seenKey] ?? 0;
+                $seen[$seenKey] = $blockIndex + 1;
+                $key = $seenKey . "\0" . $blockIndex;
+                $blocks[$key] = [
+                    'keyword' => $header['keyword'],
+                    'label' => $label,
+                    'header' => $header['header'],
+                    'items' => $items,
+                    'index' => $blockIndex,
+                ];
+                continue;
+            }
+
+            if ($indent === 0) {
+                $root[] = $trimmed;
+            }
+        }
+
+        return ['root' => $root, 'blocks' => $blocks];
+    }
+
+    /**
+     * @return ?array{keyword:string, condition:string, header:string}
+     */
+    private function pythonBlockHeader(string $trimmedLine): ?array
+    {
+        if (preg_match('/^def\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?<suffix>\([^)]*\)(?:\s*->\s*[^:]+)?):(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
+            return [
+                'keyword' => 'def',
+                'condition' => (string) $match['name'],
+                'header' => 'def ' . (string) $match['name'] . $this->normalizePythonHeaderSuffix((string) $match['suffix']),
+            ];
+        }
+
+        if (preg_match('/^for\s+(?<condition>.+):(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
+            $condition = trim((string) $match['condition']);
+
+            return [
+                'keyword' => 'for',
+                'condition' => $condition,
+                'header' => 'for ' . $condition,
+            ];
+        }
+
+        if (preg_match('/^(?<keyword>if|while|with)\s+(?<condition>.+):(?:\s*#.*)?$/', $trimmedLine, $match) === 1) {
+            $keyword = (string) $match['keyword'];
+            $condition = trim((string) $match['condition']);
+
+            return [
+                'keyword' => $keyword,
+                'condition' => $condition,
+                'header' => $keyword . ' ' . $condition,
+            ];
+        }
+
+        return null;
+    }
+
+    private function normalizePythonHeaderSuffix(string $suffix): string
+    {
+        return (string) preg_replace('/\s+/', '', trim($suffix));
+    }
+
+    private function pythonIndentWidth(string $line): int
+    {
+        $indent = strspn($line, " \t");
+        $width = 0;
+        for ($index = 0; $index < $indent; $index++) {
+            $width += $line[$index] === "\t" ? 4 : 1;
+        }
+
+        return $width;
+    }
+
+    /**
+     * @param array{keyword:string, label:string, header:string, items:list<string>, index:int} $block
+     */
+    private function pythonBlockPath(array $block): string
+    {
+        $path = '$py.' . $block['keyword'] . '[' . json_encode($block['label'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+        if ($block['index'] > 0) {
+            $path .= '[' . $block['index'] . ']';
+        }
+
+        return $path;
+    }
+
+    /**
+     * @param array{keyword:string, label:string, header:string, items:list<string>, index:int} $block
+     */
+    private function pythonBlockText(array $block): string
+    {
+        $body = $block['items'] === [] ? '' : "\n    " . implode("\n    ", $block['items']);
+
+        return $block['header'] . ':' . $body;
+    }
+
+    /**
+     * @param list<string> $oldItems
+     * @param list<string> $newItems
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffStringItems(array $oldItems, array $newItems, string $path, array &$changes): void
+    {
+        $table = $this->lcsTable($oldItems, $newItems);
+        $i = 0;
+        $j = 0;
+
+        while ($i < count($oldItems) && $j < count($newItems)) {
+            if ($oldItems[$i] === $newItems[$j]) {
+                $i++;
+                $j++;
+                continue;
+            }
+
+            if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
+                $changes[] = ['op' => '-', 'path' => $path . '[' . $i . ']', 'text' => $oldItems[$i]];
+                $i++;
+            } else {
+                $changes[] = ['op' => '+', 'path' => $path . '[' . $j . ']', 'text' => $newItems[$j]];
+                $j++;
+            }
+        }
+
+        while ($i < count($oldItems)) {
+            $changes[] = ['op' => '-', 'path' => $path . '[' . $i . ']', 'text' => $oldItems[$i]];
+            $i++;
+        }
+        while ($j < count($newItems)) {
+            $changes[] = ['op' => '+', 'path' => $path . '[' . $j . ']', 'text' => $newItems[$j]];
+            $j++;
+        }
+    }
+
+    /**
      * @return list<array{index:int, attributes:string, body:string}>
      */
     private function htmlRawBlocks(string $source, string $tagName): array
@@ -4002,6 +4365,14 @@ final class TokenDiffer
     private function isPhpLikeLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['hack', 'hh', 'php'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isPythonLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['py', 'python'], true);
     }
 
     /**
