@@ -13,7 +13,7 @@
     "benchmarkDenominator": {
         "status": "cloned-inventory-plus-upstream-veryquick-runner",
         "total": 1454,
-        "mapped": 22,
+        "mapped": 26,
         "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest.",
         "inventory": {
             "allRepositoryFiles": 2208,
@@ -32,7 +32,8 @@
             "focusedCorruptTestScripts": 23,
             "focusedWalTestScripts": 42,
             "focusedFileFormatRelatedScripts": 113,
-            "focusedOverflowChainScripts": 1
+            "focusedOverflowChainScripts": 1,
+            "focusedIndexTestScripts": 15
         },
         "runnerStatus": {
             "executed": true,
@@ -74,8 +75,8 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, b-tree page header parser, table leaf and table interior cell parsers, SQLite record serial decoder, database page reader, sqlite_schema table-b-tree traversal, bounded table-row decoding, standard wp_options option_name/option_value reads from resolved root pages, and table leaf overflow payload chain reads for large records."
+        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, b-tree page header parser, table leaf and table interior cell parsers, index leaf and index interior cell parsers, SQLite record serial decoder, database page reader, sqlite_schema table-b-tree traversal, bounded table-row decoding, rowid table lookup, standard wp_options option_name/option_value reads from resolved root pages, table leaf overflow payload chain reads for large records, and explicit wp_options(option_name) index lookup."
     },
-    "wordpressScenario": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection and large option_value overflow reads for recovery/import workflows.",
-    "nextTask": "Port SQLite index b-tree parsing and a bounded wp_options option_name lookup path so recovery tools do not need to full-scan large options tables."
+    "wordpressScenario": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, large option_value overflow reads, and explicit option_name index lookup for recovery/import workflows.",
+    "nextTask": "Port SQLite index comparison features outside the current bounded slice: expression indexes, partial indexes, non-BINARY collations, descending sort order, and automatic-index column introspection."
 }

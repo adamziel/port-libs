@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
+use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
@@ -132,6 +133,72 @@ $tableInteriorPage = static function (array $cells, int $rightMostPage, int $pag
     }
 
     $page[$headerOffset] = "\x05";
+    $page = substr_replace($page, pack('n', 0), $headerOffset + 1, 2);
+    $page = substr_replace($page, pack('n', $cellCount), $headerOffset + 3, 2);
+    $contentStart = $cellCount === 0 ? $pageSize : min($pointers);
+    $page = substr_replace($page, pack('n', $contentStart === 65536 ? 0 : $contentStart), $headerOffset + 5, 2);
+    $page[$headerOffset + 7] = "\x00";
+    $page = substr_replace($page, pack('N', $rightMostPage), $headerOffset + 8, 4);
+
+    foreach ($pointers as $index => $pointer) {
+        $page = substr_replace($page, pack('n', $pointer), $headerOffset + 12 + ($index * 2), 2);
+    }
+
+    return $page;
+};
+
+$indexCell = static function (array $values) use ($varint, $recordPayload): string {
+    $payload = $recordPayload($values);
+
+    return $varint(strlen($payload)) . $payload;
+};
+
+$indexLeafPage = static function (array $cells, int $pageSize = 512, int $headerOffset = 0, ?string $basePage = null): string {
+    $page = $basePage ?? str_repeat("\0", $pageSize);
+    $cellCount = count($cells);
+    $offset = $pageSize;
+    $pointers = [];
+
+    foreach ($cells as $cell) {
+        $offset -= strlen($cell);
+        if ($offset < $headerOffset + 8 + ($cellCount * 2)) {
+            throw new RuntimeException('Fixture index leaf page has overlapping cells');
+        }
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+        $pointers[] = $offset;
+    }
+
+    $page[$headerOffset] = "\x0a";
+    $page = substr_replace($page, pack('n', 0), $headerOffset + 1, 2);
+    $page = substr_replace($page, pack('n', $cellCount), $headerOffset + 3, 2);
+    $contentStart = $cellCount === 0 ? $pageSize : min($pointers);
+    $page = substr_replace($page, pack('n', $contentStart === 65536 ? 0 : $contentStart), $headerOffset + 5, 2);
+    $page[$headerOffset + 7] = "\x00";
+
+    foreach ($pointers as $index => $pointer) {
+        $page = substr_replace($page, pack('n', $pointer), $headerOffset + 8 + ($index * 2), 2);
+    }
+
+    return $page;
+};
+
+$indexInteriorPage = static function (array $cells, int $rightMostPage, int $pageSize = 512, int $headerOffset = 0, ?string $basePage = null) use ($indexCell): string {
+    $page = $basePage ?? str_repeat("\0", $pageSize);
+    $cellCount = count($cells);
+    $offset = $pageSize;
+    $pointers = [];
+
+    foreach ($cells as [$leftChildPage, $values]) {
+        $cell = pack('N', $leftChildPage) . $indexCell($values);
+        $offset -= strlen($cell);
+        if ($offset < $headerOffset + 12 + ($cellCount * 2)) {
+            throw new RuntimeException('Fixture index interior page has overlapping cells');
+        }
+        $page = substr_replace($page, $cell, $offset, strlen($cell));
+        $pointers[] = $offset;
+    }
+
+    $page[$headerOffset] = "\x02";
     $page = substr_replace($page, pack('n', 0), $headerOffset + 1, 2);
     $page = substr_replace($page, pack('n', $cellCount), $headerOffset + 3, 2);
     $contentStart = $cellCount === 0 ? $pageSize : min($pointers);
@@ -293,6 +360,30 @@ return [
         $t->same(39, SQLiteTableLeafCell::localPayloadLength(478, 512));
         $t->same(78, SQLiteTableLeafCell::localPayloadLength(586, 512));
     },
+    'parses sqlite index leaf and interior cells' => static function (TestRunner $t) use ($indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $leafPage = $indexLeafPage([
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $leafHeader = SQLiteBTreePageHeader::parsePage($leafPage, 512);
+        $leafCells = SQLiteIndexCell::parsePageCells($leafPage, $leafHeader);
+
+        $interiorPage = $indexInteriorPage([[2, ['home', 2]]], 3);
+        $interiorHeader = SQLiteBTreePageHeader::parsePage($interiorPage, 512);
+        $interiorCells = SQLiteIndexCell::parsePageCells($interiorPage, $interiorHeader);
+
+        $t->same('index-leaf', $leafHeader->pageType);
+        $t->same(null, $leafCells[0]->leftChildPage);
+        $t->same(['home', 2], $leafCells[0]->record()->values);
+        $t->same('index-interior', $interiorHeader->pageType);
+        $t->same(2, $interiorCells[0]->leftChildPage);
+        $t->same(['home', 2], $interiorCells[0]->record()->values);
+    },
+    'computes sqlite index local payload length for overflow records' => static function (TestRunner $t): void {
+        $t->same(102, SQLiteIndexCell::localPayloadLength(102, 512));
+        $t->same(39, SQLiteIndexCell::localPayloadLength(103, 512));
+        $t->same(82, SQLiteIndexCell::localPayloadLength(590, 512));
+    },
     'sqlite records decode core serial types' => static function (TestRunner $t) use ($varint): void {
         $serialTypes = [0, 8, 9, 1, 2, 3, 4, 5, 6, 7, 18, 19];
         $header = implode('', array_map($varint, $serialTypes));
@@ -409,6 +500,51 @@ return [
         $t->same('https://example.test/blog', $options[1]->optionValue);
         $t->same(1, count($bounded));
         $t->same('siteurl', $bounded[0]->optionName);
+    },
+    'walks sqlite index btrees including interior index records' => static function (TestRunner $t) use ($makeFirstPage, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([], 512, 100, $makeFirstPage(512, 4));
+        $page2 = $indexInteriorPage([[3, ['home', 2]]], 4);
+        $page3 = $indexLeafPage([
+            $indexCell(['blogname', 3]),
+        ]);
+        $page4 = $indexLeafPage([
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+
+        $entries = $database->indexCells(2);
+
+        $t->same(['blogname', 'home', 'siteurl'], array_map(static fn (SQLiteIndexCell $cell): string => $cell->record()->values[0], $entries));
+        $t->same([3, 2, 1], array_map(static fn (SQLiteIndexCell $cell): int => $cell->record()->values[1], $entries));
+    },
+    'uses a wordpress option_name index to fetch an option by rowid' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $tableInteriorPage([[4, 1]], 5);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+        ]);
+        $page5 = $tableLeafPage([
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $option = $database->wordpressOptionByIndexedName('home');
+        $missing = $database->wordpressOptionByIndexedName('missing');
+
+        $t->same(1, count($database->indexRecordsForTable('wp_options')));
+        $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(2, $option->optionId);
+        $t->same('home', $option->optionName);
+        $t->same('https://example.test/blog', $option->optionValue);
+        $t->same(null, $missing);
     },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';

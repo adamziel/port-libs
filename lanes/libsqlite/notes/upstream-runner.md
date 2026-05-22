@@ -98,3 +98,25 @@ Focused upstream fixture boundary:
 The native PHP tests now cover local-payload length calculation, single-page
 overflow reads, multi-page chained overflow reads, and premature overflow-chain
 termination for WordPress-shaped `wp_options` rows.
+
+## Focused Native Mapping: Index B-Tree Option Lookup
+
+The current PHP slice also maps SQLite index b-tree cell layout from
+`src/btree.c`: index leaf cells store a payload-length varint followed by the
+index record payload; index interior cells prefix the same payload with a
+4-byte left-child page pointer; both use `maxLocal = ((usableSize - 12) * 64 /
+255) - 23` and `minLocal = ((usableSize - 12) * 32 / 255) - 23`.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` covers `CREATE INDEX` schema records and automatic index
+  naming.
+- `test/rowid.test` covers rowid lookups joined through an index, including
+  `CREATE INDEX idxt1 ON t1(x)` and equality on `rowid`/`_rowid_`/`oid`.
+
+The native PHP tests now cover index leaf and interior cell parsing, in-order
+index b-tree traversal that preserves interior index records, index local
+payload calculations, explicit `CREATE INDEX ... ON wp_options(option_name)`
+schema discovery, option-name index lookup, and rowid-backed table retrieval.
+Expression indexes, partial indexes, non-BINARY collations, descending sort
+order, and automatic-index column introspection remain unported.

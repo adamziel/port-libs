@@ -12,7 +12,10 @@ current slice also decodes bounded table rows and maps the standard
 `wp_options` row shape into `option_id`, `option_name`, `option_value`, and
 `autoload` fields without using the PHP SQLite extension. Large
 `option_value` records that spill from a table leaf cell into SQLite overflow
-pages are now reassembled through the native page reader.
+pages are now reassembled through the native page reader. Explicit
+`CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
+used to fetch a single option by indexed name, then resolve the stored rowid
+through the table b-tree without scanning the whole options table.
 
 ## Example
 
@@ -24,11 +27,16 @@ extension. The same path now handles large serialized/autoloaded option values
 stored on overflow pages. This is an inspection primitive needed by
 import/export and recovery tooling on hosts where `sqlite3` is unavailable.
 
+`examples/wordpress-indexed-option-lookup.php` reads a WordPress-oriented
+SQLite database file, resolves an explicit `wp_options(option_name)` index,
+and returns one option by name using native index and rowid b-tree traversal.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
 
 ## Next Task
 
-Port index b-tree parsing and a bounded `wp_options.option_name` lookup path so
-recovery tools can avoid full scans of large options tables.
+Port SQLite index b-tree comparison features that are still outside the current
+slice: expression indexes, partial indexes, non-BINARY collations, descending
+sort order, and automatic-index column introspection.

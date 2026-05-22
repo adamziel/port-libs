@@ -41,4 +41,9 @@ final class SQLiteSchemaRecord
     {
         return $this->type === 'table' && $this->name === $name;
     }
+
+    public function isIndexForTable(string $tableName): bool
+    {
+        return $this->type === 'index' && $this->tableName === $tableName;
+    }
 }
