@@ -53,13 +53,14 @@ Focused pack-index inventory inspected on 2026-05-22:
 - `gix-pack/src/index/init.rs` defines the mapped v2 parser semantics: `\xfftOc` signature, version validation, 256-entry monotonic fanout table, object count from fanout[255], v2 table size validation, large-offset table validation, and trailing pack/index checksums.
 - `gix-pack/src/index/access.rs` and `verify.rs` define the mapped access semantics: object IDs are fanout-bounded and sorted, lookups use binary search by full object ID, prefix lookups can be missing/ambiguous/found, CRC32 values are available for v2, pack offsets may be 32-bit or large 64-bit offsets, sorted offsets are useful for pack traversal, and index checksums cover all bytes before the trailing checksum.
 
-Focused pack-data inventory inspected on 2026-05-22:
+Focused pack-data/delta inventory inspected on 2026-05-22:
 
-- 7 selected `gix-pack` data header, entry header, file decode, and test paths inspected with targeted `git show` and `git grep`.
-- 19 Rust `#[test]` attributes counted across `gix-pack/tests/pack/data/header.rs`, `gix-pack/tests/pack/data/file.rs`, and `gix-pack/src/data/entry/header.rs`.
+- Selected `gix-pack` data header, entry header, delta application, file decode, input lookup, and test paths inspected with targeted `git show` and `git grep`.
+- 23 Rust `#[test]` attributes counted across `gix-pack/tests/pack/data/header.rs`, `gix-pack/tests/pack/data/file.rs`, `gix-pack/tests/pack/data/input.rs`, and `gix-pack/src/data/entry/header.rs`.
 - `gix-pack/src/data/header.rs` defines the mapped pack file header semantics: `PACK` signature, version 2/3 support, and object count.
 - `gix-pack/src/data/entry/header.rs` and `gix-pack/src/data/file/decode/entry.rs` define the mapped entry semantics: Git's variable-size entry header, type IDs for commit/tree/blob/tag/OFS_DELTA/REF_DELTA, zlib-compressed entry data, object size checks, and explicit delta handling paths.
-- `gix-pack/tests/pack/data/file.rs` provides the mapped non-delta commit/blob/tree decompression cases and marks delta resolution as a separate behavior path.
+- `gix-pack/src/data/delta.rs` defines the mapped delta semantics: 7-bit little-endian source/result size headers, copy instructions with offset/size bytes, zero-size copy expansion to `0x10000`, insert commands, and explicit rejection of reserved command 0/truncated data/out-of-range copies.
+- `gix-pack/tests/pack/data/file.rs` and `gix-pack/tests/pack/data/input.rs` provide the mapped non-delta commit/blob/tree decompression cases plus OFS_DELTA and REF_DELTA resolution paths.
 
 Runner status:
 
@@ -77,4 +78,4 @@ Current PHP mapping:
 - `PackedReferencesTest.php` maps `gix-ref` packed-ref header traits, uppercase and SHA-256 object IDs, peeled object lines, invalid headers/lonely peels, upstream `without-header` and `unsorted` fixtures, packed partial lookup disambiguation, and a WordPress packed branch/tag fixture.
 - `ReferenceStoreTest.php` maps loose-over-packed precedence, opening `packed-refs` from a Git directory, loose-only remote `HEAD` shortcuts, capitalized packed branches, and WordPress combined loose+packed ref resolution.
 - `PackIndexTest.php` maps `gix-pack` v2 pack-index fanout parsing, monotonic fanout/size/version validation, pack and index checksum access, checksum verification, full object ID lookup, prefix missing/ambiguous/found outcomes, CRC32 entries, 32-bit and large 64-bit offsets, sorted offsets, and a WordPress compacted object-offset fixture.
-- `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, object ID verification, unsupported/corrupt pack errors, explicit delta rejection, and a WordPress packed commit/blob fixture.
+- `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, OFS_DELTA/REF_DELTA resolution, Git delta copy/insert application, object ID verification, unsupported/corrupt pack errors, direct delta-entry rejection, and a WordPress packed commit/blob/delta fixture.

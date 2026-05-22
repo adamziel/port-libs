@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, and pack data header/non-delta entry decoding.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, pack data entry decoding, and OFS_DELTA/REF_DELTA object resolution.
 
 ## WordPress Deploy Tree Example
 
@@ -28,8 +28,8 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## WordPress Pack Data Example
 
-`examples/wordpress-pack-data.php` pairs a deterministic pack index with pack data, then reads a packed commit and blob by object ID. This models a PHP object database reading compacted WordPress content on shared hosting without invoking `git cat-file`.
+`examples/wordpress-pack-data.php` pairs a deterministic pack index with pack data, then reads a packed commit, blob, and OFS_DELTA-reconstructed blob by object ID. This models a PHP object database reading compacted WordPress content on shared hosting without invoking `git cat-file`.
 
 ## Next Task
 
-Map OFS_DELTA/REF_DELTA header resolution and delta application for packed blobs.
+Map pack traversal/object-database lookup semantics or run a controlled gix-pack crate no-run probe before broadening packed object coverage.
