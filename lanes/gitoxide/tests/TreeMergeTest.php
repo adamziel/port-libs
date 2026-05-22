@@ -647,6 +647,34 @@ return [
             $result->indexEntries(),
         ));
     },
+    'maps upstream gix-merge tree-baseline rename-add-same-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
+        $base = new Tree([
+            $blobEntry('target', ''),
+            $linkEntry('link', 'target'),
+        ]);
+        $ours = new Tree([
+            $linkEntry('link-new', 'target'),
+            $blobEntry('target', ''),
+        ]);
+        $theirs = new Tree([
+            $linkEntry('link', 'target'),
+            $linkEntry('link-new', 'target'),
+            $blobEntry('target', ''),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $linkNew = $result->tree->entryNamed('link-new');
+
+        $t->true($result->isClean());
+        $t->same(['link-new', 'target'], $names($result->tree));
+        $t->same(null, $result->tree->entryNamed('link'));
+        $t->same('link', $linkNew?->kind());
+        $t->same('target', $read($linkNew?->oid ?? '')->body);
+        $t->same([], $result->conflicts);
+        $t->same([], $result->indexEntries());
+    },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
