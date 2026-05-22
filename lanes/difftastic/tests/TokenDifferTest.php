@@ -109,6 +109,49 @@ return [
         $t->contains('+ $css["p"] p{color:#000;}', $encoded);
         $t->true(!str_contains($encoded, '$css[".bar"]'), 'Reordered stable CSS selector blocks should stay matched.');
     },
+    'maps upstream tailwind css at-rule item as a focused update' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-tailwind-1.css');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-tailwind-2.css');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'css']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $css["select"][0]', $encoded);
+        $t->contains('@applyrounded-mdbg-gray-600;', $encoded);
+        $t->contains('@applyrounded-mdbg-hss-dark-gray;', $encoded);
+        $t->true(!str_contains($encoded, '- $css["select"][0]'), 'Changed CSS at-rule items should stay aligned instead of being deleted and re-added.');
+    },
+    'maps upstream simple scss sample through mixin and nested rule alignment' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-simple-scss-1.scss');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-simple-scss-2.scss');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'scss']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $css["@mixinbuttons"]/selector @mixinbuttons($basicBorder:1px,$gradient1:#fff,$gradient2:#d8dee7) @mixinbuttons($basicBorder:1px,$gradient1:#333,$gradient2:#d8dee7)', $encoded);
+        $t->contains('~ $css["@mixinbuttons"][0]/{0}[0] border:$basicBordersolid#acbed3; border:$basicBorderdotted#acbed3;', $encoded);
+        $t->contains('~ $css["@mixinbuttons"][0]/{0}[3] font-size:12px; font-size:1rem;', $encoded);
+        $t->contains('~ $css["@mixinbuttons"][0]/{0}[7]/{0}[0] border:2pxsolid#3b557d; border:2pxdotted#3b557d;', $encoded);
+        $t->contains('~ $css["@mixinbuttons"][0]/{0}[7]/{1}[0] opacity:.8; opacity:.6;', $encoded);
+        $t->true(!str_contains($encoded, '- $css["@mixinbuttons"] @mixinbuttons'), 'SCSS mixin default argument changes should not force a whole-mixin replacement.');
+    },
+    'maps upstream html style media sample without stable media churn' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-style-media-1.css');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-style-media-2.css');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'css']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
+        $t->contains('+ $css["p"] p{color:#000;}', $encoded);
+        $t->true(!str_contains($encoded, '$css["@media"]'), 'Stable nested @media rules from the upstream HTML style sample should stay matched.');
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -442,6 +485,39 @@ return [
         $t->contains('border-radius:4px;', $html);
         $t->contains('wp-block-query-title', $html);
         $t->true(!str_contains($html, 'wp-block-image'), 'Reordered stable block style selectors should stay out of the rendered change stream.');
+    },
+    'wordpress block editor scss diff reports mixin header and nested color changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-scss-before.scss');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-scss-after.scss');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'scss',
+            'title' => 'Block editor SCSS mixin diff',
+        ]);
+
+        $t->contains('Block editor SCSS mixin diff', $html);
+        $t->contains('data-path="$css[&quot;@mixinacme-card&quot;]/selector"', $html);
+        $t->contains('$radius:4px', $html);
+        $t->contains('$radius:6px', $html);
+        $t->contains('--wp--preset--color--primary', $html);
+        $t->contains('--wp--preset--color--accent', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$css[&quot;@mixinacme-card&quot;]"'), 'SCSS mixin changes should not render as a whole-rule deletion.');
+    },
+    'wordpress nested at-rule css diff keeps reordered inner selectors stable' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-nested-at-rule-css-before.css');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-nested-at-rule-css-after.css');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'css',
+            'title' => 'Nested at-rule block style diff',
+        ]);
+
+        $t->contains('Nested at-rule block style diff', $html);
+        $t->contains('data-path="$css[&quot;@media&quot;][&quot;.wp-block-acme-card&quot;][0]"', $html);
+        $t->contains('padding:16px;', $html);
+        $t->contains('padding:20px;', $html);
+        $t->contains('border-radius:4px;', $html);
+        $t->contains('data-path="$css[&quot;@supports&quot;][&quot;.wp-block-acme-card&quot;][1]"', $html);
+        $t->contains('grid-template-columns:minmax(0,1fr)auto;', $html);
+        $t->true(!str_contains($html, 'wp-block-image'), 'Reordered nested stable selectors inside at-rules should stay out of the rendered change stream.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');

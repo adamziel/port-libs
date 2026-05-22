@@ -64,6 +64,10 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/trailling_newline_1.yaml` / `sample_files/trailling_newline_2.yaml`: copied locally and mapped through one-line YAML block-scalar fallback spans. When the old and new scalar bodies do not share enough words for subword pairing, the JSON renderer still keeps `${{ BAR }}` and `bar` highlighted as string content instead of splitting expression braces into delimiters.
 - `sample_files/yaml_1.yaml` / `sample_files/yaml_2.yaml`: copied locally and mapped through a narrow YAML structural slice. Flow lists still use delimiter-list alignment, while line-based YAML block sequences report the inserted `'item'` under `$yaml.hello[1]` and the deleted `stuff: |` body is reported as a block-scalar deletion without deleting the retained `"world"` or `other` sequence items.
 - `sample_files/css_1.css` / `sample_files/css_2.css`: copied locally and mapped through CSS selector-block alignment plus declaration property signatures. Reordered stable selectors such as `.bar` remain matched, while `.foo1` gets a focused `color: green` declaration addition, `.baz` property values update in place, `.another` keeps the `margin-left` property aligned, and the new `p` rule is reported as a rule insertion.
+- `sample_files/tailwind_1.css` / `sample_files/tailwind_2.css`: copied locally and mapped through CSS at-rule item signatures. The changed `@apply rounded-md ...` utility list is retained as a focused update under `select` instead of delete/add churn around the upstream tree-sitter ERROR-shaped atom.
+- `sample_files/simple_1.scss` / `sample_files/simple_2.scss`: copied locally and mapped through SCSS mixin selector/header matching plus nested declaration alignment. The changed mixin default argument, nested `border`, `font-size`, `.primary` border, and `.disabled` opacity edits are reported without replacing the whole `@mixin buttons(...)` body.
+- `sample_files/html_1.html` / `sample_files/html_2.html`: targeted CSS excerpts from the upstream `<style>` blocks are copied locally as `upstream-html-style-media-*.css` and mapped through nested CSS at-rule matching. The stable `@media (max-width: 700px)` child rule stays matched while surrounding style rules change.
+- Nested CSS `@media` / `@supports` containers now recurse into direct child rules. This is a native behavior slice against the same tree-shaped at-rule semantics exercised by the upstream HTML style sample, while keeping SCSS mixin bodies on the existing declaration-aware path so direct declarations are still reported.
 
 ## JSON Display Slice
 
@@ -81,18 +85,18 @@ Mapped native behavior:
 - YAML block scalar atoms that do not share enough words now fall back to per-line string spans instead of generic token highlighting, mapping upstream `trailling_newline_*.yaml`.
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 
-The focused PHP lane test now passes 51 tests and 222 assertions, including the mapped upstream XML sample, CSS sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, block allow-list array syntax, block-style CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
+The focused PHP lane test now passes 56 tests and 250 assertions, including the mapped upstream XML sample, CSS sample, upstream tailwind CSS sample, upstream simple SCSS sample, upstream HTML style `@media` CSS extraction, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, block allow-list array syntax, block-style CSS, block-editor SCSS, nested at-rule CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
 
-The required root test runner was run after this CSS selector/declaration slice:
+The required root test runner was run after this nested CSS at-rule slice:
 
 ```text
 php tools/run-tests.php
 ```
 
-The latest required root test run after the CSS selector/declaration slice passed:
+The exact required root test run after the nested CSS at-rule slice is green:
 
 ```text
-103 test files, 7,052 assertions, 0 failures
+106 test files, 7,501 assertions, 0 failures
 ```
 
-The difftastic-focused test file remains green with 51 tests, 222 assertions, and 0 failures via a direct `TestRunner` invocation.
+The difftastic-focused test file remains green with 56 tests, 250 assertions, and 0 failures via a direct `TestRunner` invocation.

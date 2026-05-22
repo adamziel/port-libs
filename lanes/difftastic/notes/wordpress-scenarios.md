@@ -52,6 +52,10 @@ The upstream Emacs Lisp `change_outer` fixture now exercises changed outer delim
 
 The upstream CSS fixture now exercises selector-block alignment and declaration property matching. The WordPress block-style CSS fixture applies this to global style review: a `.wp-block-acme-card` custom-property color changes, `border-radius` is added, and a query-title selector is introduced while a reordered `.wp-block-image` rule stays out of the rendered change stream.
 
+The upstream Tailwind CSS and simple SCSS fixtures now exercise CSS at-rule item signatures plus SCSS mixin selector/header matching. The WordPress block-editor SCSS fixture applies this to block style mixins: changed mixin defaults and nested `var(--wp--preset--color--*)` references stay focused while the whole `@mixin acme-card(...)` body remains matched.
+
+The upstream HTML style sample now contributes a targeted CSS `@media` extraction. The WordPress nested at-rule fixture applies that container shape to block styles under `@media` and `@supports`, keeping a reordered stable `.wp-block-image` child rule out of the rendered change stream while reporting padding, radius, gap, and grid-template-column changes under the retained `.wp-block-acme-card` paths.
+
 Run:
 
 ```sh
@@ -60,6 +64,8 @@ php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
+php lanes/difftastic/examples/wordpress-block-editor-scss-diff.php
+php lanes/difftastic/examples/wordpress-nested-at-rule-css-diff.php
 php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
@@ -75,4 +81,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Expand CSS parity to nested at-rules and selector combinator whitespace, or map another PHP/Hack body sample beyond return types.
+Map another PHP/Hack body sample beyond return types, or broaden nested CSS container parity beyond `@media`/`@supports` to `@container`/`@layer` and mixed declaration/nesting cases.
