@@ -1,5 +1,3132 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T20:37:34Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout is still too active for a reviewable
+acceptance batch: `HEAD` advanced while this pass was inspecting the tree, and
+many lane, audit, dashboard, and publisher sessions remain alive in tmux.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 29, behind 26]`.
+- Final observed `HEAD`: `1b09929` (`Record rclone move gate status`).
+- `HEAD` moved during this pass from `e11fe97` to `1b09929`; intervening
+  commits were `c9caeb4` (`Port rclone provider move gates`), `abeef2c`
+  (`Port gitoxide reference transaction slice`), and `1b09929`.
+- The newest `1b09929` commit message is rclone-oriented, but the commit also
+  contains esbuild source/fixture/manifest/status changes plus one rclone
+  status update. Treat it as a recent lane commit needing later review, not as
+  an integration performed by this pass.
+- No staged paths were present when checked with `git diff --cached --name-only`.
+
+Evidence reviewed:
+
+- Required reads completed: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty tracked/untracked paths, tmux session and pane state, recent
+  `.tmux-team/logs/port-*.log` tails, active process state, and current dirty
+  diff statistics.
+- Recent worker/log tails reviewed included Gitoxide reference transactions,
+  Dolt log rendering and bounded BATS evidence, Difftastic TypeScript module
+  diffs, LightningCSS text-shadow/box-shadow fallbacks, libsqlite
+  `sqlite_sequence` work, rclone provider move gates, Quadrable proof witness
+  work, integration-readiness audit output, and dashboard updater output.
+- Recent committed lane batches reviewed at a file-list level:
+  `e11fe97` libsqlite expression-index IN-list lookups, `c9caeb4` rclone
+  provider move gates, `abeef2c` Gitoxide reference transactions, and
+  `1b09929` esbuild lazy-super lowering plus rclone status.
+
+Current dirty scopes still waiting:
+
+- Difftastic: manifest/notes/source/tests plus TypeScript module fixtures and
+  WordPress example are dirty/untracked while Difftastic sessions remain alive.
+- Dolt: commit-log source/test/fixture/example/notes are dirty and Dolt
+  implementation/runner sessions remain alive. Dolt remains skipped despite
+  reauthorization because this pass did not observe a quiescent
+  implementation-plus-runner handoff from one stable snapshot.
+- libsqlite: `SQLiteDatabase.php`, `SQLiteHeaderTest.php`, and
+  `SQLiteSequenceRecord.php` are dirty/untracked after a recent libsqlite
+  commit, so this needs a later lane-owned handoff.
+- LightningCSS, Pandoc, Quadrable, Readability, and Syncthing all have dirty
+  tracked or untracked lane files while their lane/audit/runner sessions remain
+  present.
+- Public/status artifacts remain dirty: `audits/integration-status.md`,
+  `audits/latest.md`, `progress.md`, `porting.html`, and
+  `porting-summary.json`, plus many untracked evidence reports. These do not
+  represent one accepted green snapshot.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output before this snapshot was written.
+- `git diff --cached --name-only`: no output.
+- `php tools/run-tests.php`: not run because no lane-scoped batch was accepted
+  and the checkout changed while active workers were present.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for active lane, runner, auditor, dashboard,
+and publisher sessions to quiesce or publish explicit handoff notes. Then read
+status and logs again from a stable `HEAD`, pick exactly one lane-scoped batch,
+run focused inspection, `git diff --check`, and `php tools/run-tests.php` from
+that same snapshot, commit only that reviewed batch, and regenerate
+`porting.html` / `porting-summary.json` only after the accepted state is green
+and the dashboard copy preserves bounded-vs-full upstream evidence.
+
+Post-write drift note: at 2026-05-22T20:38:15Z, `HEAD` had advanced again to
+`00cde6d` (`Add difftastic TypeScript module diff slice`) with branch status
+`main...origin/main [ahead 32, behind 26]`. New intervening commits were
+`cebff20` (`Record gitoxide transaction slice status`), `4bf5a72`
+(`esbuild: stamp logical super status`), and `00cde6d`. The dirty tracked diff
+had reshaped to 43 files with about 4,839 insertions and 246 deletions, adding
+or changing libsqlite manifest/notes, markerPDF table recognizer files, Pandoc
+lane status/notes, Quadrable manifest/status, Readability manifest/status, and
+Syncthing files. This pass still accepted no lane batch, staged nothing,
+committed nothing, and did not regenerate dashboard artifacts.
+
+Second post-write drift note: at 2026-05-22T20:38:36Z, `HEAD` had advanced
+again to `4731b1e` (`Record difftastic module diff status`) and branch status
+was `main...origin/main [ahead 33, behind 26]`. The dirty set remained broad
+across Dolt, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable,
+Readability, Syncthing, public dashboard/status artifacts, and untracked audit
+evidence. `git diff --check` still passed with no output and no staged paths
+were present, but this remains a moving hold state rather than an integration
+boundary.
+
+Third post-write drift note: at 2026-05-22T20:38:56Z, `HEAD` had advanced to
+`395363e` (`Port pandoc structured HTML table slice`) with branch status
+`main...origin/main [ahead 35, behind 26]`; `2259644` (`Map LightningCSS
+text-shadow fallbacks`) also landed after the prior note. The dirty set changed
+again, with LightningCSS and Pandoc implementation changes consumed by recent
+commits while Dolt, libsqlite, markerPDF, Quadrable, Readability, Syncthing,
+dashboard/status, and untracked evidence work remained dirty. This confirms the
+tree was still actively integrating elsewhere during this pass.
+
+## Integration Worker Snapshot - 2026-05-22T20:32:32Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout changed during inspection: `HEAD` advanced
+from `4a1f06a` (`Stamp markerPDF table span status`) to `e11fe97`
+(`Port libsqlite length expression IN-list lookups`), the branch line moved to
+`main...origin/main [ahead 26, behind 26]`, `audits/latest.md` flipped to
+deleted, and new/changed Difftastic, Readability, and Syncthing lane files
+appeared.
+
+Current observed dirty scopes:
+
+- Public/status artifacts: `audits/integration-status.md`,
+  `audits/latest.md`, `progress.md`, `porting.html`, and
+  `porting-summary.json`.
+- Dirty lane files: Difftastic, esbuild, Gitoxide, LightningCSS, rclone,
+  Readability, and Syncthing.
+- Untracked lane/evidence files include Difftastic TypeScript module fixtures,
+  esbuild lazy-super fixture, Gitoxide reference transaction example/fixture,
+  rclone provider-move example/test, Readability Mozilla fixture directory,
+  Syncthing BEP session source/test/example files, and many audit evidence
+  reports.
+
+Evidence reviewed:
+
+- Required reads completed: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty tracked/untracked paths, tmux session/window state, recent
+  `.tmux-team/logs/port-*.log` tails, active process state, and recent status
+  drift.
+- Recent log tails show active or just-finished handoffs in esbuild, libsqlite,
+  Syncthing, LightningCSS, Difftastic, Dolt, tmp cleanup, integration, schema
+  audit, integration-readiness audit, and snapshot verification scopes.
+- Active process state still includes multiple `codex -a never exec` workers
+  and a Dolt bounded BATS command:
+  `bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats
+  query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats
+  merge.bats schema-conflicts.bats conflict-detection.bats
+  sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats`.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --name-status`: no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not run because no lane batch was accepted and
+  the checkout was actively changing while a worker-owned Dolt BATS runner was
+  still executing.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Skipped active lanes/status scopes:
+
+- Difftastic, esbuild, Gitoxide, LightningCSS, rclone, Readability, and
+  Syncthing: skipped because dirty lane files are present while lane/evidence
+  workers are active or the dirty set is still changing.
+- libsqlite: observed as a recent worker commit (`e11fe97`) that landed during
+  this pass; not re-staged, re-tested, or claimed as integrated by this pass.
+- Dolt: skipped despite reauthorization because the implementation/runner
+  handoff is not quiescent; the bounded BATS runner is still active.
+- Public dashboard/status artifacts: skipped because they do not represent one
+  accepted green snapshot, and dashboard/publication/audit workers are active
+  in adjacent scopes.
+
+Next safe integration point: wait for the active lane, runner, auditor,
+dashboard, and publisher sessions to quiesce or provide explicit handoffs.
+Then re-read `HEAD`, status, and relevant logs from a stable snapshot; choose
+one lane-scoped batch; run `git diff --check` and `php tools/run-tests.php`;
+commit only that reviewed batch; regenerate `porting.html` and
+`porting-summary.json` only after the accepted lane/status state is green and
+honest.
+
+Post-write drift note: at 2026-05-22T20:33:21Z, `HEAD` was still `e11fe97`
+and the branch line was still `main...origin/main [ahead 26, behind 26]`, but
+the dirty set changed again after this snapshot was written. New or newly
+visible tracked paths included `lanes/dolt/src/CommitLogTable.php`,
+`lanes/esbuild/examples/wordpress-asset-preflight.php`,
+`lanes/pandoc/src/MarkdownReader.php`,
+`lanes/readability/tests/ArticleExtractorTest.php`, and additional Readability
+example/fixture files. `git diff --check -- audits/integration-status.md`
+passed with no output before this note. This pass still accepted no lane batch,
+staged nothing, committed nothing, and did not regenerate dashboard artifacts.
+
+Second post-write drift note: at 2026-05-22T20:33:47Z, `HEAD` and the branch
+line were still unchanged, but the dirty set changed again. New or newly
+visible paths included `lanes/dolt/examples/wordpress-commit-log-review.php`,
+`lanes/dolt/fixtures/wp-commit-log-review.php`,
+`lanes/dolt/tests/CommitLogTableTest.php`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`,
+and `lanes/dolt/src/CommitLogRenderer.php`. The earlier Dolt BATS process was
+no longer visible in the process poll, but a worker-owned
+`php tools/run-tests.php` was active against the same moving checkout. No lane
+or dashboard artifacts were accepted by this pass.
+
+Third post-write drift note: at 2026-05-22T20:34:16Z, `HEAD` remained
+`e11fe97`, but additional dirty paths appeared, including
+`lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/lightningcss/tests/CssMinifierTest.php`,
+`lanes/lightningcss/tests/TransitionPrefixerTest.php`,
+`lanes/pandoc/tests/MarkdownReaderTest.php`, and
+`lanes/rclone/lane-status.json`. Active process state included a new Dolt
+`bats branch.bats sql-branch.bats` runner and a worker-owned filtered
+`php tools/run-tests.php | rg 'CommitLog|test files|failures|FAIL'` command.
+Treat this file as a hold record for an actively changing checkout, not an
+accepted integration boundary.
+
+## Integration Worker Snapshot - 2026-05-22T20:29:33Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree is still too active for a reviewable integration
+batch: dirty Gitoxide, libsqlite, markerPDF, and rclone lane files all have live
+lane agents in the same scopes, a Dolt BATS runner is still executing, a Pandoc
+Cabal/GHC runner is still compiling, and a Syncthing worker-owned
+`php tools/run-tests.php` is active against the moving checkout.
+
+Current observed branch/status:
+
+- Branch line read by this pass: `main...origin/main [ahead 24, behind 26]`.
+- Final observed `HEAD`: `a89d71b` (`quadrable refresh root test count`).
+- No staged paths were present: `git diff --cached --name-status` produced no
+  output.
+- Dirty tracked paths span `audits/integration-status.md`, `audits/latest.md`,
+  Gitoxide reference transaction source/tests, libsqlite expression-index
+  source/status/notes, markerPDF table-span status/notes, rclone server-side
+  move source, `progress.md`, `porting.html`, and `porting-summary.json`, with
+  many untracked evidence/audit files and Gitoxide/libsqlite examples.
+
+Evidence reviewed:
+
+- Required reads completed: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty tracked/untracked paths, tmux session/window/pane state, recent
+  `.tmux-team/logs/port-*.log` tails, active process state, and focused dirty
+  lane diffs.
+- Gitoxide dirty diff adds reference update/delete transactions and namespace
+  handling, but `port-gitoxide` is still running in that lane.
+- libsqlite dirty diff adds `substr(option_name,1,N)` and `length(option_name)`
+  expression-index IN-list lookup slices, but `port-libsqlite` is still running
+  in that lane.
+- markerPDF dirty status updates describe table row/column span handling, but
+  `port-markerpdf` is still running in that lane.
+- rclone dirty diff adds server-side move/copy/dir-move fallback behavior, but
+  `port-rclone` is still running in that lane.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `git diff --cached --name-status`: no output.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and a worker-owned root test process was already active against the
+  same moving checkout.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Skipped active lanes/status scopes:
+
+- Gitoxide, libsqlite, markerPDF, and rclone: skipped because their dirty files
+  are lane-scoped but their lane agents are still active in the same scopes.
+- Dolt: skipped despite reauthorization because implementation and runner
+  sessions remain active and the BATS runner has not produced a quiescent
+  implementation-plus-runner handoff from one snapshot.
+- Public status/dashboard artifacts: skipped because `progress.md`,
+  `porting.html`, `porting-summary.json`, audit/evidence files, integrator,
+  auditor, dashboard, and publication sessions do not represent one accepted
+  green snapshot.
+
+Next safe integration point: wait for the active lane, runner, integrator, and
+dashboard/publication sessions to quiesce or provide explicit handoffs. Re-read
+status from a stable `HEAD`, choose exactly one idle lane-scoped batch, run
+`git diff --check` and `php tools/run-tests.php` from that same snapshot, commit
+only that reviewed batch, then regenerate dashboard/status artifacts only after
+the accepted state is green and honest.
+
+Post-write drift note: the final status poll after this entry still showed
+`HEAD` at `a89d71b` with `main...origin/main [ahead 24, behind 26]`, but the
+dirty set expanded again. New or newly visible paths included
+`lanes/gitoxide/lane-status.json`,
+`lanes/markerpdf/examples/wordpress-table-recognition-handoff.php`,
+`lanes/rclone/examples/wordpress-provider-move-gates.php`,
+`lanes/rclone/tests/ProviderMoveFeatureTest.php`, and Syncthing BEP session
+source/test/example files. This pass did not inspect them for acceptance, stage
+them, test-gate them, commit them, or regenerate dashboard artifacts.
+
+## Integration Worker Snapshot - 2026-05-22T20:25:31Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree is still too active for a reviewable integration
+commit: lane agents are running in the dirty lanes, two worker-owned
+`php tools/run-tests.php` processes were active during inspection, Dolt BATS was
+still executing, and a Pandoc Cabal/GHC upstream runner was compiling.
+
+Current observed branch/status:
+
+- Final branch line read by this pass: `main...origin/main [ahead 14, behind 26]`.
+- Final observed `HEAD`: `3cde4bf` (`Port pandoc deep nested HTML tables`).
+- `HEAD` drifted during this pass from `c3d4647` to `3cde4bf`; intervening
+  worker commits consumed or changed parts of the previously dirty markerPDF,
+  Pandoc, Syncthing, rclone, and status batches.
+- No staged paths were present: `git diff --cached --name-status` produced no
+  output.
+- Dirty tracked paths at the final read span Difftastic, esbuild, libsqlite,
+  LightningCSS, `audits/latest.md`, `audits/integration-status.md`,
+  `progress.md`, `porting.html`, and `porting-summary.json`, plus many
+  untracked audit/evidence files and lane examples/fixtures.
+
+Evidence reviewed:
+
+- Required reads completed: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty tracked/untracked paths, tmux session and pane state, recent
+  `.tmux-team/logs/port-*.log` tails, and live process state.
+- Recent lane logs show coherent-looking handoffs for several slices, but those
+  same lanes or adjacent status scopes were immediately relaunched into active
+  agents; this pass did not treat any handoff as quiescent enough to stage.
+- Active process state included live Codex agents for esbuild, libsqlite,
+  LightningCSS, Difftastic, Readability, Dolt, Quadrable, Pandoc, markerPDF,
+  rclone, Gitoxide, Syncthing, and integrator/auditor sessions.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `git diff --cached --name-status`: no output.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and worker-owned root runs were already active against a moving
+  checkout.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Skipped active lanes/status scopes:
+
+- Difftastic, esbuild, libsqlite, and LightningCSS: skipped because they have
+  dirty lane files and active lane/evidence sessions in the same scopes.
+- Dolt: skipped despite reauthorization because `port-dolt`, `port-dolt-runner`,
+  and a broad BATS runner remain active; no same-snapshot
+  implementation-plus-runner handoff was available.
+- Public status/dashboard artifacts: skipped because `progress.md`,
+  `porting.html`, `porting-summary.json`, audit/evidence files, dashboard
+  workers, and integrator/auditor sessions do not represent one reviewed local
+  integration snapshot.
+
+Next safe integration point: wait for active lane, runner, integrator, and
+dashboard/publication sessions to quiesce or provide explicit handoffs. Re-read
+status from a stable `HEAD`, choose one idle lane-scoped batch, run
+`git diff --check` and `php tools/run-tests.php` from that same snapshot, commit
+only the reviewed batch, then regenerate dashboard/status artifacts only after
+the accepted state is green. Dolt should wait until both implementation and
+runner sessions finish and their evidence agrees.
+
+Post-write drift note: a final poll after this entry showed `HEAD` advanced
+again to `58ad41d` (`Port LightningCSS box-shadow target fallbacks`) with branch
+state `main...origin/main [ahead 19, behind 26]`. The dirty set shifted again:
+esbuild and LightningCSS tracked changes were consumed or replaced by other
+workers, while Difftastic, Gitoxide `LooseReferenceStore.php`, libsqlite, public
+status artifacts, and untracked evidence/example files remained dirty.
+`git diff --check` still passed with no output. This pass still accepted no
+lane batch and made no commit.
+
+Second post-write drift note: the next check showed `HEAD` at `5d7271b`
+(`Stamp LightningCSS lane status`) with branch state
+`main...origin/main [ahead 20, behind 26]`. Dirty tracked files still span
+Difftastic, Gitoxide `LooseReferenceStore.php` and `ReferenceStore.php`,
+libsqlite, `audits/latest.md`, this file, `progress.md`, `porting.html`, and
+`porting-summary.json`. `git diff --check` still passed. This pass still made no
+commit.
+
+## Integration Worker Snapshot - 2026-05-22T20:22:40Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout is still too active for a reviewable
+integration commit, and the branch relationship changed while this pass was
+inspecting the tree.
+
+Current observed branch/status:
+
+- First required status read: `main...origin/main [ahead 80, behind 23]`.
+- Final status read: `main...origin/main [behind 26]`.
+- Final observed `HEAD`: `d66540d` (`Stamp markerPDF table recognition
+  status`).
+- No staged paths were present: `git diff --cached --name-status` produced no
+  output.
+- Dirty tracked paths still span Difftastic, Dolt, esbuild, Gitoxide,
+  libsqlite, LightningCSS, Pandoc, Quadrable, rclone, Readability, Syncthing,
+  `porting.html`, `porting-summary.json`, and this audit file, with many
+  untracked evidence/audit files and lane examples/fixtures.
+
+Evidence reviewed:
+
+- Required reads completed: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty tracked/untracked paths, current tmux sessions/windows/panes, recent
+  `.tmux-team/logs/port-*.log` tails, and live process state.
+- Recent logs show active or incomplete lane handoffs, including Dolt BATS still
+  running after focused Go and single-filter BATS passes, Pandoc `cabal test
+  test-pandoc`/GHC still compiling, Gitoxide reference namespace work still
+  dirty, esbuild upstream subset evidence still being extended, rclone
+  track-renames work dirty, and dashboard/publication workers operating on
+  public artifacts.
+- A dashboard updater worker, not this pass, pushed `c4ad3a8` and observed
+  GitHub Pages success. Its live JSON poll reported
+  `sourceCommit=d66540d9f961263c8f24c783772d4b424f1cd186`,
+  `generated=2026-05-22 20:20:00 UTC`, and
+  `averageProgressPercent=36.7`. This pass did not regenerate or publish those
+  files.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `git diff --cached --name-status`: no output.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and active runner/lane workers were mutating or verifying overlapping
+  scopes.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Skipped active lanes/status scopes:
+
+- Dolt: skipped despite reauthorization because `port-dolt`, `port-dolt-runner`,
+  and Dolt upstream runner sessions remain active; the broader local BATS slice
+  was still in progress, so there is no quiescent implementation-plus-runner
+  handoff from one snapshot.
+- Gitoxide, rclone, Readability, Quadrable, Difftastic, esbuild, libsqlite,
+  LightningCSS, Pandoc, and Syncthing: skipped because dirty lane files and/or
+  active lane/evidence sessions remain present.
+- Public status/dashboard artifacts: skipped because `porting.html`,
+  `porting-summary.json`, audit/evidence files, dashboard/publisher sessions,
+  and branch publication state do not represent one reviewed local integration
+  snapshot.
+
+Next safe integration point: wait for active lane, runner, integrator, and
+dashboard/publication sessions to quiesce or provide explicit handoffs, then
+re-read status from a stable branch state before selecting exactly one
+lane-scoped batch. Dolt can be reconsidered only after both the implementation
+and BATS/Go runner workers finish and their evidence agrees. Otherwise the next
+target should be the first idle lane with a coherent source/test/status batch,
+fresh focused evidence, `git diff --check` green, and a root
+`php tools/run-tests.php` pass from that same snapshot.
+
+Post-write drift note: a final poll after this entry showed the branch had moved
+again to `main...origin/main [ahead 3, behind 26]`. Another worker staged an
+rclone track-renames batch (`UPSTREAM_TEST_MANIFEST.json`, lane status/notes,
+`MemoryProvider.php`, `SyncPlan.php`, new `TrackRenamesStrategy.php`, tests,
+and WordPress example). This pass did not stage, inspect for acceptance, alter,
+unstage, commit, or revert that rclone batch. `git diff --check` still passed,
+and active Pandoc Cabal, Dolt BATS, and Gitoxide Cargo runner processes remained
+present.
+
+Second post-write drift note: another sanity check showed `HEAD` advanced to
+`ed24ee9` (`Port syncthing request exchange slice`) with branch state
+`main...origin/main [ahead 5, behind 26]`. The rclone staged batch was consumed
+by another worker as `f6c16f1`, with intervening Gitoxide and Difftastic commits
+also visible. The index was no longer staged at that poll, and both
+`git diff --check` and `git diff --cached --check` still passed with no output.
+This pass still accepted no lane batch and made no commit.
+
+Third post-write drift note: the last status poll during this pass showed
+`main...origin/main [ahead 6, behind 26]`, still with no staged paths and
+`git diff --check`/`git diff --cached --check` passing. Additional dirty status
+appeared in `progress.md`, `audits/latest.md`, Dolt status, markerPDF table
+recognition source, LightningCSS status, Syncthing status, and the same broad
+active lane/dashboard scopes. Treat this entry as a hold record only; re-read
+status and logs before accepting any lane batch.
+
+## Integration Worker Snapshot - 2026-05-22T20:12:28Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree is still too active for a reviewable integration
+commit: `HEAD` advanced while logs and dirty lane files were being inspected,
+lane agents are still running, and worker-owned root/upstream verification is
+active.
+
+Current observed branch/status:
+
+- Final branch line: `main...origin/main [ahead 68, behind 23]`.
+- Final observed `HEAD`: `4b9de23` (`Stamp esbuild lane status`).
+- `HEAD` drift observed during this pass: the required first read saw
+  `7e86f32`, later log/status reads showed new Gitoxide, LightningCSS, and
+  esbuild commits through `4b9de23`.
+- No cached/staged diff was present at the final check.
+- Dirty tracked paths span Difftastic, libsqlite, Pandoc, rclone, Readability,
+  Syncthing, public dashboard/status artifacts, and this audit file. Untracked
+  markerPDF table-recognition files, Syncthing device-id files, Difftastic JSX
+  fixtures, Readability clean-links fixtures, rclone strategy files, and many
+  audit/evidence files remain present.
+
+Waiting or risky work:
+
+- Difftastic: JSX/TSX angle-delimiter source/tests/fixtures/example and lane
+  status files are dirty while `port-difftastic` and upstream-fuller sessions
+  remain active.
+- libsqlite: lowercase option-name expression-index lookup source/tests/notes
+  and example files are dirty while `port-libsqlite` remains active.
+- Pandoc: nested HTML table parser/writer source/tests/fixture work is dirty
+  while `port-pandoc` and a Pandoc `cabal test test-pandoc` build remain active.
+- rclone: source changes and untracked `TrackRenamesStrategy.php` are dirty
+  while `port-rclone` remains active; do not integrate until its runner and lane
+  status provide one coherent handoff.
+- Readability: clean-links source/tests/fixtures/example/status work is dirty
+  while `port-readability` and gap-mining work remain active.
+- Syncthing: device-id files/status notes are dirty while `port-syncthing`
+  remains active; a worker-owned root run was active at the final process poll.
+- markerPDF: table-recognition source/test/example files are untracked while
+  `port-markerpdf` remains active and has not provided an integration handoff.
+- Dolt: skipped despite reauthorization because `port-dolt`, `port-dolt-runner`,
+  and a Dolt BATS run are active. No same-snapshot implementation-plus-runner
+  handoff was accepted.
+- Public status: `porting.html`, `porting-summary.json`, audit/evidence files,
+  dashboard/publication workers, a GitHub divergence resolver, and another
+  integrator session are live; these are not an accepted public snapshot.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output at the final observed snapshot.
+- `git diff --cached --name-status`: no output; there were no staged paths.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted and worker-owned root runs were already active. A worker log reported
+  `118 test files, 9065 assertions, 0 failures`; this is informational only and
+  not an integration gate for the moving dirty checkout.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for active lane, runner, integrator, and
+dashboard/publication sessions to quiesce or provide explicit handoffs. Then
+re-read status from a stable `HEAD`, select exactly one coherent lane-scoped
+batch, run `git diff --check` and `php tools/run-tests.php` from that same
+snapshot, commit only that reviewed batch, and regenerate public dashboard
+artifacts only after accepting the green lane/status state. Likely next targets
+are Difftastic JSX/TSX diff, libsqlite lowercase option-name lookup, Readability
+clean-links, Syncthing DeviceId, markerPDF table recognition, or Pandoc nested
+table parsing once their workers stop and the evidence is from one snapshot.
+
+Post-write drift note: a final poll after this entry showed `HEAD` had advanced
+again to `e67515f` (`Refresh lightningcss root test evidence`) with branch
+status `main...origin/main [ahead 69, behind 23]`. The dirty set changed again,
+adding markerPDF lane status, Pandoc manifest status, rclone `SyncPlan.php`,
+Syncthing lane status, and new upstream evidence files while leaving the same
+core Difftastic, libsqlite, Pandoc, rclone, Readability, Syncthing, markerPDF,
+and public dashboard/status scopes dirty. `git diff --check`,
+`git diff --check -- audits/integration-status.md`, and
+`git diff --cached --name-status` still passed with no output/no staged paths.
+This pass still accepted no lane batch.
+
+Second post-write drift note: a later final poll showed `HEAD` had advanced
+again to `d6cecae` (`Port libsqlite lower expression IN-list lookup`) with
+branch status `main...origin/main [ahead 70, behind 23]`. A different worker
+also staged the Difftastic JSX/TSX batch in the shared index
+(`lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, new JSX/TSX fixtures/example,
+lane status, notes, source, and tests). This pass did not stage those files and
+does not accept them; `git diff --check` and
+`git diff --check -- audits/integration-status.md` still passed, while
+`git diff --cached --name-status` now reports those staged Difftastic paths.
+
+Third post-write drift note: the next poll showed `HEAD` had advanced again to
+`1081630` (`Record libsqlite lower expression IN-list status`) with branch
+status `main...origin/main [ahead 72, behind 23]`. The staged Difftastic batch
+noted above was consumed by another worker as `7c47eee` (`Port difftastic JSX
+tag-list slice`), and libsqlite status advanced after `d6cecae`. Dirty tracked
+paths still span Difftastic status, markerPDF status/table-recognition work,
+Pandoc nested-table work, rclone, Readability, Syncthing, and generated
+dashboard artifacts. Both `git diff --check` and `git diff --cached --check`
+passed with no output. This pass still accepted no lane batch.
+
+Fourth post-write drift note: the tree continued moving after the previous note.
+The latest observed `HEAD` during this pass reached at least `a02106a` (`Add
+Syncthing DeviceID parsing slice`) with branch status
+`main...origin/main [ahead 74, behind 23]`. Difftastic status and Syncthing
+DeviceID commits landed after the earlier notes, while Dolt source, markerPDF,
+Pandoc, rclone, Readability, generated dashboard artifacts, `audits/latest.md`,
+and untracked evidence files remained dirty. Treat this whole entry as a hold
+snapshot only; if `HEAD` has advanced again, re-read status before integrating
+anything.
+
+## Integration Worker Snapshot - 2026-05-22T20:08:35Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree was still too active for a reviewable integration
+commit: `HEAD` advanced during inspection, dirty files changed across multiple
+lanes, and worker-owned upstream/root test processes were active.
+
+Current observed branch/status:
+
+- Final branch line: `main...origin/main [ahead 57, behind 23]`.
+- Final observed `HEAD`: `38fbe08` (`Record independent audit findings`).
+- `HEAD` drift observed during this pass: initial required read saw `1601f25`,
+  a later poll saw `8f5a576`, and the final sanity poll saw `38fbe08`.
+- No cached/staged diff was present at the final check.
+- Dirty tracked paths span Difftastic, Dolt status/notes, esbuild, Gitoxide,
+  libsqlite, LightningCSS, Quadrable, Readability, public dashboard/status
+  artifacts, and this audit file. Untracked evidence/audit files and lane
+  examples remain present, including untracked Syncthing device-id files.
+
+Waiting or risky work:
+
+- Difftastic: token differ source and JSX/TSX fixtures/examples are dirty while
+  `port-difftastic` and upstream-fuller sessions remain active.
+- Dolt: skipped despite reauthorization because `port-dolt`, `port-dolt-runner`,
+  and Dolt upstream-runner sessions remain active while Dolt status/runner notes
+  are dirty. No coherent implementation-plus-runner handoff from the same
+  snapshot was observed.
+- esbuild: TypeScript class side-effect lowering source/tests/status are dirty
+  while `port-esbuild` and upstream evidence sessions remain active.
+- Gitoxide: reference namespace/category source/tests/examples/manifest/notes
+  are dirty while `port-gitoxide` and Gitoxide upstream sessions remain active.
+- libsqlite: database/test changes and a WordPress lowercase-options example are
+  dirty while `port-libsqlite` remains active.
+- LightningCSS: box-shadow minifier source/tests/manifest/notes/example are
+  dirty while `port-lightningcss` and upstream-fuller sessions remain active.
+- Quadrable: raw multiget source/tests/status/notes/example are dirty while
+  `port-quadrable` remains active.
+- Readability: clean-links source/tests/fixtures/example/status/manifest work is
+  dirty while `port-readability` and gap-miner sessions remain active.
+- Public status: `porting.html`, `porting-summary.json`, audit/evidence files,
+  dashboard/publication workers, and another integrator session are live; these
+  are not an accepted public snapshot.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output at the final observed snapshot.
+- `git diff --cached --name-status`: no output; there were no staged paths.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted. A worker-owned root run was observed active at the final process
+  poll; an earlier worker-owned run reported `117 test files, 9011 assertions,
+  0 failures`, which is informational only and not an integration gate.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for active lane, runner, integrator, and
+dashboard/publication sessions to quiesce or provide explicit handoffs. Then
+re-read status from a stable `HEAD`, select exactly one coherent lane-scoped
+batch, run `git diff --check` and `php tools/run-tests.php` from that same
+snapshot, commit only that reviewed batch, and regenerate public dashboard
+artifacts only after accepting the green lane/status state. Likely next targets
+are Difftastic JSX/TSX diff, libsqlite lowercase option-name lookup, or a small
+LightningCSS box-shadow slice if their workers stop and hand off cleanly. Dolt
+remains deferred until both implementation and runner workers are inactive and
+their evidence agrees.
+
+Post-write drift note: a final poll after this entry showed `HEAD` had advanced
+again to `cfcbfa9` (`quadrable record raw multiget status`) with branch status
+`main...origin/main [ahead 60, behind 23]`. Quadrable was consumed by another
+worker, while Difftastic, esbuild, Gitoxide, libsqlite, LightningCSS,
+Readability, Syncthing notes, public dashboard artifacts, and untracked
+audit/evidence/example files remained dirty. `git diff --check` still passed
+with no output. A Pandoc upstream `cabal test test-pandoc` build remained active,
+so this pass continued to accept no lane batch.
+
+Second post-write drift note: a later validation poll showed `HEAD` had advanced
+again to `68116dd` (`Refresh independent audit checkpoint`). The dirty set
+changed again, adding Pandoc reader and markerPDF table-recognizer work while
+leaving Difftastic, esbuild, Gitoxide, libsqlite, LightningCSS, Readability,
+Syncthing, dashboard, and evidence files dirty. `git diff --check` and
+`git diff --cached --name-status` still passed with no output/no staged paths.
+Pandoc `cabal test test-pandoc` and Gitoxide `cargo test` upstream runs remained
+active, so this pass still accepted no lane batch.
+
+## Integration Worker Snapshot - 2026-05-22T20:04:28Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree remains too active for a reviewable integration
+commit: `HEAD` advanced while this worker was inspecting and testing, and live
+tmux sessions still exist for every implementation lane plus auditor,
+integrator, dashboard/publication, evaluator, runner, and evidence workers.
+
+Current observed branch/status:
+
+- Final branch line: `main...origin/main [ahead 52, behind 23]`.
+- Final observed `HEAD`: `fc3a1b1` (`Stamp pandoc lane row span status`).
+- `HEAD` drift observed during this pass: initial read saw `16a0561`, a later
+  pre-test poll saw `2b84de3`, the post-test poll saw `0689f19`, and the final
+  sanity poll saw `fc3a1b1`.
+- No cached/staged diff was present at the final check.
+- Dirty tracked paths still span Dolt, Gitoxide, Quadrable, rclone,
+  Readability, public dashboard/status artifacts, audit files, and status-only
+  Difftastic/esbuild changes. Untracked audit/evidence files and lane examples
+  remain present.
+
+Waiting or risky work:
+
+- Dolt: skipped despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and `port-dolt-upstream-runner2-20260522T1946Z` remain
+  active while Dolt source, tests, fixtures, manifest, notes, and status files
+  are dirty. Do not integrate until the implementation and runner workers hand
+  off one coherent batch with passing evidence from the same snapshot.
+- Gitoxide: reference category source/tests/examples and upstream notes are
+  dirty while `port-gitoxide` and Gitoxide evidence/upstream sessions remain
+  active.
+- Quadrable: sparse tree/raw multiget work is dirty while `port-quadrable` and
+  upstream-fuller sessions remain active.
+- rclone: ignore-case/copy-dest source/tests/examples, manifest, notes, and
+  status are dirty while `port-rclone`, `port-rclone-redfix`, and local upstream
+  sessions remain active.
+- Readability: clean-links source/tests/fixtures/example and status/manifest
+  work are dirty while `port-readability` and gap-miner sessions remain active.
+- Public status: `progress.md`, `porting.html`, `porting-summary.json`,
+  `audits/latest.md`, and this file are dirty while dashboard/publication and
+  audit/status workers are still live; they are not an accepted public snapshot.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output at both the pre-test and final
+  status polls.
+- `git diff --cached --name-status`: no output; there were no staged paths.
+- `php tools/run-tests.php`: informational snapshot only, exited 0 with
+  `116 test files, 8947 assertions, 0 failures`. This is not an acceptance gate
+  because `HEAD` and dirty lane files changed during the integration pass.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for the active lane, runner, integrator, and
+dashboard/publication sessions to quiesce, then re-read status from a stable
+`HEAD` with no worker-owned staged paths. Review one lane-scoped handoff at a
+time, run `git diff --check` and `php tools/run-tests.php` from the same stable
+snapshot, commit only that reviewed batch, and regenerate public dashboard
+artifacts only after accepting the green lane/status state. Likely next targets
+are rclone copy-dest/ignore-case sync or Readability clean-links if their
+workers stop and hand off complete fixture/source/status batches; Dolt remains
+deferred until both Dolt implementation and runner sessions are inactive.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:59:36 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout is still too active for a reviewable
+integration commit: active Codex workers are attached to every implementation
+lane plus auditor, evaluator, integrator, dashboard/publication, GitHub
+divergence, Dolt runner, and several upstream-evidence sessions.
+
+Current observed branch/status:
+
+- `git status --short --branch`: `main...origin/main [ahead 36, behind 23]`.
+- `HEAD` moved during this pass from `b774c17` to `33dc458` after another
+  worker committed `70d3efa` (`Port gitoxide actor identities`) and
+  `33dc458` (`Stamp gitoxide actor identity status`).
+- No cached diff was present at the final check.
+- Dirty tracked paths still span Difftastic, Dolt, esbuild, libsqlite,
+  LightningCSS, markerPDF, Pandoc, rclone, Syncthing, public dashboard/status
+  artifacts, and audit files, with untracked audit/evidence/example files.
+- Quadrable changed during inspection and was briefly observed as staged by a
+  worker-owned session; this pass did not alter the index.
+
+Evidence reviewed:
+
+- Required coordination reads: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty lane paths, current tmux sessions, active worker processes, and recent
+  worker log tails.
+- Merge-queue audit recommended waiting for active handoffs and identified
+  rclone, libsqlite, and Quadrable as likely next lane batches once quiescent.
+- Untracked audit/evidence files now record bounded upstream evidence for
+  Dolt, esbuild, markerPDF, rclone, libsqlite, and Syncthing. These are useful
+  evidence inputs, not accepted public status until their producing sessions
+  stop and a stable status regeneration is performed.
+
+Skipped active lanes/sessions:
+
+- Skipped Dolt despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and `port-dolt-upstream-runner2-20260522T1946Z` remain
+  active while Dolt source, tests, fixtures, manifest, notes, and status files
+  are dirty.
+- Skipped Difftastic, esbuild, libsqlite, LightningCSS, markerPDF, Pandoc,
+  rclone, Readability, Syncthing, and any further Gitoxide work because their
+  lane or evidence sessions remain active, and several current log tails show
+  in-progress diffs or test invocations rather than completed handoffs.
+- Skipped public dashboard/status artifacts because `progress.md`,
+  `porting.html`, `porting-summary.json`, lane statuses, and audit files are
+  being touched by overlapping workers.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started because no lane batch was accepted and
+  the worktree was changing under active lane workers.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for the active lane, runner, integrator, and
+dashboard/publication sessions to quiesce, then re-read status from a stable
+`HEAD` with no worker-owned staged paths. Review one lane-scoped handoff at a
+time, run `git diff --check` and `php tools/run-tests.php` from the same
+snapshot, commit only that reviewed batch, and regenerate public dashboard
+artifacts only after accepting the green lane/status state. The next likely
+targets are rclone ignore-case recovery, libsqlite substring/length expression
+indexes, or Quadrable sub-proof export once their owners stop editing.
+
+Post-write drift note: a final poll after this entry showed `HEAD` advanced
+again to `8d7360c` (`Port LightningCSS filter effects slice`) after
+`0173a46` (`Port quadrable partial proof exports`), `ff2b5c0` (`Stamp
+quadrable partial proof lane status`), and `23e1cd3` (`Port markerPDF table box
+planning`) landed from other workers. The branch line changed to
+`main...origin/main [ahead 40, behind 23]`, and the dirty set changed again:
+Quadrable, LightningCSS, and markerPDF implementation batches were partly or
+fully consumed by other sessions while Difftastic, Dolt, esbuild, libsqlite,
+Pandoc, rclone, Readability, Syncthing, public status artifacts, and untracked
+audit/evidence files remained dirty. New evidence/readiness sessions also
+appeared for Quadrable, LightningCSS, markerPDF, Gitoxide, Pandoc, Difftastic,
+Readability, root verification, and integration readiness. This pass still
+accepted no lane batch, staged nothing, committed nothing, regenerated no
+dashboard artifacts, and pushed nothing.
+
+Second drift note: a later final poll showed `HEAD` advanced again to
+`cad8ad7` (`Refresh quadrable root test evidence`) after `0fc1db7` (`Stamp
+markerPDF table box status`). The branch line changed to
+`main...origin/main [ahead 42, behind 23]`. Dirty status still spans multiple
+active lanes and public status artifacts, with new rclone/readability untracked
+examples and active upstream-fuller/readiness sessions still present. This
+reinforces that the current tree is not a stable integration checkpoint.
+
+Third drift note: the next status poll showed `HEAD` at `db466e5` (`Record
+markerPDF table box commit`) after `e65c8fd` (`Port esbuild computed class key
+ordering`), with branch status `main...origin/main [ahead 44, behind 23]`.
+Dirty lane/status work remained broad, so this pass continued to leave all
+lane batches unaccepted.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:56:16 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout continued to move during inspection: `HEAD`
+advanced from `4a63c21` to `be130cb` (`Port readability title separator
+cleanup`) while this worker was checking the previously staged Readability
+batch. I did not create, alter, unstage, or commit that staged batch.
+
+Current observed branch/status:
+
+- `git status --short --branch`: `main...origin/main [ahead 51, behind 21]`.
+- No staged paths remained at the final cached-diff poll.
+- Dirty tracked paths still span Dolt, esbuild, Gitoxide, libsqlite,
+  LightningCSS, markerPDF, Pandoc, Quadrable, rclone, public dashboard/status
+  artifacts, and audit files, with additional untracked audit/evidence/example
+  files.
+- A root `php tools/run-tests.php` process was observed earlier in this pass,
+  but had exited by the final process poll. Active `run-tmux-agent.sh`/Codex
+  workers remained for rclone, Readability, Dolt, Dolt runner, LightningCSS,
+  markerPDF, Quadrable, esbuild, Gitoxide, libsqlite, Pandoc, Syncthing,
+  Difftastic, auditor, and integrator sessions.
+
+Skipped active lanes/sessions:
+
+- Skipped Dolt despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and `port-dolt-upstream-runner2-20260522T1946Z` remain
+  active while Dolt source, fixture, metadata, and status files are dirty.
+- Skipped Gitoxide, libsqlite, LightningCSS, markerPDF, Quadrable, rclone,
+  esbuild, and Pandoc because each has dirty lane files and active lane or
+  evidence sessions.
+- Skipped Readability because another worker staged and committed its handoff
+  during this inspection window.
+- Skipped dashboard regeneration and public status commits because no reviewed
+  lane/status batch was accepted, and status/integrator/publication workers are
+  still active on overlapping artifacts.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, current tmux/log state, active processes,
+  dirty lane paths, staged paths, and representative worker log tails.
+- `git diff --check`: passed with no output at the final observed snapshot.
+- `git diff --cached --check`: passed with no output after the Readability
+  commit landed.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted and the worktree was actively changing under running workers.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for the active lane, runner, integrator, and
+dashboard/publication sessions to quiesce, then re-read status from a stable
+`HEAD` with no foreign staged paths. Review one lane-scoped handoff at a time,
+run `git diff --check` and `php tools/run-tests.php` from that same snapshot,
+commit only the reviewed batch, and regenerate `porting.html` /
+`porting-summary.json` only after the accepted green commit. The next likely
+targets remain rclone root-failure recovery, libsqlite length-expression index
+work, or Quadrable sub-proof export once their owners stop editing and provide
+fresh passing evidence.
+
+Post-write drift note: a final poll at 2026-05-22 19:56:47 UTC showed `HEAD`
+advanced again to `b774c17` (`Record readability title cleanup status`) and the
+branch line changed to `main...origin/main [ahead 52, behind 21]`. The dirty
+set also changed again, including Difftastic source, markerPDF manifest, and a
+new libsqlite suffix example. This pass still accepted no lane batch, staged
+nothing, committed nothing, regenerated no dashboard artifacts, and pushed
+nothing.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:52 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout is still too active for safe integration:
+`HEAD` advanced during inspection to `7d874fc` (`Record difftastic indexed HTML
+status`), the dirty set spans multiple lanes and public artifacts, and a
+worker-owned root `php tools/run-tests.php` process was active.
+
+Current observed branch/status:
+
+- `git status --short --branch`: `main...origin/main [ahead 49, behind 21]`.
+- No staged paths were observed.
+- Dirty lane files remained in Dolt, Gitoxide, libsqlite, Quadrable, rclone,
+  Readability, Syncthing, public status artifacts, and this integration status
+  file, with additional untracked audit/evidence/example files.
+- Recent worker commits `6a1397d` and `7d874fc` landed while this pass was
+  inspecting, so worker log evidence from earlier snapshots is not a stable
+  acceptance gate for the current dirty tree.
+
+Skipped active lanes/sessions:
+
+- Skipped Dolt despite reauthorization: `port-dolt`, `port-dolt-runner`, and
+  additional Dolt upstream-runner sessions are active, while Dolt source,
+  fixture, example, and test files are dirty.
+- Skipped libsqlite, Quadrable, rclone, Readability, Syncthing, Gitoxide,
+  LightningCSS, esbuild, markerPDF, Difftastic, and public-status files because
+  their owners or related evidence/dashboard sessions are active.
+- Skipped dashboard regeneration because no reviewed lane/status batch was
+  accepted and dashboard/publication workers are active on the same artifacts.
+
+Checks run by this pass:
+
+- Read the required coordination files, Git status/log, dirty paths, active
+  tmux sessions/panes, current process state, and recent lane log tails.
+- `git diff --check` passed with no output.
+- `php tools/run-tests.php` was not started by this pass because no lane batch
+  was accepted and a worker-owned root run was already active.
+- `php tools/generate-dashboard.php` was not run because no lane/status batch
+  was accepted.
+
+Next safe integration point: wait for active lane, runner, integrator,
+dashboard, and publication sessions to quiesce, then choose one lane-scoped
+handoff from a stable `HEAD`. Run `git diff --check` and
+`php tools/run-tests.php` from that same snapshot before committing; regenerate
+`porting.html` and `porting-summary.json` only after accepting the reviewed
+batch. Difftastic may already have been consumed by worker commits, so the next
+target should be whichever remaining dirty lane has a clean stopped-session
+handoff with passing focused evidence.
+
+Post-write drift note: final polls after this snapshot showed `HEAD` advance
+again through a Syncthing commit, ending at `4a63c21` (`Port syncthing encrypted
+request serving`) with `main...origin/main [ahead 50, behind 21]`. The active
+root test process was no longer running, but dirty lane/status files still
+changed and live worker sessions remained. `git diff --check` still passed with
+no output. This pass accepted no lane batch, staged nothing, committed nothing,
+and did not run the dashboard generator.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:43:38 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout remains too active for safe selective
+integration: `HEAD` advanced during inspection, the dirty path set changed, and
+a worker-owned root `php tools/run-tests.php` process was active at the final
+poll.
+
+Point-in-time branch and status:
+
+- Final observed `HEAD`: `cda8a77` (`readability: map metadata and cleanup
+  fixtures`) after `3588d93` (`Port rclone fix-case sync slice`),
+  `abe31a8` (`Record libsqlite expression prefix status`), `8bac9bd`
+  (`Port libsqlite expression index prefix lookups`), `09194ea`
+  (`Record difftastic lane status`), and `1a8ae02` (`Port difftastic
+  JavaScript statement callbacks`) landed while the integration window was
+  moving.
+- Final observed branch status: `main...origin/main [ahead 36, behind 21]`.
+- No paths were staged by this pass; `git diff --cached --name-status` had no
+  output.
+- Dirty tracked paths remained in audit/status files, Difftastic, esbuild,
+  Gitoxide, LightningCSS, markerPDF, Pandoc, Quadrable, Syncthing,
+  `progress.md`, `porting-summary.json`, and `porting.html`.
+- Untracked waiting artifacts remained under `audits/`, esbuild,
+  LightningCSS, markerPDF, Pandoc, and Syncthing.
+
+Active sessions and skipped lanes:
+
+- Active `run-tmux-agent.sh` processes were present for Dolt runner,
+  Readability, Dolt implementation, Pandoc, auditor, Gitoxide, LightningCSS,
+  esbuild, Quadrable, Difftastic, markerPDF, integrator, libsqlite, Syncthing,
+  and a publication resolver. A worker-owned root `php tools/run-tests.php`
+  process was also active.
+- Dolt remains skipped despite reauthorization because both Dolt sessions are
+  active; its recent runner output is useful bounded evidence, but this pass
+  did not accept a Dolt source/status batch from a quiescent handoff.
+- Gitoxide, LightningCSS, esbuild, markerPDF, Pandoc, Quadrable, Difftastic,
+  Syncthing, and generated dashboard/status files are skipped because their
+  owning sessions remain live or their dirty files changed during inspection.
+- `porting.html` and `porting-summary.json` are dirty worker output from a
+  moving tree, not an accepted dashboard snapshot from this pass.
+
+Checks and commands run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty path summaries, staged status,
+  tmux session state, active process state, recent worker log tails, and
+  representative dirty lane diffs from worker logs.
+- `git diff --check`: not rerun after this write; earlier in the same
+  inspection window it passed with no output before the tree moved again.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted and a worker-owned root run was already active.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for the active root test and the dirty lane
+agents to finish, then re-read status and logs from a stable `HEAD`. Accept at
+most one lane-scoped batch with matching evidence, run `git diff --check`, run
+`php tools/run-tests.php` from that same snapshot, regenerate dashboard
+artifacts only after accepting the batch, and keep upstream-runner parity claims
+limited to exact commands that actually passed.
+
+Post-write drift note: a final poll at 2026-05-22 19:44:14 UTC showed `HEAD`
+had advanced again to `5a31903` (`dolt: stamp log revision range status`) and
+branch status changed to `main...origin/main [ahead 37, behind 21]`. The dirty
+set changed again, including LightningCSS lane status, Pandoc manifest,
+Quadrable proof-merge files, and new Difftastic/Quadrable examples/fixtures.
+The previously observed worker-owned root `php tools/run-tests.php` process had
+exited, but the lane agents listed above remained active. Follow-up
+`git diff --check` passed with no output. This pass still accepted no lane
+batch, staged nothing, committed nothing, regenerated no dashboard artifacts,
+and pushed nothing.
+
+Second drift note: a final-final poll at 2026-05-22 19:44:35 UTC still showed
+`HEAD` at `5a31903`, but dirty files changed again in esbuild/LightningCSS
+notes and a new `port-rclone` run plus a new worker-owned root
+`php tools/run-tests.php` process appeared. The tree is still an active
+handoff, not a safe integration checkpoint.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:40:23 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The checkout is still too active for a reviewable
+integration batch: `HEAD` moved during inspection, every dirty implementation
+lane still has a live tmux session, and a worker-owned root
+`php tools/run-tests.php` process was active at the final poll.
+
+Point-in-time branch and status:
+
+- Initial observed `HEAD`: `1a8ae02` (`Port difftastic JavaScript statement
+  callbacks`).
+- Later observed `HEAD`: `09194ea` (`Record difftastic lane status`).
+- Final observed branch status: `main...origin/main [ahead 33, behind 21]`.
+- No paths were staged by this pass; `git diff --cached --name-status` had no
+  output.
+- Dirty tracked paths spanned audit/status artifacts, Dolt, esbuild, Gitoxide,
+  libsqlite status, markerPDF, Pandoc, rclone, Readability, Syncthing,
+  `progress.md`, `porting-summary.json`, `porting.html`, and this file.
+- Untracked waiting files remained under `audits/`, markerPDF, rclone,
+  Readability Mozilla fixture/example paths, and Syncthing examples.
+
+Worker log/status observations:
+
+- `tmux ls` showed live sessions for all dirty lanes plus dashboard,
+  publication, auditor, evaluator, watchdog, and integrator sessions.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active, Dolt source/metadata are dirty, and the runner
+  log showed the bounded BATS suite still in progress rather than a final
+  implementation-plus-runner handoff.
+- Gitoxide is skipped because `port-gitoxide` is active and the log shows it
+  starting a commit-signature actor timestamp edit while Gitoxide status/source
+  and tests are dirty.
+- libsqlite, markerPDF, rclone, Readability, Syncthing, Pandoc, and generated
+  dashboard/status files are skipped because their owning sessions remain live
+  or their dirty files changed during this inspection window.
+- `porting.html` and `porting-summary.json` remain dirty worker output from a
+  moving tree, not an accepted public-status snapshot from this pass.
+
+Checks and commands run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, tmux session state, dirty path summaries,
+  representative dirty diffs, and recent worker log tails for the active dirty
+  lanes.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted and a worker-owned root run was already active at the final poll.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for lane, runner, dashboard, and integrator
+sessions to quiesce or provide an explicit single-lane handoff. Then re-read
+status and logs from a stable `HEAD`, accept at most one lane-scoped batch with
+matching evidence, run `git diff --check`, run `php tools/run-tests.php` from
+that same snapshot, and regenerate dashboard artifacts only after the reviewed
+batch is accepted. Do not claim upstream parity unless the exact upstream
+runner command passed and is recorded.
+
+Post-write drift note: a final poll at 2026-05-22 19:41:14 UTC showed `HEAD`
+had advanced again to `abe31a8` (`Record libsqlite expression prefix status`)
+after `8bac9bd` (`Port libsqlite expression index prefix lookups`), with branch
+status already changed to `main...origin/main [ahead 34, behind 21]`. Dirty
+paths changed again, including Gitoxide example/fixture/test edits,
+LightningCSS transition-prefixer edits, Pandoc test edits, rclone lane status,
+and broader Dolt notes. Worker-owned `php tools/run-tests.php lanes/gitoxide`
+and root `php tools/run-tests.php` processes were active. This pass still
+accepted no lane batch, staged nothing, committed nothing, regenerated no
+dashboard artifacts, and pushed nothing.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:35:34 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The workspace is still too active for a reviewable
+integration batch: lane sessions remain live, the dirty set spans multiple
+implementation lanes plus generated public status files, and worker-owned PHP
+runners were active while this pass was inspecting.
+
+Point-in-time branch and status:
+
+- Observed `HEAD`: `2e9b5d8` (`Record LightningCSS root test blocker`) with
+  `main...origin/main [ahead 27, behind 21]`.
+- No paths were staged by this pass; `git diff --cached --name-status` had no
+  output at the earlier poll.
+- Dirty tracked paths included Difftastic source/tests/manifest/status/notes,
+  Dolt status/source, esbuild status, Gitoxide status, libsqlite
+  manifest/status/notes/source/tests, markerPDF status, Quadrable
+  notes/source/tests, rclone source, Readability manifest/status/notes/source
+  tests, Syncthing receive-encrypted source/tests, `progress.md`,
+  `porting-summary.json`, `porting.html`, and this integration-status file.
+- Untracked waiting files remained under `audits/`, Difftastic fixtures and
+  examples, libsqlite examples/source, Quadrable example, and Readability
+  Mozilla fixtures/example paths.
+
+Recent commits reviewed at a stat level:
+
+- `2e9b5d8` records a LightningCSS root-test blocker.
+- `0b5b0c1` refreshes independent audit/progress evidence.
+- `8fcbf62` stamps the LightningCSS fallback commit.
+- `21a15c4` adds the LightningCSS background color fallback slice.
+- `da3c4e3` enforces Gitoxide commit header order.
+- `c3ba5e7` maps Pandoc short-caption tables.
+- `580e543` adds the esbuild TypeScript class-field assign slice.
+- `0511cb6` adds rclone delayed directory modtime sync.
+- `51459d6` adds markerPDF OCR detection boundaries.
+
+Worker log/status observations:
+
+- LightningCSS reports its focused lane tests passed, but its final root run
+  was red with `113 test files, 8462 assertions, 1 failure`, attributed in that
+  log to concurrent libsqlite work.
+- Difftastic dirty status claims focused lane coverage passed with `63` tests
+  and `286` assertions, but also records a root-suite failure outside the lane;
+  the Difftastic source/fixture batch remains unaccepted.
+- libsqlite's latest log tail reports the focused upstream runner passed
+  `indexexpr1.test` and `indexexpr2.test` with `234` upstream checks and says
+  the full PHP harness is now green, but libsqlite source/tests/metadata remain
+  dirty and need a stable handoff before commit.
+- Syncthing receive-encrypted parent scan source/tests remain dirty; a
+  worker-owned `php tools/run-tests.php lanes/syncthing` was observed, followed
+  by worker-owned root `php tools/run-tests.php` processes.
+- Dolt remains skipped despite reauthorization because `port-dolt` and
+  `port-dolt-runner` sessions are live and Dolt source/status are dirty; no
+  stable implementation-plus-runner handoff was accepted by this pass.
+
+Checks and commands run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, recent `git show --stat` output, tmux
+  session/pane state, recent worker log tails, dirty path summaries, staged and
+  unstaged path lists, and representative dirty lane/status diffs.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted and worker-owned PHP test processes were already active.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for worker-owned root tests and active lane
+sessions to quiesce, confirm `HEAD` and dirty paths are stable, then accept at
+most one lane-scoped batch with focused evidence. The next candidates are
+libsqlite substring-index scans, Difftastic JavaScript named-callback alignment,
+or Syncthing receive-encrypted parent cleanup, but only after their sessions
+stop editing and a fresh `php tools/run-tests.php` passes from the same
+snapshot. Regenerate dashboard artifacts only after accepting a reviewed green
+batch, and keep upstream parity claims limited to commands that actually passed.
+
+Post-write drift note: a final poll during this pass showed `HEAD` had advanced
+again to `bae68a4` (`quadrable add persisted tracked sync fuzzer`) with
+`main...origin/main [ahead 29, behind 21]`. The dirty set changed again,
+including Dolt commit-log review example/fixture/test files, markerPDF
+benchmark report files, rclone fix-case files, Readability metadata-precedence
+example, and Syncthing receive-encrypted parent-cleanup example. Three
+worker-owned `php tools/run-tests.php` processes were active at that poll.
+Follow-up `git diff --check` and `git diff --cached --check` still passed with
+no output. This pass still staged nothing, committed nothing, accepted no lane
+batch, and regenerated no dashboard artifacts.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:30:23 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree was still too active for safe selective
+integration: active lane agents remained live, `HEAD` moved during inspection,
+and a worker-owned Difftastic/root PHP runner was active from the latest
+Difftastic log tail.
+
+Point-in-time branch and status:
+
+- Initial observed `HEAD`: `6270867` (`Update Dolt branch slice status`) with
+  `main...origin/main [ahead 45, behind 18]`.
+- Final observed `HEAD`: `87c3b21` (`Record rclone delayed directory status`)
+  with `main...origin/main [ahead 48, behind 18]`.
+- Other workers landed `51459d6` (`Add markerPDF OCR detection boundary`),
+  `0511cb6` (`Port rclone delayed directory modtime sync`), and `87c3b21`
+  while this pass was inspecting. This pass did not amend, revert, or republish
+  those commits.
+- No paths were staged at the final poll.
+- Dirty tracked paths remained in `audits/integration-status.md`, Difftastic,
+  Dolt status, esbuild, Gitoxide, libsqlite, LightningCSS, markerPDF status,
+  Pandoc, Readability, and generated dashboard artifacts.
+- Untracked waiting artifacts remained under `audits/`, Difftastic fixtures and
+  example, an esbuild fixture, a libsqlite example, a LightningCSS example, and
+  Readability Mozilla fixture/example paths.
+
+Active sessions / skipped lanes:
+
+- Active `run-tmux-agent.sh` processes were present for `port-markerpdf`,
+  `port-esbuild`, `port-rclone`, `port-readability`, `port-lightningcss`,
+  `port-pandoc`, `port-gitoxide`, `port-auditor`, `port-libsqlite`,
+  `port-quadrable`, `port-integrator`, `port-difftastic`, and
+  `port-dolt-runner`.
+- Difftastic remains the next visible uncommitted handoff candidate, but it is
+  skipped for now because `port-difftastic` restarted and its latest log says a
+  required root runner is in progress.
+- Dolt remains skipped despite reauthorization because `port-dolt-runner` is
+  active and `lanes/dolt/lane-status.json` is dirty; no coherent
+  implementation/runner handoff from a stable snapshot was accepted.
+- esbuild, libsqlite, LightningCSS, Pandoc, Readability, Gitoxide, markerPDF
+  status, and dashboard files are skipped because their owning lane/status
+  sessions are active or their dirty files changed while this pass was running.
+- `porting.html` and `porting-summary.json` are dirty worker output, not an
+  accepted dashboard snapshot from this pass.
+
+Checks and inspections run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, tmux pane/session state, active process
+  state, recent worker log tails, dirty path summaries, staged/unstaged diffs,
+  and high-level commit shapes for `51459d6`, `0511cb6`, and `87c3b21`.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted, `HEAD` moved during inspection, and the Difftastic worker log
+  reported an in-progress runner. Any worker-reported green root result remains
+  lane evidence until a future integrator accepts that exact stable snapshot.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for the active lane/status/dashboard workers
+to quiesce, then re-read status and log tails from a stable `HEAD`. The first
+candidate is the Difftastic JavaScript syntax-list batch only if its active
+runner finishes green and the session stops editing its files; otherwise pick
+the first single-lane handoff with focused evidence, `git diff --check`, and a
+fresh `php tools/run-tests.php` pass from the same snapshot. Regenerate the
+dashboard only after accepting a reviewed batch. Do not claim upstream parity
+unless the exact upstream runner command passed and is recorded.
+
+Post-write drift note: a final poll at 2026-05-22 19:31:42 UTC showed `HEAD`
+had moved again to `d6d98df` (`Port esbuild TypeScript class field assign
+slice`) with `main...origin/main [ahead 49, behind 18]`. No paths were staged at
+that poll. New or changed dirty paths appeared in `audits/latest.md`,
+`progress.md`, Gitoxide commit-signature files, Pandoc status/notes, and an
+untracked `lanes/libsqlite/src/SQLiteSubstringIndexExpression.php`; LightningCSS
+implementation files were no longer dirty. Additional active agents appeared
+for publication resolution, Readability, Syncthing, rclone, and Dolt. An
+intermediate poll briefly observed a worker-owned `php tools/run-tests.php`
+process; the final process poll no longer listed it, but this pass did not
+accept its outcome. Follow-up `git diff --check` and `git diff --cached --check`
+still passed with no output. This pass still accepted no batch, staged nothing,
+committed nothing, regenerated no dashboard files, and pushed nothing.
+
+Second post-write drift note: a later poll at 2026-05-22 19:32:21 UTC showed
+`HEAD` had moved again to `580e543` (`Port esbuild TypeScript class field assign
+slice`) with `main...origin/main [ahead 49, behind 18]`. No paths were staged at
+that poll. Dirty tracked paths had changed again, including Gitoxide manifest
+updates, libsqlite `SQLiteCreateIndex.php`, Quadrable `SyncFuzzer.php` and
+`SyncTest.php`, and the same generated/public status artifacts. This confirms
+the tree is still a moving handoff; this pass did not accept or commit any of
+those changes.
+
+Third drift note: a subsequent status poll at 2026-05-22 19:32:47 UTC still
+showed `main...origin/main [ahead 49, behind 18]` with no staged paths, but the
+dirty set had churned again to include Gitoxide upstream notes, Pandoc lane
+status, and an untracked Quadrable persisted sync-fuzz example. Treat all
+waiting-path lists in this snapshot as point-in-time evidence, not a staging
+plan.
+
+Fourth drift note: final verification commands observed `HEAD` move again to
+`f2c571c` (`pandoc map short caption tables`) with
+`main...origin/main [ahead 50, behind 18]`. This pass did not create, stage,
+commit, or accept that Pandoc commit; it only records that the integration
+window remained unsafe through 2026-05-22 19:33:12 UTC.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:26:24 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The worktree remains too active for reviewable selective
+integration: active lane agents are still running, worker-owned root/targeted
+PHP test processes are in flight, and `HEAD` advanced repeatedly while this
+pass was reading status, logs, and dirty diffs.
+
+Point-in-time branch and status:
+
+- Initial observed `HEAD`: `d4334c5` (`quadrable add persisted node store
+  example`) with `main...origin/main [ahead 37, behind 18]`.
+- Later observed `HEAD`: `05abd65` (`Port Syncthing receive-encrypted
+  finalization`) with `main...origin/main [ahead 39, behind 18]`.
+- Final observed `HEAD` during this pass: `5b23ab3` (`quadrable stamp proof
+  cache status`) with `main...origin/main [ahead 42, behind 18]` and no staged
+  paths.
+- New commits by other workers during this pass included Syncthing finalization,
+  Quadrable proof-cache work/status, and a Gitoxide test-count status update.
+  This pass did not amend, revert, or republish any of them.
+- Dirty tracked paths remain in audit/status artifacts, `progress.md`,
+  Difftastic, Dolt, esbuild, Gitoxide status/notes, libsqlite, LightningCSS,
+  markerPDF, rclone, Readability, Syncthing status, generated dashboard
+  artifacts, and this integration-status file.
+- Untracked waiting files remain under `audits/`, Difftastic fixtures/example,
+  esbuild fixture, libsqlite example, markerPDF OCR source/test/example,
+  Readability Mozilla fixtures/example, and related status evidence files.
+
+Waiting/risky lane output observed:
+
+- Difftastic has active source/test/fixture/example edits for JavaScript
+  syntax-list alignment while `port-difftastic` remains live.
+- Dolt is skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` remain active, Dolt metadata is dirty, and the Dolt log
+  records a required root rerun currently red in unrelated esbuild tests rather
+  than a green accepted root snapshot.
+- esbuild has active TypeScript lowering source/test/fixture edits, and a
+  worker-owned targeted esbuild test process was running during this pass.
+- libsqlite, markerPDF, rclone, Readability, LightningCSS, Gitoxide status,
+  and generated dashboard artifacts are dirty while their lane/status sessions
+  remain live.
+- Quadrable and Syncthing work was committed by other workers while this pass
+  was inspecting; this pass did not race their staged files or accept follow-up
+  status changes.
+- `porting.html` and `porting-summary.json` are dirty while dashboard updater
+  style sessions remain active, so they are not treated as an accepted public
+  status snapshot.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, tmux session/pane state, recent worker
+  log tails, dirty tracked/untracked path lists, dirty file summaries, and
+  representative active lane diffs.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because a worker-owned
+  root `php tools/run-tests.php` was already active and the tree was moving.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait until lane/evidence/dashboard workers stop
+moving `HEAD` and dirty paths, then re-read status/log tails from a stable
+snapshot. Integrate only one lane-scoped handoff with matching focused evidence
+and a green root `php tools/run-tests.php`; run `git diff --check` before the
+commit, and regenerate dashboard artifacts only after accepting the batch. Do
+not claim upstream parity unless the exact upstream runner command passed and is
+recorded.
+
+Post-write drift note: a final poll after this snapshot showed `HEAD` moved
+again to `00c0679` (`Refresh independent audit`) with
+`main...origin/main [ahead 43, behind 18]`. `lanes/syncthing/lane-status.json`
+was staged by another worker; this pass did not stage or unstage it. Additional
+dirty status/notes appeared in libsqlite, markerPDF, and generated dashboard
+artifacts. This pass still did not accept a lane batch, run the root suite,
+regenerate dashboard artifacts, or commit.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:23:27 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The worktree is still too active for a reviewable
+integration batch: `HEAD` advanced while this pass was reading logs and diffs,
+new dirty/untracked lane files appeared, and another process staged the
+Quadrable batch before this pass could safely own it.
+
+Point-in-time branch and status:
+
+- Initial observed `HEAD`: `bc6e754` (`Update LightningCSS lane status`) with
+  `main...origin/main [ahead 30, behind 18]`.
+- Final observed `HEAD`: `ba28cdc` (`Stamp gitoxide OFS delta lane status`) with
+  `main...origin/main [ahead 32, behind 18]`.
+- Current staged paths are all Quadrable-owned:
+  `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/quadrable/examples/wordpress-persisted-node-store.php`,
+  `lanes/quadrable/lane-status.json`,
+  `lanes/quadrable/notes/upstream-inventory.md`,
+  `lanes/quadrable/notes/wordpress-scenarios.md`,
+  `lanes/quadrable/src/SparseTree.php`,
+  `lanes/quadrable/src/TrackedNodeStore.php`,
+  `lanes/quadrable/tests/NodeIdTest.php`, and
+  `lanes/quadrable/tests/SparseTreeTest.php`. This pass did not stage or
+  unstage them.
+- Dirty unstaged tracked paths remain in Dolt metadata/source/test handoff
+  files, esbuild, libsqlite, Readability, Syncthing, generated dashboard
+  artifacts, and this integration-status file.
+- Untracked waiting files remain under `audits/`, Dolt branch-review
+  source/test/fixture/example files, markerPDF OCR detection source/test/example
+  files, Readability Mozilla fixture folders, and Syncthing receive-encrypted
+  finalization example files.
+
+Active sessions observed:
+
+- Lane/evidence/status sessions remain live: `port-dolt`, `port-dolt-runner`,
+  `port-esbuild`, `port-libsqlite`, `port-markerpdf`,
+  `port-markerpdf-evidence`, `port-quadrable`, `port-quadrable-stabilizer`,
+  `port-readability`, `port-syncthing`, `port-difftastic`, `port-gitoxide`,
+  `port-gitoxide-evidence`, `port-pandoc`, `port-pandoc-redfix`, plus auditor,
+  evaluator, tooling, publisher/reconciler/updater/resolver, watchdog, and
+  integrator sessions.
+- Dolt is skipped despite reauthorization because both the implementation and
+  runner sessions are active and the Dolt lane has dirty metadata plus untracked
+  branch-review implementation/test files. The log tail records branch-table
+  runner evidence and an active attempt to patch/reconcile Dolt metadata.
+- Gitoxide OFS-delta work appears to have been committed by another worker
+  during this pass as `ba28cdc`; this pass did not amend or republish it.
+- markerPDF, Readability, Difftastic, esbuild, libsqlite, and Syncthing logs or
+  status show active lane edits or just-finished focused tests with subsequent
+  metadata edits still in progress.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, current tmux session state, recent
+  worker log tails, dirty lane diffs, and dirty lane files shown by Git.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because the tree moved
+  during inspection and a Quadrable batch was already staged by another worker.
+- `php tools/generate-dashboard.php`: not run because no lane/status batch was
+  accepted by this pass. The current `porting.html` and `porting-summary.json`
+  remain dirty worker output, not an accepted public status snapshot.
+
+Post-write drift note: a final poll after this snapshot showed `HEAD` moved
+again to `6586f06` (`Refresh independent audit`) with
+`main...origin/main [ahead 35, behind 18]`. The previously staged Quadrable
+batch was no longer staged by this pass or visible in `git diff --cached
+--name-only`; no paths were staged. New or changed dirty paths appeared in
+Difftastic source/fixtures/example, markerPDF manifest/notes/source/test/example,
+rclone source/tests, Readability source/tests/example/fixtures, libsqlite
+source/test/example, Syncthing manifest/notes/source/test/example, and generated
+dashboard artifacts.
+Follow-up `git diff --check` and `git diff --cached --check` still passed with
+no output. This pass still did not stage, commit, run the root suite, or
+regenerate dashboard artifacts.
+
+Next safe integration point: wait until the active lane/evidence/dashboard
+workers stop moving `HEAD` and dirty paths, then re-read status/log tails from a
+stable `HEAD`. Inspect one lane-scoped handoff, run `git diff --check` and
+`php tools/run-tests.php` from that same snapshot, commit only that accepted
+batch, and regenerate the dashboard afterward. Do not claim upstream parity
+unless the exact upstream runner command passed and is recorded.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:12:16 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The worktree is still too active for selective staging:
+every lane has a live tmux agent or related evidence/stabilizer session, the
+dashboard updater loop is active, `port-watchdog` is active, a Dolt 15-file BATS
+slice is still running, and worker-owned root PHP test processes are active.
+
+Point-in-time branch and status:
+
+- `git status --short --branch`: `main...origin/main [ahead 6, behind 18]`.
+- Observed `HEAD`: `783ab45` (`Port gitoxide complete refname validation`).
+- No files were staged by this pass; `git diff --cached --name-only` was empty
+  earlier in this pass and no staging command was run afterward.
+- Dirty tracked files remain in audit/status artifacts, Difftastic, esbuild,
+  LightningCSS, markerPDF, Pandoc status, Quadrable, rclone, Readability,
+  Syncthing, and generated dashboard artifacts.
+- Untracked waiting files remain under `audits/`, Difftastic WordPress script
+  fixtures/example, esbuild constructor-property fixture, LightningCSS
+  animation-range example, markerPDF OCR source/test/example, Quadrable
+  persisted-node-store example, rclone directory-modtime example, Readability
+  Mozilla fixtures/example, and Syncthing encrypted download-progress
+  source/example.
+
+Waiting/risky lane output observed:
+
+- Gitoxide reference-name work was committed by another worker as `783ab45`
+  during this inspection. This pass did not amend or republish it.
+- Dolt is explicitly skipped despite reauthorization: `port-dolt` and
+  `port-dolt-runner` are active, and the runner is still executing the bounded
+  BATS slice over diff/rename/schema/merge/status/log coverage.
+- Difftastic, LightningCSS, markerPDF, Quadrable, rclone, Readability, esbuild,
+  and Syncthing all have dirty implementation or test paths while their lane
+  sessions are active.
+- `porting.html` and `porting-summary.json` are dirty while dashboard updater,
+  publisher, reconciler, and resolver sessions are active, so they are not an
+  accepted public status snapshot.
+
+Recent commits reviewed at a high level:
+
+- `783ab45` Gitoxide complete refname validation landed while this pass was in
+  progress.
+- `c993ee5` recorded Dolt has_ancestor status.
+- `555dd26` committed libsqlite composite range seek bounds.
+- `2638609` refreshed the independent audit.
+- `9e5ba6f` added the Dolt has_ancestor graph slice.
+- `f71723f` mapped Pandoc multiline simple tables.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists,
+  worker log tails, tmux pane/session state, active process state, and recent
+  commit stats.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because worker-owned root
+  test processes were already active and the dirty tree did not reach a stable
+  handoff point.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Post-write drift note: a final poll at 2026-05-22 19:13:03 UTC showed `HEAD`
+had advanced again to `5b7a944` (`Stamp gitoxide lane status`) with
+`main...origin/main [ahead 7, behind 18]`. `progress.md`, additional esbuild
+notes/status paths, Pandoc lane status/notes, and a new untracked
+`lanes/lightningcss/src/CustomMediaException.php` appeared in the dirty set.
+The Dolt BATS slice and a worker-owned root PHP run via
+`/tmp/port-libs-test-after-esbuild.log` were still active. Follow-up
+`git diff --check` and `git diff --cached --check` still passed with no output.
+This pass still did not stage, commit, regenerate dashboard artifacts, run the
+root suite, or accept any lane batch.
+
+Next safe integration point: wait for lane/evidence/dashboard/auditor sessions
+and active PHP/BATS runners to quiesce, then re-read status/log tails from a
+stable `HEAD`. Accept exactly one lane-scoped handoff with matching focused
+evidence, run `git diff --check`, run `php tools/run-tests.php` from that same
+snapshot, and commit only that batch. Regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes. Do
+not claim upstream parity unless the exact upstream runner command actually
+passed and is recorded.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:09:28 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The worktree is still too active for reviewable selective
+staging: every dirty lane has an active tmux lane or evidence session, the
+dashboard updater loop is active, `port-watchdog` is active, Dolt has a live
+bounded BATS runner, and worker-owned root PHP test runs are already in flight.
+
+Point-in-time branch and status:
+
+- `git status --short --branch`: `main...origin/main [ahead 49, behind 14]`.
+- Observed `HEAD`: `beb27c0` (`Refresh latest independent audit`).
+- No files were staged by this pass; `git diff --cached --name-only` returned
+  no paths.
+- Dirty tracked files are present in Difftastic, Dolt, esbuild, Gitoxide,
+  libsqlite, LightningCSS, markerPDF status, Pandoc, Quadrable, generated
+  dashboard artifacts, and this integration-status file.
+- Untracked waiting files are present under `audits/`, Difftastic WordPress
+  script fixtures/example, Dolt `CommitGraph` source/test/fixture/example,
+  LightningCSS animation-range example, markerPDF `OcrRecognition.php`,
+  Quadrable persisted-node-store example, and Syncthing
+  `EncryptedDownloadProgress.php`.
+
+Waiting/risky lane output observed:
+
+- Difftastic: dirty tests name upstream HTML `<script>` JavaScript sublanguage
+  mapping and a WordPress inline-script diff scenario, while `port-difftastic`
+  remains active.
+- Dolt: dirty `CommitGraph` has-ancestor source/test/fixture/example plus
+  runner metadata are present while both `port-dolt` and `port-dolt-runner`
+  remain active. The live bounded BATS process is running
+  `diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats
+  query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats
+  merge.bats schema-conflicts.bats conflict-detection.bats
+  sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats`.
+  Dolt was skipped under the reauthorization constraint because its
+  implementation and runner sessions are editing/evidencing the same lane.
+- Gitoxide: dirty reference-name validation/category changes include push,
+  push-response, and send-pack test adjustments. Worker-owned root tests are
+  active, so the final pass/fail state is not stable.
+- libsqlite: dirty composite equality/range index seek work and status remain
+  active under `port-libsqlite`.
+- LightningCSS: dirty animation-range minification/composition tests and
+  WordPress example remain active under `port-lightningcss`.
+- markerPDF: dirty lane status records a red-root note from unrelated Gitoxide
+  work, and untracked `OcrRecognition.php` appears while `port-markerpdf` is
+  active.
+- Pandoc: dirty multiline/simple table parsing and WordPress block output work
+  remains active, including the `port-pandoc-redfix` handoff context.
+- Quadrable: dirty persisted tracked-node-store source/test/status/example work
+  remains active under `port-quadrable`.
+- esbuild and Syncthing also have dirty source-only/untracked work while their
+  lane sessions are active.
+- `porting.html` and `porting-summary.json` are dirty while dashboard updater
+  and publisher/reconciler style sessions are active, so they are not an
+  accepted public status snapshot.
+
+Recent commits reviewed:
+
+- Latest visible commits include `8528dca` (`Add markerPDF image crop render
+  planning`), `f182cc8`/`be8199b`/`72cb540` for rclone refresh-times status,
+  `81c2c5b`/`256852d` for Syncthing encrypted response work, `4b5d626` for
+  esbuild TypeScript declare lowering, and `541690d`/`9d9b40e` for Readability
+  hidden fixture cleanup/status. This pass did not amend, revert, or republish
+  any of those commits.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, current worker log tails, dirty path
+  lists, tmux session/window/pane state, active process state, recent commit
+  stats, and representative dirty test names.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because worker-owned root
+  runs were already active and the dirty tree is not quiescent.
+- `php tools/generate-dashboard.php`: not run because no lane/status batch was
+  accepted.
+
+Next safe integration point: wait for active lane/evidence/dashboard/auditor
+sessions and worker-owned PHP/BATS runners to quiesce, then re-read status and
+log tails from a stable `HEAD`. Integrate exactly one lane-scoped handoff with
+matching focused evidence and a green root `php tools/run-tests.php`; run
+`git diff --check` before committing. Only regenerate `porting.html` and
+`porting-summary.json` after accepting a reviewed lane/status batch. Do not
+claim upstream parity unless the recorded upstream runner command actually
+passed.
+
+Post-write drift note: a final verification after this snapshot showed `HEAD`
+had advanced to `f71723f` (`pandoc: map multiline simple tables`) and
+`git status --short --branch` changed to `main...origin/main [ahead 1, behind
+18]`. The dirty set also changed: Dolt has-ancestor files were staged by another
+process, Pandoc multiline table work was committed by its worker, and additional
+dirty or untracked rclone, Readability, markerPDF OCR, esbuild constructor
+properties, and Syncthing encrypted-download-progress paths appeared. A
+worker-owned root run was active through
+`php tools/run-tests.php > /tmp/port-libs-root-tests-final2.out`, a focused
+Readability PHP test was active, and the Dolt bounded BATS run was still active.
+Follow-up `git diff --check` and `git diff --cached --check` both passed with no
+output. This pass still staged nothing, created no commit, did not run the root
+suite itself, and did not regenerate dashboard files.
+
+Second post-write drift note: a subsequent final check showed `HEAD` had moved
+again to `2638609` (`Refresh independent audit`) with
+`main...origin/main [ahead 3, behind 18]`. The Dolt staged batch had disappeared
+from status while libsqlite files were staged by another process, rclone and
+Readability dirty paths changed, and generated dashboard files remained dirty.
+`git diff --check` and `git diff --cached --check` still passed with no output.
+This confirms the tree did not reach a safe integration point during this pass.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:04 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The shared worktree remained unsafe for selective staging:
+`HEAD` moved during this inspection from `f182cc8` (`Port rclone refresh-times
+no-hash sync`) to `8528dca` (`Add markerPDF image crop render planning`), a
+worker-owned `php tools/run-tests.php` was active under `port-esbuild`, and a
+parallel `port-integrator` session had just been relaunched.
+
+Point-in-time branch and status:
+
+- `git status --short --branch`: `main...origin/main [ahead 48, behind 14]`.
+- Observed `HEAD`: `8528dca` (`Add markerPDF image crop render planning`).
+- No files were staged by this pass.
+- Dirty tracked files remained in `audits/integration-status.md`,
+  `audits/latest.md`, Difftastic source/tests, Dolt manifest/status/notes,
+  Gitoxide reference-name source/tests/fixture, LightningCSS minifier source,
+  Quadrable tracked node-store source/tests, and generated `porting.html` /
+  `porting-summary.json`.
+- Untracked waiting files remained under `audits/`, Difftastic WordPress script
+  fixtures/example, Dolt `CommitGraph` source/test/fixture/example, and a
+  Quadrable persisted-node-store WordPress example.
+
+Recent worker output observed:
+
+- markerPDF source/status/image-crop files were consumed by worker commit
+  `8528dca`. This pass did not stage or accept that commit.
+- rclone refresh-times work was already in recent worker commits `f182cc8`,
+  `be8199b`, and `72cb540`. This pass did not amend or republish it.
+- Active dirty handoffs were visible for Difftastic HTML `<script>` JavaScript
+  sub-language matching, Gitoxide reference validation/category handling,
+  LightningCSS animation-range minification, Quadrable persisted tracked-node
+  store snapshots, and Dolt `has_ancestor` graph resolution.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active while Dolt source, tests, fixture/example, and
+  runner metadata are dirty.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists, dirty
+  lane log tails, tmux session/pane state, active worker processes, and recent
+  worker commit shapes.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass. The esbuild worker log
+  showed its own dirty-tree root run ending red with `110 test files`,
+  `7967 assertions`, and `3 failures`, then starting another root test probe.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable snapshot.
+
+Risk:
+
+- Active workers still own the dirty lane files listed above; staging now would
+  mix source edits, lane metadata, audit notes, and dashboard artifacts from
+  different snapshots.
+- The generated dashboard artifacts are dirty while dashboard/publisher/update
+  sessions remain active, so they are not an accepted public status snapshot.
+- Public status must not claim upstream parity from local PHP or bounded runner
+  evidence. Upstream parity remains limited to exact upstream runner commands
+  that actually passed and are recorded by lane/evidence workers.
+
+Next safe integration point: wait for the active producer, runner, dashboard,
+auditor, and parallel integrator sessions to quiesce and for the root harness to
+be green from one stable `HEAD`. Then accept exactly one lane handoff at a time,
+likely Gitoxide reference-category, LightningCSS animation-range, Difftastic
+script sub-language, or Quadrable persisted-node-store work if that lane owner
+has stopped and provided focused plus root evidence. For Dolt, wait until both
+`port-dolt` and `port-dolt-runner` stop editing the same source/metadata files.
+For any accepted batch, inspect the lane diff, run `git diff --check`,
+`git diff --cached --check`, and `php tools/run-tests.php` from the same
+snapshot before committing. Regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes.
+
+Post-write drift note: a final check after this snapshot showed `HEAD` had
+already advanced again to `beb27c0` (`Refresh latest independent audit`) with
+`main...origin/main [ahead 49, behind 14]`. Additional dirty paths appeared in
+Gitoxide examples, LightningCSS tests/example, Pandoc source files, and
+Quadrable notes, and worker-owned PHP runners were active under LightningCSS and
+Pandoc. New watchdog launches also appeared for Syncthing, rclone, and
+`port-dolt-runner`. This pass still did not stage, commit, regenerate dashboard
+artifacts, run root tests, or accept any lane batch.
+
+Second drift note: a later no-write check still showed `HEAD` at `beb27c0`, but
+the dirty set expanded again to include Gitoxide push tests, libsqlite source,
+and Quadrable WordPress notes. `git diff --check` and
+`git diff --cached --check` still passed with no output. No stable root test
+result was claimed, no dashboard files were regenerated, and no lane output was
+accepted.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:59 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The shared tree remained too active for a reviewable
+integration batch: active `run-tmux-agent.sh` / `codex -a never exec`
+processes were still running for multiple lane workers, the auditor, Dolt
+runner, and another integrator; `HEAD` moved during this inspection from
+`cc480e2` through `4ecb16a`, `2f9c99c`, `08541e7`, and finally `b29048e`
+(`gitoxide: record reference sanitize status`); and a worker-owned
+`php tools/run-tests.php` process was still active at the final poll.
+
+Point-in-time branch and status:
+
+- `git status --short --branch`: `main...origin/main [ahead 37, behind 14]`.
+- Observed `HEAD`: `b29048e` (`gitoxide: record reference sanitize status`).
+- No files were staged by this pass. A libsqlite batch was briefly staged by an
+  active worker during inspection and then consumed by worker commits
+  `2f9c99c` and `08541e7`.
+- Dirty tracked files remained in status/audit artifacts and active lane paths
+  for Dolt runner notes, esbuild, rclone, Readability, Syncthing, generated
+  `porting.html` / `porting-summary.json`, and `audits/latest.md`.
+- Untracked waiting artifacts remained under `audits/`, esbuild fixtures,
+  markerPDF PDF image crop files, rclone example files, and copied Readability
+  Mozilla fixtures.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass. Worker-owned root test
+  processes were observed; the latest final poll still showed
+  `1726121 php tools/run-tests.php` active, so no stable root result was
+  claimed for this snapshot.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable snapshot.
+
+Waiting/risky output observed:
+
+- Gitoxide reference-name sanitization was committed by the lane owner during
+  this inspection, but the Gitoxide worker remained active and further
+  status/source movement is possible.
+- libsqlite bounded index range seek work was committed by the lane owner while
+  this pass was inspecting it; this pass did not stage or accept those commits.
+- esbuild has uncommitted lexer/lowerer/status work and two untracked
+  TypeScript fixtures while `port-esbuild` remains active.
+- rclone has uncommitted refresh-times/nohash sync work and status/manifest
+  updates while `port-rclone` remains active.
+- Readability has uncommitted hidden-node / line-break fixture work and copied
+  Mozilla fixture directories while `port-readability` remains active.
+- Syncthing has uncommitted receive-encrypted wire/model work while
+  `port-syncthing` remains active.
+- markerPDF has untracked PDF image-render/crop source, test, and example files
+  while `port-markerpdf` is active and had just started lane tests.
+- Dolt remains skipped despite reauthorization because `port-dolt` and
+  `port-dolt-runner` are active, and the dirty Dolt runner note is bounded
+  evidence only, not full upstream parity.
+
+Next safe integration point: wait for the active producer, runner, dashboard,
+auditor, and parallel integrator sessions to quiesce, then take one lane handoff
+from a stable `HEAD`. The likely first candidates are rclone refresh-times or
+esbuild ambient-class lowering if their owners stop and provide green focused
+and root evidence. For any accepted batch, inspect the lane diff, run
+`git diff --check`, `git diff --cached --check`, and
+`php tools/run-tests.php` from the same snapshot before committing. Regenerate
+`porting.html` and `porting-summary.json` only after accepting reviewed
+lane/status changes, and do not claim upstream parity without an actual upstream
+runner pass.
+
+Post-write drift note: an immediate final status check showed `HEAD` move again
+to `54bc6b8` (`gitoxide: refresh reference sanitize status`) with
+`main...origin/main [ahead 39, behind 14]`. Dirty Readability and Syncthing
+source/test batches disappeared from the status snapshot, while Dolt manifest
+and runner notes, markerPDF notes, esbuild work, rclone work, and generated
+dashboard files remained dirty. A worker-owned focused Pandoc test was active:
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`. This pass
+still made no integration commit, did not regenerate dashboard artifacts, and
+did not claim a stable root-suite result.
+
+Second drift note: a subsequent final status check showed `HEAD` move again to
+`541690d` (`Port readability hidden fixture cleanup`) with
+`main...origin/main [ahead 40, behind 14]`. Dirty Dolt, esbuild, markerPDF,
+rclone, Syncthing, generated dashboard, and audit artifacts remained; the
+Readability batch had been consumed by its owner. Another worker-owned
+`php tools/run-tests.php` root process was active. This confirms there was no
+quiet integration point during this pass.
+
+Third drift note: one last check showed `HEAD` move again to `4b5d626`
+(`Advance esbuild TypeScript declare lowering`) with
+`main...origin/main [ahead 41, behind 14]`. Esbuild source/test work had been
+committed by its owner, but Dolt, markerPDF, rclone, Readability status,
+Syncthing, generated dashboard files, and audit artifacts remained dirty, and
+the same worker-owned root test process was still active. This pass stopped
+without integrating or regenerating status artifacts.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:55 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The shared tree is still too active for a reviewable
+integration batch: `HEAD` advanced during inspection from `64f3eed` to
+`16ff9a3` (`Port Dolt commit ancestors projection`), `git status --short
+--branch` ended at `main...origin/main [ahead 20, behind 14]`, and live tmux
+sessions/processes remained active for lane workers, `port-integrator`,
+`port-dolt-runner`, `port-rclone-redfix`, dashboard workers, auditor/evaluator,
+and watchdog.
+
+Current point-in-time checks from this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: passed with `108 test files, 7734 assertions,
+  0 failures`.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable snapshot.
+
+Waiting/risky output observed:
+
+- A worker commit landed during review: `16ff9a3` (`Port Dolt commit ancestors
+  projection`). It added Dolt commit-ancestors source, tests, fixture, and
+  example files plus Dolt metadata. This pass did not create, amend, revert,
+  stage, or independently accept that commit.
+- Dolt remains unsafe for further integration while `port-dolt` and
+  `port-dolt-runner` are active and Dolt status/runner metadata continues to
+  move. Recorded Dolt runner evidence is bounded runner evidence, not full
+  pristine upstream parity.
+- rclone red-fix/status work is active and dirty; its lane status now records
+  the green root rerun, but `port-rclone` and `port-rclone-redfix` are still
+  active, so this pass did not stage or commit it.
+- Dirty source/status output remains across active lanes including Difftastic,
+  esbuild, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, and
+  Syncthing, plus generated dashboard and audit/evidence artifacts.
+
+Next safe integration point: wait for active writers to quiesce or provide a
+single-lane handoff from a stable `HEAD`. The next likely target is the rclone
+delete/immutable archive batch after `port-rclone` and `port-rclone-redfix`
+stop, because the current root PHP suite is green. For any accepted batch, run
+focused inspection, `git diff --check`, `git diff --cached --check`, and
+`php tools/run-tests.php` from the same snapshot before committing; regenerate
+`porting.html` and `porting-summary.json` only after accepting reviewed
+lane/status changes.
+
+Post-write drift note: an immediate final status check after this snapshot
+showed `HEAD` move again to `a10333b` (`Port markerPDF filetype and bbox
+geometry slices`) with `main...origin/main [ahead 21, behind 14]`; recent
+history now shows the Dolt commit-ancestors projection at `8f12867` instead of
+the earlier observed `16ff9a3`. Additional dirty lane-status/manifest paths
+appeared for Difftastic, LightningCSS, Pandoc, and Quadrable while markerPDF
+filetype/bbox files were consumed by the markerPDF commit. This pass did not
+stage, commit, amend, revert, or accept those changes.
+
+Second drift note: a later final check showed the markerPDF commit at `73209ae`
+with the same subject and branch state still `main...origin/main [ahead 21,
+behind 14]`. It also showed rclone files staged by another active worker
+(`lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, two rclone examples,
+`lane-status.json`, notes, source, and tests). This pass did not stage those
+rclone files and did not run a commit or dashboard regeneration.
+
+Third drift note: a subsequent check showed those staged rclone files consumed
+by worker commit `e3ae73b` (`rclone: map transfer decision flags`), followed by
+`c78d273` (`Stamp markerPDF lane status`), with branch state
+`main...origin/main [ahead 23, behind 14]`. No files were staged by this pass;
+the remaining dirty set moved on to esbuild, Gitoxide, libsqlite, LightningCSS,
+Pandoc, Quadrable, Readability, Syncthing, generated dashboard files, and audit
+artifacts. This pass stopped integration rather than chase active commits.
+
+Final stop note for this pass: after one last root run, `php
+tools/run-tests.php` passed with `108 test files, 7836 assertions, 0 failures`,
+but `HEAD` had moved again to `d76f626` (`difftastic: stamp inline HTML style
+slice`) after `de9d13a` (`Stamp quadrable sync fuzzer status`), with branch
+state `main...origin/main [ahead 26, behind 14]`. `git diff --check` and
+`git diff --cached --check` still passed with no output. Because active workers
+continued to commit while checks were running, this pass made no integration
+commit and did not regenerate dashboard artifacts.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:47 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The tree is still too active for a reviewable integration
+batch: `HEAD` moved during inspection from `0f4fc40` through `e09bf98` to
+`cb9cbf9`, watchdog-managed agents remained live, and a Dolt BATS runner was
+actively executing in `.upstream-cache/dolt`.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 16, behind 14]`.
+- Observed `HEAD`: `cb9cbf9` (`libsqlite stamp IN-list lane status`).
+- Recent worker commits observed during/near this pass include `e09bf98`
+  (`libsqlite map indexed IN-list option lookups`), `cb9cbf9`
+  (`libsqlite stamp IN-list lane status`), `0f4fc40`
+  (`Stamp difftastic lane status`), and `81c3f2e`
+  (`Update lightningcss test evidence`). These were not created, amended,
+  staged, reverted, or accepted by this integration pass.
+- Dirty tracked areas remain in `audits/latest.md`, `progress.md`,
+  `porting.html`, `porting-summary.json`, and lane files under Dolt, esbuild,
+  Gitoxide, markerPDF, rclone, Readability, and Syncthing.
+- Untracked waiting artifacts remain under `audits/`, Dolt, esbuild,
+  markerPDF, rclone, and Readability.
+- `git diff --cached --name-status` produced no output; this pass left nothing
+  staged.
+
+18:48 UTC drift note: after this snapshot write, `HEAD` moved again to
+`754fc83` (`gitoxide: map partial ref name joins`) with
+`main...origin/main [ahead 17, behind 14]`. The dirty set changed again:
+Gitoxide source/test/example paths from the earlier snapshot disappeared from
+`git status`, while new esbuild status/notes and Quadrable sync-fuzzer
+source/test/example paths appeared. This pass still made no integration commit
+and did not regenerate dashboard artifacts.
+
+18:49 UTC final drift note: `HEAD` moved again to `64f3eed`
+(`gitoxide: record partial ref join status`) with
+`main...origin/main [ahead 19, behind 14]`; another libsqlite status commit
+`52008ee` appeared between the 18:48 note and this read. The dirty set also
+changed again, including Dolt and Readability notes; a subsequent final status
+read at the same `HEAD` showed additional Difftastic, LightningCSS, and Pandoc
+source edits. This pass still left all lane output uncommitted by the
+integration worker and did not regenerate public dashboard artifacts.
+
+Active sessions / unsafe ownership:
+
+- Active `run-tmux-agent.sh` / `codex -a never exec` processes were observed
+  for `port-libsqlite`, `port-readability`, `port-dolt`, `port-esbuild`,
+  `port-rclone`, `port-gitoxide`, `port-syncthing`, `port-markerpdf`,
+  `port-dolt-runner`, `port-quadrable`, `port-lightningcss`, `port-pandoc`,
+  `port-difftastic`, `port-integrator`, `port-rclone-redfix`, and
+  `port-auditor`.
+- `scripts/run-team-watchdog.sh` and `scripts/run-dashboard-updater-loop.sh`
+  were active.
+- Dolt remains skipped despite reauthorization because both Dolt implementation
+  and runner agents are active, Dolt source/status files are dirty or
+  untracked, and the runner had an active `timeout 90m bats ...` process.
+
+Waiting lane output observed:
+
+- Dolt: commit-ancestors source/test/fixture/example files plus manifest/status
+  and runner notes are waiting while both Dolt agents and the BATS slice are
+  active.
+- esbuild and Gitoxide: source, tests, fixtures/examples, manifests, and notes
+  remain dirty while their lane agents are active.
+- markerPDF: filetype and bbox geometry source/tests/examples plus manifest and
+  notes remain dirty while `port-markerpdf` is active.
+- rclone: sync planning source/tests/examples and lane metadata remain dirty,
+  and a `port-rclone-redfix` worker started during this pass.
+- Readability: line-break fixture/source/test/example work and metadata remain
+  dirty while `port-readability` is active.
+- Syncthing: receive-encrypted source/test/example/manifest work remains dirty
+  while `port-syncthing` is active.
+- Audit/evidence/status artifacts from evaluator, Gitoxide evidence, markerPDF
+  evidence, publisher, supervisor, and tooling workers remain untracked or
+  dirty and should be reviewed as separate status batches.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists,
+  dirty stats, active tmux sessions/windows, active process state, and current
+  `.tmux-team/logs/port-*.log` tails.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not run by this pass because no lane/status batch
+  was accepted and active agents plus the Dolt BATS runner were still modifying
+  or exercising the shared tree.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable snapshot.
+
+Risk:
+
+- Selectively staging now would mix active worker source edits, lane manifests,
+  audit notes, progress updates, generated dashboard files, and concurrently
+  moving commits from different snapshots.
+- Public status must not claim full upstream parity unless the exact upstream
+  runner command passed and the result is recorded. The observed Dolt BATS
+  command is still in progress and uses `status-local-fixed.bats`, so it is not
+  full pristine upstream parity.
+
+Next safe integration point: pause or wait for the watchdog-managed writers,
+the parallel integrator, the rclone redfix worker, and the Dolt implementation
+plus runner pair to finish. Then confirm `HEAD` and dirty paths stay stable and
+accept exactly one lane handoff at a time with matching evidence. For each
+accepted batch, run focused inspection, `git diff --check`,
+`git diff --cached --check`, and `php tools/run-tests.php` from the same
+snapshot before committing. Regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:44 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+pushed by this pass. The current root PHP suite is green, but the tree is still
+too active for a reviewable integration commit: `HEAD` advanced repeatedly while
+this pass was inspecting the repo, watchdogs relaunched active lane agents, and
+dirty source/status files are spread across multiple active lanes.
+
+18:45 UTC drift note: after this snapshot write, `HEAD` moved again to
+`81c3f2e` (`Update lightningcss test evidence`) with
+`main...origin/main [ahead 13, behind 14]`. Intervening worker commits included
+`264a6e1` (`Advance difftastic CSS structural slices`). The dirty set also
+changed while active agents were still running. Treat the green root PHP result
+below as a pass from this integration window, not as acceptance of a stable
+post-`81c3f2e` commit base.
+
+18:46 UTC second drift note: after the drift note above, `HEAD` moved again to
+`0f4fc40` (`Stamp difftastic lane status`) with
+`main...origin/main [ahead 14, behind 14]`. This pass still made no integration
+commit and did not regenerate dashboard artifacts.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 10, behind 14]`.
+- Observed `HEAD`: `749e85e` (`pandoc: map remaining pipe table cases`).
+- Recent worker commits observed during/near this pass include `59b0d06`
+  (`quadrable: guard integer key overflow`), `1bf22d9`
+  (`Advance lightningcss prefixing and animation slices`), `9ba3db1`
+  (`quadrable: stamp lane status`), `e7a5ff2`
+  (`Stamp lightningcss lane status`), and `749e85e`
+  (`pandoc: map remaining pipe table cases`). These were not created, amended,
+  staged, or accepted by this integration pass.
+- Dirty tracked areas remain in `audits/latest.md`, `progress.md`,
+  `porting.html`, `porting-summary.json`, and lane files under Difftastic,
+  Dolt, esbuild, Gitoxide, libsqlite, markerPDF, rclone, Readability, and
+  Syncthing.
+- Untracked waiting artifacts remain under `audits/`, Difftastic, Dolt,
+  libsqlite, markerPDF, rclone, and Readability.
+- No files are staged by this pass.
+
+Active sessions / unsafe ownership:
+
+- Active `run-tmux-agent.sh` / `codex -a never exec` processes were observed for
+  `port-lightningcss`, `port-quadrable`, `port-pandoc`, `port-libsqlite`,
+  `port-readability`, `port-difftastic`, `port-dolt`, `port-esbuild`,
+  `port-auditor`, `port-rclone`, `port-gitoxide`, `port-syncthing`,
+  `port-pandoc-redfix`, `port-integrator`, `port-markerpdf`, and
+  `port-dolt-runner`.
+- Dolt remains skipped despite reauthorization because both Dolt implementation
+  and runner processes are active, and Dolt metadata plus a new
+  `CommitAncestorsTable` source/test pair are dirty or untracked. This is not a
+  coherent quiesced handoff yet.
+
+Waiting lane output observed:
+
+- Difftastic: CSS/SCSS syntax-list source, tests, fixtures, examples, and lane
+  metadata while `port-difftastic` is active.
+- Dolt: runner/status metadata and commit-ancestors source/test work while
+  `port-dolt` and `port-dolt-runner` are active.
+- esbuild/Gitoxide: source/test/example changes remain dirty while their
+  sessions are active.
+- libsqlite: indexed option-name/list source/tests/example/manifest work while
+  `port-libsqlite` is active.
+- markerPDF: filetype preflight source/tests/example/manifest work while
+  `port-markerpdf` is active.
+- rclone: sync-planning source/tests/example/metadata work while `port-rclone`
+  is active.
+- Readability: line-break cleanup source/tests/fixtures/example work while
+  `port-readability` is active.
+- Syncthing: receive-encrypted source/tests/example/manifest work while
+  `port-syncthing` is active.
+- Audit/evidence/status artifacts from evaluator, Gitoxide evidence, markerPDF
+  evidence, publisher, supervisor, and tooling workers remain untracked or dirty
+  and should be reviewed as separate status batches.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists,
+  dirty diffs/stats, tmux sessions/panes, active process state, and recent
+  `.tmux-team/logs/port-*.log` tails.
+- `git diff --check`: passed with no output.
+- `php tools/run-tests.php`: passed with `106 test files, 7544 assertions,
+  0 failures`.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable snapshot.
+
+Risk:
+
+- Selectively staging now would mix active worker source edits, lane manifests,
+  audit notes, progress updates, and generated dashboard files from different
+  snapshots.
+- The latest root PHP pass is useful evidence for the current dirty tree, but it
+  is not a stable commit gate while active workers continue editing the same
+  lanes and metadata.
+- Public status must not claim full upstream parity unless the exact upstream
+  runner command passed and is recorded. Local PHP tests, bounded upstream
+  subsets, static inventories, and patched-copy runner evidence are not full
+  upstream parity.
+
+Next safe integration point: pause the watchdog or wait for it to stop
+relaunching lane writers, confirm `HEAD` and dirty paths stay stable, then
+accept one lane handoff at a time only when no active worker is editing that
+lane or its metadata. For each accepted batch, run focused inspection,
+`git diff --check`, `git diff --cached --check`, and `php tools/run-tests.php`
+from the same snapshot before committing. Regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:39 UTC
+
+No lane output was integrated, staged, committed, regenerated, or pushed by this
+pass. The worktree is still too active for a safe integration batch: active
+lane agents are running for nearly every dirty lane, `HEAD` moved during this
+inspection window to `f916f7a` (`Port esbuild TypeScript ambient declarations`),
+and worker-owned root-suite processes are still running.
+
+18:40 UTC drift note: after this status write, `HEAD` moved again to `b399883`
+(`Port gitoxide reference name categories`) and the branch reported
+`main...origin/main [ahead 30, behind 12]`. The worker-owned root-suite retry
+then ended red: `106 test files, 7480 assertions, 1 failures`, with the failing
+case `lanes/pandoc/tests/MarkdownReaderTest.php` `maps remaining upstream pipe
+table default headerless one-column and width cases` (`Expected: 'table'`,
+`Actual: 'paragraph'`). This reinforces the skip decision; no commit or
+dashboard regeneration was made from this pass.
+
+18:41 UTC final drift note: a final check after the note above saw `HEAD` move
+again to `6acb1a9` (`Update gitoxide lane status`) with
+`main...origin/main [ahead 31, behind 12]`. Treat this snapshot as an active
+tree safety record, not a stable integration base.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 28, behind 12]`.
+- Observed `HEAD`: `f916f7a` (`Port esbuild TypeScript ambient declarations`).
+- Recent worker commits observed during/near this pass include `843b110`
+  (`dolt: record status helper runner refresh`) and `f916f7a`
+  (`Port esbuild TypeScript ambient declarations`). These were not created,
+  staged, amended, or accepted by this integration pass.
+- Dirty tracked areas remain in `audits/latest.md`, `progress.md`,
+  `porting.html`, `porting-summary.json`, and lane files under Difftastic,
+  Gitoxide, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, and Syncthing.
+- Untracked waiting artifacts remain under `audits/`, Difftastic, Gitoxide,
+  LightningCSS, markerPDF, Quadrable, and rclone.
+- No files were staged by this pass.
+
+Active sessions / unsafe ownership:
+
+- Active `run-tmux-agent.sh` / `codex -a never exec` processes were observed
+  for `port-dolt`, `port-dolt-runner`, `port-rclone`, `port-gitoxide`,
+  `port-esbuild`, `port-lightningcss`, `port-markerpdf`, `port-syncthing`,
+  `port-quadrable`, `port-auditor`, `port-pandoc`, `port-libsqlite`,
+  `port-readability`, `port-difftastic`, and `port-integrator`.
+- A worker-owned `php tools/run-tests.php` process was active, so this pass did
+  not start a competing root-suite run.
+- Dolt remains skipped despite reauthorization. The latest status showed no
+  dirty Dolt lane files, but both Dolt implementation and runner sessions were
+  active and a Dolt runner metadata commit appeared during this pass. Treat that
+  as worker output awaiting a quiesced handoff, not integration acceptance.
+
+Waiting lane output observed:
+
+- Difftastic: SCSS/Tailwind syntax-list source, tests, fixtures, example, and
+  lane metadata while `port-difftastic` is active.
+- Gitoxide: reference-category source, tests, fixtures/examples, manifest, and
+  notes while `port-gitoxide` is active.
+- LightningCSS: animation shorthand/minifier and mask-prefixing source, tests,
+  examples, manifest/status, and notes while `port-lightningcss` is active.
+- markerPDF: filetype preflight source, tests, example, and manifest work while
+  `port-markerpdf` is active.
+- Pandoc: Markdown/WordPress table-footnote work in source, fixture, and tests
+  while `port-pandoc` is active.
+- Quadrable: integer-key boundary source/tests/example while `port-quadrable`
+  is active.
+- rclone: immutable/no-check-dest sync planning source/tests/example and lane
+  metadata while `port-rclone` is active.
+- Syncthing: receive-encrypted file-info/source/test/example work and manifest
+  while `port-syncthing` is active.
+- Audit/evidence/publication artifacts from evaluator, Gitoxide evidence,
+  markerPDF evidence, publisher, supervisor, and tooling workers remain
+  untracked or dirty and should be reviewed as separate status batches.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, current dirty path lists, dirty stats,
+  tmux sessions/windows, active process state, and recent
+  `.tmux-team/logs/port-*.log` tails.
+- `git diff --check`: passed with no output at 18:39 UTC.
+- `git diff --cached --check`: passed with no output at 18:39 UTC.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and a worker-owned root-suite process was already active while the
+  tree continued to move.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable green snapshot.
+
+Risk:
+
+- Selectively staging now would mix active worker source edits, lane manifests,
+  audit notes, progress updates, and generated dashboard files from different
+  snapshots.
+- Worker-reported green runs and bounded upstream runner logs remain useful
+  evidence, but they are not a stable integration gate while `HEAD`, dirty
+  paths, and test processes continue changing.
+- Public status must not claim full upstream parity unless the exact upstream
+  runner command passed and the result is recorded. Local PHP tests and patched
+  runner-copy evidence are not full upstream parity.
+
+Next safe integration point: pause or let the watchdog stop restarting lane
+writers, wait for `HEAD` and dirty paths to stay stable, then accept exactly one
+lane handoff at a time only when no active worker is editing that lane or its
+metadata. For each accepted batch, run focused inspection, `git diff --check`,
+`git diff --cached --check`, and `php tools/run-tests.php` from the same
+snapshot before committing. Regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:33 UTC
+
+No lane output was integrated, staged, committed, regenerated, or pushed by this
+pass. The worktree is still too active for a safe integration batch: `HEAD`
+advanced again during inspection to `0aa0cf4` (`quadrable: stamp sync guard
+status`), the branch now reports `main...origin/main [ahead 19, behind 12]`,
+and the watchdog restarted more writers at 18:33 UTC.
+
+18:34 UTC addendum: the tree moved again immediately after this status write and
+the post-write checks. `HEAD` advanced to `44dff60` (`pandoc: map pipe table
+imports`), with intervening worker commits including `4b6962e` (`Advance
+libsqlite index range lookups`) and `a87a9c3` (`Refresh independent audit`).
+`git diff --check` and `git diff --cached --check` still passed with no output,
+but this confirms the same skip decision: no integration batch can be accepted
+from the current moving snapshot.
+
+18:35 UTC addendum: the tree moved again to `1926eb3` (`pandoc: stamp pipe table
+status`) and now reports `main...origin/main [ahead 23, behind 12]`. An active
+worker staged a Readability batch while this pass was checking the tree:
+`git diff --cached --check` now fails on trailing whitespace in the staged
+Mozilla `links-in-tables/source.html` fixture, while unstaged `git diff --check`
+still passes. This pass did not stage, unstage, fix, commit, or revert those
+worker-owned staged files.
+
+18:35 UTC follow-up: the active workers committed again before this pass
+finished. Latest observed `HEAD` is `013e8be` (`Stamp libsqlite range status`),
+with `39c5f05` (`Advance readability hidden-node and table fixtures`) committed
+in between, and the branch reports `main...origin/main [ahead 25, behind 12]`.
+`git diff --cached --check` passed again after that worker commit because no
+staged files remained. The skip decision is unchanged.
+
+18:35 UTC final observation: `HEAD` moved again to `f8277e5` (`Stamp readability
+lane status`) and the branch reports `main...origin/main [ahead 26, behind 12]`.
+Additional active worker-owned `php tools/run-tests.php` processes appeared at
+18:35 UTC, and new waiting Gitoxide/markerPDF artifacts appeared in the dirty
+tree. This file is therefore a point-in-time skip record, not a stabilized
+integration snapshot.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 19, behind 12]`
+- Observed `HEAD`: `0aa0cf4` (`quadrable: stamp sync guard status`)
+- New worker commits observed since the previous snapshot include `dcec92b`
+  (`Port Syncthing encrypted name tokens`), `8d07e57` (`Update Syncthing lane
+  status`), `2fdde35` (`quadrable: guard overlapping sync fragments`), and
+  `0aa0cf4` (`quadrable: stamp sync guard status`). These were not accepted or
+  reviewed by this integration pass.
+- Dirty tracked areas remain in `audits/integration-status.md`,
+  `lanes/difftastic`, `lanes/dolt`, `lanes/esbuild`, `lanes/libsqlite`,
+  `lanes/lightningcss`, `lanes/pandoc`, `lanes/rclone`, `lanes/readability`,
+  `porting.html`, and `porting-summary.json`.
+- Untracked waiting artifacts remain under `audits`, `lanes/difftastic`,
+  `lanes/dolt`, `lanes/esbuild`, `lanes/libsqlite`, `lanes/lightningcss`,
+  `lanes/rclone`, and `lanes/readability`.
+- No files were staged by this pass.
+
+Active sessions / unsafe ownership:
+
+- Active `run-tmux-agent.sh` / `codex -a never exec` processes are still
+  running for Dolt, Dolt runner, Quadrable, libsqlite, Readability, Pandoc,
+  auditor, Difftastic, rclone, Gitoxide, esbuild, this integrator,
+  LightningCSS, markerPDF, and Syncthing.
+- `port-watchdog` restarted `port-lightningcss`, `port-markerpdf`, and
+  `port-syncthing` between 18:33:12 and 18:33:19 UTC.
+- A worker-owned `php tools/run-tests.php` process was active at 18:33:25 UTC,
+  so this pass did not start a competing root-suite run.
+- Dolt remains skipped despite reauthorization because both Dolt implementation
+  and Dolt runner sessions are active while Dolt manifest, runner notes,
+  source, fixture, example, and test paths are dirty or untracked.
+
+Waiting lane output observed:
+
+- Difftastic: SCSS/Tailwind syntax-list matching source, tests, fixtures, and
+  example are waiting while the Difftastic worker is active.
+- Dolt: commit-log review source, fixture, example, tests, manifest/status, and
+  runner/inventory notes are waiting while both Dolt sessions are active.
+- esbuild: TypeScript namespace/value merge source, fixture, tests, example,
+  manifest/status, and notes are waiting while the esbuild worker is active.
+- libsqlite: expression-index/range lookup source, tests, examples,
+  manifest/status, and runner/scenario notes are waiting while the libsqlite
+  worker is active.
+- LightningCSS: mask prefixing plus animation minifier source/tests/examples
+  and lane metadata are waiting while the LightningCSS worker is active.
+- Pandoc: Markdown reader/WordPress writer footnote/table work plus fixture,
+  tests, manifest/status, and notes are waiting while the Pandoc worker is
+  active.
+- rclone: immutable/no-check-dest sync planning source, tests, and example are
+  waiting while the rclone worker is active.
+- Readability: Mozilla table/ARIA fixtures, extractor work, tests, example, and
+  lane metadata are waiting while the Readability worker is active.
+- Audit/evidence/status artifacts are waiting from evaluator, Gitoxide evidence,
+  markerPDF evidence, publisher, supervisor, and tooling workers and should be
+  reviewed as audit batches, not mixed into lane implementation commits.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists,
+  current tmux sessions/windows/panes, active process state, recent
+  `.tmux-team/logs/port-*.log` tails, and dirty-file modification times.
+- `git diff --check`: passed with no output before this status write.
+- `git diff --cached --check`: passed with no output before this status write.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and a worker-owned root-suite run was already active while source
+  files continued to move.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable green snapshot.
+
+Risk:
+
+- Selective staging now would mix unreviewed lane source, tests, manifests,
+  audit notes, and generated dashboard files from different snapshots.
+- Worker-reported green runs are useful handoff evidence, but not an integration
+  gate while the shared tree and `HEAD` keep changing.
+- Public status must continue to distinguish full upstream runner parity from
+  bounded runner evidence, and must record exact commands/outcomes for any
+  upstream claims.
+
+Next safe integration point: pause or let the watchdog stop restarting lane
+writers, wait for `HEAD` and dirty paths to stay stable, then accept one
+explicit lane handoff at a time only when no active worker is editing that lane
+or its metadata. For each accepted batch, run focused inspection,
+`git diff --check`, `git diff --cached --check`, and
+`php tools/run-tests.php` from the same snapshot before committing. Regenerate
+`porting.html` and `porting-summary.json` only after accepting reviewed
+lane/status changes.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:30 UTC
+
+No lane output was integrated, staged, committed, regenerated, or pushed by this
+pass. The worktree remains too active for a safe integration batch: active
+`run-tmux-agent.sh` / `codex -a never exec` processes are still running for
+multiple implementation lanes, the watchdog restarted fresh lane workers during
+the inspection window, and dirty files span lane source, tests, manifests,
+status files, audit notes, and generated dashboard artifacts.
+
+18:31 UTC addendum: the tree moved again while this snapshot was being checked.
+`HEAD` advanced to `4ca0a8c` (`Port markerPDF pdftext block conversion`) and the
+branch became `main...origin/main [ahead 14, behind 12]`. That commit was made
+by an active worker, not accepted or reviewed by this integration pass. The
+latest observed dirty set also includes `audits/latest.md`, Difftastic, rclone,
+Quadrable manifest/status changes, Syncthing manifest changes, and `progress.md`.
+This reinforces the skip decision below.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 13, behind 12]`
+- Observed `HEAD`: `8ff1205` (`Record gitoxide lane commit`)
+- Dirty tracked or untracked areas are currently present in `audits`,
+  `lanes/dolt`, `lanes/esbuild`, `lanes/libsqlite`, `lanes/lightningcss`,
+  `lanes/markerpdf`, `lanes/pandoc`, `lanes/quadrable`, `lanes/readability`,
+  `lanes/syncthing`, `porting.html`, and `porting-summary.json`.
+- No files were staged by this pass.
+
+Active sessions / unsafe ownership:
+
+- Live lane processes were observed for `port-dolt`, `port-dolt-runner`,
+  `port-esbuild`, `port-gitoxide`, `port-libsqlite`, `port-lightningcss`,
+  `port-markerpdf`, `port-pandoc`, `port-quadrable`, `port-rclone`,
+  `port-readability`, `port-syncthing`, `port-difftastic`, `port-auditor`, and
+  this `port-integrator` pass.
+- The team watchdog is actively restarting workers; new restarts for Gitoxide
+  and esbuild appeared around 18:29 UTC.
+- Dolt remains skipped despite reauthorization because both the implementation
+  and runner sessions are active while Dolt manifest, notes, source, fixture,
+  example, and test paths are dirty or untracked.
+
+Waiting lane output observed:
+
+- esbuild: TypeScript namespace/value merge source, fixture, tests, examples,
+  manifest, status, and notes are dirty; the worker reported esbuild-local
+  tests green but root-suite evidence from that handoff was red in an unrelated
+  lane, and the worker was restarted again afterward.
+- libsqlite: lower-expression index lookup source/tests/examples plus manifest,
+  status, and notes are dirty; the worker reported focused SQLite runner and
+  lane-local tests green but did not commit because its root-suite run was red
+  in Pandoc.
+- LightningCSS: mask/mask-border advanced-color prefixing and animation
+  minifier files are dirty; the worker reported one green root run followed by
+  a later red root run caused by unrelated esbuild movement.
+- markerPDF: lane metadata is dirty and a new PDF text block converter
+  source/test/example batch is untracked, while the markerPDF worker remains
+  active.
+- Pandoc: pipe table/footnote source, writer, fixture, tests, manifest, status,
+  and notes are dirty while the Pandoc worker remains active.
+- Quadrable: sync request guard source/test/example and notes are dirty while
+  the Quadrable worker remains active.
+- Readability: table/ARIA fixture and extractor work is dirty while the
+  Readability worker remains active.
+- Syncthing: receive-encrypted key/token source, test, and example changes are
+  dirty while the Syncthing worker remains active.
+- Audit/status artifacts from evaluator, publisher, supervisor, tooling, and
+  evidence workers are untracked or dirty and should be reviewed separately
+  from lane implementation batches.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty path lists, tmux session/pane
+  state, active process state, and recent `.tmux-team/logs/port-*.log` tails.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and active workers continued to mutate source and test files.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted from a stable green snapshot.
+
+Risk:
+
+- Selective staging now would mix source code, lane manifests/status, generated
+  dashboard output, and audit artifacts produced from different snapshots.
+- Worker-reported green runs are useful handoff evidence, but they are not a
+  stable integration gate while the shared worktree is still moving.
+- Public status must not claim full upstream parity unless an upstream runner
+  actually passed and the exact command/outcome is recorded. Bounded runner
+  evidence remains bounded evidence.
+
+Next safe integration point: pause or let the watchdog stop restarting active
+writers, then accept one explicit lane handoff from a stable `HEAD`, with no
+active worker editing that lane or its status files. Run focused inspection,
+`git diff --check`, `git diff --cached --check`, and `php tools/run-tests.php`
+from that same snapshot before committing; regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:27 UTC
+
+No lane output was integrated, staged, committed, regenerated, or pushed by this
+pass. The tree is still too active to safely accept a lane batch: `HEAD`
+advanced twice during this inspection window, active implementation/evidence
+agents remain running, and dirty files span multiple lane source, manifest,
+status, audit, and generated-dashboard areas.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 11, behind 12]`
+- Observed `HEAD`: `d7ef780` (`Stamp rclone lane status`)
+- Recent worker commits that landed during/just before this pass include
+  `39d7c6c` (`Port rclone compare and copy dest planning`) and `d7ef780`
+  (`Stamp rclone lane status`).
+- Dirty tracked or untracked areas are currently present in `audits`,
+  `lanes/dolt`, `lanes/esbuild`, `lanes/gitoxide`, `lanes/libsqlite`,
+  `lanes/lightningcss`, `lanes/markerpdf`, `lanes/pandoc`,
+  `lanes/quadrable`, `lanes/readability`, `lanes/syncthing`,
+  `porting.html`, and `porting-summary.json`.
+- No files were staged by this pass.
+
+Active sessions / unsafe ownership:
+
+- Live `run-tmux-agent.sh` / `codex -a never exec` processes were observed for
+  rclone, esbuild, Gitoxide, Dolt, markerPDF, Quadrable, libsqlite,
+  Readability, Pandoc, Dolt runner, Syncthing, LightningCSS, this integrator,
+  auditor, and Difftastic.
+- Dashboard/status automation remains live through the dashboard updater loop
+  and team watchdog.
+- Dolt remains skipped despite reauthorization because both Dolt implementation
+  and Dolt runner sessions are active, while untracked Dolt commit-log source,
+  fixture, example, and test files are present.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate`, dirty path lists, current tmux session/pane
+  state, active process state, and recent worker log tails.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and active workers continued to mutate the tree.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Risk:
+
+- Selective staging now would mix lane source changes, manifests/status files,
+  evidence notes, generated dashboard files, and audit artifacts from different
+  snapshots.
+- Worker-reported green PHP or upstream runner output remains point-in-time
+  evidence from moving trees and is not a stable integration gate for the
+  current dirty worktree.
+- Public status must not claim upstream parity unless the exact upstream runner
+  command and outcome are recorded. Bounded runner evidence remains bounded
+  evidence, not full upstream parity.
+
+Next safe integration point: wait for one lane to hand off from a stable `HEAD`,
+with no active worker editing that lane and no dashboard/status writer touching
+the same artifacts. Then inspect and commit only that lane batch after
+`git diff --check`, `git diff --cached --check`, and `php tools/run-tests.php`;
+regenerate `porting.html` and `porting-summary.json` only after accepting
+reviewed lane/status changes from that same green snapshot.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:23 UTC
+
+No lane output was integrated, staged, committed, regenerated, or pushed by this
+pass. The tree is still too active to safely accept a lane batch: `HEAD`
+advanced again during inspection, active lane agents remain running, and dirty
+files span multiple lane/source/status/dashboard areas.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 6, behind 12]`
+- Observed `HEAD`: `aaaa798` (`Stamp Syncthing password token status`)
+- Recent worker commits observed after the prior 18:19 snapshot:
+  `155e426` (`Port Syncthing password token derivation`),
+  `aaaa798` (`Stamp Syncthing password token status`),
+  `8269fda` (`Expose quadrable sync shadow node ids`), and
+  `8d5d1b8` (`Record Dolt upstream log runner evidence`).
+- Dirty tracked files remain in Difftastic, esbuild, Gitoxide, libsqlite,
+  LightningCSS, Pandoc, rclone, Readability, audits/status files, generated
+  dashboard files, and `progress.md`.
+- Untracked lane/evidence/status artifacts remain in audits, Difftastic,
+  esbuild, libsqlite, LightningCSS, rclone, and Readability.
+
+Active sessions / unsafe ownership:
+
+- Live `run-tmux-agent.sh` / `codex -a never exec` processes are still present
+  for Gitoxide, LightningCSS, auditor, markerPDF, libsqlite, Readability,
+  Pandoc, Quadrable, Syncthing, Difftastic, rclone, esbuild, integrator, Dolt,
+  and Dolt runner.
+- Dashboard/status automation is still live, including the dashboard updater
+  loop and team watchdog.
+- Dolt remains skipped despite reauthorization because Dolt implementation and
+  runner sessions remain active, and the runner evidence commit observed here
+  is a worker commit, not an integration acceptance from this pass.
+
+Checks run in this pass:
+
+- Read the required coordination files, Git status/logs, recent worker log
+  tails, dirty path lists, tmux panes/sessions, active process state, and recent
+  lane commits that appeared during inspection.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not run by this pass because no lane batch was
+  accepted and active workers continued to mutate the tree.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Risk:
+
+- Selectively staging now would combine source edits, lane manifests/status,
+  generated dashboard files, and audit/status artifacts from different worker
+  snapshots.
+- Worker-reported green test runs remain point-in-time evidence from moving
+  trees and are not a stable integration gate for the current dirty tree.
+- Public status must continue to avoid claiming upstream parity unless the exact
+  upstream runner command and outcome are recorded. Bounded runner evidence is
+  not full upstream parity.
+
+Next safe integration point: wait for a single lane handoff from a stable
+`HEAD`, with no active worker editing that lane and no dashboard/status writer
+touching the same artifacts. Then inspect and commit one lane batch at a time
+after `git diff --check`, `git diff --cached --check`, and
+`php tools/run-tests.php`; regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes from
+that same green snapshot.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:19 UTC
+
+No lane output was integrated, staged, committed, regenerated, or pushed by this
+pass. The tree is too active to safely accept a lane batch: `HEAD` advanced
+during inspection, new dirty lane files appeared, and worker-owned root test
+processes continued to start while this status was being written.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 18, behind 10]`
+- Observed `HEAD`: `5905957` (`Stamp esbuild lane status`)
+- No staged files were present.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- Dirty tracked lane files are currently present in Dolt, Gitoxide, libsqlite,
+  LightningCSS, markerPDF, Pandoc, Quadrable, Readability, and Syncthing, plus
+  status/audit and generated dashboard files.
+- Untracked lane/evidence/status artifacts are currently present in audits,
+  libsqlite, LightningCSS, markerPDF, Quadrable, Readability, and Syncthing.
+
+Recent worker commits already in history at this snapshot:
+
+- `5905957` (`Stamp esbuild lane status`)
+- `8740bba` (`Update difftastic lane status`)
+- `929ebf1` (`Port esbuild enum member folding slice`)
+- `ed63a53` (`Map difftastic PHP return type slice`)
+- `918136b` (`Separate dashboard and source snapshot metadata`)
+- `71104c6` (`dolt: map procedure history and commit diff slices`)
+- `59a60e6` (`Stamp rclone lane status`)
+- `19747a9` (`Port rclone backup-dir move semantics`)
+
+Active sessions / unsafe ownership:
+
+- Live `run-tmux-agent.sh` / `codex -a never exec` processes were observed for
+  Dolt, Syncthing, Dolt runner, markerPDF, Gitoxide, Pandoc, libsqlite,
+  Readability, Quadrable, auditor, LightningCSS, rclone, Difftastic, esbuild,
+  and this integrator.
+- Dashboard/publication/status sessions remain live: `port-dashboard-publisher`,
+  `port-dashboard-reconciler`, `port-dashboard-updater`,
+  `port-publication-resolver`, `port-publisher`, `port-evaluator`,
+  `port-tooling`, and `port-watchdog`.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active and Dolt manifests/runner notes are dirty.
+- Dashboard files are dirty while dashboard/publication sessions remain active,
+  so `php tools/generate-dashboard.php` was not run by this pass and no public
+  dashboard state was accepted.
+
+Waiting lane output observed:
+
+- Gitoxide: annotated-tag validation/sanitization source, tests, fixtures,
+  manifest, status, and notes are dirty while the Gitoxide worker remains
+  active.
+- libsqlite: lower-expression index lookup source/tests and an untracked
+  WordPress option lookup example are dirty while the libsqlite worker remains
+  active.
+- LightningCSS: mask-border/mask-image prefixing and advanced-color fallback
+  files are dirty while the LightningCSS worker remains active.
+- markerPDF: benchmark-report verifier source/test/fixture/example and lane
+  metadata are dirty while the markerPDF worker remains active.
+- Pandoc: Markdown reader, block writer, fixture, and tests are dirty while the
+  Pandoc worker remains active; one observed root-test run failed in this lane.
+- Quadrable: sync shadow node-id source/tests/example and lane metadata are
+  dirty while the Quadrable worker remains active.
+- Readability: table-data fixture work is dirty while the Readability worker
+  remains active.
+- Syncthing: encryption-key source/tests plus encryption-consistency files are
+  dirty while the Syncthing worker remains active.
+- Dolt runner metadata is dirty, but Dolt is not safe to integrate until the
+  implementation and runner workers hand off one coherent green snapshot.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists, latest
+  `.tmux-team/logs/port-*.log` tails, tmux session/pane state, active worker
+  process state, and dirty lane file names.
+- Inspected current root-test evidence in `/tmp/port-libs-root-tests.log`: one
+  observed worker-owned run failed with `102 test files, 6944 assertions,
+  1 failures`. The failure was
+  `lanes/pandoc/tests/MarkdownReaderTest.php`:
+  `maps upstream markdown footnote indentation and recursive reference edge
+  cases`, expected `not in note`, actual `' '`.
+- Additional root/lane test processes were still running or restarting after
+  that log was read, so no stable green integration gate exists.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Risk:
+
+- The tree is moving under active workers. Selective staging now would combine
+  source files, manifests, status files, dashboards, and audit notes from
+  different snapshots.
+- Worker log test passes are point-in-time evidence only and do not establish a
+  stable integration gate for the current dirty worktree.
+- Public status must not claim upstream parity from local PHP test counts.
+  Upstream parity remains limited to exact upstream runner commands and outcomes
+  recorded by the responsible lane/evidence workers.
+
+Next safe integration point: wait for active workers to quiesce or provide an
+explicit single-lane handoff from a stable `HEAD`, with the Pandoc root-suite
+failure resolved. Then accept one lane batch at a time after focused inspection,
+`git diff --check`, `git diff --cached --check`, and `php tools/run-tests.php`;
+regenerate `porting.html` and `porting-summary.json` only after accepting
+reviewed lane/status changes from that same green snapshot.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:14 UTC
+
+No lane output was staged, committed, regenerated, or pushed by this pass. The
+tree is still actively owned by worker processes, and the dirty set changed
+during inspection, so accepting a lane batch now would risk mixing source,
+manifest/status, generated dashboard, and audit files from different snapshots.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 10, behind 10]`
+- Observed `HEAD`: `4365394` (`Refresh readability final test status`)
+- Observed `origin/main`: `3fe40f8`
+- No staged files were present; `git diff --cached --check` passed with no
+  output.
+- Dirty tracked lane files are present in Difftastic, Dolt, esbuild, Gitoxide,
+  LightningCSS, and rclone, plus `audits/latest.md`, `progress.md`,
+  `porting.html`, `porting-summary.json`, and this integration status file.
+- Untracked lane/evidence/status artifacts are present in Difftastic, Dolt,
+  esbuild, LightningCSS, markerPDF, rclone, and `audits/`.
+
+Recent worker commits already in history at this snapshot:
+
+- `4365394` (`Refresh readability final test status`)
+- `e4adffd` (`quadrable: stamp composite key status`)
+- `e2c8ed0` (`Restamp libsqlite latest commit`)
+- `c38cfa2` (`Stamp readability presentational cleanup status`)
+- `8e14d03` (`Port readability presentational table cleanup`)
+- `8ed6d1c` (`Stamp libsqlite partial range status`)
+- `215f143` (`Port libsqlite partial range predicates`)
+- `58afe0f` (`Refresh independent audit`)
+
+Active sessions / unsafe ownership:
+
+- Live `run-tmux-agent.sh` / `codex -a never exec` processes were observed for
+  rclone, auditor, Dolt, esbuild, LightningCSS, Syncthing, Difftastic,
+  Dolt runner, markerPDF, Gitoxide, Pandoc, libsqlite, Readability, and
+  Quadrable.
+- Dashboard/publication/status sessions remain live: `port-dashboard-publisher`,
+  `port-dashboard-reconciler`, `port-dashboard-updater`,
+  `port-publication-resolver`, `port-publisher`, `port-evaluator`,
+  `port-tooling`, and `port-watchdog`.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active while Dolt manifests/notes are dirty and
+  untracked Dolt source/test/fixture/example files are present.
+- Dashboard files are dirty while dashboard/publication sessions remain active,
+  so `php tools/generate-dashboard.php` was not run by this pass and no public
+  dashboard state was accepted.
+
+Waiting lane output observed:
+
+- Difftastic: Hack/PHP return-type syntax-list work, notes, manifest, fixtures,
+  and WordPress example are dirty while the Difftastic worker remains active.
+- Dolt: procedure-history and commit-diff source/test/fixture/example files plus
+  runner metadata are dirty/untracked while implementation and runner sessions
+  remain active.
+- esbuild: TypeScript enum constant/split-enum work, fixture, manifest, example,
+  and tests are dirty while the esbuild worker remains active.
+- Gitoxide: annotated-tag sanitizer work and lane metadata are dirty while the
+  Gitoxide worker remains active.
+- LightningCSS: mask advanced-color fallback/prefixing work, example, manifest,
+  status, and notes are dirty while the LightningCSS worker remains active.
+- markerPDF: untracked benchmark-report verifier source appeared while the
+  markerPDF worker remains active.
+- rclone: destination delete/backup-dir prune work, manifest, notes, and example
+  are dirty while the rclone worker remains active.
+- Status/audit artifacts are dirty or untracked from evaluator, publisher,
+  supervisor, tooling, and evidence workers.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists,
+  latest `.tmux-team/logs/port-*.log` tails, tmux session/pane state, dirty lane
+  worker panes, and active worker process state.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: passed in the current dirty worktree with
+  `100 test files, 6747 assertions, 0 failures`.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Risk:
+
+- The green root-suite result is a point-in-time check against a moving dirty
+  tree, not a stable integration gate.
+- Selective staging now would combine active workers' source edits with status
+  and dashboard files produced from a different state.
+- Public status must not claim upstream parity from local PHP tests. Upstream
+  evidence is limited to the exact runner commands and outcomes recorded by lane
+  and evidence workers.
+
+Next safe integration point: wait for active workers to quiesce or provide an
+explicit single-lane handoff from a stable `HEAD`. Then accept one lane batch at
+a time after focused inspection, `git diff --check`, `git diff --cached
+--check`, and `php tools/run-tests.php`; regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes from
+that same green snapshot.
+
+Post-write drift note: a final status check after this snapshot saw `HEAD`
+advance to `918d44b` (`Port rclone backup-dir move semantics`) and
+`git status --short --branch` report `main...origin/main [ahead 11, behind 10]`.
+This pass did not create, stage, amend, revert, regenerate, or push that commit
+or any related dirty files.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:09 UTC
+
+No lane output was staged, committed, regenerated, or pushed by this pass. The
+worktree and `HEAD` moved while inspection was in progress, so accepting a dirty
+lane batch now would mix worker-owned source edits, lane statuses, generated
+dashboard files, and audit artifacts from different snapshots.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 122, behind 8]`
+- Observed `HEAD`: `6fd20ce` (`Port markerPDF merge_spans postprocessor`)
+- No staged files were present; `git diff --cached --check` passed with no
+  output.
+- Dirty tracked lane files remain in Dolt, Gitoxide, libsqlite, LightningCSS,
+  Quadrable, rclone, and Readability, plus `audits/latest.md`, `progress.md`,
+  `porting.html`, `porting-summary.json`, and this integration status file.
+- Untracked lane/evidence/status artifacts remain in Dolt, LightningCSS,
+  Quadrable, Readability, and `audits/`.
+
+Recent worker commits observed during this pass:
+
+- `c304e1b` (`Port Syncthing encryption consistency slice`)
+- `fe0ee0c` (`Publish verified dashboard snapshots`)
+- `9227984` (`Stamp Syncthing lane status`)
+- `57d8b3d` (`Shorten dashboard updater stability window`)
+- `6fd20ce` (`Port markerPDF merge_spans postprocessor`)
+
+These commits were already in history by the time they were observed here; this
+pass did not create, stage, amend, or accept them.
+
+Active sessions / unsafe ownership:
+
+- Live tmux sessions remain active for all lane sessions plus auditor,
+  evaluator, publisher/dashboard/status sessions, watchdog, and integrator.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active while Dolt manifests/notes are dirty and
+  untracked Dolt implementation, fixture, example, and test files are present.
+- Dashboard files are dirty while dashboard/publisher sessions remain active,
+  so `php tools/generate-dashboard.php` was not run by this pass and no public
+  dashboard state was accepted.
+
+Waiting lane output observed:
+
+- Dolt: procedure-history files plus newer untracked commit-diff artifacts and
+  runner metadata are dirty; implementation and runner sessions are both active.
+- Gitoxide: annotated-tag sanitizer source/test/example/status-note work is
+  dirty while Gitoxide sessions remain active.
+- libsqlite: create-index predicate and indexed option range-scan work is dirty
+  while the libsqlite session remains active.
+- LightningCSS: advanced-color mask fallback prefixing files, example, manifest,
+  status, and notes are dirty while the LightningCSS session remains active.
+- Quadrable: key/sparse-tree/sync fuzz work plus untracked `Mt19937.php` remain
+  dirty while the Quadrable sessions remain active.
+- rclone: provider/sync-plan changes are dirty while the rclone session remains
+  active.
+- Readability: presentational table/style fixture cleanup is dirty while the
+  Readability session remains active.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty path lists, recent worker log tails,
+  tmux session/pane state, dirty lane files, and recent worker commit shapes.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: passed in the current dirty worktree with
+  `99 test files, 6676 assertions, 0 failures`.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Risk:
+
+- The green root-suite result is a point-in-time check against a moving dirty
+  tree, not a stable integration gate.
+- Selective staging now would combine source/test files from active workers with
+  status and generated dashboard files from another state.
+- Public status must not claim upstream parity from local PHP tests. Upstream
+  evidence is limited to the exact runner commands and outcomes recorded by lane
+  and evidence workers.
+
+Next safe integration point: wait for active workers to quiesce or provide an
+explicit single-lane handoff from a stable `HEAD`. Then accept one lane batch at
+a time after focused inspection, `git diff --check`, `git diff --cached
+--check`, and `php tools/run-tests.php`; regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes from
+that same green snapshot.
+
+Post-write drift note: checks after this snapshot showed `HEAD` continue moving,
+first to a libsqlite commit and then to `8e14d03` (`Port readability
+presentational table cleanup`) with branch state later observed as
+`main...origin/main [ahead 128, behind 8]`. The intermediate hashes also changed
+between observations, so treat all hashes in this snapshot as point-in-time
+observations from active worker history, not a stable integration base.
+Additional observed worker commits included a libsqlite status stamp, a refreshed
+audit/progress commit, a Quadrable composite-key metadata commit, and the
+Readability presentational-table cleanup commit. The dirty set changed again:
+libsqlite, Quadrable, and Readability files were consumed into worker commits,
+while Dolt, Gitoxide, LightningCSS, rclone, generated dashboard files,
+audit/status artifacts, and untracked Dolt, Difftastic, LightningCSS, and rclone
+artifacts remained. A final no-write status check also saw additional active
+dirty source/status files in Difftastic, esbuild, libsqlite, and Quadrable, so
+the waiting-lane list above is not exhaustive under the current moving tree.
+This pass did not stage, commit, amend, revert, regenerate, or push those
+changes.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:03 UTC
+
+No lane output was staged, committed, regenerated, or pushed by this pass. The
+tree is still actively owned by workers, so accepting any dirty lane batch now
+would mix implementation files, manifests, lane statuses, generated dashboard
+files, and audit artifacts from different snapshots.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 109, behind 8]`
+- Observed `HEAD`: `94a66ea` (`Refresh independent audit`)
+- No staged files were present.
+- Dirty tracked lane files were present in Difftastic, Dolt, esbuild,
+  libsqlite, LightningCSS, markerPDF, Pandoc, and Quadrable, plus
+  `porting.html`, `porting-summary.json`, and this integration status file.
+- Untracked lane/evidence/status artifacts were present in Difftastic, Dolt,
+  esbuild, LightningCSS, Quadrable, Syncthing, and `audits/`.
+
+Active sessions / unsafe ownership:
+
+- Live `run-tmux-agent.sh` / `codex -a never exec` processes were observed for
+  Dolt runner, Dolt implementation, esbuild, Pandoc, LightningCSS, Syncthing,
+  Difftastic, markerPDF, libsqlite, Quadrable, Gitoxide, Readability,
+  integrator, rclone, and auditor.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active while Dolt manifests/notes are dirty and
+  untracked Dolt source/test/fixture/example files are present.
+- Dashboard files are dirty while publication/dashboard/audit sessions remain
+  active, so `php tools/generate-dashboard.php` was not run and no public
+  dashboard state was accepted.
+
+Waiting lane output observed:
+
+- Difftastic: YAML/block-scalar display diff changes plus upstream YAML and
+  WordPress workflow fixtures are dirty; the Difftastic worker process remains
+  active.
+- Dolt: procedure history/diff source, tests, fixture, example, and runner
+  evidence/status updates are dirty/untracked; both implementation and runner
+  processes remain active.
+- esbuild: TypeScript namespace destructuring changes, fixture, manifest/status,
+  and notes are dirty; the esbuild worker process remains active.
+- libsqlite: SQLite index predicate/create-index work is dirty while the
+  libsqlite worker process remains active.
+- LightningCSS: advanced color fallback mask-prefixing changes, example,
+  manifest/status, and notes are dirty; the LightningCSS worker process remains
+  active.
+- markerPDF: markdown postprocessing work is dirty while the markerPDF worker
+  process remains active.
+- Pandoc: image/reference-figure parsing and WordPress block writer changes,
+  fixture, manifest/status, and notes are dirty; the Pandoc worker process
+  remains active.
+- Quadrable: sparse-tree/sync fuzz work plus untracked `Mt19937.php` are dirty;
+  the Quadrable worker process remains active.
+- Syncthing: untracked encryption-consistency source files appeared while the
+  Syncthing worker process remains active.
+
+Checks run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`,
+  `git log --oneline --decorate -30`, dirty path lists, recent worker log tails,
+  `tmux ls`, and active worker process state.
+- `git diff --check`: passed with no output.
+- `php tools/run-tests.php`: passed in the current dirty worktree with
+  `98 test files, 6539 assertions, 0 failures`.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Risk:
+
+- The green root-suite result is a point-in-time check against a moving dirty
+  tree, not a stable integration gate.
+- Selective staging now would combine active workers' source edits with status
+  and dashboard files generated from a different state.
+- Public status must not claim upstream parity from these local PHP tests. Any
+  upstream evidence remains limited to the exact runner commands and outcomes
+  already recorded by lane/evidence workers.
+
+Next safe integration point: wait for active workers to quiesce or provide an
+explicit single-lane handoff from a stable `HEAD`. Then accept one lane batch at
+a time after focused inspection, `git diff --check`, `git diff --cached
+--check`, and `php tools/run-tests.php`; regenerate `porting.html` and
+`porting-summary.json` only after accepting reviewed lane/status changes from
+that same green snapshot.
+
+Post-write drift note: final status checks after this snapshot showed `HEAD`
+advance through `a56db11` (`pandoc: map image figures`), `729ee41`
+(`Port esbuild namespace destructuring exports`), and `b12de35` (`pandoc: stamp
+image slice status`), `3d940c7` (`Stamp esbuild lane status`), `5fdc892`
+(`difftastic: stamp YAML display status`), and `b3965af` (`Refresh esbuild root
+test count`), with branch state `main...origin/main [ahead 115, behind 8]` on
+the latest check. A transient check also saw a different esbuild status commit
+hash before the final observed esbuild status hash settled at `3d940c7`.
+Additional dirty paths appeared in libsqlite, markerPDF, Quadrable, Readability,
+and Syncthing, while Difftastic, Pandoc, and esbuild source/test files were
+partly consumed by other worker commits. This integration pass did not stage,
+commit, unstage, or accept those changes; treat the 18:03 snapshot as a
+point-in-time safety record only.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 18:00 UTC
+
+No lane output was staged, committed, regenerated, or pushed by this pass. The
+worktree changed while it was being inspected: `HEAD` advanced from the initially
+observed `bcc0718` (`Stamp libsqlite lane status`) through worker commits and
+ended this snapshot at `3dc41cd` (`Port readability single-cell table cleanup`).
+Those commits were not made by this integration pass.
+
+Current observed branch and working-tree state:
+
+- `git status --short --branch`: `main...origin/main [ahead 104, behind 8]`
+- No staged files were present at the final status check.
+- Dirty tracked files remain in Difftastic, esbuild, Gitoxide lane status,
+  LightningCSS, Pandoc, Quadrable, rclone, generated dashboard files, and
+  `scripts/run-dashboard-updater-loop.sh`.
+- Untracked lane/evidence/status artifacts remain in Difftastic, Dolt, esbuild,
+  LightningCSS, Quadrable, rclone, and `audits/`.
+- Observed worker commits that landed during inspection include
+  `3782578` (`Port markerPDF layout annotation slice`), `7f88569`
+  (`gitoxide: map commit write storage bytes`), and `3dc41cd`
+  (`Port readability single-cell table cleanup`). They should be treated as
+  already-in-history worker output, not as commits accepted by this pass.
+
+Active sessions / unsafe ownership:
+
+- Live tmux sessions remain active for Difftastic, Dolt, Dolt runner, esbuild,
+  Gitoxide, Gitoxide evidence, LightningCSS, markerPDF/evidence/stabilizers,
+  Pandoc, Quadrable, rclone, dashboard updater/reconciler/publisher,
+  publication resolver, evaluator, auditor, watchdog, and this integrator.
+- Difftastic, LightningCSS, and rclone have worker handoff text and focused
+  lane evidence in their panes, but their handoffs explicitly declined commits
+  because the shared root suite was red from other active lane work.
+- esbuild is currently unsafe to consume: the root suite fails in
+  `lanes/esbuild/tests/TypeScriptNamespaceLowererTest.php` for
+  `lowers wordpress destructured namespace settings without node`.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active, and untracked Dolt source/test/fixture/example
+  files are present without a coherent implementation/runner handoff from one
+  stable snapshot.
+- Dashboard files are dirty while dashboard sessions are active, so they were
+  not regenerated or accepted.
+
+Checks and inspections run in this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, dirty tracked/untracked path lists,
+  latest `.tmux-team/logs/port-*.log` tails, tmux pane state for dirty lanes,
+  and dirty lane stats.
+- `php tools/run-tests.php`: failed, `98 test files, 6531 assertions,
+  1 failures`. The failing test was
+  `lanes/esbuild/tests/TypeScriptNamespaceLowererTest.php`:
+  `lowers wordpress destructured namespace settings without node`; expected
+  rewritten destructuring text was not present in the generated output.
+- `git diff --check`: passed with no output.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+- No upstream parity claim is made here. Upstream runner parity remains limited
+  to exact commands and outcomes recorded by lane/evidence workers.
+
+Risk:
+
+- Selective staging now would mix active worker source changes, lane-status
+  changes, generated dashboard output, and evidence files from different
+  snapshots.
+- Root-suite results in worker logs remain point-in-time evidence from moving
+  trees, not stable integration gates for the current dirty tree.
+- Public dashboard files do not correspond to one reviewed, committed, green
+  source state.
+
+Next safe integration point: wait for active workers to quiesce or provide an
+explicit single-lane handoff from a stable `HEAD`, with esbuild root-suite
+failure resolved. Then accept one lane batch at a time only after focused
+inspection, `git diff --check`, `git diff --cached --check`, and
+`php tools/run-tests.php`; regenerate `porting.html` and `porting-summary.json`
+only after accepting reviewed lane/status changes from that same green snapshot.
+
+Post-write drift note: a final status check after this snapshot showed `HEAD`
+advanced again to `a1464d7` (`gitoxide: update root test count`) with branch
+state `main...origin/main [ahead 108, behind 8]`. Additional worker commits
+included `f3ff9e8` (`Wait for stable source before dashboard publish`) and
+`f4ee1bb` (`Port rclone delete safety guards`). Dirty status also changed again,
+including `audits/latest.md`, `progress.md`, Dolt notes/status, rclone status,
+and generated dashboard files. This pass did not stage, commit, or accept those
+changes; treat the 18:00 snapshot as a point-in-time safety record only.
+
 ## Integration Worker Snapshot
 
 Snapshot: 2026-05-22 17:56 UTC
@@ -2974,3 +6101,310 @@ reset `HEAD` back to `c2b24da` after creating `152f29e`; `git status` reported
 process. This pass did not create or undo that staging and still did not accept
 the Dolt batch, because the Dolt sessions/worktree state was not quiesced under
 this integration pass.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:16:07 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+published by this pass. The shared checkout continued moving during inspection:
+`HEAD` advanced from `c88ee9c` to `777bb47`, then to `8969d9c` while log tails
+and process state were being checked. Final observed status was
+`main...origin/main [ahead 15, behind 18]`.
+
+The active root-test process observed earlier (`php tools/run-tests.php`, PID
+`1882125`) had exited by the final poll, but every lane tmux session and the
+coordinator/dashboard/auditor sessions still existed. New dirty paths appeared
+during the pass, including `lanes/dolt/src/BranchesTable.php`, updated
+LightningCSS example/status files, Quadrable sparse-tree tests, and esbuild lane
+status. This makes the dirty tree a moving handoff, not a stable integration
+candidate.
+
+Waiting/risky dirty work at final poll:
+
+- Difftastic: manifest/status/notes, `TokenDiffer.php`, tests, and untracked
+  WordPress Interactivity HTML fixture/example files.
+- libsqlite: `SQLiteDatabase.php` and `SQLiteHeaderTest.php` index seek work.
+- LightningCSS: manifest/status/notes, minifier/custom-media source/tests, a
+  custom-media exception class, and WordPress examples.
+- Quadrable: manifest/status/notes, sparse tree/tracked node store source,
+  node-id/sparse-tree tests, and a persisted node-store example.
+- rclone: manifest/notes, directory modtime listing/provider/sync source/tests,
+  and a WordPress directory-modtime sync example.
+- Readability: manifest/status, extractor/test edits, copied Mozilla fixtures,
+  and an inline-junk WordPress example.
+- Dolt: skipped entirely despite reauthorization because both Dolt sessions were
+  still present and a new untracked source file appeared during inspection.
+- Public/status artifacts: `porting.html`, `porting-summary.json`,
+  `progress.md`, multiple audit/status files, and this file are dirty or
+  untracked. They are not an accepted public-status snapshot.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate`, dirty tracked/untracked paths, current tmux
+  session/pane state, recent worker log tails, and active root-test process
+  state.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not started by this pass because the worktree and
+  `HEAD` changed during inspection; a root run would not be a reliable commit
+  gate from this moving snapshot.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for all dirty lane workers, coordinator
+workers, and dashboard/publisher workers to quiesce or provide explicit
+handoffs. Then re-read status and log tails from a stable `HEAD`, select exactly
+one lane-scoped batch with focused evidence, run `git diff --check`, run
+`php tools/run-tests.php` from the same snapshot, and commit only that batch.
+Regenerate dashboard artifacts only after accepted lane/status changes, and do
+not claim upstream parity without the exact upstream runner command passing.
+
+Post-write drift note: a final poll after this snapshot showed `HEAD` had
+advanced again to `4bc2a20` (`Record difftastic lane status`) after
+`15e0cb5` (`Port difftastic HTML raw text sublanguage slice`) and `6488003`
+(`Stamp esbuild lane status`), with `git status --short --branch` reporting
+`main...origin/main [ahead 18, behind 18]`. The dirty set changed again:
+Difftastic implementation files were no longer dirty, while libsqlite manifest,
+Pandoc reader/writer files, rclone lane status, Readability notes, and untracked
+Dolt branch-table test/source files were visible. `git diff --check` still
+passed with no output, and no root-test process was active at that poll. This
+pass still accepted no lane batch and staged nothing.
+
+Second post-write drift note: another final validation poll showed `HEAD` had
+advanced again to `667bd5d` (`Refresh independent audit`). The branch still
+reported `main...origin/main [ahead 18, behind 18]`, but another process had
+staged rclone files (`UPSTREAM_TEST_MANIFEST.json`, lane status/notes, source,
+tests, and `examples/wordpress-directory-modtime-sync.php`). This integration
+pass did not create, inspect for acceptance, alter, unstage, commit, or revert
+that staged rclone batch. Treat rclone as an active handoff until its owner or a
+future integrator verifies the staged set and root test result from a stable
+snapshot.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:20:36 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+published by this pass. The checkout is still not a stable integration point:
+`HEAD` was observed at `5e85465` (`Refresh independent audit`) with
+`main...origin/main [ahead 28, behind 18]`, and the dirty set changed during the
+pass from 28 tracked files plus untracked artifacts to 31 tracked files plus
+untracked artifacts.
+
+Active work still present:
+
+- Live lane agents remained active for Gitoxide, LightningCSS, Quadrable,
+  Pandoc, Dolt, Dolt runner, Syncthing, markerPDF, esbuild, difftastic, rclone,
+  Readability, and libsqlite.
+- The active integrator session was also still running and this file was already
+  dirty, so this pass appended a timestamped snapshot only and did not rewrite
+  earlier integration notes.
+- Worker-owned root `php tools/run-tests.php` processes were observed earlier in
+  the pass under LightningCSS and Quadrable. They had exited by the final poll,
+  but new lane agents had started and the dirty path list had changed again.
+- Dolt remains skipped despite reauthorization: both `port-dolt` and
+  `port-dolt-runner` were active, Dolt metadata changed, and untracked
+  branch-table source/test/fixture/example files were present in the same lane.
+
+Waiting/risky dirty work at final poll:
+
+- Gitoxide: pack builder/result source, pack builder tests, upstream notes, and
+  untracked OFS-delta fixture/example files while `port-gitoxide` is active.
+- LightningCSS: animation-range/custom-media source, tests, manifest, status,
+  notes, examples, and untracked `CustomMediaException.php` while
+  `port-lightningcss` is active.
+- Quadrable: sparse-tree cache and persisted tracked-node-store work plus
+  manifest/status/notes/tests/example while `port-quadrable` is active.
+- Pandoc: table-caption inline reader/writer work plus manifest/status/fixture
+  updates while `port-pandoc` is active.
+- Dolt: runner metadata and branch-table implementation files while both Dolt
+  sessions are active.
+- Public/status artifacts: `porting.html`, `porting-summary.json`, this file,
+  and several untracked audit/status files are dirty or untracked. They are not
+  an accepted public-status snapshot.
+
+Checks run by this pass:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, dirty tracked/untracked paths, recent
+  worker log tails, tmux pane/session state, and active process state.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: not run by this pass because no lane-scoped batch
+  was accepted and the worktree/process state moved during inspection.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Next safe integration point: wait for dirty lane workers and the active
+integrator/dashboard/status sessions to quiesce, then re-read status from a
+stable `HEAD`. The first candidate should be whichever single lane has a clean
+handoff, focused evidence, no active owner editing its files, `git diff --check`
+green, and a fresh `php tools/run-tests.php` pass from the same snapshot. Do not
+regenerate dashboard artifacts or claim upstream parity before accepting that
+lane/status batch.
+
+Post-write drift note: a final poll after this snapshot showed `HEAD` had
+advanced again to `bc6e754` (`Update LightningCSS lane status`) after
+`2fa126c` (`Port LightningCSS animation range and custom media diagnostics`),
+with `main...origin/main [ahead 30, behind 18]`. The dirty set changed again:
+LightningCSS implementation files were no longer dirty, while Syncthing source
+files appeared and Gitoxide/Pandoc/Dolt/Quadrable/status artifacts remained
+dirty. No `php tools/run-tests.php` process was active at that poll, but the
+lane agents and active integrator session were still running. This pass still
+accepted no lane batch, staged nothing, and committed nothing.
+
+## Integration Worker Snapshot
+
+Snapshot: 2026-05-22 19:48:23 UTC
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+published by this pass. The checkout was still moving during inspection:
+`HEAD` advanced through worker commits while this pass was reading logs and
+status, ending this snapshot at `0203b72` (`Stamp gitoxide lane status`) with
+`main...origin/main [ahead 44, behind 21]`.
+
+Evidence reviewed:
+
+- Required coordination reads: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate`, worker
+  log tails, tmux pane/session state, and dirty tracked/untracked paths.
+- Current green local harness: `php tools/run-tests.php` exited 0 with
+  `115 test files, 8713 assertions, 0 failures`.
+- Whitespace check: `git diff --check` passed with no output.
+- Cached diff check: `git diff --cached --name-status` showed no staged paths
+  during this pass.
+
+Waiting/risky dirty work at this snapshot:
+
+- Difftastic: HTML raw text sublanguage/indexing source, tests, manifest/notes,
+  and untracked WordPress multi-asset HTML fixtures/example. Root is green with
+  this dirty work, but the lane session remains present and status files are
+  live.
+- libsqlite: `length(option_name)` expression-index source/tests, manifest,
+  upstream-runner note, and untracked WordPress option-name-length example.
+  Worker log evidence included a focused SQLite upstream TCL run with `0 errors
+  out of 107 tests`, but the lane was not accepted while status workers were
+  still active.
+- Quadrable: sub-proof source/tests/status/notes and untracked WordPress
+  sub-proof example. Worker log evidence included upstream `make -r test`
+  passing all 34 scenarios, but this pass did not stage the active lane batch.
+- Syncthing: receive-encrypted request serving and synthetic-parent cleanup
+  source/tests/status/notes plus untracked examples. Root is green with this
+  dirty work, but the lane remains unaccepted.
+- Public/status artifacts: `progress.md`, `porting.html`,
+  `porting-summary.json`, `audits/latest.md`, and several audit/status files
+  are dirty or untracked while `port-dashboard-updater` and
+  `port-publication-resolver-20260522T1942Z` are active. They are not an
+  accepted public-status snapshot.
+
+Skipped active lanes/sessions:
+
+- Skipped Difftastic, libsqlite, Quadrable, and Syncthing because each has
+  dirty lane files and a live tmux lane session.
+- Skipped Dolt integration despite reauthorization because Dolt sessions remain
+  active and this pass did not see a coherent implementation/runner handoff to
+  accept.
+- Skipped dashboard regeneration because no lane/status batch was accepted and
+  dashboard/publication workers are actively managing the same public artifacts.
+
+Next safe integration point: wait for the lane and public-status workers to
+quiesce, then select one lane-scoped dirty batch with a clear handoff. A future
+integrator should re-read status/logs from a stable `HEAD`, run
+`git diff --check`, run `php tools/run-tests.php` from that same snapshot,
+commit only the reviewed lane batch, then regenerate `porting.html` and
+`porting-summary.json` with `php tools/generate-dashboard.php` before committing
+the corresponding honest status update. Difftastic and libsqlite look like the
+next likely integration candidates once their sessions and public-status
+writers are idle.
+
+Post-write drift note: a final poll after this snapshot showed `HEAD` had
+advanced again to `9337021` (`Stamp pandoc DocBook table status`) with
+`main...origin/main [ahead 45, behind 21]`. The dirty set changed again:
+Pandoc lane source files were no longer dirty, while new or changed esbuild,
+Quadrable manifest, libsqlite notes, and rclone source/status files appeared
+alongside the previously noted Difftastic, libsqlite, Quadrable, Syncthing, and
+public-status artifacts. `git diff --check` still passed with no output. This
+pass accepted no lane batch, staged nothing, committed nothing, and did not run
+the dashboard generator.
+
+## Integration Worker Snapshot - 2026-05-22T20:16:27Z
+
+No lane output was integrated, staged, committed, dashboard-regenerated, or
+published by this pass. The checkout is still too active for a safe acceptance
+commit: `HEAD` is `5909241` (`Stamp pandoc nested table status`) with
+`main...origin/main [ahead 77, behind 23]`, and active Codex workers remain in
+the dirty lane/status scopes.
+
+Evidence reviewed:
+
+- Required coordination reads: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  dirty tracked/untracked paths, tmux session/window state, recent
+  `port-*.log` tails, and live process state.
+- Recent worker handoffs reviewed: Dolt merge/min-parent and runner evidence,
+  Gitoxide namespace-prefix refs, markerPDF table-box planning, rclone
+  ignore-case/copy-dest sync, Readability `clean-links`, Syncthing DeviceID,
+  libsqlite lower expression `IN` lookup, and the dashboard snapshot worker.
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `git diff --cached --name-status`: no staged paths.
+- `php tools/run-tests.php`: not run by this pass because no lane-scoped batch
+  was accepted and a Dolt BATS runner plus active lane agents were operating in
+  the same checkout.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted.
+
+Waiting/risky dirty work:
+
+- Dolt: source, fixture, test, and example files are dirty while `port-dolt`
+  is active, and `port-dolt-runner` has an in-flight bounded BATS command. Dolt
+  remains skipped despite reauthorization until implementation and runner
+  output reach one coherent, quiescent handoff.
+- Gitoxide: `LooseReferenceStore.php`, `PackedReferences.php`, and
+  `ResolvedReference.php` are dirty while `port-gitoxide` is active.
+- markerPDF: manifest/status/notes are dirty and table-recognition source,
+  test, and example files are untracked while `port-markerpdf` is active.
+- rclone: `MemoryProvider.php`, `SyncPlan.php`, and track-renames source, test,
+  and example files are dirty/untracked while `port-rclone` is active.
+- Readability: manifest/status/notes, extractor source/tests, Mozilla fixtures,
+  and WordPress examples are dirty/untracked while `port-readability` is active.
+- Public/status artifacts: `progress.md`, `porting.html`,
+  `porting-summary.json`, `audits/latest.md`, this file, and many untracked
+  audit evidence files are not an accepted public-status snapshot.
+
+Skipped active lanes/status scopes:
+
+- Skipped Dolt, Gitoxide, markerPDF, rclone, Readability, generated dashboard
+  artifacts, and untracked audit/evidence files because active workers were
+  present in those scopes.
+- Skipped dashboard regeneration because accepting no lane/status batch means a
+  regenerated public dashboard would blend unreviewed dirty output.
+
+Next safe integration point: wait for the active lane and runner sessions to
+quiesce, then re-read status from a stable `HEAD` and accept exactly one
+lane-scoped handoff with focused evidence. Run `git diff --check` and
+`php tools/run-tests.php` from that same snapshot before committing it, then run
+`php tools/generate-dashboard.php` only after the accepted lane/status state is
+green and honest.
+
+Post-write drift note: a final poll after this snapshot showed `HEAD` had
+advanced again to `2b24b89` (`Refresh independent audit checkpoint`) with
+`main...origin/main [ahead 78, behind 23]`. The dirty set also changed:
+`progress.md` and `audits/latest.md` were no longer dirty, while new dirty
+Gitoxide reference-store, esbuild, Quadrable, rclone manifest, and untracked
+Gitoxide namespaced-reference files appeared alongside the Dolt, markerPDF,
+rclone, Readability, generated dashboard, and audit/evidence work already
+noted. Active lane agents remained present, the Dolt BATS runner was still
+running, and a separate worker-owned `php tools/run-tests.php` process had
+started. This pass still accepted no lane batch, staged nothing, committed
+nothing, and did not run the dashboard generator.
+
+Second post-write drift note: a later poll after the whitespace checks showed
+`HEAD` had advanced at least to `87c6a13` (`Refresh independent audit
+checkpoint`) while the branch stayed `main...origin/main [ahead 78, behind 23]`.
+The dirty set continued changing, adding Gitoxide reference-store tests,
+libsqlite source, and Quadrable proof tests. `git diff --check` and
+`git diff --cached --check` still passed with no output. Treat this entire
+snapshot as a hold record only, not as an accepted integration boundary.
