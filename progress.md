@@ -39,7 +39,7 @@
 | 9 | difftastic | stopped | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
 | 10 | rclone | stopped | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
 | 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
-| 12 | esbuild | stopped | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
+| 12 | esbuild | stopped | cloned static upstream inventory + lexer numeric/hashbang slice | 4% | Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports. |
 
 ## Completed Milestones
 
@@ -60,11 +60,12 @@
 - Pandoc: added native Markdown inline emphasis/strong/link/code parsing, grouped bullet/ordered list AST nodes, escaped WordPress block output, and a WordPress Markdown import fixture/example. Lane PHP: 5 passing tests, 0 failing tests.
 - Rclone: replaced the seed denominator with a shallow blob-filtered upstream inventory at `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`: 327 Go test files counted, including 124 backend, 91 fs, 47 cmd, 43 lib, 19 vfs, 2 cmdtest, and 1 fstest test file, plus 836 testdata paths. Added native rclone-style path glob filters, first-match include/exclude rules, ignore-case matching, filtered sync planning, and a WordPress backup fixture/example. Lane PHP: 7 passing tests, 0 failing tests. Implementation commit: `8564ff9`.
 - Difftastic: replaced the seed denominator with a shallow sparse blob-filtered upstream inventory at `7ccfcb315f7e46fd015809416c7d7dffa5be7078`: 287 inspected behavior artifacts counted, including 144 Rust `#[test]` functions, 112 paired sample fixture bases, 30 vendored parser corpus files, and `sample_files/compare.expected`. Added native comment classification, delimiter anchors, `ignoreComments`, trailing-comma normalization, and a WordPress render-callback fixture/example. Lane PHP: 6 passing tests, 0 failing tests.
-- Latest root suite: `php tools/run-tests.php` passes 14 test files, 206 assertions, 0 failures.
+- esbuild: replaced the seed denominator with a shallow blob-filtered upstream inventory at `6a794dff68e6a43539f6da671e3080efdf11ca70`: 2,567 counted upstream test entry points, including 1,391 Go `func Test*` functions, 331 JS API cases, 97 plugin cases, and 748 end-to-end CLI cases. Added native hashbang tokens, unterminated block comment errors, base-prefixed/decimal numeric literal values, and a WordPress block view asset fixture/example. Lane PHP: 6 passing tests, 0 failing tests.
+- Latest root suite: `php tools/run-tests.php` passes 14 test files, 220 assertions, 0 failures.
 
 ## Open Blockers
 
-- Two upstream benchmark manifests are still static seed inventories until upstream repos are cloned or queried and their test suites counted: dolt and esbuild. Quadrable, markerPDF, Gitoxide, LightningCSS, libsqlite, Readability, Syncthing, Pandoc, rclone, and difftastic now have stronger static inventories but not upstream runner parity.
+- One upstream benchmark manifest is still a static seed inventory until the upstream repo is cloned or queried and its test suite counted: dolt. Quadrable, markerPDF, Gitoxide, LightningCSS, libsqlite, Readability, Syncthing, Pandoc, rclone, difftastic, and esbuild now have stronger static inventories but not upstream runner parity.
 - Gitoxide now has a safe tree inventory, but the full workspace test runner was not executed under the VM cap and the broad filtered-clone blob scan was stopped.
 - Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
 - markerPDF now has a cloned static upstream inventory, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
@@ -75,10 +76,11 @@
 - Pandoc full upstream runner was not executed: `ghc`, `cabal`, and `stack` are unavailable in this environment, and upstream `test-pandoc` must be built as a Haskell Tasty executable from a full checkout. The current denominator is a cloned static inventory of 1,979 upstream test files/artifacts, not upstream pass parity.
 - rclone full upstream runner was not executed: `go test ./...` and `fstest/test_all` require Go module builds and may exercise backend/provider integration remotes. The current denominator is a cloned static inventory of 327 Go test files plus 836 testdata paths, not upstream pass parity.
 - Difftastic full upstream runner was not executed: the sparse cache would need broad checkout hydration plus online Cargo dependency downloads and compilation of difftastic plus many tree-sitter parser/native parser crates. A limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacks `humansize`. The current denominator is a cloned static inventory of 287 inspected behavior artifacts, not upstream pass parity.
+- esbuild full upstream runner was not executed: `make test` requires Go unit tests/vet plus Node source-map, end-to-end, JS API, plugin, register, node-unref, and decorator tests; `make test-all` adds Deno, WASM, typecheck, and Yarn PnP coverage. This environment has no `go` binary and no `deno` binary, and a full run would also require hydrating the checkout and installing Node dependencies. The current denominator is a cloned static inventory of 2,567 counted upstream test entry points, not upstream pass parity.
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remained static seeds; rclone and difftastic are now reconciled with cloned static inventories, but neither has upstream runner parity.
 - Independent audit on 2026-05-22 found `.upstream-cache/pandoc` and `.upstream-cache/syncthing` still report mass tracked deletions even though the lane manifests now use cloned static inventories; restore or reclone those caches before relying on cache-local targeted reads or runner attempts.
-- Independent audit on 2026-05-22 found `port-esbuild` and `port-auditor` sessions active while this file still reported no active sessions; `.upstream-cache/esbuild` is at the manifest commit but reports 349 tracked deletions, and the esbuild manifest is still a static seed.
+- Independent audit on 2026-05-22 found `port-esbuild` and `port-auditor` sessions active while this file still reported no active sessions; `.upstream-cache/esbuild` was recloned as a no-checkout blob-filtered cache and the esbuild manifest is now reconciled with a counted static inventory.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
@@ -87,8 +89,8 @@
 
 - Supervisor: main Codex session.
 - Auditor: `port-auditor` session exists; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: `port-esbuild` session exists, but it should be limited to cache/manifest reconciliation until the esbuild denominator is counted.
+- Worker sessions: `port-esbuild` completed cache/manifest reconciliation and a native lexer slice; next work is parser/import scanner mapping.
 
 ## Next Best Step
 
-Restore or reclone `.upstream-cache/esbuild`, replace the remaining non-deferred esbuild seed manifest with a counted upstream inventory and verified license, then continue Difftastic with a small recursive syntax-list diff for bracketed PHP/JS/CSS structures and map one upstream `sample_files` pair such as `simple_*.js` or `comma_*.js` into a fixture parity test. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
+Continue esbuild by mapping upstream parser/printer tests for import/export syntax, then add a small native AST/import scanner that can distinguish WordPress package imports from relative asset imports. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.

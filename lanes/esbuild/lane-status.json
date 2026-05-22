@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "esbuild",
-    "estimatedProgress": 2,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 2,
+    "estimatedProgress": 4,
+    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; upstream suite not executed",
+    "phpPass": 6,
     "phpFail": 0,
-    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments.",
-    "phase": "seed implementation",
+    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights a WordPress block view script importing @wordpress/dom-ready.",
+    "phase": "cloned static upstream inventory + lexer numeric/hashbang slice",
     "audit": "needs independent auditor review",
-    "currentWork": "Native JavaScript lexer for identifiers, numbers, strings, comments, and punctuators.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Map parser tests and add JS/TS lexer token coverage."
+    "currentWork": "Native JavaScript lexer for identifiers, esbuild-style numeric literals, strings, hashbangs, comments, and punctuators.",
+    "blocker": "Full upstream runner not executed: no go or deno binary in this environment, and make test also requires hydrating checkout plus installing Node dependencies.",
+    "latestCommit": "pending this esbuild lane commit",
+    "nextTask": "Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports."
 }

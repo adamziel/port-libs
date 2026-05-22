@@ -6,21 +6,75 @@
         "name": "evanw/esbuild",
         "url": "https://github.com/evanw/esbuild",
         "commit": "6a794dff68e6a43539f6da671e3080efdf11ca70",
-        "license": "pending verification from upstream checkout",
-        "architecture": "Go JS/TS/JSX/CSS parser, transformer, linker, bundler, and minifier."
+        "license": "MIT",
+        "architecture": "Go JS/TS/JSX/CSS parser, transformer, printer, linker, bundler, minifier, plugin API, CLI, Node API, browser/WASM runtime, and resolver."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Go parser/bundler/end-to-end tests; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": "2,567 counted upstream test entry points: 1,391 Go func Test* functions, 331 JS API async cases, 97 plugin async cases, and 748 end-to-end CLI cases",
+        "mapped": 6,
+        "source": "Shallow blob-filtered upstream clone in .upstream-cache/esbuild at 6a794dff68e6a43539f6da671e3080efdf11ca70; counted paths with git ls-tree and hydrated only targeted metadata/test files with git show.",
+        "inventory": {
+            "repositoryPaths": 349,
+            "testRelatedPaths": 63,
+            "goTestFiles": 33,
+            "goTopLevelTestFunctions": 1391,
+            "goHelperInvocationSubcases": 9950,
+            "bundlerExpectBundledCases": 1059,
+            "bundlerSnapshotFiles": 14,
+            "nodeAndBrowserTestScripts": 12,
+            "jsApiAsyncCases": 331,
+            "pluginAsyncCases": 97,
+            "endToEndCliCases": 748,
+            "goTestFileBreakdown": {
+                "internal/bundler_tests": 15,
+                "internal/compat": 1,
+                "internal/css_lexer": 1,
+                "internal/css_parser": 1,
+                "internal/css_printer": 1,
+                "internal/fs": 1,
+                "internal/helpers": 1,
+                "internal/js_ast": 1,
+                "internal/js_lexer": 1,
+                "internal/js_parser": 4,
+                "internal/js_printer": 1,
+                "internal/logger": 1,
+                "internal/resolver": 1,
+                "internal/runtime": 1,
+                "pkg/api": 2
+            }
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runner was not executed in this worker slice. `make test` runs Go unit tests and vet plus Node-based source-map, end-to-end, JS API, plugin, register, node-unref, and decorator tests. `make test-all` adds Deno, WASM browser/node, typecheck, and Yarn PnP coverage. This environment has no `go` binary and no `deno` binary, and running the full target would also require hydrating the checkout and installing Node dependencies under scripts/node_modules. The current denominator is static upstream inventory, not upstream runner parity.",
+            "probes": [
+                {
+                    "command": "git ls-tree -r --name-only HEAD",
+                    "result": "counted 349 repository paths and 63 test-related paths without checking out the full tree"
+                },
+                {
+                    "command": "go version; deno --version",
+                    "result": "go: command not found; deno: command not found"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Comments are skipped, and unterminated multi-line comments raise a native lexer error corresponding to upstream TestComment coverage.",
+            "File-start hashbangs produce a hashbang token corresponding to upstream TestHashbang coverage.",
+            "Binary, octal, hexadecimal-with-separators, leading-dot decimal, exponent, and trailing-dot number literals produce numeric tokens with PHP numeric values corresponding to a focused TestNumericLiteral subset.",
+            "Malformed base-prefixed numeric literals such as 0b, 0b012, 0o018, and 0xGFEDCBA are rejected.",
+            "Token offsets remain byte offsets into the original source.",
+            "A WordPress block view script fixture using @wordpress/dom-ready tokenizes natively without Node/npm."
+        ],
+        "inventoryPath": "lanes/esbuild/notes/upstream-inventory.md",
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against a 2,567-entry upstream test inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native JavaScript lexer for identifiers, numbers, strings, comments, and punctuators."
+        "currentSlice": "Native JavaScript lexer for identifiers, esbuild-style numeric literals, strings, hashbangs, comments, and punctuators.",
+        "phpBehaviorTests": 6
     },
-    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments.",
-    "nextTask": "Map parser tests and add JS/TS lexer token coverage."
+    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights a WordPress block view script importing @wordpress/dom-ready.",
+    "nextTask": "Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports."
 }

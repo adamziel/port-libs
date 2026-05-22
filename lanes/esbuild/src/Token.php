@@ -10,7 +10,7 @@ final class Token
         public readonly string $kind,
         public readonly string $text,
         public readonly int $offset,
+        public readonly ?float $numberValue = null,
     ) {
     }
 }
-
