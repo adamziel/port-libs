@@ -200,6 +200,38 @@ CSS;
             (new TransitionPrefixer())->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
         );
     },
+    'transition prefixer maps upstream filter and backdrop-filter prefixing' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-filter:blur(5px);filter:blur(5px)}',
+            $prefixer->prefixLegacySafari('.foo { filter: blur(5px) }')
+        );
+        $t->same(
+            '.foo{-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}',
+            $prefixer->prefixLegacySafari('.foo { backdrop-filter: blur(5px) }')
+        );
+        $t->same(
+            '.foo{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}',
+            $prefixer->prefixLegacySafari('.foo { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }')
+        );
+        $t->same(
+            '.foo{-webkit-filter:var(--foo);filter:var(--foo)}',
+            $prefixer->prefixLegacySafari('.foo { filter: var(--foo) }')
+        );
+    },
+    'transition prefixer maps upstream filter advanced color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px lab(40% 56.6 39))}',
+            $prefixer->prefixLegacySafari('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) }')
+        );
+        $t->same(
+            '.foo{-webkit-filter:var(--foo) drop-shadow(16px 16px 20px #b32323);filter:var(--foo) drop-shadow(16px 16px 20px #b32323)}@supports (color:lab(0% 0 0)){.foo{-webkit-filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39));filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39))}}',
+            $prefixer->prefixLegacySafari('.foo { filter: var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39)) }')
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -260,6 +292,19 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-framed{transition:-webkit-mask-box-image .2s,mask-border .2s,-webkit-mask .4s,mask .4s}',
+            (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+    },
+    'wordpress sticky header filters get legacy WebKit prefixes without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-template-part.is-style-glass-header {
+  backdrop-filter: blur(8px);
+  filter: var(--wp--custom--header-filter);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-filter:var(--wp--custom--header-filter);filter:var(--wp--custom--header-filter)}',
             (new TransitionPrefixer())->prefixLegacySafari($css)
         );
     },

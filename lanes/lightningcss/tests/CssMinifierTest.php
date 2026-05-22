@@ -316,6 +316,27 @@ return [
             $minifier->minify('.foo { transition: padding-block 200ms; }')
         );
     },
+    'css minifier maps upstream filter value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{filter:url(filters.svg#filter-id)}',
+            $minifier->minify(".foo { filter: url('filters.svg#filter-id'); }")
+        );
+        $t->same('.foo{filter:blur(5px)}', $minifier->minify('.foo { filter: blur(5px); }'));
+        $t->same('.foo{filter:blur()}', $minifier->minify('.foo { filter: blur(0px); }'));
+        $t->same('.foo{filter:brightness(10%)}', $minifier->minify('.foo { filter: brightness(10%); }'));
+        $t->same('.foo{filter:brightness()}', $minifier->minify('.foo { filter: brightness(100%); }'));
+        $t->same(
+            '.foo{filter:drop-shadow(16px 16px 20px #ff0)}',
+            $minifier->minify('.foo { filter: drop-shadow(16px 16px 20px yellow); }')
+        );
+        $t->same(
+            '.foo{filter:contrast(175%)brightness(3%)}',
+            $minifier->minify('.foo { filter: contrast(175%) brightness(3%); }')
+        );
+        $t->same('.foo{filter:hue-rotate()}', $minifier->minify('.foo { filter: hue-rotate(0) }'));
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
@@ -433,6 +454,18 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-scroll-reveal{animation:.5s wp-cover-reveal;animation-range:entry exit 90%}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress image filter presets minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-image.is-style-duotone img {
+  filter: contrast(175%) brightness(100%) hue-rotate(0);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-image.is-style-duotone img{filter:contrast(175%)brightness()hue-rotate()}',
             (new CssMinifier())->minify($css)
         );
     },

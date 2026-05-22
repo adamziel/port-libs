@@ -91,10 +91,11 @@ final class TransitionPrefixer
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
+        $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -290,6 +291,66 @@ final class TransitionPrefixer
             }
             array_push($rewritten, ...$mapped);
             $changed = $changed || $entryChanged;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     */
+    private function rewriteFilterPrefixEntries(array &$entries, string $selectors, array &$supportRules): bool
+    {
+        $changed = false;
+        $rewritten = [];
+        $hasWebkitFilter = false;
+        $hasWebkitBackdropFilter = false;
+
+        foreach ($entries as $entry) {
+            $hasWebkitFilter = $hasWebkitFilter || $entry['property'] === '-webkit-filter';
+            $hasWebkitBackdropFilter = $hasWebkitBackdropFilter || $entry['property'] === '-webkit-backdrop-filter';
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !in_array($entry['property'], ['filter', 'backdrop-filter'], true)) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $prefixedProperty = $entry['property'] === 'filter' ? '-webkit-filter' : '-webkit-backdrop-filter';
+            $hasPrefixed = $entry['property'] === 'filter' ? $hasWebkitFilter : $hasWebkitBackdropFilter;
+            $fallback = $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback === null) {
+                if (!$hasPrefixed) {
+                    $rewritten[] = $this->declarationEntry($prefixedProperty, $entry['value']);
+                    $changed = true;
+                }
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (!$hasPrefixed) {
+                $rewritten[] = $this->declarationEntry($prefixedProperty, $fallback);
+            }
+            $rewritten[] = $this->entryWithValue($entry, $fallback);
+            $changed = true;
+
+            $hasCustomPropertyReference = $this->containsCustomPropertyReference($entry['value']);
+            $labFallback = $this->advancedColorLabFallbackValue($entry['value'], $hasCustomPropertyReference);
+            if ($labFallback !== null && $hasCustomPropertyReference) {
+                $supportEntries = [];
+                if (!$hasPrefixed) {
+                    $supportEntries[] = $this->declarationEntry($prefixedProperty, $labFallback);
+                }
+                $supportEntries[] = $this->entryWithValue($entry, $labFallback);
+                $supportRules[] = $this->supportsLabRule($selectors, $supportEntries);
+                continue;
+            }
+
+            $rewritten[] = $entry;
         }
 
         $entries = $rewritten;

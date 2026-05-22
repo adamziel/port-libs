@@ -331,6 +331,7 @@ final class CssMinifier
         $value = $this->normalizeMathFunctionOperators($value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
+        $value = $this->minifyFilterValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
@@ -847,6 +848,100 @@ final class CssMinifier
             'transition-timing-function' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionTimingFunction($part)),
             default => $value,
         };
+    }
+
+    private function minifyFilterValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'filter',
+            '-webkit-filter',
+            'backdrop-filter',
+            '-webkit-backdrop-filter' => $this->minifyFilterFunctionList($value),
+            default => $value,
+        };
+    }
+
+    private function minifyFilterFunctionList(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $output = '';
+        $previous = null;
+        foreach ($tokens as $token) {
+            $token = $this->minifyFilterToken($token);
+            if ($previous !== null && $this->needsFilterTokenSpace($previous, $token)) {
+                $output .= ' ';
+            }
+            $output .= $token;
+            $previous = $token;
+        }
+
+        return $output;
+    }
+
+    private function minifyFilterToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(/i', $token) === 1) {
+            return $this->normalizeFilterUrlToken($token);
+        }
+        if (preg_match('/^([a-z-]+)\((.*)\)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $function = strtolower($matches[1]);
+        $arguments = trim($matches[2]);
+
+        if ($function === 'blur' && $this->isZeroLengthToken($arguments)) {
+            return 'blur()';
+        }
+        if ($function === 'brightness' && $this->isHundredPercentToken($arguments)) {
+            return 'brightness()';
+        }
+        if ($function === 'hue-rotate' && $this->isZeroAngleToken($arguments)) {
+            return 'hue-rotate()';
+        }
+
+        return $function . '(' . $arguments . ')';
+    }
+
+    private function needsFilterTokenSpace(string $previous, string $next): bool
+    {
+        return preg_match('/^(?:var|url|drop-shadow)\(/i', $previous) === 1
+            || preg_match('/^(?:var|url|drop-shadow)\(/i', $next) === 1;
+    }
+
+    private function normalizeFilterUrlToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $url = ($matches[2] ?? '') !== '' ? $matches[2] : trim($matches[3] ?? '');
+        if (preg_match('/[\s\'"()\\\\]/', $url) === 1) {
+            return 'url("' . str_replace('"', '\\"', $url) . '")';
+        }
+
+        return 'url(' . $url . ')';
+    }
+
+    private function isZeroLengthToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:0|0*\.0+)(?:px|em|rem|vh|vw|vmin|vmax|ch|ex|lh|rlh|cm|mm|q|in|pt|pc)?$/i', trim($token)) === 1;
+    }
+
+    private function isHundredPercentToken(string $token): bool
+    {
+        return preg_match('/^\+?(?:100|100\.0+)%$/', trim($token)) === 1;
+    }
+
+    private function isZeroAngleToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:0|0*\.0+)(?:deg|grad|rad|turn)?$/i', trim($token)) === 1;
     }
 
     private function minifyTransitionPropertyValue(string $value): string
