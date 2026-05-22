@@ -85,7 +85,7 @@
             "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and ta...",
             "nextTarget": "Read bounded wp_options table leaf rows from resolved root pages, including option_name/o...",
             "blocker": "Remaining upstream boundary: full SQLite all/release permutations were no...",
-            "commit": "04962eb"
+            "commit": "36031aa"
         },
         {
             "library": "LightningCSS",

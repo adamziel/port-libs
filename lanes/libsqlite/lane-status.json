@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: upstream SQLite veryquick runner passes locally; PHP smoke coverage remains local mapped behavior only",
     "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and table interior cell parsing, page-backed database reader, SQLite record serial decoding, and sqlite_schema traversal to resolve WordPress table root pages.",
     "blocker": "Remaining upstream boundary: full SQLite all/release permutations were not run in this bounded pass. Clean upstream evidence is configure, testfixture, and the full veryquick permutation passing 1235 scripts with 0 errors out of 329670 tests; no local Tcl/compiler/make prerequisite blocker remains.",
-    "latestCommit": "04962eb",
+    "latestCommit": "36031aa",
     "nextTask": "Read bounded wp_options table leaf rows from resolved root pages, including option_name/option_value records, while marking overflow payload handling as unsupported until ported."
 }
