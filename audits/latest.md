@@ -1,14 +1,14 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status summaries, current dirty worktree state, bridge/shell-out usage, and recent Git history through `f14db3f`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status summaries, current dirty worktree state, bridge/shell-out usage, and recent Git history through `bdeea57`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: `HEAD` advanced during this audit from `77e9cf3` to `f14db3f`, and the worktree remained dirty with lane implementation, manifest, status, dashboard, and untracked fixture/audit changes. The root test result changed during the same audit window: the first run failed, then a later rerun passed after additional work landed. Findings below are against the latest observed dirty worktree after the final manifest/status read.
+Audit boundary: `HEAD` advanced during this audit from `77e9cf3` to `bdeea57`, and the worktree remained dirty with lane implementation, manifest, status, dashboard, and untracked fixture/audit changes. The root test result changed during the same audit window: the first run failed, then a later rerun passed after additional work landed. Findings below are against the latest observed dirty worktree after the final manifest/status read.
 
 ## Findings
 
 1. **Critical - the repo is still a moving dirty integration target, so no coordination surface is a stable release signal.**
-   - Paths: current `git status --short --untracked-files=all`, recent history `77e9cf3..f14db3f`, `progress.md:229-231`, `porting.html:32`, `porting-summary.json:2`.
-   - Evidence: `HEAD` advanced from `77e9cf3` to `6867d11` while evidence was being gathered, then advanced again through `8ac8f39` to `f14db3f` before the final status read. The root suite changed from `87 test files, 5876 assertions, 2 failures` to `89 test files, 6056 assertions, 0 failures` during this audit. The worktree still contains modified lane implementation files, manifests/status files, modified `porting.html`/`porting-summary.json`, plus untracked fixtures/examples/audit files.
+   - Paths: current `git status --short --untracked-files=all`, recent history `77e9cf3..bdeea57`, `progress.md:229-231`, `porting.html:32`, `porting-summary.json:2`.
+   - Evidence: `HEAD` advanced from `77e9cf3` to `6867d11` while evidence was being gathered, then advanced again through `8ac8f39`, `f14db3f`, and `bdeea57` before the final status read. The root suite changed from `87 test files, 5876 assertions, 2 failures` to `89 test files, 6056 assertions, 0 failures` during this audit. The worktree still contains modified lane implementation files, manifests/status files, modified `porting.html`/`porting-summary.json`, plus untracked fixtures/examples/audit files.
    - Goal requirement at risk: `goal.md` requires durable coordination, verified finished agent work, cleanup of unrelated changes, passing tests, and small committed slices.
    - Audit judgment: quiesce or explicitly coordinate active writers before accepting any dashboard, lane status, progress file, or root-suite result as authoritative.
 
@@ -20,8 +20,8 @@ Audit boundary: `HEAD` advanced during this audit from `77e9cf3` to `f14db3f`, a
 
 3. **High - `porting.html` and `porting-summary.json` are stale against every current manifest/status count.**
    - Paths: `porting.html:32`, `porting.html:53-64`, `porting-summary.json:2-207`, `lanes/*/UPSTREAM_TEST_MANIFEST.json`, `lanes/*/lane-status.json`.
-   - Evidence: the dashboard is still generated at `2026-05-22 15:40:20 UTC`. Current manifest/status values are difftastic `42` mapped/`42` PHP vs dashboard `15`/`15`, Dolt `51`/`51` vs `5`/`5`, esbuild `47`/`47` vs `16`/`16`, Gitoxide `857`/`1459` vs `737`/`1257`, libsqlite `44`/`44` vs `18`/`18`, LightningCSS `148`/`224` vs `78`/`141`, markerPDF `53`/`81` vs `11`/`23`, Pandoc `74`/`61` vs `19`/`19`, Quadrable `52`/`52` vs `24`/`24`, rclone `67`/`67` vs `20`/`20`, Readability `218`/`30` vs `89`/`15`, and Syncthing `69`/`69` vs `27`/`27`.
-   - Additional evidence: denominator/status mismatches remain visible for LightningCSS (`382` manifest vs `312` dashboard), markerPDF (`58` vs `27`), Pandoc (`2028` vs `1979`), and Quadrable's dashboard blocker still says the C++ runner failed while the manifest/status now claim `make -r test` passes.
+   - Evidence: the dashboard is still generated at `2026-05-22 15:40:20 UTC`. Current manifest/status values are difftastic `42` mapped/`42` PHP vs dashboard `15`/`15`, Dolt `51`/`51` vs `5`/`5`, esbuild `47`/`47` vs `16`/`16`, Gitoxide `857`/`1459` vs `737`/`1257`, libsqlite `45`/`45` vs `18`/`18`, LightningCSS `148`/`224` vs `78`/`141`, markerPDF `61`/`81` vs `11`/`23`, Pandoc `74`/`61` vs `19`/`19`, Quadrable `52`/`52` vs `24`/`24`, rclone `67`/`67` vs `20`/`20`, Readability `218`/`30` vs `89`/`15`, and Syncthing `69`/`69` vs `27`/`27`.
+   - Additional evidence: denominator/status mismatches remain visible for LightningCSS (`382` manifest vs `312` dashboard), markerPDF (`59` vs `27`), Pandoc (`2028` vs `1979`), and Quadrable's dashboard blocker still says the C++ runner failed while the manifest/status now claim `make -r test` passes.
    - Goal requirement at risk: `goal.md` requires `porting.html` to show current suite progress, upstream denominator, mapped tests, PHP pass/fail, phase, audit, current work, blocker, and commit.
    - Audit judgment: regenerate dashboard artifacts only after the dirty lane batches are accepted from one committed green state.
 
