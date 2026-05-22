@@ -17,6 +17,63 @@ return [
         $t->same('content', $b->get('backup/export.wxr'));
         $t->same('2026-05-22T01:02:03Z', $b->info('backup/export.wxr')->modTime);
     },
+    'memory provider reads objects with upstream seek and range open semantics' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $contents = implode('', array_map(
+            static fn (int $i): string => chr(ord('a') + ($i % 26)),
+            range(0, 99),
+        ));
+        $provider->put('file name.txt', $contents);
+
+        $t->same($contents, $provider->readObject('file name.txt'));
+        $t->same(substr($contents, 50), $provider->readObject('file name.txt', ['seekOffset' => 50]));
+        $t->same($contents, $provider->readObject('file name.txt', ['seekOffset' => -100]));
+        $t->same(substr($contents, 5, 11), $provider->readObject('file name.txt', ['rangeStart' => 5, 'rangeEnd' => 15]));
+        $t->same(substr($contents, 80), $provider->readObject('file name.txt', ['rangeStart' => 80, 'rangeEnd' => -1]));
+        $t->same(substr($contents, 81), $provider->readObject('file name.txt', ['rangeStart' => 81, 'rangeEnd' => 100000]));
+        $t->same(substr($contents, 80), $provider->readObject('file name.txt', ['rangeStart' => -1, 'rangeEnd' => 20]));
+    },
+    'memory provider update keeps remote path while replacing bytes and metadata' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('exports/site.wxr', '<rss>old export</rss>', [
+            'modTime' => '2026-05-21T00:00:00Z',
+            'mimeType' => 'application/rss+xml',
+            'metadata' => ['wp-version' => '6.8'],
+        ]);
+
+        $updated = $provider->updateObject('exports/site.wxr', '<rss>fresh export</rss>', [
+            'sourcePath' => 'temporary-upload-name-should-be-ignored.bin',
+            'modTime' => '2026-05-22T00:00:00Z',
+            'mimeType' => 'application/xml',
+            'metadata' => ['wp-version' => '6.9', 'rclonetest' => 'potato'],
+        ]);
+
+        $t->same('exports/site.wxr', $updated->path);
+        $t->same(strlen('<rss>fresh export</rss>'), $updated->size);
+        $t->same('2026-05-22T00:00:00Z', $updated->modTime);
+        $t->same('application/xml', $updated->mimeType);
+        $t->same(['wp-version' => '6.9', 'rclonetest' => 'potato'], $updated->metadata);
+        $t->same('<rss>fresh export</rss>', $provider->get('exports/site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => $provider->get('temporary-upload-name-should-be-ignored.bin'));
+    },
+    'memory provider put stream and update accept unknown source sizes without unknown result size' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+
+        $put = $provider->putStream('exports/piped-data.wxr', '<rss>streamed export</rss>', [
+            'unknownSize' => true,
+            'modTime' => '2026-05-22T01:00:00Z',
+        ]);
+        $provider->put('exports/site.wxr', '<rss>old export</rss>');
+        $updated = $provider->updateObject('exports/site.wxr', '<rss>updated from stream</rss>', [
+            'unknownSize' => true,
+            'sourcePath' => 'ignored-stream-name',
+        ]);
+
+        $t->same(strlen('<rss>streamed export</rss>'), $put->size);
+        $t->same(strlen('<rss>updated from stream</rss>'), $updated->size);
+        $t->same('<rss>streamed export</rss>', $provider->get('exports/piped-data.wxr'));
+        $t->same('<rss>updated from stream</rss>', $provider->get('exports/site.wxr'));
+    },
     'memory provider can model case-insensitive provider object lookup' => static function (TestRunner $t): void {
         $provider = new MemoryProvider(true);
         $provider->put('wp-content/uploads/2026/05/Hero.JPG', 'image bytes');
@@ -153,5 +210,15 @@ return [
             'wp-content/uploads/2026/05/hero.jpg',
             'wp-content/uploads/2026/05/hero.webp',
         ], (new SyncPlan())->changedPaths($source, $target, $filter));
+    },
+    'wordpress fstest object open update example exposes WXR stream boundaries' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-fstest-object-open-update.php';
+
+        $t->same('<rss ', $example['rangePreview']);
+        $t->same('</rss>', $example['rangeTail']);
+        $t->same('exports/site.wxr', $example['updatedPath']);
+        $t->same(false, $example['ignoredSourceVisible']);
+        $t->same(strlen('<rss version="2.0"><channel><item>post</item></channel></rss>'), $example['updatedSize']);
+        $t->same(strlen('<rss version="2.0"></rss>'), $example['putStreamSize']);
     },
 ];

@@ -99,6 +99,34 @@ final class MemoryProvider
     }
 
     /**
+     * Model rclone PutStream: callers may not know the source size up front,
+     * but a successful provider object reports the stored byte length.
+     *
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     */
+    public function putStream(string $path, string $bytes, array $options = []): ObjectInfo
+    {
+        unset($options['unknownSize']);
+
+        return $this->putEntry($path, $this->objectEntry($bytes, $options));
+    }
+
+    /**
+     * Model fs.Object.Update: the source object's remote name is ignored and
+     * the existing object's remote path is kept while bytes/metadata change.
+     *
+     * @param array{sourcePath?: string, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     */
+    public function updateObject(string $path, string $bytes, array $options = []): ObjectInfo
+    {
+        $path = $this->canonicalPath($path);
+        $this->entry($path);
+        unset($options['sourcePath'], $options['unknownSize']);
+
+        return $this->putEntry($path, $this->objectEntry($bytes, $options));
+    }
+
+    /**
      * Add another object with the same remote path, matching providers that
      * support duplicate names via unchecked writes.
      *
@@ -199,6 +227,40 @@ final class MemoryProvider
     public function get(string $path): string
     {
         return $this->entry($path)['bytes'];
+    }
+
+    /**
+     * Read object bytes with rclone's SeekOption and RangeOption decode
+     * semantics. Range ends are inclusive; a negative start with a positive
+     * end fetches the final N bytes.
+     *
+     * @param array{seekOffset?: int, rangeStart?: int, rangeEnd?: int} $options
+     */
+    public function readObject(string $path, array $options = []): string
+    {
+        $bytes = $this->entry($path)['bytes'];
+        $size = strlen($bytes);
+        $offset = 0;
+        $limit = null;
+
+        if (array_key_exists('seekOffset', $options)) {
+            $offset = max(0, min($size, (int) $options['seekOffset']));
+        } elseif (array_key_exists('rangeStart', $options) || array_key_exists('rangeEnd', $options)) {
+            $start = (int) ($options['rangeStart'] ?? -1);
+            $end = (int) ($options['rangeEnd'] ?? -1);
+            if ($start >= 0) {
+                $offset = max(0, min($size, $start));
+                if ($end >= 0) {
+                    $limit = max(0, min($size, $end + 1) - $offset);
+                }
+            } elseif ($end >= 0) {
+                $offset = max(0, $size - $end);
+            }
+        }
+
+        return $limit === null
+            ? substr($bytes, $offset)
+            : substr($bytes, $offset, $limit);
     }
 
     public function pathExists(string $path): bool
@@ -406,21 +468,27 @@ final class MemoryProvider
             throw new \InvalidArgumentException('merge directories requires at least one directory');
         }
 
-        $targetPath = $this->canonicalDirectoryPath($this->directoryPath($directories[0]));
-        $target = $this->directoryInfo($targetPath);
+        $target = $this->listedDirectoryInfo($directories[0]);
+        $targetPath = $this->canonicalDirectoryPath($target->path);
         $moved = [];
         $removed = [];
 
         for ($i = 1; $i < count($directories); $i++) {
-            $sourcePath = $this->canonicalDirectoryPath($this->directoryPath($directories[$i]));
+            $source = $this->listedDirectoryInfo($directories[$i]);
+            $sourcePath = $this->canonicalDirectoryPath($source->path);
+            if ($this->sameDirectoryEntry($source, $target)) {
+                continue;
+            }
             if ($sourcePath === $targetPath) {
+                $samePathMerge = $this->mergeSamePathDirectory($source, $target);
+                $moved = array_merge($moved, $samePathMerge['moved']);
+                $removed = array_merge($removed, $samePathMerge['removed']);
                 continue;
             }
             if (self::pathIsOrUnder($targetPath, $sourcePath)) {
                 throw new \InvalidArgumentException("can't merge parent directory {$sourcePath} into child {$targetPath}");
             }
 
-            $source = $this->directoryInfo($sourcePath);
             $childDirs = array_values(array_filter(
                 $this->directories($sourcePath),
                 static fn (ObjectInfo $info): bool => $info->path !== $sourcePath
@@ -828,7 +896,12 @@ final class MemoryProvider
 
     public function directoryEntryCount(string|ObjectInfo $directory): int
     {
-        $path = $this->canonicalDirectoryPath($this->directoryPath($directory));
+        $info = $directory instanceof ObjectInfo ? $directory : $this->directoryInfo($directory);
+        if ($info->id !== null || $info->providerKey !== null || $info->parentId !== null) {
+            return $this->providerDirectoryEntryCount($info);
+        }
+
+        $path = $this->canonicalDirectoryPath($info->path);
         $this->directoryInfo($path);
         $count = 0;
         foreach ($this->directories($path) as $info) {
@@ -843,6 +916,123 @@ final class MemoryProvider
         }
 
         return $count;
+    }
+
+    /**
+     * Merge duplicate provider directory entries that share the same remote
+     * path but have distinct IDs. This is the shape exposed by providers such
+     * as Drive during rclone's dedupe duplicate-directory pre-pass.
+     *
+     * @return array{moved: list<ObjectInfo>, removed: list<ObjectInfo>}
+     */
+    private function mergeSamePathDirectory(ObjectInfo $source, ObjectInfo $target): array
+    {
+        $subtree = $this->providerDirectorySubtree($source);
+        $sourceId = $this->providerTreeId($source);
+        $targetRawId = $target->id ?? $target->providerKey ?? $target->path;
+        $moved = [];
+        $removed = [];
+
+        usort(
+            $subtree['directories'],
+            static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathDepth($a->path) <=> self::pathDepth($b->path)
+                ?: $a->path <=> $b->path
+                ?: ($a->providerKey ?? '') <=> ($b->providerKey ?? ''),
+        );
+
+        foreach ($subtree['directories'] as $directory) {
+            if ($this->sameDirectoryEntry($directory, $source)) {
+                continue;
+            }
+
+            $entry = $this->listedDirectoryEntry($directory);
+            if ($directory->parentId !== null && $this->providerTreeIdFromRaw($directory->parentId) === $sourceId) {
+                $entry['parentId'] = $targetRawId;
+            }
+
+            $this->forgetListedDirectory($directory);
+            $moved[] = $this->hasConcreteDirectory($directory->path)
+                ? $this->putDuplicateDirectoryEntry($directory->path, $entry)
+                : $this->putDirectoryEntry($directory->path, $entry);
+        }
+
+        usort(
+            $subtree['objects'],
+            static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path
+                ?: ($a->providerKey ?? '') <=> ($b->providerKey ?? ''),
+        );
+
+        foreach ($subtree['objects'] as $object) {
+            $entry = $this->listedObjectEntry($object);
+            if ($object->parentId !== null && $this->providerTreeIdFromRaw($object->parentId) === $sourceId) {
+                $entry['parentId'] = $targetRawId;
+            }
+
+            $this->forgetListedObject($object);
+            $moved[] = $this->pathExists($object->path)
+                ? $this->putDuplicateEntry($object->path, $entry)
+                : $this->putEntry($object->path, $entry);
+        }
+
+        $removed[] = $source;
+        $this->forgetListedDirectory($source);
+
+        return [
+            'moved' => $moved,
+            'removed' => $removed,
+        ];
+    }
+
+    private function providerDirectoryEntryCount(ObjectInfo $directory): int
+    {
+        $subtree = $this->providerDirectorySubtree($directory);
+
+        return count($subtree['directories']) - 1 + count($subtree['objects']);
+    }
+
+    /**
+     * @return array{ids: array<string, true>, directories: list<ObjectInfo>, objects: list<ObjectInfo>}
+     */
+    private function providerDirectorySubtree(ObjectInfo $directory): array
+    {
+        $rootId = $this->providerTreeId($directory);
+        $ids = [$rootId => true];
+        $directories = $this->directories();
+
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            foreach ($directories as $candidate) {
+                $candidateId = $this->providerTreeId($candidate);
+                if (isset($ids[$candidateId])) {
+                    continue;
+                }
+                if (isset($ids[$this->providerParentTreeId($candidate)])) {
+                    $ids[$candidateId] = true;
+                    $changed = true;
+                }
+            }
+        }
+
+        $subtreeDirectories = [];
+        foreach ($directories as $candidate) {
+            if (isset($ids[$this->providerTreeId($candidate)])) {
+                $subtreeDirectories[] = $candidate;
+            }
+        }
+
+        $subtreeObjects = [];
+        foreach ($this->list() as $object) {
+            if (isset($ids[$this->providerParentTreeId($object)])) {
+                $subtreeObjects[] = $object;
+            }
+        }
+
+        return [
+            'ids' => $ids,
+            'directories' => $subtreeDirectories,
+            'objects' => $subtreeObjects,
+        ];
     }
 
     private function normalize(string $path): string
@@ -940,6 +1130,98 @@ final class MemoryProvider
             $key,
             $entry['parentId'],
         );
+    }
+
+    private function listedDirectoryInfo(string|ObjectInfo $directory): ObjectInfo
+    {
+        if ($directory instanceof ObjectInfo) {
+            if ($directory->providerKey !== null && isset($this->duplicateDirectories[$directory->providerKey])) {
+                return $this->duplicateDirectoryInfo($directory->providerKey);
+            }
+
+            return $this->directoryInfo($directory->path);
+        }
+
+        return $this->directoryInfo($directory);
+    }
+
+    /**
+     * @return array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string}
+     */
+    private function listedDirectoryEntry(ObjectInfo $info): array
+    {
+        if ($info->providerKey !== null && isset($this->duplicateDirectories[$info->providerKey])) {
+            return $this->duplicateDirectories[$info->providerKey]['entry'];
+        }
+
+        $path = $this->canonicalDirectoryPath($info->path);
+
+        return $this->directories[$path] ?? [
+            'modTime' => $info->modTime,
+            'mimeType' => $info->mimeType,
+            'metadata' => $info->metadata,
+            'id' => $info->id,
+            'parentId' => $info->parentId,
+        ];
+    }
+
+    private function forgetListedDirectory(ObjectInfo $info): void
+    {
+        if ($info->providerKey !== null && isset($this->duplicateDirectories[$info->providerKey])) {
+            unset($this->duplicateDirectories[$info->providerKey]);
+
+            return;
+        }
+
+        $path = $this->canonicalDirectoryPath($info->path);
+        if (isset($this->directories[$path])) {
+            $this->forgetDirectory($path);
+        }
+    }
+
+    private function sameDirectoryEntry(ObjectInfo $left, ObjectInfo $right): bool
+    {
+        if ($left->id !== null || $right->id !== null) {
+            return $left->id !== null && $left->id === $right->id;
+        }
+        if ($left->providerKey !== null || $right->providerKey !== null) {
+            return $left->providerKey !== null && $left->providerKey === $right->providerKey;
+        }
+
+        return $this->sameProviderPath($left->path, $right->path);
+    }
+
+    private function hasConcreteDirectory(string $path): bool
+    {
+        $path = $this->canonicalDirectoryPath($path);
+
+        return isset($this->directories[$path]) || $this->duplicateDirectoryKey($path) !== null;
+    }
+
+    private function providerTreeId(ObjectInfo $info): string
+    {
+        if ($info->id !== null && $info->id !== '') {
+            return $this->providerTreeIdFromRaw($info->id);
+        }
+        if ($info->providerKey !== null && $info->providerKey !== '') {
+            return 'provider-key:' . $info->providerKey;
+        }
+
+        return 'path:' . $info->path;
+    }
+
+    private function providerParentTreeId(ObjectInfo $info): string
+    {
+        if ($info->parentId !== null && $info->parentId !== '') {
+            return $this->providerTreeIdFromRaw($info->parentId);
+        }
+
+        return 'path:' . self::parentPath($info->path);
+    }
+
+    private function providerTreeIdFromRaw(string $id): string
+    {
+        return 'id:' . $id;
     }
 
     /**
@@ -1271,6 +1553,13 @@ final class MemoryProvider
     private static function pathDepth(string $path): int
     {
         return $path === '' ? 0 : substr_count($path, '/') + 1;
+    }
+
+    private static function parentPath(string $path): string
+    {
+        $parent = dirname($path);
+
+        return $parent === '.' ? '' : $parent;
     }
 
     private static function replacePathPrefix(string $path, string $sourcePrefix, string $targetPrefix): string

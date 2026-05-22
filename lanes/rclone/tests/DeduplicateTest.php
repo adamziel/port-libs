@@ -325,4 +325,52 @@ return [
             $remote->list('uploads/2026/05'),
         ))));
     },
+    'duplicate directory merge uses provider IDs and rewires source children to the kept directory' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->mkdir('uploads', ['id' => 'uploads-root']);
+        $remote->mkdir('uploads/2026', ['id' => 'year-2026', 'parentId' => 'uploads-root']);
+        $remote->mkdirUnchecked('uploads/2026/05', ['id' => 'month-primary', 'parentId' => 'year-2026']);
+        $remote->mkdirUnchecked('uploads/2026/05', ['id' => 'month-recovered', 'parentId' => 'year-2026']);
+        $remote->mkdirUnchecked('uploads/2026/05/thumbs', ['id' => 'thumbs-primary', 'parentId' => 'month-primary']);
+        $remote->putUnchecked('uploads/2026/05/hero.jpg', 'published hero', ['id' => 'hero-primary', 'parentId' => 'month-primary']);
+        $remote->putUnchecked('uploads/2026/05/gallery.jpg', 'published gallery', ['id' => 'gallery-primary', 'parentId' => 'month-primary']);
+        $remote->putUnchecked('uploads/2026/05/hero.jpg', 'recovered hero', ['id' => 'hero-recovered', 'parentId' => 'month-recovered']);
+
+        $plan = new SyncPlan();
+        $duplicates = $plan->findDuplicateDirectories($remote);
+        $t->same([3, 1], array_map(
+            static fn ($info) => $remote->directoryEntryCount($info),
+            $duplicates[0]['directories'],
+        ));
+
+        $merge = $plan->mergeDuplicateDirectories($remote, $duplicates[0]['directories']);
+
+        $t->same(false, $merge['listed']);
+        $t->same('month-primary', $merge['target']?->id);
+        $t->same(['month-primary', 'thumbs-primary'], array_values(array_filter(array_map(
+            static fn ($info) => $info->id,
+            $remote->directories('uploads/2026/05'),
+        ))));
+        $t->same([], $plan->findDuplicateDirectories($remote));
+        $t->same([
+            'uploads/2026/05/gallery.jpg',
+            'uploads/2026/05/hero.jpg',
+            'uploads/2026/05/hero.jpg',
+        ], array_map(static fn ($info) => $info->path, $remote->list('uploads/2026/05')));
+        $t->same(['month-primary', 'month-primary', 'month-primary'], array_map(
+            static fn ($info) => $info->parentId,
+            $remote->list('uploads/2026/05'),
+        ));
+
+        $renamed = $plan->deduplicateByName($remote, DeduplicateMode::RENAME);
+        $t->same([
+            'uploads/2026/05/hero-1.jpg',
+            'uploads/2026/05/hero-2.jpg',
+        ], array_map(static fn ($info) => $info->path, $renamed['groups'][0]['renamed']));
+        $t->same([
+            'uploads/2026/05/gallery.jpg',
+            'uploads/2026/05/hero-1.jpg',
+            'uploads/2026/05/hero-2.jpg',
+        ], array_map(static fn ($info) => $info->path, $remote->list('uploads/2026/05')));
+    },
 ];

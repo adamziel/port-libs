@@ -794,7 +794,7 @@ final class SyncPlan
     {
         $items = [];
         foreach ($directories as $index => $directory) {
-            $info = $provider->directoryInfo($directory instanceof ObjectInfo ? $directory->path : $directory);
+            $info = $directory instanceof ObjectInfo ? $directory : $provider->directoryInfo($directory);
             $items[] = [
                 'index' => $index,
                 'path' => $info->path,
