@@ -1,20 +1,20 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, current dirty worktree state, bridge/shell-out usage, and recent Git history through `6e51a02`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, current dirty worktree state, bridge/shell-out usage, and recent Git history through `0d76515`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: `HEAD` advanced during this audit from `0dbcf06` to `6e51a02`, and the worktree remained dirty. Findings below are against `6e51a02` plus the dirty worktree observed after the latest root test run.
+Audit boundary: `HEAD` advanced during this audit from `0dbcf06` to `0d76515`, and the worktree remained dirty. Findings below are against `0d76515` plus the dirty worktree observed after the latest root test run.
 
 ## Findings
 
 1. **Critical - the repo is still a moving dirty integration target, so coordination files are not a stable release signal.**
-   - Paths: current `git status --short`, recent history through `6e51a02`, `progress.md:229`, `progress.md:231`, `porting.html:30`.
+   - Paths: current `git status --short`, recent history through `0d76515`, `progress.md:229`, `progress.md:231`, `porting.html:30`.
    - Evidence: `HEAD` advanced repeatedly while the audit was running. The latest `php tools/run-tests.php` run is green, but it was run against a dirty worktree that still contains lane implementation files, manifests, status files, notes, `porting.html`, `porting-summary.json`, plus untracked audit/status files and lane fixtures.
    - Goal requirement at risk: `goal.md` requires small reviewable committed slices, verified finished agent work, cleanup of accidental unrelated changes, durable coordination, and honest status tracking.
    - Audit judgment: active writers need to be quiesced or explicitly coordinated before accepting any dashboard, lane status, or progress file as authoritative.
 
 2. **Critical - `porting.html` and `porting-summary.json` are stale against current lane manifests.**
    - Paths: `porting.html:30-64`, `porting-summary.json:2-207`, `lanes/*/UPSTREAM_TEST_MANIFEST.json`.
-   - Evidence: `porting.html`/`porting-summary.json` were generated at `2026-05-22 15:40:20 UTC` and show old mapped counts: difftastic `15` displayed vs `37` manifest, Dolt `5` vs `41`, esbuild `16` vs `42`, Gitoxide `737` vs `853`, libsqlite `18` vs `40`, LightningCSS `78` vs `138`, markerPDF `11` vs `46`, Pandoc `19` vs `52`, Quadrable `24` vs `50`, rclone `20` vs `57`, Readability `89` vs `176`, and Syncthing `27` vs `62`.
+   - Evidence: `porting.html`/`porting-summary.json` were generated at `2026-05-22 15:40:20 UTC` and show old mapped counts: difftastic `15` displayed vs `37` manifest, Dolt `5` vs `41`, esbuild `16` vs `42`, Gitoxide `737` vs `853`, libsqlite `18` vs `43`, LightningCSS `78` vs `138`, markerPDF `11` vs `46`, Pandoc `19` vs `52`, Quadrable `24` vs `50`, rclone `20` vs `57`, Readability `89` vs `187`, and Syncthing `27` vs `62`.
    - Additional evidence: the dashboard still reports Quadrable's blocker as a failed C++ runner (`porting.html:61`), while the manifest says `make -r test` passes (`lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:13-18`). It also reports old denominators for LightningCSS, markerPDF, and Pandoc.
    - Goal requirement at risk: `goal.md` requires `porting.html` to show current suite progress, benchmark source, upstream denominator, mapped tests, PHP pass/fail, WordPress scenarios, phase, audit, current work, blocker, and commit.
    - Audit judgment: regenerate the dashboard and compact JSON only after the dirty lane batches are accepted from one committed green state.
