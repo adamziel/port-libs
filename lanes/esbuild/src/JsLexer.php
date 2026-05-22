@@ -42,6 +42,11 @@ final class JsLexer
                 $offset += strlen($m[0]);
                 continue;
             }
+            if (preg_match('/\G#[$_\pL][$_\pL\pN]*/Au', $source, $m, 0, $offset)) {
+                $tokens[] = new Token('private_identifier', $m[0], $offset);
+                $offset += strlen($m[0]);
+                continue;
+            }
             $number = $this->readNumberLiteral($source, $offset);
             if ($number !== null) {
                 [$text, $value, $newOffset] = $number;
@@ -54,7 +59,7 @@ final class JsLexer
                 $offset += strlen($m[0]);
                 continue;
             }
-            if (preg_match('/\G=>|===|!==|==|!=|<=|>=|\+\+|--|\+=|-=|\*=|\/=|%=|&&|\|\||[{}()[\].,;:?+\-*\/%<>=!]/A', $source, $m, 0, $offset)) {
+            if (preg_match('/\G=>|===|!==|==|!=|<=|>=|\+\+|--|\+=|-=|\*=|\/=|%=|&&|\|\||[{}()[\].,;:?+\-*\/%<>=!@]/A', $source, $m, 0, $offset)) {
                 $tokens[] = new Token('punctuator', $m[0], $offset);
                 $offset += strlen($m[0]);
                 continue;

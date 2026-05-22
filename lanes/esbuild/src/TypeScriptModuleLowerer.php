@@ -58,6 +58,16 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $classStatement = $this->lowerClassStatementAt($i);
+            if ($classStatement !== null) {
+                [$classOutput, $end] = $classStatement;
+                if ($classOutput !== '') {
+                    $lines[] = $classOutput;
+                }
+                $i = $end;
+                continue;
+            }
+
             $end = $this->findStatementEndOrLineBreak($i);
             $effectiveEnd = $this->withoutTrailingSemicolon($end);
 
@@ -203,34 +213,92 @@ final class TypeScriptModuleLowerer
 
     private function ambientStatementEnd(int $start): ?int
     {
-        if (($this->tokens[$start] ?? null)?->text !== 'declare'
-            || $this->hasLineBreakBetween($start, $start + 1)
+        $cursor = $this->skipLeadingDecorators($start);
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            if ($this->hasLineBreakBetween($cursor, $cursor + 1)
+                || ($this->tokens[$cursor + 1] ?? null)?->text !== 'declare'
+            ) {
+                return null;
+            }
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'declare'
+            || $this->hasLineBreakBetween($cursor, $cursor + 1)
         ) {
             return null;
         }
 
-        $next = $this->tokens[$start + 1] ?? null;
+        $cursor++;
+
+        $next = $this->tokens[$cursor] ?? null;
         if ($next === null) {
             throw new \InvalidArgumentException('Unexpected end after TypeScript declare');
         }
 
         if (in_array($next->text, ['var', 'let', 'const'], true)) {
-            if ($next->text === 'const' && ($this->tokens[$start + 2] ?? null)?->text === 'enum') {
-                return $this->ambientBlockDeclarationEnd($start + 2);
+            if ($next->text === 'const' && ($this->tokens[$cursor + 1] ?? null)?->text === 'enum') {
+                return $this->ambientBlockDeclarationEnd($cursor + 1);
             }
 
             return $this->findStatementEndOrLineBreak($start);
         }
 
+        if ($next->text === 'abstract') {
+            if ($this->hasLineBreakBetween($cursor, $cursor + 1)
+                || ($this->tokens[$cursor + 1] ?? null)?->text !== 'class'
+            ) {
+                throw new \InvalidArgumentException('Unexpected TypeScript declare statement');
+            }
+            $cursor++;
+            $next = $this->tokens[$cursor] ?? null;
+        }
+
         if (in_array($next->text, ['function', 'class', 'interface', 'enum'], true)) {
-            return $this->ambientDeclarationEnd($start + 1);
+            return $this->ambientDeclarationEnd($cursor);
         }
 
         if (in_array($next->text, ['namespace', 'module', 'global'], true)) {
-            return $this->ambientNamespaceLikeDeclarationEnd($start + 1);
+            return $this->ambientNamespaceLikeDeclarationEnd($cursor);
         }
 
         throw new \InvalidArgumentException('Unexpected TypeScript declare statement');
+    }
+
+    private function skipLeadingDecorators(int $start): int
+    {
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->text === '@') {
+            $cursor = $this->decoratorEnd($cursor) + 1;
+        }
+
+        return $cursor;
+    }
+
+    private function decoratorEnd(int $atIndex): int
+    {
+        $depth = 0;
+        $count = count($this->tokens);
+        for ($i = $atIndex + 1; $i < $count; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+
+            if ($depth === 0) {
+                $next = $this->tokens[$i + 1] ?? null;
+                if ($next !== null && in_array($next->text, ['@', 'declare', 'export', 'abstract', 'class'], true)) {
+                    return $i;
+                }
+                if ($this->hasLineBreakBetween($i, $i + 1)) {
+                    return $i;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('Unterminated TypeScript decorator');
     }
 
     private function ambientDeclarationEnd(int $keywordIndex): int
@@ -291,6 +359,265 @@ final class TypeScriptModuleLowerer
         }
 
         return $this->findStatementEndOrLineBreak($keywordIndex);
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function lowerClassStatementAt(int $start): ?array
+    {
+        $cursor = $start;
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
+                return null;
+            }
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === 'default') {
+                if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
+                    return null;
+                }
+                $cursor++;
+            }
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'abstract') {
+            if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
+                return null;
+            }
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'class') {
+            return null;
+        }
+
+        $bodyOpen = $this->findTopLevelBlockOpenBeforeStatementEnd($cursor);
+        if ($bodyOpen === null) {
+            return null;
+        }
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        [$members, $hasDeclareMember] = $this->lowerClassMembers($bodyOpen + 1, $bodyClose);
+        if (!$hasDeclareMember) {
+            return null;
+        }
+
+        $header = $this->classHeaderText($start, $bodyOpen);
+        $lines = [$header . ' {'];
+        foreach ($members as $member) {
+            $lines[] = '  ' . $member;
+        }
+        $lines[] = '}';
+
+        return [implode("\n", $lines), $bodyClose];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:bool}
+     */
+    private function lowerClassMembers(int $start, int $end): array
+    {
+        $members = [];
+        $hasDeclareMember = false;
+        for ($cursor = $start; $cursor < $end; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                continue;
+            }
+
+            $memberEnd = $this->classMemberEnd($cursor, $end);
+            [$member, $declared] = $this->lowerClassMember($cursor, $memberEnd);
+            if ($declared) {
+                $hasDeclareMember = true;
+            }
+            if ($member !== '') {
+                $members[] = $member;
+            }
+            $cursor = $memberEnd;
+        }
+
+        return [$members, $hasDeclareMember];
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function lowerClassMember(int $start, int $end): array
+    {
+        $cursor = $start;
+        $decorated = false;
+        while (($this->tokens[$cursor] ?? null)?->text === '@') {
+            $decorated = true;
+            $cursor = $this->decoratorEnd($cursor) + 1;
+        }
+
+        $modifiers = [];
+        while (($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+            && in_array($this->tokens[$cursor]->text, $this->classMemberModifierKeywords(), true)
+        ) {
+            $modifiers[] = $this->tokens[$cursor]->text;
+            $cursor++;
+        }
+
+        if (!in_array('declare', $modifiers, true)) {
+            return [$this->printClassMemberRange($start, $end), false];
+        }
+
+        if ($decorated) {
+            throw new \InvalidArgumentException('Decorators are not valid on TypeScript declare class fields');
+        }
+
+        $name = $this->tokens[$cursor] ?? null;
+        if ($name === null) {
+            throw new \InvalidArgumentException('Expected TypeScript declare class field name');
+        }
+
+        if ($name->kind === 'private_identifier') {
+            throw new \InvalidArgumentException('"declare" cannot be used with a private identifier');
+        }
+
+        if ($name->text === '[') {
+            throw new \InvalidArgumentException('"declare" cannot be used with an index signature');
+        }
+
+        if (in_array('get', $modifiers, true)) {
+            throw new \InvalidArgumentException('"declare" cannot be used with a getter');
+        }
+
+        if (in_array('set', $modifiers, true)) {
+            throw new \InvalidArgumentException('"declare" cannot be used with a setter');
+        }
+
+        if (($this->tokens[$cursor + 1] ?? null)?->text === '(') {
+            throw new \InvalidArgumentException('"declare" cannot be used with a method');
+        }
+
+        return ['', true];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function classMemberModifierKeywords(): array
+    {
+        return [
+            'abstract',
+            'accessor',
+            'declare',
+            'get',
+            'override',
+            'private',
+            'protected',
+            'public',
+            'readonly',
+            'set',
+            'static',
+        ];
+    }
+
+    private function classMemberEnd(int $start, int $end): int
+    {
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
+        for ($i = $start; $i < $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($text === '{') {
+                $braceDepth++;
+            } elseif ($text === '}') {
+                $braceDepth--;
+                if ($parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
+                    return $i;
+                }
+            } elseif ($parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0 && $text === ';') {
+                return $i;
+            }
+
+            if ($parenDepth === 0
+                && $bracketDepth === 0
+                && $braceDepth === 0
+                && $this->hasLineBreakBetween($i, $i + 1)
+            ) {
+                return $i;
+            }
+        }
+
+        return $end - 1;
+    }
+
+    private function classHeaderText(int $start, int $bodyOpen): string
+    {
+        $parts = [];
+        $previous = null;
+        for ($i = $start; $i < $bodyOpen; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+            if ($token->text === 'abstract') {
+                continue;
+            }
+            if ($token->text === '<') {
+                $i = $this->typeParameterListEnd($i, $bodyOpen);
+                continue;
+            }
+            if ($token->text === 'implements') {
+                break;
+            }
+
+            $text = $token->text;
+            if ($previous !== null && $this->needsSpace($previous, $text)) {
+                $parts[] = ' ';
+            }
+            $parts[] = $text;
+            $previous = $text;
+        }
+
+        return implode('', $parts);
+    }
+
+    private function typeParameterListEnd(int $start, int $limit): int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $limit; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '<') {
+                $depth++;
+            } elseif ($text === '>') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return $start;
+    }
+
+    private function printClassMemberRange(int $start, int $end): string
+    {
+        $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
+        if ($effectiveEnd < $start) {
+            return '';
+        }
+
+        $member = $this->printTokenRange($start, $effectiveEnd);
+        if ($member === '') {
+            return '';
+        }
+
+        $last = $this->tokens[$effectiveEnd] ?? null;
+        if ($last?->text !== '}' && !str_ends_with($member, ';')) {
+            $member .= ';';
+        }
+
+        return $member;
     }
 
     private function findTopLevelBlockOpenBeforeStatementEnd(int $start): ?int

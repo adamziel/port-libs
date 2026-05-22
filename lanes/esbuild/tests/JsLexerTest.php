@@ -33,6 +33,15 @@ return [
         $t->same('#!/usr/bin/env node', $tokens[0]->text);
         $t->same('let', $tokens[1]->text);
     },
+    'javascript lexer tokenizes decorator and private identifier syntax' => static function (TestRunner $t): void {
+        $tokens = (new JsLexer())->tokenize('@dec(() => 0) declare class Foo { accessor #x }');
+        $texts = array_map(static fn ($token): string => $token->text, $tokens);
+        $private = array_values(array_filter($tokens, static fn ($token): bool => $token->kind === 'private_identifier'));
+
+        $t->same('@', $tokens[0]->text);
+        $t->true(in_array('=>', $texts, true));
+        $t->same('#x', $private[0]->text);
+    },
     'javascript lexer rejects malformed base-prefixed numeric literals' => static function (TestRunner $t): void {
         $lexer = new JsLexer();
         foreach (['0b', '0b012', '0o018', '0xGFEDCBA'] as $source) {

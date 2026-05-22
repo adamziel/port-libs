@@ -186,6 +186,40 @@ TS);
         $t->same('', $lowerer->lower('declare module M { export as namespace ns; }'));
         $t->same('', $lowerer->lower('export as namespace ns'));
     },
+    'erases upstream decorated abstract ambient class declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same('', $lowerer->lower('declare abstract class Foo { accessor #x }'));
+        $t->same('', $lowerer->lower('export declare abstract class Foo { accessor #x }'));
+        $t->same("{let foo}\n", $lowerer->lower('@dec(() => 0) declare class Foo {} {let foo}'));
+        $t->same("{let foo}\n", $lowerer->lower('@dec(() => 0) export declare abstract class Foo {} {let foo}'));
+        $t->same("{let foo}\n", $lowerer->lower('declare class Foo { @dec(() => 0) foo(@arg(() => 0) x) } {let foo}'));
+    },
+    'erases upstream class member declare fields' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { declare foo: number }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { declare public foo: number }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { public declare foo: number }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { declare override public static foo: number }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { public static declare foo: number }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { declare static foo = 123 }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { static declare foo = 123 }'));
+        $t->same("class Foo {\n}\n", $lowerer->lower('class Foo { declare accessor x }'));
+        $t->same("class Foo {\n  bar = 1;\n}\n", $lowerer->lower('class Foo { declare foo = 123; bar = 1 }'));
+    },
+    'rejects upstream invalid declare class member boundaries' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { declare #foo }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { declare [foo: string]: number }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { declare foo() }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { declare get foo() }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { declare set foo(x) }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { static declare #foo }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { static declare foo() }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { @(() => {}) declare foo: any; bar = 1 }'));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -258,5 +292,29 @@ TS);
         $t->true(!str_contains($lowered, 'declare global'));
         $t->true(!str_contains($lowered, 'export as namespace'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
+    },
+    'erases wordpress ambient exported class declarations without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-ambient-exports.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains("const metadata = { name: 'port-libs/card' };", $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, {', $lowered);
+        $t->contains('supports: { html: false },', $lowered);
+        $t->true(!str_contains($lowered, 'declare abstract class'));
+        $t->true(!str_contains($lowered, 'export declare'));
+        $t->true(!str_contains($lowered, '#view'));
+        $t->true(!str_contains($lowered, '@blockTypes'));
+    },
+    'erases wordpress declared class fields without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-class-declare-settings.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('class CardBlockController {', $lowered);
+        $t->contains('register() {wp.blocks.registerBlockType(metadata.name, {edit:Edit});}', $lowered);
+        $t->contains('controller.register();', $lowered);
+        $t->true(!str_contains($lowered, 'declare'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, 'blockName'));
+        $t->true(!str_contains($lowered, 'supports ='));
     },
 ];

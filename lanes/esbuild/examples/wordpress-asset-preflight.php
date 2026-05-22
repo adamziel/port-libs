@@ -17,6 +17,8 @@ $enumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fi
 $enumAliasConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-enum-alias-config.ts');
 $constEnumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-const-enum-config.ts');
 $ambientTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-ambient-types.ts');
+$ambientExportsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-ambient-exports.ts');
+$classDeclareTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-declare-settings.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
@@ -32,6 +34,8 @@ $enumConfigLowered = (new TypeScriptModuleLowerer())->lower($enumConfigTypeScrip
 $enumAliasConfigLowered = (new TypeScriptModuleLowerer())->lower($enumAliasConfigTypeScriptSource);
 $constEnumConfigLowered = (new TypeScriptModuleLowerer())->lower($constEnumConfigTypeScriptSource);
 $ambientLowered = (new TypeScriptModuleLowerer())->lower($ambientTypeScriptSource);
+$ambientExportsLowered = (new TypeScriptModuleLowerer())->lower($ambientExportsTypeScriptSource);
+$classDeclareLowered = (new TypeScriptModuleLowerer())->lower($classDeclareTypeScriptSource);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -60,6 +64,8 @@ printf("WordPress TypeScript runtime enum config bytes: %d\n", strlen($enumConfi
 printf("WordPress TypeScript enum alias config bytes: %d\n", strlen($enumAliasConfigLowered));
 printf("WordPress TypeScript const enum config bytes: %d\n", strlen($constEnumConfigLowered));
 printf("WordPress TypeScript ambient declaration bytes: %d\n", strlen($ambientLowered));
+printf("WordPress TypeScript ambient export declaration bytes: %d\n", strlen($ambientExportsLowered));
+printf("WordPress TypeScript declared class field bytes: %d\n", strlen($classDeclareLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
