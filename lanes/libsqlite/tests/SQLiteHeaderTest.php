@@ -989,6 +989,31 @@ return [
         $t->same([], $exclusiveEmpty);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', null, null));
     },
+    'uses composite equality range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoload_name', 'wp_options', 2, 'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['no', 'zzzz_after_transients', 4]]], 5);
+        $page3 = $indexLeafPage([
+            $indexCell(['no', '_transient_feed', 1]),
+            $indexCell(['no', '_transient_timeout_feed', 2]),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 2),
+        ]);
+        $page5 = str_repeat("\0", 512);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $transients = $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', '_transient_', '_transient`');
+
+        $t->same(2, $database->indexRootPageForPrefixRangeLookup('wp_options', [
+            'autoload' => 'no',
+        ], 'option_name', '_transient_', '_transient`'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+    },
     'uses partial composite autoload and option_name range indexes when predicates are implied' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

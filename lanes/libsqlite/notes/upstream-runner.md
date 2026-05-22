@@ -640,8 +640,14 @@ The native PHP tests now cover a WordPress-shaped
 recovery, range limits, inclusive and empty same-bound ranges, safe rejection
 when no range bound is provided, and a partial
 `autoload='no' AND option_name IS NOT NULL` composite index with `NOCASE DESC`
-second-column metadata. Remaining work includes optimized b-tree seek bounds,
-expression indexes beyond `lower(column)`, custom collations, and composite
+second-column metadata. This run adds bounded composite b-tree traversal:
+subtrees whose separator-key intervals cannot contain the requested
+`autoload` equality plus `option_name` range are skipped before their pages are
+decoded. A WordPress-shaped fixture keeps the matching transient rows in one
+index branch and makes the unrelated branch invalid, proving the native reader
+does not need healthy out-of-range index pages for constrained recovery.
+Remaining work includes expression indexes beyond `lower(column)`, optimized
+IN-list and expression-index seek bounds, custom collations, and composite
 ranges beyond one equality prefix plus one range column.
 
 ## Focused Native Mapping: Equality Partial Predicates
@@ -751,5 +757,5 @@ The native PHP test adds a WordPress-shaped `wp_options(option_name)` range
 lookup where the requested lower bound is in the index root's right-hand
 subtree and the left-hand child page is intentionally invalid. The lookup now
 returns `siteurl` without reading that out-of-range branch. Remaining seek work
-includes applying the same bounded traversal to composite prefix/range scans,
-expression indexes beyond the first `lower(column)` slice, and IN-list probes.
+includes expression indexes beyond the first `lower(column)` slice, expression
+seek bounds, and IN-list probes.

@@ -1466,36 +1466,317 @@ final class SQLiteDatabase
         }
 
         $matches = [];
-        foreach ($this->indexCells($rootPageNumber) as $cell) {
-            $record = $cell->record($this->header->textEncoding);
-            if (count($record->values) <= $rangeIndex) {
-                throw new \InvalidArgumentException('SQLite index record has fewer values than the constrained prefix range');
-            }
-
-            foreach ($equalityValues as $index => $value) {
-                if (self::compareSQLiteScalar($record->values[$index], $value, $columns[$index]->collation) !== 0) {
-                    continue 2;
-                }
-            }
-
-            $rangeValue = $record->values[$rangeIndex];
-            if (($lowerInclusive !== null || $upperBound !== null) && $rangeValue === null) {
-                continue;
-            }
-            if ($lowerInclusive !== null && self::compareSQLiteScalar($rangeValue, $lowerInclusive, $rangeColumn->collation) < 0) {
-                continue;
-            }
-            if ($upperBound !== null) {
-                $upperComparison = self::compareSQLiteScalar($rangeValue, $upperBound, $rangeColumn->collation);
-                if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
-                    continue;
-                }
-            }
-
-            $matches[] = $cell;
-        }
+        $visited = [];
+        $this->collectIndexCellsByColumnPrefixRange(
+            $rootPageNumber,
+            $equalityValues,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $columns,
+            $visited,
+            $matches,
+            false,
+            null,
+            false,
+            null,
+        );
 
         return $matches;
+    }
+
+    /**
+     * @param list<mixed> $equalityValues
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @param array<int, true> $visited
+     * @param list<SQLiteIndexCell> $matches
+     * @param null|list<mixed> $intervalLowerValues
+     * @param null|list<mixed> $intervalUpperValues
+     */
+    private function collectIndexCellsByColumnPrefixRange(
+        int $pageNumber,
+        array $equalityValues,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        array $columns,
+        array &$visited,
+        array &$matches,
+        bool $hasIntervalLower,
+        ?array $intervalLowerValues,
+        bool $hasIntervalUpper,
+        ?array $intervalUpperValues,
+    ): void {
+        if (
+            !self::columnPrefixRangeIntersectsInterval(
+                $equalityValues,
+                $lowerInclusive,
+                $upperBound,
+                $columns,
+                $hasIntervalLower,
+                $intervalLowerValues,
+                $hasIntervalUpper,
+                $intervalUpperValues,
+            )
+        ) {
+            return;
+        }
+        if (isset($visited[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite index b-tree bounded composite lookup reached page {$pageNumber} more than once");
+        }
+        $visited[$pageNumber] = true;
+
+        $page = $this->page($pageNumber);
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $pageNumber === 1 ? 100 : 0,
+        );
+        if ($header->pageType !== 'index-leaf' && $header->pageType !== 'index-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not an index b-tree page");
+        }
+
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        $cells = SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader);
+        if ($header->pageType === 'index-leaf') {
+            foreach ($cells as $cell) {
+                $record = $cell->record($this->header->textEncoding);
+                if (self::indexRecordMatchesColumnPrefixRange(
+                    $record->values,
+                    $equalityValues,
+                    $lowerInclusive,
+                    $upperBound,
+                    $upperInclusive,
+                    $columns,
+                )) {
+                    $matches[] = $cell;
+                }
+            }
+
+            return;
+        }
+
+        if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+            throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        $hasPrevious = false;
+        $previousValues = null;
+        foreach ($cells as $cell) {
+            if ($cell->leftChildPage === null || $cell->leftChildPage < 1) {
+                throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
+            }
+
+            $record = $cell->record($this->header->textEncoding);
+            $currentValues = $record->values;
+            $this->collectIndexCellsByColumnPrefixRange(
+                $cell->leftChildPage,
+                $equalityValues,
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $columns,
+                $visited,
+                $matches,
+                $hasPrevious ? true : $hasIntervalLower,
+                $hasPrevious ? $previousValues : $intervalLowerValues,
+                true,
+                $currentValues,
+            );
+
+            if (self::indexRecordMatchesColumnPrefixRange(
+                $record->values,
+                $equalityValues,
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $columns,
+            )) {
+                $matches[] = $cell;
+            }
+
+            $hasPrevious = true;
+            $previousValues = $currentValues;
+        }
+
+        $this->collectIndexCellsByColumnPrefixRange(
+            $header->rightMostPointer,
+            $equalityValues,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $columns,
+            $visited,
+            $matches,
+            $hasPrevious ? true : $hasIntervalLower,
+            $hasPrevious ? $previousValues : $intervalLowerValues,
+            $hasIntervalUpper,
+            $intervalUpperValues,
+        );
+    }
+
+    /**
+     * @param list<mixed> $recordValues
+     * @param list<mixed> $equalityValues
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     */
+    private static function indexRecordMatchesColumnPrefixRange(
+        array $recordValues,
+        array $equalityValues,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        array $columns,
+    ): bool {
+        $rangeIndex = count($equalityValues);
+        $rangeColumn = $columns[$rangeIndex] ?? null;
+        if (!$rangeColumn instanceof SQLiteIndexColumn) {
+            throw new \InvalidArgumentException('SQLite index range column metadata is missing');
+        }
+        if (count($recordValues) <= $rangeIndex) {
+            throw new \InvalidArgumentException('SQLite index record has fewer values than the constrained prefix range');
+        }
+
+        foreach ($equalityValues as $index => $value) {
+            if (self::compareSQLiteScalar($recordValues[$index], $value, $columns[$index]->collation) !== 0) {
+                return false;
+            }
+        }
+
+        $rangeValue = $recordValues[$rangeIndex];
+        if (($lowerInclusive !== null || $upperBound !== null) && $rangeValue === null) {
+            return false;
+        }
+        if ($lowerInclusive !== null && self::compareSQLiteScalar($rangeValue, $lowerInclusive, $rangeColumn->collation) < 0) {
+            return false;
+        }
+        if ($upperBound !== null) {
+            $upperComparison = self::compareSQLiteScalar($rangeValue, $upperBound, $rangeColumn->collation);
+            if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<mixed> $equalityValues
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @param null|list<mixed> $intervalLowerValues
+     * @param null|list<mixed> $intervalUpperValues
+     */
+    private static function columnPrefixRangeIntersectsInterval(
+        array $equalityValues,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        array $columns,
+        bool $hasIntervalLower,
+        ?array $intervalLowerValues,
+        bool $hasIntervalUpper,
+        ?array $intervalUpperValues,
+    ): bool {
+        $rangeIndex = count($equalityValues);
+        $prefixLength = count($equalityValues);
+        $rangeColumn = $columns[$rangeIndex] ?? null;
+        if (!$rangeColumn instanceof SQLiteIndexColumn) {
+            throw new \InvalidArgumentException('SQLite index range column metadata is missing');
+        }
+
+        if ($prefixLength > 0) {
+            if (
+                $hasIntervalUpper
+                && $intervalUpperValues !== null
+                && count($intervalUpperValues) >= $prefixLength
+                && self::compareIndexKeyValues(
+                    array_slice($intervalUpperValues, 0, $prefixLength),
+                    $equalityValues,
+                    array_slice($columns, 0, $prefixLength),
+                ) < 0
+            ) {
+                return false;
+            }
+            if (
+                $hasIntervalLower
+                && $intervalLowerValues !== null
+                && count($intervalLowerValues) >= $prefixLength
+                && self::compareIndexKeyValues(
+                    array_slice($intervalLowerValues, 0, $prefixLength),
+                    $equalityValues,
+                    array_slice($columns, 0, $prefixLength),
+                ) > 0
+            ) {
+                return false;
+            }
+        }
+
+        $physicalLower = null;
+        $physicalUpper = null;
+        if ($rangeColumn->descending) {
+            if ($upperBound !== null) {
+                $physicalLower = array_merge($equalityValues, [$upperBound]);
+            }
+            if ($lowerInclusive !== null) {
+                $physicalUpper = array_merge($equalityValues, [$lowerInclusive]);
+            }
+        } else {
+            if ($lowerInclusive !== null) {
+                $physicalLower = array_merge($equalityValues, [$lowerInclusive]);
+            }
+            if ($upperBound !== null) {
+                $physicalUpper = array_merge($equalityValues, [$upperBound]);
+            }
+        }
+
+        $constrainedColumns = array_slice($columns, 0, $rangeIndex + 1);
+        if (
+            $physicalLower !== null
+            && $hasIntervalUpper
+            && $intervalUpperValues !== null
+            && count($intervalUpperValues) >= $rangeIndex + 1
+            && self::compareIndexKeyValues(
+                array_slice($intervalUpperValues, 0, $rangeIndex + 1),
+                $physicalLower,
+                $constrainedColumns,
+            ) < 0
+        ) {
+            return false;
+        }
+        if (
+            $physicalUpper !== null
+            && $hasIntervalLower
+            && $intervalLowerValues !== null
+            && count($intervalLowerValues) >= $rangeIndex + 1
+            && self::compareIndexKeyValues(
+                array_slice($intervalLowerValues, 0, $rangeIndex + 1),
+                $physicalUpper,
+                $constrainedColumns,
+            ) > 0
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<mixed> $leftValues
+     * @param list<mixed> $rightValues
+     * @param list<SQLiteIndexColumn> $columns
+     */
+    private static function compareIndexKeyValues(array $leftValues, array $rightValues, array $columns): int
+    {
+        foreach ($columns as $index => $column) {
+            if (!array_key_exists($index, $leftValues) || !array_key_exists($index, $rightValues)) {
+                break;
+            }
+            $comparison = self::compareSQLiteScalar($leftValues[$index], $rightValues[$index], $column->collation);
+            if ($comparison !== 0) {
+                return $column->descending ? -$comparison : $comparison;
+            }
+        }
+
+        return count($leftValues) <=> count($rightValues);
     }
 
     /**
