@@ -468,6 +468,7 @@ return [
                 [
                     'proxy' => 'http://proxy-user:proxy-pass@proxy.example.test:8080',
                     'noProxy' => 'localhost,.bypass.test',
+                    'proxyAuthMethod' => 'digest',
                 ]
             ),
             'port-libs/0.1'
@@ -481,7 +482,9 @@ return [
         $t->same(true, $response->isSuccessful());
         $t->same('tcp://proxy.example.test:8080', $requests[0]['httpOptions']['proxy']);
         $t->same('http://proxy.example.test:8080', $requests[0]['httpOptions']['proxyUrl']);
+        $t->same('http', $requests[0]['httpOptions']['proxyType']);
         $t->same(true, $requests[0]['httpOptions']['requestFullUri']);
+        $t->same('digest', $requests[0]['httpOptions']['proxyAuthMethod']);
         $t->same('Basic ' . base64_encode('proxy-user:proxy-pass'), $requests[0]['httpOptions']['proxyAuthorization']);
         $t->same($requests[0]['httpOptions'], $requests[1]['httpOptions']);
         $t->same(null, $requests[0]['headers']['Proxy-Authorization'] ?? null);
@@ -557,7 +560,35 @@ return [
         $t->same([['http://proxy.example.test:8080', 'git.example.test']], $helperCalls);
         $t->same('Basic ' . base64_encode('helper-user:helper-pass'), $helperRequests[0]['proxyAuthorization']);
 
-        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'socks5://proxy.example.test:1080']));
+        $socksRequests = [];
+        $socksTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$socksRequests, $packet, $flush): array {
+                $socksRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'socks5h://socks.example.test',
+                'proxyAuthMethod' => 'gss-negotiate',
+            ]
+        );
+        $socksTransport->readAdvertisement();
+        $t->same('socks5h', $socksRequests[0]['proxyType']);
+        $t->same('tcp://socks.example.test:1080', $socksRequests[0]['proxy']);
+        $t->same('socks5h://socks.example.test:1080', $socksRequests[0]['proxyUrl']);
+        $t->same(false, $socksRequests[0]['requestFullUri']);
+        $t->same('negotiate', $socksRequests[0]['proxyAuthMethod']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'ftp://proxy.example.test:21']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyAuthMethod' => 'bearer']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
     },
