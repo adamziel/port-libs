@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "markerPDF",
-    "estimatedProgress": 7,
-    "suiteProgress": "cloned static inventory: 18 inspected upstream benchmark/test artifacts counted, 5 focused upstream source semantics mapped including benchmark scoring, 0 benchmark PDF/reference pairs mapped; upstream runner not executed",
-    "phpPass": 13,
+    "estimatedProgress": 8,
+    "suiteProgress": "cloned static inventory: 18 inspected upstream benchmark/test artifacts counted, 5 focused upstream source semantics plus 1 committed upstream-derived benchmark surrogate pair mapped, 0 external benchmark PDF/reference pairs mapped; upstream runner not executed",
+    "phpPass": 14,
     "phpFail": 0,
-    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output, wrapped-line dehyphenation before paragraph rendering, and CI-style quality scoring against expected import text.",
-    "phase": "cloned inventory + native benchmark scorer slice",
+    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output, wrapped-line dehyphenation before paragraph rendering, CI-style quality scoring against expected import text, and an upstream README-linked multicolcnn surrogate score fixture.",
+    "phase": "cloned inventory + upstream surrogate scoring slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, and upstream-style benchmark scoring for chunked text overlap quality checks.",
-    "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required; native scoring is mapped but no external benchmark PDF/reference pair is mapped yet.",
-    "latestCommit": "834a4dd",
-    "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and use the native BenchmarkScorer to map it to a PHP parity fixture before broadening layout/table/OCR behavior."
+    "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmark scoring for chunked text overlap quality checks, and a committed multicolcnn Marker-vs-Nougat surrogate score fixture from README-linked upstream examples.",
+    "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required. Native scoring and one committed upstream-derived surrogate pair are mapped, but no external benchmark PDF/reference archive pair is mapped yet.",
+    "latestCommit": "263deac",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate before broadening layout/table/OCR behavior."
 }

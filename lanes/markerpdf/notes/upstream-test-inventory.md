@@ -16,6 +16,12 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 The lane manifest counts 18 inspected benchmark/test artifacts for dashboard purposes: 1 CI workflow, 1 benchmark runner, 1 scoring module, 1 verifier, 6 benchmark documents, and 8 committed reference-like markdown outputs. This is a static inventory, not upstream pass parity.
 
+## Mapped Surrogate Pair
+
+- `fixtures/upstream-multicolcnn-surrogate.php` records a small excerpt pair from the README-linked committed outputs for `multicolcnn.pdf`: `data/examples/marker/multicolcnn.md` as Marker output and `data/examples/nougat/multicolcnn.md` as a reference-like surrogate.
+- `examples/upstream-surrogate-score.php` scores that pair with the native `BenchmarkScorer` and currently reports about `0.978` against a `0.80` threshold.
+- This is intentionally labeled a surrogate. It is not the external benchmark PDF/reference archive used by upstream CI, but it does map one committed upstream document-output pair through the native scoring path.
+
 ## Mapped Native Semantics
 
 - PDF content stream text operators feed Marker-style Markdown conversion.
@@ -23,7 +29,8 @@ The lane manifest counts 18 inspected benchmark/test artifacts for dashboard pur
 - `marker/postprocessors/markdown.py` hyphenated line dewrapping is mapped by `MarkdownPostProcessor::mergeLines`.
 - `marker/postprocessors/markdown.py` heading/list/text wrapping and hash escaping are mapped by `MarkdownPostProcessor::surroundBlock`.
 - `marker/benchmark/scoring.py` chunking, local-window overlap, and text score aggregation are mapped by `BenchmarkScorer`.
+- README-linked committed Marker/Nougat `multicolcnn` markdown outputs are mapped as an upstream-derived surrogate benchmark pair.
 
 ## Runner Status
 
-The full upstream runner was not executed. The workflow downloads `benchmark_data` from Google Drive and then installs Poetry dependencies including `torch`, `surya-ocr`, `pdftext`, `pypdfium2`, and `tabled-pdf`; the shallow clone contains no benchmark PDFs or references. Under the lane resource constraints, the defensible denominator for now is the cloned static inventory above, plus the natively ported benchmark scoring functions, not a local benchmark run.
+The full upstream runner was not executed. The workflow downloads `benchmark_data` from Google Drive and then installs Poetry dependencies including `torch`, `surya-ocr`, `pdftext`, `pypdfium2`, and `tabled-pdf`; the shallow clone contains no benchmark PDFs or references. Under the lane resource constraints, the defensible denominator for now is the cloned static inventory above, the natively ported benchmark scoring functions, and the committed README-linked surrogate pair, not a local benchmark run.

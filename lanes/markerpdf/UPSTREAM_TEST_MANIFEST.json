@@ -12,9 +12,10 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "18 inspected upstream benchmark/test artifacts: 1 CI workflow, 1 benchmark runner, 1 scoring module, 1 score verifier, 6 benchmark documents, and 8 committed reference-like markdown outputs",
-        "mapped": 5,
+        "mapped": 6,
         "mappedBenchmarkPairs": 0,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, and data/examples/*/*.md paths.",
+        "mappedBenchmarkSurrogatePairs": 1,
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, and data/examples/*/*.md paths. The mapped surrogate fixture samples the README-linked data/examples/marker/multicolcnn.md and data/examples/nougat/multicolcnn.md committed outputs for the same document.",
         "inventory": {
             "repositoryFiles": 78,
             "pythonFiles": 47,
@@ -55,23 +56,25 @@
             "PDF text movement operators define block-ready line boundaries before WordPress import.",
             "marker.postprocessors.markdown line_separator hyphen dewrapping joins split words across extracted lines.",
             "marker.postprocessors.markdown block_surround heading/list/text wrapping and hash escaping.",
-            "marker.benchmark.scoring chunk_text, overlap_score, and score_text chunked text-alignment workflow."
+            "marker.benchmark.scoring chunk_text, overlap_score, and score_text chunked text-alignment workflow.",
+            "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair while the external benchmark_data archive remains unavailable."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 5 focused upstream source semantics, including benchmark scoring; no upstream benchmark PDF/reference pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 5 focused upstream source semantics plus one committed upstream-derived benchmark surrogate pair; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, and upstream-style benchmark text scoring for chunked overlap quality checks.",
-        "phpBehaviorTests": 13,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text scoring for chunked overlap quality checks, and a README-linked multicolcnn committed-output surrogate score fixture.",
+        "phpBehaviorTests": 14,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
             "marker.postprocessors.markdown line_separator hyphen and sentence boundary rules",
             "marker.postprocessors.markdown block_surround heading/list/text Markdown wrapping",
-            "marker.benchmark.scoring chunk_text, overlap_score, and score_text benchmark quality scoring"
+            "marker.benchmark.scoring chunk_text, overlap_score, and score_text benchmark quality scoring",
+            "README-linked data/examples/marker and data/examples/nougat multicolcnn outputs as a committed benchmark surrogate pair"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, and a CI-style quality score for expected imported content.",
-    "nextTask": "Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture before broadening layout/table/OCR behavior."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, a CI-style quality score for expected imported content, and an upstream README-linked multicolcnn surrogate score fixture.",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate before broadening layout/table/OCR behavior."
 }

@@ -20,6 +20,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-quality-score.php` uses the native `BenchmarkScorer` port of `marker/benchmark/scoring.py` to compare extracted and dewrapped import text against expected WordPress post content. It emits a JSON score and checks whether the result clears a Marker CI-style quality threshold.
 
+`examples/upstream-surrogate-score.php` scores a small README-linked `multicolcnn.pdf` surrogate pair sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. This keeps benchmark scoring tied to an upstream document-output pair while the external `benchmark_data` PDF/reference archive remains unavailable in this VM.
+
 ## Next Task
 
-Acquire or sample one upstream benchmark PDF/reference pair and map it through the native `BenchmarkScorer` before broadening layout/table/OCR behavior.
+Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map another README-linked committed example surrogate before broadening layout/table/OCR behavior.
