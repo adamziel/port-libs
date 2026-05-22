@@ -122,6 +122,18 @@ per-file block-count summaries, availability includes `fromTemporary`
 candidates from shared devices with matching advertised file versions, and a
 planned WordPress media block request sets `Request.fromTemporary` when the
 only source is a peer's temporary file.
+The block-pull ordering slice now maps focused upstream
+`lib/model/blockpullreorderer.go`, `blockpullreorderer_test.go`, and
+`lib/config/blockpullorder.go` behavior: in-order leaves blocks untouched,
+random ordering shuffles block indexes, standard ordering sorts the local and
+remote Syncthing DeviceIDs, chunks blocks by device count with the same ceiling
+division as upstream, starts with the local device's chunk, then appends the
+remaining chunks in whole-chunk shuffled order. A bounded upstream runner was
+executed for this focused slice only: `go test ./lib/model -run
+'Test_chunk|Test_inOrderBlockPullReorderer_Reorder|Test_standardBlockPullReorderer_Reorder'
+-count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
@@ -357,8 +369,13 @@ session, and answered with a native BEP Response.
 Index, IndexUpdate, and DownloadProgress: the stream dispatcher invokes local
 WordPress media callbacks that update a catalog entry and a temporary-block
 progress map without shelling out.
+`examples/wordpress-block-pull-order.php` shows a large WordPress media archive
+being split into upstream standard pull chunks across three sorted Syncthing
+device IDs, with the local Playground peer's assigned chunk requested first and
+the remaining chunks following as whole ranges.
 
 ## Next Task
 
-Reassess whether a bounded upstream Go package runner is affordable, then
-choose the next narrow protocol/model slice.
+Map a bounded file-pull queue or device-activity slice from upstream
+`lib/model`, or run another focused upstream package test before the next
+protocol/model behavior slice.
