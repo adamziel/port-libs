@@ -2,6 +2,8 @@
 
 This **legacy post** links back to the [source archive](https://example.test/archive) and keeps `shortcodes` visible for follow-up cleanup.
 
+Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
+
 - Preserve editorial emphasis in imported paragraphs
 - Keep source links clickable for reviewer audits
 

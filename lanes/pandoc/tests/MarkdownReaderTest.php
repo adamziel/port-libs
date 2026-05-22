@@ -27,6 +27,38 @@ return [
         $t->same('https://example.test/source', $paragraph->children[5]->attr('url'));
         $t->same('code', $paragraph->children[7]->type);
     },
+    'maps upstream testsuite underscore emphasis strong and nested strong emphasis' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            'This is *emphasized*, and so _is this_.',
+            'This is **strong**, and so __is this__.',
+            'An *[emphasized link](/url)*.',
+            '***This is strong and em.***',
+            'So is ___this___ word.',
+        ]));
+
+        $emphasis = $document->children[0];
+        $strong = $document->children[1];
+        $link = $document->children[2]->children[1];
+        $nestedFull = $document->children[3]->children[0];
+        $nestedWord = $document->children[4]->children[1];
+
+        $t->same('emph', $emphasis->children[1]->type);
+        $t->same('emphasized', $emphasis->children[1]->children[0]->attr('text'));
+        $t->same('emph', $emphasis->children[3]->type);
+        $t->same('is this', $emphasis->children[3]->children[0]->attr('text'));
+        $t->same('strong', $strong->children[1]->type);
+        $t->same('strong', $strong->children[3]->type);
+        $t->same('is this', $strong->children[3]->children[0]->attr('text'));
+        $t->same('emph', $link->type);
+        $t->same('link', $link->children[0]->type);
+        $t->same('/url', $link->children[0]->attr('url'));
+        $t->same('strong', $nestedFull->type);
+        $t->same('emph', $nestedFull->children[0]->type);
+        $t->same('This is strong and em.', $nestedFull->children[0]->children[0]->attr('text'));
+        $t->same('strong', $nestedWord->type);
+        $t->same('emph', $nestedWord->children[0]->type);
+        $t->same('this', $nestedWord->children[0]->children[0]->attr('text'));
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -577,6 +609,12 @@ return [
         $t->contains('<table>' . "\n" . '<tr>' . "\n" . '<td><em>Legacy caption</em></td>' . "\n" . '<td><strong>Reviewer flag</strong></td>' . "\n" . '</tr>' . "\n" . '</table>', $blocks);
         $t->contains('<!-- Preserve migration audit marker -->', $blocks);
         $t->contains('<hr class="legacy-import-divider" />', $blocks);
+    },
+    'writes wordpress underscore and nested emphasis from import review notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Reviewer <em>import note</em> flags <strong><em>urgent media cleanup</em></strong> before publishing.</p>', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

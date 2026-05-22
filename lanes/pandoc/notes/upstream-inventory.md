@@ -35,6 +35,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` HTML Blocks rendered native AST slice inspected in
   this run: 161 lines, including 22 `RawBlock` markers, 9 `Div` markers, and 4
   `CodeBlock` markers
+- `test/testsuite.txt` Inline Markup section slice inspected in this run: 30
+  Markdown lines through the start of `# Smart quotes, ellipses, dashes`
+- `test/testsuite.native` Inline Markup rendered native AST slice inspected in
+  this run: 168 lines, including 9 `Emph` markers and 6 `Strong` markers
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
@@ -73,6 +77,10 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 - Bullet and ordered list blocks
 - Inline emphasis with `*text*`
 - Inline strong with `**text**`
+- Inline underscore emphasis/strong from the `# Inline Markup` section of
+  `test/testsuite.txt`, cross-checked against `test/testsuite.native`: `_is
+  this_` maps to `Emph`, `__is this__` maps to `Strong`, and triple `***`/`___`
+  delimiters map to Pandoc's `Strong [Emph [...]]` shape.
 - Inline code spans
 - Inline links with `[label](url)`
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
@@ -130,6 +138,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-47 tests, 233 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 73 test files, 4,153 assertions, and
+49 tests, 250 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 75 test files, 4,284 assertions, and
 0 failures after this lane batch in the shared dirty worktree.

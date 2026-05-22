@@ -49,6 +49,10 @@ tables remain in a WordPress HTML block while Markdown inside table cells is
 interpreted, HTML comments can carry migration audit markers, custom `<hr>`
 tags stay raw instead of being normalized into core separators, and tab-indented
 HTML snippets remain code blocks.
+The upstream `test/testsuite.txt` Inline Markup section is now represented for
+underscore emphasis/strong and triple-marker nesting: `_import note_` stays
+emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
+renders as nested strong emphasis in WordPress block HTML.
 
 ## Scenario Fixture
 
@@ -58,7 +62,8 @@ HTML snippets remain code blocks.
   reviewer follow-up item, parenthesized source-ID steps with nested roman
   reviewer checkpoints, definition-list import notes, an alternate-marker source
   glossary with nested ordered review tasks, a div-wrapped glossary audit note,
-  and a fenced PHP migration snippet.
+  underscore-delimited reviewer emphasis, nested urgent cleanup emphasis, and a
+  fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -90,8 +95,11 @@ HTML snippets remain code blocks.
 - Raw HTML tables, comments, and custom dividers render inside WordPress HTML
   blocks without shelling out to Pandoc, preserving legacy import annotations
   and table markup that reviewers may need to inspect.
+- Underscore emphasis and nested strong-emphasis render as normal WordPress
+  inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
+  Markdown exports.
 
 ## Next Task
 
-Map the `test/testsuite.txt` Inline Markup section for underscore
-emphasis/strong and nested strong-emphasis spans.
+Map the remaining `test/testsuite.txt` Inline Markup strikeout, superscript, and
+subscript cases.

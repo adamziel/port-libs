@@ -1336,24 +1336,12 @@ final class MarkdownReader
                 }
             }
 
-            if (substr($text, $offset, 2) === '**') {
-                $end = strpos($text, '**', $offset + 2);
-                if ($end !== false && $end > $offset + 2) {
-                    $this->flushText($buffer, $nodes);
-                    $nodes[] = new AstNode('strong', [], $this->parseInlines(substr($text, $offset + 2, $end - $offset - 2)));
-                    $offset = $end + 2;
-                    continue;
-                }
-            }
-
-            if ($text[$offset] === '*') {
-                $end = strpos($text, '*', $offset + 1);
-                if ($end !== false && $end > $offset + 1) {
-                    $this->flushText($buffer, $nodes);
-                    $nodes[] = new AstNode('emph', [], $this->parseInlines(substr($text, $offset + 1, $end - $offset - 1)));
-                    $offset = $end + 1;
-                    continue;
-                }
+            $emphasis = $this->tryParseEmphasisDelimiter($text, $offset);
+            if ($emphasis !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $emphasis['node'];
+                $offset = $emphasis['next'];
+                continue;
             }
 
             if ($text[$offset] === '[' && preg_match('/\G\[([^\]\[]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/', $text, $m, 0, $offset)) {
@@ -1374,6 +1362,99 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseEmphasisDelimiter(string $text, int $offset): ?array
+    {
+        $char = $text[$offset] ?? '';
+        if ($char !== '*' && $char !== '_') {
+            return null;
+        }
+
+        $runLength = $this->countDelimiterRun($text, $offset, $char);
+        foreach ([3, 2, 1] as $size) {
+            if ($runLength < $size || !$this->canOpenInlineDelimiter($text, $offset, $char, $size)) {
+                continue;
+            }
+
+            $end = $this->findClosingInlineDelimiter($text, $offset + $size, $char, $size);
+            if ($end === null || $end <= $offset + $size) {
+                continue;
+            }
+
+            $inner = $this->parseInlines(substr($text, $offset + $size, $end - $offset - $size));
+            $node = match ($size) {
+                3 => new AstNode('strong', [], [new AstNode('emph', [], $inner)]),
+                2 => new AstNode('strong', [], $inner),
+                default => new AstNode('emph', [], $inner),
+            };
+
+            return ['node' => $node, 'next' => $end + $size];
+        }
+
+        return null;
+    }
+
+    private function countDelimiterRun(string $text, int $offset, string $char): int
+    {
+        $count = 0;
+        $length = strlen($text);
+        while ($offset + $count < $length && $text[$offset + $count] === $char) {
+            $count++;
+        }
+
+        return $count;
+    }
+
+    private function findClosingInlineDelimiter(string $text, int $offset, string $char, int $size): ?int
+    {
+        $needle = str_repeat($char, $size);
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            if ($this->countDelimiterRun($text, $position, $char) >= $size
+                && $this->canCloseInlineDelimiter($text, $position, $char, $size)
+            ) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + 1);
+        }
+
+        return null;
+    }
+
+    private function canOpenInlineDelimiter(string $text, int $offset, string $char, int $size): bool
+    {
+        if ($char !== '_') {
+            return true;
+        }
+
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        $nextOffset = $offset + $size;
+        $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
+
+        return !$this->isAsciiAlnum($previous) || !$this->isAsciiAlnum($next);
+    }
+
+    private function canCloseInlineDelimiter(string $text, int $offset, string $char, int $size): bool
+    {
+        if ($char !== '_') {
+            return true;
+        }
+
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        $nextOffset = $offset + $size;
+        $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
+
+        return !$this->isAsciiAlnum($previous) || !$this->isAsciiAlnum($next);
+    }
+
+    private function isAsciiAlnum(string $char): bool
+    {
+        return $char !== '' && preg_match('/[A-Za-z0-9]/', $char) === 1;
     }
 
     private function countBackticks(string $text, int $offset): int
