@@ -50,12 +50,12 @@ final class MarkdownReader
                 $blocks[] = $docBookTable;
                 continue;
             }
-            $nestedHtmlDocumentTable = $paragraph === [] && $listStack === [] ? $this->tryReadNestedHtmlDocumentTableBlock($lines, $index) : null;
+            $nestedHtmlDocumentTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlDocumentTableBlock($lines, $index) : null;
             if ($nestedHtmlDocumentTable !== null) {
                 $blocks[] = $nestedHtmlDocumentTable;
                 continue;
             }
-            $nestedHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadNestedHtmlTableBlock($lines, $index) : null;
+            $nestedHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlTableBlock($lines, $index) : null;
             if ($nestedHtmlTable !== null) {
                 $blocks[] = $nestedHtmlTable;
                 continue;
@@ -832,7 +832,7 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
-    private function tryReadNestedHtmlDocumentTableBlock(array $lines, int &$index): ?AstNode
+    private function tryReadStructuredHtmlDocumentTableBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}(?:<!doctype\s+html\b|<html\b)/i', $line) !== 1) {
@@ -844,7 +844,7 @@ final class MarkdownReader
         for ($cursor = $index; $cursor < $count; $cursor++) {
             $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
             if (preg_match('/<\/html\s*>/i', $lines[$cursor]) === 1) {
-                $table = $this->parseNestedHtmlTable(implode("\n", $content));
+                $table = $this->parseStructuredHtmlTable(implode("\n", $content));
                 if ($table === null) {
                     return null;
                 }
@@ -861,7 +861,7 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
-    private function tryReadNestedHtmlTableBlock(array $lines, int &$index): ?AstNode
+    private function tryReadStructuredHtmlTableBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
@@ -874,7 +874,7 @@ final class MarkdownReader
         }
 
         [$html, $endIndex] = $balanced;
-        $table = $this->parseNestedHtmlTable($html);
+        $table = $this->parseStructuredHtmlTable($html);
         if ($table === null) {
             return null;
         }
@@ -918,7 +918,7 @@ final class MarkdownReader
         return null;
     }
 
-    private function parseNestedHtmlTable(string $html): ?AstNode
+    private function parseStructuredHtmlTable(string $html): ?AstNode
     {
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
@@ -941,7 +941,10 @@ final class MarkdownReader
         }
 
         $table = $this->firstDescendantElement($body, 'table');
-        if (!$table instanceof \DOMElement || !$this->htmlTableContainsNestedTable($table)) {
+        if (
+            !$table instanceof \DOMElement
+            || (!$this->htmlTableContainsNestedTable($table) && !$this->htmlTableHasStructuredBoundary($table))
+        ) {
             return null;
         }
 
@@ -959,9 +962,21 @@ final class MarkdownReader
         return false;
     }
 
+    private function htmlTableHasStructuredBoundary(\DOMElement $table): bool
+    {
+        foreach (['caption', 'colgroup', 'thead', 'tfoot'] as $name) {
+            if ($this->firstChildElement($table, $name) instanceof \DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function parseHtmlTableElement(\DOMElement $table): AstNode
     {
         $maxColumns = 0;
+        $caption = $this->firstChildElement($table, 'caption');
         $thead = $this->firstChildElement($table, 'thead');
         $tfoot = $this->firstChildElement($table, 'tfoot');
         $bodySections = $this->childElements($table, 'tbody');
@@ -977,11 +992,19 @@ final class MarkdownReader
         }
         $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
 
+        $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
         $attrs = [
-            'caption' => '',
+            'caption' => $captionInlines === [] ? '' : trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? ''),
             'alignments' => array_fill(0, $maxColumns, 'default'),
         ];
-        if ($maxColumns > 0) {
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        $widths = $this->readHtmlTableColumnWidths($table, $maxColumns);
+        if ($widths !== null) {
+            $attrs['widths'] = $widths;
+        } elseif ($maxColumns > 0) {
             $attrs['widths'] = array_fill(0, $maxColumns, 1 / $maxColumns);
         }
 
@@ -994,6 +1017,48 @@ final class MarkdownReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function readHtmlTableColumnWidths(\DOMElement $table, int $maxColumns): ?array
+    {
+        $colgroup = $this->firstChildElement($table, 'colgroup');
+        if (!$colgroup instanceof \DOMElement) {
+            return null;
+        }
+
+        $widths = [];
+        foreach ($this->childElements($colgroup, 'col') as $col) {
+            $width = $this->htmlColumnWidthPercent($col);
+            if ($width === null) {
+                return null;
+            }
+
+            $widths[] = $width;
+        }
+
+        if ($widths === [] || ($maxColumns > 0 && count($widths) !== $maxColumns)) {
+            return null;
+        }
+
+        return $widths;
+    }
+
+    private function htmlColumnWidthPercent(\DOMElement $col): ?float
+    {
+        $style = strtolower($col->getAttribute('style'));
+        if (preg_match('/width\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*%/', $style, $m) === 1) {
+            return (float) $m[1] / 100;
+        }
+
+        $width = trim($col->getAttribute('width'));
+        if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*%$/', $width, $m) === 1) {
+            return (float) $m[1] / 100;
+        }
+
+        return null;
     }
 
     /**
@@ -1098,9 +1163,21 @@ final class MarkdownReader
     private function parseHtmlInlineNode(\DOMNode $node): array
     {
         if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
-            $text = trim(preg_replace('/\s+/', ' ', $node->wholeText) ?? $node->wholeText);
+            $raw = $node->wholeText;
+            $trimmed = trim($raw);
+            if ($trimmed === '') {
+                return [];
+            }
 
-            return $text === '' ? [] : $this->parseInlines($text);
+            $text = trim(preg_replace('/\s+/', ' ', $raw) ?? $raw);
+            if (preg_match('/^\s/u', $raw) === 1) {
+                $text = ' ' . $text;
+            }
+            if (preg_match('/\s$/u', $raw) === 1) {
+                $text .= ' ';
+            }
+
+            return $this->parseInlines($text);
         }
 
         if (!$node instanceof \DOMElement) {
@@ -1115,6 +1192,12 @@ final class MarkdownReader
         }
         if (in_array($name, ['em', 'i'], true)) {
             return [new AstNode('emph', [], $children)];
+        }
+        if ($name === 'sup') {
+            return [new AstNode('superscript', [], $children)];
+        }
+        if ($name === 'sub') {
+            return [new AstNode('subscript', [], $children)];
         }
         if (in_array($name, ['code', 'kbd', 'samp'], true)) {
             return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];

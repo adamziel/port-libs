@@ -1098,6 +1098,106 @@ HTML;
         $t->contains('<p>Deep nested import table:</p>', $blocks);
         $t->contains('<td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>Outer note</td><td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>Inner posts</td><td>42</td></tr></tbody></table></td></tr></tbody></table></td><td>Batch status</td>', $blocks);
     },
+    'maps upstream html table caption colgroup thead and tfoot structure' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="nordics" data-source="wikipedia">
+<caption><p>States belonging to the <em>Nordics.</em></p></caption>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 30%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead class="simple-head">
+<tr>
+<th style="text-align: center;">Name</th>
+<th style="text-align: center;">Capital</th>
+<th style="text-align: center;">Population<br />
+(in 2018)</th>
+<th style="text-align: center;">Area<br />
+(in km<sup>2</sup>)</th>
+</tr>
+</thead>
+<tbody class="souvereign-states">
+<tr class="country">
+<th style="text-align: center;">Denmark</th>
+<td style="text-align: left;">Copenhagen</td>
+<td style="text-align: left;">5,809,502</td>
+<td style="text-align: left;">43,094</td>
+</tr>
+<tr class="country">
+<th style="text-align: center;">Finland</th>
+<td style="text-align: left;">Helsinki</td>
+<td style="text-align: left;">5,537,364</td>
+<td style="text-align: left;">338,145</td>
+</tr>
+<tr class="country">
+<th style="text-align: center;">Iceland</th>
+<td style="text-align: left;">Reykjavik</td>
+<td style="text-align: left;">343,518</td>
+<td style="text-align: left;">103,000</td>
+</tr>
+<tr class="country">
+<th style="text-align: center;">Norway</th>
+<td style="text-align: left;">Oslo</td>
+<td style="text-align: left;">5,372,191</td>
+<td style="text-align: left;">323,802</td>
+</tr>
+<tr class="country">
+<th style="text-align: center;">Sweden</th>
+<td style="text-align: left;">Stockholm</td>
+<td style="text-align: left;">10,313,447</td>
+<td style="text-align: left;">450,295</td>
+</tr>
+</tbody><tfoot>
+<tr id="summary">
+<td style="text-align: center;">Total</td>
+<td style="text-align: left;"></td>
+<td id="total-population" style="text-align: left;">27,376,022</td>
+<td id="total-area" style="text-align: left;">1,258,336</td>
+</tr>
+</tfoot>
+
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $captionInlines = $table->attr('captionInlines');
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $foot = $table->children[2];
+        $areaHeader = $head->children[0]->children[3];
+
+        $t->same(1, count($document->children));
+        $t->same('table', $table->type);
+        $t->same('States belonging to the Nordics.', $table->attr('caption'));
+        $t->same([0.3, 0.3, 0.2, 0.2], $table->attr('widths'));
+        $t->same(true, is_array($captionInlines));
+        $t->same('States belonging to the ', $captionInlines[0]->attr('text'));
+        $t->same('emph', $captionInlines[1]->type);
+        $t->same('Nordics.', $captionInlines[1]->children[0]->attr('text'));
+        $t->same('table_head', $head->type);
+        $t->same('table_body', $body->type);
+        $t->same('table_foot', $foot->type);
+        $t->same(5, count($body->children));
+        $t->same('center', $head->children[0]->children[0]->attr('align'));
+        $t->same(true, $body->children[0]->children[0]->attr('header'));
+        $t->same('Denmark', $body->children[0]->children[0]->attr('text'));
+        $t->same('Copenhagen', $body->children[0]->children[1]->attr('text'));
+        $t->same(['text', 'softbreak', 'text', 'superscript', 'text'], array_map(static fn ($node): string => $node->type, $areaHeader->children));
+        $t->same('2', $areaHeader->children[3]->children[0]->attr('text'));
+        $t->same('Total', $foot->children[0]->children[0]->attr('text'));
+        $t->same('27,376,022', $foot->children[0]->children[2]->attr('text'));
+    },
+    'writes wordpress structured html table sections from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Structured HTML import table:</p>', $blocks);
+        $t->contains('<figure class="wp-block-table"><table><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">States belonging to the <em>Nordics.</em></figcaption>', $blocks);
+        $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:left"></td><td style="text-align:left">27,376,022</td><td style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
+    },
     'maps upstream testsuite raw html comments hr blocks and indented html code' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '<!-- Comment -->',

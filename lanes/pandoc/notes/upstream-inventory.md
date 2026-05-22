@@ -115,6 +115,17 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   two-level nested-table AST shape and the full HTML document third-level case
   at the WordPress boundary; WordPress output preserves the third nested table
   rather than applying the AsciiDoc-specific downgrade.
+- `test/html-reader.html` table section inspected in this run: 366 HTML lines
+  from the upstream HTML reader fixture covering table head/body/foot sections,
+  omitted section tags, row headers, colspan, rowspan, and empty tables. This
+  run used it as bounded reader context without claiming full HTML reader
+  parity.
+- `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
+  from the upstream table writer artifacts, including caption inline emphasis,
+  four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
+  cells, `<br>` line breaks, and a superscript unit. The bounded PHP slice maps
+  this structured HTML table shape into the native table AST and WordPress
+  table output.
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -233,6 +244,15 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   flattens the third level because that target format only supports two table
   levels; the PHP WordPress writer records a separate target policy and
   preserves the third-level nested table HTML for reviewer inspection.
+- Structured HTML table imports from `test/tables/nordics.html5` are now
+  represented for the WordPress table boundary: tables with explicit
+  `caption`, `colgroup`, `thead`, or `tfoot` parse into table AST nodes,
+  caption inline emphasis is preserved, col widths become `ColWidth`-style
+  fractions, table head/body/foot sections remain distinct, row-header cells
+  stay marked as headers in the AST, `<br>` becomes a soft break, and
+  `<sup>`/`<sub>` inline content maps to script nodes. Simple non-structured
+  raw HTML tables still use the raw HTML path so legacy import-review markup
+  is not over-normalized.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
   single and double quotes become `quoted` AST nodes, apostrophes inside words
@@ -333,6 +353,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-92 tests, 647 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command also passed after this slice with 116 test
-files, 8,947 assertions, and 0 failures in the current shared worktree.
+98 tests, 697 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command also passed after this slice with 123 test
+files, 9,533 assertions, and 0 failures in the current shared worktree.

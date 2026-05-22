@@ -58,6 +58,12 @@ The same upstream fixture's third-level nested table case is mapped separately
 from Pandoc's AsciiDoc warning behavior: AsciiDoc downgrades because that target
 only supports two table levels, but the WordPress writer preserves the full
 third-level nested table HTML for migration reviewers.
+Structured HTML table imports from `test/tables/nordics.html5` now use the
+native table AST when an HTML table exposes `caption`, `colgroup`, `thead`, or
+`tfoot` boundaries. This lets WordPress imports preserve caption inline
+emphasis, explicit column widths, head/body/foot sections, row-header cells,
+soft line breaks, and superscript units while keeping plain non-structured raw
+tables on the existing reviewer-inspection HTML path.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -157,6 +163,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now also includes a third-level nested legacy HTML audit table,
   documenting the WordPress-specific policy to preserve deep review matrices
   rather than applying Pandoc's AsciiDoc-only two-level table downgrade.
+- The fixture now includes a structured HTML import table based on the upstream
+  `test/tables/nordics.html5` shape, exercising caption emphasis, colgroup
+  widths, thead/tbody/tfoot section preservation, row-header cells, soft line
+  breaks, and superscript units in WordPress table block output.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -209,6 +219,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Third-level nested legacy audit tables are preserved as nested WordPress
   table HTML, making the migration policy explicit for source documents that
   would trigger Pandoc's AsciiDoc depth warning.
+- Structured HTML import tables render as core WordPress table blocks with
+  preserved `<thead>`, `<tbody>`, `<tfoot>`, `<colgroup>`, caption inline
+  markup, row-header cell treatment, and superscript units without invoking
+  Pandoc.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.
@@ -255,6 +269,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map a bounded HTML reader table caption/thead/tfoot fixture from upstream
-`Tests.Readers.HTML` or command goldens so full HTML table imports preserve
-captions and section structure before broader HTML reader work.
+Map bounded HTML reader row-header and tag-omission cases from
+`test/html-reader.html` so omitted tbody/tfoot boundaries and row-header
+semantics are explicit before broader HTML reader work.
