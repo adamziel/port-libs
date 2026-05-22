@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Gitoxide\CredentialCascade;
+use PortLibs\Gitoxide\CredentialContext;
+
+$actions = [];
+$storePayloads = [];
+$erasePayloads = [];
+
+$cacheHelper = static function (string $action, string $payload) use (&$actions, &$storePayloads, &$erasePayloads): ?string {
+    $actions[] = "cache:{$action}";
+    if ($action === 'store') {
+        $storePayloads[] = $payload;
+
+        return null;
+    }
+    if ($action === 'erase') {
+        $erasePayloads[] = $payload;
+
+        return null;
+    }
+
+    return "username=expired-deploy\npassword=expired-token\npassword_expiry_utc=1\n";
+};
+
+$oauthHelper = static function (string $action, string $payload) use (&$actions, &$storePayloads, &$erasePayloads): ?string {
+    $actions[] = "oauth:{$action}";
+    if ($action === 'store') {
+        $storePayloads[] = $payload;
+
+        return null;
+    }
+    if ($action === 'erase') {
+        $erasePayloads[] = $payload;
+
+        return null;
+    }
+
+    return "oauth_refresh_token=wp-refresh-token\n";
+};
+
+$deployHelper = static function (string $action, string $payload) use (&$actions, &$storePayloads, &$erasePayloads): ?string {
+    $actions[] = "deploy:{$action}";
+    if ($action === 'store') {
+        $storePayloads[] = $payload;
+
+        return null;
+    }
+    if ($action === 'erase') {
+        $erasePayloads[] = $payload;
+
+        return null;
+    }
+
+    return "username=deploy-bot\npassword=wp-deploy-token\n";
+};
+
+$cascade = new CredentialCascade(
+    [$cacheHelper, $oauthHelper, $deployHelper],
+    useHttpPath: true,
+    nowUtc: 1711398853,
+);
+$result = $cascade->get(new CredentialContext(url: 'https://git.example.test/wp-content.git'));
+$cascade->store($result);
+$cascade->erase($result);
+
+$diagnosticContext = $result->context->redacted();
+$diagnosticBytes = $diagnosticContext->storageBytes();
+
+return [
+    'identity' => $result->identity(),
+    'contextPath' => $result->context->path,
+    'passwordExpiryUtc' => $result->context->passwordExpiryUtc,
+    'nextActionBytes' => $result->nextActionBytes(),
+    'actions' => $actions,
+    'storePayloads' => $storePayloads,
+    'erasePayloads' => $erasePayloads,
+    'diagnosticBytes' => $diagnosticBytes,
+    'secretsInDiagnosticLog' => str_contains($diagnosticBytes, 'wp-deploy-token')
+        || str_contains($diagnosticBytes, 'wp-refresh-token')
+        || str_contains($diagnosticBytes, 'expired-token'),
+    'wordpressUse' => 'A WordPress deployment tool can run a native credential cascade, ignore expired cached credentials, merge OAuth refresh metadata, and store or erase the final helper context without invoking git credential.',
+];

@@ -102,6 +102,14 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 `examples/wordpress-smart-http-socks-tls.php` documents an HTTPS receive-pack discovery flow through a SOCKS5h proxy using a configured CA file and normal peer verification. The focused transport test exercises the same boundary against a local TLS server: PHP opens the SOCKS tunnel, CONNECTs to `git.example.test:443`, negotiates TLS for the origin host, sends an origin-form smart HTTP request, and keeps proxy credentials out of origin headers.
 
+## WordPress Credential Context Example
+
+`examples/wordpress-credential-context.php` writes and reads native Git credential-helper context fields for a WordPress deployment repository. It preserves upstream helper protocol field order, derives a password-free display URL for `wp-content.git`, and redacts or clears the deployment password and OAuth refresh token before diagnostic logging.
+
+## WordPress Credential Cascade Example
+
+`examples/wordpress-credential-cascade.php` runs a native Git credential-helper cascade for a WordPress deployment repository. It ignores an expired cached deploy token, carries OAuth refresh metadata into the final complete identity, and fans out store/erase helper payloads after the deployment decision without invoking `git credential`.
+
 ## WordPress Reference Transaction Example
 
 `examples/wordpress-reference-transaction.php` promotes a tenant-scoped production branch, deletes a reviewed plugin branch, and updates `HEAD` inside `refs/namespaces/site-a/` while returning store-relative ref names and symbolic targets. This models the bounded `git update-ref` behavior a multisite deployment tool needs to publish or prune review refs without invoking the Git binary.

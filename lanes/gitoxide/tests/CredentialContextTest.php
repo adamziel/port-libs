@@ -1,0 +1,139 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Gitoxide\CredentialContext;
+
+return [
+    'credential context encodes and decodes git helper protocol fields' => static function (TestRunner $t): void {
+        $context = new CredentialContext(
+            protocol: 'https',
+            host: 'github.com',
+            path: 'byron/gitoxide',
+            username: 'user',
+            password: 'pass',
+            oauthRefreshToken: 'refresh',
+            passwordExpiryUtc: 1711398853,
+            url: 'https://github.com/byron/gitoxide',
+            quit: true,
+        );
+
+        $bytes = $context->storageBytes();
+        $t->same(
+            "url=https://github.com/byron/gitoxide\npath=byron/gitoxide\nprotocol=https\nhost=github.com\nusername=user\npassword=pass\noauth_refresh_token=refresh\npassword_expiry_utc=1711398853\n",
+            $bytes,
+        );
+
+        $t->same(false, str_contains($bytes, 'quit='));
+
+        $decoded = CredentialContext::fromBytes($bytes);
+        $t->same('https', $decoded->protocol);
+        $t->same('github.com', $decoded->host);
+        $t->same('byron/gitoxide', $decoded->path);
+        $t->same('user', $decoded->username);
+        $t->same('pass', $decoded->password);
+        $t->same('refresh', $decoded->oauthRefreshToken);
+        $t->same(1711398853, $decoded->passwordExpiryUtc);
+        $t->same('https://github.com/byron/gitoxide', $decoded->url);
+        $t->same(null, $decoded->quit, 'quit is not serialized by write_to');
+        $t->same(true, CredentialContext::fromBytes("quit=true\nurl=https://example.com")->quit);
+    },
+    'credential context parser skips unknown fields and stops at blank line' => static function (TestRunner $t): void {
+        $input = "protocol=https\nhost=example.com\nunknown=value\n\npassword=secr3t\nusername=bob";
+        $context = CredentialContext::fromBytes($input);
+
+        $t->same('https', $context->protocol);
+        $t->same('example.com', $context->host);
+        $t->same(null, $context->username);
+        $t->same(null, $context->password);
+
+        $t->same(true, CredentialContext::fromBytes("quit=42\n")->quit);
+        $t->same(true, CredentialContext::fromBytes("quit=-42\n")->quit);
+        $t->same(true, CredentialContext::fromBytes("quit=on\n")->quit);
+        $t->same(false, CredentialContext::fromBytes("quit=0\n")->quit);
+        $t->same(false, CredentialContext::fromBytes("quit=no\n")->quit);
+    },
+    'credential context validates helper protocol bytes' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("url=https://foo\0\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("not-a-field\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(path: "foo\nbar"))->storageBytes());
+    },
+    'credential context url and prompt helpers match gix credentials context' => static function (TestRunner $t): void {
+        $t->same(null, (new CredentialContext())->toUrl());
+        $t->same('https://', (new CredentialContext(protocol: 'https'))->toUrl());
+        $t->same('https://user@', (new CredentialContext(protocol: 'https', username: 'user'))->toUrl());
+        $t->same('https://host', (new CredentialContext(protocol: 'https', host: 'host'))->toUrl());
+        $t->same('file:///dir/git', (new CredentialContext(protocol: 'file', path: 'dir/git'))->toUrl());
+        $t->same('file:///dir/git', (new CredentialContext(protocol: 'file', path: '/dir/git'))->toUrl());
+        $t->same(
+            'https://user@example.com:8080/GitoxideLabs/gitoxide',
+            (new CredentialContext(
+                protocol: 'https',
+                host: 'example.com:8080',
+                path: 'GitoxideLabs/gitoxide',
+                username: 'user',
+                password: 'secret',
+            ))->toUrl(),
+        );
+        $t->same('Username: ', (new CredentialContext())->toPrompt('Username'));
+        $t->same('Password for https://host: ', (new CredentialContext(protocol: 'https', host: 'host'))->toPrompt('Password'));
+    },
+    'credential context destructures urls with upstream http path rules' => static function (TestRunner $t): void {
+        $ssh = (new CredentialContext(url: 'ssh://user@host:21/path'))->destructureUrl();
+        $t->same('ssh', $ssh->protocol);
+        $t->same('user', $ssh->username);
+        $t->same('host:21', $ssh->host);
+        $t->same('path', $ssh->path);
+
+        $http = (new CredentialContext(url: 'http://user:password@host/path'))->destructureUrl();
+        $t->same('http', $http->protocol);
+        $t->same('user', $http->username);
+        $t->same('password', $http->password);
+        $t->same('host', $http->host);
+        $t->same(null, $http->path);
+
+        $withHttpPath = (new CredentialContext(url: 'https://github.com/byron/gitoxide/'))->destructureUrl(true);
+        $t->same('github.com', $withHttpPath->host);
+        $t->same('byron/gitoxide', $withHttpPath->path);
+
+        $composed = (new CredentialContext(
+            protocol: 'https',
+            host: 'github.com',
+            path: 'org/repo',
+            username: 'user',
+            password: 'pass-to-be-ignored',
+        ))->destructureUrl();
+        $t->same('https://user@github.com/org/repo', $composed->url);
+        $t->same('org/repo', $composed->path);
+        $t->same(null, $composed->password);
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(host: 'github.com'))->destructureUrl());
+        $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(protocol: 'https'))->destructureUrl());
+    },
+    'credential context redacts and clears secrets for logs' => static function (TestRunner $t): void {
+        $context = new CredentialContext(
+            protocol: 'https',
+            host: 'git.example.test',
+            username: 'deploy',
+            password: 'secret',
+            oauthRefreshToken: 'refresh',
+        );
+
+        $t->same('<redacted>', $context->redacted()->password);
+        $t->same('<redacted>', $context->redacted()->oauthRefreshToken);
+        $t->same(null, $context->clearSecrets()->password);
+        $t->same(null, $context->clearSecrets()->oauthRefreshToken);
+    },
+    'wordpress credential context fixture supports deployment helper exchange' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-credential-context.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-credential-context.php';
+
+        $t->contains("protocol=https\n", $fixture['requestBytes']);
+        $t->contains("host=git.example.test\n", $fixture['requestBytes']);
+        $t->same('https://deploy-bot@git.example.test/wp-content.git', $fixture['credentialUrl']);
+        $t->same(null, $fixture['clearedPassword']);
+        $t->contains('password=<redacted>', $fixture['redactedBytes']);
+        $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
+        $t->same(false, $summary['secretsInCleartextLog']);
+    },
+];
