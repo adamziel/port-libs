@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "esbuild",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; lexer and import/export analysis slices mapped; upstream suite not executed",
+    "estimatedProgress": 6,
+    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; upstream `make test` now passes in a detached runner worktree with Nix Go/Node/OpenSSL; lexer and import/export analysis slices mapped",
     "phpPass": 10,
     "phpFail": 0,
     "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights and classifies a WordPress block view script importing @wordpress/dom-ready.",
-    "phase": "cloned static upstream inventory plus lexer and import/export analysis slices",
-    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, package/relative source classification, and WordPress package imports.",
-    "blocker": "Full upstream runner not executed: no go or deno binary in this environment, and make test also requires hydrating checkout plus installing Node dependencies.",
+    "phase": "cloned static inventory plus upstream make test runner evidence and lexer/import-export slices",
+    "audit": "audited 2026-05-22: upstream make test passes locally; native PHP smoke coverage still maps 10 tests, not full upstream parity",
+    "currentWork": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, package/relative source classification, WordPress package imports, and upstream `make test` runner evidence from a detached hydrated worktree.",
+    "blocker": "Resolved the prior missing Go/Node/OpenSSL checkout blocker for the core upstream runner: a detached runner worktree plus `nix-shell -p go nodejs openssl` runs `make test` successfully. Remaining release-extra coverage is `make test-all` with Deno, WASM browser/node, typecheck, and Yarn PnP targets.",
     "latestCommit": "45da607",
     "nextTask": "Map additional parser/printer syntax such as import attributes, import.meta/new URL asset references, or TypeScript import/export forms."
 }

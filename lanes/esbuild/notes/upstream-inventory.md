@@ -21,9 +21,41 @@
 
 The lane denominator is the 2,567 counted upstream test entry points made from 1,391 Go tests, 331 JS API cases, 97 plugin cases, and 748 end-to-end CLI cases. The larger helper and snapshot counts are tracked as subcase coverage targets, not runner pass parity.
 
-## Runner Status
+## Runner Evidence
 
-The full upstream runner was not executed in this worker slice. `make test` runs Go unit tests and vet plus Node-based source-map, end-to-end, JS API, plugin, register, node-unref, and decorator tests. `make test-all` adds Deno, WASM browser/node, typecheck, and Yarn PnP coverage. This environment has no `go` binary and no `deno` binary, and running the full target would also require hydrating the checkout and installing Node dependencies under `scripts/node_modules`. The current inventory is static upstream coverage, not upstream runner parity.
+The original inventory cache remains a blob-filtered/no-checkout cache with deletion status, so the runner was executed from a separate detached worktree instead of destructively restoring that cache:
+
+```text
+git worktree add --detach ../esbuild-runner HEAD
+```
+
+The first runner pass installed the missing Go/Node toolchain through Nix and let the Makefile install its locked `scripts/node_modules` dependencies:
+
+```text
+nix-shell -p go nodejs --run 'go version && node -v && npm -v && make test'
+```
+
+That passed, but `scripts/end-to-end-tests.js` skipped HTTPS cases because `openssl` was not on PATH. The runner was then rerun with OpenSSL available:
+
+```text
+nix-shell -p go nodejs openssl --run 'go version && node -v && openssl version && make test'
+```
+
+Result: passed. The run covered Go tests and vet plus the Node source-map, end-to-end, JS API, plugin, register, node-unref, and decorator targets. Environment evidence:
+
+- Go: `go1.24.10`
+- Node: `v22.20.0`
+- npm: `10.9.3`
+- OpenSSL: `OpenSSL 3.4.3`
+
+Deno is also available through Nix for the later release-extra lane:
+
+```text
+nix-shell -p deno --run 'deno --version'
+deno 2.2.12
+```
+
+`make test-all` was not executed in this slice. It adds Deno tests, WASM node/browser tests, TypeScript typechecks, and Yarn PnP coverage and would also build upstream's custom Go 1.26.1 compiler plus browser/WASM artifacts. Treat the current evidence as core upstream `make test` parity, not release-extra coverage.
 
 ## Current Native Mapping
 

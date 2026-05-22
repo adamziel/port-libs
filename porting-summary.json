@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 14:10:01 UTC",
-    "averageProgressPercent": "11.9",
+    "generated": "2026-05-22 14:16:49 UTC",
+    "averageProgressPercent": "12.0",
     "lanes": [
         {
             "library": "difftastic",
@@ -36,18 +36,18 @@
         },
         {
             "library": "esbuild",
-            "progressPercent": "5.0",
-            "suite": "cloned-static-inventory",
-            "benchmark": "cloned-static-inventory",
+            "progressPercent": "6.0",
+            "suite": "cloned-static-inventory-plus-make-test-runner-evidence",
+            "benchmark": "cloned-static-inventory-plus-make-test-runner-evidence",
             "denominator": "2,567",
             "mapped": "10",
             "coverage": "10 / 2,567",
             "php": "10 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static upstream inventory plus lexer and import/...",
+            "phase": "cloned static inventory plus upstream make test runner...",
             "audit": "audited 2026-05-22",
             "nextTarget": "Map additional parser/printer syntax such as import attributes, import.meta/new URL asset...",
-            "blocker": "upstream runner not executed",
+            "blocker": "Resolved the prior missing Go/Node/OpenSSL checkout blocker for the core...",
             "commit": "45da607"
         },
         {

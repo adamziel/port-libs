@@ -10,10 +10,10 @@
         "architecture": "Go JS/TS/JSX/CSS parser, transformer, printer, linker, bundler, minifier, plugin API, CLI, Node API, browser/WASM runtime, and resolver."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory",
+        "status": "cloned-static-inventory-plus-make-test-runner-evidence",
         "total": "2,567 counted upstream test entry points: 1,391 Go func Test* functions, 331 JS API async cases, 97 plugin async cases, and 748 end-to-end CLI cases",
         "mapped": 10,
-        "source": "Shallow blob-filtered upstream clone in .upstream-cache/esbuild at 6a794dff68e6a43539f6da671e3080efdf11ca70; counted paths with git ls-tree and hydrated only targeted metadata/test files with git show.",
+        "source": "Shallow blob-filtered upstream clone in .upstream-cache/esbuild at 6a794dff68e6a43539f6da671e3080efdf11ca70; counted paths with git ls-tree and hydrated only targeted metadata/test files with git show. A separate detached runner worktree in .upstream-cache/esbuild-runner was materialized at the same commit so the dirty/no-checkout inventory cache did not need destructive restoration. With Go, Node, npm, and OpenSSL supplied by nix-shell, upstream `make test` passes locally.",
         "inventory": {
             "repositoryPaths": 349,
             "testRelatedPaths": 63,
@@ -45,18 +45,34 @@
             }
         },
         "runnerStatus": {
-            "executed": false,
-            "reason": "The full upstream runner was not executed in this worker slice. `make test` runs Go unit tests and vet plus Node-based source-map, end-to-end, JS API, plugin, register, node-unref, and decorator tests. `make test-all` adds Deno, WASM browser/node, typecheck, and Yarn PnP coverage. This environment has no `go` binary and no `deno` binary, and running the full target would also require hydrating the checkout and installing Node dependencies under scripts/node_modules. The current denominator is static upstream inventory, not upstream runner parity.",
-            "probes": [
+            "executed": true,
+            "summary": "The prior missing Go/Node dependency and checkout-hydration blocker is resolved for the core upstream runner. A detached runner worktree was created from the upstream cache, Nix supplied the missing toolchain, `scripts/npm ci` installed the locked Node test dependencies, and `make test` passes locally.",
+            "environment": {
+                "go": "go1.24.10 from `nix-shell -p go`",
+                "node": "22.20.0 from `nix-shell -p nodejs`",
+                "npm": "10.9.3",
+                "openssl": "OpenSSL 3.4.3 from `nix-shell -p openssl`",
+                "denoAvailable": "deno 2.2.12 from `nix-shell -p deno`; not used by `make test`"
+            },
+            "commands": [
                 {
-                    "command": "git ls-tree -r --name-only HEAD",
-                    "result": "counted 349 repository paths and 63 test-related paths without checking out the full tree"
+                    "command": "git worktree add --detach ../esbuild-runner HEAD",
+                    "result": "passed; materialized a clean upstream runner worktree at 6a794dff68e6a43539f6da671e3080efdf11ca70 without restoring the dirty inventory cache"
                 },
                 {
-                    "command": "go version; deno --version",
-                    "result": "go: command not found; deno: command not found"
+                    "command": "nix-shell -p go nodejs --run 'go version && node -v && npm -v && make test'",
+                    "result": "passed the core upstream runner, but end-to-end HTTPS cases were skipped because openssl was absent from PATH"
+                },
+                {
+                    "command": "nix-shell -p go nodejs openssl --run 'go version && node -v && openssl version && make test'",
+                    "result": "passed: Go tests and vet plus source-map, end-to-end, JS API, plugin, register, node-unref, and decorator Node test targets all completed successfully"
+                },
+                {
+                    "command": "nix-shell -p deno --run 'deno --version'",
+                    "result": "passed; Deno 2.2.12 is available in the Nix store for the later release-extra `make test-all` lane"
                 }
-            ]
+            ],
+            "releaseExtrasNotRun": "`make test-all` was not executed in this slice. It adds Deno tests, WASM node/browser tests, TypeScript typechecks, and Yarn PnP coverage and would also build the upstream custom Go 1.26.1 compiler plus browser/WASM artifacts. The core upstream `make test` runner now has local pass evidence."
         },
         "mappedSemantics": [
             "Comments are skipped, and unterminated multi-line comments raise a native lexer error corresponding to upstream TestComment coverage.",
@@ -71,7 +87,7 @@
             "WordPress package imports are distinguished from relative asset imports and URL imports without invoking Node/npm."
         ],
         "inventoryPath": "lanes/esbuild/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 10 focused lane tests against a 2,567-entry upstream test inventory."
+        "warning": "The core upstream esbuild `make test` runner now passes locally against the upstream Go/Node implementation at this checkout. Native PHP progress still maps 10 focused lane tests against the 2,567-entry upstream test inventory; this is not full native PHP parity yet. Release-extra `make test-all` coverage remains separate."
     },
     "nativeImplementation": {
         "language": "PHP",
