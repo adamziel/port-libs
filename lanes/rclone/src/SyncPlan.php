@@ -379,6 +379,72 @@ final class SyncPlan
     }
 
     /**
+     * @param array{
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool
+     * } $options
+     * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
+     */
+    public function copyFile(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $destinationPath,
+        string $sourcePath,
+        array $options = [],
+    ): array {
+        return $this->moveOrCopyFile($destination, $source, $destinationPath, $sourcePath, true, $options);
+    }
+
+    /**
+     * @param array{
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool
+     * } $options
+     * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
+     */
+    public function moveFile(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $destinationPath,
+        string $sourcePath,
+        array $options = [],
+    ): array {
+        return $this->moveOrCopyFile($destination, $source, $destinationPath, $sourcePath, false, $options);
+    }
+
+    /**
      * @return array{usedDirMove: bool, fallbackReason: ?string, moved: list<ObjectInfo>}
      */
     public function moveDirectory(MemoryProvider $provider, string $sourceDir, string $targetDir): array
@@ -453,6 +519,313 @@ final class SyncPlan
             'fallbackReason' => $fallbackReason,
             'moved' => $moved,
         ];
+    }
+
+    /**
+     * @param array{
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool
+     * } $options
+     * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
+     */
+    private function moveOrCopyFile(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $destinationPath,
+        string $sourcePath,
+        bool $copy,
+        array $options,
+    ): array {
+        $destinationPath = self::normalizePath($destinationPath);
+        $sourcePath = self::normalizePath($sourcePath);
+        $result = $this->fileOperationResult();
+
+        if ($source === $destination && $sourcePath === $destinationPath) {
+            $result['skipped'] = true;
+
+            return $result;
+        }
+
+        $sourceInfo = $source->info($sourcePath);
+        if (!$copy && $this->needsCaseInsensitiveFileMove($destination, $source, $destinationPath, $sourcePath)) {
+            $result['moved'] = $this->moveCaseInsensitiveFile($destination, $destinationPath, $sourcePath);
+            $result['caseInsensitiveMove'] = true;
+
+            return $result;
+        }
+
+        $noCheckDest = (bool) ($options['noCheckDest'] ?? false);
+        $targetInfo = $noCheckDest ? null : $this->optionalInfo($destination, $destinationPath);
+        if (!$noCheckDest && $targetInfo !== null && (bool) ($options['ignoreExisting'] ?? false)) {
+            $result['skipped'] = true;
+
+            return $result;
+        }
+
+        $needsTransfer = $this->needsTransfer(
+            $source,
+            $destination,
+            $sourceInfo,
+            $targetInfo,
+            (bool) ($options['ignoreTimes'] ?? false),
+            (bool) ($options['updateOlder'] ?? false),
+            (bool) ($options['noUpdateModTime'] ?? false),
+            (int) ($options['modifyWindowSeconds'] ?? 1),
+            (bool) ($options['checksum'] ?? false),
+            (bool) ($options['immutable'] ?? false),
+            (bool) ($options['refreshTimes'] ?? false),
+        );
+
+        if (!$needsTransfer) {
+            if (!$copy && $targetInfo !== null && !$this->sameProviderObject($source, $sourceInfo, $destination, $targetInfo)) {
+                $result['deletedSource'] = $source->delete($sourceInfo->path);
+            } else {
+                $result['skipped'] = true;
+            }
+
+            return $result;
+        }
+
+        if ($this->findEqualReference($sourceInfo, $targetInfo, $options['compareDest'] ?? []) !== null) {
+            if (!$copy && $targetInfo !== null && !$this->sameProviderObject($source, $sourceInfo, $destination, $targetInfo)) {
+                $result['deletedSource'] = $source->delete($sourceInfo->path);
+            } else {
+                $result['skipped'] = true;
+            }
+
+            return $result;
+        }
+
+        $backup = $options['backup'] ?? null;
+        $backupPrefix = (string) ($options['backupPrefix'] ?? '');
+        $suffix = (string) ($options['suffix'] ?? '');
+        $suffixKeepExtension = (bool) ($options['suffixKeepExtension'] ?? false);
+        $copyDestReference = $this->findEqualReference($sourceInfo, $targetInfo, $options['copyDest'] ?? []);
+        if ($copyDestReference !== null) {
+            if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $result['backup'] = $this->moveToBackup(
+                    $destination,
+                    $targetInfo->path,
+                    $backup,
+                    $backupPrefix,
+                    $suffix,
+                    $suffixKeepExtension,
+                );
+                $targetInfo = null;
+            }
+            $copied = $copyDestReference['provider']->copyTo(
+                $copyDestReference['path'],
+                $destination,
+                $targetInfo?->path ?? $destinationPath,
+            );
+            if ($copy) {
+                $result['copied'] = $copied;
+            } else {
+                $result['moved'] = $copied;
+                if (!$this->sameProviderObject($source, $sourceInfo, $destination, $copied)) {
+                    $result['deletedSource'] = $source->delete($sourceInfo->path);
+                }
+            }
+
+            return $result;
+        }
+
+        if ($targetInfo !== null && (bool) ($options['immutable'] ?? false)) {
+            throw new \RuntimeException('immutable file modified');
+        }
+
+        if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+            $result['backup'] = $this->moveToBackup(
+                $destination,
+                $targetInfo->path,
+                $backup,
+                $backupPrefix,
+                $suffix,
+                $suffixKeepExtension,
+            );
+            $targetInfo = null;
+        }
+
+        if ($copy) {
+            try {
+                $copyResult = $this->copyFileObject(
+                    $source,
+                    $sourceInfo->path,
+                    $destination,
+                    $targetInfo?->path ?? $destinationPath,
+                    $options,
+                );
+            } catch (\RuntimeException $throwable) {
+                $result['cleanedPartial'] = true;
+                throw $throwable;
+            }
+            $result['copied'] = $copyResult['object'];
+            $result['partialPath'] = $copyResult['partialPath'];
+
+            return $result;
+        }
+
+        if ($source === $destination) {
+            $result['moved'] = $source->serverSideMoveTo($sourceInfo->path, $destination, $targetInfo?->path ?? $destinationPath);
+
+            return $result;
+        }
+
+        try {
+            $copyResult = $this->copyFileObject(
+                $source,
+                $sourceInfo->path,
+                $destination,
+                $targetInfo?->path ?? $destinationPath,
+                $options,
+            );
+        } catch (\RuntimeException $throwable) {
+            $result['cleanedPartial'] = true;
+            throw $throwable;
+        }
+        $result['moved'] = $copyResult['object'];
+        $result['partialPath'] = $copyResult['partialPath'];
+        if (!$this->sameProviderObject($source, $sourceInfo, $destination, $copyResult['object'])) {
+            $result['deletedSource'] = $source->delete($sourceInfo->path);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
+     */
+    private function fileOperationResult(): array
+    {
+        return [
+            'copied' => null,
+            'moved' => null,
+            'deletedSource' => null,
+            'backup' => null,
+            'skipped' => false,
+            'caseInsensitiveMove' => false,
+            'partialPath' => null,
+            'cleanedPartial' => false,
+        ];
+    }
+
+    private function needsCaseInsensitiveFileMove(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $destinationPath,
+        string $sourcePath,
+    ): bool {
+        return $source === $destination
+            && $destination->isCaseInsensitive()
+            && $destinationPath !== $sourcePath
+            && strtolower($destinationPath) === strtolower($sourcePath);
+    }
+
+    private function moveCaseInsensitiveFile(MemoryProvider $provider, string $destinationPath, string $sourcePath): ObjectInfo
+    {
+        $temporaryPath = $destinationPath . '-rclone-move-' . substr(hash('sha256', $sourcePath . "\0" . $destinationPath), 0, 8);
+        if ($this->optionalInfo($provider, $temporaryPath) !== null) {
+            throw new \RuntimeException('found an already existing file with a randomly generated name. Try the operation again');
+        }
+
+        $temporary = $provider->serverSideMoveTo($sourcePath, $provider, $temporaryPath);
+
+        return $provider->serverSideMoveTo($temporary->path, $provider, $destinationPath);
+    }
+
+    /**
+     * @param array{partialUploads?: bool, partialSuffix?: string, simulatePartialTransferError?: bool} $options
+     * @return array{object: ObjectInfo, partialPath: ?string}
+     */
+    private function copyFileObject(
+        MemoryProvider $source,
+        string $sourcePath,
+        MemoryProvider $destination,
+        string $destinationPath,
+        array $options,
+    ): array {
+        $partialPath = null;
+        $copyPath = $destinationPath;
+        if (
+            (bool) ($options['partialUploads'] ?? false)
+            && $destination->supportsDirectServerSideMove()
+            && !str_ends_with($destinationPath, '.rclonelink')
+        ) {
+            $partialSuffix = (string) ($options['partialSuffix'] ?? '.partial');
+            if (strlen($partialSuffix) > 16) {
+                throw new \RuntimeException('expecting length of --partial-suffix to be not greater than 16 but got ' . strlen($partialSuffix));
+            }
+            $partialPath = $this->partialCopyPath($destinationPath, $source->info($sourcePath), $partialSuffix);
+            $copyPath = $partialPath;
+        }
+
+        $copied = $source->copyTo($sourcePath, $destination, $copyPath);
+        if ((bool) ($options['simulatePartialTransferError'] ?? false)) {
+            if ($partialPath !== null) {
+                $destination->delete($partialPath);
+            }
+            throw new \RuntimeException('failed to copy: simulated partial transfer error');
+        }
+
+        if ($partialPath !== null && $partialPath !== $destinationPath) {
+            $copied = $destination->serverSideMoveTo($partialPath, $destination, $destinationPath);
+        }
+
+        return [
+            'object' => $copied,
+            'partialPath' => $partialPath,
+        ];
+    }
+
+    private function partialCopyPath(string $destinationPath, ObjectInfo $sourceInfo, string $partialSuffix): string
+    {
+        $suffix = sprintf(
+            '.%08x%s',
+            crc32($destinationPath . "\0" . $sourceInfo->size . "\0" . $sourceInfo->sha256),
+            $partialSuffix,
+        );
+        $base = self::pathBase($destinationPath);
+        if (strlen($base) <= 100) {
+            return $destinationPath . $suffix;
+        }
+
+        return substr($destinationPath, 0, max(0, strlen($destinationPath) - strlen($suffix))) . $suffix;
+    }
+
+    private function sameProviderObject(
+        MemoryProvider $source,
+        ObjectInfo $sourceInfo,
+        MemoryProvider $destination,
+        ObjectInfo $targetInfo,
+    ): bool {
+        if ($source === $destination) {
+            if ($sourceInfo->path === $targetInfo->path) {
+                return true;
+            }
+            if ($source->isCaseInsensitive() && strtolower($sourceInfo->path) === strtolower($targetInfo->path)) {
+                return true;
+            }
+        }
+
+        return $sourceInfo->id !== null
+            && $sourceInfo->id !== ''
+            && $sourceInfo->id === $targetInfo->id;
     }
 
     /**
