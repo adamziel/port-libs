@@ -1,5 +1,83 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T20:54:07Z
+
+No lane implementation, dashboard, generated status batch, or audit-evidence
+bundle was accepted, staged, committed, regenerated, or pushed by this
+integration pass. The checkout is not a safe integration boundary: active
+workers are still running, `HEAD` advanced during inspection, a libsqlite batch
+is already staged by another worker, and the live root PHP harness is red.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 34, behind 28]`.
+- Final observed `HEAD`: `eb4ddc2` (`pandoc: stamp HTML table row header slice`).
+- `HEAD` advanced during this pass from `304475e` to `eb4ddc2`; intervening
+  commits were `bb6819b` (`Record latest audit findings`) and `eb4ddc2`.
+- `git status --porcelain=v1 | wc -l` reported `89` dirty/staged/untracked
+  paths.
+- Staged paths are libsqlite-only and were not created or reviewed by this pass:
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/libsqlite/examples/wordpress-autoincrement-continuity.php`,
+  `lanes/libsqlite/lane-status.json`,
+  `lanes/libsqlite/notes/upstream-runner.md`,
+  `lanes/libsqlite/notes/wordpress-scenarios.md`,
+  `lanes/libsqlite/src/SQLiteAutoincrementState.php`,
+  `lanes/libsqlite/src/SQLiteDatabase.php`,
+  `lanes/libsqlite/src/SQLiteSequenceRecord.php`, and
+  `lanes/libsqlite/tests/SQLiteHeaderTest.php`.
+
+Dirty scopes waiting for review:
+
+- Difftastic: manifest, lane status, notes, source/tests, and untracked
+  TypeScript module fixtures/example while a Difftastic agent remains active.
+- Dolt: commit-log renderer/table source changes while Dolt implementation and
+  runner sessions remain active; skipped despite reauthorization because this is
+  not a quiescent handoff.
+- markerPDF: `TableRecognizer.php` and `TableRecognizerTest.php`; this scope is
+  currently making the root suite red.
+- rclone: manifest/status/notes after `304475e`; active rclone worker remains.
+- Syncthing: manifest/status/source/tests plus untracked BEP model callback
+  example/handler while Syncthing worker remains active.
+- Status/public artifacts: `porting.html` and `porting-summary.json`; these were
+  not regenerated because no accepted green snapshot exists.
+- Additional status-only lane files are dirty for esbuild and gitoxide.
+- Numerous untracked audit/evidence files remain review-only until a supervisor
+  chooses which reports should become public artifacts.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `php tools/run-tests.php`: failed with `123 test files, 10732 assertions, 2
+  failures`.
+- `php tools/generate-dashboard.php`: not run because no lane/status batch was
+  accepted.
+
+Visible root test failures:
+
+- `routes supplied text-line table blocks and OCR-needed detector cells like get_cells`
+  in `lanes/markerpdf/tests/TableRecognizerTest.php`: `Call to undefined method
+  PortLibs\MarkerPDF\TableRecognizer::hasPositiveIntersection()`.
+- `forces supplied detector cells when detect_boxes is enabled` in
+  `lanes/markerpdf/tests/TableRecognizerTest.php`: `Call to undefined method
+  PortLibs\MarkerPDF\TableRecognizer::hasPositiveIntersection()`.
+
+Risk:
+
+- Committing the staged libsqlite batch now would record a red root-suite state
+  caused by unrelated markerPDF changes.
+- Dashboard files are dirty but not tied to one accepted green snapshot; do not
+  publish or cite them as current evidence.
+- Multiple active agents are editing lane/source/status files, including another
+  `port-integrator` agent restarted by the watchdog.
+
+Next safe integration point: first get markerPDF either fixed by its lane worker
+or reverted by the owning worker, then review the staged libsqlite batch from a
+stable `HEAD`. Only after focused libsqlite inspection, `php tools/run-tests.php`
+green, and `git diff --check` should that batch be committed. Regenerate
+dashboard artifacts only after the accepted green state is committed.
+
 ## Integration Worker Snapshot - 2026-05-22T20:48:36Z
 
 No lane implementation, dashboard, or generated status batch was accepted,
