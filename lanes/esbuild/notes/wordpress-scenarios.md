@@ -4,8 +4,8 @@ Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-
 
 ## Current Native Slice
 
-Native JavaScript lexer for identifiers, esbuild-style numeric literal forms, strings, hashbangs, comments, and punctuators. The fixture in `fixtures/wordpress-block-view.js` represents a block view script that can be preflighted on shared hosting without Node/npm.
+Native JavaScript lexer for identifiers, esbuild-style numeric literal forms, strings, hashbangs, comments, and punctuators. A small module analyzer maps static imports, dynamic imports, exports, re-exports, and package-vs-relative import classification. The fixture in `fixtures/wordpress-block-view.js` represents a block view script that can be preflighted on shared hosting without Node/npm and classified as importing `@wordpress/dom-ready`.
 
 ## Next Task
 
-Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports.
+Map additional parser/printer syntax such as import attributes, import.meta/new URL asset references, or TypeScript import/export forms.
