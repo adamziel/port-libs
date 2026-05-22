@@ -70,7 +70,7 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            $end = $this->findStatementEndOrLineBreak($i);
+            $end = $this->findStatementEndForLowering($i);
             $effectiveEnd = $this->withoutTrailingSemicolon($end);
 
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === '=') {
@@ -84,6 +84,13 @@ final class TypeScriptModuleLowerer
 
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === 'using') {
                 throw new \InvalidArgumentException('Unexpected "using"');
+            }
+
+            if ($first->text === 'export'
+                && ($this->tokens[$i + 1] ?? null)?->text === 'await'
+                && ($this->tokens[$i + 2] ?? null)?->text === 'using'
+            ) {
+                throw new \InvalidArgumentException('Unexpected "await"');
             }
 
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === 'import') {
@@ -112,7 +119,12 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            $statement = $this->containsErasableTypeScriptSyntax($i, $effectiveEnd) || $this->containsInlineableEnumReference($i, $effectiveEnd)
+            $usingDeclaration = $this->isUsingDeclarationStart($i);
+            if ($usingDeclaration) {
+                $this->validateUsingDeclaration($i, $effectiveEnd);
+            }
+
+            $statement = $usingDeclaration || $this->containsErasableTypeScriptSyntax($i, $effectiveEnd) || $this->containsInlineableEnumReference($i, $effectiveEnd)
                 ? $this->printRuntimeStatement($i, $effectiveEnd)
                 : $this->originalStatementText($i, $end);
             if ($statement !== '') {
@@ -3633,6 +3645,124 @@ final class TypeScriptModuleLowerer
         }
 
         return max($start, $count - 1);
+    }
+
+    private function findStatementEndForLowering(int $start): int
+    {
+        return $this->isUsingDeclarationStart($start)
+            ? $this->findUsingDeclarationEnd($start)
+            : $this->findStatementEndOrLineBreak($start);
+    }
+
+    private function isUsingDeclarationStart(int $start): bool
+    {
+        $using = $this->usingDeclarationKeywordIndex($start);
+        if ($using === null) {
+            return false;
+        }
+
+        return ($this->tokens[$using + 1] ?? null)?->kind === 'identifier'
+            && !$this->hasLineBreakBetween($using, $using + 1);
+    }
+
+    private function usingDeclarationKeywordIndex(int $start): ?int
+    {
+        if (($this->tokens[$start] ?? null)?->text === 'using') {
+            return $start;
+        }
+
+        if (($this->tokens[$start] ?? null)?->text === 'await'
+            && ($this->tokens[$start + 1] ?? null)?->text === 'using'
+            && !$this->hasLineBreakBetween($start, $start + 1)
+        ) {
+            return $start + 1;
+        }
+
+        return null;
+    }
+
+    private function findUsingDeclarationEnd(int $start): int
+    {
+        $depth = 0;
+        $count = count($this->tokens);
+        for ($i = $start; $i < $count; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            } elseif ($text === ';' && $depth === 0) {
+                return $i;
+            }
+
+            if ($depth === 0 && $this->hasLineBreakBetween($i, $i + 1)) {
+                if (in_array($text, [',', '='], true)) {
+                    continue;
+                }
+
+                return $i;
+            }
+        }
+
+        return max($start, $count - 1);
+    }
+
+    private function validateUsingDeclaration(int $start, int $end): void
+    {
+        $using = $this->usingDeclarationKeywordIndex($start);
+        if ($using === null) {
+            return;
+        }
+
+        $cursor = $using + 1;
+        while ($cursor <= $end) {
+            $name = $this->tokens[$cursor] ?? null;
+            if ($name?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier in TypeScript using declaration');
+            }
+
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === ':') {
+                $cursor = $this->skipTypeExpression($cursor + 1, $end, ['=', ',', ';']);
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text !== '=') {
+                throw new \InvalidArgumentException('The declaration "' . $name->text . '" must be initialized');
+            }
+
+            $cursor++;
+            if ($cursor > $end) {
+                throw new \InvalidArgumentException('Expected initializer after TypeScript using declaration');
+            }
+
+            $cursor = $this->usingInitializerEnd($cursor, $end);
+            if (($this->tokens[$cursor] ?? null)?->text !== ',') {
+                return;
+            }
+
+            $cursor++;
+        }
+    }
+
+    private function usingInitializerEnd(int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($text === ',' && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return $end + 1;
     }
 
     private function withoutTrailingSemicolon(int $end): int

@@ -176,11 +176,17 @@ TS);
         $t->same("using x = y;\n", $lowerer->lower('using x = y'));
         $t->same("using x = y;\n", $lowerer->lower('using x: any = y'));
         $t->same("using x = y, z = _;\n", $lowerer->lower('using x: any = y, z: any = _'));
+        $t->same("using x = y, z = _;\n", $lowerer->lower("using x: any = y,\n z: any = _"));
+        $t->same("await using x = y, z = _;\n", $lowerer->lower("await using x: any = y,\n z: any = _"));
+        $t->same("using;\nx = y;\n", $lowerer->lower("using \n x = y"));
     },
     'rejects upstream exported typescript using declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('export using x: any = y'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('export await using x: any = y'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('using x: Disposable'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('using x = y, z'));
     },
     'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
