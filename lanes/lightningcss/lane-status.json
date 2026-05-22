@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 3,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 3,
+    "estimatedProgress": 4,
+    "suiteProgress": "static upstream inventory counted: 241 behavior checks (160 Rust #[test], 81 Node uvu tests) plus 8 CSS fixtures; upstream runners probed but not executed",
+    "phpPass": 7,
     "phpFail": 0,
-    "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery.",
-    "phase": "seed implementation",
+    "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; block theme fixture covers custom properties, block selectors, color minification, and calc spacing.",
+    "phase": "static upstream inventory plus native value minifier slice",
     "audit": "needs independent auditor review",
-    "currentWork": "Native CSS comment/whitespace minifier and declaration block parser.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Broaden tokenizer fixtures and map Lightning CSS parser/minifier tests."
+    "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, color keyword shortening, calc/min/max/clamp operator spacing, and WordPress block-theme fixture/example.",
+    "blocker": "Full upstream runner not executed: npm test lacks node_modules/uvu, and offline Cargo no-run cannot resolve napi-derive for the Node workspace; full parity run requires dependency install/build beyond this modest lane slice.",
+    "latestCommit": "pending current lightningcss lane commit",
+    "nextTask": "Port a small selector/tokenizer parser slice so PHP can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics."
 }

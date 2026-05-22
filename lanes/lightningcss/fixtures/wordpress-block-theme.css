@@ -1,0 +1,18 @@
+/*
+ * WordPress block theme style fragment with custom properties and block CSS.
+ */
+:root {
+  --wp--preset--spacing--small: 8px;
+  --wp--custom--button-offset: calc(var(--wp--preset--spacing--small) + 4px);
+}
+
+.wp-block-button .wp-block-button__link {
+  color: yellow;
+  background: linear-gradient(blue, white);
+  padding-inline: calc(var(--wp--preset--spacing--small) + 12px);
+}
+
+.wp-block-cover {
+  background-image: url("/wp-content/uploads/yellow-hero.svg");
+  color: black;
+}

@@ -6,21 +6,70 @@
         "name": "parcel-bundler/lightningcss",
         "url": "https://github.com/parcel-bundler/lightningcss",
         "commit": "22bdda3d190f1cd321d98026225cfc964af64ad9",
-        "license": "pending verification from upstream checkout",
-        "architecture": "Rust CSS parser, transformer, minifier, prefixer, modules, and bundler semantics."
+        "license": "MPL-2.0",
+        "architecture": "Rust workspace for CSS parsing, transformation, minification, prefixing, CSS modules, bundling, Node/NAPI bindings, WASM, CLI, and selector matching."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 3,
-        "source": "Rust tests and fixture snapshots; full denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "static-upstream-inventory",
+        "total": 241,
+        "mapped": 7,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
+        "inventory": {
+            "behaviorChecks": 241,
+            "rustTestFunctions": 160,
+            "rustTestFiles": 11,
+            "nodeUvuTests": 81,
+            "nodeTestFiles": 5,
+            "cssFixtureFiles": 8,
+            "inventoryEntriesIncludingFixtures": 249,
+            "rustBreakdown": {
+                "selectors/bloom.rs": 1,
+                "selectors/parser.rs": 6,
+                "src/bundler.rs": 4,
+                "src/lib.rs": 112,
+                "src/media_query.rs": 2,
+                "src/targets.rs": 1,
+                "src/values/syntax.rs": 1,
+                "tests/cli_integration_tests.rs": 27,
+                "tests/test_cssom.rs": 3,
+                "tests/test_custom_parser.rs": 2,
+                "tests/test_serde.rs": 1
+            },
+            "nodeBreakdown": {
+                "node/test/bundle.test.mjs": 15,
+                "node/test/composeVisitors.test.mjs": 18,
+                "node/test/customAtRules.mjs": 7,
+                "node/test/transform.test.mjs": 6,
+                "node/test/visitor.test.mjs": 35
+            }
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runners were not executed in this lane slice. npm test fails before tests because node_modules is absent and the uvu binary is not installed. A modest offline Cargo probe fails before build because the local crates.io cache does not contain napi-derive for the Node workspace member; a real run would require dependency downloads and a Rust/NAPI build.",
+            "probes": [
+                {
+                    "command": "npm test",
+                    "result": "failed before upstream tests: sh: uvu: command not found"
+                },
+                {
+                    "command": "timeout 30 cargo test --workspace --all-features --no-run --offline",
+                    "result": "failed before build: no matching package named napi-derive found in the local crates.io cache"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "CSS comments and insignificant whitespace are removed without rewriting quoted strings.",
+            "Declaration values preserve required binary operator spacing inside calc/min/max/clamp math functions.",
+            "Shorter color keyword serialization mirrors common Lightning CSS outputs such as yellow to #ff0, blue to #00f, white to #fff, black to #000, and transparent to #0000.",
+            "URL tokens and custom property token streams are treated conservatively for WordPress theme CSS."
+        ],
+        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 7 focused lane tests against a 241-behavior-check upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier and declaration block parser."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, value-level color keyword shortening, and calc/min/max/clamp operator spacing."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery.",
-    "nextTask": "Broaden tokenizer fixtures and map Lightning CSS parser/minifier tests."
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, color minification, and calc spacing.",
+    "nextTask": "Port a small selector/tokenizer parser slice so the PHP implementation can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics."
 }
