@@ -223,6 +223,32 @@ return [
         $t->same([], $attributeValues($article->contentHtml, '//object|//embed|//iframe'));
         $t->true(!str_contains($article->text, 'Iframe fallback test'), 'visibility:hidden section content should not be imported');
     },
+    'maps Mozilla basic tag and empty paragraph cleanup fixtures' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $normalizedText): void {
+        $extractor = new ArticleExtractor();
+
+        foreach (['basic-tags-cleaning', 'remove-extra-paragraphs'] as $name) {
+            $fixture = __DIR__ . '/../fixtures/mozilla/' . $name;
+            $source = (string) file_get_contents($fixture . '/source.html');
+            $expected = (string) file_get_contents($fixture . '/expected.html');
+            $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+            $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+            $t->same($metadata['title'], $article->title);
+            $t->same($metadata['byline'], $article->byline);
+            $t->same($metadata['siteName'], $article->siteName);
+            $t->same($metadata['publishedTime'], $article->publishedTime);
+            $t->same($metadata['dir'], $article->dir);
+            $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+            $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+            $t->same(
+                array_map($normalizedText, $attributeValues($expected, '//p')),
+                array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+            );
+            $t->same($elementChildTags($expected, '//div[@id="readability-page-1"]'), $elementChildTags($article->contentHtml, '//main'));
+            $t->same([], $attributeValues($article->contentHtml, '//h1|//h2|//object|//embed|//iframe'));
+            $t->same([], $attributeValues($article->contentHtml, '//p[not(normalize-space()) and not(.//img or .//embed or .//object or .//iframe)]'));
+        }
+    },
     'removes hidden WordPress export duplicates while preserving fallback images' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Hidden Export Cleanup"></head><body><article>'
             . '<h1>Hidden Export Cleanup</h1>'
@@ -246,6 +272,27 @@ return [
         $t->true(!str_contains($article->text, 'Display none tracking'), 'display:none content should be removed');
         $t->true(!str_contains($article->text, 'Visibility hidden share'), 'visibility:hidden content should be removed');
         $t->true(!str_contains($article->text, 'Cookie consent modal'), 'aria-modal dialogs should be removed like upstream');
+    },
+    'removes inline WordPress stylesheet links and fieldset controls before block output' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Legacy Inline Junk"></head><body><article>'
+            . '<h1>Legacy Inline Junk</h1>'
+            . '<p>' . str_repeat('Imported WordPress articles should keep editorial paragraphs while dropping source template fragments. ', 3) . '</p>'
+            . '<link rel="stylesheet" href="/wp-content/themes/source-theme/editor.css">'
+            . '<fieldset><legend>Subscribe before import</legend><input name="email" value="reader@example.com"></fieldset>'
+            . '<p>' . str_repeat('The resulting block output should not include inline stylesheet tags or form field chrome. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->contains('Legacy Inline Junk', $article->title);
+        $t->contains('editorial paragraphs', $article->text);
+        $t->same(false, str_contains($article->contentHtml, '<link'));
+        $t->same(false, str_contains($article->contentHtml, '<fieldset'));
+        $t->same(false, str_contains($article->text, 'Subscribe before import'));
+        $t->same(false, str_contains($blocks, '<link'));
+        $t->same(false, str_contains($blocks, '<fieldset'));
     },
     'removes WordPress page-builder chrome with upstream unlikely candidate rules' => static function (TestRunner $t): void {
         $html = file_get_contents(__DIR__ . '/../fixtures/wordpress-page-builder.html');

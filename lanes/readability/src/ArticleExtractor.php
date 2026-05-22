@@ -52,7 +52,7 @@ final class ArticleExtractor
         $this->fixLazyImages($xpath);
         $jsonLdMetadata = $this->jsonLdMetadata($xpath);
 
-        foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form') ?: [] as $node) {
+        foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form|//fieldset|//link') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
         }
         $this->cleanUnsafeEmbeds($xpath);
