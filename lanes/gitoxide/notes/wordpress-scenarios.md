@@ -24,6 +24,10 @@ Native loose Git object storage with canonical object headers, loose-header enco
 
 The example now uses an uppercase raw target ID in the fixture and reports both the normalized object ID and raw tag-body target bytes. This matches Gitoxide's `TagRef` boundary where callers can compare normalized object identity while still roundtripping the exact annotated-tag bytes used for release provenance hashes.
 
+When the same parsed target is used to construct a new draft release tag, the example now shows the owned tag writer emits the normalized object ID instead of preserving the borrowed raw uppercase bytes. This matches Gitoxide's `TagRef` versus owned `Tag` write boundary and keeps generated WordPress release tags canonical while preserving imported tag provenance bytes separately.
+
+The same example now also converts the parsed tag through `GitTag::toOwned()`, matching Gitoxide's `TagRef::into_owned()` boundary: the imported tag can still roundtrip exact signed bytes, while the owned copy writes a canonical lowercase object header for newly generated release artifacts.
+
 ## WordPress Reference Example
 
 `examples/wordpress-references.php` writes and reads `HEAD`, `refs/heads/main`, and `refs/remotes/origin/HEAD` using native PHP loose-ref files. This models a shared-hosting deployment tool or Playground snapshot manager discovering the active WordPress branch and its commit without invoking the Git binary.

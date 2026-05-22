@@ -12,7 +12,10 @@ $tagger = $tag->taggerSignature();
 $storage = $tag->storageBytes();
 $object = $tag->object();
 $sanitizedDraftReleaseName = GitTag::sanitizeName($fixture['draftReleaseName']);
-$draftReleaseTag = new GitTag($tag->target, $tag->targetKind, $sanitizedDraftReleaseName, $tag->tagger, $tag->message, $tag->pgpSignature);
+$draftReleaseTag = new GitTag($tag->rawTarget, $tag->targetKind, $sanitizedDraftReleaseName, $tag->tagger, $tag->message, $tag->pgpSignature);
+$draftReleaseStorage = $draftReleaseTag->storageBytes();
+$ownedReleaseTag = $tag->toOwned();
+$ownedReleaseStorage = $ownedReleaseTag->storageBytes();
 
 return [
     'name' => $tag->name,
@@ -20,7 +23,15 @@ return [
     'draftReleaseNameValid' => GitTag::isValidName($fixture['draftReleaseName']),
     'sanitizedDraftReleaseName' => $sanitizedDraftReleaseName,
     'sanitizedDraftReleaseNameValid' => GitTag::isValidName($sanitizedDraftReleaseName),
-    'sanitizedDraftReleaseStorageHasName' => str_contains($draftReleaseTag->storageBytes(), "tag {$sanitizedDraftReleaseName}\n"),
+    'sanitizedDraftReleaseStorageHasName' => str_contains($draftReleaseStorage, "tag {$sanitizedDraftReleaseName}\n"),
+    'sanitizedDraftReleaseTarget' => $draftReleaseTag->target,
+    'sanitizedDraftReleaseRawTarget' => $draftReleaseTag->rawTarget,
+    'sanitizedDraftReleaseStorageHasNormalizedTarget' => str_contains($draftReleaseStorage, "object {$draftReleaseTag->target}\n"),
+    'sanitizedDraftReleaseStorageHasRawParsedTarget' => str_contains($draftReleaseStorage, "object {$tag->rawTarget}\n"),
+    'ownedReleaseTarget' => $ownedReleaseTag->target,
+    'ownedReleaseRawTarget' => $ownedReleaseTag->rawTarget,
+    'ownedReleaseStorageHasNormalizedTarget' => str_contains($ownedReleaseStorage, "object {$ownedReleaseTag->target}\n"),
+    'ownedReleaseStorageHasRawParsedTarget' => str_contains($ownedReleaseStorage, "object {$tag->rawTarget}\n"),
     'target' => $tag->target,
     'rawTarget' => $tag->rawTarget,
     'targetKind' => $tag->targetKind,

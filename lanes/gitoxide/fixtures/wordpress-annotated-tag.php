@@ -20,6 +20,8 @@ return [
     'tagBody' => $body,
     'draftReleaseName' => 'WordPress Export: v2026.05? beta.lock',
     'expectedSanitizedDraftReleaseName' => 'WordPress-Export--v2026.05--beta',
+    'expectedSanitizedDraftReleaseTarget' => $target,
+    'expectedOwnedReleaseTarget' => $target,
     'expectedName' => 'wp-release-2026.05-signed',
     'expectedTarget' => $target,
     'expectedRawTarget' => $rawTarget,

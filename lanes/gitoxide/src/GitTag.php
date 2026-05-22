@@ -42,7 +42,7 @@ final class GitTag
         $this->message = $message;
         $this->pgpSignature = $pgpSignature;
         $this->rawBody = $rawBody;
-        $this->rawTarget = $rawTarget ?? $target;
+        $this->rawTarget = $rawTarget ?? strtolower($target);
     }
 
     public static function parse(string $body, string $algorithm = 'sha1'): self
@@ -126,6 +126,11 @@ final class GitTag
     public function taggerSignature(): ?CommitSignature
     {
         return $this->tagger === null ? null : CommitSignature::parse($this->tagger);
+    }
+
+    public function toOwned(): self
+    {
+        return new self($this->target, $this->targetKind, $this->name, $this->tagger, $this->message, $this->pgpSignature);
     }
 
     public function storageBytes(): string

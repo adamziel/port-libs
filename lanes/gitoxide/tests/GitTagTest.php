@@ -139,6 +139,11 @@ return [
             . "tag empty\n"
             . "tagger Sebastian Thiel <sebastian.thiel@icloud.com> 1592381636 +0800\n";
         $t->same($emptyMissingNewline, GitTag::parse($emptyMissingNewline)->storageBytes());
+
+        $owned = new GitTag('FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC', 'commit', 'owned-normalized', null, 'release notes');
+        $t->same('ffa700b4aca13b80cb6b98a078e7c96804f8e0ec', $owned->target);
+        $t->same('ffa700b4aca13b80cb6b98a078e7c96804f8e0ec', $owned->rawTarget);
+        $t->contains("object ffa700b4aca13b80cb6b98a078e7c96804f8e0ec\n", $owned->storageBytes());
     },
     'tag parser preserves raw target bytes and iterator surfaces partial errors' => static function (TestRunner $t): void {
         $uppercase = "object FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC\n"
@@ -151,6 +156,12 @@ return [
         $t->same('ffa700b4aca13b80cb6b98a078e7c96804f8e0ec', $tag->target);
         $t->same('FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC', $tag->rawTarget);
         $t->same($uppercase, $tag->storageBytes());
+
+        $owned = $tag->toOwned();
+        $t->same('ffa700b4aca13b80cb6b98a078e7c96804f8e0ec', $owned->target);
+        $t->same('ffa700b4aca13b80cb6b98a078e7c96804f8e0ec', $owned->rawTarget);
+        $t->contains("object ffa700b4aca13b80cb6b98a078e7c96804f8e0ec\n", $owned->storageBytes());
+        $t->same(false, str_contains($owned->storageBytes(), "object FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC\n"));
 
         $tokens = GitTag::iterateTokens($uppercase);
         $t->same([
@@ -286,6 +297,14 @@ return [
         $t->same($fixture['expectedSanitizedDraftReleaseName'], $summary['sanitizedDraftReleaseName']);
         $t->same(true, $summary['sanitizedDraftReleaseNameValid']);
         $t->same(true, $summary['sanitizedDraftReleaseStorageHasName']);
+        $t->same($fixture['expectedSanitizedDraftReleaseTarget'], $summary['sanitizedDraftReleaseTarget']);
+        $t->same($fixture['expectedSanitizedDraftReleaseTarget'], $summary['sanitizedDraftReleaseRawTarget']);
+        $t->same(true, $summary['sanitizedDraftReleaseStorageHasNormalizedTarget']);
+        $t->same(false, $summary['sanitizedDraftReleaseStorageHasRawParsedTarget']);
+        $t->same($fixture['expectedOwnedReleaseTarget'], $summary['ownedReleaseTarget']);
+        $t->same($fixture['expectedOwnedReleaseTarget'], $summary['ownedReleaseRawTarget']);
+        $t->same(true, $summary['ownedReleaseStorageHasNormalizedTarget']);
+        $t->same(false, $summary['ownedReleaseStorageHasRawParsedTarget']);
         $t->same($fixture['expectedTarget'], $summary['target']);
         $t->same($fixture['expectedRawTarget'], $summary['rawTarget']);
         $t->same($fixture['expectedKind'], $summary['targetKind']);
