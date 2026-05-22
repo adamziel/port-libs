@@ -18,22 +18,166 @@ final class TypeScriptNamespaceLowerer
         $this->tokens = (new JsLexer())->tokenize($source);
 
         $output = '';
-        $depth = 0;
+        $declaredValues = [];
+        $statements = $this->topLevelStatements();
+        $this->assertTopLevelNamespaceMergeRules($statements);
+
+        foreach ($statements as $statementIndex => $statement) {
+            $namespace = $statement['namespace'];
+            if ($namespace !== null) {
+                if (!$namespace['declared'] && $statement['namespaceOutput'] !== '') {
+                    $name = $this->rootNamespaceName($namespace['namespaceIndex']);
+                    $namespaceOutput = isset($declaredValues[$name]) || $this->hasLaterTopLevelEnumDeclaration($statements, $statementIndex, $name)
+                        ? $this->stripTopLevelNamespaceDeclaration($statement['namespaceOutput'], $name)
+                        : $statement['namespaceOutput'];
+
+                    $output .= $namespaceOutput;
+                    $declaredValues[$name] = true;
+                }
+
+                continue;
+            }
+
+            $topLevel = $this->printTopLevelStatement($statement['start'], $statement['end']);
+            if ($topLevel !== '') {
+                $output .= $topLevel . "\n";
+            }
+
+            $declaration = $this->topLevelValueDeclaration($statement['start'], $statement['end']);
+            if ($declaration !== null) {
+                $declaredValues[$declaration['name']] = true;
+            }
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return list<array{start:int, end:int, namespace:array{namespaceIndex:int, exported:bool, declared:bool}|null, namespaceOutput:string}>
+     */
+    private function topLevelStatements(): array
+    {
+        $statements = [];
         $count = count($this->tokens);
+
         for ($i = 0; $i < $count; $i++) {
-            $token = $this->tokens[$i];
+            if (($this->tokens[$i] ?? null)?->text === ';') {
+                continue;
+            }
+
             $namespace = $this->namespaceStatementAt($i);
-            if ($depth === 0 && $namespace !== null && !$namespace['declared']) {
-                [$namespaceOutput, $blockEnd] = $this->lowerNamespaceAt($namespace['namespaceIndex'], $namespace['exported']);
-                $output .= $namespaceOutput;
+            if ($namespace !== null) {
+                if ($namespace['declared']) {
+                    $blockEnd = $this->namespaceBlockEndFromIndex($namespace['namespaceIndex']);
+                    $namespaceOutput = '';
+                } else {
+                    [$namespaceOutput, $blockEnd] = $this->lowerNamespaceAt($namespace['namespaceIndex'], $namespace['exported']);
+                }
+
+                $statements[] = [
+                    'start' => $i,
+                    'end' => $blockEnd,
+                    'namespace' => $namespace,
+                    'namespaceOutput' => $namespaceOutput,
+                ];
                 $i = $blockEnd;
                 continue;
             }
 
-            $depth = $this->adjustDepth($depth, $token);
+            $end = $this->declarationStatementEnd($i, $count)
+                ?? $this->findStatementEndOrLineBreak($i, $count);
+            $statements[] = [
+                'start' => $i,
+                'end' => $end,
+                'namespace' => null,
+                'namespaceOutput' => '',
+            ];
+            $i = $end;
         }
 
-        return $output;
+        return $statements;
+    }
+
+    /**
+     * @param list<array{start:int, end:int, namespace:array{namespaceIndex:int, exported:bool, declared:bool}|null, namespaceOutput:string}> $statements
+     */
+    private function assertTopLevelNamespaceMergeRules(array $statements): void
+    {
+        $symbols = [];
+
+        foreach ($statements as $statement) {
+            $namespace = $statement['namespace'];
+            if ($namespace !== null) {
+                if ($namespace['declared'] || $statement['namespaceOutput'] === '') {
+                    continue;
+                }
+
+                $name = $this->rootNamespaceName($namespace['namespaceIndex']);
+                $state = $symbols[$name] ?? [
+                    'blockedValueKinds' => [],
+                    'functionBeforeNamespace' => false,
+                    'runtimeNamespaceSeen' => false,
+                ];
+
+                foreach ($state['blockedValueKinds'] as $kind) {
+                    if (in_array($kind, ['var', 'let', 'const'], true)) {
+                        throw new \InvalidArgumentException('The symbol "' . $name . '" has already been declared');
+                    }
+                }
+
+                $state['runtimeNamespaceSeen'] = true;
+                $symbols[$name] = $state;
+                continue;
+            }
+
+            $declaration = $this->topLevelValueDeclaration($statement['start'], $statement['end']);
+            if ($declaration === null) {
+                continue;
+            }
+
+            $name = $declaration['name'];
+            $kind = $declaration['kind'];
+            $state = $symbols[$name] ?? [
+                'blockedValueKinds' => [],
+                'functionBeforeNamespace' => false,
+                'runtimeNamespaceSeen' => false,
+            ];
+
+            if ($state['runtimeNamespaceSeen']) {
+                if (in_array($kind, ['var', 'let', 'const', 'class'], true)
+                    || ($kind === 'function' && !$state['functionBeforeNamespace'])
+                ) {
+                    throw new \InvalidArgumentException('The symbol "' . $name . '" has already been declared');
+                }
+            } else {
+                if ($kind === 'function') {
+                    $state['functionBeforeNamespace'] = true;
+                }
+                $state['blockedValueKinds'][] = $kind;
+            }
+
+            $symbols[$name] = $state;
+        }
+    }
+
+    /**
+     * @param list<array{start:int, end:int, namespace:array{namespaceIndex:int, exported:bool, declared:bool}|null, namespaceOutput:string}> $statements
+     */
+    private function hasLaterTopLevelEnumDeclaration(array $statements, int $statementIndex, string $name): bool
+    {
+        $count = count($statements);
+        for ($i = $statementIndex + 1; $i < $count; $i++) {
+            if ($statements[$i]['namespace'] !== null) {
+                continue;
+            }
+
+            $declaration = $this->topLevelValueDeclaration($statements[$i]['start'], $statements[$i]['end']);
+            if ($declaration !== null && $declaration['name'] === $name && $declaration['kind'] === 'enum') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -359,6 +503,125 @@ final class TypeScriptNamespaceLowerer
             'exported' => $exported,
             'declared' => $declared,
         ];
+    }
+
+    private function namespaceBlockEndFromIndex(int $namespaceIndex): int
+    {
+        [, $blockStart] = $this->readNamespaceName($namespaceIndex + 1);
+        if (($this->tokens[$blockStart] ?? null)?->text !== '{') {
+            throw new \InvalidArgumentException('Expected TypeScript namespace block');
+        }
+
+        return $this->findMatchingPunctuator($blockStart, '{', '}');
+    }
+
+    private function rootNamespaceName(int $namespaceIndex): string
+    {
+        [$qualifiedName] = $this->readNamespaceName($namespaceIndex + 1);
+        if ($qualifiedName === '') {
+            throw new \InvalidArgumentException('Expected TypeScript namespace name');
+        }
+
+        return explode('.', $qualifiedName)[0];
+    }
+
+    private function stripTopLevelNamespaceDeclaration(string $output, string $name): string
+    {
+        foreach (['var ' . $name . ";\n", 'export var ' . $name . ";\n"] as $prefix) {
+            if (str_starts_with($output, $prefix)) {
+                return substr($output, strlen($prefix));
+            }
+        }
+
+        return $output;
+    }
+
+    private function printTopLevelStatement(int $start, int $end): string
+    {
+        if ($this->isTypeOnlyNamespaceStatement($start)) {
+            return '';
+        }
+
+        return rtrim((new TypeScriptModuleLowerer())->lower($this->originalStatementSource($start, $end)), "\n");
+    }
+
+    private function originalStatementSource(int $start, int $end): string
+    {
+        $first = $this->tokens[$start] ?? null;
+        $last = $this->tokens[$end] ?? null;
+        if ($first === null || $last === null) {
+            return '';
+        }
+
+        return substr($this->source, $first->offset, $last->offset + strlen($last->text) - $first->offset);
+    }
+
+    /**
+     * @return array{name:string, kind:string}|null
+     */
+    private function topLevelValueDeclaration(int $start, int $end): ?array
+    {
+        $cursor = $start;
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
+            return null;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'async'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'function'
+        ) {
+            $cursor++;
+        }
+
+        $kind = $this->tokens[$cursor] ?? null;
+        if ($kind === null) {
+            return null;
+        }
+
+        if (in_array($kind->text, ['var', 'let'], true)) {
+            $name = $this->tokens[$cursor + 1] ?? null;
+
+            return $name?->kind === 'identifier' ? ['name' => $name->text, 'kind' => $kind->text] : null;
+        }
+
+        if ($kind->text === 'const') {
+            if (($this->tokens[$cursor + 1] ?? null)?->text === 'enum') {
+                $name = $this->tokens[$cursor + 2] ?? null;
+
+                return $name?->kind === 'identifier' ? ['name' => $name->text, 'kind' => 'enum'] : null;
+            }
+
+            $name = $this->tokens[$cursor + 1] ?? null;
+
+            return $name?->kind === 'identifier' ? ['name' => $name->text, 'kind' => 'const'] : null;
+        }
+
+        if ($kind->text === 'function') {
+            $nameIndex = $cursor + 1;
+            if (($this->tokens[$nameIndex] ?? null)?->text === '*') {
+                $nameIndex++;
+            }
+            $name = $this->tokens[$nameIndex] ?? null;
+
+            return $name?->kind === 'identifier' ? ['name' => $name->text, 'kind' => 'function'] : null;
+        }
+
+        if ($kind->text === 'class') {
+            $name = $this->tokens[$cursor + 1] ?? null;
+
+            return $name?->kind === 'identifier' ? ['name' => $name->text, 'kind' => 'class'] : null;
+        }
+
+        if ($kind->text === 'enum') {
+            $name = $this->tokens[$cursor + 1] ?? null;
+
+            return $name?->kind === 'identifier' ? ['name' => $name->text, 'kind' => 'enum'] : null;
+        }
+
+        return null;
     }
 
     /**

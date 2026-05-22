@@ -142,6 +142,21 @@ JS);
         $t->same([], $d?->runtimeExportedMembers() ?? []);
         $t->same(['value'], array_map(static fn ($member): string => $member->name, $public?->runtimeExportedMembers() ?? []));
     },
+    'maps upstream export as namespace as type only metadata' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+export as namespace wp;
+const metadata = { name: 'port-libs/card' };
+JS);
+
+        $t->same(1, count($analysis->exports));
+        $t->same('type-only-export-as-namespace', $analysis->exports[0]->kind);
+        $t->true($analysis->exports[0]->typeOnly);
+        $t->same([['exported' => 'wp', 'local' => 'wp']], $analysis->exports[0]->typeSpecifiers);
+        $t->true(!$analysis->isConsideredESModule());
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new JsModuleAnalyzer())->analyze('export as namespace ns.foo'));
+        $t->throws(InvalidArgumentException::class, static fn () => (new JsModuleAnalyzer())->analyze('export as namespace ns function foo() {}'));
+    },
     'maps upstream dot qualified typescript namespaces as nested metadata' => static function (TestRunner $t): void {
         $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
 namespace foo.bar {

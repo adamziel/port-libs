@@ -139,6 +139,60 @@ JS;
         $t->same($expected . "\n", $lowerer->lower('module foo { export namespace bar { foo(bar) } }'));
         $t->same($expected . "\n", $lowerer->lower('namespace foo { export module bar { foo(bar) } }'));
     },
+    'maps upstream namespace value merge declaration rules' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+
+        $t->same(<<<'JS'
+function foo() {}
+((foo) => {
+  0;
+})(foo || (foo = {}));
+function foo() {}
+JS . "\n", $lowerer->lower('function foo() {} namespace foo { 0 } function foo() {}'));
+
+        $t->same(<<<'JS'
+class foo {}
+((foo) => {
+  0;
+})(foo || (foo = {}));
+JS . "\n", $lowerer->lower('class foo {} namespace foo { 0 }'));
+
+        $t->same(<<<'JS'
+var foo = /* @__PURE__ */ ((foo) => {
+  foo[foo["a"] = 0] = "a";
+  return foo;
+})(foo || {});
+((foo) => {
+  0;
+})(foo || (foo = {}));
+JS . "\n", $lowerer->lower('enum foo { a } namespace foo { 0 }'));
+
+        $t->same(<<<'JS'
+((foo) => {
+  0;
+})(foo || (foo = {}));
+var foo = /* @__PURE__ */ ((foo) => {
+  foo[foo["a"] = 0] = "a";
+  return foo;
+})(foo || {});
+JS . "\n", $lowerer->lower('namespace foo { 0 } enum foo { a }'));
+
+        $t->same(<<<'JS'
+var foo;
+((foo) => {
+  0;
+})(foo || (foo = {}));
+((foo) => {
+  1;
+})(foo || (foo = {}));
+JS . "\n", $lowerer->lower('namespace foo { 0 } namespace foo { 1 }'));
+
+        $t->same("var foo;\n", $lowerer->lower('var foo; namespace foo { export type bar = number }'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('var foo; namespace foo { 0 }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('namespace foo { 0 } let foo'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('namespace foo { 0 } function foo() {}'));
+    },
     'rewrites simple upstream declared namespace variable exports' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptNamespaceLowerer();
 
@@ -244,5 +298,15 @@ JS . "\n", $lowered);
 
         $t->contains('[{name:CardBlockRuntime.blockName}, CardBlockRuntime.settings, [CardBlockRuntime.viewMode],] = blockRecord;', $lowered);
         $t->contains('CardBlockRuntime.blocks.registerBlockType(CardBlockRuntime.blockName, {...CardBlockRuntime.settings, viewMode:CardBlockRuntime.viewMode});', $lowered);
+    },
+    'lowers wordpress function namespace merge settings without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-function-namespace.ts');
+        $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
+
+        $t->contains('function registerBlock()', $lowered);
+        $t->contains('registerBlock.settings = {name:metadata.name, viewScript:"file:./view.js"};', $lowered);
+        $t->contains('wp.blocks.registerBlockType(registerBlock.settings.name, registerBlock.settings);', $lowered);
+        $t->contains('registerBlock();', $lowered);
+        $t->true(!str_contains($lowered, 'var registerBlock;'));
     },
 ];

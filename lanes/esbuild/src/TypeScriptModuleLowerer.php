@@ -35,6 +35,18 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $exportAsNamespaceEnd = $this->exportAsNamespaceStatementEnd($i);
+            if ($exportAsNamespaceEnd !== null) {
+                $i = $exportAsNamespaceEnd;
+                continue;
+            }
+
+            $ambientEnd = $this->ambientStatementEnd($i);
+            if ($ambientEnd !== null) {
+                $i = $ambientEnd;
+                continue;
+            }
+
             $enumStatement = $this->enumStatementAt($i);
             if ($enumStatement !== null) {
                 [$exported, $declared, $const, $enumIndex] = $enumStatement;
@@ -136,11 +148,17 @@ final class TypeScriptModuleLowerer
 
         if (($this->tokens[$cursor] ?? null)?->text === 'export') {
             $exported = true;
+            if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
+                return null;
+            }
             $cursor++;
         }
 
         if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
             $declared = true;
+            if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
+                return null;
+            }
             $cursor++;
         }
 
@@ -156,6 +174,182 @@ final class TypeScriptModuleLowerer
         }
 
         return [$exported, $declared, $const, $cursor];
+    }
+
+    private function exportAsNamespaceStatementEnd(int $start): ?int
+    {
+        if (($this->tokens[$start] ?? null)?->text !== 'export'
+            || ($this->tokens[$start + 1] ?? null)?->text !== 'as'
+            || ($this->tokens[$start + 2] ?? null)?->text !== 'namespace'
+        ) {
+            return null;
+        }
+
+        $name = $this->tokens[$start + 3] ?? null;
+        if ($name?->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected identifier after TypeScript export as namespace');
+        }
+
+        $afterName = $this->tokens[$start + 4] ?? null;
+        if ($afterName?->text === '.') {
+            throw new \InvalidArgumentException('Expected ";" after TypeScript export as namespace');
+        }
+        if ($afterName !== null && $afterName->text !== ';' && !$this->hasLineBreakBetween($start + 3, $start + 4)) {
+            throw new \InvalidArgumentException('Expected ";" after TypeScript export as namespace');
+        }
+
+        return $afterName?->text === ';' ? $start + 4 : $start + 3;
+    }
+
+    private function ambientStatementEnd(int $start): ?int
+    {
+        if (($this->tokens[$start] ?? null)?->text !== 'declare'
+            || $this->hasLineBreakBetween($start, $start + 1)
+        ) {
+            return null;
+        }
+
+        $next = $this->tokens[$start + 1] ?? null;
+        if ($next === null) {
+            throw new \InvalidArgumentException('Unexpected end after TypeScript declare');
+        }
+
+        if (in_array($next->text, ['var', 'let', 'const'], true)) {
+            if ($next->text === 'const' && ($this->tokens[$start + 2] ?? null)?->text === 'enum') {
+                return $this->ambientBlockDeclarationEnd($start + 2);
+            }
+
+            return $this->findStatementEndOrLineBreak($start);
+        }
+
+        if (in_array($next->text, ['function', 'class', 'interface', 'enum'], true)) {
+            return $this->ambientDeclarationEnd($start + 1);
+        }
+
+        if (in_array($next->text, ['namespace', 'module', 'global'], true)) {
+            return $this->ambientNamespaceLikeDeclarationEnd($start + 1);
+        }
+
+        throw new \InvalidArgumentException('Unexpected TypeScript declare statement');
+    }
+
+    private function ambientDeclarationEnd(int $keywordIndex): int
+    {
+        $block = $this->findTopLevelBlockOpenBeforeStatementEnd($keywordIndex);
+
+        return $block === null
+            ? $this->findStatementEndOrLineBreak($keywordIndex)
+            : $this->findMatchingPunctuator($block, '{', '}');
+    }
+
+    private function ambientBlockDeclarationEnd(int $keywordIndex): int
+    {
+        $block = $this->findTopLevelBlockOpenBeforeStatementEnd($keywordIndex);
+        if ($block === null) {
+            throw new \InvalidArgumentException('Expected TypeScript ambient declaration block');
+        }
+
+        return $this->findMatchingPunctuator($block, '{', '}');
+    }
+
+    private function ambientNamespaceLikeDeclarationEnd(int $keywordIndex): int
+    {
+        $keyword = $this->tokens[$keywordIndex] ?? null;
+        if ($keyword === null) {
+            throw new \InvalidArgumentException('Expected TypeScript ambient declaration');
+        }
+
+        if ($keyword->text === 'global') {
+            if (($this->tokens[$keywordIndex + 1] ?? null)?->text !== '{') {
+                throw new \InvalidArgumentException('Expected TypeScript declare global block');
+            }
+            $end = $this->findMatchingPunctuator($keywordIndex + 1, '{', '}');
+            $this->validateExportAsNamespaceInRange($keywordIndex + 2, $end);
+
+            return $end;
+        }
+
+        $name = $this->tokens[$keywordIndex + 1] ?? null;
+        if ($name === null || ($name->kind !== 'identifier' && $name->kind !== 'string')) {
+            throw new \InvalidArgumentException('Expected TypeScript ambient module or namespace name');
+        }
+
+        $cursor = $keywordIndex + 2;
+        if ($name->kind === 'identifier') {
+            while (($this->tokens[$cursor] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 1] ?? null)?->kind === 'identifier'
+            ) {
+                $cursor += 2;
+            }
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === '{') {
+            $end = $this->findMatchingPunctuator($cursor, '{', '}');
+            $this->validateExportAsNamespaceInRange($cursor + 1, $end);
+
+            return $end;
+        }
+
+        return $this->findStatementEndOrLineBreak($keywordIndex);
+    }
+
+    private function findTopLevelBlockOpenBeforeStatementEnd(int $start): ?int
+    {
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $count = count($this->tokens);
+
+        for ($i = $start; $i < $count; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($parenDepth === 0 && $bracketDepth === 0 && $text === '{') {
+                return $i;
+            } elseif ($parenDepth === 0 && $bracketDepth === 0 && $text === ';') {
+                return null;
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && $this->hasLineBreakBetween($i, $i + 1)) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private function validateExportAsNamespaceInRange(int $start, int $end): void
+    {
+        for ($i = $start; $i < $end; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== 'export'
+                || ($this->tokens[$i + 1] ?? null)?->text !== 'as'
+                || ($this->tokens[$i + 2] ?? null)?->text !== 'namespace'
+            ) {
+                continue;
+            }
+
+            $name = $this->tokens[$i + 3] ?? null;
+            if ($name?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier after TypeScript export as namespace');
+            }
+
+            $afterName = $this->tokens[$i + 4] ?? null;
+            if ($afterName?->text === '.') {
+                throw new \InvalidArgumentException('Expected ";" after TypeScript export as namespace');
+            }
+            if ($afterName !== null
+                && $afterName->text !== ';'
+                && $i + 4 < $end
+                && !$this->hasLineBreakBetween($i + 3, $i + 4)
+            ) {
+                throw new \InvalidArgumentException('Expected ";" after TypeScript export as namespace');
+            }
+        }
     }
 
     private function enumStatementEnd(int $enumIndex): int

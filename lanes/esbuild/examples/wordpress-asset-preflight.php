@@ -16,11 +16,13 @@ $typedCallbackTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '
 $enumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-enum-config.ts');
 $enumAliasConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-enum-alias-config.ts');
 $constEnumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-const-enum-config.ts');
+$ambientTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-ambient-types.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
 $dotNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-dot-namespace.ts');
 $destructuredNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-destructured-settings.ts');
+$functionNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-function-namespace.ts');
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
@@ -29,11 +31,13 @@ $typedCallbackLowered = (new TypeScriptModuleLowerer())->lower($typedCallbackTyp
 $enumConfigLowered = (new TypeScriptModuleLowerer())->lower($enumConfigTypeScriptSource);
 $enumAliasConfigLowered = (new TypeScriptModuleLowerer())->lower($enumAliasConfigTypeScriptSource);
 $constEnumConfigLowered = (new TypeScriptModuleLowerer())->lower($constEnumConfigTypeScriptSource);
+$ambientLowered = (new TypeScriptModuleLowerer())->lower($ambientTypeScriptSource);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
 $dotNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($dotNamespaceTypeScriptSource);
 $destructuredNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($destructuredNamespaceTypeScriptSource);
+$functionNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($functionNamespaceTypeScriptSource);
 $namespaceLowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
 namespace CardBlockRuntime {
   export import blocks = wp.blocks;
@@ -55,12 +59,14 @@ printf("WordPress TypeScript typed callback bytes: %d\n", strlen($typedCallbackL
 printf("WordPress TypeScript runtime enum config bytes: %d\n", strlen($enumConfigLowered));
 printf("WordPress TypeScript enum alias config bytes: %d\n", strlen($enumAliasConfigLowered));
 printf("WordPress TypeScript const enum config bytes: %d\n", strlen($constEnumConfigLowered));
+printf("WordPress TypeScript ambient declaration bytes: %d\n", strlen($ambientLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
 printf("WordPress TypeScript nested namespace enum bytes: %d\n", strlen($nestedNamespaceEnumLowered));
 printf("WordPress TypeScript dot namespace bytes: %d\n", strlen($dotNamespaceLowered));
 printf("WordPress TypeScript destructured namespace bytes: %d\n", strlen($destructuredNamespaceLowered));
+printf("WordPress TypeScript function namespace bytes: %d\n", strlen($functionNamespaceLowered));
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()

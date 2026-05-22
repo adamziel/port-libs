@@ -152,6 +152,10 @@ final class JsModuleAnalyzer
             return new ModuleExport('ts-export-equals', null, [], $this->tokens[$index]->offset);
         }
 
+        if ($next->text === 'as' && ($this->tokens[$index + 2] ?? null)?->text === 'namespace') {
+            return $this->parseExportAsNamespace($index);
+        }
+
         if ($next->text === 'import') {
             return $this->parseExportImportEquals($index);
         }
@@ -202,6 +206,33 @@ final class JsModuleAnalyzer
         }
 
         return new ModuleExport('declaration', null, [], $this->tokens[$index]->offset);
+    }
+
+    private function parseExportAsNamespace(int $index): ModuleExport
+    {
+        $name = $this->tokens[$index + 3] ?? null;
+        if ($name?->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected identifier after TypeScript export as namespace');
+        }
+
+        $afterName = $this->tokens[$index + 4] ?? null;
+        if ($afterName?->text === '.') {
+            throw new \InvalidArgumentException('Expected ";" after TypeScript export as namespace');
+        }
+        if ($afterName !== null && $afterName->text !== ';' && !$this->hasLineBreakBetween($index + 3, $index + 4)) {
+            throw new \InvalidArgumentException('Expected ";" after TypeScript export as namespace');
+        }
+
+        return new ModuleExport(
+            'type-only-export-as-namespace',
+            null,
+            [],
+            $this->tokens[$index]->offset,
+            null,
+            [],
+            true,
+            [['exported' => $name->text, 'local' => $name->text]],
+        );
     }
 
     private function parseDynamicImport(int $index): ?ModuleImport

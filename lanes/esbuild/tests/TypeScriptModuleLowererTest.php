@@ -170,6 +170,31 @@ TS);
             "const edit = (props: BlockEditProps<{ title: string }>): WPElement => wp.element.createElement('div', {}, props.attributes.title);"
         ));
     },
+    'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same('', $lowerer->lower('declare var x: number'));
+        $t->same('', $lowerer->lower('declare let x: number'));
+        $t->same('', $lowerer->lower('declare const x: number'));
+        $t->same("function scope(){}\n", $lowerer->lower('declare function fn() {} function scope(){}'));
+        $t->same("function scope(){}\n", $lowerer->lower('declare class X { x = function() {} } function scope(){}'));
+        $t->same("function scope(){}\n", $lowerer->lower('declare namespace X { export var x = function() {} } function scope(){}'));
+        $t->same("let foo;\n", $lowerer->lower("declare module 'X'; let foo"));
+        $t->same("let foo;\n", $lowerer->lower("declare module 'X'\nlet foo"));
+        $t->same('', $lowerer->lower("declare module 'X'\n{ let foo }"));
+        $t->same("let bar;\n", $lowerer->lower('declare global { interface Foo {} let foo: any } let bar'));
+        $t->same('', $lowerer->lower('declare module M { export as namespace ns; }'));
+        $t->same('', $lowerer->lower('export as namespace ns'));
+    },
+    'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same("declare;\nvar foo;\n", $lowerer->lower("declare\nvar foo"));
+        $t->same("declare;\nvar Foo = /* @__PURE__ */ ((Foo) => {\n  return Foo;\n})(Foo || {});\n", $lowerer->lower("declare\nenum Foo {}"));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('export as namespace ns.foo'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('export as namespace ns function foo() {}'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('declare module M { export as namespace ns.foo }'));
+    },
     'lowers wordpress commonjs block export without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-commonjs-export.ts');
         $lowered = (new TypeScriptModuleLowerer())->lower($source);
@@ -221,5 +246,17 @@ TS);
         $t->contains('viewMode:0 /* Default */', $lowered);
         $t->contains('supports:{layout:3 /* Wide */, fallback:0 /* Card */', $lowered);
         $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
+    },
+    'erases wordpress ambient type declarations without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-ambient-types.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains("const metadata = { name: 'port-libs/card' };", $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, {', $lowered);
+        $t->contains('supports: { html: false },', $lowered);
+        $t->true(!str_contains($lowered, 'declare module'));
+        $t->true(!str_contains($lowered, 'declare global'));
+        $t->true(!str_contains($lowered, 'export as namespace'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
     },
 ];
