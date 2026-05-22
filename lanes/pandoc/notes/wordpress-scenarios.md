@@ -6,7 +6,8 @@ Document conversion kernel for Data Liberation imports and block-oriented output
 
 Native Markdown block reader and WordPress block writer for headings, paragraphs,
 Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered
-lists, nested lists, and definition lists.
+lists, nested lists, and definition lists. Code spans now preserve
+list-marker-looking text such as `- x` and `#. x` inside imported list items.
 
 ## Scenario Fixture
 
@@ -21,5 +22,5 @@ lists, nested lists, and definition lists.
 
 ## Next Task
 
-Map inline code across list markers, block quotes, fenced code blocks, or loose
-definition-list paragraphs from `Tests.Readers.Markdown`.
+Map block quotes, fenced code blocks, or loose definition-list paragraphs from
+`Tests.Readers.Markdown`.

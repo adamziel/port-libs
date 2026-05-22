@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "pandoc",
-    "estimatedProgress": 7,
-    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list and definition-list slices mapped; full Haskell runner not executed",
-    "phpPass": 11,
+    "estimatedProgress": 8,
+    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list, definition-list, and inline-code list-marker slices mapped; full Haskell runner not executed",
+    "phpPass": 12,
     "phpFail": 0,
     "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, ordered conversion steps, nested editorial checklists, and glossary-style definition lists as WordPress blocks or HTML.",
-    "phase": "cloned inventory plus Markdown reader/list/definition-list slices",
+    "phase": "cloned inventory plus Markdown reader/list/definition-list/code-span slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items and definition-list cases from Tests.Readers.Markdown, and parses emphasis, strong, links, and code spans; WordPress writer renders escaped block output, nested list markup, and definition-list HTML.",
+    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, definition-list cases, and inline code spans containing list-marker-looking text from Tests.Readers.Markdown; WordPress writer renders escaped block output, nested list markup, and definition-list HTML.",
     "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable; upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout.",
-    "latestCommit": "02a4251",
-    "nextTask": "Map more Pandoc Tests.Readers.Markdown cases such as inline code across list markers, block quotes, fenced code blocks, or loose definition-list paragraphs."
+    "latestCommit": "afcb55a",
+    "nextTask": "Map more Pandoc Tests.Readers.Markdown cases such as block quotes, fenced code blocks, or loose definition-list paragraphs."
 }
