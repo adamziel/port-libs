@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-focused-runner",
         "total": 264,
-        "mapped": 135,
-        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner/model paths with git ls-tree, targeted `_test.go` entry points without hydrating the full checkout, and bounded throwaway worktree runners for the upstream block-pull reorderer, job queue, device activity, FileInfoBatch, and service-map tests.",
+        "mapped": 146,
+        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner/model paths with git ls-tree, targeted `_test.go` entry points without hydrating the full checkout, and bounded throwaway worktree runners for the upstream block-pull reorderer, job queue, device activity, FileInfoBatch, service-map, and indexhandler concurrency tests.",
         "inventory": {
             "upstreamTrackedPaths": 940,
             "upstreamGoFiles": 548,
@@ -102,6 +102,13 @@
             "targetServiceMapSubtests": 3,
             "targetServiceMapFocusedRunnerTests": 1,
             "targetServiceMapMappedPhpTests": 6,
+            "targetIndexHandlerMethods": 6,
+            "targetIndexHandlerTestFunctions": 1,
+            "targetIndexHandlerFocusedRunnerTests": 1,
+            "targetIndexHandlerMappedPhpTests": 6,
+            "targetIndexHandlerRegistryMethods": 11,
+            "targetIndexHandlerStartDecisionBranches": 7,
+            "targetIndexHandlerRegistryMappedPhpTests": 5,
             "targetInboundRequestServingMethods": 5,
             "targetIncomingRequestModelTestCases": 7,
             "targetRequestServingTestFunctions": 3,
@@ -202,6 +209,18 @@
                 {
                     "command": "git worktree add --detach /tmp/syncthing-servicemap.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^TestServiceMap$' -count=1",
                     "result": "passed focused upstream service-map package slice with `ok github.com/syncthing/syncthing/lib/model 0.019s`; this is bounded upstream evidence for one selected service-map test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-indexhandler.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./lib/model -run '^TestIndexhandlerConcurrency$' -count=1",
+                    "result": "passed focused upstream indexhandler concurrency package slice with `ok github.com/syncthing/syncthing/lib/model 0.907s`; this is bounded upstream evidence for one selected indexhandler test, not full `go test ./...` parity"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/indexhandler.go and lib/model/indexhandler_test.go",
+                    "result": "inspected sendIndexTo initial Index vs IndexUpdate selection, localPrevSequence vs sentPrevSequence tracking, FileInfoBatch flush closure, add/delete rename batch boundary, receive-encrypted local-change skipping, prepareFileInfoForIndex, makeForgetUpdate, and upstream TestIndexhandlerConcurrency without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/indexhandler.go and lib/model/model.go",
+                    "result": "inspected newIndexHandler start-sequence decisions from ClusterConfig device index IDs, remote index reset actions, AddIndexInfo pending-start behavior, RegisterFolderState pause/resume behavior, RemoveAllExcept cleanup, ReceiveIndex missing-folder boundary, and folder SharedWith gating without hydrating broad blobs"
                 },
                 {
                     "command": "targeted git show reads of lib/protocol/bep_fileinfo.go and lib/protocol/bep_fileinfo_test.go",

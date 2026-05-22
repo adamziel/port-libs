@@ -1,0 +1,282 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Syncthing;
+
+final class IndexHandlerRegistry
+{
+    private readonly ServiceMap $indexHandlers;
+    private readonly \Closure $handlerFactory;
+
+    /**
+     * @var array<string, IndexHandlerStartInfo>
+     */
+    private array $startInfos = [];
+
+    /**
+     * @var array<string, array{folder: Folder, runner: mixed}>
+     */
+    private array $folderStates = [];
+
+    public function __construct(
+        private readonly string $remoteDeviceIdHex,
+        private readonly int $localIndexId = 0,
+        private readonly int $localCurrentSequence = 0,
+        ?callable $handlerFactory = null,
+        ?ServiceMap $indexHandlers = null,
+    ) {
+        $this->assertDeviceId($remoteDeviceIdHex);
+        if ($this->localIndexId < 0 || $this->localCurrentSequence < 0) {
+            throw new \InvalidArgumentException('Index IDs and sequence numbers must not be negative');
+        }
+
+        $this->indexHandlers = $indexHandlers ?? new ServiceMap();
+        $this->handlerFactory = \Closure::fromCallable($handlerFactory ?? $this->defaultHandlerFactory(...));
+    }
+
+    public function addIndexInfo(string $folder, IndexHandlerStartInfo $startInfo): ?IndexHandler
+    {
+        $this->assertFolderId($folder);
+        $this->indexHandlers->removeAndWait($folder);
+
+        if (!isset($this->folderStates[$folder])) {
+            $this->startInfos[$folder] = $startInfo;
+
+            return null;
+        }
+
+        $state = $this->folderStates[$folder];
+
+        return $this->start($state['folder'], $state['runner'], $startInfo);
+    }
+
+    public function registerFolderState(Folder $folder, mixed $runner = null): ?IndexHandler
+    {
+        if (!$this->folderSharedWithRemote($folder)) {
+            $this->remove($folder->id);
+
+            return null;
+        }
+
+        if (!$folder->isRunning()) {
+            return $this->folderPaused($folder->id);
+        }
+
+        return $this->folderRunning($folder, $runner);
+    }
+
+    public function remove(string $folder): void
+    {
+        $this->assertFolderId($folder);
+        $this->indexHandlers->removeAndWait($folder);
+        unset($this->startInfos[$folder], $this->folderStates[$folder]);
+    }
+
+    /**
+     * @param array<int|string, mixed> $except
+     */
+    public function removeAllExcept(array $except): void
+    {
+        $keep = $this->folderSet($except);
+
+        foreach ($this->handlerFolders() as $folder) {
+            if (!isset($keep[$folder])) {
+                $this->indexHandlers->removeAndWait($folder);
+            }
+        }
+        foreach (array_keys($this->startInfos) as $folder) {
+            if (!isset($keep[$folder])) {
+                unset($this->startInfos[$folder]);
+            }
+        }
+        foreach (array_keys($this->folderStates) as $folder) {
+            if (!isset($keep[$folder])) {
+                unset($this->folderStates[$folder]);
+            }
+        }
+    }
+
+    public function handler(string $folder): ?IndexHandler
+    {
+        $handler = $this->indexHandlers->get($folder);
+
+        return $handler instanceof IndexHandler ? $handler : null;
+    }
+
+    public function pendingStartInfo(string $folder): ?IndexHandlerStartInfo
+    {
+        return $this->startInfos[$folder] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function pendingFolders(): array
+    {
+        return array_values(array_keys($this->startInfos));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function handlerFolders(): array
+    {
+        return array_map('strval', $this->indexHandlers->keys());
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function runningFolders(): array
+    {
+        $folders = [];
+        foreach ($this->handlerFolders() as $folder) {
+            $handler = $this->handler($folder);
+            if ($handler !== null && !$handler->isPaused()) {
+                $folders[] = $folder;
+            }
+        }
+
+        return $folders;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function registeredFolders(): array
+    {
+        return array_values(array_keys($this->folderStates));
+    }
+
+    private function folderPaused(string $folder): ?IndexHandler
+    {
+        unset($this->folderStates[$folder]);
+        $handler = $this->handler($folder);
+        if ($handler !== null) {
+            $handler->pause();
+        }
+
+        return $handler;
+    }
+
+    private function folderRunning(Folder $folder, mixed $runner): ?IndexHandler
+    {
+        $this->folderStates[$folder->id] = [
+            'folder' => $folder,
+            'runner' => $runner,
+        ];
+
+        $handler = $this->handler($folder->id);
+        if (isset($this->startInfos[$folder->id])) {
+            $startInfo = $this->startInfos[$folder->id];
+            unset($this->startInfos[$folder->id]);
+
+            return $this->start($folder, $runner, $startInfo);
+        }
+        if ($handler !== null) {
+            $handler->resume($runner);
+
+            return $handler;
+        }
+
+        return null;
+    }
+
+    private function start(Folder $folder, mixed $runner, IndexHandlerStartInfo $startInfo): IndexHandler
+    {
+        $this->indexHandlers->removeAndWait($folder->id);
+        unset($this->startInfos[$folder->id]);
+
+        $startSequence = $startInfo->localStartSequence($this->localIndexId, $this->localCurrentSequence);
+        $handler = ($this->handlerFactory)($folder, $startInfo, $startSequence, $runner);
+        if (!$handler instanceof IndexHandler) {
+            throw new \UnexpectedValueException('Index handler factory must return an IndexHandler');
+        }
+
+        $this->indexHandlers->add($folder->id, $handler);
+        $this->schedulePull($runner);
+
+        return $handler;
+    }
+
+    private function defaultHandlerFactory(
+        Folder $folder,
+        IndexHandlerStartInfo $startInfo,
+        int $startSequence,
+        mixed $runner,
+    ): IndexHandler {
+        return new IndexHandler(
+            folder: $folder->id,
+            localPrevSequence: $startSequence,
+            sentPrevSequence: $startSequence,
+            folderIsReceiveEncrypted: $folder->type === Folder::TYPE_RECEIVE_ENCRYPTED,
+            runner: $runner,
+        );
+    }
+
+    private function schedulePull(mixed $runner): void
+    {
+        if ($runner === null) {
+            return;
+        }
+        if (is_callable($runner)) {
+            $runner();
+
+            return;
+        }
+        if (is_object($runner) && method_exists($runner, 'schedulePull')) {
+            $runner->schedulePull();
+
+            return;
+        }
+        if (is_object($runner) && method_exists($runner, 'SchedulePull')) {
+            $runner->SchedulePull();
+        }
+    }
+
+    private function folderSharedWithRemote(Folder $folder): bool
+    {
+        foreach ($folder->devices as $device) {
+            if ($device->idHex === $this->remoteDeviceIdHex) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int|string, mixed> $folders
+     *
+     * @return array<string, true>
+     */
+    private function folderSet(array $folders): array
+    {
+        $set = [];
+        foreach ($folders as $key => $value) {
+            $folder = is_int($key) ? $value : $key;
+            if (!is_string($folder) && !is_int($folder)) {
+                throw new \InvalidArgumentException('Folder keep set must contain folder IDs');
+            }
+            $this->assertFolderId((string) $folder);
+            $set[(string) $folder] = true;
+        }
+
+        return $set;
+    }
+
+    private function assertFolderId(string $folder): void
+    {
+        if ($folder === '') {
+            throw new \InvalidArgumentException('Folder ID must not be empty');
+        }
+    }
+
+    private function assertDeviceId(string $deviceIdHex): void
+    {
+        if ($deviceIdHex === '' || !preg_match('/^(?:[0-9a-f]{2})+$/', $deviceIdHex)) {
+            throw new \InvalidArgumentException('Expected lowercase hexadecimal bytes for remote device ID');
+        }
+    }
+}

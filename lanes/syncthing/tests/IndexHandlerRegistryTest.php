@@ -1,0 +1,149 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Syncthing\Device;
+use PortLibs\Syncthing\Folder;
+use PortLibs\Syncthing\IndexHandler;
+use PortLibs\Syncthing\IndexHandlerRegistry;
+use PortLibs\Syncthing\IndexHandlerStartInfo;
+
+return [
+    'maps upstream cluster config device info start sequence decisions' => static function (TestRunner $t): void {
+        $folder = new Folder(
+            id: 'wordpress-media',
+            devices: [
+                new Device(idHex: 'aa', name: 'remote', indexId: 900, maxSequence: 33),
+                new Device(idHex: 'bb', name: 'local', indexId: 77, maxSequence: 12),
+            ],
+        );
+        $info = IndexHandlerStartInfo::fromClusterFolder($folder, localDeviceIdHex: 'bb', remoteDeviceIdHex: 'aa');
+
+        $t->same(12, $info->localStartSequence(localIndexId: 77, localCurrentSequence: 20));
+        $t->same(0, $info->localStartSequence(localIndexId: 77, localCurrentSequence: 11));
+        $t->same(0, $info->localStartSequence(localIndexId: 88, localCurrentSequence: 20));
+        $t->same(IndexHandlerStartInfo::REMOTE_INDEX_KEEP, $info->remoteIndexAction(900));
+        $t->same(IndexHandlerStartInfo::REMOTE_INDEX_DROP_AND_STORE, $info->remoteIndexAction(901));
+        $t->same(
+            IndexHandlerStartInfo::REMOTE_INDEX_DROP,
+            (new IndexHandlerStartInfo($info->local, new Device(idHex: 'aa', indexId: 0)))->remoteIndexAction(900),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => IndexHandlerStartInfo::fromClusterFolder($folder, localDeviceIdHex: 'cc', remoteDeviceIdHex: 'aa'),
+        );
+    },
+    'stores pending add index info until shared folder starts' => static function (TestRunner $t): void {
+        $runner = new SyncthingIndexHandlerRegistryRunner();
+        $registry = new IndexHandlerRegistry('aa', localIndexId: 77, localCurrentSequence: 20);
+        $info = syncthing_index_handler_start_info(localMaxSequence: 12);
+
+        $t->same(null, $registry->addIndexInfo('wordpress-media', $info));
+        $t->same(['wordpress-media'], $registry->pendingFolders());
+        $t->same([], $registry->handlerFolders());
+
+        $handler = $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $runner);
+
+        $t->true($handler instanceof IndexHandler);
+        $t->same(['wordpress-media'], $registry->handlerFolders());
+        $t->same(['wordpress-media'], $registry->runningFolders());
+        $t->same([], $registry->pendingFolders());
+        $t->same(12, $handler->localPrevSequence());
+        $t->same(12, $handler->sentPrevSequence());
+        $t->same(1, $runner->scheduledPulls);
+    },
+    'pauses and resumes registered folder state without replacing handler' => static function (TestRunner $t): void {
+        $firstRunner = new SyncthingIndexHandlerRegistryRunner();
+        $registry = new IndexHandlerRegistry('aa', localIndexId: 77, localCurrentSequence: 20);
+        $registry->addIndexInfo('wordpress-media', syncthing_index_handler_start_info(localMaxSequence: 9));
+        $handler = $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $firstRunner);
+
+        $paused = $registry->registerFolderState(syncthing_index_handler_registry_folder(
+            'wordpress-media',
+            stopReason: Folder::STOP_REASON_PAUSED,
+        ));
+
+        $t->same($handler, $paused);
+        $t->true($handler->isPaused());
+        $t->same([], $registry->runningFolders());
+        $t->same(['wordpress-media'], $registry->handlerFolders());
+        $t->same([], $registry->registeredFolders());
+
+        $secondRunner = new SyncthingIndexHandlerRegistryRunner();
+        $resumed = $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $secondRunner);
+
+        $t->same($handler, $resumed);
+        $t->true(!$handler->isPaused());
+        $t->same($secondRunner, $handler->runner());
+        $t->same(1, $firstRunner->scheduledPulls);
+        $t->same(0, $secondRunner->scheduledPulls);
+    },
+    'replaces a running handler when new cluster index info arrives' => static function (TestRunner $t): void {
+        $runner = new SyncthingIndexHandlerRegistryRunner();
+        $registry = new IndexHandlerRegistry('aa', localIndexId: 77, localCurrentSequence: 50);
+
+        $registry->addIndexInfo('wordpress-media', syncthing_index_handler_start_info(localMaxSequence: 10));
+        $first = $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $runner);
+        $second = $registry->addIndexInfo('wordpress-media', syncthing_index_handler_start_info(localMaxSequence: 20));
+
+        $t->true($first instanceof IndexHandler);
+        $t->true($second instanceof IndexHandler);
+        $t->true($second !== $first);
+        $t->same(20, $second->localPrevSequence());
+        $t->same(20, $second->sentPrevSequence());
+        $t->same($second, $registry->handler('wordpress-media'));
+        $t->same(2, $runner->scheduledPulls);
+    },
+    'removes running and pending handlers outside the active share set' => static function (TestRunner $t): void {
+        $runner = new SyncthingIndexHandlerRegistryRunner();
+        $registry = new IndexHandlerRegistry('aa', localIndexId: 77, localCurrentSequence: 50);
+
+        $registry->addIndexInfo('wordpress-media', syncthing_index_handler_start_info(localMaxSequence: 10));
+        $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $runner);
+        $registry->addIndexInfo('wordpress-private', syncthing_index_handler_start_info(localMaxSequence: 11));
+        $registry->addIndexInfo('wordpress-themes', syncthing_index_handler_start_info(localMaxSequence: 12));
+        $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-themes'), $runner);
+
+        $registry->removeAllExcept(['wordpress-media' => 'valid']);
+
+        $t->same(['wordpress-media'], $registry->handlerFolders());
+        $t->same(['wordpress-media'], $registry->registeredFolders());
+        $t->same([], $registry->pendingFolders());
+
+        $registry->registerFolderState(new Folder(id: 'wordpress-media', devices: []), $runner);
+
+        $t->same([], $registry->handlerFolders());
+        $t->same([], $registry->registeredFolders());
+        $t->same(null, $registry->handler('wordpress-media'));
+    },
+];
+
+function syncthing_index_handler_start_info(int $localMaxSequence): IndexHandlerStartInfo
+{
+    return new IndexHandlerStartInfo(
+        local: new Device(idHex: 'bb', name: 'local', indexId: 77, maxSequence: $localMaxSequence),
+        remote: new Device(idHex: 'aa', name: 'remote', indexId: 900, maxSequence: 33),
+    );
+}
+
+function syncthing_index_handler_registry_folder(
+    string $folder,
+    int $stopReason = Folder::STOP_REASON_RUNNING,
+): Folder {
+    return new Folder(
+        id: $folder,
+        type: $folder === 'wordpress-private' ? Folder::TYPE_RECEIVE_ENCRYPTED : Folder::TYPE_SEND_RECEIVE,
+        stopReason: $stopReason,
+        devices: [new Device(idHex: 'aa', name: 'remote-peer')],
+    );
+}
+
+final class SyncthingIndexHandlerRegistryRunner
+{
+    public int $scheduledPulls = 0;
+
+    public function schedulePull(): void
+    {
+        $this->scheduledPulls++;
+    }
+}

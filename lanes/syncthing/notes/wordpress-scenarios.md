@@ -177,6 +177,38 @@ executed for this focused slice only: `go test ./lib/model -run
 '^TestServiceMap$' -count=1` passed in a throwaway worktree at commit
 `3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
 parity.
+The indexhandler sender slice now maps focused upstream
+`lib/model/indexhandler.go` and `indexhandler_test.go` behavior: the first
+send from sequence zero emits a full Index, subsequent sends emit IndexUpdate
+with `sentPrevSequence`, local sequence tracking advances through database
+holes separately from sent sequence tracking, a full batch can still include
+one trailing delete so rename add/delete pairs stay together, receive-encrypted
+folders skip local receive-only changes, receive-only FileInfo versions are
+stripped before indexing, encrypted finalized sizes can subtract trailer bytes,
+and received regular files produce DownloadProgress forget updates while
+directories, symlinks, and deletes are ignored. A bounded upstream runner was
+executed for this focused slice only: `go test ./lib/model -run
+'^TestIndexhandlerConcurrency$' -count=1` passed in a throwaway worktree at
+commit `3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream
+runner parity. The WordPress example `wordpress-index-handler.php` shows a
+private media folder sending only remote-visible changes while advancing over a
+local receive-only draft.
+The indexhandler registry slice now maps the adjacent upstream
+`newIndexHandler`, `indexHandlerRegistry.AddIndexInfo`,
+`RegisterFolderState`, `RemoveAllExcept`, `folderPausedLocked`, and
+`folderRunningLocked` behavior: ClusterConfig device index IDs decide whether a
+peer can receive delta indexes or must be reset with a full index, remote index
+IDs decide whether stored remote index data should be kept, dropped, or
+replaced, index info received while the local folder is paused stays pending
+until the folder is registered as running, running handlers are paused and
+resumed without replacement on local folder pause/resume, new ClusterConfig
+index info replaces an existing handler, unshared folders remove both running
+and pending handlers, and newly started handlers schedule a pull. This is a
+static upstream mapping from targeted reads of `lib/model/indexhandler.go` and
+`lib/model/model.go`, not additional upstream runner parity. The WordPress
+example `wordpress-index-handler-registry.php` shows a receive-encrypted
+private media folder accepting pending peer index info only after the local
+runner resumes.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
