@@ -29,6 +29,18 @@ $readPacketSequence = static function (string $bytes): array {
     return [$payloads, substr($bytes, $offset)];
 };
 
+$buildSimilarBlobs = static function (): array {
+    $stable = '';
+    for ($i = 0; $i < 48; $i++) {
+        $stable .= hash('sha1', 'wordpress-thin-send-pack-row-' . $i) . "\n";
+    }
+
+    return [
+        new GitObject('blob', "wp_posts export\n{$stable}post_status=draft\nchecksum=old\n"),
+        new GitObject('blob', "wp_posts export\n{$stable}post_status=publish\nchecksum=new\n"),
+    ];
+};
+
 return [
     'parses receive-pack v1 advertisement refs and capabilities' => static function (TestRunner $t) use ($packet, $flush): void {
         $main = '58F4F2BE1F149A49F7234F4BBD3B1B8C92A6D61A';
@@ -131,6 +143,27 @@ return [
         $t->same(['Resolving deltas: 100% (1/1)'], $response->progressMessages());
         $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
     },
+    'send-pack session builds thin ref-delta requests from remote bases' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence, $buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $advertisement = ReceivePackAdvertisement::fromV1PacketLines(
+            $packet("{$base->oid()} refs/heads/main\0report-status side-band-64k\n")
+            . $flush
+        );
+        $session = SendPackSession::create($advertisement, 'port-libs/0.1');
+        $session->createOrUpdate('refs/heads/main', $target->oid());
+
+        $request = $session->buildThinRequest([$target], [$base]);
+        [$commands, $packBytes] = $readPacketSequence($request->requestBytes());
+        $entries = $request->pack()?->entries() ?? [];
+        $pack = PackData::fromBytes($packBytes);
+        $entry = $pack->entryAtOffset($entries[0]['offset']);
+
+        $t->same(true, $request->hasPack());
+        $t->same(true, $request->pack()?->isThin());
+        $t->same("{$base->oid()} {$target->oid()} refs/heads/main\0 report-status side-band-64k agent=port-libs/0.1", $commands[0]);
+        $t->same('ref-delta', $entries[0]['storage']);
+        $t->same($base->oid(), $entry->baseObjectId);
+    },
     'wordpress fixture orchestrates advertised refs generated pack request and status response' => static function (TestRunner $t) use ($readPacketSequence): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-send-pack-session.php';
         $advertisement = ReceivePackAdvertisement::fromV1PacketLines($fixture['advertisementBytes']);
@@ -152,5 +185,25 @@ return [
             static fn (PushRefStatus $status): string => $status->effectiveRefName(),
             $response->refStatuses()
         ));
+    },
+    'wordpress fixture builds a thin ref-delta send-pack request' => static function (TestRunner $t) use ($readPacketSequence): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-send-pack-thin.php';
+        [$commands, $packBytes] = $readPacketSequence($fixture['requestBytes']);
+        $pack = PackData::fromBytes($packBytes);
+        $blobEntry = null;
+        foreach ($fixture['packEntries'] as $entry) {
+            if ($entry['oid'] === $fixture['objects']['newBlob']) {
+                $blobEntry = $entry;
+                break;
+            }
+        }
+
+        $t->same(true, $fixture['thin']);
+        $t->same($fixture['commandLines'], $commands);
+        $t->same(3, $pack->count());
+        $t->true($blobEntry !== null, 'fixture should include the new WordPress blob');
+        $t->same('ref-delta', $blobEntry['storage']);
+        $t->same($fixture['objects']['oldBlob'], $blobEntry['baseOid']);
+        $t->same($fixture['packChecksum'], $pack->verifyChecksum());
     },
 ];

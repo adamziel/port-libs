@@ -45,6 +45,18 @@ $buildDeploymentObjects = static function (): array {
     return [$commit, $tree, $blob];
 };
 
+$buildSimilarBlobs = static function (): array {
+    $stable = '';
+    for ($i = 0; $i < 48; $i++) {
+        $stable .= hash('sha1', 'wordpress-export-row-' . $i) . "\n";
+    }
+
+    return [
+        new GitObject('blob', "wp_posts export\n{$stable}post_status=draft\nchecksum=old\n"),
+        new GitObject('blob', "wp_posts export\n{$stable}post_status=publish\nchecksum=new\n"),
+    ];
+};
+
 return [
     'builds v2 pack data and index for native git objects' => static function (TestRunner $t) use ($buildDeploymentObjects): void {
         $objects = $buildDeploymentObjects();
@@ -85,6 +97,43 @@ return [
         $t->same(strlen($object->body), $entry->decompressedSize);
         $t->true($entry->headerSize > 1, 'large object entries should use a multi-byte size header');
         $t->same($object->body, $entry->data);
+    },
+    'builds ref-delta pack entries when a similar base is available' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $result = PackBuilder::buildWithRefDeltas([$base, $target]);
+        $entries = $result->entries();
+        $pack = PackData::fromBytes($result->packBytes());
+        $index = PackIndex::fromBytes($result->indexBytes());
+        $deltaEntry = $pack->entryAtOffset($entries[1]['offset']);
+        $read = $pack->readObject($index, $target->oid());
+
+        $t->same(false, $result->isThin());
+        $t->same(true, $result->hasDeltaEntries());
+        $t->same('whole', $entries[0]['storage']);
+        $t->same('ref-delta', $entries[1]['storage']);
+        $t->same($base->oid(), $entries[1]['baseOid']);
+        $t->same('ref-delta', $deltaEntry->kind);
+        $t->same($base->oid(), $deltaEntry->baseObjectId);
+        $t->same('blob', $read->type);
+        $t->same($target->body, $read->body);
+        $t->true(strlen($result->packBytes()) < strlen(PackBuilder::build([$base, $target])->packBytes()), 'delta pack should be smaller than the whole-object pack');
+    },
+    'builds thin ref-delta packs against remote bases' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $result = PackBuilder::buildWithRefDeltas([$target], [$base]);
+        $entries = $result->entries();
+        $pack = PackData::fromBytes($result->packBytes());
+        $index = PackIndex::fromBytes($result->indexBytes());
+        $entry = $pack->entryAtOffset($entries[0]['offset']);
+
+        $t->same(1, $pack->count());
+        $t->same(true, $result->isThin());
+        $t->same(true, $result->hasDeltaEntries());
+        $t->same('ref-delta', $entries[0]['storage']);
+        $t->same($base->oid(), $entries[0]['baseOid']);
+        $t->same('ref-delta', $entry->kind);
+        $t->same($base->oid(), $entry->baseObjectId);
+        $t->throws(RuntimeException::class, static fn () => $pack->readObject($index, $target->oid()));
     },
     'guards invalid pack builder inputs and result metadata' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::build(['not an object']));

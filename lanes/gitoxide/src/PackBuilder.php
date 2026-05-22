@@ -9,6 +9,9 @@ final class PackBuilder
     private const VERSION = 2;
     private const FANOUT_ENTRIES = 256;
     private const LARGE_OFFSET_FLAG = 0x80000000;
+    private const REF_DELTA_TYPE_ID = 7;
+    private const MAX_DELTA_INSERT = 127;
+    private const MAX_DELTA_COPY = 0x10000;
 
     private const TYPE_IDS = [
         'commit' => 1,
@@ -22,29 +25,55 @@ final class PackBuilder
      */
     public static function build(array $objects): PackBuildResult
     {
+        return self::buildInternal($objects, [], false);
+    }
+
+    /**
+     * @param list<GitObject> $objects Objects to include in the pack.
+     * @param list<GitObject> $baseObjects Objects the receiver already has; using them produces a thin pack.
+     */
+    public static function buildWithRefDeltas(array $objects, array $baseObjects = []): PackBuildResult
+    {
+        return self::buildInternal($objects, $baseObjects, true);
+    }
+
+    /**
+     * @param list<GitObject> $objects
+     * @param list<GitObject> $baseObjects
+     */
+    private static function buildInternal(array $objects, array $baseObjects, bool $allowRefDeltas): PackBuildResult
+    {
         $pack = 'PACK' . pack('N2', self::VERSION, count($objects));
         $entries = [];
+        $availableBases = [];
+
+        foreach ($baseObjects as $baseObject) {
+            self::assertGitObject($baseObject);
+            $availableBases[$baseObject->oid()] = $baseObject;
+        }
 
         foreach ($objects as $object) {
-            if (!$object instanceof GitObject) {
-                throw new \InvalidArgumentException('PackBuilder expects GitObject instances');
-            }
-            if (!isset(self::TYPE_IDS[$object->type])) {
-                throw new \InvalidArgumentException("PackBuilder cannot encode object type {$object->type}");
-            }
+            self::assertGitObject($object);
 
             $offset = strlen($pack);
-            $entryBytes = self::encodeEntryHeader(self::TYPE_IDS[$object->type], strlen($object->body))
-                . self::deflate($object->body);
+            $encoded = $allowRefDeltas ? self::encodeBestEntry($object, $availableBases) : self::encodeWholeEntry($object);
+            $entryBytes = $encoded['bytes'];
             $pack .= $entryBytes;
 
-            $entries[] = [
+            $entry = [
                 'oid' => $object->oid(),
                 'type' => $object->type,
                 'size' => strlen($object->body),
                 'offset' => $offset,
                 'crc32' => hexdec(hash('crc32b', $entryBytes)),
+                'storage' => $encoded['storage'],
             ];
+            if ($encoded['baseOid'] !== null) {
+                $entry['baseOid'] = $encoded['baseOid'];
+            }
+
+            $entries[] = $entry;
+            $availableBases[$object->oid()] = $object;
         }
 
         $packChecksum = hash('sha1', $pack);
@@ -53,6 +82,65 @@ final class PackBuilder
         $indexChecksum = bin2hex(substr($indexBytes, -20));
 
         return new PackBuildResult($pack, $indexBytes, $packChecksum, $indexChecksum, $entries);
+    }
+
+    private static function assertGitObject(mixed $object): void
+    {
+        if (!$object instanceof GitObject) {
+            throw new \InvalidArgumentException('PackBuilder expects GitObject instances');
+        }
+        if (!isset(self::TYPE_IDS[$object->type])) {
+            throw new \InvalidArgumentException("PackBuilder cannot encode object type {$object->type}");
+        }
+    }
+
+    /**
+     * @param array<string,GitObject> $availableBases
+     * @return array{bytes:string,storage:string,baseOid:?string}
+     */
+    private static function encodeBestEntry(GitObject $object, array $availableBases): array
+    {
+        $best = self::encodeWholeEntry($object);
+        $bestLength = strlen($best['bytes']);
+
+        foreach ($availableBases as $baseOid => $baseObject) {
+            if ($baseObject->type !== $object->type || $baseObject->oid() === $object->oid()) {
+                continue;
+            }
+
+            $delta = self::encodeDelta($baseObject->body, $object->body);
+            $baseOidBytes = hex2bin($baseOid);
+            if ($baseOidBytes === false) {
+                throw new \RuntimeException('PackBuilder could not decode delta base object id');
+            }
+            $bytes = self::encodeEntryHeader(self::REF_DELTA_TYPE_ID, strlen($delta))
+                . $baseOidBytes
+                . self::deflate($delta);
+
+            if (strlen($bytes) < $bestLength) {
+                $best = [
+                    'bytes' => $bytes,
+                    'storage' => 'ref-delta',
+                    'baseOid' => $baseOid,
+                ];
+                $bestLength = strlen($bytes);
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array{bytes:string,storage:string,baseOid:?string}
+     */
+    private static function encodeWholeEntry(GitObject $object): array
+    {
+        return [
+            'bytes' => self::encodeEntryHeader(self::TYPE_IDS[$object->type], strlen($object->body))
+                . self::deflate($object->body),
+            'storage' => 'whole',
+            'baseOid' => null,
+        ];
     }
 
     private static function encodeEntryHeader(int $typeId, int $size): string
@@ -90,8 +178,126 @@ final class PackBuilder
         return $compressed;
     }
 
+    private static function encodeDelta(string $base, string $target): string
+    {
+        $prefix = self::commonPrefixLength($base, $target);
+        $suffix = self::commonSuffixLength($base, $target, $prefix);
+
+        $delta = self::encodeDeltaSize(strlen($base)) . self::encodeDeltaSize(strlen($target));
+        if ($prefix > 0) {
+            $delta .= self::encodeDeltaCopy(0, $prefix);
+        }
+
+        $insertLength = strlen($target) - $prefix - $suffix;
+        if ($insertLength > 0) {
+            $delta .= self::encodeDeltaInsert(substr($target, $prefix, $insertLength));
+        }
+
+        if ($suffix > 0) {
+            $delta .= self::encodeDeltaCopy(strlen($base) - $suffix, $suffix);
+        }
+
+        return $delta;
+    }
+
+    private static function commonPrefixLength(string $a, string $b): int
+    {
+        $max = min(strlen($a), strlen($b));
+        for ($index = 0; $index < $max; $index++) {
+            if ($a[$index] !== $b[$index]) {
+                return $index;
+            }
+        }
+
+        return $max;
+    }
+
+    private static function commonSuffixLength(string $a, string $b, int $prefixLength): int
+    {
+        $max = min(strlen($a), strlen($b)) - $prefixLength;
+        for ($index = 0; $index < $max; $index++) {
+            if ($a[strlen($a) - 1 - $index] !== $b[strlen($b) - 1 - $index]) {
+                return $index;
+            }
+        }
+
+        return $max;
+    }
+
+    private static function encodeDeltaSize(int $size): string
+    {
+        if ($size < 0) {
+            throw new \InvalidArgumentException('Delta size cannot be negative');
+        }
+
+        $bytes = '';
+        do {
+            $byte = $size & 0x7f;
+            $size >>= 7;
+            if ($size !== 0) {
+                $byte |= 0x80;
+            }
+            $bytes .= chr($byte);
+        } while ($size !== 0);
+
+        return $bytes;
+    }
+
+    private static function encodeDeltaCopy(int $offset, int $size): string
+    {
+        if ($offset < 0 || $size < 0) {
+            throw new \InvalidArgumentException('Delta copy offset and size cannot be negative');
+        }
+
+        $bytes = '';
+        while ($size > 0) {
+            $chunk = min($size, self::MAX_DELTA_COPY);
+            $bytes .= self::encodeDeltaCopyChunk($offset, $chunk);
+            $offset += $chunk;
+            $size -= $chunk;
+        }
+
+        return $bytes;
+    }
+
+    private static function encodeDeltaCopyChunk(int $offset, int $size): string
+    {
+        $command = 0x80;
+        $payload = '';
+        for ($shift = 0; $shift <= 24; $shift += 8) {
+            $byte = ($offset >> $shift) & 0xff;
+            if ($byte !== 0) {
+                $command |= 1 << intdiv($shift, 8);
+                $payload .= chr($byte);
+            }
+        }
+
+        if ($size !== self::MAX_DELTA_COPY) {
+            for ($shift = 0; $shift <= 16; $shift += 8) {
+                $byte = ($size >> $shift) & 0xff;
+                if ($byte !== 0) {
+                    $command |= 0x10 << intdiv($shift, 8);
+                    $payload .= chr($byte);
+                }
+            }
+        }
+
+        return chr($command) . $payload;
+    }
+
+    private static function encodeDeltaInsert(string $bytes): string
+    {
+        $encoded = '';
+        for ($offset = 0; $offset < strlen($bytes); $offset += self::MAX_DELTA_INSERT) {
+            $chunk = substr($bytes, $offset, self::MAX_DELTA_INSERT);
+            $encoded .= chr(strlen($chunk)) . $chunk;
+        }
+
+        return $encoded;
+    }
+
     /**
-     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int}> $entries
+     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string}> $entries
      */
     private static function buildIndexBytes(array $entries, string $packChecksum): string
     {

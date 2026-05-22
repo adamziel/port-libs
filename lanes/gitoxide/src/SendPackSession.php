@@ -64,9 +64,29 @@ final class SendPackSession
      */
     public function buildRequest(array $objects): SendPackRequest
     {
+        return $this->buildRequestWithPack($objects, []);
+    }
+
+    /**
+     * @param list<GitObject> $objects
+     * @param list<GitObject> $remoteBases Objects the receiver is expected to already have.
+     */
+    public function buildThinRequest(array $objects, array $remoteBases): SendPackRequest
+    {
+        return $this->buildRequestWithPack($objects, $remoteBases);
+    }
+
+    /**
+     * @param list<GitObject> $objects
+     * @param list<GitObject> $remoteBases
+     */
+    private function buildRequestWithPack(array $objects, array $remoteBases): SendPackRequest
+    {
         $pack = null;
         if ($this->needsPack()) {
-            $pack = PackBuilder::build($objects);
+            $pack = $remoteBases === []
+                ? PackBuilder::build($objects)
+                : PackBuilder::buildWithRefDeltas($objects, $remoteBases);
 
             return new SendPackRequest($this->command, $this->command->requestWithPack($pack), $pack);
         }

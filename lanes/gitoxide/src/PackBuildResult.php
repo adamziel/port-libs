@@ -7,7 +7,7 @@ namespace PortLibs\Gitoxide;
 final class PackBuildResult
 {
     /**
-     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int}> $entries
+     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string}> $entries
      */
     public function __construct(
         private readonly string $packBytes,
@@ -33,8 +33,13 @@ final class PackBuildResult
                 || $entry['size'] < 0
                 || $entry['offset'] < 0
                 || $entry['crc32'] < 0
+                || (isset($entry['storage']) && !in_array($entry['storage'], ['whole', 'ref-delta'], true))
+                || (isset($entry['baseOid']) && preg_match('/^[0-9a-f]{40}$/', $entry['baseOid']) !== 1)
             ) {
                 throw new \InvalidArgumentException('Pack build entries must contain valid object metadata');
+            }
+            if (($entry['storage'] ?? 'whole') === 'ref-delta' && !isset($entry['baseOid'])) {
+                throw new \InvalidArgumentException('Pack delta entries must include a base object id');
             }
         }
     }
@@ -60,10 +65,36 @@ final class PackBuildResult
     }
 
     /**
-     * @return list<array{oid:string,type:string,size:int,offset:int,crc32:int}>
+     * @return list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string}>
      */
     public function entries(): array
     {
         return $this->entries;
+    }
+
+    public function hasDeltaEntries(): bool
+    {
+        foreach ($this->entries as $entry) {
+            if (($entry['storage'] ?? 'whole') === 'ref-delta') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function isThin(): bool
+    {
+        $contained = [];
+        foreach ($this->entries as $entry) {
+            $contained[$entry['oid']] = true;
+        }
+        foreach ($this->entries as $entry) {
+            if (isset($entry['baseOid']) && !isset($contained[$entry['baseOid']])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
