@@ -7,6 +7,7 @@ use PortLibs\Rclone\ChecksumFile;
 use PortLibs\Rclone\HashListing;
 use PortLibs\Rclone\HashSet;
 use PortLibs\Rclone\HashType;
+use PortLibs\Rclone\LsJsonListing;
 use PortLibs\Rclone\LsfListing;
 use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\MultiHasher;
@@ -134,6 +135,105 @@ return [
         $t->same(['file1', 'file2', 'file3'], LsfListing::lines($provider, ['filesOnly' => true]));
         $t->same(['subdir'], LsfListing::lines($provider, ['dirsOnly' => true, 'dirSlash' => false]));
         $t->same(['file1_+_0', 'file2_+_321', 'file3_+_1234', 'subdir/_+_-1', 'subdir/file1_+_0', 'subdir/file2_+_1'], LsfListing::lines($provider, ['format' => 'ps', 'separator' => '_+_', 'recurse' => true]));
+    },
+    'formats lsjson list entries from upstream table cases' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('file1', 'file1', [
+            'modTime' => '2001-02-03T04:05:06Z',
+            'mimeType' => 'text/plain; charset=utf-8',
+            'metadata' => ['mtime' => '2001-02-03T04:05:06Z'],
+        ]);
+        $provider->put('sub/file2', 'sub/file2', [
+            'modTime' => '2002-03-04T05:06:07Z',
+            'mimeType' => 'text/plain; charset=utf-8',
+        ]);
+
+        $t->same([
+            [
+                'Path' => 'file1',
+                'Name' => 'file1',
+                'Size' => 5,
+                'MimeType' => 'text/plain; charset=utf-8',
+                'ModTime' => '2001-02-03T04:05:06Z',
+                'IsDir' => false,
+            ],
+            [
+                'Path' => 'sub',
+                'Name' => 'sub',
+                'Size' => -1,
+                'MimeType' => 'inode/directory',
+                'ModTime' => '',
+                'IsDir' => true,
+            ],
+        ], LsJsonListing::items($provider));
+        $t->same(['file1'], array_column(LsJsonListing::items($provider, '', ['filesOnly' => true]), 'Path'));
+        $t->same(['sub'], array_column(LsJsonListing::items($provider, '', ['dirsOnly' => true]), 'Path'));
+        $t->same(['file1', 'sub', 'sub/file2'], array_column(LsJsonListing::items($provider, '', ['recurse' => true]), 'Path'));
+        $t->same(['sub/file2'], array_column(LsJsonListing::items($provider, 'sub'), 'Path'));
+
+        $noModTime = LsJsonListing::items($provider, '', ['filesOnly' => true, 'noModTime' => true]);
+        $t->same('', $noModTime[0]['ModTime']);
+        $noMimeType = LsJsonListing::items($provider, '', ['filesOnly' => true, 'noMimeType' => true]);
+        $t->true(!array_key_exists('MimeType', $noMimeType[0]));
+
+        $hashItem = LsJsonListing::items($provider, '', ['filesOnly' => true, 'hashTypes' => ['MD5']])[0];
+        $t->same(['md5' => '826e8142e6baabe8af779f5f490cf5f5'], $hashItem['Hashes']);
+        $metadataItem = LsJsonListing::items($provider, '', ['filesOnly' => true, 'metadata' => true])[0];
+        $t->same(['mtime' => '2001-02-03T04:05:06Z'], $metadataItem['Metadata']);
+    },
+    'formats lsjson stat entries from upstream table cases' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('file1', 'file1', ['modTime' => '2001-02-03T04:05:06Z']);
+        $provider->put('sub/file2', 'sub/file2', ['modTime' => '2002-03-04T05:06:07Z']);
+
+        $t->same('', LsJsonListing::stat($provider)['Path']);
+        $t->same(null, LsJsonListing::stat($provider, '', ['filesOnly' => true]));
+        $t->same('sub', LsJsonListing::stat($provider, 'sub')['Path']);
+        $t->same('sub', LsJsonListing::stat($provider, 'sub/')['Path']);
+        $t->same('file1', LsJsonListing::stat($provider, 'file1')['Path']);
+        $t->same(null, LsJsonListing::stat($provider, 'notfound'));
+        $t->same(null, LsJsonListing::stat($provider, 'sub', ['filesOnly' => true]));
+        $t->same('file1', LsJsonListing::stat($provider, 'file1', ['filesOnly' => true])['Path']);
+        $t->same('sub', LsJsonListing::stat($provider, 'sub', ['dirsOnly' => true])['Path']);
+        $t->same(null, LsJsonListing::stat($provider, 'file1', ['dirsOnly' => true]));
+    },
+    'publishes a wordpress backup lsjson manifest with hashes and metadata' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
+        foreach ($tree as $path => $bytes) {
+            if (str_starts_with($path, 'wp-content/cache/') || str_ends_with($path, '.log') || str_ends_with($path, '.psd')) {
+                continue;
+            }
+            $provider->put($path, $bytes, [
+                'modTime' => '2026-05-22T00:00:00Z',
+                'metadata' => ['wp-backup-scope' => 'portable-export'],
+            ]);
+        }
+
+        $items = LsJsonListing::items($provider, '', [
+            'recurse' => true,
+            'hashTypes' => ['MD5'],
+            'metadata' => true,
+        ]);
+
+        $paths = array_column($items, 'Path');
+        $t->same([
+            'database',
+            'database/site.sql',
+            'exports',
+            'exports/site.wxr',
+            'wp-content',
+            'wp-content/uploads',
+            'wp-content/uploads/2026',
+            'wp-content/uploads/2026/05',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $paths);
+
+        $files = array_values(array_filter($items, static fn (array $item): bool => !$item['IsDir']));
+        $t->same('database/site.sql', $files[0]['Path']);
+        $t->same(['wp-backup-scope' => 'portable-export'], $files[0]['Metadata']);
+        $t->true(isset($files[0]['Hashes']['md5']));
     },
     'copies filtered changed wordpress backup objects idempotently' => static function (TestRunner $t): void {
         $source = new MemoryProvider();

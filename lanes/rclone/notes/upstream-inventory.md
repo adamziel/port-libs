@@ -4,6 +4,7 @@
 - Commit: `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`
 - Cache: `.upstream-cache/rclone`
 - Method: shallow clone with `--filter=blob:none --depth=1`; denominator counted from `git ls-tree -r --name-only HEAD` plus targeted reads of `Makefile`, `COPYING`, `fs/filter/glob.go`, `fs/filter/filter.go`, `fs/filter/*_test.go`, and `fs/hash/hash_test.go`.
+- Focused `lsjson` reads for this slice: `cmd/lsjson/lsjson.go`, `fs/operations/lsjson.go`, and `fs/operations/lsjson_test.go`.
 
 ## Counted Test-Related Inventory
 
@@ -23,6 +24,7 @@
 - Test directory paths: 35
 - Integration-related paths counted by path: 3
 - Script paths and shell helpers: 43
+- Focused `lsjson` static inventory: 2 upstream Go test functions (`TestListJSON`, `TestStatJSON`), 24 named/subtest table cases counted from `fs/operations/lsjson_test.go`, and 11 command flags/options declared in `cmd/lsjson/lsjson.go`.
 
 ## Runner Status
 
@@ -60,3 +62,4 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - Case-insensitive matching via the upstream `ignore_case` option.
 - Sync planning that skips objects excluded by rclone-style filters.
 - WordPress backup planning that includes uploads, WXR exports, and SQL dumps while excluding cache/log/source files.
+- `fs/operations` / `cmd/lsjson` list and stat JSON shapes for paths, names, sizes, directory entries, recursive listings, file-only and dir-only modes, omitted modtime/mimetype fields, selected hash output, and metadata.
