@@ -106,7 +106,7 @@ final class TreeMerge
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
 
-        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix);
+        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject);
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
         sort($paths, SORT_STRING);
 
@@ -276,12 +276,13 @@ final class TreeMerge
      * @param array<string, TreeEntry> $baseEntries
      * @param array<string, TreeEntry> $ourEntries
      * @param array<string, TreeEntry> $theirEntries
+     * @param null|callable(string): GitObject $readObject
      * @return array{0:list<TreeMergeConflict>,1:array<string,true>,2:list<TreeEntry>}
      */
-    private static function renameConflicts(array $baseEntries, array $ourEntries, array $theirEntries, string $pathPrefix): array
+    private static function renameConflicts(array $baseEntries, array $ourEntries, array $theirEntries, string $pathPrefix, ?callable $readObject = null): array
     {
-        $ourRenames = self::exactRenames($baseEntries, $ourEntries);
-        $theirRenames = self::exactRenames($baseEntries, $theirEntries);
+        $ourRenames = self::detectedRenames($baseEntries, $ourEntries, $readObject);
+        $theirRenames = self::detectedRenames($baseEntries, $theirEntries, $readObject);
         $conflicts = [];
         $consumed = [];
         $merged = [];
@@ -351,6 +352,21 @@ final class TreeMerge
      * @param array<string, TreeEntry> $sideEntries
      * @return array<string, array{path:string,entry:TreeEntry}>
      */
+    private static function detectedRenames(array $baseEntries, array $sideEntries, ?callable $readObject): array
+    {
+        $renames = self::exactRenames($baseEntries, $sideEntries);
+        if ($readObject === null) {
+            return $renames;
+        }
+
+        return $renames + self::similarBlobRenames($baseEntries, $sideEntries, $renames, $readObject);
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $sideEntries
+     * @return array<string, array{path:string,entry:TreeEntry}>
+     */
     private static function exactRenames(array $baseEntries, array $sideEntries): array
     {
         $deletedByObject = [];
@@ -387,6 +403,103 @@ final class TreeMerge
         }
 
         return $renames;
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $sideEntries
+     * @param array<string, array{path:string,entry:TreeEntry}> $knownRenames
+     * @param callable(string): GitObject $readObject
+     * @return array<string, array{path:string,entry:TreeEntry}>
+     */
+    private static function similarBlobRenames(array $baseEntries, array $sideEntries, array $knownRenames, callable $readObject): array
+    {
+        $usedNewPaths = [];
+        foreach ($knownRenames as $rename) {
+            $usedNewPaths[$rename['path']] = true;
+        }
+
+        $candidatesByDeletedPath = [];
+        $candidateUseCounts = [];
+        foreach ($baseEntries as $deletedPath => $baseEntry) {
+            if (isset($sideEntries[$deletedPath]) || isset($knownRenames[$deletedPath]) || !$baseEntry->isBlob()) {
+                continue;
+            }
+
+            foreach ($sideEntries as $addedPath => $sideEntry) {
+                if (isset($baseEntries[$addedPath]) || isset($usedNewPaths[$addedPath]) || !$sideEntry->isBlob() || $baseEntry->mode !== $sideEntry->mode) {
+                    continue;
+                }
+
+                $score = self::blobSimilarity($baseEntry, $sideEntry, $readObject);
+                if ($score < 60) {
+                    continue;
+                }
+                $candidatesByDeletedPath[$deletedPath][$addedPath] = ['score' => $score, 'entry' => $sideEntry];
+                $candidateUseCounts[$addedPath] = ($candidateUseCounts[$addedPath] ?? 0) + 1;
+            }
+        }
+
+        $renames = [];
+        foreach ($candidatesByDeletedPath as $deletedPath => $candidates) {
+            if (count($candidates) !== 1) {
+                continue;
+            }
+            $addedPath = array_key_first($candidates);
+            if (($candidateUseCounts[$addedPath] ?? 0) !== 1) {
+                continue;
+            }
+            $renames[$deletedPath] = ['path' => $addedPath, 'entry' => $candidates[$addedPath]['entry']];
+        }
+
+        return $renames;
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     */
+    private static function blobSimilarity(TreeEntry $baseEntry, TreeEntry $sideEntry, callable $readObject): int
+    {
+        $base = self::readTypedObject($readObject, $baseEntry->oid, 'blob')->body;
+        $side = self::readTypedObject($readObject, $sideEntry->oid, 'blob')->body;
+        if ($base === $side) {
+            return 100;
+        }
+        if (strlen($base) > 262144 || strlen($side) > 262144 || self::containsNul($base . $side)) {
+            return 0;
+        }
+
+        $baseLines = self::contentLines($base);
+        $sideLines = self::contentLines($side);
+        $total = count($baseLines) + count($sideLines);
+        if ($total === 0) {
+            return 0;
+        }
+
+        $sideCounts = array_count_values($sideLines);
+        $overlap = 0;
+        foreach ($baseLines as $line) {
+            if (($sideCounts[$line] ?? 0) === 0) {
+                continue;
+            }
+            $sideCounts[$line]--;
+            $overlap++;
+        }
+
+        return (int) floor(($overlap * 200) / $total);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function contentLines(string $content): array
+    {
+        $lines = preg_split('/\R/u', trim($content));
+        if ($lines === false) {
+            $lines = explode("\n", trim($content));
+        }
+
+        return array_slice(array_values(array_filter($lines, static fn (string $line): bool => $line !== '')), 0, 512);
     }
 
     private static function entryIdentity(TreeEntry $entry): string
