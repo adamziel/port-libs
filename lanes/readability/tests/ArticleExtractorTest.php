@@ -150,6 +150,23 @@ return [
         $t->contains('<h2>Reviewer Notes</h2>', $article->contentHtml);
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
     },
+    'strips source classes and simplifies nested wrappers like upstream post processing' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Class Cleanup</title></head><body><article class="legacy-template entry-content">'
+            . '<h1>Class Cleanup</h1>'
+            . '<div class="alignwide wp-container"><section class="theme-row"><div class="inner-row">'
+            . '<p id="lead" class="has-text-color" style="color:red">' . str_repeat('WordPress migration output should keep article text and media while dropping source theme CSS classes. ', 4) . '</p>'
+            . '</div></section></div>'
+            . '<figure class="wp-block-image size-large"><img class="lazy size-full" data-src="/uploads/import-cleanup.jpg" alt="Imported cleanup"></figure>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+
+        $t->same('Class Cleanup', $article->title);
+        $t->true(!str_contains($article->contentHtml, 'class='), 'Readability post-processing removes source class attributes by default');
+        $t->true(!str_contains($article->contentHtml, '<section'), 'single nested div/section wrappers should be simplified');
+        $t->contains('id="lead"', $article->contentHtml);
+        $t->contains('src="/uploads/import-cleanup.jpg"', $article->contentHtml);
+    },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -333,6 +350,7 @@ return [
         foreach ($expectedSources as $sourceUrl) {
             $t->true(in_array($sourceUrl, $articleSources, true), 'expected lazy-image-1 image source should be preserved: ' . $sourceUrl);
         }
+        $t->true(!str_contains($article->contentHtml, 'class='), 'upstream default post-process class cleanup should run on copied Medium fixture output');
         $t->contains('data-old-src="https://miro.medium.com/max/60/1*5o3M5niyi911waUrKWVZ0Q.png?q=20"', $article->contentHtml);
         $t->contains('Sources &amp; links', $article->contentHtml);
         $t->true(!str_contains($article->text, 'More From Medium'), 'post-article recommendation heading should be removed');

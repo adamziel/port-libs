@@ -92,16 +92,18 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 - Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
+- Mozilla post-process semantics from `_simplifyNestedElements` and `_cleanClasses`: empty `div`/`section` containers are removed, single nested `div`/`section` wrappers are collapsed, and source `class` attributes are stripped by default while the reserved `page` class remains eligible for preservation.
+- WordPress migration class cleanup: source theme and block wrapper classes are removed while IDs, article text, and promoted media sources remain available for clean block serialization.
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure mappings.
-- Native PHP lane tests: 22 passing, 0 failing, 155 assertions.
-- Current root verification: `php tools/run-tests.php` passes 69 test files, 3840 assertions, 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process mappings.
+- Native PHP lane tests: 23 passing, 0 failing, 161 assertions.
+- Current root verification: `php tools/run-tests.php` passes 72 test files, 4018 assertions, 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
-- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for `lazy-image-1` wrappers/classes and broader copied lazy-image fixtures.
-- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, cleans platform chrome, and emits WordPress block output.
+- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for Medium author/share action-bar wrappers and broader copied lazy-image fixtures.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, strips source classes, cleans platform chrome, and emits WordPress block output.
 
 ## Next Slice
 
-Broaden exact structural HTML parity for copied lazy-image fixtures, starting with wrapper/class cleanup around `lazy-image-1` figures and then expanding to other image-heavy upstream pages.
+Broaden exact structural HTML parity for copied lazy-image fixtures by removing Medium author/share action-bar wrappers before the first content heading, then expand to other image-heavy upstream pages.

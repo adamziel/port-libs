@@ -41,6 +41,7 @@ final class ArticleExtractor
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeDuplicateTitleHeader($best, $title);
             $this->demoteHeadingOnes($best);
+            $best = $this->postProcessContent($best);
         }
         $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
@@ -953,6 +954,157 @@ final class ArticleExtractor
 
         foreach ($headings as $heading) {
             $this->replaceElementTag($heading, 'h2');
+        }
+    }
+
+    private function postProcessContent(\DOMElement $scope): \DOMElement
+    {
+        $scope = $this->simplifyNestedElements($scope);
+        $this->cleanClasses($scope);
+
+        return $scope;
+    }
+
+    private function simplifyNestedElements(\DOMElement $scope): \DOMElement
+    {
+        do {
+            $changed = false;
+            foreach ($this->nestedSimplificationCandidates($scope) as $node) {
+                if (!$node->parentNode instanceof \DOMNode || $this->hasReadabilityId($node)) {
+                    continue;
+                }
+
+                if ($this->isElementWithoutContent($node)) {
+                    if ($node === $scope) {
+                        continue;
+                    }
+
+                    $node->parentNode->removeChild($node);
+                    $changed = true;
+                    break;
+                }
+
+                if (!$this->hasSingleTagInsideElement($node, 'div') && !$this->hasSingleTagInsideElement($node, 'section')) {
+                    continue;
+                }
+
+                $child = $this->firstElementChild($node);
+                if (!$child instanceof \DOMElement) {
+                    continue;
+                }
+
+                $this->copyElementAttributes($child, $node);
+                $node->removeChild($child);
+                $node->parentNode->replaceChild($child, $node);
+                if ($node === $scope) {
+                    $scope = $child;
+                }
+
+                $changed = true;
+                break;
+            }
+        } while ($changed);
+
+        return $scope;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function nestedSimplificationCandidates(\DOMElement $scope): array
+    {
+        $nodes = [];
+        if ($this->isSimplifiableContainer($scope)) {
+            $nodes[] = $scope;
+        }
+
+        foreach ($scope->getElementsByTagName('*') as $node) {
+            if ($node instanceof \DOMElement && $this->isSimplifiableContainer($node)) {
+                $nodes[] = $node;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function isSimplifiableContainer(\DOMElement $node): bool
+    {
+        return in_array(strtolower($node->tagName), ['div', 'section'], true);
+    }
+
+    private function hasReadabilityId(\DOMElement $node): bool
+    {
+        return str_starts_with($node->getAttribute('id'), 'readability');
+    }
+
+    private function isElementWithoutContent(\DOMElement $node): bool
+    {
+        $text = $this->normalizeWhitespace($node->textContent);
+        if ($text !== '') {
+            return false;
+        }
+
+        $elementChildren = 0;
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $elementChildren++;
+            }
+        }
+
+        return $elementChildren === 0
+            || $elementChildren === ($node->getElementsByTagName('br')->length + $node->getElementsByTagName('hr')->length);
+    }
+
+    private function hasSingleTagInsideElement(\DOMElement $element, string $tag): bool
+    {
+        $elementChildren = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText && preg_match('/\S/', $child->textContent) === 1) {
+                return false;
+            }
+
+            if ($child instanceof \DOMElement) {
+                $elementChildren[] = $child;
+            }
+        }
+
+        return count($elementChildren) === 1 && strtolower($elementChildren[0]->tagName) === $tag;
+    }
+
+    private function firstElementChild(\DOMElement $element): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function copyElementAttributes(\DOMElement $target, \DOMElement $source): void
+    {
+        foreach ($source->attributes ?: [] as $attribute) {
+            $target->setAttribute($attribute->name, $attribute->value);
+        }
+    }
+
+    private function cleanClasses(\DOMElement $node): void
+    {
+        $classes = array_values(array_filter(
+            preg_split('/\s+/', $node->getAttribute('class')) ?: [],
+            static fn (string $class): bool => $class === 'page',
+        ));
+        if ($classes === []) {
+            $node->removeAttribute('class');
+        } else {
+            $node->setAttribute('class', implode(' ', $classes));
+        }
+
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $this->cleanClasses($child);
+            }
         }
     }
 
