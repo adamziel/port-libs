@@ -39,6 +39,22 @@ final class LooseReferenceStore
         return $reference;
     }
 
+    public function delete(string $name): bool
+    {
+        $path = $this->pathFor($name);
+        if (!is_file($path)) {
+            return false;
+        }
+
+        if (!unlink($path)) {
+            throw new \RuntimeException("Unable to delete loose reference: {$name}");
+        }
+
+        $this->deleteEmptyParents(dirname($path));
+
+        return true;
+    }
+
     public function read(string $name, string $algorithm = 'sha1'): LooseReference
     {
         $reference = $this->tryRead($name, $algorithm);
@@ -113,5 +129,20 @@ final class LooseReferenceStore
         ReferenceName::assertValid($name);
 
         return rtrim($this->gitDirectory, '/\\') . '/' . $name;
+    }
+
+    private function deleteEmptyParents(string $directory): void
+    {
+        $boundary = str_replace('\\', '/', rtrim($this->gitDirectory, '/\\'));
+        $current = str_replace('\\', '/', $directory);
+
+        while ($current !== $boundary && str_starts_with($current, $boundary . '/')) {
+            $entries = @scandir($current);
+            if ($entries === false || count(array_diff($entries, ['.', '..'])) !== 0) {
+                break;
+            }
+            @rmdir($current);
+            $current = str_replace('\\', '/', dirname($current));
+        }
     }
 }
