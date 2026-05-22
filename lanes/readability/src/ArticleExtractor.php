@@ -39,7 +39,9 @@ final class ArticleExtractor
         if ($best instanceof \DOMElement) {
             $this->removePlatformArticleChrome($best);
             $this->removeOutOfBandFigureWrappers($best);
+            $this->removeInteractiveArticleChrome($best);
             $this->removeDuplicateTitleHeader($best, $title);
+            $this->removeLeadingBylineActionBar($best);
             $this->demoteHeadingOnes($best);
             $best = $this->postProcessContent($best);
         }
@@ -804,6 +806,117 @@ final class ArticleExtractor
         }
     }
 
+    private function removeInteractiveArticleChrome(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        $remove = [];
+        foreach ($xpath->query('.//button|.//input|.//textarea|.//select', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//a[@href]', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = strtolower($node->getAttribute('href'));
+            if (str_contains($href, '/share/')
+                || str_contains($href, 'source=post_actions_')
+                || str_contains($href, 'source=post_sidebar')
+                || str_contains($href, 'source=follow_footer')) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function removeLeadingBylineActionBar(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        $firstHeading = $xpath->query('.//h1|.//h2|.//h3', $scope)?->item(0);
+        if (!$firstHeading instanceof \DOMElement) {
+            return;
+        }
+
+        $remove = [];
+        foreach ($this->elementsBefore($xpath, $scope, $firstHeading) as $node) {
+            if (!$this->isLeadingBylineChrome($xpath, $node)) {
+                continue;
+            }
+
+            $remove[] = $node;
+        }
+
+        foreach (array_reverse($remove) as $node) {
+            if (!$this->hasRemovedAncestor($node, $remove)) {
+                $node->parentNode?->removeChild($node);
+            }
+        }
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function elementsBefore(\DOMXPath $xpath, \DOMElement $scope, \DOMElement $end): array
+    {
+        $nodes = [];
+        foreach ($xpath->query('.//*', $scope) ?: [] as $node) {
+            if ($node === $end) {
+                break;
+            }
+
+            if ($node instanceof \DOMElement) {
+                $nodes[] = $node;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function isLeadingBylineChrome(\DOMXPath $xpath, \DOMElement $node): bool
+    {
+        if (($xpath->query('.//img|.//picture|.//figure|.//video|.//iframe', $node)?->length ?? 0) > 0) {
+            return false;
+        }
+
+        $text = $this->normalizeWhitespace($node->textContent);
+        if ($text === '' || mb_strlen($text) > 180) {
+            return false;
+        }
+
+        $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id') . ' ' . $text);
+        if (preg_match('/\b(byline|author|dateline|writtenby|p-author)\b/', $matchString) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b/i', $text) === 1) {
+            return true;
+        }
+
+        return preg_match('/\b\d+\s+min\s+read\b/i', $text) === 1;
+    }
+
+    /**
+     * @param list<\DOMElement> $removed
+     */
+    private function hasRemovedAncestor(\DOMElement $node, array $removed): bool
+    {
+        for ($parent = $node->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            foreach ($removed as $candidate) {
+                if ($candidate === $parent) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private function isOutOfBandFigureWrapper(\DOMXPath $xpath, \DOMElement $node): bool
     {
         $figures = $xpath->query('.//figure', $node);
@@ -960,9 +1073,76 @@ final class ArticleExtractor
     private function postProcessContent(\DOMElement $scope): \DOMElement
     {
         $scope = $this->simplifyNestedElements($scope);
+        $scope = $this->collapseSingleParagraphDivs($scope);
         $this->cleanClasses($scope);
 
         return $scope;
+    }
+
+    private function collapseSingleParagraphDivs(\DOMElement $scope): \DOMElement
+    {
+        do {
+            $changed = false;
+            foreach ($this->singleParagraphDivCandidates($scope) as $node) {
+                if (!$node->parentNode instanceof \DOMNode || $this->hasReadabilityId($node)) {
+                    continue;
+                }
+
+                if (!$this->hasSingleTagInsideElement($node, 'p') || $this->linkDensity($node) >= 0.25) {
+                    continue;
+                }
+
+                $child = $this->firstElementChild($node);
+                if (!$child instanceof \DOMElement) {
+                    continue;
+                }
+
+                $node->removeChild($child);
+                $node->parentNode->replaceChild($child, $node);
+                if ($node === $scope) {
+                    $scope = $child;
+                }
+
+                $changed = true;
+                break;
+            }
+        } while ($changed);
+
+        return $scope;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function singleParagraphDivCandidates(\DOMElement $scope): array
+    {
+        $nodes = [];
+        if (strtolower($scope->tagName) === 'div') {
+            $nodes[] = $scope;
+        }
+
+        foreach ($scope->getElementsByTagName('div') as $node) {
+            if ($node instanceof \DOMElement) {
+                $nodes[] = $node;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function linkDensity(\DOMElement $node): float
+    {
+        $textLength = mb_strlen($this->normalizeWhitespace($node->textContent));
+        if ($textLength === 0) {
+            return 0.0;
+        }
+
+        $linkText = '';
+        foreach ($node->getElementsByTagName('a') as $link) {
+            $linkText .= ' ' . $this->normalizeWhitespace($link->textContent);
+        }
+
+        return mb_strlen($this->normalizeWhitespace($linkText)) / $textLength;
     }
 
     private function simplifyNestedElements(\DOMElement $scope): \DOMElement

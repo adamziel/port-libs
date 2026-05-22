@@ -66,6 +66,20 @@ npm test
 1984 passing (37s)
 ```
 
+It was rerun on 2026-05-22 after the native leading byline/action-bar cleanup slice and still passed:
+
+```text
+npm test
+1984 passing (40s)
+```
+
+It was rerun on 2026-05-22 after the native single-paragraph wrapper cleanup slice and still passed:
+
+```text
+npm test
+1984 passing (36s)
+```
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -84,7 +98,7 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/mozilla-2` copied into the lane and mapped for OpenGraph site name/description metadata, lang/dir extraction, false readerable classification, and preserved in-main header markers.
 - Mozilla `test-pages/embedded-videos` copied into the lane and mapped for readerable classification, excerpt normalization, and preservation of the five expected YouTube, YouTube-nocookie, and Vimeo iframe sources.
 - Mozilla `test-pages/videos-2` copied into the lane and mapped for UTF-8 DOM parsing, JSON-LD author/publisher/datePublished metadata, readerable classification, excerpt normalization, article-body selection, exact whitespace-normalized article text parity, and preservation of seven expected YouTube/Dailymotion iframe sources.
-- Mozilla `test-pages/lazy-image-1` copied into the lane and mapped for metadata description precedence over shorter OpenGraph/Twitter snippets, readerable classification, lazy image `data-old-src` promotion, exact expected article image source row retention, Medium-style out-of-band full-width figure wrapper removal, and post-article recommendation/signup chrome removal.
+- Mozilla `test-pages/lazy-image-1` copied into the lane and mapped for metadata description precedence over shorter OpenGraph/Twitter snippets, readerable classification, lazy image `data-old-src` promotion, exact expected article image source row retention, Medium-style out-of-band full-width figure wrapper removal, leading follow/read-time/share action cleanup, and post-article recommendation/signup chrome removal.
 - Mozilla `test-pages/lazy-image-2` copied into the lane and mapped for HTML entity-decoded excerpt metadata, readerable classification, Kinja in-article ad wrapper removal, exact whitespace-normalized article text parity, and 56 responsive image rows with `data-srcset`/`srcset` parity.
 - Mozilla `test-pages/lazy-image-3` copied into the lane and mapped for full-fixture `data-src` jpg/png image promotion, expected title/null metadata, and false readerable classification.
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
@@ -93,17 +107,20 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 - Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
 - Mozilla post-process semantics from `_simplifyNestedElements` and `_cleanClasses`: empty `div`/`section` containers are removed, single nested `div`/`section` wrappers are collapsed, and source `class` attributes are stripped by default while the reserved `page` class remains eligible for preservation.
+- Mozilla scoring cleanup semantics: `div` nodes that only wrap one paragraph and have link density below `0.25` are collapsed to the paragraph, matching the expected Medium blockquote shape.
 - WordPress migration class cleanup: source theme and block wrapper classes are removed while IDs, article text, and promoted media sources remain available for clean block serialization.
+- Mozilla `_prepArticle` interactive cleanup: `button`, `input`, `textarea`, and `select` controls plus source platform share/action links are removed from article content.
+- WordPress/Medium migration leading action-bar cleanup: byline, follow, read-time, and share controls before the first content heading are removed while author/avatar media remains available.
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process mappings.
-- Native PHP lane tests: 23 passing, 0 failing, 161 assertions.
-- Current root verification: `php tools/run-tests.php` passes 72 test files, 4018 assertions, 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper mappings.
+- Native PHP lane tests: 25 passing, 0 failing, 176 assertions.
+- Latest root verification: `php tools/run-tests.php` passes 78 test files, 5437 assertions, 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
-- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for Medium author/share action-bar wrappers and broader copied lazy-image fixtures.
-- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, strips source classes, cleans platform chrome, and emits WordPress block output.
+- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures, including root wrapper, relative URI, blockquote/id, and figure paragraph wrapper differences.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, collapses low-link-density `div` wrappers around a single paragraph, strips source classes, cleans platform chrome, and emits WordPress block output.
 
 ## Next Slice
 
-Broaden exact structural HTML parity for copied lazy-image fixtures by removing Medium author/share action-bar wrappers before the first content heading, then expand to other image-heavy upstream pages.
+Broaden exact structural HTML parity for copied lazy-image fixtures by comparing normalized HTML against `expected.html`, starting with remaining Medium root wrapper, relative URI, blockquote/id, and figure paragraph wrapper differences.

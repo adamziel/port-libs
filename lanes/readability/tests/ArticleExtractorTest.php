@@ -54,6 +54,27 @@ $imageAttributeRows = static function (string $html): array {
 
     return $rows;
 };
+$elementChildTags = static function (string $html, string $query): array {
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="UTF-8" ?><main>' . $html . '</main>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+
+    $node = (new DOMXPath($dom))->query($query)?->item(0);
+    if (!$node instanceof DOMElement) {
+        return [];
+    }
+
+    $tags = [];
+    foreach ($node->childNodes as $child) {
+        if ($child instanceof DOMElement) {
+            $tags[] = strtolower($child->tagName);
+        }
+    }
+
+    return $tags;
+};
 $normalizedText = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
 
 return [
@@ -166,6 +187,41 @@ return [
         $t->true(!str_contains($article->contentHtml, '<section'), 'single nested div/section wrappers should be simplified');
         $t->contains('id="lead"', $article->contentHtml);
         $t->contains('src="/uploads/import-cleanup.jpg"', $article->contentHtml);
+    },
+    'collapses single paragraph div wrappers like upstream scoring cleanup' => static function (TestRunner $t) use ($elementChildTags): void {
+        $html = '<html><head><title>Quote Cleanup</title></head><body><article>'
+            . '<p>' . str_repeat('Legacy WordPress imports often wrap editorial pull quotes with layout divs from the source theme. ', 3) . '</p>'
+            . '<blockquote><div class="wp-block-group quote-shell"><p id="pull">Keep this editorial quote for the migrated post.</p></div></blockquote>'
+            . '<p>' . str_repeat('The native extractor should keep the quote while removing the layout-only wrapper. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+
+        $t->same(['p'], $elementChildTags($article->contentHtml, '//blockquote'));
+        $t->contains('Keep this editorial quote', $article->text);
+        $t->true(!str_contains($article->contentHtml, 'quote-shell'), 'source quote wrapper classes should be removed with the wrapper');
+    },
+    'removes leading byline and action controls before article content' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Migrated Action Bar"></head><body><article class="entry-content">'
+            . '<div class="entry-meta">'
+            . '<div><a href="/author"><img src="/uploads/author-avatar.jpg" alt="Author avatar"></a></div>'
+            . '<div class="byline"><a href="/author">Legacy Contributor</a><button>Follow</button><span>Oct 18, 2019 &middot; 8 min read</span></div>'
+            . '<div><a href="/share/twitter?source=post_actions_header">Share this article</a></div>'
+            . '</div>'
+            . '<h2>Migration Notes</h2>'
+            . '<p>' . str_repeat('A WordPress importer should keep editorial copy while dropping source platform controls before the first content heading. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+
+        $t->same('Migrated Action Bar', $article->title);
+        $t->contains('src="/uploads/author-avatar.jpg"', $article->contentHtml);
+        $t->contains('Migration Notes', $article->text);
+        $t->contains('source platform controls before the first content heading', $article->text);
+        $t->true(!str_contains($article->text, 'Legacy Contributor'), 'leading byline text should be removed before block migration');
+        $t->true(!str_contains($article->text, 'Follow'), 'follow button text should be removed');
+        $t->true(!str_contains($article->text, '8 min read'), 'platform read-time metadata should be removed');
+        $t->true(!str_contains($article->contentHtml, 'post_actions_header'), 'source platform share links should be removed');
     },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
@@ -325,7 +381,7 @@ return [
         $t->contains('srcset="https://cdn.example.test/photo-320.jpg 320w, https://cdn.example.test/photo-800.jpg 800w"', $article->contentHtml);
         $t->contains('alt="Migration screenshot"', $article->contentHtml);
     },
-    'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($imageAttributeRows, $normalizedText): void {
+    'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
         $source = (string) file_get_contents($fixture . '/source.html');
         $expected = (string) file_get_contents($fixture . '/expected.html');
@@ -347,6 +403,7 @@ return [
         $t->same(9, count($expectedSources));
         $t->same($expectedSources, $articleSources);
         $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
+        $t->same(['p'], $elementChildTags($article->contentHtml, '//blockquote'));
         foreach ($expectedSources as $sourceUrl) {
             $t->true(in_array($sourceUrl, $articleSources, true), 'expected lazy-image-1 image source should be preserved: ' . $sourceUrl);
         }
@@ -356,6 +413,9 @@ return [
         $t->true(!str_contains($article->text, 'More From Medium'), 'post-article recommendation heading should be removed');
         $t->true(!str_contains($article->text, 'Discover Medium'), 'platform signup footer should be removed');
         $t->true(!str_contains($article->text, 'Written by Vincent Vallet'), 'author footer should be removed');
+        $t->true(!str_contains($article->text, 'Follow'), 'leading Medium follow button should be removed before article content');
+        $t->true(!str_contains($article->text, '8 min read'), 'leading Medium read-time metadata should be removed before article content');
+        $t->true(!str_contains($article->contentHtml, 'post_actions_header'), 'leading Medium share action links should be removed before article content');
         $t->true(!str_contains($article->contentHtml, 'fit/c/160/160'), 'recommended-author avatars should be removed with the footer');
         $t->true(!str_contains($article->contentHtml, 'CPU profiling before optimization'), 'out-of-band Medium full-width figure wrapper should be removed');
         $t->true(!str_contains($article->contentHtml, 'Zoom in the CPU profiling'), 'out-of-band Medium zoom figure wrapper should be removed');
