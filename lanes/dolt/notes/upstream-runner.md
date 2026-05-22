@@ -5,6 +5,23 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## PHP Diff-Mode Slice Refresh 2026-05-22
+
+- Targeted upstream evidence reused the hydrated `integration-tests/bats/diff.bats` case `diff: row, line, in-place, context diff modes`, which had already passed in the bounded BATS runner.
+- Direct cache-local probe built a temporary Dolt repository under `.upstream-cache/dolt/tmp/php-diffmode.*`, changed multiline and single-line procedure definitions, and ran:
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff original --diff-mode=row procedures`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff original --diff-mode=line procedures`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff original --diff-mode=in-place procedures`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff original --diff-mode=context procedures`
+- Probe result: `row` emitted `<` and `>` modified rows, `line` emitted combined `*` rows with ` ` / `-` / `+` cell lines, `in-place` emitted uncolored side-by-side text merges such as `SELECT a2` and `SELECT 423`, and `context` used a line diff for the multiline procedure while leaving the single-line procedure as `<` / `>` rows.
+- Native PHP lane-only verification after this slice:
+  - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; ... lanes/dolt/tests/*Test.php ...'`
+  - Result: 13 Dolt test files, 113 behavior tests, 594 assertions, 0 failures.
+- Required root verification after this slice:
+  - `php tools/run-tests.php`
+  - Initial result: exit 1 with 141 test files, 12,572 assertions, and 2 failures in `lanes/readability/tests/ArticleExtractorTest.php`; Dolt tests reached by the root run passed.
+  - Final captured rerun after the moving tree settled: exit 0 with 142 test files, 12,668 assertions, and 0 failures.
+
 ## Runner Tooling Refresh 2026-05-22 22:12 UTC
 
 - Cache inspection before running evidence:
@@ -40,7 +57,11 @@
 - Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, or benchmark suites were run.
 - Required repository check after this runner metadata update:
   - `php tools/run-tests.php`
-  - Result: pending at time of metadata edit; see Repository Check below for the required rerun result.
+  - Initial streamed result: exit 1 with 138 test files, 12,225 assertions, and 1 failure; the failure detail was not visible in the streamed/truncated output.
+  - Immediate captured rerun command: `tmp=.upstream-cache/dolt/tmp/root-php-20260522T2212.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 140 "$tmp"; exit $status`
+  - Result: exit 0 with 138 test files, 12,242 assertions, and 0 failures.
+  - Final post-lane-status edit command: `tmp=.upstream-cache/dolt/tmp/root-php-final-20260522T2212.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 80 "$tmp"; exit $status`
+  - Result: exit 0 with 139 test files, 12,328 assertions, and 0 failures.
 
 ## Runner Tooling Refresh 2026-05-22 21:38 UTC
 
@@ -77,6 +98,7 @@
   - Result: exit 0 with plan `1..3`; the focused upstream invalid-filter, renamed-only, dropped-only, and `removed` alias boundaries passed.
   - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 20m bats --filter 'diff: --filter option filters by diff type' diff.bats`
   - Result: exit 0 with plan `1..1`; the focused upstream row-level `-r sql` diff-filter case passed, including INSERT output for `--filter=added`, UPDATE output for `--filter=modified`, DELETE output for `--filter=removed`, and empty output for mismatched row filters.
+  - Direct cache-local row-mode tabular probe in a temporary repository under `.upstream-cache/dolt/tmp/tabular-filter-*`: `dolt diff HEAD~1 --filter=added` emitted `+` rows for inserted rows, `--filter=modified` emitted `<` and `>` rows for updated rows, `--filter=removed` emitted `-` rows for deleted rows, `--filter=dropped` matched the removed-row output, and mismatched row filters emitted empty output with no table frame.
 - Fresh negative-control blocker:
   - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
   - Result: exit 1 with plan `1..1`; pristine `status.bats` still truncates `56ljsj9n6s80tjs36dpecbok93q8431p` to `j9n6s80tjs36dpecbok93q8431p` through fixed-width `cut -c 13-44`, and `dolt reset` reports `branch not found`.
@@ -608,6 +630,9 @@
 ## Repository Check
 
 - `php tools/run-tests.php`
+  - Initial required rerun after the 2026-05-22 22:12 UTC runner/tooling metadata refresh exited 1 with 138 test files, 12,225 assertions, and 1 failure; the streamed output did not retain the specific failing assertion.
+  - Immediate captured rerun after the same metadata refresh passed: 138 test files, 12,242 assertions, 0 failures.
+  - Final required rerun after the lane-status recording edit passed: 139 test files, 12,328 assertions, 0 failures.
   - Required rerun after native `dolt diff --summary` fixed-width rendering passed: 133 test files, 11,879 assertions, 0 failures.
   - Required rerun after the 2026-05-22 21:38 UTC runner/tooling metadata refresh passed: 131 test files, 11,742 assertions, 0 failures.
   - Required rerun after the current 2026-05-22 21:24 UTC runner metadata update passed: 127 test files, 11,352 assertions, 0 failures.
@@ -648,6 +673,10 @@
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, fan-in commit-graph, commit-ancestors, has-ancestor, and branch-review fixtures.
   - Required rerun after native diff-summary diff-type filtering failed outside Dolt: 135 test files, 12,033 assertions, 1 failure in `lanes/pandoc/tests/MarkdownReaderTest.php` test `maps upstream html table caption colgroup thead and tfoot structure`; expected `softbreak`, actual `linebreak`. Dolt tests reached by this root run passed.
   - Required rerun after native row SQL diff-filter rendering passed: 138 test files, 12,193 assertions, 0 failures.
+  - Required rerun after native row-mode tabular diff-filter rendering passed: 140 test files, 12,359 assertions, 0 failures.
+  - Final post-metadata rerun failed outside Dolt: 140 test files, 12,435 assertions, 1 failure in `lanes/syncthing/tests/RequestServerTest.php` (`maps upstream temporary file prefix recognition`) because that uncommitted Syncthing test calls missing `TestRunner::false()`. Dolt tests reached by this root run passed.
+  - Initial required rerun after native tabular diff-mode rendering failed outside Dolt: 141 test files, 12,572 assertions, 2 failures in `lanes/readability/tests/ArticleExtractorTest.php`. Dolt tests reached by this root run passed.
+  - Final captured rerun after native tabular diff-mode rendering passed: 142 test files, 12,668 assertions, 0 failures.
 - Lane-only Dolt PHP test command:
   - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $runner=new TestRunner(); foreach (glob("lanes/dolt/tests/*Test.php") as $file) { $runner->runTests(require $file, $file); } fwrite(STDOUT, "\nDolt: " . count(glob("lanes/dolt/tests/*Test.php")) . " test files, " . $runner->assertions() . " assertions, " . $runner->failures() . " failures\n"); exit($runner->failures() === 0 ? 0 : 1);'`
   - Previous result before the commit-log slice: pass with 6 Dolt test files, 64 behavior tests, 273 assertions, and 0 failures.
@@ -666,6 +695,8 @@
   - Current result after native `dolt diff --summary` fixed-width rendering: pass with 11 Dolt test files, 102 behavior tests, 543 assertions, and 0 failures.
   - Current result after native diff-summary diff-type filtering: pass with 11 Dolt test files, 104 behavior tests, 552 assertions, and 0 failures.
   - Current result after native row SQL diff-filter rendering: pass with 12 Dolt test files, 107 behavior tests, 566 assertions, and 0 failures.
+  - Current result after native row-mode tabular diff-filter rendering: pass with 13 Dolt test files, 111 behavior tests, 582 assertions, and 0 failures.
+  - Current result after native tabular diff-mode rendering: pass with 13 Dolt test files, 113 behavior tests, 594 assertions, and 0 failures.
 
 ## Skipped Suites
 

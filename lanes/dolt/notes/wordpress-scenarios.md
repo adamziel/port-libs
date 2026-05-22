@@ -13,6 +13,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_diff_summary()` and `dolt_diff_stat()` projections for table-level review rows and aggregate row/cell counts.
 - Native `dolt diff --summary` fixed-width CLI text rendering plus `--name-only` table-name output for table-level review queues, including upstream `--filter` values and the `removed` alias for dropped tables.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
+- Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
+- Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
 - Native summary/stat primary-key-change boundaries: table-specific calls error, while unscoped calls warn and continue.
 - Native `dolt_diff_summary()` ignore-pattern filtering for working/staged comparisons, including wildcard patterns and false-pattern overrides.
 - Native `dolt_ignore` conflict reporting for ambiguous true/false scratch-table patterns, with upstream-shaped pattern details.
@@ -32,6 +34,9 @@ Versioned content/data migrations and inspectable database change sets.
 - `fixtures/wp-posts-diff.php` models a WordPress import review where one post is published, one legacy page is removed, and one imported resource is added.
 - `examples/wordpress-post-diff.php` returns Dolt-shaped diff rows with `to_*`, `from_*`, commit metadata, and `diff_type` fields. This is the shape a WordPress migration review tool can render before promoting imported content.
 - `examples/wordpress-filtered-diff-sql.php` renders the same `wp_posts` changes as native `dolt diff -r sql` INSERT, UPDATE, and DELETE statements separated by diff-type filters for import promotion review queues.
+- `examples/wordpress-filtered-diff-tabular.php` renders the same `wp_posts` changes as row-mode tabular `dolt diff` output, separating `<`/`>` modified rows, `-` removed rows, and `+` added rows for reviewer-facing import queues.
+- `fixtures/wp-diff-mode-review.php` models a multiline `post_content` block edit during WordPress import review.
+- `examples/wordpress-diff-mode-review.php` renders the block edit through row, line, in-place, and default context tabular diff modes, so a migration UI can choose compact old/new rows or reviewer-friendly line-level cells without shelling out to Dolt.
 - `fixtures/wp-table-deltas.php` models a content-table rename from `wp_posts` to `wp_content_posts`, a dropped legacy links table, and a new import audit table.
 - `examples/wordpress-table-delta-summary.php` returns Dolt-style table summaries with `renamed`, `dropped`, and `added` classifications. A migration UI can use this before row rendering to avoid presenting a table rename as unrelated delete/create noise.
 - `examples/wordpress-diff-summary-cli.php` renders that same table-delta fixture as fixed-width `dolt diff --summary` text, so a migration dashboard can show Dolt-compatible CLI output without shelling out.
@@ -73,4 +78,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map row-level tabular `dolt diff --filter` output for added, modified, and removed rows, or explicitly document and decide how to handle the current upstream `dolt diff --summary <table>` short-circuit boundary.
+Next best slice: explicitly document and decide how to handle the current upstream `dolt diff --summary <table>` short-circuit boundary, then map another focused table-specific CLI summary case.
