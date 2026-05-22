@@ -9,7 +9,8 @@ final class Token
     public function __construct(
         public readonly string $kind,
         public readonly string $text,
+        public readonly ?string $delimiterRole = null,
+        public readonly int $depth = 0,
     ) {
     }
 }
-

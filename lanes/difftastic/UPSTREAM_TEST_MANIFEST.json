@@ -6,21 +6,56 @@
         "name": "Wilfred/difftastic",
         "url": "https://github.com/Wilfred/difftastic",
         "commit": "7ccfcb315f7e46fd015809416c7d7dffa5be7078",
-        "license": "pending verification from upstream checkout",
-        "architecture": "Rust syntax-aware structural diff with parser integrations and HTML/text output."
+        "license": "MIT",
+        "architecture": "Rust syntax-aware structural diff with tree-sitter parser integrations, delimiter/list atoms, comment/string-aware matching, CLI behavior tests, sample fixtures, and text/HTML output."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Rust tests, parser fixtures, sample diffs; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": "287 inspected upstream behavior artifacts: 144 Rust #[test] functions in src/ and tests/, 112 paired sample fixture bases, 30 vendored parser corpus files, and 1 compare.expected output file",
+        "mapped": 6,
+        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and hydrated only Cargo.toml, LICENSE, tests/cli.rs, targeted src files, and selected sample fixtures.",
+        "inventory": {
+            "treeFiles": 786,
+            "rustSourceFiles": 32,
+            "rustIntegrationTestFiles": 1,
+            "rustTestAttributes": 144,
+            "rustFilesWithTests": 20,
+            "sampleFiles": 248,
+            "pairedSampleFixtureBases": 112,
+            "cliFixtureFiles": 9,
+            "directoryFixtureFiles": 8,
+            "compareExpectedFiles": 1,
+            "vendoredParserFiles": 382,
+            "parserCorpusFiles": 30,
+            "parserExampleFiles": 5,
+            "parserBenchFiles": 1,
+            "parserBindingTestFiles": 1
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runner was not executed in this lane slice. `cargo test` would require hydrating the sparse checkout with src/, tests/, sample_files/, img/, and vendored parser sources, downloading the Cargo dependency graph, and compiling difftastic plus many tree-sitter parser crates/native parsers. A limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacks the `humansize` crate, confirming that an online dependency fetch would be required. This exceeds the modest network/CPU budget for this worker run.",
+            "probes": [
+                {
+                    "command": "cargo test --no-run --locked --offline",
+                    "result": "failed before compiling tests: no matching package named `humansize` found in the local offline Cargo cache"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Token-level diffing avoids raw line-only comparison.",
+            "Comments are classified separately from identifiers, strings, numbers, punctuation, and delimiters.",
+            "Delimiter tokens carry open/close anchors and nesting depth for list-like syntax.",
+            "The upstream CLI `ignore_comments` sample from tests/cli.rs and sample_files/comma_and_comment_*.js maps to `ignoreComments` diff filtering.",
+            "Trailing commas before closing delimiters are ignored by default, following difftastic's tree-sitter `ignore_trailing_tokens` semantics for supported list syntaxes.",
+            "The WordPress render-callback fixture hides PHP comment churn while still reporting the `esc_html` to `wp_kses_post` API change."
+        ],
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against an inspected 287-artifact upstream behavior inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native token-level differ that avoids raw line-only comparison."
+        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, and trailing-comma normalization."
     },
-    "wordpressScenario": "Readable diffs for blocks, templates, theme.json, code snippets, and structured documents.",
-    "nextTask": "Map parser fixtures and replace generic tokens with syntax-tree anchors."
+    "wordpressScenario": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current example filters PHP comment churn while preserving an escaping API change.",
+    "nextTask": "Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream sample_files pair such as simple_*.js or comma_*.js into a fixture parity test."
 }

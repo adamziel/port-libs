@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "difftastic",
-    "estimatedProgress": 2,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 2,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static inventory: 287 upstream behavior artifacts inspected; upstream runner not executed",
+    "phpPass": 6,
     "phpFail": 0,
-    "wordpressScenarios": "Readable diffs for blocks, templates, theme.json, code snippets, and structured documents.",
-    "phase": "seed implementation",
-    "audit": "needs independent auditor review",
-    "currentWork": "Native token-level differ that avoids raw line-only comparison.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Map parser fixtures and replace generic tokens with syntax-tree anchors."
+    "wordpressScenarios": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current example filters PHP comment churn while preserving an escaping API change.",
+    "phase": "cloned inventory plus comment/delimiter normalization slice",
+    "audit": "needs independent auditor review after cloned inventory update",
+    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, and trailing-comma normalization.",
+    "blocker": "Full upstream runner parity is not available: the sparse clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; offline no-run probe failed on missing `humansize` crate.",
+    "latestCommit": "pending commit after passing root tests",
+    "nextTask": "Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream sample_files pair such as simple_*.js or comma_*.js into a fixture parity test."
 }
