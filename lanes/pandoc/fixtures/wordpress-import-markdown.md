@@ -83,6 +83,15 @@ Raw import table:
 </tr>
 </table>
 
+Empty import audit table:
+
+<table>
+<tbody>
+</tbody>
+</table>
+<table>
+</table>
+
 Nested import table:
 
 <table>

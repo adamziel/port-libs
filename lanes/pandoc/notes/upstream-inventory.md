@@ -124,7 +124,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   AST lines covering 18 `Table` nodes from the upstream HTML reader fixture.
   The inspected HTML slice contains 19 `<table` starts, 47 `<th` cells, 10
   `<thead` starts, 17 `<tbody` starts, 5 `<tfoot` starts, and one native
-  `RowHeadColumns 1` body shape.
+  `RowHeadColumns 1` body shape. The bounded PHP mapping now includes the
+  two native colspan/rowspan table shapes and the attribute-carrying table
+  shape from this slice, plus the two empty table inputs omitted from the
+  upstream native output.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -258,13 +261,22 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `<sup>`/`<sub>` inline content maps to script nodes. Simple non-structured
   raw HTML tables still use the raw HTML path so legacy import-review markup
   is not over-normalized.
-- Three bounded HTML-reader table cases from `test/html-reader.html` and
+- Bounded HTML-reader table cases from `test/html-reader.html` and
   `test/html-reader.native` are now represented: a first all-`th` row without
   explicit `<thead>`/`<tbody>` tags is inferred as `table_head`, bodies whose
-  rows begin with `<th>` cells record `rowHeadColumns=1`, and omitted
-  `</thead>`, `</tbody>`, and `</tfoot>` end tags are normalized into distinct
-  head/body/foot AST sections. The WordPress writer now emits body row-header
-  cells as `<th>` instead of flattening them to `<td>`.
+  rows begin with `<th>` cells record `rowHeadColumns=1`, omitted `</thead>`,
+  `</tbody>`, and `</tfoot>` end tags are normalized into distinct
+  head/body/foot AST sections, no-header HTML tables with only `colspan`
+  metadata parse through the native table AST, headed tables preserve
+  `colspan`/`rowspan`, and Pandoc-style table, section, row, and cell
+  attributes are captured with `data-*` keys normalized to native-style
+  key-value attributes. The WordPress writer now emits body row-header cells as
+  `<th>` instead of flattening them to `<td>`, preserves table identity
+  attributes, and carries practical cell attributes such as `abbr`, `valign`,
+  `data-*`, and non-alignment `style` values. The upstream empty-table section
+  is mapped too: the empty `<tbody>` table and the fully empty
+  `<table></table>` input are consumed and omitted, matching
+  `test/html-reader.native`.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
   single and double quotes become `quoted` AST nodes, apostrophes inside words
@@ -365,6 +377,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-101 tests, 721 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command also passed after this slice with 123 test
-files, 10,716 assertions, and 0 failures in the current shared worktree.
+105 tests, 769 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command also passed after this slice with 126 test
+files, 11,197 assertions, and 0 failures in the current shared worktree.

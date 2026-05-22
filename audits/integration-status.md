@@ -1,5 +1,88 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T21:15:10Z
+
+No lane implementation batch, generated public status batch, dashboard update,
+push, or upstream-parity claim was accepted by this integration pass. The
+checkout is still too active for a safe lane-scoped integration: dirty tracked
+files span multiple lanes, untracked worker artifacts are present, and matching
+lane/runner sessions are still active.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 10, behind 32]`.
+- Final observed `HEAD`: `8d0d9f7` (`readability: map title discrepancy and
+  clean link footers`).
+- `git status --porcelain=v1 | wc -l`: `122` dirty/untracked paths.
+- Tracked diff summary: `46 files changed, 2381 insertions(+), 281
+  deletions(-)`.
+- Dirty tracked lane scopes include Difftastic, Dolt, esbuild, Gitoxide,
+  libsqlite, markerPDF, Pandoc, Quadrable, and rclone, plus
+  `audits/latest.md`, `progress.md`, `porting.html`, and
+  `porting-summary.json`.
+- Untracked lane files remain under Difftastic, Dolt, esbuild, Gitoxide,
+  libsqlite, markerPDF, Quadrable, rclone, and Syncthing, plus numerous
+  untracked audit/evidence artifacts.
+
+Recent worker output and commits reviewed:
+
+- Recent lane commits include `8d0d9f7` (Readability title discrepancy/link
+  cleanup), `8f04a78` (LightningCSS text emphasis fallback), `44e7cf7` /
+  `4ef72c8` (Syncthing block pull ordering and status), `23ec9e9` / `7603296`
+  (rclone remove-existing overwrite/status), `409af4e` / `916c66f` (Gitoxide
+  peeled packed tag refs/status), `5c2c399` (Dolt log graph rendering), and
+  `0e69320` (Quadrable file-backed store).
+- Recent log tails show active or just-finished worker handoffs for rclone,
+  esbuild, Dolt, Difftastic, markerPDF, Gitoxide, libsqlite, Pandoc, and
+  Readability. Several logs report green focused/root checks, but the same
+  lanes are still dirty or active.
+
+Active/risky lanes skipped:
+
+- Dolt was skipped because `port-dolt`, `port-dolt-runner`, and Dolt BATS/SQL
+  runner processes were active while Dolt source, tests, notes, status, and
+  generated public files were dirty. This does not meet the reauthorized Dolt
+  handoff rule.
+- Gitoxide, libsqlite, markerPDF, Pandoc, rclone, Difftastic, esbuild,
+  Quadrable, and Syncthing were skipped because matching worker/watchdog or
+  runner sessions are active or the lane has untracked files without a stable
+  reviewed handoff.
+- Generated/public status files were skipped because the accepted lane state is
+  not stable; regenerating `porting.html` now would bless a moving checkout.
+
+Checks run by this pass:
+
+- `git diff --check`: exit `0`, no output.
+- `php tools/run-tests.php`: exit `0`, `125 test files, 11107 assertions, 0
+  failures`.
+- `ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -30`: after the green
+  root run, another `php tools/run-tests.php` process (`3410394`) was active,
+  alongside Pandoc `cabal v2-build pandoc:test:test-pandoc -j2` and Dolt BATS
+  processes.
+- `pgrep -af 'php tools/run-tests.php|cabal v2-build|bats|go test|cargo
+  test|npm test|corepack yarn'`: confirmed active PHP root, Pandoc Cabal, and
+  Dolt BATS runner processes.
+
+Decision:
+
+- Hold integration. The green PHP suite is useful transient evidence, not an
+  accepted checkpoint while lane files and public status files are moving.
+- Do not commit any lane changes or regenerate the dashboard from this state.
+- Next safe integration point: wait until a single lane has stopped editing,
+  its implementation and runner sessions have produced one coherent handoff,
+  `git status --short -- <lane paths>` is stable, and no generated dashboard or
+  progress files are being changed by another worker. Then run focused lane
+  inspection, `php tools/run-tests.php`, `git diff --check`, and commit that
+  lane alone.
+
+Post-write drift note: by 2026-05-22T21:16:04Z, `HEAD` had advanced again to
+`3e48e53` (`Port esbuild return super constructor slice`) after
+`ba58052` (`difftastic map dynamic import metadata`). The dirty/untracked count
+remained `122`, and the tracked diff summary changed to `51 files changed, 2700
+insertions(+), 310 deletions(-)`. This pass did not review, stage, unstage,
+commit, or accept the Difftastic or esbuild commits, nor any newly changed dirty
+paths.
+
 ## Integration Worker Snapshot - 2026-05-22T21:11:29Z
 
 No lane implementation batch, generated public status batch, dashboard update,

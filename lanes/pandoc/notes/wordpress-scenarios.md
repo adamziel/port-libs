@@ -70,6 +70,16 @@ cells become WordPress tables with a real `<thead>`, body rows that start with
 `<th>` cells keep `rowHeadColumns=1` in the AST and render those cells as
 `<th>`, and omitted `</thead>`, `</tbody>`, and `</tfoot>` tags are normalized
 into explicit WordPress table sections.
+The next HTML-reader table slice now covers upstream colspan/rowspan and
+attribute-carrying cases: no-header `colspan` tables parse as native table
+nodes instead of raw HTML, headed tables keep `colspan`/`rowspan` metadata, and
+Pandoc-style table/section/row/cell attrs are captured in the AST. WordPress
+table output preserves table identity attrs and practical cell attrs such as
+`abbr`, `valign`, `data-*`, and non-alignment `style` values while leaving row
+and section attrs in the AST for later export tooling.
+The upstream empty-table case is now mapped as well: legacy HTML table shells
+with no cells are consumed and omitted instead of becoming empty WordPress
+table blocks or raw HTML review blocks.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -164,6 +174,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
+- The fixture now includes empty legacy HTML table shells, documenting the
+  upstream-aligned import policy to omit tables with no cells.
 - The fixture now includes a nested legacy HTML audit table to exercise nested
   table-cell block children and WordPress nested table rendering.
 - The fixture now also includes a third-level nested legacy HTML audit table,
@@ -219,6 +231,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Raw HTML tables, comments, and custom dividers render inside WordPress HTML
   blocks without shelling out to Pandoc, preserving legacy import annotations
   and table markup that reviewers may need to inspect.
+- Empty legacy HTML table shells are omitted without shelling out to Pandoc,
+  avoiding empty WordPress table blocks in migrated content.
 - Nested legacy HTML audit tables render as nested table HTML inside the
   containing WordPress table block, preserving old reviewer matrices that used
   inner tables for grouped import status.
@@ -275,6 +289,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map bounded HTML reader colspan/rowspan and attribute-carrying table cases from
-`test/html-reader.html` and `test/html-reader.native` before broader HTML
-reader work.
+Map multiple tbody table body sections from `test/html-reader.html` and
+`test/html-reader.native` instead of collapsing them into a single
+`table_body` node.

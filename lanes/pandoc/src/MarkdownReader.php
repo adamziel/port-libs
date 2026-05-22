@@ -50,6 +50,9 @@ final class MarkdownReader
                 $blocks[] = $docBookTable;
                 continue;
             }
+            if ($paragraph === [] && $listStack === [] && $this->tryReadEmptyHtmlTableBlock($lines, $index)) {
+                continue;
+            }
             $nestedHtmlDocumentTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlDocumentTableBlock($lines, $index) : null;
             if ($nestedHtmlDocumentTable !== null) {
                 $blocks[] = $nestedHtmlDocumentTable;
@@ -886,6 +889,31 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     */
+    private function tryReadEmptyHtmlTableBlock(array $lines, int &$index): bool
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return false;
+        }
+
+        $balanced = $this->collectBalancedHtmlTableBlock($lines, $index);
+        if ($balanced === null) {
+            return false;
+        }
+
+        [$html, $endIndex] = $balanced;
+        if (!$this->htmlTableBlockIsEmpty($html)) {
+            return false;
+        }
+
+        $index = $endIndex;
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $lines
      * @return array{0:string, 1:int}|null
      */
     private function collectBalancedHtmlTableBlock(array $lines, int $index): ?array
@@ -916,6 +944,54 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function htmlTableBlockIsEmpty(string $html): bool
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return false;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return false;
+        }
+
+        $table = $this->firstDescendantElement($body, 'table');
+        if (!$table instanceof \DOMElement) {
+            return false;
+        }
+
+        if (trim($this->directHtmlTableCaptionText($table)) !== '') {
+            return false;
+        }
+
+        foreach (['td', 'th'] as $name) {
+            foreach ($table->getElementsByTagName($name) as $cell) {
+                if ($cell instanceof \DOMElement) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private function directHtmlTableCaptionText(\DOMElement $table): string
+    {
+        foreach ($this->childElements($table, 'caption') as $caption) {
+            return $caption->textContent;
+        }
+
+        return '';
     }
 
     private function parseStructuredHtmlTable(string $html): ?AstNode
@@ -970,7 +1046,7 @@ final class MarkdownReader
             }
         }
 
-        return $this->htmlTableHasHeaderCells($table);
+        return $this->htmlTableHasHeaderCells($table) || $this->htmlTableHasSpans($table);
     }
 
     private function htmlTableHasHeaderCells(\DOMElement $table): bool
@@ -978,6 +1054,26 @@ final class MarkdownReader
         foreach ($table->getElementsByTagName('th') as $cell) {
             if ($cell instanceof \DOMElement) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function htmlTableHasSpans(\DOMElement $table): bool
+    {
+        foreach (['td', 'th'] as $name) {
+            foreach ($table->getElementsByTagName($name) as $cell) {
+                if (!$cell instanceof \DOMElement) {
+                    continue;
+                }
+
+                if (
+                    $this->positiveHtmlSpan($cell->getAttribute('colspan')) > 1
+                    || $this->positiveHtmlSpan($cell->getAttribute('rowspan')) > 1
+                ) {
+                    return true;
+                }
             }
         }
 
@@ -1010,10 +1106,10 @@ final class MarkdownReader
         $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
 
         $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
-        $attrs = [
+        $attrs = array_merge($this->htmlElementPandocAttrs($table), [
             'caption' => $captionInlines === [] ? '' : trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? ''),
             'alignments' => array_fill(0, $maxColumns, 'default'),
-        ];
+        ]);
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
         }
@@ -1025,12 +1121,19 @@ final class MarkdownReader
             $attrs['widths'] = array_fill(0, $maxColumns, 1 / $maxColumns);
         }
 
+        $headAttrs = $thead instanceof \DOMElement ? $this->htmlElementPandocAttrs($thead) : [];
+        $bodyAttrs = $this->htmlTableBodyAttrs($bodyRows);
+        if (count($bodySections) === 1) {
+            $bodyAttrs = array_merge($this->htmlElementPandocAttrs($bodySections[0]), $bodyAttrs);
+        }
+        $footAttrs = $tfoot instanceof \DOMElement ? $this->htmlElementPandocAttrs($tfoot) : [];
+
         $children = [
-            new AstNode('table_head', [], $headRows),
-            new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows), $bodyRows),
+            new AstNode('table_head', $headAttrs, $headRows),
+            new AstNode('table_body', $bodyAttrs, $bodyRows),
         ];
         if ($footRows !== []) {
-            $children[] = new AstNode('table_foot', [], $footRows);
+            $children[] = new AstNode('table_foot', $footAttrs, $footRows);
         }
 
         return new AstNode('table', $attrs, $children);
@@ -1166,7 +1269,11 @@ final class MarkdownReader
             }
 
             $maxColumns = max($maxColumns, $rowColumns);
-            $rows[] = new AstNode('table_row', ['header' => $header], $cells);
+            $rows[] = new AstNode(
+                'table_row',
+                array_merge($this->htmlElementPandocAttrs($rowElement), ['header' => $header]),
+                $cells
+            );
         }
 
         return $rows;
@@ -1175,10 +1282,10 @@ final class MarkdownReader
     private function buildHtmlTableCell(\DOMElement $cell, bool $header): AstNode
     {
         $children = $this->parseHtmlTableCellChildren($cell);
-        $attrs = [
+        $attrs = array_merge($this->htmlElementPandocAttrs($cell, ['align', 'colspan', 'rowspan']), [
             'text' => trim(preg_replace('/\s+/', ' ', $cell->textContent) ?? $cell->textContent),
             'header' => $header,
-        ];
+        ]);
 
         $colspan = $this->positiveHtmlSpan($cell->getAttribute('colspan'));
         if ($colspan > 1) {
@@ -1196,6 +1303,92 @@ final class MarkdownReader
         }
 
         return new AstNode('table_cell', $attrs, $children);
+    }
+
+    /**
+     * @param list<string> $skip
+     * @return array<string, mixed>
+     */
+    private function htmlElementPandocAttrs(\DOMElement $element, array $skip = []): array
+    {
+        $id = '';
+        $classes = [];
+        $attributes = [];
+        $htmlAttributes = [];
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = strtolower($attribute->name);
+            if (in_array($name, $skip, true)) {
+                continue;
+            }
+
+            $value = trim($attribute->value);
+            if ($name === 'id') {
+                $id = $value;
+                if ($value !== '') {
+                    $htmlAttributes['id'] = $value;
+                }
+                continue;
+            }
+
+            if ($name === 'class') {
+                $classes = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                if ($classes !== []) {
+                    $htmlAttributes['class'] = implode(' ', $classes);
+                }
+                continue;
+            }
+
+            if ($name === 'style') {
+                $value = $this->htmlTableNonAlignmentStyle($value);
+                if ($value === '') {
+                    continue;
+                }
+            }
+
+            $key = str_starts_with($name, 'data-') ? substr($name, 5) : $name;
+            if ($key === '') {
+                continue;
+            }
+
+            $attributes[$key] = $value;
+            $htmlAttributes[$name] = $value;
+        }
+
+        $attrs = [];
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
+    }
+
+    private function htmlTableNonAlignmentStyle(string $style): string
+    {
+        $kept = [];
+        foreach (preg_split('/;/', $style) ?: [] as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '' || preg_match('/^text-align\s*:/i', $declaration) === 1) {
+                continue;
+            }
+
+            $kept[] = $declaration;
+        }
+
+        return implode('; ', $kept);
     }
 
     private function positiveHtmlSpan(string $value): int

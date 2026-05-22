@@ -233,7 +233,7 @@ final class WordPressBlockWriter
             }
         }
 
-        $html = '<table>' . $this->renderTableColgroup($node);
+        $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead>';
             foreach ($head->children as $row) {
@@ -275,6 +275,11 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function renderTableElementAttrs(AstNode $node): string
+    {
+        return $this->renderStoredHtmlAttrs($node, true, []);
     }
 
     private function renderCaptionInlines(AstNode $node): string
@@ -378,7 +383,7 @@ final class WordPressBlockWriter
 
     private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
     {
-        $attrs = '';
+        $attrs = $this->renderStoredHtmlAttrs($cell, false, ['style']);
         $colspan = (int) $cell->attr('colspan', 1);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
@@ -395,11 +400,96 @@ final class WordPressBlockWriter
             $alignment = (string) ($alignments[$index] ?? 'default');
         }
 
-        if (in_array($alignment, ['left', 'right', 'center'], true)) {
-            $attrs .= ' style="text-align:' . $alignment . '"';
+        $styles = [];
+        $sourceStyle = $this->storedHtmlStyle($cell);
+        if ($sourceStyle !== '') {
+            $styles[] = rtrim($sourceStyle, ';');
+        }
+
+        if (
+            in_array($alignment, ['left', 'right', 'center'], true)
+            && preg_match('/(?:^|;)\s*text-align\s*:/i', $sourceStyle) !== 1
+        ) {
+            $styles[] = 'text-align:' . $alignment;
+        }
+
+        if ($styles !== []) {
+            $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<string> $skip
+     */
+    private function renderStoredHtmlAttrs(AstNode $node, bool $includeIdentity, array $skip): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+            return '';
+        }
+
+        $attrs = '';
+        if ($includeIdentity) {
+            $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+            if ($id !== '') {
+                $attrs .= ' id="' . $this->esc($id) . '"';
+            }
+
+            $class = (string) ($htmlAttributes['class'] ?? '');
+            if ($class === '') {
+                $classes = $node->attr('classes', []);
+                if (is_array($classes) && $classes !== []) {
+                    $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
+                }
+            }
+            if ($class !== '') {
+                $attrs .= ' class="' . $this->esc($class) . '"';
+            }
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                $name === 'id'
+                || $name === 'class'
+                || in_array($name, $skip, true)
+                || !$this->isAllowedTableHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function storedHtmlStyle(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && isset($htmlAttributes['style'])) {
+            return trim((string) $htmlAttributes['style']);
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && isset($attributes['style'])) {
+            return trim((string) $attributes['style']);
+        }
+
+        return '';
+    }
+
+    private function isAllowedTableHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['abbr', 'bgcolor', 'headers', 'scope', 'style', 'title', 'valign'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string

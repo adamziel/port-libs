@@ -1300,12 +1300,153 @@ HTML;
         $t->same('4', $foot->children[0]->children[0]->attr('text'));
         $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot>', $blocks);
     },
+    'maps upstream html reader colspans without table headers' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <tr>
+        <td colspan="2">1 and 2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td colspan="3">4, 5, and 6</td>
+    </tr>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same([], $head->children);
+        $t->same(['default', 'default', 'default'], $table->attr('alignments'));
+        $t->same(2, count($body->children));
+        $t->same(2, $body->children[0]->children[0]->attr('colspan'));
+        $t->same('1 and 2', $body->children[0]->children[0]->attr('text'));
+        $t->same('3', $body->children[0]->children[1]->attr('text'));
+        $t->same(3, $body->children[1]->children[0]->attr('colspan'));
+        $t->same('4, 5, and 6', $body->children[1]->children[0]->attr('text'));
+        $t->contains('<tbody><tr><td colspan="2">1 and 2</td><td>3</td></tr><tr><td colspan="3">4, 5, and 6</td></tr></tbody>', $blocks);
+    },
+    'maps upstream html reader colspans and rowspans in headed tables' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <thead>
+    <tr>
+        <th colspan="3">Numbers</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td rowspan="2">1 and 4</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(3, $head->children[0]->children[0]->attr('colspan'));
+        $t->same(true, $head->children[0]->children[0]->attr('header'));
+        $t->same('Numbers', $head->children[0]->children[0]->attr('text'));
+        $t->same(2, $body->children[0]->children[0]->attr('rowspan'));
+        $t->same('1 and 4', $body->children[0]->children[0]->attr('text'));
+        $t->same(2, count($body->children[1]->children));
+        $t->same('6', $body->children[1]->children[1]->attr('text'));
+        $t->contains('<thead><tr><th colspan="3">Numbers</th></tr></thead><tbody><tr><td rowspan="2">1 and 4</td><td>2</td><td>3</td></tr><tr><td>5</td><td>6</td></tr></tbody>', $blocks);
+    },
+    'maps upstream html reader table attributes on sections rows and cells' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="attrib-test-table">
+  <thead class="table-head">
+    <tr class="table-head-row">
+      <th abbr="x" colspan="3">Cat X</th>
+    </tr>
+    <tbody data-part="body" class="main">
+    <tr data-part="row">
+        <td data-part="cell">1</td>
+        <td valign="bottom">2</td>
+        <td style="color: #151950">3</td>
+    </tr>
+    </tbody>
+    <tfoot class="summary">
+    <tr bgcolor="#ccc">
+        <td data-square="true">4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tfoot>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $foot = $table->children[2];
+        $headCell = $head->children[0]->children[0];
+        $bodyRow = $body->children[0];
+        $footRow = $foot->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('attrib-test-table', $table->attr('id'));
+        $t->same(['table-head'], $head->attr('classes'));
+        $t->same(['table-head-row'], $head->children[0]->attr('classes'));
+        $t->same(['abbr' => 'x'], $headCell->attr('attributes'));
+        $t->same(3, $headCell->attr('colspan'));
+        $t->same('Cat X', $headCell->attr('text'));
+        $t->same(['main'], $body->attr('classes'));
+        $t->same(['part' => 'body'], $body->attr('attributes'));
+        $t->same(['part' => 'row'], $bodyRow->attr('attributes'));
+        $t->same(['part' => 'cell'], $bodyRow->children[0]->attr('attributes'));
+        $t->same(['valign' => 'bottom'], $bodyRow->children[1]->attr('attributes'));
+        $t->same(['style' => 'color: #151950'], $bodyRow->children[2]->attr('attributes'));
+        $t->same(['summary'], $foot->attr('classes'));
+        $t->same(['bgcolor' => '#ccc'], $footRow->attr('attributes'));
+        $t->same(['square' => 'true'], $footRow->children[0]->attr('attributes'));
+        $t->contains('<table id="attrib-test-table">', $blocks);
+        $t->contains('<th abbr="x" colspan="3">Cat X</th>', $blocks);
+        $t->contains('<td data-part="cell">1</td><td valign="bottom">2</td><td style="color: #151950">3</td>', $blocks);
+        $t->contains('<td data-square="true">4</td>', $blocks);
+    },
+    'maps upstream html reader empty tables as omitted blocks' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+This section should be empty.
+
+<table>
+    <tbody>
+    </tbody>
+</table>
+<table>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('This section should be empty.', $document->children[0]->children[0]->attr('text'));
+        $t->contains('<p>This section should be empty.</p>', $blocks);
+        $t->true(!str_contains($blocks, '<table>'), 'Empty upstream HTML tables should not render WordPress table markup');
+        $t->true(!str_contains($blocks, '<!-- wp:html -->'), 'Empty upstream HTML tables should not fall back to raw HTML blocks');
+    },
     'writes wordpress structured html table sections from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Structured HTML import table:</p>', $blocks);
-        $t->contains('<figure class="wp-block-table"><table><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="nordics" data-source="wikipedia"><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
         $t->contains('<tbody><tr><th style="text-align:center">Denmark</th><td style="text-align:left">Copenhagen</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">States belonging to the <em>Nordics.</em></figcaption>', $blocks);
         $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:left"></td><td style="text-align:left">27,376,022</td><td style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
@@ -1992,6 +2133,9 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<table>' . "\n" . '<tr>' . "\n" . '<td><em>Legacy caption</em></td>' . "\n" . '<td><strong>Reviewer flag</strong></td>' . "\n" . '</tr>' . "\n" . '</table>', $blocks);
+        $t->contains('<p>Empty import audit table:</p>', $blocks);
+        $t->true(!str_contains($blocks, '<table>' . "\n" . '<tbody>' . "\n" . '</tbody>' . "\n" . '</table>'), 'Empty fixture tables should not become raw HTML blocks');
+        $t->true(!str_contains($blocks, '<table>' . "\n" . '</table>'), 'Empty fixture tables should be omitted');
         $t->contains('<!-- Preserve migration audit marker -->', $blocks);
         $t->contains('<hr class="legacy-import-divider" />', $blocks);
     },
