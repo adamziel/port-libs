@@ -59,6 +59,7 @@ final class CssMinifier
         }
 
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
+        $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
@@ -654,7 +655,7 @@ final class CssMinifier
 
     private function minifyDeclarationValue(string $property, string $value): string
     {
-        $value = $this->normalizeMathFunctionOperators($value);
+        $value = $this->foldSimpleContainerUnitCalcs($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
@@ -2649,6 +2650,137 @@ final class CssMinifier
         return array_values(array_map('trim', $parts));
     }
 
+    private function mergeAdjacentRuleBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $pending = null;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                break;
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            if ($statementBoundary !== null) {
+                if ($pending !== null) {
+                    $output .= $this->serializeRuleBlock($pending['prelude'], $pending['body']);
+                    $pending = null;
+                }
+                $output .= substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            if ($prelude === '') {
+                if ($pending !== null) {
+                    $output .= $this->serializeRuleBlock($pending['prelude'], $pending['body']);
+                    $pending = null;
+                }
+                $output .= substr($css, $cursor, $close - $cursor + 1);
+                $cursor = $close + 1;
+                continue;
+            }
+
+            $body = $this->mergeAdjacentRuleBlocks(substr($css, $open + 1, $close - $open - 1));
+            if ($pending !== null
+                && $pending['prelude'] === $prelude
+                && $this->isMergeableRulePrelude($prelude)
+            ) {
+                $pending['body'] = $this->combineRuleBodies($pending['body'], $body);
+            } else {
+                if ($pending !== null) {
+                    $output .= $this->serializeRuleBlock($pending['prelude'], $pending['body']);
+                }
+                $pending = ['prelude' => $prelude, 'body' => $body];
+            }
+
+            $cursor = $close + 1;
+        }
+
+        if ($pending !== null) {
+            $output .= $this->serializeRuleBlock($pending['prelude'], $pending['body']);
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    private function lastTopLevelSemicolon(string $value): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $last = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === ';' && $parenDepth === 0 && $bracketDepth === 0) {
+                $last = $i;
+            }
+        }
+
+        return $last;
+    }
+
+    private function isMergeableRulePrelude(string $prelude): bool
+    {
+        $prelude = strtolower(trim($prelude));
+        if ($prelude === '') {
+            return false;
+        }
+        if ($prelude[0] !== '@') {
+            return true;
+        }
+
+        return preg_match('/^@(?:container|media|supports)\b/', $prelude) === 1;
+    }
+
+    private function combineRuleBodies(string $first, string $second): string
+    {
+        if ($first === '') {
+            return $second;
+        }
+        if ($second === '') {
+            return $first;
+        }
+        if (!str_contains($first, '{') && !str_contains($second, '{')) {
+            return rtrim($first, ';') . ';' . ltrim($second, ';');
+        }
+
+        return $this->mergeAdjacentRuleBlocks($first . $second);
+    }
+
+    private function serializeRuleBlock(string $prelude, string $body): string
+    {
+        return $prelude . '{' . $body . '}';
+    }
+
     private function composeTransitionDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -4299,6 +4431,78 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function foldSimpleContainerUnitCalcs(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $url;
+                $i = $offset;
+                continue;
+            }
+
+            if ($this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($value, $i);
+                $next = $i + strlen($identifier);
+                if (strtolower($identifier) === 'calc' && ($value[$next] ?? '') === '(') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $this->foldSimpleContainerUnitCalc($function);
+                    $i = $offset;
+                    continue;
+                }
+
+                $output .= $identifier;
+                $i = $next - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function foldSimpleContainerUnitCalc(string $function): string
+    {
+        if (preg_match(
+            '/^calc\(\s*([+-]?(?:\d+|\d*\.\d+))(cqw|cqh|cqi|cqb|cqmin|cqmax)\s*([+-])\s*([+-]?(?:\d+|\d*\.\d+))\2\s*\)$/i',
+            $function,
+            $matches
+        ) !== 1) {
+            return $function;
+        }
+
+        $left = (float) $matches[1];
+        $right = (float) $matches[4];
+        $value = $matches[3] === '+' ? $left + $right : $left - $right;
+        $number = $this->minifyNumber($value);
+
+        return $number === '0' ? '0' : $number . strtolower($matches[2]);
     }
 
     private function isBinaryMathOperator(string $value, int $offset): bool

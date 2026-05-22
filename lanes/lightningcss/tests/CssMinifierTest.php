@@ -304,6 +304,46 @@ return [
         $t->same('.foo{container:foo}', $minifier->minify('.foo { container: foo / normal; }'));
         $t->same('.foo{container:foo/inline-size}', $minifier->minify('.foo { container: foo / inline-size; }'));
     },
+    'css minifier maps upstream adjacent container query merging' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $css = <<<'CSS'
+@container my-layout (inline-size > 45em) {
+  .foo {
+    color: red;
+  }
+}
+
+@container my-layout (inline-size > 45em) {
+  .foo {
+    background: yellow;
+  }
+
+  .bar {
+    color: white;
+  }
+}
+CSS;
+
+        $t->same(
+            '@container my-layout (inline-size>45em){.foo{color:red;background:#ff0}.bar{color:#fff}}',
+            $minifier->minify($css)
+        );
+    },
+    'css minifier maps upstream container query unit calc folding' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{width:3cqw}', $minifier->minify('.foo { width: calc(1cqw + 2cqw) }'));
+        $t->same('.foo{width:3cqh}', $minifier->minify('.foo { width: calc(1cqh + 2cqh) }'));
+        $t->same('.foo{width:3cqi}', $minifier->minify('.foo { width: calc(1cqi + 2cqi) }'));
+        $t->same('.foo{width:3cqb}', $minifier->minify('.foo { width: calc(1cqb + 2cqb) }'));
+        $t->same('.foo{width:3cqmin}', $minifier->minify('.foo { width: calc(1cqmin + 2cqmin) }'));
+        $t->same('.foo{width:3cqmax}', $minifier->minify('.foo { width: calc(1cqmax + 2cqmax) }'));
+        $t->same(
+            '.foo{background:url(calc(1cqw + 2cqw));width:calc(1rem + 2px)}',
+            $minifier->minify('.foo { background: url(calc(1cqw + 2cqw)); width: calc(1rem + 2px); }')
+        );
+    },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -723,6 +763,26 @@ CSS;
 
         $t->same(
             '.wp-block-query{container:wp-query-card/inline-size}@container wp-query-card (inline-size>45em) and style(--wp--custom--dense:true){.wp-block-post-template{color:#ff0}}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress adjacent block container rules merge and fold cqw units without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@container wp-query-card (inline-size > 45em) {
+  .wp-block-post-template {
+    gap: calc(1cqw + 2cqw);
+  }
+}
+
+@container wp-query-card (inline-size > 45em) {
+  .wp-block-post-template {
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '@container wp-query-card (inline-size>45em){.wp-block-post-template{gap:3cqw;color:#ff0}}',
             (new CssMinifier())->minify($css)
         );
     },
