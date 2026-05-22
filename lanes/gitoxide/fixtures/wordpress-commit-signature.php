@@ -10,6 +10,12 @@ $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "gpgsig -----BEGIN SSH SIGNATURE-----\n"
     . " c2lnbmVkLXdvcmRwcmVzcy1pbXBvcnQ=\n"
     . " -----END SSH SIGNATURE-----\n"
+    . "mergetag object 3333333333333333333333333333333333333333\n"
+    . " type commit\n"
+    . " tag wp-release-2026.05\n"
+    . " tagger WordPress Release Bot <release@example.test> 1710007200 +0000\n"
+    . " \n"
+    . " Release tag embedded for deployment provenance\n"
     . "\n"
     . "Import WordPress export\n\n"
     . "Source: wp-content/uploads/export.wxr\n\n"
@@ -27,5 +33,8 @@ return [
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
     'expectedSignedOffBy' => ['WordPress Importer <importer@example.test>'],
     'expectedCoAuthors' => ['Content Reviewer <reviewer@example.test>'],
-    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, signed payload bytes, and attribution trailers without invoking git log.',
+    'expectedSignatureHeaderPosition' => 0,
+    'expectedMergeTagCount' => 1,
+    'expectedMergeTagName' => 'wp-release-2026.05',
+    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
 ];

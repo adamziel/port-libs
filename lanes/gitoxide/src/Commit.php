@@ -9,6 +9,7 @@ final class Commit
     /**
      * @param list<string> $parents
      * @param array<string, list<string>> $headers
+     * @param list<array{name: string, value: string}> $extraHeaderList
      */
     public function __construct(
         public readonly string $tree,
@@ -20,6 +21,7 @@ final class Commit
         public readonly ?string $encoding = null,
         public readonly array $extraHeaders = [],
         public readonly ?string $rawBody = null,
+        private readonly array $extraHeaderList = [],
     ) {
     }
 
@@ -28,6 +30,8 @@ final class Commit
         [$headerBlock, $message] = array_pad(explode("\n\n", $body, 2), 2, '');
         $headers = [];
         $current = null;
+        $currentEntryIndex = null;
+        $headerEntries = [];
 
         foreach (explode("\n", $headerBlock) as $line) {
             if ($line === '') {
@@ -39,6 +43,9 @@ final class Commit
                 }
                 $last = array_key_last($headers[$current]);
                 $headers[$current][$last] .= "\n" . substr($line, 1);
+                if ($currentEntryIndex !== null) {
+                    $headerEntries[$currentEntryIndex]['value'] .= "\n" . substr($line, 1);
+                }
                 continue;
             }
 
@@ -47,7 +54,10 @@ final class Commit
                 throw new \InvalidArgumentException('Invalid commit header line: ' . $line);
             }
             $current = substr($line, 0, $space);
-            $headers[$current][] = substr($line, $space + 1);
+            $value = substr($line, $space + 1);
+            $headers[$current][] = $value;
+            $currentEntryIndex = count($headerEntries);
+            $headerEntries[] = ['name' => $current, 'value' => $value];
         }
 
         $hashLength = ReferenceTarget::hashHexLength($algorithm);
@@ -73,11 +83,18 @@ final class Commit
         CommitSignature::parse($headers['committer'][0]);
 
         $extraHeaders = [];
+        $extraHeaderList = [];
+        $standardHeaders = ['tree', 'parent', 'author', 'committer', 'encoding'];
         foreach ($headers as $name => $values) {
-            if (in_array($name, ['tree', 'parent', 'author', 'committer', 'encoding'], true)) {
+            if (in_array($name, $standardHeaders, true)) {
                 continue;
             }
             $extraHeaders[$name] = $values;
+        }
+        foreach ($headerEntries as $entry) {
+            if (!in_array($entry['name'], $standardHeaders, true)) {
+                $extraHeaderList[] = $entry;
+            }
         }
 
         return new self(
@@ -90,6 +107,7 @@ final class Commit
             $headers['encoding'][0] ?? null,
             $extraHeaders,
             $body,
+            $extraHeaderList,
         );
     }
 
@@ -168,6 +186,70 @@ final class Commit
         return $this->parsedMessage()->attributionTrailers();
     }
 
+    /**
+     * @return list<array{name: string, value: string}>
+     */
+    public function allExtraHeaders(): array
+    {
+        if ($this->extraHeaderList !== []) {
+            return $this->extraHeaderList;
+        }
+
+        $entries = [];
+        foreach ($this->extraHeaders as $name => $values) {
+            foreach ($values as $value) {
+                $entries[] = ['name' => $name, 'value' => $value];
+            }
+        }
+
+        return $entries;
+    }
+
+    public function extraHeader(string $name): ?string
+    {
+        foreach ($this->allExtraHeaders() as $entry) {
+            if ($entry['name'] === $name) {
+                return $entry['value'];
+            }
+        }
+
+        return null;
+    }
+
+    public function extraHeaderPosition(string $name): ?int
+    {
+        foreach ($this->allExtraHeaders() as $position => $entry) {
+            if ($entry['name'] === $name) {
+                return $position;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function extraHeaderValues(string $name): array
+    {
+        $values = [];
+        foreach ($this->allExtraHeaders() as $entry) {
+            if ($entry['name'] === $name) {
+                $values[] = $entry['value'];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function mergeTagHeaders(): array
+    {
+        return $this->extraHeaderValues('mergetag');
+    }
+
     public function pgpSignature(): ?string
     {
         $header = $this->signatureHeaderWithRange();
@@ -175,7 +257,7 @@ final class Commit
             return $header['signature'];
         }
 
-        return $this->extraHeaders['gpgsig'][0] ?? null;
+        return $this->extraHeader('gpgsig');
     }
 
     public function signedDataForSignature(): ?string

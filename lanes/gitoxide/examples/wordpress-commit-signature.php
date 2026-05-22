@@ -12,6 +12,12 @@ $author = $commit->authorSignature();
 $committer = $commit->committerSignature();
 $trailers = $commit->messageTrailers();
 $signedData = $commit->signedDataForSignature();
+$mergeTagNames = array_map(
+    static function (string $header): ?string {
+        return preg_match('/(?:^|\n)tag ([^\n]+)/', $header, $matches) === 1 ? $matches[1] : null;
+    },
+    $commit->mergeTagHeaders(),
+);
 
 return [
     'tree' => $commit->tree,
@@ -29,6 +35,10 @@ return [
     ],
     'encoding' => $commit->encoding,
     'signatureHeader' => $commit->pgpSignature(),
+    'signatureHeaderPosition' => $commit->extraHeaderPosition('gpgsig'),
+    'signatureHeaderCount' => count($commit->extraHeaderValues('gpgsig')),
+    'mergeTagCount' => count($commit->mergeTagHeaders()),
+    'mergeTagNames' => array_values(array_filter($mergeTagNames, static fn (?string $name): bool => $name !== null)),
     'summary' => $commit->messageSummary(),
     'bodyWithoutTrailers' => $commit->messageBodyWithoutTrailers(),
     'trailers' => array_map(

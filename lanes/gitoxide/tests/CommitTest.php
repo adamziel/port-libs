@@ -70,6 +70,51 @@ return [
         );
         $t->same("sha256 subject\n\nsha256 body\n", $commit->message);
     },
+    'extra header lookup follows gitoxide first all and position semantics' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author Release Bot <release@example.test> 1710000000 +0000\n"
+            . "committer CI <ci@example.test> 1710003600 +0000\n"
+            . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+            . "mergetag object 3333333333333333333333333333333333333333\n"
+            . " type commit\n"
+            . " tag wp-release-2026.05\n"
+            . " tagger Release Bot <release@example.test> 1710007200 +0000\n"
+            . " \n"
+            . " WordPress release tag provenance\n"
+            . "gpgsig iHUEABYIAB0WIQSuZwcGWSQItmusNgR5URpSUCnw\n"
+            . "gpgsig -----END PGP SIGNATURE-----\n"
+            . "\n"
+            . "Release WordPress content\n";
+
+        $commit = Commit::parse($body);
+
+        $t->same('-----BEGIN PGP SIGNATURE-----', $commit->extraHeader('gpgsig'));
+        $t->same('-----BEGIN PGP SIGNATURE-----', $commit->pgpSignature());
+        $t->same(0, $commit->extraHeaderPosition('gpgsig'));
+        $t->same(1, $commit->extraHeaderPosition('mergetag'));
+        $t->same(null, $commit->extraHeaderPosition('unknown'));
+        $t->same([
+            '-----BEGIN PGP SIGNATURE-----',
+            'iHUEABYIAB0WIQSuZwcGWSQItmusNgR5URpSUCnw',
+            '-----END PGP SIGNATURE-----',
+        ], $commit->extraHeaderValues('gpgsig'));
+        $t->same(1, count($commit->mergeTagHeaders()));
+        $t->contains("tag wp-release-2026.05", $commit->mergeTagHeaders()[0]);
+        $t->same([
+            ['name' => 'gpgsig', 'value' => '-----BEGIN PGP SIGNATURE-----'],
+            [
+                'name' => 'mergetag',
+                'value' => "object 3333333333333333333333333333333333333333\n"
+                    . "type commit\n"
+                    . "tag wp-release-2026.05\n"
+                    . "tagger Release Bot <release@example.test> 1710007200 +0000\n"
+                    . "\n"
+                    . "WordPress release tag provenance",
+            ],
+            ['name' => 'gpgsig', 'value' => 'iHUEABYIAB0WIQSuZwcGWSQItmusNgR5URpSUCnw'],
+            ['name' => 'gpgsig', 'value' => '-----END PGP SIGNATURE-----'],
+        ], $commit->allExtraHeaders());
+    },
     'parses gitoxide commit message summaries body trailers and attribution filters' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author Ada <ada@example.test> 1700000000 +0000\n"
@@ -170,6 +215,10 @@ return [
         $t->same($fixture['expectedAuthorOffset'], $summary['author']['offsetSeconds']);
         $t->same('UTF-8', $summary['encoding']);
         $t->contains('BEGIN SSH SIGNATURE', $summary['signatureHeader']);
+        $t->same($fixture['expectedSignatureHeaderPosition'], $summary['signatureHeaderPosition']);
+        $t->same(1, $summary['signatureHeaderCount']);
+        $t->same($fixture['expectedMergeTagCount'], $summary['mergeTagCount']);
+        $t->same([$fixture['expectedMergeTagName']], $summary['mergeTagNames']);
         $t->same($fixture['expectedSummary'], $summary['summary']);
         $t->same($fixture['expectedBodyWithoutTrailers'], $summary['bodyWithoutTrailers']);
         $t->same($fixture['expectedSignedOffBy'], $summary['signedOffBy']);
