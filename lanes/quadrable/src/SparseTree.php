@@ -404,6 +404,32 @@ final class SparseTree
         return $this->buildTree($this->leafRecords(), 0)['hash'];
     }
 
+    public function partialRootNodeId(): int
+    {
+        if ($this->partialRoot === null) {
+            throw new \RuntimeException('partial tree root node id is unavailable');
+        }
+
+        return $this->nodeIdFromPartialNode($this->partialRoot);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function partialNodeIds(): array
+    {
+        if ($this->partialRoot === null) {
+            throw new \RuntimeException('partial tree node ids are unavailable');
+        }
+
+        $nodeIds = [];
+        $this->collectPartialNodeIds($this->partialRoot, $nodeIds);
+        $nodeIds = array_values(array_unique($nodeIds));
+        sort($nodeIds, SORT_NUMERIC);
+
+        return $nodeIds;
+    }
+
     /**
      * @return array{numNodes: int, numLeafNodes: int, numBranchNodes: int, maxDepth: int}
      */
@@ -1513,6 +1539,23 @@ final class SparseTree
         }
 
         throw new \RuntimeException('unrecognized partial tree node type');
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param list<int> $nodeIds
+     */
+    private function collectPartialNodeIds(array $node, array &$nodeIds): void
+    {
+        $nodeId = $this->nodeIdFromPartialNode($node);
+        if ($nodeId !== 0) {
+            $nodeIds[] = $nodeId;
+        }
+
+        if ($node['type'] === 'branch') {
+            $this->collectPartialNodeIds($node['left'], $nodeIds);
+            $this->collectPartialNodeIds($node['right'], $nodeIds);
+        }
     }
 
     private static function estimateSizeProof(Proof $proof): int

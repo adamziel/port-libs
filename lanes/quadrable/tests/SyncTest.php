@@ -217,6 +217,49 @@ return [
         $t->true($diffsByKey[3]->nodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'added imported leaf should use memStore-range node id');
         $t->true($diffsByKey[4]->nodeId > 0 && $diffsByKey[4]->nodeId < TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'deleted local leaf should keep a local node id');
     },
+    'sync session exposes upstream shaped shadow root node ids' => static function (TestRunner $t): void {
+        $local = new SparseTree();
+        $local->change()
+            ->putKey(Key::fromInteger(1), 'one')
+            ->putKey(Key::fromInteger(2), 'two')
+            ->putKey(Key::fromInteger(5), str_repeat('five ', 10))
+            ->apply();
+
+        $remote = clone $local;
+        $remote->change()
+            ->putKey(Key::fromInteger(2), 'two imported through shadow node')
+            ->deleteKey(Key::fromInteger(5))
+            ->putKey(Key::fromInteger(3), str_repeat('three ', 12))
+            ->putKey(Key::fromInteger(8), str_repeat('eight ', 9))
+            ->apply();
+
+        $session = new SyncSession($local, 1, 1);
+        $t->throws(RuntimeException::class, static fn () => $session->shadowNodeId());
+
+        $shadowRootNodeIds = [];
+        $converged = false;
+
+        for ($roundTrips = 0; $roundTrips < 50; $roundTrips++) {
+            $requests = SyncCodec::decodeRequests(SyncCodec::encodeRequests($session->getRequests(96)));
+            if ($requests === []) {
+                $converged = true;
+                break;
+            }
+
+            $responses = SyncCodec::decodeResponses(SyncCodec::encodeResponses($remote->handleSyncRequests($requests, 256)));
+            $session->addResponses($requests, $responses);
+            $shadowRootNodeIds[] = $session->shadowNodeId();
+
+            $t->same($session->shadow()->partialRootNodeId(), $session->shadowNodeId());
+            foreach ($session->shadowNodeIds() as $nodeId) {
+                $t->true($nodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'imported shadow node id should be in the memStore range');
+            }
+        }
+
+        $t->true($converged, 'sync should converge before checking shadow node ids');
+        $t->true(count(array_unique($shadowRootNodeIds)) > 1, 'expanding proof fragments should produce fresh shadow root node ids');
+        $t->same($remote->rootHash(), $session->shadow()->rootHash());
+    },
     'deterministic upstream shaped sync fuzz converges with scan diff equivalence' => static function (TestRunner $t): void {
         $state = 0;
 

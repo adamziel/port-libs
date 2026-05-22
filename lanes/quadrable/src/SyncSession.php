@@ -71,6 +71,19 @@ final class SyncSession
         return $this->shadow;
     }
 
+    public function shadowNodeId(): int
+    {
+        return $this->shadow()->partialRootNodeId();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function shadowNodeIds(): array
+    {
+        return $this->shadow()->partialNodeIds();
+    }
+
     private function dedupeScanDiffCallback(?callable $onDiff): ?callable
     {
         if ($onDiff === null) {
