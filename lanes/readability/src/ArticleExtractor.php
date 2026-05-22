@@ -28,7 +28,10 @@ final class ArticleExtractor
         libxml_use_internal_errors($previous);
 
         $xpath = new \DOMXPath($dom);
-        foreach ($xpath->query('//script|//style|//nav|//footer|//aside|//form') ?: [] as $node) {
+        $this->unwrapNoscriptImages($xpath, $dom);
+        $this->fixLazyImages($xpath);
+
+        foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
         }
         $this->removeUnlikelyCandidates($xpath);
@@ -237,6 +240,162 @@ final class ArticleExtractor
         $value = trim($element->getAttribute($attribute));
 
         return $value === '' ? null : $value;
+    }
+
+    private function unwrapNoscriptImages(\DOMXPath $xpath, \DOMDocument $dom): void
+    {
+        foreach ($xpath->query('//img') ?: [] as $img) {
+            if (!$img instanceof \DOMElement || $this->imageSourceAttribute($img) !== null) {
+                continue;
+            }
+
+            $img->parentNode?->removeChild($img);
+        }
+
+        $noscripts = [];
+        foreach ($xpath->query('//noscript') ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $noscripts[] = $node;
+            }
+        }
+
+        foreach ($noscripts as $noscript) {
+            $fallback = $this->singleImageFromHtml($this->innerHtml($noscript));
+            if (!$fallback instanceof \DOMElement) {
+                continue;
+            }
+
+            $previous = $this->previousElementSibling($noscript);
+            $target = $previous instanceof \DOMElement ? $this->singleImageInElement($previous) : null;
+            if ($target instanceof \DOMElement) {
+                $this->copyImageAttributes($target, $fallback);
+                $noscript->parentNode?->removeChild($noscript);
+                continue;
+            }
+
+            $imported = $dom->importNode($fallback, true);
+            if ($imported instanceof \DOMNode) {
+                $noscript->parentNode?->replaceChild($imported, $noscript);
+            }
+        }
+    }
+
+    private function fixLazyImages(\DOMXPath $xpath): void
+    {
+        foreach ($xpath->query('//img') ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $class = strtolower($node->getAttribute('class'));
+            $hasUsableSource = $this->imageSourceAttribute($node) !== null && !str_contains($class, 'lazy');
+            if ($hasUsableSource) {
+                continue;
+            }
+
+            foreach ($node->attributes ?: [] as $attribute) {
+                $name = strtolower($attribute->name);
+                if (in_array($name, ['src', 'srcset', 'alt'], true)) {
+                    continue;
+                }
+
+                $value = trim($attribute->value);
+                if ($this->looksLikeSrcset($value)) {
+                    $this->setImageAttribute($node, 'srcset', $value);
+                    continue;
+                }
+
+                if ($this->looksLikeImageUrl($value)) {
+                    $this->setImageAttribute($node, 'src', $value);
+                }
+            }
+        }
+    }
+
+    private function singleImageFromHtml(string $html): ?\DOMElement
+    {
+        $dom = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML('<div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $wrapper = $dom->getElementsByTagName('div')->item(0);
+        if (!$wrapper instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->singleImageInElement($wrapper);
+    }
+
+    private function singleImageInElement(\DOMElement $element): ?\DOMElement
+    {
+        if (strtolower($element->tagName) === 'img') {
+            return $element;
+        }
+
+        $images = $element->getElementsByTagName('img');
+        if ($images->length !== 1) {
+            return null;
+        }
+
+        return $images->item(0) instanceof \DOMElement ? $images->item(0) : null;
+    }
+
+    private function previousElementSibling(\DOMElement $element): ?\DOMElement
+    {
+        for ($node = $element->previousSibling; $node instanceof \DOMNode; $node = $node->previousSibling) {
+            if ($node instanceof \DOMElement) {
+                return $node;
+            }
+        }
+
+        return null;
+    }
+
+    private function imageSourceAttribute(\DOMElement $image): ?string
+    {
+        foreach (['src', 'srcset', 'data-src', 'data-srcset'] as $attribute) {
+            $value = trim($image->getAttribute($attribute));
+            if ($value !== '') {
+                return $attribute;
+            }
+        }
+
+        foreach ($image->attributes ?: [] as $attribute) {
+            if ($this->looksLikeImageUrl($attribute->value) || $this->looksLikeSrcset($attribute->value)) {
+                return $attribute->name;
+            }
+        }
+
+        return null;
+    }
+
+    private function copyImageAttributes(\DOMElement $target, \DOMElement $source): void
+    {
+        foreach ($source->attributes ?: [] as $attribute) {
+            $this->setImageAttribute($target, $attribute->name, $attribute->value);
+        }
+    }
+
+    private function setImageAttribute(\DOMElement $image, string $name, string $value): void
+    {
+        $oldValue = trim($image->getAttribute($name));
+        if (($name === 'src' || $name === 'srcset') && $oldValue !== '' && $oldValue !== $value) {
+            $image->setAttribute($name === 'src' ? 'data-old-src' : 'data-old-srcset', $oldValue);
+        }
+
+        $image->setAttribute($name, $value);
+    }
+
+    private function looksLikeImageUrl(string $value): bool
+    {
+        return preg_match('/^\s*\S+\.(?:jpe?g|png|webp|gif)(?:[?#]\S*)?\s*$/i', $value) === 1;
+    }
+
+    private function looksLikeSrcset(string $value): bool
+    {
+        return preg_match('/\S+\.(?:jpe?g|png|webp|gif)(?:[?#]\S*)?\s+\d+(?:\.\d+)?[wx](?:\s*,|\s*$)/i', $value) === 1;
     }
 
     private function removeUnlikelyCandidates(\DOMXPath $xpath): void

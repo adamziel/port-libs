@@ -144,4 +144,45 @@ return [
         $t->contains('Features and tools', $contentText);
         $t->true(!str_contains($contentText, 'Interested in having a direct impact'), 'head comment text should not enter content');
     },
+    'maps Mozilla lazy-image noscript replacement semantics' => static function (TestRunner $t): void {
+        $source = '<html lang="en"><head>'
+            . '<meta property="og:title" content="Node.js and CPU profiling on production (in real-time without downtime)">'
+            . '<meta name="author" content="Vincent Vallet">'
+            . '<meta property="og:site_name" content="Voodoo Engineering">'
+            . '<meta property="article:published_time" content="2019-10-18T17:23:34.816Z">'
+            . '<meta name="description" content="How to run a CPU profiling with Node.js on your production in real-time and without interruption of service.">'
+            . '</head><body><article>'
+            . '<h2>Resources</h2>'
+            . '<p>' . str_repeat('CPU monitoring and memory leak analysis need reliable production evidence. ', 5) . '</p>'
+            . '<figure><div><p><img src="https://miro.medium.com/max/60/1*5o3M5niyi911waUrKWVZ0Q.png?q=20" width="1894" height="970">'
+            . '<noscript><img src="https://miro.medium.com/max/3788/1*5o3M5niyi911waUrKWVZ0Q.png" width="1894" height="970"></noscript></p></div>'
+            . '<figcaption>Memory leak in action</figcaption></figure>'
+            . '<p>' . str_repeat('The profiler output explains where the application spends CPU time. ', 5) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same('Node.js and CPU profiling on production (in real-time without downtime)', $article->title);
+        $t->same('Vincent Vallet', $article->byline);
+        $t->same('Voodoo Engineering', $article->siteName);
+        $t->same('2019-10-18T17:23:34.816Z', $article->publishedTime);
+        $t->same('en', $article->lang);
+        $t->contains('Memory leak in action', $article->contentHtml);
+        $t->contains('src="https://miro.medium.com/max/3788/1*5o3M5niyi911waUrKWVZ0Q.png"', $article->contentHtml);
+        $t->contains('data-old-src="https://miro.medium.com/max/60/1*5o3M5niyi911waUrKWVZ0Q.png?q=20"', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, '<noscript'), 'fallback noscript should be removed after image promotion');
+    },
+    'maps Mozilla lazy data-srcset promotion semantics' => static function (TestRunner $t): void {
+        $source = '<article>'
+            . '<p>' . str_repeat('Responsive migration images should retain the usable candidate list. ', 6) . '</p>'
+            . '<p><img class="lazy" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" data-srcset="https://cdn.example.test/photo-320.jpg 320w, https://cdn.example.test/photo-800.jpg 800w" alt="Migration screenshot"></p>'
+            . '<p>' . str_repeat('The surrounding article text keeps the document readerable. ', 6) . '</p>'
+            . '</article>';
+
+        $article = (new ArticleExtractor())->extract($source);
+
+        $t->contains('srcset="https://cdn.example.test/photo-320.jpg 320w, https://cdn.example.test/photo-800.jpg 800w"', $article->contentHtml);
+        $t->contains('alt="Migration screenshot"', $article->contentHtml);
+    },
 ];
