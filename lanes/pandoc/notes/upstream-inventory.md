@@ -159,6 +159,6 @@ without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
 56 tests, 301 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 85 test files, 5,739 assertions, and
+`php tools/run-tests.php` suite passed with 85 test files, 5,757 assertions, and
 0 failures after this smart-punctuation lane batch in the shared dirty
 worktree.
