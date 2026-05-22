@@ -16,7 +16,11 @@ The lane now also maps `marker/pdf/utils.py::find_filetype`. `FiletypeDetector` 
 
 The lane now also maps top-level `convert.py` batch processing. `BatchConverter` plans folder conversions with upstream chunk sizing, loads `--metadata_file` JSON keyed by basename, applies existing-output skips, min-length preflight, empty-output skips, nonfatal error reporting, and Marker-style output artifact persistence around a supplied native conversion callback.
 
+The lane now also maps the supplied-output boundary of `marker/layout/layout.py::surya_layout`. `LayoutAnnotator` computes the upstream layout batch size, records text-line detections that would be passed to Surya, assigns supplied layout predictions with Python `zip` semantics, and then feeds the existing native annotation path before WordPress block rendering.
+
 The lane now also maps the pure supplied-boundary half of `marker/ocr/recognition.py::surya_recognition`. `OcrRecognition` scales detector polygons for the higher-resolution Surya OCR pass, drops zero-area polygons before model handoff, reconstructs Marker Page/Block/Line/Span arrays from supplied OCR text lines, and feeds those pages through the existing `run_ocr` stats/replacement boundary.
+
+The lane now also maps `marker/debug/data.py::dump_bbox_debug_data`. `DebugDataExporter` writes Marker-style bbox JSON when debug mode is enabled, omits page images and heavy layout/text-line model fields, and keeps the layout labels, block boxes, and text-line boxes that WordPress import reviewers need.
 
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
 
@@ -62,6 +66,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-layout-annotation-import.php` maps Marker's upstream layout annotation path into a Gutenberg import preflight. It assigns Title/Text/Picture labels from supplied layout boxes, merges title fragments that came from the same layout region, applies Marker's bad-span type filtering for Picture text, and emits clean heading plus paragraph blocks without calling Surya.
 
+`examples/wordpress-layout-detection-preflight.php` maps Marker's upstream `surya_layout` assignment boundary into a Gutenberg import preflight. It accepts supplied Surya layout predictions, records the layout batch plan and assigned labels, then emits heading and paragraph blocks through the native annotation path without loading the Surya model.
+
 `examples/wordpress-ocr-triage.php` maps Marker's upstream OCR heuristics into a pre-render import decision. It uses text quality, detected-line coverage, all-empty document detection, and force-OCR flags to send scanned or garbled pages to OCR before Gutenberg block conversion while leaving clean extracted pages on the native text path.
 
 `examples/wordpress-ocr-language-preflight.php` maps Marker's upstream OCR language normalization into multilingual import metadata. It converts human language names from a WordPress PDF metadata file to OCRmyPDF/Tesseract codes, applies Marker's default English fallback when languages are omitted, and rejects invalid engine-specific codes before the OCR handoff.
@@ -103,6 +109,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-equation-import.php` maps Marker's upstream equation replacement path into a WordPress math import. It uses Formula layout-box matching, removes the source equation text line, inserts supplied LaTeX as a Formula block after upstream validation, renders the equation as a constrained core HTML block, and emits Marker-style equation metadata for editorial review. The native slice intentionally stops before Texify model inference and equation crop rendering.
 
 `examples/wordpress-output-artifact.php` maps Marker's upstream output writer into a WordPress import handoff. It persists converted block Markdown, `_meta.json` review metadata, and extracted image artifacts under the same per-document folder naming that `marker/output.py` uses.
+
+`examples/wordpress-debug-bbox-export.php` maps Marker's upstream bbox debug dump into a WordPress review workflow. It writes a `_bbox.json` artifact, exposes layout labels and text-line counts for editorial tooling, and confirms heavy model fields are not stored in the review payload.
 
 `examples/wordpress-batch-convert-import.php` maps top-level `convert.py` into a WordPress bulk import job. It plans a folder of PDFs, loads a basename-keyed metadata JSON file with per-file titles, runs native min-length preflight, writes per-document Markdown/metadata artifacts, and reports converted/skipped/error counts without loading Python model workers.
 

@@ -48,6 +48,59 @@ $layoutPage = static function (): array {
 };
 
 return [
+    'uses upstream layout batch size defaults overrides and multiplier truncation' => static function (TestRunner $t): void {
+        $t->same(6, (new LayoutAnnotator())->batchSize());
+        $t->same(9, (new LayoutAnnotator(null, new MarkerSettings(['LAYOUT_BATCH_SIZE' => '9'])))->batchSize());
+        $t->same(13, (new LayoutAnnotator(null, new MarkerSettings(['LAYOUT_BATCH_SIZE' => 9])))->batchSize(1.5));
+        $t->same(4, (new LayoutAnnotator())->batchSize(0.75));
+        $t->same(6, (new LayoutAnnotator(null, new MarkerSettings(['TORCH_DEVICE' => 'cuda'])))->batchSize());
+    },
+    'attaches supplied Surya layout predictions to pages with upstream zip semantics' => static function (TestRunner $t): void {
+        $pages = [
+            [
+                'text_lines' => ['bboxes' => [['bbox' => [20.0, 20.0, 200.0, 42.0]]]],
+                'blocks' => [],
+            ],
+            [
+                'blocks' => [],
+            ],
+        ];
+        $layouts = [
+            ['image_bbox' => [0.0, 0.0, 1200.0, 1600.0], 'bboxes' => [['label' => 'Title', 'bbox' => [80.0, 80.0, 600.0, 140.0]]]],
+            ['image_bbox' => [0.0, 0.0, 1200.0, 1600.0], 'bboxes' => [['label' => 'Text', 'bbox' => [90.0, 200.0, 640.0, 260.0]]]],
+            ['image_bbox' => [0.0, 0.0, 1200.0, 1600.0], 'bboxes' => [['label' => 'Picture', 'bbox' => [90.0, 320.0, 640.0, 480.0]]]],
+        ];
+
+        $result = (new LayoutAnnotator())->runWithSuppliedLayouts(['image-1', 'image-2'], $pages, $layouts, 2.0);
+
+        $t->same([
+            'image_count' => 2,
+            'page_count' => 2,
+            'detection_result_count' => 1,
+            'layout_result_count' => 3,
+            'assigned_pages' => 2,
+            'batch_size' => 12,
+        ], $result['plan']);
+        $t->same($layouts[0], $result['pages'][0]['layout']);
+        $t->same($layouts[1], $result['pages'][1]['layout']);
+    },
+    'leaves unpaired pages unchanged when supplied layouts are shorter than pages' => static function (TestRunner $t): void {
+        $pages = [
+            ['blocks' => []],
+            ['blocks' => []],
+        ];
+        $layout = ['image_bbox' => [0.0, 0.0, 1200.0, 1600.0], 'bboxes' => []];
+
+        $result = (new LayoutAnnotator())->runWithSuppliedLayouts(['image-1', 'image-2'], $pages, [$layout]);
+
+        $t->same(1, $result['plan']['assigned_pages']);
+        $t->true(isset($result['pages'][0]['layout']));
+        $t->true(!isset($result['pages'][1]['layout']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => (new LayoutAnnotator())->runWithSuppliedLayouts(['image'], [['blocks' => []]], ['not-array'])
+        );
+    },
     'assigns block types from rescaled upstream layout intersections and merges same layout block runs' => static function (TestRunner $t) use ($layoutPage): void {
         $annotated = (new LayoutAnnotator())->annotateBlockTypes([$layoutPage()]);
         $blocks = $annotated[0]['blocks'];
@@ -78,6 +131,40 @@ return [
 
         $t->same(['Caption', 'Caption'], array_column($annotated[0]['blocks'], 'block_type'));
         $t->same('Text', $annotated[1]['blocks'][0]['block_type']);
+    },
+    'drives a WordPress layout detection preflight before annotation' => static function (TestRunner $t): void {
+        $page = [
+            'pnum' => 0,
+            'bbox' => [0.0, 0.0, 600.0, 800.0],
+            'text_lines' => [
+                'image_bbox' => [0.0, 0.0, 1200.0, 1600.0],
+                'bboxes' => [
+                    ['bbox' => [120.0, 80.0, 1000.0, 140.0]],
+                    ['bbox' => [120.0, 200.0, 1000.0, 260.0]],
+                ],
+            ],
+            'blocks' => [
+                ['bbox' => [60.0, 42.0, 500.0, 54.0], 'lines' => [['text' => 'migration packet', 'bbox' => [60.0, 42.0, 500.0, 54.0]]]],
+                ['bbox' => [60.0, 102.0, 420.0, 126.0], 'lines' => [['text' => 'Review supplied layout output before publishing.', 'bbox' => [60.0, 102.0, 420.0, 126.0]]]],
+            ],
+        ];
+        $layout = [
+            'image_bbox' => [0.0, 0.0, 1200.0, 1600.0],
+            'bboxes' => [
+                ['label' => 'Title', 'bbox' => [120.0, 80.0, 1000.0, 140.0]],
+                ['label' => 'Text', 'bbox' => [120.0, 200.0, 1000.0, 260.0]],
+            ],
+        ];
+
+        $annotator = new LayoutAnnotator();
+        $detected = $annotator->runWithSuppliedLayouts(['rendered-page-placeholder'], [$page], [$layout]);
+        $annotated = $annotator->annotateBlockTypes($detected['pages']);
+        $merged = (new MarkdownPostProcessor())->mergeBlocks($annotated);
+
+        $t->same(1, $detected['plan']['assigned_pages']);
+        $t->same(['Title', 'Text'], array_column($annotated[0]['blocks'], 'block_type'));
+        $t->same("# Migration Packet\n", $merged[0]['text']);
+        $t->contains('Review supplied layout output before publishing.', $merged[1]['text']);
     },
     'renders a WordPress import after layout annotation while honoring bad span type settings' => static function (TestRunner $t) use ($layoutPage): void {
         $settings = new MarkerSettings();

@@ -4,13 +4,70 @@ declare(strict_types=1);
 
 namespace PortLibs\MarkerPDF;
 
+use InvalidArgumentException;
+
 final class LayoutAnnotator
 {
     private LayoutOrderer $layout;
+    private MarkerSettings $settings;
 
-    public function __construct(?LayoutOrderer $layout = null)
+    public function __construct(?LayoutOrderer $layout = null, ?MarkerSettings $settings = null)
     {
         $this->layout = $layout ?? new LayoutOrderer();
+        $this->settings = $settings ?? new MarkerSettings();
+    }
+
+    public function batchSize(float $batchMultiplier = 1.0): int
+    {
+        $configured = $this->settings->get('LAYOUT_BATCH_SIZE');
+        $base = $configured !== null ? (int) $configured : 6;
+
+        return (int) ($base * $batchMultiplier);
+    }
+
+    /**
+     * Native boundary for marker.layout.layout::surya_layout. Layout model
+     * predictions are supplied by the caller so this slice does not load Surya.
+     *
+     * @param list<mixed> $images
+     * @param list<array<string, mixed>> $pages
+     * @param list<array<string, mixed>> $layoutResults
+     * @return array{
+     *     pages: list<array<string, mixed>>,
+     *     plan: array{image_count: int, page_count: int, detection_result_count: int, layout_result_count: int, assigned_pages: int, batch_size: int}
+     * }
+     */
+    public function runWithSuppliedLayouts(
+        array $images,
+        array $pages,
+        array $layoutResults,
+        float $batchMultiplier = 1.0
+    ): array {
+        $pages = array_values($pages);
+        $layoutResults = array_values($layoutResults);
+        $assignedPages = min(count($pages), count($layoutResults));
+
+        for ($index = 0; $index < $assignedPages; $index++) {
+            if (!is_array($layoutResults[$index])) {
+                throw new InvalidArgumentException('Supplied layout predictions must be arrays.');
+            }
+            $pages[$index]['layout'] = $layoutResults[$index];
+        }
+
+        return [
+            'pages' => $pages,
+            'plan' => [
+                'image_count' => count($images),
+                'page_count' => count($pages),
+                'detection_result_count' => count(array_filter(
+                    $pages,
+                    static fn (array $page): bool => array_key_exists('text_lines', $page)
+                )),
+                'layout_result_count' => count($layoutResults),
+                'assigned_pages' => $assignedPages,
+                'batch_size' => $this->batchSize($batchMultiplier),
+            ],
+        ];
     }
 
     /**
