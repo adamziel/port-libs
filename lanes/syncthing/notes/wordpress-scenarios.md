@@ -63,6 +63,13 @@ messages; disconnected devices have sent state discarded without forget traffic;
 unshared folders are silently removed from sent state; disabling the emitter
 returns cleanup forget updates before clearing state; and event-style progress
 summaries expose Syncthing's block-to-byte estimate for WordPress import UI.
+The scheduler/connection boundary now maps the upstream `ProgressEmitter.Serve`
+timer gate and `progressUpdate.send` ordering: no event is emitted until the
+registry count or latest puller update changes, active pulls schedule the next
+interval, idle state does not, unchanged block lists are not retried, deregister
+cleanup emits a final forget and stops the interval, and DownloadProgress
+messages are converted to native BEP wire frames by a connection adapter after
+the local sent-state has already advanced.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -106,9 +113,14 @@ errors.
 peers, grouping native DownloadProgress frames per device/folder, emitting only
 the newly available media block on the second pass, and exposing completed-byte
 progress for an import status surface.
+`examples/wordpress-progress-scheduler.php` wraps that emitter in the native
+scheduler and wire connection adapter, showing an idle timer pass, an initial
+WordPress media temporary-block advertisement, and a later delta frame that
+contains only the newly available block.
 
 ## Next Task
 
-Port the live scheduling/connection edge around ProgressEmitter: timer-driven
-event emission, real protocol connection adapters, and back-pressure/error
-behavior when DownloadProgress sends block or fail.
+Port the inbound temporary-block availability edge: model-level
+`DownloadProgress(conn, p)` folder/device sharing guards, RemoteDownloadProgress
+event summaries, and request planning that chooses `fromTemporary` candidates
+when a WordPress media block is only available from a peer's temporary file.

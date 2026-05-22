@@ -223,6 +223,26 @@ final class ProgressEmitter
     }
 
     /**
+     * @return array{latestUpdated:int, count:int}
+     */
+    public function progressRevision(): array
+    {
+        $latestUpdated = 0;
+        $count = 0;
+        foreach ($this->registry as $downloads) {
+            foreach ($downloads as $download) {
+                $count++;
+                $latestUpdated = max($latestUpdated, $download->availableUpdated);
+            }
+        }
+
+        return [
+            'latestUpdated' => $latestUpdated,
+            'count' => $count,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function sentStateDevices(): array
