@@ -513,6 +513,72 @@ return [
         $t->same($litePlugin, $read($liteTree->entryNamed('acme-lite.php')?->oid ?? '')->body);
         $t->same([], $result->indexEntries());
     },
+    'recursive tree merge reports directory rename target collisions' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\nEntry: acme.php\n";
+        $ourPlugin = "Plugin: Acme Pro\nVersion: 1.1\nRequires: 6.5\nStatus: active\nEntry: acme-pro.php\n";
+        $targetPlugin = "Plugin: Different Acme Pro\nVersion: 2.0\nRequires: 6.5\nStatus: active\n";
+        $baseReadme = "Acme plugin\nStable tag: 1.0\n";
+        $theirReadme = "Acme plugin\nStable tag: 1.2\n";
+        $api = "<?php\nreturn 'api';\n";
+        $admin = "<?php\nreturn 'admin';\n";
+        $style = ".acme { color: #135e96; }\n";
+        $basePluginTree = new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $baseReadme),
+            $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+            $treeEntry('includes', new Tree([
+                $blobEntry('admin.php', $admin),
+                $blobEntry('api.php', $api),
+            ])),
+        ]);
+        $base = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', $basePluginTree)]))]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme-pro', new Tree([
+            $blobEntry('acme-pro.php', $ourPlugin),
+            $blobEntry('readme.txt', $baseReadme),
+            $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+            $treeEntry('includes', new Tree([
+                $blobEntry('admin.php', $admin),
+                $blobEntry('api.php', $api),
+            ])),
+        ]))]))]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([
+            $treeEntry('acme', new Tree([
+                $blobEntry('acme.php', $basePlugin),
+                $blobEntry('readme.txt', $theirReadme),
+                $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+                $treeEntry('includes', new Tree([
+                    $blobEntry('admin.php', $admin),
+                    $blobEntry('api.php', $api),
+                ])),
+            ])),
+            $treeEntry('acme-pro', new Tree([$blobEntry('acme.php', $targetPlugin)])),
+        ]))]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $pluginsTree = Tree::fromObject($read($contentTree->entryNamed('plugins', true)?->oid ?? ''));
+
+        $t->same(false, $result->isClean());
+        $t->same(['acme'], $names($pluginsTree));
+        $t->same([
+            ['path' => 'wp-content/plugins/acme', 'reason' => 'rename-modify'],
+            ['path' => 'wp-content/plugins/acme-pro', 'reason' => 'rename-target-add'],
+        ], array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'wp-content/plugins/acme'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'wp-content/plugins/acme'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'wp-content/plugins/acme'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'wp-content/plugins/acme-pro'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'wp-content/plugins/acme-pro'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'path' => $entry->path],
+            $result->indexEntries(),
+        ));
+    },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";

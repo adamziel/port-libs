@@ -340,6 +340,28 @@ final class TreeMerge
             if ($ourRename !== null) {
                 $theirEntry = $theirEntries[$path] ?? null;
                 if ($theirEntry === null || !self::sameEntry($baseEntry, $theirEntry)) {
+                    $theirTargetEntry = $theirEntries[$ourRename['path']] ?? null;
+                    if ($theirTargetEntry !== null) {
+                        $conflicts[] = new TreeMergeConflict(
+                            self::joinPath($pathPrefix, $path),
+                            $theirEntry === null ? 'rename-delete' : 'rename-modify',
+                            $baseEntry,
+                            $ourRename['entry'],
+                            $theirEntry,
+                        );
+                        $conflicts[] = new TreeMergeConflict(
+                            self::joinPath($pathPrefix, $ourRename['path']),
+                            'rename-target-add',
+                            null,
+                            $ourRename['entry'],
+                            $theirTargetEntry,
+                        );
+                        $consumed[$path] = true;
+                        $consumed[$ourRename['path']] = true;
+                        $merged[] = $baseEntry;
+                        continue;
+                    }
+
                     $renameModifyMerge = self::tryMergeDirectoryRenameModify(
                         $pathPrefix,
                         $ourRename['path'],
@@ -377,6 +399,28 @@ final class TreeMerge
             if ($theirRename !== null) {
                 $ourEntry = $ourEntries[$path] ?? null;
                 if ($ourEntry === null || !self::sameEntry($baseEntry, $ourEntry)) {
+                    $ourTargetEntry = $ourEntries[$theirRename['path']] ?? null;
+                    if ($ourTargetEntry !== null) {
+                        $conflicts[] = new TreeMergeConflict(
+                            self::joinPath($pathPrefix, $path),
+                            $ourEntry === null ? 'rename-delete' : 'rename-modify',
+                            $baseEntry,
+                            $ourEntry,
+                            $theirRename['entry'],
+                        );
+                        $conflicts[] = new TreeMergeConflict(
+                            self::joinPath($pathPrefix, $theirRename['path']),
+                            'rename-target-add',
+                            null,
+                            $ourTargetEntry,
+                            $theirRename['entry'],
+                        );
+                        $consumed[$path] = true;
+                        $consumed[$theirRename['path']] = true;
+                        $merged[] = $baseEntry;
+                        continue;
+                    }
+
                     $renameModifyMerge = self::tryMergeDirectoryRenameModify(
                         $pathPrefix,
                         $theirRename['path'],
