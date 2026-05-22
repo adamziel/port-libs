@@ -38,6 +38,17 @@ final class DeclarationBlock
 
     private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
     private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
+    private const ANIMATION_DIRECTIONS = ['normal', 'reverse', 'alternate', 'alternate-reverse'];
+    private const ANIMATION_FILL_MODES = ['none', 'forwards', 'backwards', 'both'];
+    private const ANIMATION_PLAY_STATES = ['running', 'paused'];
+    private const ANIMATION_TIMING_FUNCTIONS = ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end'];
+    private const ANIMATION_COMPOSITIONS = ['replace', 'add', 'accumulate'];
+    private const GRID_AREA_COMPONENTS = [
+        'grid-row-start',
+        'grid-column-start',
+        'grid-row-end',
+        'grid-column-end',
+    ];
 
     /**
      * @return array<string, string>
@@ -119,6 +130,14 @@ final class DeclarationBlock
         if ($flexValue !== null) {
             return $flexValue;
         }
+        $animationValue = $this->getAnimationProperty($entries, $property);
+        if ($animationValue !== null) {
+            return $animationValue;
+        }
+        $gridValue = $this->getGridProperty($entries, $property);
+        if ($gridValue !== null) {
+            return $gridValue;
+        }
 
         $match = null;
         foreach ($entries as $entry) {
@@ -179,6 +198,196 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getAnimationProperty(array $entries, string $property): ?array
+    {
+        if ($property !== 'animation-name') {
+            return null;
+        }
+
+        $match = null;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'animation-name') {
+                $match = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if ($entry['property'] !== 'animation') {
+                continue;
+            }
+
+            $names = [];
+            foreach ($this->splitTopLevel($entry['value'], ',') as $layer) {
+                $parts = $this->parseAnimationLayer($layer);
+                $names[] = $parts['name'] ?? 'none';
+            }
+
+            $match = [
+                'value' => implode(', ', $names),
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $match;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getGridProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isGridPlacementProperty($property)) {
+            return null;
+        }
+
+        $components = array_fill_keys(self::GRID_AREA_COMPONENTS, null);
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'grid-area') {
+                $area = $this->parseGridArea($entry['value']);
+                if ($area === null) {
+                    continue;
+                }
+                foreach ($area as $component => $value) {
+                    $components[$component] = [
+                        'value' => $value,
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($entry['property'] === 'grid-row' || $entry['property'] === 'grid-column') {
+                $placement = $this->parseGridLineShorthand($entry['value']);
+                if ($placement === null) {
+                    continue;
+                }
+                $axis = $entry['property'] === 'grid-row' ? 'row' : 'column';
+                $components["grid-{$axis}-start"] = [
+                    'value' => $placement[0],
+                    'important' => $entry['important'],
+                ];
+                $components["grid-{$axis}-end"] = [
+                    'value' => $placement[1],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if (in_array($entry['property'], self::GRID_AREA_COMPONENTS, true)) {
+                $components[$entry['property']] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if (in_array($property, self::GRID_AREA_COMPONENTS, true)) {
+            return $components[$property];
+        }
+
+        if ($property === 'grid-row') {
+            return $this->composeGridPlacement($components['grid-row-start'], $components['grid-row-end']);
+        }
+
+        if ($property === 'grid-column') {
+            return $this->composeGridPlacement($components['grid-column-start'], $components['grid-column-end']);
+        }
+
+        if ($property === 'grid-area') {
+            $value = [];
+            $important = null;
+            foreach (self::GRID_AREA_COMPONENTS as $component) {
+                if ($components[$component] === null) {
+                    return null;
+                }
+                if ($important === null) {
+                    $important = $components[$component]['important'];
+                } elseif ($components[$component]['important'] !== $important) {
+                    return null;
+                }
+                $value[] = $components[$component]['value'];
+            }
+
+            return ['value' => implode(' / ', $value), 'important' => $important];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{
+     *     grid-row-start:string,
+     *     grid-column-start:string,
+     *     grid-row-end:string,
+     *     grid-column-end:string
+     * }|null
+     */
+    private function parseGridArea(string $value): ?array
+    {
+        $parts = $this->splitGridPlacement($value);
+        if (count($parts) !== 4) {
+            return null;
+        }
+
+        return array_combine(self::GRID_AREA_COMPONENTS, $parts) ?: null;
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private function parseGridLineShorthand(string $value): ?array
+    {
+        $parts = $this->splitGridPlacement($value);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        return [$parts[0], $parts[1]];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitGridPlacement(string $value): array
+    {
+        return array_values(array_filter(
+            array_map('trim', $this->splitTopLevel($value, '/')),
+            static fn (string $part): bool => $part !== ''
+        ));
+    }
+
+    /**
+     * @param array{value:string, important:bool}|null $start
+     * @param array{value:string, important:bool}|null $end
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeGridPlacement(?array $start, ?array $end): ?array
+    {
+        if ($start === null || $end === null || $start['important'] !== $end['important']) {
+            return null;
+        }
+
+        return [
+            'value' => $start['value'] . ' / ' . $end['value'],
+            'important' => $start['important'],
+        ];
+    }
+
+    private function isGridPlacementProperty(string $property): bool
+    {
+        return $property === 'grid-area'
+            || $property === 'grid-row'
+            || $property === 'grid-column'
+            || in_array($property, self::GRID_AREA_COMPONENTS, true);
     }
 
     /**
@@ -998,6 +1207,10 @@ final class DeclarationBlock
         if ($flexValue !== null) {
             return $flexValue;
         }
+        $animationValue = $this->setAnimationNameLonghand($entries, $property, $value, $important);
+        if ($animationValue !== null) {
+            return $animationValue;
+        }
 
         $lastMatch = null;
         foreach ($entries as $index => $entry) {
@@ -1129,6 +1342,186 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setAnimationNameLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if ($property !== 'animation-name') {
+            return null;
+        }
+
+        $names = array_values(array_filter(
+            array_map('trim', $this->splitTopLevel($value, ',')),
+            static fn (string $name): bool => $name !== ''
+        ));
+        if ($names === []) {
+            throw new \InvalidArgumentException('animation-name cannot be empty');
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === 'animation-name') {
+                $entries[$index] = [
+                    'property' => 'animation-name',
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'animation') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $layers = $this->splitTopLevel($entries[$index]['value'], ',');
+            if (count($names) === count($layers)) {
+                $updated = [];
+                foreach ($layers as $layerIndex => $layer) {
+                    $updated[] = $this->composeAnimationLayer(
+                        $this->parseAnimationLayer($layer)['baseTokens'],
+                        $names[$layerIndex]
+                    );
+                }
+
+                $entries[$index] = [
+                    'property' => 'animation',
+                    'value' => implode(', ', $updated),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            $entries[$index] = [
+                'property' => 'animation',
+                'value' => implode(', ', array_map(
+                    function (string $layer): string {
+                        $parts = $this->parseAnimationLayer($layer);
+
+                        return $this->composeAnimationLayer($parts['baseTokens'], $parts['name']);
+                    },
+                    $layers
+                )),
+                'important' => $important,
+            ];
+            $entries[] = [
+                'property' => 'animation-name',
+                'value' => $value,
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{baseTokens:list<string>, name:?string}
+     */
+    private function parseAnimationLayer(string $layer): array
+    {
+        $base = [];
+        $name = null;
+        $timeCount = 0;
+        $seenTiming = false;
+        $seenIteration = false;
+        $seenDirection = false;
+        $seenFill = false;
+        $seenPlayState = false;
+        $seenComposition = false;
+
+        foreach ($this->splitWhitespaceTopLevel($layer) as $token) {
+            $lower = strtolower($token);
+            if ($this->isAnimationTimeToken($lower) && $timeCount < 2) {
+                $base[] = $token;
+                $timeCount++;
+                continue;
+            }
+
+            if (!$seenTiming && $this->isAnimationTimingToken($lower)) {
+                $base[] = $token;
+                $seenTiming = true;
+                continue;
+            }
+
+            if (!$seenIteration && $this->isAnimationIterationToken($lower)) {
+                $base[] = $token;
+                $seenIteration = true;
+                continue;
+            }
+
+            if (!$seenDirection && in_array($lower, self::ANIMATION_DIRECTIONS, true)) {
+                $base[] = $token;
+                $seenDirection = true;
+                continue;
+            }
+
+            if (!$seenFill && in_array($lower, self::ANIMATION_FILL_MODES, true) && $lower !== 'none') {
+                $base[] = $token;
+                $seenFill = true;
+                continue;
+            }
+
+            if (!$seenPlayState && in_array($lower, self::ANIMATION_PLAY_STATES, true)) {
+                $base[] = $token;
+                $seenPlayState = true;
+                continue;
+            }
+
+            if (!$seenComposition && in_array($lower, self::ANIMATION_COMPOSITIONS, true)) {
+                $base[] = $token;
+                $seenComposition = true;
+                continue;
+            }
+
+            if ($name === null) {
+                $name = $token;
+            } else {
+                $name .= ' ' . $token;
+            }
+        }
+
+        return ['baseTokens' => $base, 'name' => $name];
+    }
+
+    /**
+     * @param list<string> $baseTokens
+     */
+    private function composeAnimationLayer(array $baseTokens, ?string $name): string
+    {
+        $parts = $baseTokens;
+        if ($name !== null && trim($name) !== '') {
+            $parts[] = trim($name);
+        }
+
+        if ($parts === []) {
+            return 'none';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function isAnimationTimeToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:ms|s)$/', $token) === 1;
+    }
+
+    private function isAnimationTimingToken(string $token): bool
+    {
+        return in_array($token, self::ANIMATION_TIMING_FUNCTIONS, true)
+            || preg_match('/^(?:cubic-bezier|steps|linear)\(/', $token) === 1;
+    }
+
+    private function isAnimationIterationToken(string $token): bool
+    {
+        return $token === 'infinite' || preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1;
     }
 
     public function removeProperty(string $block, string $property): string

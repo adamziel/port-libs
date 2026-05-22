@@ -11,17 +11,22 @@
     },
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
-        "total": 241,
-        "mapped": 71,
-        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
+        "total": 312,
+        "mapped": 82,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes outside tests/test_cssom.rs, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, and counted Node uvu test(...) calls with ripgrep.",
         "inventory": {
-            "behaviorChecks": 241,
+            "behaviorChecks": 312,
             "rustTestFunctions": 160,
+            "rustTestFunctionsCountedAsBehaviorChecks": 157,
+            "cssomHelperCases": 74,
+            "cssomGetCases": 48,
+            "cssomSetCases": 17,
+            "cssomRemoveCases": 9,
             "rustTestFiles": 11,
             "nodeUvuTests": 81,
             "nodeTestFiles": 5,
             "cssFixtureFiles": 8,
-            "inventoryEntriesIncludingFixtures": 249,
+            "inventoryEntriesIncludingFixtures": 320,
             "rustBreakdown": {
                 "selectors/bloom.rs": 1,
                 "selectors/parser.rs": 6,
@@ -41,6 +46,21 @@
                 "node/test/customAtRules.mjs": 7,
                 "node/test/transform.test.mjs": 6,
                 "node/test/visitor.test.mjs": 35
+            },
+            "focusedCssomInventory": {
+                "path": "tests/test_cssom.rs",
+                "helperCases": 74,
+                "get_test": 48,
+                "set_test": 17,
+                "remove_test": 9,
+                "newlyMappedThisRun": [
+                    "set_test animation: foo 2s / animation-name foo, bar -> animation: 2s foo; animation-name: foo, bar",
+                    "set_test animation: foo 2s / animation-name bar -> animation: 2s bar",
+                    "get_test grid-area: a / b / c / d -> grid-row-start a",
+                    "get_test grid-area: a / b / c / d -> grid-row-end c",
+                    "get_test grid-area: a / b / c / d -> grid-row a / c",
+                    "get_test grid-area: a / b / c / d -> grid-column b / d"
+                ]
             }
         },
         "runnerStatus": {
@@ -121,15 +141,17 @@
             "Media query prelude normalization maps upstream range syntax including min-/max- feature aliases, name-first and value-first comparisons, two-sided ranges, comma-separated lists, qualifiers, boolean/discrete features, ratios, and simple same-unit calc folding.",
             "Background CSSOM access maps upstream get/set cases for final-layer colors, image and repeat layer lists, position X/Y synthesis, shorthand composition with size/repeat, mixed-importance guards, and mismatched layer-count rejection.",
             "Border CSSOM access maps upstream tests/test_cssom.rs get/set cases where border-color recomposes a full border shorthand, side-specific color overrides prevent unsafe shorthand reads, and border-right setters append without decomposing the original shorthand.",
-            "Flex-flow CSSOM access maps upstream get/set/remove cases for prefixed and unprefixed flex-direction/flex-wrap shorthand composition, prefix isolation, and shorthand-to-longhand removal."
+            "Flex-flow CSSOM access maps upstream get/set/remove cases for prefixed and unprefixed flex-direction/flex-wrap shorthand composition, prefix isolation, and shorthand-to-longhand removal.",
+            "Animation-name CSSOM setting maps upstream tests/test_cssom.rs cases where replacing one name folds into the animation shorthand while replacing with a longer name list preserves the original shorthand name and appends animation-name.",
+            "Grid-area CSSOM access maps upstream tests/test_cssom.rs cases that expose grid-row-start, grid-row-end, grid-row, and grid-column from an explicit four-part grid-area shorthand."
         ],
-        "warning": "Native PHP progress maps 71 focused upstream-aligned lane checks and 134 local PHP assertions against a 241-behavior-check upstream denominator. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
+        "warning": "Native PHP progress maps 82 focused upstream-aligned lane checks and 146 local PHP assertions against a 312-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs instead of treating that file as only three Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding, background, border, and flex-flow shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding, background, border, flex-flow, animation-name, and grid-area shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, border, and flex-flow shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
-    "nextTask": "Map another upstream tests/test_cssom.rs family such as grid-area/grid-template or animation shorthand, or start a custom-media/prefixing transformer slice."
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, border, flex-flow, animation-name, and grid-area shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "nextTask": "Map another upstream tests/test_cssom.rs family such as grid-template/grid shorthand, or start a custom-media/prefixing transformer slice."
 }

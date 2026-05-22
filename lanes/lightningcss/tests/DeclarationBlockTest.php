@@ -139,6 +139,33 @@ return [
             $block->getProperty('border: 1px solid red !important', 'border-style')
         );
     },
+    'declaration block reads upstream grid area cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'a', 'important' => false],
+            $block->getProperty('grid-area: a / b / c / d', 'grid-row-start')
+        );
+        $t->same(
+            ['value' => 'c', 'important' => false],
+            $block->getProperty('grid-area: a / b / c / d', 'grid-row-end')
+        );
+        $t->same(
+            ['value' => 'a / c', 'important' => false],
+            $block->getProperty('grid-area: a / b / c / d', 'grid-row')
+        );
+        $t->same(
+            ['value' => 'b / d', 'important' => false],
+            $block->getProperty('grid-area: a / b / c / d', 'grid-column')
+        );
+        $t->same(
+            ['value' => 'content-start / aside-start / content-end / aside-end', 'important' => true],
+            $block->getProperty(
+                'grid-area: content-start / aside-start / content-end / aside-end !important',
+                'grid-area'
+            )
+        );
+    },
     'declaration block reads upstream flex flow cssom properties' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -158,6 +185,22 @@ return [
             $block->getProperty('-webkit-flex-flow: row', '-webkit-flex-direction')
         );
         $t->same(null, $block->getProperty('-webkit-flex-flow: row', 'flex-direction'));
+    },
+    'declaration block reads upstream animation name cssom longhand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'foo', 'important' => false],
+            $block->getProperty('animation: foo 2s', 'animation-name')
+        );
+        $t->same(
+            ['value' => 'foo, bar', 'important' => true],
+            $block->getProperty('animation: foo 2s, bar 150ms !important', 'animation-name')
+        );
+        $t->same(
+            ['value' => 'slide-up', 'important' => false],
+            $block->getProperty('animation: fade-in 240ms ease-out; animation-name: slide-up', 'animation-name')
+        );
     },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -210,6 +253,26 @@ return [
         $t->same(
             'flex-flow: wrap; -webkit-flex-direction: column',
             $block->setProperty('flex-flow: row wrap', '-webkit-flex-direction', 'column')
+        );
+    },
+    'declaration block sets upstream animation name cssom longhand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'animation: 2s foo; animation-name: foo, bar',
+            $block->setProperty('animation: foo 2s', 'animation-name', 'foo, bar')
+        );
+        $t->same(
+            'animation: 2s bar',
+            $block->setProperty('animation: foo 2s', 'animation-name', 'bar')
+        );
+        $t->same(
+            'animation: 240ms ease-out both wp-block-fade-in',
+            $block->setProperty('animation: core-block-fade 240ms ease-out both', 'animation-name', 'wp-block-fade-in')
+        );
+        $t->same(
+            'animation: 200ms ease wp-fade, 300ms wp-slide',
+            $block->setProperty('animation: fade 200ms ease, slide 300ms', 'animation-name', 'wp-fade, wp-slide')
         );
     },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
