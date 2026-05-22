@@ -17,3 +17,8 @@ printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()
 )));
+printf("Uses import.meta: %s\n", $analysis->hasImportMeta() ? 'yes' : 'no');
+printf("Relative module asset references: %d\n", count(array_filter(
+    $analysis->assetReferences,
+    static fn ($reference): bool => $reference->isRelative()
+)));

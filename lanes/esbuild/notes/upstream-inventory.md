@@ -65,4 +65,7 @@ deno 2.2.12
 - `TestImport`/export forms: selected static imports, dynamic direct-string imports, named/default/namespace imports, and named/star/default exports are analyzed.
 - `TestImportAssertions`: selected static import/export `assert { type: "json" }` clauses are preserved as module metadata.
 - `TestImportAttributes`: selected static import/export `with { ... }` clauses and direct-string dynamic import options are preserved, with duplicate keys and non-string values rejected.
-- WordPress fixture: a block view script using `@wordpress/dom-ready` and a `block.json` import with `with { type: "json" }` tokenizes and analyzes without Node/npm.
+- `TestES6Syntax`/`TestImportMeta*`: `import.meta` is tracked as an ESM marker, and `import.meta.url`/`import.meta.path` property reads are preserved as native metadata.
+- `TestNew`/`TestCall`: `new URL("path", import.meta.url)` references are mapped for plain asset references, `new Worker(new URL(...))`, and `import(new URL(...))`.
+- Dynamic imports with expression arguments are accepted without being counted as direct string import records, while malformed `import()` and `import(...a)` calls are rejected.
+- WordPress fixture: a block view script using `@wordpress/dom-ready`, a `block.json` import with `with { type: "json" }`, and relative stylesheet/worker `new URL(..., import.meta.url)` references tokenizes and analyzes without Node/npm.

@@ -50,6 +50,34 @@ JS);
         $t->same('assert', $analysis->exports[1]->attributesKeyword);
         $t->same(['type' => 'json'], $analysis->exports[1]->attributes);
     },
+    'maps upstream import meta module classification and properties' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze('console.log(import.meta.url, import.meta.path)');
+
+        $t->true($analysis->hasImportMeta());
+        $t->true($analysis->isConsideredESModule());
+        $t->same(['url', 'path'], array_map(static fn (array $property): string => $property['property'], $analysis->importMetaProperties));
+        $t->same([], $analysis->imports);
+    },
+    'maps upstream new url import meta asset references' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+const hero = new URL('./images/hero.svg', import.meta.url);
+new Worker(new URL('../workers/card.js', import.meta.url));
+import(new URL('./lazy.js', import.meta.url));
+JS);
+
+        $t->same(['./images/hero.svg', '../workers/card.js', './lazy.js'], array_map(static fn ($reference): string => $reference->source, $analysis->assetReferences));
+        $t->same(['new-url', 'worker-constructor', 'dynamic-import'], array_map(static fn ($reference): string => $reference->context, $analysis->assetReferences));
+        $t->same(['import.meta.url', 'import.meta.url', 'import.meta.url'], array_map(static fn ($reference): string => $reference->base, $analysis->assetReferences));
+        $t->true($analysis->assetReferences[0]->isRelative());
+    },
+    'allows dynamic import expressions while rejecting malformed import calls' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze('import(foo); import(new URL("./chunk.js", import.meta.url));');
+
+        $t->same([], $analysis->imports);
+        $t->same(['./chunk.js'], array_map(static fn ($reference): string => $reference->source, $analysis->assetReferences));
+        $t->throws(InvalidArgumentException::class, static fn () => (new JsModuleAnalyzer())->analyze('import()'));
+        $t->throws(InvalidArgumentException::class, static fn () => (new JsModuleAnalyzer())->analyze('import(...a)'));
+    },
     'rejects malformed upstream import attribute objects' => static function (TestRunner $t): void {
         $analyzer = new JsModuleAnalyzer();
         $t->throws(InvalidArgumentException::class, static fn () => $analyzer->analyze('import "x" with { type: "json", type: "json" }'));
@@ -90,6 +118,7 @@ JS);
         $t->same(['@wordpress/dom-ready', '@wordpress/api-fetch'], array_map(static fn ($import): string => $import->source, $analysis->packageImports()));
         $t->same(['./block.json', './style.css', '../images/hero.png'], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
         $t->same(['type' => 'json'], $analysis->relativeImports()[0]->attributes);
+        $t->same(['./view.css', './card-worker.js'], array_map(static fn ($reference): string => $reference->source, $analysis->assetReferences));
         $t->true(!$analysis->imports[count($analysis->imports) - 1]->isPackage());
     },
     'rejects upstream invalid namespace import without as' => static function (TestRunner $t): void {

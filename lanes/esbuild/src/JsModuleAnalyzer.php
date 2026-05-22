@@ -37,7 +37,15 @@ final class JsModuleAnalyzer
             }
         }
 
-        return new ModuleAnalysis($imports, $exports);
+        [$importMetaOffsets, $importMetaProperties] = $this->collectImportMetaReferences();
+
+        return new ModuleAnalysis(
+            $imports,
+            $exports,
+            $importMetaOffsets,
+            $importMetaProperties,
+            $this->collectAssetReferences(),
+        );
     }
 
     private function parseImport(int $index): ?ModuleImport
@@ -151,12 +159,21 @@ final class JsModuleAnalyzer
         return new ModuleExport('declaration', null, [], $this->tokens[$index]->offset);
     }
 
-    private function parseDynamicImport(int $index): ModuleImport
+    private function parseDynamicImport(int $index): ?ModuleImport
     {
         $end = $this->findMatchingPunctuator($index + 1, '(', ')');
         $source = $this->tokens[$index + 2] ?? null;
-        if ($source === null || $source->kind !== 'string') {
-            throw new \InvalidArgumentException('Dynamic import must include a direct string source in this native slice');
+        if ($source === null || $source->text === ')') {
+            throw new \InvalidArgumentException('Dynamic import must include an argument');
+        }
+        if ($source->text === '.'
+            && ($this->tokens[$index + 3] ?? null)?->text === '.'
+            && ($this->tokens[$index + 4] ?? null)?->text === '.'
+        ) {
+            throw new \InvalidArgumentException('Dynamic import cannot use a spread argument');
+        }
+        if ($source->kind !== 'string') {
+            return null;
         }
 
         $attributesKeyword = null;
@@ -167,6 +184,107 @@ final class JsModuleAnalyzer
         }
 
         return new ModuleImport('dynamic', $this->stringValue($source), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+    }
+
+    /**
+     * @return array{0:list<int>, 1:list<array{property:string, offset:int}>}
+     */
+    private function collectImportMetaReferences(): array
+    {
+        $offsets = [];
+        $properties = [];
+        $count = count($this->tokens);
+
+        for ($i = 0; $i < $count; $i++) {
+            if (!$this->isImportMetaAt($i)) {
+                continue;
+            }
+
+            $offsets[] = $this->tokens[$i]->offset;
+            $property = $this->tokens[$i + 4] ?? null;
+            if (($this->tokens[$i + 3] ?? null)?->text === '.' && $property?->kind === 'identifier') {
+                $properties[] = ['property' => $property->text, 'offset' => $property->offset];
+            }
+        }
+
+        return [$offsets, $properties];
+    }
+
+    /**
+     * @return list<AssetReference>
+     */
+    private function collectAssetReferences(): array
+    {
+        $references = [];
+        $count = count($this->tokens);
+
+        for ($i = 0; $i < $count; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== 'new'
+                || ($this->tokens[$i + 1] ?? null)?->kind !== 'identifier'
+                || $this->tokens[$i + 1]->text !== 'URL'
+                || ($this->tokens[$i + 2] ?? null)?->text !== '('
+            ) {
+                continue;
+            }
+
+            $end = $this->findMatchingPunctuator($i + 2, '(', ')');
+            $source = $this->tokens[$i + 3] ?? null;
+            if ($source === null || $source->kind !== 'string') {
+                continue;
+            }
+
+            $comma = $this->findTopLevelPunctuator(',', $i + 4, $end);
+            if ($comma === null || !$this->isImportMetaUrlAt($comma + 1)) {
+                continue;
+            }
+
+            $references[] = new AssetReference(
+                $this->stringValue($source),
+                $this->tokens[$i]->offset,
+                'import.meta.url',
+                $this->assetReferenceContext($i),
+            );
+        }
+
+        return $references;
+    }
+
+    private function isImportMetaAt(int $index): bool
+    {
+        return ($this->tokens[$index] ?? null)?->kind === 'identifier'
+            && $this->tokens[$index]->text === 'import'
+            && ($this->tokens[$index + 1] ?? null)?->text === '.'
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'identifier'
+            && $this->tokens[$index + 2]->text === 'meta';
+    }
+
+    private function isImportMetaUrlAt(int $index): bool
+    {
+        return $this->isImportMetaAt($index)
+            && ($this->tokens[$index + 3] ?? null)?->text === '.'
+            && ($this->tokens[$index + 4] ?? null)?->kind === 'identifier'
+            && $this->tokens[$index + 4]->text === 'url';
+    }
+
+    private function assetReferenceContext(int $index): string
+    {
+        if (($this->tokens[$index - 1] ?? null)?->text !== '(') {
+            return 'new-url';
+        }
+
+        $callee = $this->tokens[$index - 2] ?? null;
+        if ($callee?->kind === 'identifier' && $callee->text === 'import') {
+            return 'dynamic-import';
+        }
+
+        if ($callee?->kind === 'identifier'
+            && ($this->tokens[$index - 3] ?? null)?->kind === 'identifier'
+            && $this->tokens[$index - 3]->text === 'new'
+        ) {
+            return $callee->text === 'Worker' ? 'worker-constructor' : 'constructor-argument';
+        }
+
+        return 'call-argument';
     }
 
     /**
