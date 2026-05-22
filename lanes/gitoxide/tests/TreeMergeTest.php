@@ -355,6 +355,53 @@ return [
         $t->same("1\n2\n3\n4\n5\n6\n", $read($reverse->tree->entryNamed('sequence')?->oid ?? '')->body);
         $t->same([], $reverse->indexEntries());
     },
+    'maps upstream gix-merge tree-baseline simple fast-forward no-change and unrelated fixture shapes' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $main = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "hello\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+        $side1 = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n6\n"),
+            $blobEntry('greeting', "hi\n"),
+            $blobEntry('whatever', "bar\n"),
+        ]);
+        $unrelated = new Tree([
+            $blobEntry('something-else', ''),
+        ]);
+
+        $fastForward = TreeMerge::mergeRecursive($main, $side1, $main, $read, $write);
+        $fastForwardReverse = TreeMerge::mergeRecursive($main, $main, $side1, $read, $write);
+        $noChange = TreeMerge::mergeRecursive($main, $main, $main, $read, $write);
+        $unrelatedMerge = TreeMerge::mergeRecursive(new Tree([]), $side1, $unrelated, $read, $write);
+        $unrelatedDiff3 = TreeMerge::mergeRecursive(new Tree([]), $side1, $unrelated, $read, $write, BlobMerge::STYLE_DIFF3);
+
+        $t->true($fastForward->isClean());
+        $t->same(['greeting', 'numbers', 'whatever'], $names($fastForward->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($fastForward->tree->entryNamed('numbers')?->oid ?? '')->body);
+        $t->same("hi\n", $read($fastForward->tree->entryNamed('greeting')?->oid ?? '')->body);
+        $t->same("bar\n", $read($fastForward->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same([], $fastForward->indexEntries());
+        $t->same(['greeting', 'numbers', 'whatever'], $names($fastForwardReverse->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($fastForwardReverse->tree->entryNamed('numbers')?->oid ?? '')->body);
+        $t->same([], $fastForwardReverse->indexEntries());
+
+        $t->true($noChange->isClean());
+        $t->same(['greeting', 'numbers', 'whatever'], $names($noChange->tree));
+        $t->same("1\n2\n3\n4\n5\n", $read($noChange->tree->entryNamed('numbers')?->oid ?? '')->body);
+        $t->same([], $noChange->indexEntries());
+
+        $t->true($unrelatedMerge->isClean());
+        $t->same(['greeting', 'numbers', 'something-else', 'whatever'], $names($unrelatedMerge->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($unrelatedMerge->tree->entryNamed('numbers')?->oid ?? '')->body);
+        $t->same('', $read($unrelatedMerge->tree->entryNamed('something-else')?->oid ?? '')->body);
+        $t->same([], $unrelatedMerge->indexEntries());
+        $t->same([], $unrelatedMerge->worktreeConflictFiles($read));
+        $t->true($unrelatedDiff3->isClean());
+        $t->same(['greeting', 'numbers', 'something-else', 'whatever'], $names($unrelatedDiff3->tree));
+        $t->same([], $unrelatedDiff3->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline simple single-content-conflict fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([
