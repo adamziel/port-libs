@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "markerPDF",
-    "estimatedProgress": 14,
-    "suiteProgress": "cloned static inventory: 27 inspected upstream benchmark/test/cleanup artifacts counted, 25 focused upstream source semantics plus 4 committed upstream-derived benchmark surrogate pairs mapped, 0 external benchmark PDF/reference pairs mapped; upstream runner not executed",
-    "phpPass": 44,
+    "estimatedProgress": 15,
+    "suiteProgress": "cloned static inventory: 27 inspected upstream benchmark/test/cleanup artifacts counted, 28 focused upstream source semantics plus 4 committed upstream-derived benchmark surrogate pairs mapped, 0 external benchmark PDF/reference pairs mapped; upstream runner not executed",
+    "phpPass": 47,
     "phpFail": 0,
-    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output, wrapped-line dehyphenation before paragraph rendering, bullet/list cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, CI-style text and table quality scoring against expected import content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
-    "phase": "cloned inventory + upstream cleaner/scoring/table/header/code/font-style/heading-toc slices",
+    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output, wrapped-line dehyphenation before paragraph rendering, bullet/list cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation as Gutenberg separators, CI-style text and table quality scoring against expected import content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
+    "phase": "cloned inventory + upstream cleaner/scoring/table/header/code/font-style/heading-toc/block-merge slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmark text/table scoring, committed multicolcnn, switch_trans, thinkpython, and thinkos Marker-vs-Nougat surrogate score fixtures from README-linked upstream examples, upstream bullet/text/header/code/font-style cleaners, styled-span Markdown emphasis reconstruction, code-block indentation reconstruction, heading-line splitting, heading-level inference, and computed TOC metadata for WordPress imports.",
+    "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmark text/table scoring, committed multicolcnn, switch_trans, thinkpython, and thinkos Marker-vs-Nougat surrogate score fixtures from README-linked upstream examples, upstream bullet/text/header/code/font-style cleaners, styled-span Markdown emphasis reconstruction, code-block indentation reconstruction, heading-line splitting, heading-level inference, computed TOC metadata, block-type/heading-level Markdown block merging, bbox-based continuation handling, and full-text pagination assembly for WordPress imports.",
     "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required. Native text scoring, table scoring, cleaner/font-style/code/heading-TOC slices, and four committed upstream-derived surrogate pairs are mapped, but no external benchmark PDF/reference archive pair is mapped yet.",
-    "latestCommit": "d411ecd",
+    "latestCommit": "b85dd82",
     "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map another focused layout/table/OCR behavior against a concrete upstream artifact."
 }

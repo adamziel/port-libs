@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "27 inspected upstream benchmark/test/cleanup artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, and 1 Markdown postprocessor",
-        "mapped": 25,
+        "mapped": 28,
         "mappedBenchmarkPairs": 0,
         "mappedBenchmarkSurrogatePairs": 4,
         "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
@@ -31,7 +31,7 @@
             "cleanerFunctions": 17,
             "mappedCleanerFunctions": 16,
             "markdownPostprocessorFunctions": 8,
-            "mappedMarkdownPostprocessorFunctions": 4,
+            "mappedMarkdownPostprocessorFunctions": 7,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
             "committedNougatMarkdownExamples": 4
@@ -80,15 +80,18 @@
             "marker.cleaners.code indent_blocks reconstructs indentation from PDF line geometry and suppresses repeated blank lines before code block output.",
             "marker.cleaners.headings split_heading_blocks separates detected heading lines from Text blocks when layout boxes overlap above the upstream threshold.",
             "marker.cleaners.headings bucket_headings and infer_heading_levels assign heading levels from clustered line heights with the upstream default-level fallback.",
-            "marker.cleaners.toc compute_toc emits title, level, and page metadata for Title and Section-header blocks before WordPress table-of-contents rendering."
+            "marker.cleaners.toc compute_toc emits title, level, and page metadata for Title and Section-header blocks before WordPress table-of-contents rendering.",
+            "marker.postprocessors.markdown merge_lines groups MergedBlocks across block-type and heading-level boundaries before final Markdown rendering.",
+            "marker.postprocessors.markdown merge_lines uses equal-height, same-x, close-vertical-gap line geometry as a continuation hint for ambiguous extracted lines.",
+            "marker.postprocessors.markdown block_separator and get_full_text assemble final Markdown with Text-block paragraph spacing and optional page-start markers for paginated imports."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 25 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 28 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, and computed table-of-contents metadata for WordPress imports.",
-        "phpBehaviorTests": 44,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, and full block-merge/pagination Markdown assembly for WordPress imports.",
+        "phpBehaviorTests": 47,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -113,9 +116,12 @@
             "marker.cleaners.code code indentation reconstruction from line geometry",
             "marker.cleaners.headings heading line splitting from layout bbox overlap",
             "marker.cleaners.headings heading-level inference from clustered line heights",
-            "marker.cleaners.toc computed table-of-contents metadata"
+            "marker.cleaners.toc computed table-of-contents metadata",
+            "marker.postprocessors.markdown block-type and heading-level merge_lines boundaries",
+            "marker.postprocessors.markdown bbox-driven line continuation during merge_lines",
+            "marker.postprocessors.markdown block_separator and get_full_text pagination assembly"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
     "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map another focused layout/table/OCR behavior against a concrete upstream artifact."
 }

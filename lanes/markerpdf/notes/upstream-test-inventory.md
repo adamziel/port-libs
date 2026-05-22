@@ -12,6 +12,7 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 - Benchmark scoring functions inspected: 6 (`chunk_text`, `overlap_score`, `score_text`, `split_to_cells`, `align_rows`, and `score_table`).
 - Cleaner/postprocessor source inspected: 7 cleaner modules with 17 functions under `marker/cleaners/`, plus 8 functions in `marker/postprocessors/markdown.py`.
 - Cleaner functions mapped: `marker/cleaners/bullets.py::replace_bullets`, `marker/cleaners/text.py::cleanup_text`, `marker/cleaners/fontstyle.py::find_bold_italic`, five focused functions from `marker/cleaners/headers.py` (`filter_common_elements`, `filter_header_footer`, `replace_leading_trailing_digits`, `find_overlap_elements`, and `filter_common_titles`), four focused functions from `marker/cleaners/code.py` (`is_code_linelen`, `comment_count`, `identify_code_blocks`, and `indent_blocks`), all three functions from `marker/cleaners/headings.py` (`split_heading_blocks`, `bucket_headings`, and `infer_heading_levels`), and `marker/cleaners/toc.py::compute_toc`.
+- Markdown postprocessor functions mapped: 7 of 8 (`escape_markdown`, `surround_text`, `block_surround`, `line_separator`, `block_separator`, `merge_lines`, and `get_full_text`). The styled-span branch of `merge_spans` is represented by `FontStyleCleaner`, but the full page-level wrapper is still only partially mapped.
 - Published benchmark documents in the README accuracy table: 6 (`multicolcnn.pdf`, `switch_trans.pdf`, `thinkpython.pdf`, `thinkos.pdf`, `thinkdsp.pdf`, `crowd.pdf`).
 - CI score assertions: 3 thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`, and average table report score `>= 0.7`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
@@ -33,6 +34,8 @@ The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashb
 - PDF text movement operators define block-ready line boundaries before WordPress import.
 - `marker/postprocessors/markdown.py` hyphenated line dewrapping is mapped by `MarkdownPostProcessor::mergeLines`.
 - `marker/postprocessors/markdown.py` heading/list/text wrapping and hash escaping are mapped by `MarkdownPostProcessor::surroundBlock`.
+- `marker/postprocessors/markdown.py` block merging, block separators, and full-text assembly are mapped by `MarkdownPostProcessor::mergeBlocks`, `MarkdownPostProcessor::blockSeparator`, and `MarkdownPostProcessor::getFullText`.
+- `marker/postprocessors/markdown.py` continuation geometry is mapped by `MarkdownPostProcessor::mergeBlocks` for equal-height, same-x lines whose vertical gap is below the upstream `max_block_gap`.
 - `marker/benchmark/scoring.py` chunking, local-window overlap, and text score aggregation are mapped by `BenchmarkScorer`.
 - `marker/benchmark/table.py` pipe-cell splitting, best-row fuzzy alignment, and aggregate table scoring are mapped by `TableScorer`.
 - `scripts/verify_benchmark_scores.py` table-score threshold is covered by `examples/wordpress-table-score.php`, which scores an OCR-noisy WordPress table import above `0.7`.
@@ -49,6 +52,7 @@ The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashb
 - `marker/cleaners/headings.py` line-height bucketing and heading-level inference are mapped by `HeadingCleaner::bucketHeadings` and `HeadingCleaner::inferHeadingLevels`, including the upstream four-level/default-level behavior.
 - `marker/cleaners/toc.py` computed table-of-contents metadata is mapped by `HeadingCleaner::computeToc`, emitting title, level, and page for `Title` and `Section-header` blocks.
 - README-linked committed Marker/Nougat `multicolcnn`, `switch_transformers`, `thinkpython`, and `thinkos` markdown outputs are mapped as upstream-derived surrogate benchmark pairs.
+- `examples/wordpress-paginated-import.php` uses the full block-merge path to preserve upstream-style page-start markers as reviewable Gutenberg separators while emitting headings, paragraphs, and list blocks.
 
 ## Runner Status
 
