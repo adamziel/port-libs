@@ -68,4 +68,13 @@ return [
         'Import WXR posts and pages',
         'Initialize data repository',
     ],
+    'expectedReviewRangeMessages' => [
+        'Merge media backfill into reviewed import',
+        'Prepare media backfill branch',
+        'Review public post statuses',
+    ],
+    'expectedMediaPromotionMessages' => [
+        'Merge media backfill into reviewed import',
+        'Prepare media backfill branch',
+    ],
 ];

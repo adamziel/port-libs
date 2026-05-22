@@ -9,6 +9,7 @@ final class ArticleExtractor
     private const UNLIKELY_CANDIDATE_PATTERN = '/-ad-|ad-container|ad-mobile|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|dfp-slot|disqus|extra|footer|gdpr|header|js_ad|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i';
     private const OK_MAYBE_CANDIDATE_PATTERN = '/and|article|body|column|content|main|mathjax|shadow/i';
     private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
+    private const WORDPRESS_SOCIAL_CHROME_PATTERN = '/\b(?:like-post-wrapper|likes-widget-placeholder|post-likes-widget-placeholder|sd-like|sharedaddy)\b/i';
     private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
     private const PRESENTATIONAL_ATTRIBUTES = [
         'align',
@@ -51,6 +52,7 @@ final class ArticleExtractor
         $this->unwrapNoscriptImages($xpath, $dom);
         $this->fixLazyImages($xpath);
         $jsonLdMetadata = $this->jsonLdMetadata($xpath);
+        $metaValues = $this->metaValues($xpath);
 
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form|//fieldset|//link') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
@@ -59,7 +61,7 @@ final class ArticleExtractor
         $this->removeInvisibleNodes($xpath);
         $this->removeUnlikelyCandidates($xpath);
 
-        $title = $this->title($xpath, $dom);
+        $title = $this->title($xpath, $dom, $metaValues, $jsonLdMetadata);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
         if ($best instanceof \DOMElement) {
             $best = $this->promoteSingleArticleCandidate($best);
@@ -74,31 +76,38 @@ final class ArticleExtractor
         }
         $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
-        $excerpt = $this->excerpt($xpath, $best, $text);
+        $excerpt = $this->excerpt($xpath, $best, $text, $metaValues, $jsonLdMetadata);
 
         return new Article(
             $title,
             $contentHtml,
             $text,
             $excerpt,
-            $this->metadataValue($xpath, [
-                '//meta[@name="parsely-author"]/@content',
-                $jsonLdMetadata['byline'] ?? '',
-                '//meta[@name="author"]/@content',
-                '//meta[@property="article:author"]/@content',
-                '//*[contains(concat(" ", normalize-space(@class), " "), " byline ")]',
-                '//*[contains(concat(" ", normalize-space(@class), " "), " author ")]',
+            $this->firstMetadataValue([
+                $jsonLdMetadata['byline'] ?? null,
+                $metaValues['dc:creator'] ?? null,
+                $metaValues['dcterm:creator'] ?? null,
+                $metaValues['author'] ?? null,
+                $metaValues['parsely-author'] ?? null,
+                $this->articleAuthorByline($metaValues),
+                $this->metadataValue($xpath, [
+                    '//*[contains(concat(" ", normalize-space(@class), " "), " byline ")]',
+                    '//*[contains(concat(" ", normalize-space(@class), " "), " author ")]',
+                ]),
             ]),
-            $jsonLdMetadata['siteName'] ?? $this->metadataValue($xpath, [
-                '//meta[@property="og:site_name"]/@content',
-                '//meta[@name="application-name"]/@content',
+            $this->firstMetadataValue([
+                $jsonLdMetadata['siteName'] ?? null,
+                $metaValues['og:site_name'] ?? null,
+                $this->metadataValue($xpath, ['//meta[@name="application-name"]/@content']),
             ]),
-            $this->metadataValue($xpath, [
-                '//meta[@name="parsely-pub-date"]/@content',
-                $jsonLdMetadata['publishedTime'] ?? '',
-                '//meta[@property="article:published_time"]/@content',
-                '//meta[@name="pubdate"]/@content',
-                '//time[@datetime]/@datetime',
+            $this->firstMetadataValue([
+                $jsonLdMetadata['publishedTime'] ?? null,
+                $metaValues['article:published_time'] ?? null,
+                $metaValues['parsely-pub-date'] ?? null,
+                $this->metadataValue($xpath, [
+                    '//meta[@name="pubdate"]/@content',
+                    '//time[@datetime]/@datetime',
+                ]),
             ]),
             $this->documentAttribute($dom, 'dir'),
             $this->documentAttribute($dom, 'lang'),
@@ -251,12 +260,28 @@ final class ArticleExtractor
             || in_array(strtolower($element->tagName), ['article', 'blockquote', 'div', 'figure', 'hr', 'img', 'ol', 'p', 'pre', 'section', 'table', 'ul'], true);
     }
 
-    private function title(\DOMXPath $xpath, \DOMDocument $dom): string
+    /**
+     * @param array<string, string> $metaValues
+     * @param array<string, string> $jsonLdMetadata
+     */
+    private function title(\DOMXPath $xpath, \DOMDocument $dom, array $metaValues, array $jsonLdMetadata): string
     {
+        $metadataTitle = $this->firstMetadataValue([
+            $jsonLdMetadata['title'] ?? null,
+            $metaValues['dc:title'] ?? null,
+            $metaValues['dcterm:title'] ?? null,
+            $metaValues['og:title'] ?? null,
+            $metaValues['weibo:article:title'] ?? null,
+            $metaValues['weibo:webpage:title'] ?? null,
+            $metaValues['title'] ?? null,
+            $metaValues['twitter:title'] ?? null,
+            $metaValues['parsely-title'] ?? null,
+        ]);
+        if ($metadataTitle !== null) {
+            return $metadataTitle;
+        }
+
         foreach ([
-            '//meta[@name="parsely-title"]/@content',
-            '//meta[@property="og:title"]/@content',
-            '//meta[@name="twitter:title"]/@content',
             '//title',
             '//h1',
         ] as $query) {
@@ -270,13 +295,21 @@ final class ArticleExtractor
         return '';
     }
 
-    private function excerpt(\DOMXPath $xpath, ?\DOMNode $best, string $fallbackText): string
+    /**
+     * @param array<string, string> $metaValues
+     * @param array<string, string> $jsonLdMetadata
+     */
+    private function excerpt(\DOMXPath $xpath, ?\DOMNode $best, string $fallbackText, array $metaValues, array $jsonLdMetadata): string
     {
-        $metadataDescription = $this->metadataValue($xpath, [
-            '//meta[@name="description"]/@content',
-            '//meta[@property="og:description"]/@content',
-            '//meta[@name="twitter:description"]/@content',
-            '//meta[@property="twitter:description"]/@content',
+        $metadataDescription = $this->firstMetadataValue([
+            $jsonLdMetadata['excerpt'] ?? null,
+            $metaValues['dc:description'] ?? null,
+            $metaValues['dcterm:description'] ?? null,
+            $metaValues['og:description'] ?? null,
+            $metaValues['weibo:article:description'] ?? null,
+            $metaValues['weibo:webpage:description'] ?? null,
+            $metaValues['description'] ?? null,
+            $metaValues['twitter:description'] ?? null,
         ]);
         if ($metadataDescription !== null) {
             return $metadataDescription;
@@ -355,7 +388,76 @@ final class ArticleExtractor
     }
 
     /**
-     * @return array{byline?: string, siteName?: string, publishedTime?: string}
+     * @param list<mixed> $values
+     */
+    private function firstMetadataValue(array $values): ?string
+    {
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $value = $this->cleanMetadataString($value);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function metaValues(\DOMXPath $xpath): array
+    {
+        $values = [];
+        foreach ($xpath->query('//meta[@content]') ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $content = trim($node->getAttribute('content'));
+            if ($content === '') {
+                continue;
+            }
+
+            $matchedProperty = false;
+            $property = $node->getAttribute('property');
+            if ($property !== ''
+                && preg_match_all('/\s*(article|dc|dcterm|og|twitter)\s*:\s*(author|creator|description|published_time|title|site_name)\s*/i', $property, $matches) > 0) {
+                $name = strtolower(preg_replace('/\s+/', '', $matches[0][0]) ?? $matches[0][0]);
+                $values[$name] = $content;
+                $matchedProperty = true;
+            }
+
+            $name = $node->getAttribute('name');
+            if (!$matchedProperty
+                && $name !== ''
+                && preg_match('/^\s*(?:(dc|dcterm|og|twitter|parsely|weibo:(?:article|webpage))\s*[-\.:]\s*)?(author|creator|pub-date|description|title|site_name)\s*$/i', $name) === 1) {
+                $name = strtolower(str_replace('.', ':', preg_replace('/\s+/', '', $name) ?? $name));
+                $values[$name] = $content;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, string> $metaValues
+     */
+    private function articleAuthorByline(array $metaValues): ?string
+    {
+        $author = $metaValues['article:author'] ?? null;
+        if ($author === null || filter_var($author, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        return $author;
+    }
+
+    /**
+     * @return array{title?: string, byline?: string, excerpt?: string, siteName?: string, publishedTime?: string}
      */
     private function jsonLdMetadata(\DOMXPath $xpath): array
     {
@@ -367,6 +469,18 @@ final class ArticleExtractor
                     $byline = $this->jsonLdAuthorNames($entry['author']);
                     if ($byline !== null) {
                         $metadata['byline'] = $byline;
+                    }
+                }
+
+                if ($this->isJsonLdArticleEntry($entry)) {
+                    foreach (['headline', 'name'] as $key) {
+                        if (!isset($metadata['title']) && isset($entry[$key]) && is_string($entry[$key]) && trim($entry[$key]) !== '') {
+                            $metadata['title'] = trim($entry[$key]);
+                        }
+                    }
+
+                    if (!isset($metadata['excerpt']) && isset($entry['description']) && is_string($entry['description']) && trim($entry['description']) !== '') {
+                        $metadata['excerpt'] = trim($entry['description']);
                     }
                 }
 
@@ -403,6 +517,22 @@ final class ArticleExtractor
         $decoded = json_decode(html_entity_decode($json, ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
 
         return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function isJsonLdArticleEntry(array $entry): bool
+    {
+        $type = $entry['@type'] ?? null;
+        $types = is_array($type) ? $type : [$type];
+        foreach ($types as $candidate) {
+            if (is_string($candidate) && preg_match('/^(?:Article|AdvertiserContentArticle|NewsArticle|AnalysisNewsArticle|AskPublicNewsArticle|BackgroundNewsArticle|OpinionNewsArticle|ReportageNewsArticle|ReviewNewsArticle|Report|SatiricalArticle|ScholarlyArticle|MedicalScholarlyArticle|SocialMediaPosting|BlogPosting|LiveBlogPosting|DiscussionForumPosting|TechArticle|APIReference)$/', trim($candidate)) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -729,7 +859,8 @@ final class ArticleExtractor
             $isUnlikely = preg_match(self::UNLIKELY_CANDIDATE_PATTERN, $matchString) === 1
                 && preg_match(self::OK_MAYBE_CANDIDATE_PATTERN, $matchString) !== 1;
             $isShareWidget = preg_match(self::SHARE_ELEMENT_PATTERN, $matchString) === 1;
-            if ($isUnlikely || $isShareWidget || in_array($role, self::UNLIKELY_ROLES, true)) {
+            $isWordPressSocialChrome = preg_match(self::WORDPRESS_SOCIAL_CHROME_PATTERN, $matchString) === 1;
+            if ($isUnlikely || $isShareWidget || $isWordPressSocialChrome || in_array($role, self::UNLIKELY_ROLES, true)) {
                 $remove[] = $node;
             }
         }

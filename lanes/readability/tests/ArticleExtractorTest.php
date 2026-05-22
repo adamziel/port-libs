@@ -249,6 +249,55 @@ return [
             $t->same([], $attributeValues($article->contentHtml, '//p[not(normalize-space()) and not(.//img or .//embed or .//object or .//iframe)]'));
         }
     },
+    'maps Mozilla script style and WordPress social button cleanup fixtures' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $extractor = new ArticleExtractor();
+
+        foreach (['style-tags-removal', 'remove-script-tags', 'social-buttons'] as $name) {
+            $fixture = __DIR__ . '/../fixtures/mozilla/' . $name;
+            $source = (string) file_get_contents($fixture . '/source.html');
+            $expected = (string) file_get_contents($fixture . '/expected.html');
+            $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+            $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+            $t->same($metadata['title'], $article->title);
+            $t->same($metadata['byline'], $article->byline);
+            $t->same($metadata['siteName'], $article->siteName);
+            $t->same($metadata['publishedTime'], $article->publishedTime);
+            $t->same($metadata['dir'], $article->dir);
+            $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+            $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+            $t->same(
+                array_map($normalizedText, $attributeValues($expected, '//p')),
+                array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+            );
+            $t->same(
+                array_map($normalizedText, $attributeValues($expected, '//h2')),
+                array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
+            );
+            $t->same([], $attributeValues($article->contentHtml, '//script|//style'));
+        }
+    },
+    'removes WordPress Jetpack like widgets and inline executable fragments before block output' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Jetpack Widget Cleanup"></head><body><article>'
+            . '<h1>Jetpack Widget Cleanup</h1>'
+            . '<p>' . str_repeat('A WordPress importer should retain editorial copy while dropping source runtime widgets. ', 3) . '</p>'
+            . '<style>.sharedaddy{display:block}</style><script>alert("wrong")</script>'
+            . '<div class="sharedaddy sd-block sd-like" id="like-post-wrapper-10"><h3>Like this:</h3><span>Like</span><span>Loading...</span></div>'
+            . '<p>' . str_repeat('The native cleanup keeps the article ready for clean paragraph blocks. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Jetpack Widget Cleanup', $article->title);
+        $t->contains('retain editorial copy', $article->text);
+        $t->contains('ready for clean paragraph blocks', $blocks);
+        foreach (['<script', '<style', 'sharedaddy', 'like-post-wrapper', 'Like this:', 'Loading...', 'alert("wrong")'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'source executable/social fragment should be removed: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'block output should not contain source executable/social fragment: ' . $fragment);
+        }
+    },
     'removes hidden WordPress export duplicates while preserving fallback images' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Hidden Export Cleanup"></head><body><article>'
             . '<h1>Hidden Export Cleanup</h1>'
@@ -673,6 +722,50 @@ return [
         $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
         $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+    },
+    'maps Mozilla metadata-content-missing fixture metadata precedence' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/metadata-content-missing';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(false, str_contains((string) $article->byline, 'FAIL'), 'fallback author meta should not beat dc:creator metadata');
+    },
+    'uses Dublin Core metadata for WordPress import titles bylines and excerpts' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Theme Fallback Title</title>'
+            . '<meta property="x:title dc:title" content="Canonical Import Title">'
+            . '<meta property="dc:creator twitter:site_name" content="Migration Desk">'
+            . '<meta name="author" content="Wrong Theme Author">'
+            . '<meta property="og:description twitter:description">'
+            . '<meta property="dc:description" content="Clean import excerpt from migrated metadata.">'
+            . '</head><body><article>'
+            . '<h1>Visible Article Heading</h1>'
+            . '<p>' . str_repeat('A WordPress importer should prefer portable metadata over incomplete theme tags. ', 4) . '</p>'
+            . '<p>' . str_repeat('The editorial body remains available for clean block serialization. ', 4) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Canonical Import Title', $article->title);
+        $t->same('Migration Desk', $article->byline);
+        $t->same('Clean import excerpt from migrated metadata.', $article->excerpt);
+        $t->contains('<h2>Visible Article Heading</h2>', $article->contentHtml);
+        $t->contains('portable metadata over incomplete theme tags', $blocks);
+        $t->same(false, str_contains($article->title, 'Theme Fallback Title'));
+        $t->same(false, str_contains((string) $article->byline, 'Wrong Theme Author'));
     },
     'maps Mozilla mozilla-2 fixture metadata and retained content markers' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/mozilla-2';

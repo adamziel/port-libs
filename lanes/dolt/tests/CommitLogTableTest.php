@@ -52,6 +52,79 @@ $commitLogGraph = static function (): array {
     ];
 };
 
+$revisionRangeGraph = static function (): array {
+    return [
+        [
+            'commit_hash' => 'init',
+            'committer' => 'billy bob',
+            'email' => 'bigbillieb@fake.horse',
+            'date' => '2026-05-22 10:00:00',
+            'message' => 'Initialize data repository',
+            'parents' => [],
+        ],
+        [
+            'commit_hash' => 'main-1',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:01:00',
+            'message' => 'commit 1 MAIN [1M]',
+            'parents' => ['init'],
+        ],
+        [
+            'commit_hash' => 'main-2',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:02:00',
+            'message' => 'commit 2 MAIN [2M]',
+            'parents' => ['main-1'],
+            'refs' => ['refs/tags/tagM'],
+        ],
+        [
+            'commit_hash' => 'branch-a-1',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:03:00',
+            'message' => 'commit 1 BRANCHA [1A]',
+            'parents' => ['main-2'],
+        ],
+        [
+            'commit_hash' => 'branch-a-2',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:04:00',
+            'message' => 'commit 2 BRANCHA [2A]',
+            'parents' => ['branch-a-1'],
+        ],
+        [
+            'commit_hash' => 'branch-b-1',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:05:00',
+            'message' => 'commit 1 BRANCHB [1B]',
+            'parents' => ['branch-a-2'],
+            'refs' => ['refs/heads/branchB'],
+        ],
+        [
+            'commit_hash' => 'branch-a-3',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:06:00',
+            'message' => 'commit 3 BRANCHA [3A]',
+            'parents' => ['branch-a-2'],
+            'refs' => ['refs/heads/branchA'],
+        ],
+        [
+            'commit_hash' => 'main-3',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:07:00',
+            'message' => 'commit 3 AFTER [3M]',
+            'parents' => ['main-2'],
+            'refs' => ['refs/heads/main'],
+        ],
+    ];
+};
+
 return [
     'dolt log rows keep fixed columns and null opt-in fields by default' => static function (TestRunner $t) use ($commitLogGraph): void {
         $rows = (new CommitLogTable())->logRows($commitLogGraph(), ['headHash' => 'merge-1']);
@@ -111,6 +184,134 @@ return [
         $t->same('main-1', $rows[0]['parents']);
         $t->same('', $rows[0]['refs']);
     },
+    'dolt log revision ranges map two-dot caret and not exclusions' => static function (TestRunner $t) use ($revisionRangeGraph): void {
+        $table = new CommitLogTable();
+        $commits = $revisionRangeGraph();
+        $messages = static fn (array $rows): array => array_column($rows, 'message');
+
+        $twoDot = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main..branchA'],
+        ]);
+        $caret = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['^main', 'branchA'],
+        ]);
+        $not = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['branchA'],
+            'notRevisionSpecs' => ['main'],
+        ]);
+        $reverse = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['branchA..main'],
+        ]);
+        $selfRange = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main..main'],
+        ]);
+        $parentRange = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['^main~', 'main'],
+        ]);
+
+        $expectedBranchOnly = ['commit 3 BRANCHA [3A]', 'commit 2 BRANCHA [2A]', 'commit 1 BRANCHA [1A]'];
+        $t->same($expectedBranchOnly, $messages($twoDot));
+        $t->same($expectedBranchOnly, $messages($caret));
+        $t->same($expectedBranchOnly, $messages($not));
+        $t->same('HEAD -> branchA', $twoDot[0]['refs']);
+        $t->same(['commit 3 AFTER [3M]'], $messages($reverse));
+        $t->same([], $selfRange);
+        $t->same(['commit 3 AFTER [3M]'], $messages($parentRange));
+    },
+    'dolt log revision ranges map three-dot and multiple revision unions' => static function (TestRunner $t) use ($revisionRangeGraph): void {
+        $table = new CommitLogTable();
+        $commits = $revisionRangeGraph();
+        $messages = static fn (array $rows): array => array_column($rows, 'message');
+
+        $threeDot = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main...branchA'],
+        ]);
+        $twoBranches = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['branchB', 'branchA'],
+        ]);
+        $mainAndBranch = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main', 'branchA'],
+        ]);
+        $excludedBranch = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['branchB', 'main', '^branchA'],
+        ]);
+        $tagRange = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['tagM..branchB'],
+        ]);
+        $headRange = $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['HEAD..branchB'],
+        ]);
+
+        $t->same([
+            'commit 3 BRANCHA [3A]',
+            'commit 2 BRANCHA [2A]',
+            'commit 3 AFTER [3M]',
+            'commit 1 BRANCHA [1A]',
+        ], $messages($threeDot));
+        $t->same([
+            'commit 3 BRANCHA [3A]',
+            'commit 1 BRANCHB [1B]',
+            'commit 2 BRANCHA [2A]',
+            'commit 1 BRANCHA [1A]',
+            'commit 2 MAIN [2M]',
+            'commit 1 MAIN [1M]',
+            'Initialize data repository',
+        ], $messages($twoBranches));
+        $t->same([
+            'commit 3 BRANCHA [3A]',
+            'commit 2 BRANCHA [2A]',
+            'commit 3 AFTER [3M]',
+            'commit 1 BRANCHA [1A]',
+            'commit 2 MAIN [2M]',
+            'commit 1 MAIN [1M]',
+            'Initialize data repository',
+        ], $messages($mainAndBranch));
+        $t->same(['commit 1 BRANCHB [1B]', 'commit 3 AFTER [3M]'], $messages($excludedBranch));
+        $t->same(['commit 1 BRANCHB [1B]', 'commit 2 BRANCHA [2A]', 'commit 1 BRANCHA [1A]'], $messages($tagRange));
+        $t->same($messages($tagRange), $messages($headRange));
+    },
+    'dolt log revision range validation follows upstream argument boundaries' => static function (TestRunner $t) use ($revisionRangeGraph): void {
+        $table = new CommitLogTable();
+        $commits = $revisionRangeGraph();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main..branchA', 'main'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main..branchA'],
+            'notRevisionSpecs' => ['main'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['^main..branchA'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['main'],
+            'notRevisionSpecs' => ['^branchA'],
+        ]));
+        $t->throws(RuntimeException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'main-3',
+            'revisionSpecs' => ['missing'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'revisionSpecs' => ['^main'],
+        ]));
+    },
     'dolt log validates duplicate commits and broken graphs' => static function (TestRunner $t) use ($commitLogGraph): void {
         $table = new CommitLogTable();
         $duplicate = $commitLogGraph();
@@ -154,13 +355,27 @@ return [
             'headHash' => 'wp-review-main',
             'showParents' => true,
         ]);
+        $reviewRangeRows = $table->logRows($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'revisionSpecs' => ['wp-import-base..wp-merge-media'],
+            'showParents' => true,
+        ]);
+        $mediaPromotionRows = $table->logRows($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'revisionSpecs' => ['wp-review-main..wp-merge-media'],
+            'showParents' => true,
+        ]);
         $example = require __DIR__ . '/../examples/wordpress-commit-log-review.php';
 
         $t->same($fixture['expectedLogMessages'], array_column($rows, 'message'));
         $t->same($fixture['expectedHeadRefs'], $rows[0]['refs']);
         $t->same($fixture['expectedMergeParents'], $rows[0]['parents']);
         $t->same($fixture['expectedMainlineMessages'], array_column($mainlineRows, 'message'));
+        $t->same($fixture['expectedReviewRangeMessages'], array_column($reviewRangeRows, 'message'));
+        $t->same($fixture['expectedMediaPromotionMessages'], array_column($mediaPromotionRows, 'message'));
         $t->same($rows, $example['log']);
+        $t->same($reviewRangeRows, $example['reviewRange']);
+        $t->same($mediaPromotionRows, $example['mediaPromotionRange']);
         $t->same(CommitLogTable::COMMITS_COLUMNS, array_keys($example['commits'][0]));
     },
 ];

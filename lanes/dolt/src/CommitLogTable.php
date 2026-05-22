@@ -40,7 +40,7 @@ final class CommitLogTable
      * upstream's opt-in cost boundary.
      *
      * @param list<array<string, mixed>> $commits
-     * @param array{headHash?:string|null, includeAll?:bool, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null} $options
+     * @param array{headHash?:string|null, includeAll?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null} $options
      * @return list<array<string, scalar|null>>
      */
     public function logRows(array $commits, array $options = []): array
@@ -64,15 +64,31 @@ final class CommitLogTable
             : (bool) ($options['showSignature'] ?? false);
         $decorate = $this->normalizeDecoration($options['decorate'] ?? 'short');
         $limit = $this->normalizeLimit($options['limit'] ?? null);
+        $revisionSpecs = $this->normalizeOptionalStringList(
+            $options['revisionSpecs'] ?? $options['revisions'] ?? null,
+            'Dolt log revisionSpecs',
+        );
+        $notRevisionSpecs = $this->normalizeOptionalStringList(
+            $options['notRevisionSpecs'] ?? $options['notRevisions'] ?? null,
+            'Dolt log notRevisionSpecs',
+        ) ?? [];
 
         $visible = null;
-        if ($headHash !== null && !($options['includeAll'] ?? false)) {
+        $logHeadHash = $headHash;
+        if ($revisionSpecs !== null || $notRevisionSpecs !== []) {
+            [$visible, $logHeadHash] = $this->visibleHashesForRevisionSpecs(
+                $commits,
+                $revisionSpecs ?? [],
+                $notRevisionSpecs,
+                $headHash,
+            );
+        } elseif ($headHash !== null && !($options['includeAll'] ?? false)) {
             $visible = $this->reachableHashes($commits, $headHash);
         }
 
         $rows = [];
         foreach ($this->orderedCommits($commits, $visible) as $commit) {
-            $rows[] = $this->logRow($commit, $headHash, $showParents, $showSignature, $decorate);
+            $rows[] = $this->logRow($commit, $logHeadHash, $showParents, $showSignature, $decorate);
             if ($limit !== null && count($rows) >= $limit) {
                 break;
             }
@@ -281,6 +297,156 @@ final class CommitLogTable
     }
 
     /**
+     * @param array<string, array{commit_hash:non-empty-string, committer:non-empty-string, email:non-empty-string, date:non-empty-string, message:string, commit_order:int, parents:list<non-empty-string>, refs:list<non-empty-string>, signature:string|null, signatureVerification:string|null, author:non-empty-string, author_email:non-empty-string, author_date:non-empty-string}> $commits
+     * @param list<non-empty-string> $revisionSpecs
+     * @param list<non-empty-string> $notRevisionSpecs
+     * @return array{0:array<string, true>, 1:string|null}
+     */
+    private function visibleHashesForRevisionSpecs(
+        array $commits,
+        array $revisionSpecs,
+        array $notRevisionSpecs,
+        ?string $headHash,
+    ): array {
+        [$includeSpecs, $excludeSpecs, $threeDot] = $this->evaluateRevisionSpecs($revisionSpecs, $notRevisionSpecs);
+        if ($includeSpecs === []) {
+            if ($headHash === null) {
+                throw new \InvalidArgumentException('Dolt log revision exclusions require a non-empty headHash.');
+            }
+            $includeSpecs = ['HEAD'];
+        }
+
+        $includeHashes = [];
+        foreach ($includeSpecs as $spec) {
+            $includeHashes[] = $this->resolveCommitSpec($commits, $spec, $headHash);
+        }
+
+        $excludeHashes = [];
+        foreach ($excludeSpecs as $spec) {
+            $excludeHashes[] = $this->resolveCommitSpec($commits, $spec, $headHash);
+        }
+
+        if ($threeDot) {
+            if (count($includeHashes) !== 2) {
+                throw new \InvalidArgumentException('Dolt log three-dot revisions require exactly two refs.');
+            }
+            $excludeHashes[] = $this->mergeBaseHash($commits, $includeHashes[0], $includeHashes[1]);
+        }
+
+        $visible = [];
+        foreach ($includeHashes as $hash) {
+            $visible += $this->reachableHashes($commits, $hash);
+        }
+        foreach ($excludeHashes as $hash) {
+            foreach (array_keys($this->reachableHashes($commits, $hash)) as $excluded) {
+                unset($visible[$excluded]);
+            }
+        }
+
+        $logHeadHash = count($includeHashes) === 1 ? $includeHashes[0] : null;
+
+        return [$visible, $logHeadHash];
+    }
+
+    /**
+     * Map upstream `dolt_log()` revision arguments to include/exclude heads.
+     *
+     * @param list<non-empty-string> $revisionSpecs
+     * @param list<non-empty-string> $notRevisionSpecs
+     * @return array{0:list<non-empty-string>, 1:list<non-empty-string>, 2:bool}
+     */
+    private function evaluateRevisionSpecs(array $revisionSpecs, array $notRevisionSpecs): array
+    {
+        $includes = [];
+        $excludes = [];
+        foreach ($revisionSpecs as $spec) {
+            if (str_starts_with($spec, '^')) {
+                $negative = substr($spec, 1);
+                if ($negative === '') {
+                    throw new \InvalidArgumentException('Dolt log exclusion revision must be non-empty.');
+                }
+                $excludes[] = $negative;
+                continue;
+            }
+
+            $includes[] = $spec;
+        }
+
+        foreach ($notRevisionSpecs as $spec) {
+            if (str_starts_with($spec, '^')) {
+                throw new \InvalidArgumentException("Dolt log --not revision cannot contain '^'.");
+            }
+            $excludes[] = $spec;
+        }
+
+        $rangeSpecs = array_values(array_filter(
+            $includes,
+            static fn (string $spec): bool => str_contains($spec, '..'),
+        ));
+        if ($rangeSpecs !== []) {
+            if (count($includes) > 1 || $excludes !== []) {
+                throw new \InvalidArgumentException("Dolt log revision cannot contain '..' or '...' if multiple revisions exist.");
+            }
+
+            return $this->splitRevisionRange($rangeSpecs[0]);
+        }
+
+        foreach ($excludes as $spec) {
+            if (str_contains($spec, '..')) {
+                throw new \InvalidArgumentException("Dolt log --not revision cannot contain '..'.");
+            }
+        }
+
+        return [$includes, $excludes, false];
+    }
+
+    /**
+     * @return array{0:list<non-empty-string>, 1:list<non-empty-string>, 2:bool}
+     */
+    private function splitRevisionRange(string $spec): array
+    {
+        if (str_contains($spec, '...')) {
+            $parts = explode('...', $spec);
+            if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+                throw new \InvalidArgumentException('Dolt log three-dot revision range requires two non-empty refs.');
+            }
+
+            return [[$parts[0], $parts[1]], [], true];
+        }
+
+        $parts = explode('..', $spec);
+        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+            throw new \InvalidArgumentException('Dolt log two-dot revision range requires two non-empty refs.');
+        }
+
+        return [[$parts[1]], [$parts[0]], false];
+    }
+
+    /**
+     * @param array<string, array{parents:list<non-empty-string>, commit_order:int, date:non-empty-string, commit_hash:non-empty-string}> $commits
+     */
+    private function mergeBaseHash(array $commits, string $leftHash, string $rightHash): string
+    {
+        $common = array_intersect_key(
+            $this->reachableHashes($commits, $leftHash),
+            $this->reachableHashes($commits, $rightHash),
+        );
+        if ($common === []) {
+            throw new \RuntimeException("Dolt commits {$leftHash} and {$rightHash} do not have a common ancestor.");
+        }
+
+        return $this->orderedCommits($commits, $common)[0]['commit_hash'];
+    }
+
+    /**
+     * @param array<string, array{commit_hash:non-empty-string, parents:list<non-empty-string>, refs:list<non-empty-string>}> $commits
+     */
+    private function resolveCommitSpec(array $commits, string $spec, ?string $headHash): string
+    {
+        return (new CommitGraph())->resolve(array_values($commits), $spec, $headHash);
+    }
+
+    /**
      * @param array{commit_hash:non-empty-string, refs:list<non-empty-string>} $commit
      */
     private function formatRefs(array $commit, ?string $headHash, string $decorate): string
@@ -388,6 +554,30 @@ final class CommitLogTable
         }
 
         return $columns;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<non-empty-string>|null
+     */
+    private function normalizeOptionalStringList($value, string $label): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException("{$label} must be a list of strings.");
+        }
+
+        $normalized = [];
+        foreach ($value as $item) {
+            if (!is_string($item) || $item === '') {
+                throw new \InvalidArgumentException("{$label} must contain only non-empty strings.");
+            }
+            $normalized[] = $item;
+        }
+
+        return $normalized;
     }
 
     /**

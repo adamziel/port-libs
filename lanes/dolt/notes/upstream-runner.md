@@ -323,6 +323,14 @@
 - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 90m bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats`
   - Result: `1..319`, exit 0; 303 runnable tests passed and 16 upstream-declared skips remained. This extends the prior 253-plan diff/schema/merge/conflict/sql-commit-diff slice with local `log.bats`, runner-local fixed status coverage, and `sql-status.bats` in one bounded pass.
 
+## Dolt Log Revision Range Refresh
+
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(LogTableFunction|LogTableFunctionPrepared)$' -count=1 -timeout 20m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.623s`; focused upstream table-function script tests passed for `dolt_log()` revision arguments, range/exclusion validation, parents, refs, and row content.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test ./libraries/doltcore/sqle/dtablefunctions -run TestDoltLog -count=1 -timeout 5m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/dtablefunctions 0.043s`; focused upstream option/type/bind-variable unit tests passed.
+- Native slice added `revisionSpecs` / `notRevisionSpecs` handling for caret exclusions, `--not`-style exclusions, `A..B`, `A...B`, multi-ref unions, HEAD/ref/tag/hash/ancestor-suffix resolution, and invalid range-mixing boundaries.
+
 ## Repository Check
 
 - `php tools/run-tests.php`
@@ -342,6 +350,7 @@
   - Immediate required rerun after the unrelated esbuild lane changed passed: 113 test files, 8,366 assertions, 0 failures.
   - Latest required rerun after later unrelated-lane changes failed in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php` test `lowers wordpress class field assign semantics without node`: 113 test files, 8,389 assertions, 1 failure. The Dolt tests in that root run passed.
   - Final required rerun after the current runner metadata correction passed: 113 test files, 8,396 assertions, 0 failures.
+  - Required rerun after native `dolt_log()` revision-range filtering passed: 115 test files, 8,634 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
@@ -351,7 +360,7 @@
   - Prior rerun after the status-helper runner refresh also passed with 7 Dolt test files, 70 behavior tests, 306 assertions, and 0 failures.
   - Prior result after the commit-ancestors slice: pass with 8 Dolt test files, 74 behavior tests, 323 assertions, and 0 failures.
   - Prior result after the native `has_ancestor` slice: pass with 9 Dolt test files, 78 behavior tests, 380 assertions, and 0 failures.
-  - Current result after this runner metadata update: pass with 10 Dolt test files, 84 behavior tests, 415 assertions, and 0 failures.
+  - Current result after native `dolt_log()` revision-range filtering: pass with 10 Dolt test files, 87 behavior tests, 438 assertions, and 0 failures.
 
 ## Skipped Suites
 

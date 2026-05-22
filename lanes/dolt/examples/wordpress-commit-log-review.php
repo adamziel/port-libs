@@ -15,5 +15,17 @@ return [
         'showParents' => true,
         'decorate' => 'short',
     ]),
+    'reviewRange' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'revisionSpecs' => ['wp-import-base..wp-merge-media'],
+        'showParents' => true,
+        'decorate' => 'short',
+    ]),
+    'mediaPromotionRange' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'revisionSpecs' => ['wp-review-main..wp-merge-media'],
+        'showParents' => true,
+        'decorate' => 'short',
+    ]),
     'commits' => $table->commitsRows($fixture['commits']),
 ];

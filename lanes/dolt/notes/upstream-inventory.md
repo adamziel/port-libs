@@ -168,6 +168,8 @@ The full upstream runners were not executed for this lane slice, but bounded ups
 - Latest consolidated runner refresh rechecked `sudo -n dnf install -y golang bats expect` (`Nothing to do`), rebuilt cache-local `dolt`, `noms`, and `remotesrv`, confirmed `dolt version 2.0.5`, reran the 16-package Go batch, focused diff/schema/system enginetest group, schema/procedure/history integration group, commit-diff/log/status/conflict engine group, `dolt_status_ignored`, `TestDoltLog`, and focused HistorySystemTable commit-ancestor subtests; all passed.
 - Latest pristine one-test `status.bats` repro still failed with `1..1` because `get_head_commit()` truncated `61t2d1teve5iahijb5ptk8bn17ih9uc8` to `1teve5iahijb5ptk8bn17ih9uc8`.
 - Latest combined local BATS pass `bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats` exited 0 with `1..319`: 303 runnable tests passed and 16 upstream-declared skips remained.
+- Fresh `dolt_log()` revision-range runner refresh passed `go test ./libraries/doltcore/sqle/enginetest -run 'Test(LogTableFunction|LogTableFunctionPrepared)$'` in `0.623s` and `go test ./libraries/doltcore/sqle/dtablefunctions -run TestDoltLog` in `0.043s`.
+- Required root `php tools/run-tests.php` after native `dolt_log()` revision-range filtering passed with 115 test files, 8,634 assertions, and 0 failures; Dolt lane-only PHP passed with 10 files, 87 behavior tests, 438 assertions, and 0 failures.
 - Full `go test ./...` was not run because it would hydrate and compile the full Dolt workspace and broad dependency graph beyond this lane slice.
 - Full BATS directory was not run because upstream BATS also runs Python/parquet/Hadoop/server/compatibility/client integration dependencies.
 - Live-service, MySQL-server, cloud, Hadoop/parquet, and benchmark suites were intentionally skipped.
@@ -222,6 +224,7 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - Native log rows populate `signature` only when requested; unsigned commits render an empty string in the requested signature column, while unrequested signatures stay null.
 - Native refs formatting maps upstream `--decorate` modes: `short` trims `refs/heads`, `refs/remotes`, and `refs/tags`, tags render as `tag: name`, `full` preserves full ref paths, `no` returns blanks, and `auto` defaults to SQL-style short decoration.
 - Native log traversal can restrict rows to a selected head ancestry or include all supplied commits, and computes commit heights from parent links when explicit `commit_order` is absent.
+- Native `dolt_log()` revision specs now map upstream caret exclusions, `--not` exclusions, `A..B` ranges, `A...B` merge-base ranges, multiple positive revision unions, HEAD/ref/tag/hash/ancestor-suffix resolution, and invalid range-mixing boundaries.
 - Native `dolt_commits` rows now project all supplied branch commits into upstream's metadata-only schema without `commit_order`, `parents`, `refs`, or `signature`.
 - Native `dolt_commit_ancestors` rows now project upstream's three-column parent-edge table, including one null-parent row for root commits and one row per merge parent with zero-based `parent_index`.
 - Native commit ancestor filtering by `commit_hash` preserves all parent rows for merge commits, matching the upstream guard against max1row optimization.
@@ -233,6 +236,7 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - Native `active_branch()` returns the matched branch name case-insensitively and returns null for detached or missing branch contexts.
 - Native `dolt_branch_activity` rows now include every current branch, filter deleted and `HEAD` activity, preserve nullable last-read/last-write times, and attach active session counts plus system-start time.
 - WordPress commit-log fixtures now cover an import/review branch merge with `HEAD -> main`, a review tag, side-branch refs, merge parents, and separate author/committer metadata for migration audit UIs.
+- WordPress commit-log fixtures now also expose import-base and media-promotion revision ranges so a migration UI can focus review on branch deltas instead of the full repository history.
 - WordPress commit-ancestors fixtures now cover the same reviewed import merge as `dolt_commit_ancestors` parent edges joined to parent log messages.
 - WordPress has-ancestor fixtures now cover reviewed import branch and tag containment checks, including media-import branch ancestry, `HEAD`, `^2`, and `~2` commit specs.
 - WordPress branch-review fixtures now cover active migration branches, dirty media-import work, active reviewer sessions, and branch activity timestamps for migration review queues.
