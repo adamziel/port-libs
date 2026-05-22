@@ -148,6 +148,7 @@ final class SyncPlan
         bool $noUpdateModTime = false,
         int $modifyWindowSeconds = 1,
         bool $checksum = false,
+        bool $refreshTimes = false,
     ): array {
         $copied = [];
         foreach ($source->list() as $sourceInfo) {
@@ -172,6 +173,7 @@ final class SyncPlan
                 $modifyWindowSeconds,
                 $checksum,
                 $immutable,
+                $refreshTimes,
             )) {
                 continue;
             }
@@ -391,6 +393,7 @@ final class SyncPlan
         int $modifyWindowSeconds,
         bool $checksum,
         bool $immutable,
+        bool $refreshTimes,
     ): bool
     {
         if ($targetInfo === null) {
@@ -409,6 +412,7 @@ final class SyncPlan
                 $modifyWindowSeconds,
                 $checksum,
                 $immutable,
+                $refreshTimes,
             );
         }
 
@@ -421,6 +425,7 @@ final class SyncPlan
             $modifyWindowSeconds,
             $checksum,
             $immutable,
+            $refreshTimes,
         );
     }
 
@@ -438,6 +443,7 @@ final class SyncPlan
         int $modifyWindowSeconds,
         bool $checksum,
         bool $immutable,
+        bool $refreshTimes,
     ): bool {
         $dt = $this->modTimeDeltaSeconds($sourceInfo, $targetInfo);
         if ($dt === null) {
@@ -450,6 +456,7 @@ final class SyncPlan
                 $modifyWindowSeconds,
                 $checksum,
                 $immutable,
+                $refreshTimes,
             );
         }
 
@@ -474,6 +481,7 @@ final class SyncPlan
             $modifyWindowSeconds,
             $checksum,
             $immutable,
+            $refreshTimes,
             true,
         );
     }
@@ -487,6 +495,7 @@ final class SyncPlan
         int $modifyWindowSeconds,
         bool $checksum,
         bool $immutable,
+        bool $refreshTimes,
         bool $forceModTimeMatch = false,
     ): bool {
         if ($sourceInfo->size !== $targetInfo->size) {
@@ -502,7 +511,7 @@ final class SyncPlan
         }
 
         $sameHash = $this->sameProviderHash($source, $target, $sourceInfo->path, $targetInfo->path);
-        if ($sameHash !== true) {
+        if ($sameHash !== true && !($sameHash === null && $refreshTimes)) {
             return false;
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Rclone\DeleteMode;
 use PortLibs\Rclone\FilterRuleSet;
+use PortLibs\Rclone\HashSet;
 use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\SyncPlan;
 
@@ -201,6 +202,37 @@ return [
 
         $t->same([], array_map(static fn ($info) => $info->path, $copied));
         $t->same('2026-05-20T12:00:00Z', $target->info('empty space')->modTime);
+    },
+    'refresh times updates no-hash destination timestamps without transferring' => static function (TestRunner $t): void {
+        $source = new MemoryProvider(false, new HashSet());
+        $target = new MemoryProvider(false, new HashSet());
+        $source->put('media.bin', 'abcdef', ['modTime' => '2026-05-22T12:00:00Z']);
+        $target->put('media.bin', 'uvwxyz', ['modTime' => '2026-05-21T12:00:00Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target);
+        $t->same(['media.bin'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('abcdef', $target->get('media.bin'));
+        $t->same('2026-05-22T12:00:00Z', $target->info('media.bin')->modTime);
+
+        $target = new MemoryProvider(false, new HashSet());
+        $target->put('media.bin', 'uvwxyz', ['modTime' => '2026-05-21T12:00:00Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, refreshTimes: true);
+        $t->same([], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('uvwxyz', $target->get('media.bin'));
+        $t->same('2026-05-22T12:00:00Z', $target->info('media.bin')->modTime);
+    },
+    'refresh times still transfers when a common hash differs' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('media.bin', 'abcdef', ['modTime' => '2026-05-22T12:00:00Z']);
+        $target->put('media.bin', 'uvwxyz', ['modTime' => '2026-05-21T12:00:00Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, refreshTimes: true);
+
+        $t->same(['media.bin'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('abcdef', $target->get('media.bin'));
+        $t->same('2026-05-22T12:00:00Z', $target->info('media.bin')->modTime);
     },
     'update older skips newer destinations and checks older or near-equal files like upstream' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
@@ -610,6 +642,34 @@ return [
         $t->same('fresh sql dump', $target->get('database/site.sql'));
         $t->same('<rss>remote recovery export</rss>', $target->get('exports/site.wxr'));
         $t->same('image-A', $target->get('wp-content/uploads/2026/05/hero.jpg'));
+        $t->same('<html>cache</html>', $target->get('wp-content/cache/orphan.html'));
+    },
+    'refresh times wordpress no-hash archive sync repairs timestamps without replacing artifacts' => static function (TestRunner $t): void {
+        $source = new MemoryProvider(false, new HashSet());
+        $target = new MemoryProvider(false, new HashSet());
+        $source->put('exports/site.wxr', '<rss>portable export</rss>', ['modTime' => '2026-05-22T00:00:00Z']);
+        $source->put('database/site.sql', 'insert into wp_posts values (...)', ['modTime' => '2026-05-22T00:00:00Z']);
+        $source->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes', ['modTime' => '2026-05-22T00:00:00Z']);
+
+        $target->put('exports/site.wxr', '<rss>portable export</rss>', ['modTime' => '2026-05-20T00:00:00Z']);
+        $target->put('database/site.sql', 'insert into wp_posts values (...)', ['modTime' => '2026-05-20T00:00:00Z']);
+        $target->put('wp-content/cache/orphan.html', '<html>cache</html>');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, $filter, refreshTimes: true);
+
+        $t->same(['wp-content/uploads/2026/05/hero.jpg'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('<rss>portable export</rss>', $target->get('exports/site.wxr'));
+        $t->same('2026-05-22T00:00:00Z', $target->info('exports/site.wxr')->modTime);
+        $t->same('insert into wp_posts values (...)', $target->get('database/site.sql'));
+        $t->same('2026-05-22T00:00:00Z', $target->info('database/site.sql')->modTime);
         $t->same('<html>cache</html>', $target->get('wp-content/cache/orphan.html'));
     },
 ];
