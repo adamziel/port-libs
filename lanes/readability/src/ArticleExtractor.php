@@ -20,10 +20,11 @@ final class ArticleExtractor
         'dialog',
     ];
 
-    public function extract(string $html): Article
+    public function extract(string $html, ?string $url = null): Article
     {
         $dom = $this->loadHtmlDocument($html);
         $xpath = new \DOMXPath($dom);
+        $effectiveBaseUri = $this->effectiveBaseUri($xpath, $url);
         $this->unwrapNoscriptImages($xpath, $dom);
         $this->fixLazyImages($xpath);
         $jsonLdMetadata = $this->jsonLdMetadata($xpath);
@@ -43,7 +44,7 @@ final class ArticleExtractor
             $this->removeDuplicateTitleHeader($best, $title);
             $this->removeLeadingBylineActionBar($best);
             $this->demoteHeadingOnes($best);
-            $best = $this->postProcessContent($best);
+            $best = $this->postProcessContent($best, $effectiveBaseUri, $url);
         }
         $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
@@ -405,6 +406,20 @@ final class ArticleExtractor
         $value = trim($element->getAttribute($attribute));
 
         return $value === '' ? null : $value;
+    }
+
+    private function effectiveBaseUri(\DOMXPath $xpath, ?string $documentUri): ?string
+    {
+        if ($documentUri === null || trim($documentUri) === '') {
+            return null;
+        }
+
+        $baseHref = trim($xpath->query('//base[@href]/@href')?->item(0)?->nodeValue ?? '');
+        if ($baseHref === '') {
+            return $documentUri;
+        }
+
+        return $this->resolveUri($baseHref, $documentUri);
     }
 
     private function unwrapNoscriptImages(\DOMXPath $xpath, \DOMDocument $dom): void
@@ -1070,13 +1085,207 @@ final class ArticleExtractor
         }
     }
 
-    private function postProcessContent(\DOMElement $scope): \DOMElement
+    private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri): \DOMElement
     {
+        $this->fixRelativeUris($scope, $baseUri, $documentUri);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->cleanClasses($scope);
 
         return $scope;
+    }
+
+    private function fixRelativeUris(\DOMElement $scope, ?string $baseUri, ?string $documentUri): void
+    {
+        $document = $scope->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return;
+        }
+
+        $links = [];
+        foreach ($scope->getElementsByTagName('a') as $link) {
+            if ($link instanceof \DOMElement) {
+                $links[] = $link;
+            }
+        }
+
+        foreach ($links as $link) {
+            $href = $link->getAttribute('href');
+            if ($href === '') {
+                continue;
+            }
+
+            if (str_starts_with($href, 'javascript:')) {
+                $replacement = null;
+                if ($link->childNodes->length === 1 && $link->firstChild instanceof \DOMText) {
+                    $replacement = $document->createTextNode($link->textContent);
+                } else {
+                    $replacement = $document->createElement('span');
+                    while ($link->firstChild instanceof \DOMNode) {
+                        $replacement->appendChild($link->firstChild);
+                    }
+                }
+
+                $link->parentNode?->replaceChild($replacement, $link);
+                continue;
+            }
+
+            $link->setAttribute('href', $this->toAbsoluteUri($href, $baseUri, $documentUri));
+        }
+
+        foreach (['img', 'picture', 'figure', 'video', 'audio', 'source'] as $tag) {
+            $mediaNodes = [];
+            foreach ($scope->getElementsByTagName($tag) as $media) {
+                if ($media instanceof \DOMElement) {
+                    $mediaNodes[] = $media;
+                }
+            }
+
+            foreach ($mediaNodes as $media) {
+                foreach (['src', 'poster'] as $attribute) {
+                    $value = $media->getAttribute($attribute);
+                    if ($value !== '') {
+                        $media->setAttribute($attribute, $this->toAbsoluteUri($value, $baseUri, $documentUri));
+                    }
+                }
+
+                $srcset = $media->getAttribute('srcset');
+                if ($srcset === '' || $baseUri === null) {
+                    continue;
+                }
+
+                $media->setAttribute('srcset', preg_replace_callback(
+                    '/(\S+)(\s+[\d.]+[xw])?(\s*(?:,|$))/',
+                    fn (array $matches): string => $this->toAbsoluteUri($matches[1], $baseUri, $documentUri)
+                        . ($matches[2] ?? '')
+                        . $matches[3],
+                    $srcset,
+                ) ?? $srcset);
+            }
+        }
+    }
+
+    private function toAbsoluteUri(string $uri, ?string $baseUri, ?string $documentUri): string
+    {
+        if ($baseUri === null || $uri === '') {
+            return $uri;
+        }
+
+        if ($baseUri === $documentUri && str_starts_with($uri, '#')) {
+            return $uri;
+        }
+
+        return $this->resolveUri($uri, $baseUri);
+    }
+
+    private function resolveUri(string $uri, string $baseUri): string
+    {
+        if ($uri === '') {
+            return $uri;
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1) {
+            return $uri;
+        }
+
+        $base = parse_url($baseUri);
+        if ($base === false || !isset($base['scheme'], $base['host'])) {
+            return $uri;
+        }
+
+        if (str_starts_with($uri, '//')) {
+            return $base['scheme'] . ':' . $uri;
+        }
+
+        if (str_starts_with($uri, '#')) {
+            return $this->stripFragment($baseUri) . $uri;
+        }
+
+        $parts = parse_url($uri);
+        if ($parts === false) {
+            return $uri;
+        }
+
+        $basePath = $base['path'] ?? '/';
+        if ($basePath === '') {
+            $basePath = '/';
+        }
+
+        $relativePath = $parts['path'] ?? '';
+        if ($relativePath === '') {
+            $path = $basePath;
+        } elseif (str_starts_with($relativePath, '/')) {
+            $path = $relativePath;
+        } else {
+            $baseDirectory = str_ends_with($basePath, '/')
+                ? $basePath
+                : preg_replace('~/[^/]*$~', '/', $basePath);
+            $path = ($baseDirectory === null ? '/' : $baseDirectory) . $relativePath;
+        }
+
+        $query = array_key_exists('query', $parts) ? '?' . $parts['query'] : '';
+        $fragment = array_key_exists('fragment', $parts) ? '#' . $parts['fragment'] : '';
+
+        return $base['scheme'] . '://' . $this->urlAuthority($base) . $this->normalizeUrlPath($path) . $query . $fragment;
+    }
+
+    /**
+     * @param array<string, int|string> $parts
+     */
+    private function urlAuthority(array $parts): string
+    {
+        $authority = '';
+        if (isset($parts['user'])) {
+            $authority .= $parts['user'];
+            if (isset($parts['pass'])) {
+                $authority .= ':' . $parts['pass'];
+            }
+            $authority .= '@';
+        }
+
+        $authority .= $parts['host'];
+        if (isset($parts['port'])) {
+            $authority .= ':' . $parts['port'];
+        }
+
+        return $authority;
+    }
+
+    private function normalizeUrlPath(string $path): string
+    {
+        $leadingSlash = str_starts_with($path, '/');
+        $trailingSlash = str_ends_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+
+            $segments[] = $segment;
+        }
+
+        $normalized = ($leadingSlash ? '/' : '') . implode('/', $segments);
+        if ($normalized === '') {
+            $normalized = $leadingSlash ? '/' : '.';
+        }
+
+        if ($trailingSlash && $normalized !== '/') {
+            $normalized .= '/';
+        }
+
+        return $normalized;
+    }
+
+    private function stripFragment(string $uri): string
+    {
+        $position = strpos($uri, '#');
+
+        return $position === false ? $uri : substr($uri, 0, $position);
     }
 
     private function collapseSingleParagraphDivs(\DOMElement $scope): \DOMElement

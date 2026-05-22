@@ -75,6 +75,20 @@ $elementChildTags = static function (string $html, string $query): array {
 
     return $tags;
 };
+$attributeValues = static function (string $html, string $query): array {
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="UTF-8" ?><main>' . $html . '</main>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+
+    $values = [];
+    foreach ((new DOMXPath($dom))->query($query) ?: [] as $node) {
+        $values[] = $node->nodeValue;
+    }
+
+    return $values;
+};
 $normalizedText = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
 
 return [
@@ -222,6 +236,39 @@ return [
         $t->true(!str_contains($article->text, 'Follow'), 'follow button text should be removed');
         $t->true(!str_contains($article->text, '8 min read'), 'platform read-time metadata should be removed');
         $t->true(!str_contains($article->contentHtml, 'post_actions_header'), 'source platform share links should be removed');
+    },
+    'maps Mozilla base URL fixture relative link and media cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/base-url-base-element-relative';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same($attributeValues($expected, '//img[@src]/@src'), $attributeValues($article->contentHtml, '//img[@src]/@src'));
+    },
+    'absolutizes WordPress migration links and media against the source URL' => static function (TestRunner $t): void {
+        $html = '<html><head><base href="/imports/2024/"><meta property="og:title" content="Migrated Link Map"></head><body><article>'
+            . '<h1>Migrated Link Map</h1>'
+            . '<p>' . str_repeat('A WordPress migration should keep editorial links and media usable after content leaves the source domain. ', 3) . '</p>'
+            . '<p><a href="assets/download.zip">Download package</a> <a href="javascript:"><strong>Open inline note</strong></a></p>'
+            . '<figure><img src="images/hero.jpg" srcset="images/hero-320.jpg 320w, /media/hero-800.jpg 800w" alt="Imported hero"></figure>'
+            . '<p>' . str_repeat('Absolute URLs let block editors, import previews, and media sideloaders inspect the migrated content. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html, 'https://example.com/source/page.html');
+
+        $t->contains('href="https://example.com/imports/2024/assets/download.zip"', $article->contentHtml);
+        $t->contains('src="https://example.com/imports/2024/images/hero.jpg"', $article->contentHtml);
+        $t->contains('srcset="https://example.com/imports/2024/images/hero-320.jpg 320w, https://example.com/media/hero-800.jpg 800w"', $article->contentHtml);
+        $t->contains('Open inline note', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, 'javascript:'), 'javascript links should be replaced by inert content like upstream post-processing');
     },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
