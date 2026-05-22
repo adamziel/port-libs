@@ -355,6 +355,41 @@ final class QuadbStore
         return $head . 'Root: ' . $this->renderCurrentRootNode() . "\n";
     }
 
+    /**
+     * @return array{numNodes: int, numLeafNodes: int, numBranchNodes: int, numWitnessNodes: int, maxDepth: int, numBytes: int}
+     */
+    public function stats(): array
+    {
+        $partial = $this->currentPartialTree();
+        if ($partial !== null) {
+            return $partial->stats();
+        }
+
+        $tree = $this->tree();
+        $stats = $tree->stats();
+
+        return [
+            'numNodes' => $stats['numNodes'],
+            'numLeafNodes' => $stats['numLeafNodes'],
+            'numBranchNodes' => $stats['numBranchNodes'],
+            'numWitnessNodes' => 0,
+            'maxDepth' => $stats['maxDepth'],
+            'numBytes' => $this->trackedTreeNumBytes($tree),
+        ];
+    }
+
+    public function statsText(): string
+    {
+        $stats = $this->stats();
+
+        return 'numNodes:        ' . $stats['numNodes'] . "\n"
+            . 'numLeafNodes:    ' . $stats['numLeafNodes'] . "\n"
+            . 'numBranchNodes:  ' . $stats['numBranchNodes'] . "\n"
+            . 'numWitnessNodes: ' . $stats['numWitnessNodes'] . "\n"
+            . 'maxDepth:        ' . $stats['maxDepth'] . "\n"
+            . 'numBytes:        ' . $stats['numBytes'] . "\n";
+    }
+
     public function headText(): string
     {
         $heads = [];
@@ -895,6 +930,22 @@ final class QuadbStore
         if ($this->currentPartialProofState() !== null) {
             throw new \RuntimeException('current head is a proof-backed partial tree');
         }
+    }
+
+    private function trackedTreeNumBytes(TrackedSparseTree $tree): int
+    {
+        $numBytes = 0;
+        foreach ($tree->walkNodeIds() as $nodeId) {
+            if ($this->nodeStore->isLeaf($nodeId)) {
+                $numBytes += 72 + strlen($this->nodeStore->leaf($nodeId)['value']);
+            } elseif ($this->nodeStore->isBranch($nodeId)) {
+                $numBytes += 48;
+            } else {
+                throw new \RuntimeException('stats traversal encountered an unknown node');
+            }
+        }
+
+        return $numBytes;
     }
 
     private function pruneTrackedKeysToStoredLeaves(): void

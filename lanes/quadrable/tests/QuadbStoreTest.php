@@ -602,6 +602,64 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store formats stats output like quadb stats' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($sourceDir);
+            $t->same([
+                'numNodes:        0',
+                'numLeafNodes:    0',
+                'numBranchNodes:  0',
+                'numWitnessNodes: 0',
+                'maxDepth:        0',
+                'numBytes:        0',
+            ], quadrableQuadbOutputLines($repo->statsText()));
+
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $stats = $repo->stats();
+            $t->same(3, $stats['numLeafNodes']);
+            $t->same(0, $stats['numWitnessNodes']);
+            $t->same($stats['numLeafNodes'] + $stats['numBranchNodes'], $stats['numNodes']);
+            $t->same(
+                (72 * 3)
+                    + strlen('https://example.test')
+                    + strlen('https://example.test')
+                    + strlen('Published post')
+                    + (48 * $stats['numBranchNodes']),
+                $stats['numBytes']
+            );
+            $t->same(quadrableQuadbStatsLines($stats), quadrableQuadbOutputLines($repo->statsText()));
+            $t->same($repo->statsText(), QuadbStore::open($sourceDir)->statsText());
+
+            $trustedRoot = $repo->tree()->rootHash();
+            $proofHex = $repo->exportProofHex(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated-stats');
+            $target->importProofHex($proofHex, $trustedRoot);
+
+            $partialStats = $target->stats();
+            $t->same(1, $partialStats['numLeafNodes']);
+            $t->true($partialStats['numBranchNodes'] > 0);
+            $t->true($partialStats['numWitnessNodes'] > 0);
+            $t->same(
+                $partialStats['numLeafNodes'] + $partialStats['numBranchNodes'] + $partialStats['numWitnessNodes'],
+                $partialStats['numNodes']
+            );
+            $t->same(quadrableQuadbStatsLines($partialStats), quadrableQuadbOutputLines($target->statsText()));
+            $t->same($target->statsText(), QuadbStore::open($targetDir)->statsText());
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
     'native quadb store removes named and current heads like quadb head rm' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
 
@@ -823,6 +881,23 @@ function quadrableQuadbStoredNodeCount(QuadbStore $repo): int
     $snapshot = $repo->nodeStore()->exportSnapshot();
 
     return count($snapshot['leaves']) + count($snapshot['branches']);
+}
+
+/**
+ * @param array{numNodes: int, numLeafNodes: int, numBranchNodes: int, numWitnessNodes: int, maxDepth: int, numBytes: int} $stats
+ *
+ * @return list<string>
+ */
+function quadrableQuadbStatsLines(array $stats): array
+{
+    return [
+        'numNodes:        ' . $stats['numNodes'],
+        'numLeafNodes:    ' . $stats['numLeafNodes'],
+        'numBranchNodes:  ' . $stats['numBranchNodes'],
+        'numWitnessNodes: ' . $stats['numWitnessNodes'],
+        'maxDepth:        ' . $stats['maxDepth'],
+        'numBytes:        ' . $stats['numBytes'],
+    ];
 }
 
 /**

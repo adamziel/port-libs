@@ -468,17 +468,23 @@ final class SparseTree
     }
 
     /**
-     * @return array{numNodes: int, numLeafNodes: int, numBranchNodes: int, maxDepth: int}
+     * @return array{numNodes: int, numLeafNodes: int, numBranchNodes: int, numWitnessNodes: int, maxDepth: int, numBytes: int}
      */
     public function stats(): array
     {
+        if ($this->partialRoot !== null) {
+            return $this->statsForPartialNode($this->partialRoot, 0);
+        }
+
         [$tree] = $this->fullProofTree();
 
         return [
             'numNodes' => $tree['nodes'],
             'numLeafNodes' => $tree['leaves'],
             'numBranchNodes' => $tree['branches'],
+            'numWitnessNodes' => 0,
             'maxDepth' => $tree['maxDepth'],
+            'numBytes' => $tree['bytes'],
         ];
     }
 
@@ -644,6 +650,7 @@ final class SparseTree
                 'leaves' => 0,
                 'branches' => 0,
                 'maxDepth' => 0,
+                'bytes' => 0,
             ];
         }
 
@@ -661,6 +668,7 @@ final class SparseTree
                 'leaves' => 1,
                 'branches' => 0,
                 'maxDepth' => $depth,
+                'bytes' => 72 + strlen($records[0]['value']),
             ];
             $nodesById[$id] = $node;
 
@@ -695,10 +703,79 @@ final class SparseTree
             'leaves' => $left['leaves'] + $right['leaves'],
             'branches' => 1 + $left['branches'] + $right['branches'],
             'maxDepth' => max($depth, $left['maxDepth'], $right['maxDepth']),
+            'bytes' => 48 + $left['bytes'] + $right['bytes'],
         ];
         $nodesById[$id] = $node;
 
         return $node;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     *
+     * @return array{numNodes: int, numLeafNodes: int, numBranchNodes: int, numWitnessNodes: int, maxDepth: int, numBytes: int}
+     */
+    private function statsForPartialNode(array $node, int $depth): array
+    {
+        if ($node['type'] === 'empty') {
+            return [
+                'numNodes' => 0,
+                'numLeafNodes' => 0,
+                'numBranchNodes' => 0,
+                'numWitnessNodes' => 0,
+                'maxDepth' => 0,
+                'numBytes' => 0,
+            ];
+        }
+
+        if ($node['type'] === 'leaf') {
+            return [
+                'numNodes' => 1,
+                'numLeafNodes' => 1,
+                'numBranchNodes' => 0,
+                'numWitnessNodes' => 0,
+                'maxDepth' => $depth,
+                'numBytes' => 72 + strlen($node['value']),
+            ];
+        }
+
+        if ($node['type'] === 'witnessLeaf') {
+            return [
+                'numNodes' => 1,
+                'numLeafNodes' => 0,
+                'numBranchNodes' => 0,
+                'numWitnessNodes' => 1,
+                'maxDepth' => $depth,
+                'numBytes' => 104,
+            ];
+        }
+
+        if ($node['type'] === 'witness') {
+            return [
+                'numNodes' => 1,
+                'numLeafNodes' => 0,
+                'numBranchNodes' => 0,
+                'numWitnessNodes' => 1,
+                'maxDepth' => $depth,
+                'numBytes' => 48,
+            ];
+        }
+
+        if ($node['type'] === 'branch') {
+            $left = $this->statsForPartialNode($node['left'], $depth + 1);
+            $right = $this->statsForPartialNode($node['right'], $depth + 1);
+
+            return [
+                'numNodes' => 1 + $left['numNodes'] + $right['numNodes'],
+                'numLeafNodes' => $left['numLeafNodes'] + $right['numLeafNodes'],
+                'numBranchNodes' => 1 + $left['numBranchNodes'] + $right['numBranchNodes'],
+                'numWitnessNodes' => $left['numWitnessNodes'] + $right['numWitnessNodes'],
+                'maxDepth' => max($depth, $left['maxDepth'], $right['maxDepth']),
+                'numBytes' => 48 + $left['numBytes'] + $right['numBytes'],
+            ];
+        }
+
+        throw new \RuntimeException('unrecognized partial tree node type');
     }
 
     /**
