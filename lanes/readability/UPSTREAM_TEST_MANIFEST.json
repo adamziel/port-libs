@@ -6,21 +6,62 @@
         "name": "mozilla/readability",
         "url": "https://github.com/mozilla/readability",
         "commit": "08be6b4bdb204dd333c9b7a0cfbc0e730b257252",
-        "license": "pending verification from upstream checkout",
-        "architecture": "DOM scoring/extraction with content cleanup and WordPress block-oriented rewriting."
+        "license": "Apache-2.0",
+        "architecture": "JavaScript DOM scoring/extraction engine, readerable preflight, JSDOM parser shim, metadata extraction, content cleanup, and fixture-driven expected HTML/metadata parity."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Mozilla Readability fixture corpus; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": 1984,
+        "mapped": 7,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories.",
+        "runner": "npm test",
+        "inventory": {
+            "mochaTests": 1984,
+            "fixturePages": 130,
+            "fixtureFiles": 390,
+            "sourceHtmlFixtures": 130,
+            "expectedHtmlFixtures": 130,
+            "expectedMetadataFixtures": 130,
+            "topLevelTestHarnessFiles": 3,
+            "testUtilityFiles": 3,
+            "readabilityExtractionFixtureTests": 1806,
+            "readabilityApiStaticTests": 11,
+            "readerableFixtureTests": 130,
+            "readerableOptionTests": 9,
+            "jsdomParserStaticTests": 28,
+            "metadataConditionalCounts": {
+                "dir": 17,
+                "lang": 73,
+                "publishedTime": 33
+            }
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runner could not execute in the sparse cache because dependencies were not installed. Probe command `npm test` reached the package script `mocha test/test-*.js` and failed before running tests with `sh: line 1: mocha: command not found`. Installing upstream npm dependencies was deferred to keep this lane slice modest.",
+            "probes": [
+                {
+                    "command": "npm test",
+                    "result": "failed before upstream tests: sh: line 1: mocha: command not found"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Readability-readerable default minContentLength 140 and minScore 20 scoring thresholds.",
+            "Readability-readerable custom minContentLength and minScore options.",
+            "Readability-readerable visibility callback handling.",
+            "Readerable rejection for hidden, aria-hidden, li p, and unlikely class/id candidates.",
+            "Readability unlikely candidate and role cleanup for migration/page-builder chrome.",
+            "Semantic article/main/section scoring preference over outer page containers.",
+            "WordPress block serialization for extracted headings and paragraphs."
+        ],
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 7 focused lane tests against a 1984-test upstream Mocha denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native DOM extractor removes chrome, scores content containers, and emits simple WordPress blocks."
+        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, and emits simple WordPress blocks.",
+        "phpBehaviorTests": 7
     },
-    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with link/media/page-builder cleanup.",
-    "nextTask": "Compare against Mozilla Readability fixture corpus and improve scoring/error behavior."
+    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, and surrounding theme chrome removed.",
+    "nextTask": "Map the first Mozilla test-page source.html/expected.html/expected-metadata.json fixture into a PHP parity fixture, then improve metadata/byline/media handling."
 }

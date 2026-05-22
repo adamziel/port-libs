@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "Readability/content rewrite engine",
-    "estimatedProgress": 3,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 2,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; upstream runner probe failed before tests",
+    "phpPass": 7,
     "phpFail": 0,
-    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with link/media/page-builder cleanup.",
-    "phase": "seed implementation",
-    "audit": "needs independent auditor review",
-    "currentWork": "Native DOM extractor removes chrome, scores content containers, and emits simple WordPress blocks.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Compare against Mozilla Readability fixture corpus and improve scoring/error behavior."
+    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, and surrounding theme chrome removed.",
+    "phase": "static upstream inventory plus readerable preflight slice",
+    "audit": "needs independent auditor review after cloned inventory update",
+    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, and emits simple WordPress blocks.",
+    "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed.",
+    "latestCommit": "pending readability inventory/preflight slice",
+    "nextTask": "Map the first Mozilla test-page source.html/expected.html/expected-metadata.json fixture into a PHP parity fixture, then improve metadata/byline/media handling."
 }

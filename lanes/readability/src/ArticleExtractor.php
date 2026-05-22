@@ -6,6 +6,19 @@ namespace PortLibs\Readability;
 
 final class ArticleExtractor
 {
+    private const UNLIKELY_CANDIDATE_PATTERN = '/-ad-|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|disqus|extra|footer|gdpr|header|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i';
+    private const OK_MAYBE_CANDIDATE_PATTERN = '/and|article|body|column|content|main|mathjax|shadow/i';
+    private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
+    private const UNLIKELY_ROLES = [
+        'menu',
+        'menubar',
+        'complementary',
+        'navigation',
+        'alert',
+        'alertdialog',
+        'dialog',
+    ];
+
     public function extract(string $html): Article
     {
         $dom = new \DOMDocument();
@@ -18,6 +31,7 @@ final class ArticleExtractor
         foreach ($xpath->query('//script|//style|//nav|//footer|//header|//aside|//form') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
         }
+        $this->removeUnlikelyCandidates($xpath);
 
         $title = $this->title($xpath, $dom);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
@@ -26,6 +40,75 @@ final class ArticleExtractor
         $excerpt = mb_substr($text, 0, 180);
 
         return new Article($title, $contentHtml, $text, $excerpt);
+    }
+
+    /**
+     * Native PHP port of Mozilla Readability's isProbablyReaderable preflight.
+     *
+     * @param array{minContentLength?: int|float, minScore?: int|float, visibilityChecker?: callable(\DOMElement): bool}|callable(\DOMElement): bool $options
+     */
+    public function isProbablyReaderable(string $html, array|callable $options = []): bool
+    {
+        if (is_callable($options)) {
+            $options = ['visibilityChecker' => $options];
+        }
+
+        $minContentLength = (float) ($options['minContentLength'] ?? 140);
+        $minScore = (float) ($options['minScore'] ?? 20);
+        $visibilityChecker = $options['visibilityChecker'] ?? [$this, 'isNodeVisible'];
+        if (!is_callable($visibilityChecker)) {
+            $visibilityChecker = [$this, 'isNodeVisible'];
+        }
+
+        $dom = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $xpath = new \DOMXPath($dom);
+        $nodes = [];
+        foreach ($xpath->query('//p|//pre|//article') ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $nodes[spl_object_id($node)] = $node;
+            }
+        }
+
+        foreach ($xpath->query('//div/br') ?: [] as $br) {
+            $parent = $br->parentNode;
+            if ($parent instanceof \DOMElement) {
+                $nodes[spl_object_id($parent)] = $parent;
+            }
+        }
+
+        $score = 0.0;
+        foreach ($nodes as $node) {
+            if (!$visibilityChecker($node)) {
+                continue;
+            }
+
+            $matchString = $node->getAttribute('class') . ' ' . $node->getAttribute('id');
+            if (preg_match(self::UNLIKELY_CANDIDATE_PATTERN, $matchString) === 1
+                && preg_match(self::OK_MAYBE_CANDIDATE_PATTERN, $matchString) !== 1) {
+                continue;
+            }
+
+            if ($this->isListParagraph($node)) {
+                continue;
+            }
+
+            $textContentLength = mb_strlen(trim($node->textContent));
+            if ($textContentLength < $minContentLength) {
+                continue;
+            }
+
+            $score += sqrt($textContentLength - $minContentLength);
+            if ($score > $minScore) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function toWordPressBlocks(Article $article): string
@@ -76,6 +159,82 @@ final class ArticleExtractor
         return '';
     }
 
+    private function removeUnlikelyCandidates(\DOMXPath $xpath): void
+    {
+        $remove = [];
+        foreach ($xpath->query('//*') ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $tag = strtoupper($node->tagName);
+            if ($tag === 'BODY' || $tag === 'A' || $this->hasAncestorTag($node, ['TABLE', 'CODE'])) {
+                continue;
+            }
+
+            $role = strtolower($node->getAttribute('role'));
+            $matchString = $node->getAttribute('class') . ' ' . $node->getAttribute('id');
+            $isUnlikely = preg_match(self::UNLIKELY_CANDIDATE_PATTERN, $matchString) === 1
+                && preg_match(self::OK_MAYBE_CANDIDATE_PATTERN, $matchString) !== 1;
+            $isShareWidget = preg_match(self::SHARE_ELEMENT_PATTERN, $matchString) === 1;
+            if ($isUnlikely || $isShareWidget || in_array($role, self::UNLIKELY_ROLES, true)) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function isNodeVisible(\DOMElement $node): bool
+    {
+        $style = $node->getAttribute('style');
+        if ($style !== '' && preg_match('/(?:^|;)\s*display\s*:\s*none\s*(?:;|$)/i', $style) === 1) {
+            return false;
+        }
+
+        if ($node->hasAttribute('hidden')) {
+            return false;
+        }
+
+        if ($node->getAttribute('aria-hidden') === 'true'
+            && !str_contains($node->getAttribute('class'), 'fallback-image')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isListParagraph(\DOMElement $node): bool
+    {
+        if (strtolower($node->tagName) !== 'p') {
+            return false;
+        }
+
+        for ($parent = $node->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            if (strtolower($parent->tagName) === 'li') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function hasAncestorTag(\DOMElement $node, array $tags): bool
+    {
+        for ($parent = $node->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            if (in_array(strtoupper($parent->tagName), $tags, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function bestContentNode(\DOMXPath $xpath): ?\DOMNode
     {
         $best = null;
@@ -83,7 +242,7 @@ final class ArticleExtractor
         foreach ($xpath->query('//article|//main|//section|//div|//body') ?: [] as $node) {
             $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
             $paragraphs = $xpath->query('.//p', $node)?->length ?? 0;
-            $score = strlen($text) + (substr_count($text, ',') * 20) + ($paragraphs * 80);
+            $score = strlen($text) + (substr_count($text, ',') * 20) + ($paragraphs * 80) + $this->semanticContentWeight($node);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = $node;
@@ -91,6 +250,21 @@ final class ArticleExtractor
         }
 
         return $best;
+    }
+
+    private function semanticContentWeight(\DOMNode $node): int
+    {
+        if (!$node instanceof \DOMElement) {
+            return 0;
+        }
+
+        return match (strtolower($node->tagName)) {
+            'article' => 600,
+            'main' => 300,
+            'section' => 120,
+            'body' => -300,
+            default => 0,
+        };
     }
 
     private function innerHtml(\DOMNode $node): string
@@ -103,4 +277,3 @@ final class ArticleExtractor
         return trim($html);
     }
 }
-
