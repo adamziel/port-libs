@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, and packed-ref header/reference/peeled lookup parsing.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, and loose+packed reference-store overlay resolution.
 
 ## WordPress Deploy Tree Example
 
@@ -18,6 +18,10 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 `examples/wordpress-packed-refs.php` parses a compacted `packed-refs` buffer with a WordPress deployment branch, remote-tracking branch, and peeled release tag. This models a PHP deployment or package manager inspecting compacted repository state on shared hosting without invoking `git show-ref` or `git for-each-ref`.
 
+## WordPress Reference Store Example
+
+`examples/wordpress-reference-store.php` combines loose `HEAD` with packed branch and release-tag refs. This models a shared-hosting deployment tool resolving the active WordPress branch from loose refs while reading compacted branch/tag state from `packed-refs`.
+
 ## Next Task
 
-Wire loose and packed refs together with overlay precedence, then start a focused pack index/object database slice.
+Start a focused pack index/object database slice.

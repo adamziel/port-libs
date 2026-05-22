@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 9,
-    "suiteProgress": "targeted object/ref/loose-ref/packed-ref static inventory counted; full cargo runner not executed",
-    "phpPass": 31,
+    "estimatedProgress": 10,
+    "suiteProgress": "targeted object/ref/loose-ref/packed-ref/ref-store static inventory counted; full cargo runner not executed",
+    "phpPass": 35,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, and packed branch/tag refs without shelling out to git.",
-    "phase": "targeted object/ref inventory plus packed refs slice",
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, and loose+packed ref resolution without shelling out to git.",
+    "phase": "targeted object/ref inventory plus reference-store overlay slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native loose Git object storage, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, and packed-ref header/reference/peeled lookup parsing.",
+    "currentWork": "Native loose Git object storage, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, and loose+packed reference-store overlay resolution.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
-    "latestCommit": "5d7fd3d",
-    "nextTask": "Wire loose and packed refs together with overlay precedence, then start a focused pack index/object database slice."
+    "latestCommit": "d756cf5",
+    "nextTask": "Start a focused pack index/object database slice."
 }

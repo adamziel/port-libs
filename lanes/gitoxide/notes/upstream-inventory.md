@@ -39,6 +39,13 @@ Focused packed-ref inventory inspected on 2026-05-22:
 - `gix-ref/src/store/packed/buffer.rs` and `find.rs` define the mapped buffer behavior: no-header and unsorted files are accepted, unsorted references are sorted in memory, and partial lookup tries `refs/`, `refs/tags/`, `refs/heads/`, then `refs/remotes/`.
 - `gix-ref/tests/fixtures/packed-refs/without-header` and `packed-refs/unsorted` are copied into this lane as fixture parity inputs.
 
+Focused reference-store overlay inventory inspected on 2026-05-22:
+
+- 3 selected `gix-ref` file-store find and overlay fixture paths inspected with targeted `git show` and `git grep`.
+- 7 Rust `#[test]` attributes counted in `gix-ref/tests/refs/file/store/find.rs`.
+- `gix-ref/src/store/file/find.rs` defines the mapped lookup behavior: try loose refs first, fall back to packed refs only when a loose candidate is absent, keep `HEAD` and symbolic refs loose, find capitalized packed branches, and resolve `refs/remotes/<name>/HEAD` as a loose-only remote shortcut.
+- `gix-ref/tests/fixtures/make_packed_ref_repository_for_overlay.sh` provides the mapped loose-over-packed branch overlay scenario.
+
 Runner status:
 
 - `cargo` is available locally.
@@ -53,3 +60,4 @@ Current PHP mapping:
 - `TreeTest.php` maps `gix-object` tree semantics for empty trees, `everything.tree` entry kinds, entry-mode classification, leading-space filenames, truncated object IDs, malformed modes, tree-object roundtrips, and a WordPress deploy tree fixture.
 - `LooseReferenceTest.php` maps `gix-ref` loose direct and symbolic ref parsing, uppercase object ID normalization, SHA-256 object IDs when requested, `FETCH_HEAD` first-OID parsing, trailing hex rejection in SHA-1 mode, symbolic target validation, loose on-disk writes, and a WordPress deploy-branch reference fixture.
 - `PackedReferencesTest.php` maps `gix-ref` packed-ref header traits, uppercase and SHA-256 object IDs, peeled object lines, invalid headers/lonely peels, upstream `without-header` and `unsorted` fixtures, packed partial lookup disambiguation, and a WordPress packed branch/tag fixture.
+- `ReferenceStoreTest.php` maps loose-over-packed precedence, opening `packed-refs` from a Git directory, loose-only remote `HEAD` shortcuts, capitalized packed branches, and WordPress combined loose+packed ref resolution.
