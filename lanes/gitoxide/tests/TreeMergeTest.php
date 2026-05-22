@@ -1258,6 +1258,59 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles(static fn (string $oid): GitObject => throw new RuntimeException("No object read expected for {$oid}")));
     },
+    'maps upstream gix-merge tree-baseline same-rename-different-mode fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([$treeEntry('a', new Tree([
+            $blobEntry('w', ''),
+            $blobEntry('x.f', "original\n1\n2\n3\n4\n5\n"),
+        ]))]);
+        $ours = new Tree([$treeEntry('a-renamed', new Tree([
+            $blobEntry('w', '', '100755'),
+            $blobEntry('x.f', "1\n2\n3\n4\n5\n", '100755'),
+        ]))]);
+        $theirs = new Tree([$treeEntry('a-renamed', new Tree([
+            $blobEntry('w', ''),
+            $blobEntry('x.f', "original\n1\n2\n3\n4\n5\n6\n"),
+        ]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $renamed = Tree::fromObject($read($result->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $w = $renamed->entryNamed('w');
+        $x = $renamed->entryNamed('x.f');
+
+        $t->same(false, $result->isClean());
+        $t->same(['a-renamed'], $names($result->tree));
+        $t->same(['w', 'x.f'], $names($renamed));
+        $t->same('100755', $w?->mode);
+        $t->same('', $read($w?->oid ?? '')->body);
+        $t->same('100755', $x?->mode);
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($x?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a-renamed/w', 'reason' => 'mode-change', 'base' => null, 'ours' => '100755', 'theirs' => '100644'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->mode,
+                'ours' => $conflict->ours?->mode,
+                'theirs' => $conflict->theirs?->mode,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a-renamed/w', 'mode' => '100755'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a-renamed/w', 'mode' => '100644'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'mode' => $entry->mode,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "1\n2\n3\n4\n5\n")]);

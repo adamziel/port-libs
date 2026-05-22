@@ -1252,7 +1252,7 @@ final class TreeMerge
 
         $targetPath = $ourRename['path'];
 
-        return self::tryMergeChangedEntry(
+        $result = self::tryMergeChangedEntry(
             $targetPath,
             self::joinPath($pathPrefix, $targetPath),
             $baseEntry,
@@ -1262,6 +1262,75 @@ final class TreeMerge
             $writeObject,
             $conflictStyle,
         );
+        if ($result === null) {
+            return null;
+        }
+
+        if ($baseEntry->isTree() && $ourRename['entry']->isTree() && $theirRename['entry']->isTree()) {
+            array_push(
+                $result['conflicts'],
+                ...self::sameTargetRenameModeConflicts(
+                    $pathPrefix,
+                    $targetPath,
+                    $baseEntry,
+                    $ourRename['entry'],
+                    $theirRename['entry'],
+                    $readObject,
+                ),
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @return list<TreeMergeConflict>
+     */
+    private static function sameTargetRenameModeConflicts(
+        string $pathPrefix,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        TreeEntry $ourEntry,
+        TreeEntry $theirEntry,
+        callable $readObject,
+    ): array {
+        $baseCount = 0;
+        $ourCount = 0;
+        $theirCount = 0;
+        $baseLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')), $readObject, '', 0, $baseCount);
+        $ourLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $ourEntry->oid, 'tree')), $readObject, '', 0, $ourCount);
+        $theirLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $theirEntry->oid, 'tree')), $readObject, '', 0, $theirCount);
+        if ($baseLeaves === null || $ourLeaves === null || $theirLeaves === null) {
+            return [];
+        }
+
+        $conflicts = [];
+        foreach ($baseLeaves as $relativePath => $baseLeaf) {
+            $ourLeaf = $ourLeaves[$relativePath] ?? null;
+            $theirLeaf = $theirLeaves[$relativePath] ?? null;
+            if ($ourLeaf === null || $theirLeaf === null) {
+                continue;
+            }
+            if (
+                $ourLeaf->mode === $theirLeaf->mode
+                || $ourLeaf->oid !== $theirLeaf->oid
+                || !self::sameContentKind($baseLeaf, $ourLeaf)
+                || !self::sameContentKind($ourLeaf, $theirLeaf)
+            ) {
+                continue;
+            }
+
+            $conflicts[] = new TreeMergeConflict(
+                self::joinPath($pathPrefix, self::joinPath($targetPath, $relativePath)),
+                'mode-change',
+                null,
+                new TreeEntry($ourLeaf->mode, basename($relativePath), $ourLeaf->oid),
+                new TreeEntry($theirLeaf->mode, basename($relativePath), $theirLeaf->oid),
+            );
+        }
+
+        return $conflicts;
     }
 
     /**
@@ -1549,12 +1618,12 @@ final class TreeMerge
         $matchedSidePaths = [];
         foreach ($baseLeaves as $path => $baseLeaf) {
             $sideLeaf = $sideLeaves[$path] ?? null;
-            if ($sideLeaf === null || $baseLeaf->mode !== $sideLeaf->mode) {
+            if ($sideLeaf === null || !self::sameContentKind($baseLeaf, $sideLeaf)) {
                 continue;
             }
             $matchedBasePaths[$path] = true;
             $matchedSidePaths[$path] = true;
-            if (self::sameEntry($baseLeaf, $sideLeaf)) {
+            if (self::sameEntry($baseLeaf, $sideLeaf) || $baseLeaf->oid === $sideLeaf->oid) {
                 $score += 100;
                 continue;
             }
@@ -1656,6 +1725,11 @@ final class TreeMerge
     private static function entryIdentity(TreeEntry $entry): string
     {
         return $entry->mode . "\0" . $entry->oid;
+    }
+
+    private static function sameContentKind(TreeEntry $left, TreeEntry $right): bool
+    {
+        return ($left->isBlob() && $right->isBlob()) || $left->kind() === $right->kind();
     }
 
     /**
