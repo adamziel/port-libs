@@ -18,6 +18,42 @@ return [
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream image-set string url type and gradient normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{background:image-set("foo.png" 2x,"bar.png" 1x)}',
+            $minifier->minify('.foo { background: image-set("foo.png" 2x, url(bar.png) 1x) }')
+        );
+        $t->same(
+            '.foo{background:image-set("foo.webp" 1x type("webp"),"foo.jpg" 1x)}',
+            $minifier->minify(".foo { background: image-set('foo.webp' type('webp'), url(foo.jpg)) }")
+        );
+        $t->same(
+            '.foo{background:image-set("foo.avif" 2x type("image/avif"),"foo.png" 1x)}',
+            $minifier->minify(".foo { background: image-set('foo.avif' 2x type('image/avif'), url(foo.png)) }")
+        );
+        $t->same(
+            '.foo{background:image-set("example.png" 3x type("image/png"))}',
+            $minifier->minify(".foo { background: image-set(url('example.png') 3x type('image/png')) }")
+        );
+        $t->same(
+            '.foo{background:image-set("example.png" 1x type("image/png"))}',
+            $minifier->minify(".foo { background: image-set(url(example.png) type('image/png') 1x) }")
+        );
+        $t->same(
+            '.foo{background:-webkit-image-set(url(foo.png) 2x,url(bar.png) 1x)}',
+            $minifier->minify('.foo { background: -webkit-image-set(url("foo.png") 2x, url(bar.png) 1x) }')
+        );
+        $t->same(
+            '.foo{background:image-set(linear-gradient(#6495ed,#fff) 1x,"detailed-gradient.png" 3x)}',
+            $minifier->minify('.foo { background: image-set(linear-gradient(cornflowerblue, white) 1x, url("detailed-gradient.png") 3x); }')
+        );
+        $t->same(
+            '.foo{content:"image-set(url(foo.png) 2x)";background:url(image-set.png)}',
+            $minifier->minify('.foo { content: "image-set(url(foo.png) 2x)"; background: url(image-set.png); }')
+        );
+    },
     'css minifier preserves strings urls custom properties and calc operator spacing' => static function (TestRunner $t): void {
         $css = '.asset { background: url("/yellow/blue.svg"); content: "yellow"; --brand-color: yellow; color: var(--yellow); width: calc(100% + 8px); }';
         $t->same('.asset{background:url("/yellow/blue.svg");content:"yellow";--brand-color:yellow;color:var(--yellow);width:calc(100% + 8px)}', (new CssMinifier())->minify($css));
@@ -206,6 +242,67 @@ return [
             '.foo{animation:var(--animation) .1s}',
             $minifier->minify('.foo { animation-range: entry; animation-range-end: 90%; animation: var(--animation) 100ms; }')
         );
+    },
+    'css minifier maps upstream container query prelude minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@container foo{.inner{background:green}}',
+            $minifier->minify('@container foo { .inner { background: green; } }')
+        );
+        $t->same(
+            '@container my-layout (inline-size>45em){.foo{color:red}}',
+            $minifier->minify('@container my-layout (inline-size > 45em) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container my-layout not (width>500px){.foo{color:red}}',
+            $minifier->minify('@container my-layout ( not (width > 500px) ) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container not (width>500px){.foo{color:red}}',
+            $minifier->minify('@container not (width > 500px) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container my-layout (width:100px) and (not (height:100px)){.foo{color:red}}',
+            $minifier->minify('@container my-layout ((width: 100px) and (not (height: 100px))) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (inline-size>45em) and (inline-size<100em){.foo{color:red}}',
+            $minifier->minify('@container (inline-size > 45em) and (inline-size < 100em) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (height>=calc(100vh - 50px)){.foo{color:red}}',
+            $minifier->minify('@container (calc(100vh - 50px) <= height) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(--responsive:true) and style(color:#ff0){.foo{color:red}}',
+            $minifier->minify('@container style(--responsive: true) and style(color: yellow) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(not ((width:30px) and (--bar:url(x)))){.foo{color:red}}',
+            $minifier->minify('@container style(not ((width: calc(10px + 20px)) and ((--bar: url(x))))) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state((stuck:top) and (stuck:left)){.foo{color:red}}',
+            $minifier->minify('@container scroll-state((stuck: top) and (stuck: left)) { .foo { color: red; } }')
+        );
+    },
+    'css minifier maps upstream container declaration composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{container:foo bar/size}',
+            $minifier->minify('.foo { container-name: foo bar; container-type: size; }')
+        );
+        $t->same(
+            '.foo{container:foo bar}',
+            $minifier->minify('.foo { container-name: foo bar; container-type: normal; }')
+        );
+        $t->same('.foo{container-type:inline-size}', $minifier->minify('.foo { container-type: inline-size }'));
+        $t->same('.foo{container-name:none}', $minifier->minify('.foo { container-name: none; }'));
+        $t->same('.foo{container-name:foo}', $minifier->minify('.foo { container-name: foo; }'));
+        $t->same('.foo{container:foo}', $minifier->minify('.foo { container: foo / normal; }'));
+        $t->same('.foo{container:foo/inline-size}', $minifier->minify('.foo { container: foo / inline-size; }'));
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -607,6 +704,25 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-scroll-reveal{animation:.5s wp-cover-reveal;animation-range:entry exit 90%}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block container queries and container shorthand minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-query {
+  container-name: wp-query-card;
+  container-type: inline-size;
+}
+
+@container wp-query-card (inline-size > 45em) and style(--wp--custom--dense: true) {
+  .wp-block-post-template {
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '.wp-block-query{container:wp-query-card/inline-size}@container wp-query-card (inline-size>45em) and style(--wp--custom--dense:true){.wp-block-post-template{color:#ff0}}',
             (new CssMinifier())->minify($css)
         );
     },

@@ -124,10 +124,11 @@ final class TransitionPrefixer
         $listStyleChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
+        $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -178,6 +179,8 @@ final class TransitionPrefixer
             'textEmphasisNeedsWebkit' => $chrome !== null && $chrome <= 99.0,
             'gradientNeedsOldWebkit' => ($chrome !== null && $chrome <= 8.0)
                 || ($safari !== null && $safari < 5.1),
+            'imageSetNeedsWebkit' => $chrome !== null && $chrome <= 95.0 && !isset($normalized['ie']),
+            'imageSetNeedsUrlFallback' => isset($normalized['ie']),
         ];
     }
 
@@ -1483,6 +1486,168 @@ final class TransitionPrefixer
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteImageSetPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsWebkit = $targetOptions['imageSetNeedsWebkit'] ?? false;
+        $needsUrlFallback = $targetOptions['imageSetNeedsUrlFallback'] ?? false;
+        if (!$needsWebkit && !$needsUrlFallback) {
+            return false;
+        }
+
+        $properties = [
+            'background',
+            'background-image',
+            'border-image',
+            'border-image-source',
+            '-webkit-mask',
+            '-webkit-mask-image',
+            'list-style',
+            'list-style-image',
+        ];
+        $hasPrefixed = [];
+        $hasUnprefixed = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !in_array($entry['property'], $properties, true)) {
+                continue;
+            }
+            if ($this->containsPrefixedImageSet($entry['value'])) {
+                $hasPrefixed[$entry['property']] = true;
+            }
+            if ($this->containsUnprefixedImageSet($entry['value'])) {
+                $hasUnprefixed[$entry['property']] = true;
+            }
+        }
+
+        $changed = false;
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !in_array($entry['property'], $properties, true)) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($needsUrlFallback
+                && ($hasUnprefixed[$entry['property']] ?? false)
+                && preg_match('/^url\(/i', $entry['value']) === 1
+            ) {
+                $normalized = $this->normalizeQuotedUrlToken($entry['value']);
+                $changed = $changed || $normalized !== $entry['value'];
+                $entry['value'] = $normalized;
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (!$this->containsUnprefixedImageSet($entry['value'])) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($needsWebkit && !($hasPrefixed[$entry['property']] ?? false)) {
+                $rewritten[] = $this->entryWithValue($entry, $this->prefixImageSetFunctions($entry['value']));
+                $changed = true;
+            }
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    private function containsUnprefixedImageSet(string $value): bool
+    {
+        return preg_match('/(?<!-)image-set\(/i', $value) === 1;
+    }
+
+    private function containsPrefixedImageSet(string $value): bool
+    {
+        return stripos($value, '-webkit-image-set(') !== false;
+    }
+
+    private function prefixImageSetFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            $lower = strtolower(substr($value, $i));
+            $previous = $i > 0 ? $value[$i - 1] : '';
+            if (str_starts_with($lower, 'image-set(') && ($previous === '' || !$this->isIdentifierChar($previous))) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $this->prefixImageSetFunction($function);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function prefixImageSetFunction(string $function): string
+    {
+        if (preg_match('/^image-set\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $candidates = array_map(
+            fn (string $candidate): string => $this->prefixImageSetCandidate($candidate),
+            $this->splitTopLevel($matches[1], ',')
+        );
+
+        return '-webkit-image-set(' . implode(',', $candidates) . ')';
+    }
+
+    private function prefixImageSetCandidate(string $candidate): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($candidate);
+        if ($tokens === []) {
+            return trim($candidate);
+        }
+
+        $tokens[0] = $this->imageSetCandidateTokenToWebkitUrl($tokens[0]);
+
+        return implode(' ', $tokens);
+    }
+
+    private function imageSetCandidateTokenToWebkitUrl(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([\'"])(.*)\1$/s', $token, $matches) === 1) {
+            return 'url("' . str_replace('"', '\\"', $matches[2]) . '")';
+        }
+        if (preg_match('/^url\(/i', $token) === 1) {
+            return $this->normalizeQuotedUrlToken($token);
+        }
+
+        return $token;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param list<string> $supportRules
      */
     private function rewriteAdvancedColorFallbackEntries(array &$entries, string $selectors, array &$supportRules): bool
@@ -2765,6 +2930,45 @@ final class TransitionPrefixer
     }
 
     /**
+     * @return array{0:string,1:int}
+     */
+    private function readFunctionRaw(string $value, int $start): array
+    {
+        $output = '';
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $value[$i];
+            $output .= $char;
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return [$output, $i];
+                }
+            }
+        }
+
+        return [$output, $length - 1];
+    }
+
+    /**
      * @return list<string>
      */
     private function splitTopLevel(string $value, string $delimiter): array
@@ -2860,5 +3064,10 @@ final class TransitionPrefixer
         }
 
         return $tokens;
+    }
+
+    private function isIdentifierChar(string $char): bool
+    {
+        return preg_match('/[-_a-zA-Z0-9]/', $char) === 1;
     }
 }

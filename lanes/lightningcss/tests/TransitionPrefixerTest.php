@@ -448,6 +448,38 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { list-style: var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928), lab(51% 70.4544 -115.586)); } }', ['chrome' => 90])
         );
     },
+    'transition prefixer maps upstream image-set WebKit prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{background:-webkit-image-set(url("foo.png") 2x,url("bar.png") 1x);background:image-set("foo.png" 2x,"bar.png" 1x)}',
+            $prefixer->prefixForTargets('.foo { background: image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['chrome' => 85, 'firefox' => 80])
+        );
+        $t->same(
+            '.foo{background:-webkit-image-set(url(foo.png) 2x,url(bar.png) 1x)}',
+            $prefixer->prefixForTargets('.foo { background: -webkit-image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{background:-webkit-image-set(url(foo.png) 2x,url(bar.png) 1x);background:image-set("foo.png" 2x,"bar.png" 1x)}',
+            $prefixer->prefixForTargets('.foo { background: -webkit-image-set(url("foo.png") 2x, url(bar.png) 1x); background: image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['firefox' => 80])
+        );
+        $t->same(
+            '.foo{background-image:-webkit-image-set(url("foo.png") 2x,url("bar.png") 1x);background-image:image-set("foo.png" 2x,"bar.png" 1x)}',
+            $prefixer->prefixForTargets('.foo { background-image: image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{list-style-image:-webkit-image-set(url("marker.png") 2x,url("marker-small.png") 1x);list-style-image:image-set("marker.png" 2x,"marker-small.png" 1x)}',
+            $prefixer->prefixForTargets('.foo { list-style-image: image-set(url("marker.png") 2x, url(marker-small.png) 1x); }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{list-style:-webkit-image-set(url("marker.png") 2x,url("marker-small.png") 1x) square;list-style:image-set("marker.png" 2x,"marker-small.png" 1x) square}',
+            $prefixer->prefixForTargets('.foo { list-style: square image-set(url("marker.png") 2x, url(marker-small.png) 1x); }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{background:url("foo.png");background:image-set("foo.png" 2x,"bar.png" 1x)}',
+            $prefixer->prefixForTargets('.foo { background: url(foo.png); background: image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['ie' => 11, 'chrome' => 95])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {

@@ -58,7 +58,8 @@ final class CssMinifier
             $output .= $char;
         }
 
-        $css = $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
+        $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
+        $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
@@ -231,6 +232,329 @@ final class CssMinifier
         return $output;
     }
 
+    private function minifyContainerQueries(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $position = stripos($css, '@container', $cursor);
+            if ($position === false) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+            $before = $position === 0 ? '' : $css[$position - 1];
+            $after = $css[$position + 10] ?? '';
+            if (($before !== '' && preg_match('/[-_a-zA-Z0-9]/', $before) === 1)
+                || ($after !== '' && preg_match('/[-_a-zA-Z0-9]/', $after) === 1)
+            ) {
+                $output .= substr($css, $cursor, $position + 10 - $cursor);
+                $cursor = $position + 10;
+                continue;
+            }
+
+            $open = $this->findNextTopLevel($css, '{', $position + 10);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $prelude = $this->minifyContainerPrelude(substr($css, $position + 10, $open - ($position + 10)));
+            $output .= substr($css, $cursor, $position - $cursor) . '@container';
+            if ($prelude !== '') {
+                $output .= ' ' . $prelude;
+            }
+            $output .= '{';
+            $cursor = $open + 1;
+        }
+
+        return $output;
+    }
+
+    private function minifyContainerPrelude(string $prelude): string
+    {
+        $prelude = trim($prelude);
+        if ($prelude === '') {
+            return '';
+        }
+
+        [$name, $condition] = $this->splitContainerNameAndCondition($prelude);
+        if ($condition === null) {
+            return $name ?? $prelude;
+        }
+
+        $condition = $this->minifyContainerCondition($condition, true);
+
+        return $name === null ? $condition : $name . ' ' . $condition;
+    }
+
+    /**
+     * @return array{0:?string,1:?string}
+     */
+    private function splitContainerNameAndCondition(string $prelude): array
+    {
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)(.*)$/s', $prelude, $matches) !== 1) {
+            return [null, $prelude];
+        }
+
+        $head = strtolower($matches[1]);
+        if (in_array($head, ['not', 'style', 'scroll-state'], true)) {
+            return [null, $prelude];
+        }
+
+        $tail = trim($matches[2]);
+        if ($tail === '') {
+            return [$matches[1], null];
+        }
+
+        return [$matches[1], $tail];
+    }
+
+    private function minifyContainerCondition(string $condition, bool $topLevel = false, bool $styleMode = false): string
+    {
+        $condition = trim($condition);
+        if ($condition === '') {
+            return '';
+        }
+
+        $inner = $this->unwrapSingleParenthesizedValue($condition);
+        if ($inner !== null) {
+            $normalizedInner = $this->minifyContainerCondition($inner, false, $styleMode);
+            if ($this->canDropContainerConditionParens($normalizedInner, $topLevel)) {
+                return $normalizedInner;
+            }
+
+            return '(' . $normalizedInner . ')';
+        }
+
+        $logical = $this->splitContainerConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $parts = [];
+            foreach ($logical as $item) {
+                if ($item['type'] === 'operator') {
+                    $parts[] = strtolower($item['value']);
+                    continue;
+                }
+                $parts[] = $this->minifyContainerCondition($item['value'], false, $styleMode);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        if (preg_match('/^not(?:\s+|\()(.*)$/is', $condition, $matches) === 1) {
+            $hasFunctionParens = ($condition[3] ?? '') === '(';
+            $rest = trim($matches[1]);
+            if ($hasFunctionParens && str_ends_with($rest, ')')) {
+                $rest = substr($rest, 0, -1);
+            }
+            $operand = $this->minifyContainerCondition($rest, false, $styleMode);
+            if ($this->hasTopLevelContainerLogicalOperator($operand)) {
+                $operand = '(' . $operand . ')';
+            } elseif ($hasFunctionParens
+                && !str_starts_with($operand, '(')
+                && !str_starts_with($operand, 'style(')
+                && !str_starts_with($operand, 'scroll-state(')
+            ) {
+                $operand = '(' . $operand . ')';
+            }
+
+            return 'not ' . $operand;
+        }
+
+        foreach (['style', 'scroll-state'] as $functionName) {
+            $function = $this->readNamedFunctionIfWhole($condition, $functionName);
+            if ($function !== null) {
+                $innerMode = $functionName === 'style' || $styleMode;
+
+                return $functionName . '(' . $this->minifyContainerCondition($function, true, $innerMode) . ')';
+            }
+        }
+
+        return $styleMode
+            ? $this->minifyContainerStyleFeature($condition)
+            : $this->minifyContainerFeature($condition);
+    }
+
+    private function canDropContainerConditionParens(string $condition, bool $topLevel): bool
+    {
+        if ($this->hasTopLevelContainerLogicalOperator($condition)) {
+            return true;
+        }
+
+        if (!$topLevel && str_starts_with($condition, '(') && str_ends_with($condition, ')')) {
+            return true;
+        }
+
+        if (!$topLevel) {
+            return false;
+        }
+
+        return str_starts_with($condition, 'not ')
+            || str_starts_with($condition, 'style(')
+            || str_starts_with($condition, 'scroll-state(');
+    }
+
+    private function hasTopLevelContainerLogicalOperator(string $condition): bool
+    {
+        return $this->splitContainerConditionByLogicalOperator($condition) !== null;
+    }
+
+    /**
+     * @return list<array{type:string,value:string}>|null
+     */
+    private function splitContainerConditionByLogicalOperator(string $condition): ?array
+    {
+        $items = [];
+        $current = '';
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($condition);
+        $found = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $condition[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $current .= $char;
+                continue;
+            }
+
+            if ($parenDepth === 0 && $this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($condition, $i);
+                $lower = strtolower($identifier);
+                $previous = $condition[$i - 1] ?? '';
+                $next = $condition[$i + strlen($identifier)] ?? '';
+                if (in_array($lower, ['and', 'or'], true)
+                    && ($previous === '' || !$this->isIdentifierChar($previous))
+                    && ($next === '' || !$this->isIdentifierChar($next))
+                ) {
+                    if (trim($current) === '') {
+                        return null;
+                    }
+                    $items[] = ['type' => 'condition', 'value' => trim($current)];
+                    $items[] = ['type' => 'operator', 'value' => $lower];
+                    $current = '';
+                    $found = true;
+                    $i += strlen($identifier) - 1;
+                    while (isset($condition[$i + 1]) && ctype_space($condition[$i + 1])) {
+                        $i++;
+                    }
+                    continue;
+                }
+            }
+
+            $current .= $char;
+        }
+
+        if (!$found || trim($current) === '') {
+            return null;
+        }
+
+        $items[] = ['type' => 'condition', 'value' => trim($current)];
+
+        return $items;
+    }
+
+    private function minifyContainerStyleFeature(string $feature): string
+    {
+        $feature = preg_replace('/\s*!\s*important\b/i', '', $feature) ?? $feature;
+
+        return $this->minifyColorKeywords($this->minifyContainerFeature($feature));
+    }
+
+    private function minifyContainerFeature(string $feature): string
+    {
+        $feature = trim($feature);
+        try {
+            $query = (new MediaQueryParser())->minifyList('(' . $feature . ')');
+            $inner = $this->unwrapSingleParenthesizedValue($query);
+            if ($inner !== null) {
+                return $inner;
+            }
+        } catch (\Throwable) {
+        }
+
+        return trim($feature);
+    }
+
+    private function readNamedFunctionIfWhole(string $value, string $name): ?string
+    {
+        $prefix = $name . '(';
+        if (strtolower(substr($value, 0, strlen($prefix))) !== $prefix) {
+            return null;
+        }
+
+        [$function, $offset] = $this->readFunctionRaw($value, 0);
+        if ($offset !== strlen($value) - 1) {
+            return null;
+        }
+
+        return substr($function, strlen($prefix), -1);
+    }
+
+    private function unwrapSingleParenthesizedValue(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || $value[0] !== '(') {
+            return null;
+        }
+
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i === $length - 1 ? substr($value, 1, -1) : null;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private function findNextTopLevel(string $css, string $needle, int $start): ?int
     {
         $quote = null;
@@ -338,11 +662,37 @@ final class CssMinifier
         $value = $this->minifyTextEmphasisValue($property, $value);
         $value = $this->minifyCaretValue($property, $value);
         $value = $this->minifyListStyleValue($property, $value);
+        $value = $this->minifyContainerDeclarationValue($property, $value);
+        $value = $this->minifyImageSetFunctions($value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
 
         return $value;
+    }
+
+    private function minifyContainerDeclarationValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'container' => $this->minifyContainerShorthandValue($value),
+            'container-type' => strtolower(trim($value)),
+            'container-name' => trim($value),
+            default => $value,
+        };
+    }
+
+    private function minifyContainerShorthandValue(string $value): string
+    {
+        $value = trim($value);
+        $parts = $this->splitTopLevel($value, '/');
+        if (count($parts) === 2 && strtolower($parts[1]) === 'normal') {
+            return $parts[0];
+        }
+        if (count($parts) === 2) {
+            return $parts[0] . '/' . strtolower($parts[1]);
+        }
+
+        return str_replace(' / ', '/', $value);
     }
 
     private function minifyAnimationLonghandValue(string $property, string $value): string
@@ -1257,6 +1607,166 @@ final class CssMinifier
         return $value;
     }
 
+    private function minifyImageSetFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $url;
+                $i = $offset;
+                continue;
+            }
+
+            $lower = strtolower(substr($value, $i));
+            $previous = $i > 0 ? $value[$i - 1] : '';
+            if ((str_starts_with($lower, 'image-set(') || str_starts_with($lower, '-webkit-image-set('))
+                && ($previous === '' || !$this->isIdentifierChar($previous))
+            ) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $this->minifyImageSetFunction($function);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifyImageSetFunction(string $function): string
+    {
+        if (preg_match('/^(-webkit-image-set|image-set)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $name = strtolower($matches[1]);
+        $isPrefixed = $name === '-webkit-image-set';
+        $candidates = array_map(
+            fn (string $candidate): string => $this->minifyImageSetCandidate($candidate, $isPrefixed),
+            $this->splitTopLevel($matches[2], ',')
+        );
+
+        return $name . '(' . implode(',', $candidates) . ')';
+    }
+
+    private function minifyImageSetCandidate(string $candidate, bool $isPrefixed): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($candidate);
+        if ($tokens === []) {
+            return trim($candidate);
+        }
+
+        $image = array_shift($tokens);
+        $resolution = null;
+        $type = null;
+        $other = [];
+
+        foreach ($tokens as $token) {
+            if ($this->isImageSetResolutionToken($token)) {
+                $resolution = $this->minifyImageSetResolutionToken($token);
+                continue;
+            }
+            if ($this->isImageSetTypeToken($token)) {
+                $type = $this->normalizeImageSetTypeToken($token);
+                continue;
+            }
+
+            $other[] = trim($token);
+        }
+
+        $parts = [$this->normalizeImageSetImageToken($image, $isPrefixed)];
+        if ($resolution !== null || !$isPrefixed || $type !== null) {
+            $parts[] = $resolution ?? '1x';
+        }
+        if ($type !== null) {
+            $parts[] = $type;
+        }
+        array_push($parts, ...$other);
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeImageSetImageToken(string $token, bool $isPrefixed): string
+    {
+        $token = trim($token);
+        if ($this->isQuotedStringToken($token)) {
+            if ($isPrefixed) {
+                $url = $this->cssStringTokenValue($token);
+
+                return 'url("' . str_replace('"', '\\"', $url) . '")';
+            }
+
+            return $this->normalizeCssStringToken($token);
+        }
+
+        if (preg_match('/^url\(/i', $token) === 1) {
+            if ($isPrefixed) {
+                return $this->normalizeCssUrlToken($token, false);
+            }
+
+            $url = $this->cssUrlTokenValue($token);
+            if ($url !== null) {
+                return '"' . str_replace('"', '\\"', $url) . '"';
+            }
+        }
+
+        return $token;
+    }
+
+    private function isImageSetResolutionToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:x|dppx|dpi)$/i', trim($token)) === 1;
+    }
+
+    private function minifyImageSetResolutionToken(string $token): string
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(x|dppx|dpi)$/i', trim($token), $matches) !== 1) {
+            return trim($token);
+        }
+
+        return $this->minifyNumber((float) $matches[1]) . strtolower($matches[2]);
+    }
+
+    private function isImageSetTypeToken(string $token): bool
+    {
+        return preg_match('/^type\(/i', trim($token)) === 1;
+    }
+
+    private function normalizeImageSetTypeToken(string $token): string
+    {
+        if (preg_match('/^type\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)$/i', trim($token), $matches) !== 1) {
+            return trim($token);
+        }
+
+        $type = ($matches[2] ?? '') !== '' ? $matches[2] : trim($matches[3] ?? '');
+
+        return 'type("' . str_replace('"', '\\"', $type) . '")';
+    }
+
     /**
      * @return array{type:string,image:string,position:string}|null
      */
@@ -1357,6 +1867,15 @@ final class CssMinifier
         return '"' . str_replace('"', '\\"', $matches[2]) . '"';
     }
 
+    private function cssStringTokenValue(string $token): string
+    {
+        if (preg_match('/^([\'"])(.*)\1$/s', trim($token), $matches) !== 1) {
+            return trim($token);
+        }
+
+        return $matches[2];
+    }
+
     private function normalizeCssUrlToken(string $token, bool $quoteSafeUrls): string
     {
         $token = trim($token);
@@ -1370,6 +1889,15 @@ final class CssMinifier
         }
 
         return 'url(' . $url . ')';
+    }
+
+    private function cssUrlTokenValue(string $token): ?string
+    {
+        if (preg_match('/^url\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)$/i', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        return ($matches[2] ?? '') !== '' ? $matches[2] : trim($matches[3] ?? '');
     }
 
     private function minifyCaretShorthand(string $value): string
@@ -2178,6 +2706,100 @@ final class CssMinifier
         }
 
         return $length - 1;
+    }
+
+    private function composeContainerDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeContainerDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeContainerDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeContainerDeclarationList(string $body): string
+    {
+        if (stripos($body, 'container') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteContainerGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteContainerGroup(array &$entries): void
+    {
+        $relevantIndices = [];
+        $latest = [];
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !in_array($entry['property'], ['container', 'container-name', 'container-type'], true)) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === 'container-name') {
+                $latest['name'] = $index;
+            } elseif ($entry['property'] === 'container-type') {
+                $latest['type'] = $index;
+            }
+        }
+
+        if (!isset($latest['name'], $latest['type'])) {
+            return;
+        }
+
+        $replaceAt = min($latest['name'], $latest['type']);
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'container',
+            'name' => 'container',
+            'value' => $this->serializeContainerShorthand(
+                $entries[$latest['name']]['value'],
+                $entries[$latest['type']]['value']
+            ),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    private function serializeContainerShorthand(string $name, string $type): string
+    {
+        $name = trim($name);
+        $type = strtolower(trim($type));
+
+        return $type === 'normal' ? $name : $name . '/' . $type;
     }
 
     private function composeTransitionDeclarationList(string $body): string
@@ -3738,6 +4360,7 @@ final class CssMinifier
             'black' => '#000',
             'blue' => '#00f',
             'chartreuse' => '#7fff00',
+            'cornflowerblue' => '#6495ed',
             'cyan' => '#0ff',
             'fuchsia' => '#f0f',
             'magenta' => '#f0f',
