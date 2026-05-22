@@ -30,8 +30,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-inline-style-import.php` maps Marker's upstream font-style cleaner and styled-span Markdown post-processing into a paragraph import path. It detects bold and italic spans from PDF font names/weights, emits upstream-style `**bold**` and `*italic*` markers, and converts that focused inline Markdown into `<strong>` and `<em>` inside a core paragraph block.
 
+`examples/wordpress-toc-import.php` maps Marker's upstream heading and TOC cleaners into a document-outline import path. It splits detected heading lines out of text blocks by bounding-box overlap, infers heading levels from line heights, emits a core list as a table of contents, and renders the heading blocks with Marker-style Markdown heading levels.
+
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
 ## Next Task
 
-Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map the next focused layout behavior such as heading-level inference/TOC output before broadening OCR behavior.
+Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, then map another focused layout/table/OCR behavior against a concrete upstream artifact.
