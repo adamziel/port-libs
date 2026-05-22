@@ -102,6 +102,46 @@ return [
 
         $t->throws(RuntimeException::class, static fn () => MergeIndexFile::bytesFor($entries));
     },
+    'expands directory file conflicts into file level git index entries' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $treeEntry('wp-content', new Tree([])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $treeEntry('cache', new Tree([
+                    $blobEntry('index.php', "<?php\n"),
+                    $treeEntry('nested', new Tree([
+                        $blobEntry('asset.txt', "cached asset\n"),
+                    ])),
+                ])),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $blobEntry('cache', "legacy cache file\n"),
+            ])),
+        ]);
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $dir = sys_get_temp_dir() . '/port-libs-expanded-index-' . bin2hex(random_bytes(4));
+
+        $expanded = MergeIndexFile::entriesForResult($result, $read);
+        MergeIndexFile::writeResult($dir . '/.git/index', $result, $read);
+        $parsed = MergeIndexFile::entriesFromBytes((string) file_get_contents($dir . '/.git/index'));
+
+        $t->same([
+            ['path' => 'wp-content/cache', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'kind' => 'blob'],
+            ['path' => 'wp-content/cache/index.php', 'stage' => MergeIndexEntry::STAGE_OURS, 'kind' => 'blob'],
+            ['path' => 'wp-content/cache/nested/asset.txt', 'stage' => MergeIndexEntry::STAGE_OURS, 'kind' => 'blob'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['path' => $entry->path, 'stage' => $entry->stage, 'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind()],
+            $expanded,
+        ));
+        $t->same(
+            array_map(static fn (MergeIndexEntry $entry): array => [$entry->path, $entry->stage, $entry->oid], $expanded),
+            array_map(static fn (MergeIndexEntry $entry): array => [$entry->path, $entry->stage, $entry->oid], $parsed),
+        );
+    },
     'writes merged recursive worktree files including marker blobs' => static function (TestRunner $t) use ($recursiveConflict): void {
         [$result, $read] = $recursiveConflict();
         $worktree = sys_get_temp_dir() . '/port-libs-worktree-' . bin2hex(random_bytes(4));

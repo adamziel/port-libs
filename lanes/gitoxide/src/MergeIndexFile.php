@@ -30,6 +30,29 @@ final class MergeIndexFile
     }
 
     /**
+     * @param callable(string): GitObject $readObject
+     */
+    public static function writeResult(string $path, TreeMergeResult $result, callable $readObject): string
+    {
+        return self::write($path, self::entriesForResult($result, $readObject));
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @return list<MergeIndexEntry>
+     */
+    public static function entriesForResult(TreeMergeResult $result, callable $readObject): array
+    {
+        $expanded = [];
+        foreach ($result->indexEntries() as $entry) {
+            array_push($expanded, ...self::expandEntry($entry, $readObject));
+        }
+        usort($expanded, static fn (MergeIndexEntry $left, MergeIndexEntry $right): int => strcmp($left->path, $right->path) ?: $left->stage <=> $right->stage);
+
+        return $expanded;
+    }
+
+    /**
      * @param list<MergeIndexEntry> $entries
      */
     public static function bytesFor(array $entries): string
@@ -154,6 +177,56 @@ final class MergeIndexFile
         }
 
         return $value;
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @return list<MergeIndexEntry>
+     */
+    private static function expandEntry(MergeIndexEntry $entry, callable $readObject): array
+    {
+        $treeEntry = new TreeEntry($entry->mode, basename($entry->path), $entry->oid);
+        if (!$treeEntry->isTree()) {
+            return [$entry];
+        }
+
+        $expanded = [];
+        self::expandTree(Tree::fromObject(self::readTypedObject($readObject, $entry->oid, 'tree')), $entry->path, $entry->stage, $readObject, $expanded);
+
+        return $expanded;
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param list<MergeIndexEntry> $expanded
+     */
+    private static function expandTree(Tree $tree, string $prefix, int $stage, callable $readObject, array &$expanded): void
+    {
+        foreach ($tree->entries as $entry) {
+            $path = $prefix . '/' . $entry->filename;
+            if ($entry->isTree()) {
+                self::expandTree(Tree::fromObject(self::readTypedObject($readObject, $entry->oid, 'tree')), $path, $stage, $readObject, $expanded);
+                continue;
+            }
+
+            $expanded[] = new MergeIndexEntry($path, $stage, $entry->mode, $entry->oid);
+        }
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     */
+    private static function readTypedObject(callable $readObject, string $oid, string $type): GitObject
+    {
+        $object = $readObject($oid);
+        if (!$object instanceof GitObject) {
+            throw new \RuntimeException('Object reader must return GitObject instances');
+        }
+        if ($object->type !== $type) {
+            throw new \RuntimeException("Expected {$type} object for {$oid}, got {$object->type}");
+        }
+
+        return $object;
     }
 
     private static function readUInt32(string $bytes, int &$offset): int

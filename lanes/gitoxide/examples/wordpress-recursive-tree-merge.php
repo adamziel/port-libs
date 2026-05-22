@@ -59,7 +59,7 @@ $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMe
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
-$indexChecksum = MergeIndexFile::write($demoRoot . '/.git/index', $result->indexEntries());
+$indexChecksum = MergeIndexFile::writeResult($demoRoot . '/.git/index', $result, $read);
 $worktreeFiles = MergeWorktreeWriter::writeMergedTree($result, $demoRoot . '/worktree', $read);
 $themeJsonPath = $demoRoot . '/worktree/wp-content/themes/acme/theme.json';
 
