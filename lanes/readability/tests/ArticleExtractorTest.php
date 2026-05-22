@@ -215,6 +215,22 @@ return [
         $t->contains('Keep this editorial quote', $article->text);
         $t->true(!str_contains($article->contentHtml, 'quote-shell'), 'source quote wrapper classes should be removed with the wrapper');
     },
+    'wraps phrasing media in div paragraphs like upstream preprocessing' => static function (TestRunner $t) use ($attributeValues): void {
+        $html = '<html><head><title>Phrasing Media Cleanup</title></head><body><article>'
+            . '<h1>Phrasing Media Cleanup</h1>'
+            . '<p>' . str_repeat('Legacy WordPress migration content often surrounds inline media with layout divs. ', 4) . '</p>'
+            . '<figure><div><img src="/uploads/inline-figure.jpg" alt="Inline figure"></div><figcaption>Inline figure</figcaption></figure>'
+            . '<div id="avatar-shell"><a href="/author"><img src="/uploads/avatar.jpg" alt="Avatar"></a></div>'
+            . '<p>' . str_repeat('The importer should preserve media while matching Readability paragraph wrappers. ', 4) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+
+        $t->same(['/uploads/inline-figure.jpg'], $attributeValues($article->contentHtml, '//figure/div/p/img/@src'));
+        $t->same(['/uploads/avatar.jpg'], $attributeValues($article->contentHtml, '//div[@id="avatar-shell"]/p/a/img/@src'));
+        $t->contains('Inline figure', $article->text);
+        $t->contains('matching Readability paragraph wrappers', $article->text);
+    },
     'removes leading byline and action controls before article content' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Migrated Action Bar"></head><body><article class="entry-content">'
             . '<div class="entry-meta">'

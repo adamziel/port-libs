@@ -1114,6 +1114,7 @@ final class ArticleExtractor
     private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri): \DOMElement
     {
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
+        $this->wrapPhrasingContentInDivs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
@@ -1350,7 +1351,7 @@ final class ArticleExtractor
                     continue;
                 }
 
-                if (!$this->hasSingleTagInsideElement($node, 'p') || $this->linkDensity($node) >= 0.25) {
+                if (!$this->hasSingleTagInsideElement($node, 'p') || $this->linkDensity($node) >= 0.25 || $this->hasMediaPayload($node)) {
                     continue;
                 }
 
@@ -1371,6 +1372,127 @@ final class ArticleExtractor
         } while ($changed);
 
         return $scope;
+    }
+
+    private function wrapPhrasingContentInDivs(\DOMElement $scope): void
+    {
+        $document = $scope->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return;
+        }
+
+        foreach ($this->divCandidates($scope) as $node) {
+            if (!$node->parentNode instanceof \DOMNode && $node !== $scope) {
+                continue;
+            }
+
+            $child = $node->firstChild;
+            while ($child instanceof \DOMNode) {
+                $nextSibling = $child->nextSibling;
+                if (!$this->isPhrasingContent($child)) {
+                    $child = $nextSibling;
+                    continue;
+                }
+
+                $fragment = $document->createDocumentFragment();
+                while ($child instanceof \DOMNode && $this->isPhrasingContent($child)) {
+                    $nextSibling = $child->nextSibling;
+                    $fragment->appendChild($child);
+                    $child = $nextSibling;
+                }
+
+                while ($fragment->firstChild instanceof \DOMNode && $this->isWhitespaceNode($fragment->firstChild)) {
+                    $fragment->removeChild($fragment->firstChild);
+                }
+
+                while ($fragment->lastChild instanceof \DOMNode && $this->isWhitespaceNode($fragment->lastChild)) {
+                    $fragment->removeChild($fragment->lastChild);
+                }
+
+                if ($fragment->firstChild instanceof \DOMNode) {
+                    $paragraph = $document->createElement('p');
+                    $paragraph->appendChild($fragment);
+                    $node->insertBefore($paragraph, $nextSibling);
+                }
+            }
+        }
+    }
+
+    private function isPhrasingContent(\DOMNode $node): bool
+    {
+        if ($node instanceof \DOMText) {
+            return true;
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return false;
+        }
+
+        $tag = strtoupper($node->tagName);
+        if (in_array($tag, [
+            'ABBR',
+            'AUDIO',
+            'B',
+            'BDO',
+            'BR',
+            'BUTTON',
+            'CITE',
+            'CODE',
+            'DATA',
+            'DATALIST',
+            'DFN',
+            'EM',
+            'EMBED',
+            'I',
+            'IMG',
+            'INPUT',
+            'KBD',
+            'LABEL',
+            'MARK',
+            'MATH',
+            'METER',
+            'NOSCRIPT',
+            'OBJECT',
+            'OUTPUT',
+            'PROGRESS',
+            'Q',
+            'RUBY',
+            'SAMP',
+            'SCRIPT',
+            'SELECT',
+            'SMALL',
+            'SPAN',
+            'STRONG',
+            'SUB',
+            'SUP',
+            'TEXTAREA',
+            'TIME',
+            'VAR',
+            'WBR',
+        ], true)) {
+            return true;
+        }
+
+        if (!in_array($tag, ['A', 'DEL', 'INS'], true)) {
+            return false;
+        }
+
+        foreach ($node->childNodes as $child) {
+            if (!$this->isPhrasingContent($child)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isWhitespaceNode(\DOMNode $node): bool
+    {
+        if ($node instanceof \DOMText) {
+            return trim($node->textContent) === '';
+        }
+
+        return $node instanceof \DOMElement && strtoupper($node->tagName) === 'BR';
     }
 
     private function convertPhrasingDivsToParagraphs(\DOMElement $scope): \DOMElement
@@ -1469,6 +1591,17 @@ final class ArticleExtractor
         }
 
         return mb_strlen($this->normalizeWhitespace($linkText)) / $textLength;
+    }
+
+    private function hasMediaPayload(\DOMElement $node): bool
+    {
+        foreach (['img', 'embed', 'object', 'iframe', 'picture', 'video'] as $tag) {
+            if ($node->getElementsByTagName($tag)->length > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function simplifyNestedElements(\DOMElement $scope): \DOMElement
