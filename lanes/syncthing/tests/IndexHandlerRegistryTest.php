@@ -3,10 +3,14 @@
 declare(strict_types=1);
 
 use PortLibs\Syncthing\Device;
+use PortLibs\Syncthing\DeviceDownloadState;
+use PortLibs\Syncthing\FileInfo;
+use PortLibs\Syncthing\FileDownloadProgressUpdate;
 use PortLibs\Syncthing\Folder;
 use PortLibs\Syncthing\IndexHandler;
 use PortLibs\Syncthing\IndexHandlerRegistry;
 use PortLibs\Syncthing\IndexHandlerStartInfo;
+use PortLibs\Syncthing\VersionVector;
 
 return [
     'maps upstream cluster config device info start sequence decisions' => static function (TestRunner $t): void {
@@ -115,6 +119,74 @@ return [
         $t->same([], $registry->handlerFolders());
         $t->same([], $registry->registeredFolders());
         $t->same(null, $registry->handler('wordpress-media'));
+    },
+    'maps upstream ReceiveIndex missing paused and running folder boundaries' => static function (TestRunner $t): void {
+        $events = [];
+        $downloads = new DeviceDownloadState();
+        $runner = new SyncthingIndexHandlerRegistryRunner();
+        $registry = new IndexHandlerRegistry(
+            remoteDeviceIdHex: 'aa',
+            localIndexId: 77,
+            localCurrentSequence: 50,
+            downloads: $downloads,
+            eventLogger: static function (string $type, array $data) use (&$events): void {
+                $events[] = [$type, $data];
+            },
+        );
+
+        $t->throws(RuntimeException::class, static fn () => $registry->receiveIndex(
+            folder: 'wordpress-media',
+            files: [],
+            update: false,
+            operation: 'Index',
+        ));
+
+        $registry->addIndexInfo('wordpress-media', syncthing_index_handler_start_info(localMaxSequence: 10));
+        $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $runner);
+        $registry->registerFolderState(syncthing_index_handler_registry_folder(
+            'wordpress-media',
+            stopReason: Folder::STOP_REASON_PAUSED,
+        ));
+
+        $t->throws(RuntimeException::class, static fn () => $registry->receiveIndex(
+            folder: 'wordpress-media',
+            files: [],
+            update: true,
+            operation: 'Index update',
+        ));
+
+        $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $runner);
+        $version = VersionVector::fromCounters([202 => 4]);
+        $downloads->update('wordpress-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content/uploads/2026/hero.jpg',
+                version: $version,
+                blockIndexes: [0],
+                blockSize: 2048,
+            ),
+        ]);
+        $result = $registry->receiveIndex(
+            folder: 'wordpress-media',
+            files: [
+                new FileInfo(
+                    name: 'wp-content/uploads/2026/hero.jpg',
+                    version: $version,
+                    size: 2048,
+                    sequence: 4,
+                ),
+            ],
+            update: false,
+            operation: 'Index',
+            lastSequence: 4,
+        );
+
+        $t->same(4, $result->sequence);
+        $t->same([], $downloads->getBlockCounts('wordpress-media'));
+        $t->same(2, $runner->scheduledPulls);
+        $t->same('RemoteIndexUpdated', $events[0][0]);
+        $t->same('aa', $events[0][1]['device']);
+        $t->same('wordpress-media', $events[0][1]['folder']);
     },
 ];
 

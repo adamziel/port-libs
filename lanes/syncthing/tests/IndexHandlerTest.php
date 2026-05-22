@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use PortLibs\Syncthing\BepWire;
+use PortLibs\Syncthing\DeviceDownloadState;
 use PortLibs\Syncthing\FileDownloadProgressUpdate;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\Index;
 use PortLibs\Syncthing\IndexHandler;
+use PortLibs\Syncthing\IndexReceiveResult;
 use PortLibs\Syncthing\IndexUpdate;
 use PortLibs\Syncthing\VersionVector;
 
@@ -132,6 +134,99 @@ return [
             syncthing_index_handler_file('wp-content/uploads/2026/stale.jpg', 5),
         ]));
     },
+    'maps upstream receive full index reset event and temporary progress forget' => static function (TestRunner $t): void {
+        $runner = new SyncthingIndexHandlerReceiveRunner();
+        $downloads = new DeviceDownloadState();
+        $version = VersionVector::fromCounters([202 => 1]);
+        $downloads->update('wordpress-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content/uploads/2026/hero.jpg',
+                version: $version,
+                blockIndexes: [0, 1],
+                blockSize: 1024,
+            ),
+        ]);
+        $handler = new IndexHandler('wordpress-media', runner: $runner);
+        $events = [];
+
+        $result = $handler->receiveIndex(
+            files: [
+                syncthing_index_handler_file('wp-content/uploads/2026/stale.jpg', 7, version: VersionVector::fromCounters([202 => 7])),
+                syncthing_index_handler_file('wp-content/uploads/2026/hero.jpg', 8, version: $version),
+            ],
+            update: false,
+            operation: 'Index',
+            lastSequence: 8,
+            downloads: $downloads,
+            remoteDeviceIdHex: 'aa',
+            eventLogger: static function (string $type, array $data) use (&$events): void {
+                $events[] = [$type, $data];
+            },
+        );
+
+        $t->true($result instanceof IndexReceiveResult);
+        $t->same(8, $result->sequence);
+        $t->same(2, $result->items);
+        $t->same([], $result->anomalies);
+        $t->same([], $downloads->getBlockCounts('wordpress-media'));
+        $t->same(1, $runner->scheduledPulls);
+        $t->same('RemoteIndexUpdated', $result->event['type']);
+        $t->same(['RemoteIndexUpdated', [
+            'device' => 'aa',
+            'folder' => 'wordpress-media',
+            'items' => 2,
+            'sequence' => 8,
+            'version' => 8,
+        ]], $events[0]);
+        $t->same(['wp-content/uploads/2026/hero.jpg', 'wp-content/uploads/2026/stale.jpg'], array_keys($handler->remoteFiles()));
+    },
+    'maps upstream receive index anomaly logging without rejecting the update' => static function (TestRunner $t): void {
+        $handler = new IndexHandler('wordpress-media');
+        $handler->receiveIndex(
+            files: [syncthing_index_handler_file('wp-content/uploads/2026/base.jpg', 2)],
+            update: false,
+            operation: 'Index',
+            lastSequence: 2,
+        );
+
+        $result = $handler->receiveIndex(
+            files: [
+                syncthing_index_handler_file('wp-content/uploads/2026/old.jpg', 1),
+                syncthing_index_handler_file('wp-content/uploads/2026/future.jpg', 4),
+                syncthing_index_handler_file('wp-content/uploads/2026/backfill.jpg', 3),
+            ],
+            update: true,
+            operation: 'Index update',
+            prevSequence: 9,
+            lastSequence: 3,
+        );
+
+        $descriptions = array_map(static fn (array $event): string => $event['description'], $result->anomalies);
+        $t->true(in_array('index update with unexpected sequence', $descriptions, true));
+        $t->true(in_array('file with sequence before prevSequence', $descriptions, true));
+        $t->true(in_array('file with sequence after lastSequence', $descriptions, true));
+        $t->true(in_array('index update with non-increasing sequence', $descriptions, true));
+        $t->same(3, $result->sequence);
+        $t->same('wp-content/uploads/2026/future.jpg', $handler->remoteFile('wp-content/uploads/2026/future.jpg')?->name);
+        $t->same(2, count($handler->receiveEvents()));
+    },
+    'rejects duplicate remote sequence numbers after scheduling a pull' => static function (TestRunner $t): void {
+        $runner = new SyncthingIndexHandlerReceiveRunner();
+        $handler = new IndexHandler('wordpress-media', runner: $runner);
+
+        $t->throws(RuntimeException::class, static fn () => $handler->receiveIndex(
+            files: [
+                syncthing_index_handler_file('wp-content/uploads/2026/a.jpg', 3),
+                syncthing_index_handler_file('wp-content/uploads/2026/b.jpg', 3),
+            ],
+            update: true,
+            operation: 'Index update',
+        ));
+        $t->same(1, $runner->scheduledPulls);
+        $t->same([], $handler->remoteFiles());
+        $t->same('index update with non-increasing sequence', $handler->sequenceAnomalies()[0]['description']);
+    },
 ];
 
 function syncthing_index_handler_file(
@@ -156,4 +251,14 @@ function syncthing_index_handler_file(
         sequence: $sequence,
         modifiedBy: 101,
     );
+}
+
+final class SyncthingIndexHandlerReceiveRunner
+{
+    public int $scheduledPulls = 0;
+
+    public function schedulePull(): void
+    {
+        $this->scheduledPulls++;
+    }
 }

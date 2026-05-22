@@ -25,10 +25,15 @@ final class IndexHandlerRegistry
         private readonly int $localCurrentSequence = 0,
         ?callable $handlerFactory = null,
         ?ServiceMap $indexHandlers = null,
+        private readonly ?DeviceDownloadState $downloads = null,
+        private readonly mixed $eventLogger = null,
     ) {
         $this->assertDeviceId($remoteDeviceIdHex);
         if ($this->localIndexId < 0 || $this->localCurrentSequence < 0) {
             throw new \InvalidArgumentException('Index IDs and sequence numbers must not be negative');
+        }
+        if ($this->eventLogger !== null && !is_callable($this->eventLogger)) {
+            throw new \InvalidArgumentException('Index event logger must be callable');
         }
 
         $this->indexHandlers = $indexHandlers ?? new ServiceMap();
@@ -147,6 +152,35 @@ final class IndexHandlerRegistry
     public function registeredFolders(): array
     {
         return array_values(array_keys($this->folderStates));
+    }
+
+    /**
+     * @param list<FileInfo> $files
+     */
+    public function receiveIndex(
+        string $folder,
+        array $files,
+        bool $update,
+        string $operation,
+        int $prevSequence = 0,
+        int $lastSequence = 0,
+    ): IndexReceiveResult {
+        $this->assertFolderId($folder);
+        $handler = $this->handler($folder);
+        if ($handler === null) {
+            throw new \RuntimeException($folder . ': no such folder');
+        }
+
+        return $handler->receiveIndex(
+            files: $files,
+            update: $update,
+            operation: $operation,
+            prevSequence: $prevSequence,
+            lastSequence: $lastSequence,
+            downloads: $this->downloads,
+            remoteDeviceIdHex: $this->remoteDeviceIdHex,
+            eventLogger: $this->eventLogger,
+        );
     }
 
     private function folderPaused(string $folder): ?IndexHandler

@@ -209,6 +209,21 @@ static upstream mapping from targeted reads of `lib/model/indexhandler.go` and
 example `wordpress-index-handler-registry.php` shows a receive-encrypted
 private media folder accepting pending peer index info only after the local
 runner resumes.
+The receive-index slice now maps the adjacent upstream `model.Index`,
+`model.IndexUpdate`, `handleIndex`, `indexHandlerRegistry.ReceiveIndex`,
+`indexHandler.receive`, `makeForgetUpdate`, and `logSequenceAnomaly` behavior:
+full incoming indexes drop the prior remote file view before storing the new
+FileInfo batch, delta indexes preserve existing remote FileInfos by name,
+received regular files clear matching temporary DownloadProgress state through
+forget updates, missing folders return the upstream no-such-folder boundary,
+paused handlers return the upstream paused-folder boundary without scheduling a
+pull, accepted receive work schedules a pull, RemoteIndexUpdated event payloads
+carry device/folder/items/sequence/version, unexpected previous/last sequence
+claims are recorded as failure-style anomalies without rejecting the batch, and
+duplicate remote sequence numbers are rejected before storing the batch. The
+WordPress example `wordpress-receive-index.php` shows a Playground peer's media
+index replacing temporary block availability with a scheduled pull against the
+remote FileInfo state.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
