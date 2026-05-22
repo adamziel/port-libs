@@ -60,6 +60,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-image-import.php` maps Marker's upstream image insertion path into a Gutenberg image-block import. It uses deterministic `page_image_index.png` filenames, Figure/Picture layout-box matching, intersecting text-span removal, and Marker-style Markdown image spans before rendering a core image block. The native slice intentionally stops before raster crop rendering because upstream delegates that work to `pypdfium2` and PIL.
 
+`examples/wordpress-pdf-image-crop.php` maps Marker's upstream PDF image rendering boundary into a media-review import path. It computes the same `dpi / 72` scale and `render_bbox_image` crop bbox that pypdfium/PIL would use, then stores that crop as Gutenberg image metadata without performing native raster rendering.
+
 `examples/wordpress-bbox-geometry-import.php` maps Marker's upstream bbox geometry helpers into a WordPress import preflight. It merges adjacent PDF span boxes into one reviewable paragraph bbox, preserves that geometry as block metadata, and uses Marker's strict intersection semantics before emitting a related image block.
 
 `examples/wordpress-equation-import.php` maps Marker's upstream equation replacement path into a WordPress math import. It uses Formula layout-box matching, removes the source equation text line, inserts supplied LaTeX as a Formula block after upstream validation, renders the equation as a constrained core HTML block, and emits Marker-style equation metadata for editorial review. The native slice intentionally stops before Texify model inference and equation crop rendering.
@@ -72,4 +74,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Use the acquired `benchmark_data_short.zip` pairs to map a fuller document-level benchmark report slice, or map focused table-layout/raster-rendering behavior against one concrete upstream PDF/reference artifact.
+Use the acquired `benchmark_data_short.zip` pairs to map a fuller document-level benchmark report slice, or map `marker/ocr/recognition.py::run_ocr` orchestration with supplied OCR pages before attempting real model-backed OCR.
