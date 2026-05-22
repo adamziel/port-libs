@@ -1,0 +1,209 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Gitoxide;
+
+final class GitDaemonReceivePackTransport implements ReceivePackTransport
+{
+    private readonly StreamReceivePackTransport $streamTransport;
+
+    /**
+     * @param resource $readStream
+     * @param resource $writeStream
+     * @param list<string> $extraParameters
+     */
+    public function __construct(
+        mixed $readStream,
+        mixed $writeStream,
+        string $repositoryPath,
+        string $host,
+        ?int $port = null,
+        array $extraParameters = [],
+    ) {
+        if (!is_resource($readStream) || !is_resource($writeStream)) {
+            throw new \InvalidArgumentException('git-daemon receive-pack transport expects readable and writable stream resources');
+        }
+
+        self::writeAll($writeStream, self::serviceRequestBytes($repositoryPath, $host, $port, $extraParameters));
+        if (!fflush($writeStream)) {
+            throw new \RuntimeException('git-daemon receive-pack transport failed to flush service request');
+        }
+
+        $this->streamTransport = new StreamReceivePackTransport($readStream, $writeStream);
+    }
+
+    /**
+     * @param list<string> $extraParameters
+     */
+    public static function connect(string $url, float $timeout = 30.0, array $extraParameters = []): self
+    {
+        if ($timeout <= 0.0) {
+            throw new \InvalidArgumentException('git-daemon receive-pack transport timeout must be greater than zero');
+        }
+
+        $target = self::parseGitUrl($url);
+        self::serviceRequestBytes($target['path'], $target['host'], $target['port'], $extraParameters);
+
+        $connectPort = $target['port'] ?? 9418;
+        $address = self::tcpAddress($target['host']);
+        $errno = 0;
+        $errstr = '';
+        $stream = @stream_socket_client("tcp://{$address}:{$connectPort}", $errno, $errstr, $timeout);
+        if ($stream === false) {
+            $reason = $errstr !== '' ? "{$errstr} ({$errno})" : "error {$errno}";
+            throw new \RuntimeException("git-daemon receive-pack transport failed to connect to {$target['host']}:{$connectPort}: {$reason}");
+        }
+
+        $seconds = (int) floor($timeout);
+        $microseconds = (int) (($timeout - $seconds) * 1_000_000);
+        stream_set_timeout($stream, $seconds, $microseconds);
+
+        return new self($stream, $stream, $target['path'], $target['host'], $target['port'], $extraParameters);
+    }
+
+    /**
+     * @param list<string> $extraParameters
+     */
+    public static function serviceRequestBytes(
+        string $repositoryPath,
+        string $host,
+        ?int $port = null,
+        array $extraParameters = [],
+    ): string {
+        self::validateRepositoryPath($repositoryPath);
+        self::validateHost($host);
+        self::validatePort($port);
+        self::validateExtraParameters($extraParameters);
+
+        $hostParameter = 'host=' . self::hostParameterValue($host, $port) . "\0";
+        $payload = "git-receive-pack {$repositoryPath}\0{$hostParameter}";
+        if ($extraParameters !== []) {
+            $payload .= "\0" . implode("\0", $extraParameters) . "\0";
+        }
+
+        $length = strlen($payload) + 4;
+        if ($length > 0xffff) {
+            throw new \InvalidArgumentException('git-daemon receive-pack service request is too large for one pkt-line');
+        }
+
+        return sprintf('%04x', $length) . $payload;
+    }
+
+    public function readAdvertisement(): string
+    {
+        return $this->streamTransport->readAdvertisement();
+    }
+
+    public function writeRequest(string $requestBytes): void
+    {
+        $this->streamTransport->writeRequest($requestBytes);
+    }
+
+    public function readResponse(): string
+    {
+        return $this->streamTransport->readResponse();
+    }
+
+    /**
+     * @return array{host: string, path: string, port: ?int}
+     */
+    private static function parseGitUrl(string $url): array
+    {
+        try {
+            $parts = parse_url($url);
+        } catch (\ValueError $error) {
+            throw new \InvalidArgumentException('git-daemon receive-pack transport could not parse git URL', 0, $error);
+        }
+
+        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'git') {
+            throw new \InvalidArgumentException('git-daemon receive-pack transport expects a git:// URL');
+        }
+        if (!isset($parts['host']) || !is_string($parts['host']) || $parts['host'] === '') {
+            throw new \InvalidArgumentException('git-daemon receive-pack URL must include a host');
+        }
+        if (!isset($parts['path']) || !is_string($parts['path']) || $parts['path'] === '' || $parts['path'] === '/') {
+            throw new \InvalidArgumentException('git-daemon receive-pack URL must include a repository path');
+        }
+        if (isset($parts['query']) || isset($parts['fragment']) || isset($parts['user']) || isset($parts['pass'])) {
+            throw new \InvalidArgumentException('git-daemon receive-pack URL does not support user info, query, or fragment components');
+        }
+
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+
+        return [
+            'host' => $parts['host'],
+            'path' => $parts['path'],
+            'port' => $port,
+        ];
+    }
+
+    private static function validateRepositoryPath(string $repositoryPath): void
+    {
+        if ($repositoryPath === '' || str_contains($repositoryPath, "\0")) {
+            throw new \InvalidArgumentException('git-daemon receive-pack repository path must be non-empty and must not contain NUL bytes');
+        }
+    }
+
+    private static function validateHost(string $host): void
+    {
+        if ($host === '' || str_contains($host, "\0")) {
+            throw new \InvalidArgumentException('git-daemon receive-pack host must be non-empty and must not contain NUL bytes');
+        }
+    }
+
+    private static function validatePort(?int $port): void
+    {
+        if ($port !== null && ($port < 1 || $port > 65535)) {
+            throw new \InvalidArgumentException('git-daemon receive-pack port must be between 1 and 65535');
+        }
+    }
+
+    /**
+     * @param list<string> $extraParameters
+     */
+    private static function validateExtraParameters(array $extraParameters): void
+    {
+        foreach ($extraParameters as $extraParameter) {
+            if (!is_string($extraParameter) || $extraParameter === '' || str_contains($extraParameter, "\0")) {
+                throw new \InvalidArgumentException('git-daemon receive-pack extra parameters must be non-empty strings without NUL bytes');
+            }
+        }
+    }
+
+    private static function hostParameterValue(string $host, ?int $port): string
+    {
+        if ($port === null) {
+            return $host;
+        }
+        if (str_contains($host, ':') && !str_starts_with($host, '[')) {
+            return "[{$host}]:{$port}";
+        }
+
+        return "{$host}:{$port}";
+    }
+
+    private static function tcpAddress(string $host): string
+    {
+        if (str_contains($host, ':') && !str_starts_with($host, '[')) {
+            return "[{$host}]";
+        }
+
+        return $host;
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private static function writeAll(mixed $stream, string $bytes): void
+    {
+        $offset = 0;
+        while ($offset < strlen($bytes)) {
+            $written = fwrite($stream, substr($bytes, $offset));
+            if ($written === false || $written === 0) {
+                throw new \RuntimeException('git-daemon receive-pack transport failed while writing service request');
+            }
+            $offset += $written;
+        }
+    }
+}

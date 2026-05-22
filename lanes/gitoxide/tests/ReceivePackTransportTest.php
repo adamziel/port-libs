@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
 use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
@@ -91,6 +92,52 @@ return [
         $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
         $t->contains('refs/heads/main', $streamBytes($write));
         $t->contains('PACK', $streamBytes($write));
+    },
+    'git-daemon receive-pack transport sends service request and delegates client flow' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress git-daemon transport payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02Writing objects: 100% (1/1)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $read = $streamWith($advertisement . $responseBytes);
+        $write = $streamWith('');
+        $transport = new GitDaemonReceivePackTransport($read, $write, '/wp-content.git', 'git.example.test', 9440);
+        $client = new ReceivePackClient($transport, 'port-libs/0.1');
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+        $written = $streamBytes($write);
+        $serviceLength = hexdec(substr($written, 0, 4));
+        $servicePayload = substr($written, 4, $serviceLength - 4);
+        $requestBytes = substr($written, $serviceLength);
+        [$commands, $packBytes] = $readPacketSequence($requestBytes);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['Writing objects: 100% (1/1)'], $response->progressMessages());
+        $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
+        $t->same("git-receive-pack /wp-content.git\0host=git.example.test:9440\0", $servicePayload);
+        $t->same($request->requestBytes(), $requestBytes);
+        $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
+        $t->same($request->pack()?->packBytes(), $packBytes);
+    },
+    'git-daemon receive-pack service request validates urls and parameters' => static function (TestRunner $t): void {
+        $packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test');
+        $t->same("git-receive-pack /repo.git\0host=example.test\0", substr($packet, 4));
+
+        $packetWithExtra = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 9440, ['version=1']);
+        $t->same("git-receive-pack /repo.git\0host=example.test:9440\0\0version=1\0", substr($packetWithExtra, 4));
+
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('https://example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('git://example.test'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', ''));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes("/bad\0repo", 'example.test'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 0));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\0extra"]));
     },
     'receive-pack transport guards state order and truncated packet streams' => static function (TestRunner $t) use ($streamWith): void {
         $transport = new StreamReceivePackTransport($streamWith(''), $streamWith(''));
