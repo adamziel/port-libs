@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native JavaScript lexer for identifiers, numbers, strings, comments, and punctuators.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Map parser tests and add JS/TS lexer token coverage."
 }

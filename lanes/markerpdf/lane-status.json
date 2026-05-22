@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native PDF content stream text-run extraction for literal, array, hex, and FlateDecode streams.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Add more PDF operators and map markerPDF extraction pipeline fixtures."
 }

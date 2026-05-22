@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native table diff classification by primary key.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Map table-diff tests and add row schema/key encoding."
 }

@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native content block hashing and verification primitives.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Map protocol tests and add block vector/update conflict fixtures."
 }

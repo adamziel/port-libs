@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native CSS comment/whitespace minifier and declaration block parser.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Broaden tokenizer fixtures and map Lightning CSS parser/minifier tests."
 }

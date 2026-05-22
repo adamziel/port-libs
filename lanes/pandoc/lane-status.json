@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native Markdown block reader and WordPress block writer for headings, paragraphs, and lists.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Add inline marks/list nesting and map Pandoc native AST tests."
 }

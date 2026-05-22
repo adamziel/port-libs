@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native token-level differ that avoids raw line-only comparison.",
     "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "pending first repository commit",
+    "latestCommit": "079f990fce6d",
     "nextTask": "Map parser fixtures and replace generic tokens with syntax-tree anchors."
 }
