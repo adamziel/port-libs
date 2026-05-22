@@ -59,8 +59,9 @@ final class CssMinifier
         }
 
         $css = $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
+        $css = $this->composeTransitionDeclarationBlocks($css);
 
-        return $this->composeTransitionDeclarationBlocks($css);
+        return $this->composeAnimationDeclarationBlocks($css);
     }
 
     private function stripComments(string $css): string
@@ -352,6 +353,12 @@ final class CssMinifier
             'animation-play-state',
             'animation-fill-mode',
             'animation-composition' => $this->mapCommaList($value, static fn (string $part): string => strtolower(trim($part))),
+            'animation-timeline' => $this->mapCommaList(
+                $value,
+                fn (string $part): string => $this->isAnimationTimelineToken($part)
+                    ? $this->minifyAnimationTimelineToken($part)
+                    : trim($part)
+            ),
             default => $value,
         };
     }
@@ -1194,6 +1201,50 @@ final class CssMinifier
         return $this->serializeDeclarationEntriesForComposition($entries);
     }
 
+    private function composeAnimationDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeAnimationDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeAnimationDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeAnimationDeclarationList(string $body): string
+    {
+        if (stripos($body, 'animation') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['-webkit-', '-moz-', ''] as $prefix) {
+            $this->rewriteAnimationGroup($entries, $prefix);
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
     /**
      * @return list<array{property:string,name:string,value:string,important:bool,drop:bool}>|null
      */
@@ -1410,6 +1461,418 @@ final class CssMinifier
             'important' => false,
             'drop' => false,
         ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteAnimationGroup(array &$entries, string $prefix): void
+    {
+        $properties = [
+            'animation' => $prefix . 'animation',
+            'name' => $prefix . 'animation-name',
+            'duration' => $prefix . 'animation-duration',
+            'timing' => $prefix . 'animation-timing-function',
+            'delay' => $prefix . 'animation-delay',
+            'iteration' => $prefix . 'animation-iteration-count',
+            'direction' => $prefix . 'animation-direction',
+            'fill' => $prefix . 'animation-fill-mode',
+            'play' => $prefix . 'animation-play-state',
+            'timeline' => $prefix . 'animation-timeline',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === $properties['animation']) {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseAnimationShorthandComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'animation') {
+                    continue;
+                }
+
+                $values = $this->parseAnimationLonghandList($component, $entries[$index]['value']);
+                if ($values === null || count($values) !== count($state['name'])) {
+                    continue;
+                }
+
+                $state[$component] = $values;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeAnimationComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'animation') {
+                $latest[$component] = $index;
+            }
+        }
+
+        foreach (['name', 'duration', 'timing', 'delay', 'iteration', 'direction', 'fill', 'play'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+
+        $state = [
+            'duration' => [],
+            'timing' => [],
+            'delay' => [],
+            'iteration' => [],
+            'direction' => [],
+            'fill' => [],
+            'play' => [],
+            'name' => [],
+            'timeline' => [],
+        ];
+        foreach ($latest as $component => $index) {
+            $values = $this->parseAnimationLonghandList($component, $entries[$index]['value']);
+            if ($values === null) {
+                return;
+            }
+            $state[$component] = $values;
+        }
+
+        if ($state['timeline'] === []) {
+            $state['timeline'] = array_fill(0, count($state['name']), 'auto');
+        }
+
+        $counts = array_map('count', $state);
+        if (count(array_unique($counts)) !== 1) {
+            return;
+        }
+
+        $replaceAt = min(array_values($latest));
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $properties['animation'],
+            'name' => $properties['animation'],
+            'value' => $this->serializeAnimationComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @return array{duration:list<string>,timing:list<string>,delay:list<string>,iteration:list<string>,direction:list<string>,fill:list<string>,play:list<string>,name:list<string>,timeline:list<string>}|null
+     */
+    private function parseAnimationShorthandComponents(string $value): ?array
+    {
+        if (stripos($value, 'var(') !== false) {
+            return null;
+        }
+
+        $state = [
+            'duration' => [],
+            'timing' => [],
+            'delay' => [],
+            'iteration' => [],
+            'direction' => [],
+            'fill' => [],
+            'play' => [],
+            'name' => [],
+            'timeline' => [],
+        ];
+
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $components = $this->parseAnimationLayerComponents($layer);
+            if ($components === null) {
+                return null;
+            }
+            foreach ($components as $component => $componentValue) {
+                $state[$component][] = $componentValue;
+            }
+        }
+
+        return $state;
+    }
+
+    /**
+     * @return array{duration:string,timing:string,delay:string,iteration:string,direction:string,fill:string,play:string,name:string,timeline:string}|null
+     */
+    private function parseAnimationLayerComponents(string $layer): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $components = [
+            'duration' => null,
+            'timing' => null,
+            'delay' => null,
+            'iteration' => null,
+            'direction' => null,
+            'fill' => null,
+            'play' => null,
+            'name' => null,
+            'timeline' => null,
+        ];
+
+        foreach ($tokens as $index => $token) {
+            $lower = strtolower($token);
+
+            if ($this->isQuotedStringToken($token)) {
+                if ($components['name'] !== null) {
+                    return null;
+                }
+                $components['name'] = $this->minifyAnimationName($token);
+                continue;
+            }
+
+            if ($this->isTimeValue($token)) {
+                if ($components['duration'] === null) {
+                    $components['duration'] = $this->minifyTimeValue($token);
+                    continue;
+                }
+                if ($components['delay'] === null) {
+                    $components['delay'] = $this->minifyTimeValue($token);
+                    continue;
+                }
+
+                return null;
+            }
+
+            if ($components['timing'] === null && $this->isTransitionTimingFunction($token)) {
+                $components['timing'] = $this->minifyTransitionTimingFunction($token);
+                continue;
+            }
+
+            if ($components['iteration'] === null && $this->isAnimationIterationToken($lower)) {
+                $components['iteration'] = $this->minifyAnimationIterationCount($lower);
+                continue;
+            }
+
+            if ($components['direction'] === null && in_array($lower, ['normal', 'reverse', 'alternate', 'alternate-reverse'], true)) {
+                $components['direction'] = $lower;
+                continue;
+            }
+
+            if ($components['fill'] === null && in_array($lower, ['none', 'forwards', 'backwards', 'both'], true)) {
+                if ($lower !== 'none' || $components['name'] !== null || $this->hasFutureAnimationNameToken($tokens, $index + 1)) {
+                    $components['fill'] = $lower;
+                    continue;
+                }
+            }
+
+            if ($components['play'] === null && in_array($lower, ['running', 'paused'], true)) {
+                $components['play'] = $lower;
+                continue;
+            }
+
+            if ($components['timeline'] === null && $this->isAnimationTimelineToken($token)) {
+                $components['timeline'] = $this->minifyAnimationTimelineToken($token);
+                continue;
+            }
+
+            if ($components['name'] !== null) {
+                return null;
+            }
+            $components['name'] = $this->minifyAnimationName($token);
+        }
+
+        return [
+            'duration' => $components['duration'] ?? '0s',
+            'timing' => $components['timing'] ?? 'ease',
+            'delay' => $components['delay'] ?? '0s',
+            'iteration' => $components['iteration'] ?? '1',
+            'direction' => $components['direction'] ?? 'normal',
+            'fill' => $components['fill'] ?? 'none',
+            'play' => $components['play'] ?? 'running',
+            'name' => $components['name'] ?? 'none',
+            'timeline' => $components['timeline'] ?? 'auto',
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseAnimationLonghandList(string $component, string $value): ?array
+    {
+        if ($component === 'name') {
+            return $this->mapAnimationComponentList(
+                $value,
+                function (string $part): ?string {
+                    $part = trim($part);
+
+                    return $part === '' ? null : $this->minifyAnimationName($part);
+                }
+            );
+        }
+
+        if ($component === 'duration' || $component === 'delay') {
+            return $this->mapAnimationComponentList(
+                $value,
+                fn (string $part): ?string => $this->isTimeValue($part) ? $this->minifyTimeValue($part) : null
+            );
+        }
+
+        if ($component === 'timing') {
+            return $this->mapAnimationComponentList(
+                $value,
+                fn (string $part): ?string => $this->isTransitionTimingFunction($part) ? $this->minifyTransitionTimingFunction($part) : null
+            );
+        }
+
+        if ($component === 'iteration') {
+            return $this->mapAnimationComponentList(
+                $value,
+                fn (string $part): ?string => $this->isAnimationIterationToken(strtolower(trim($part)))
+                    ? $this->minifyAnimationIterationCount($part)
+                    : null
+            );
+        }
+
+        if ($component === 'direction') {
+            return $this->mapAnimationComponentList(
+                $value,
+                static function (string $part): ?string {
+                    $part = strtolower(trim($part));
+
+                    return in_array($part, ['normal', 'reverse', 'alternate', 'alternate-reverse'], true) ? $part : null;
+                }
+            );
+        }
+
+        if ($component === 'fill') {
+            return $this->mapAnimationComponentList(
+                $value,
+                static function (string $part): ?string {
+                    $part = strtolower(trim($part));
+
+                    return in_array($part, ['none', 'forwards', 'backwards', 'both'], true) ? $part : null;
+                }
+            );
+        }
+
+        if ($component === 'play') {
+            return $this->mapAnimationComponentList(
+                $value,
+                static function (string $part): ?string {
+                    $part = strtolower(trim($part));
+
+                    return in_array($part, ['running', 'paused'], true) ? $part : null;
+                }
+            );
+        }
+
+        if ($component === 'timeline') {
+            return $this->mapAnimationComponentList(
+                $value,
+                fn (string $part): ?string => $this->isAnimationTimelineToken($part)
+                    ? $this->minifyAnimationTimelineToken($part)
+                    : null
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function mapAnimationComponentList(string $value, callable $mapper): ?array
+    {
+        $mapped = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $component = $mapper($part);
+            if ($component === null) {
+                return null;
+            }
+            $mapped[] = $component;
+        }
+
+        return $mapped === [] ? null : $mapped;
+    }
+
+    /**
+     * @param array{duration:list<string>,timing:list<string>,delay:list<string>,iteration:list<string>,direction:list<string>,fill:list<string>,play:list<string>,name:list<string>,timeline:list<string>} $state
+     */
+    private function serializeAnimationComponents(array $state): string
+    {
+        $count = max(
+            count($state['duration']),
+            count($state['timing']),
+            count($state['delay']),
+            count($state['iteration']),
+            count($state['direction']),
+            count($state['fill']),
+            count($state['play']),
+            count($state['name']),
+            count($state['timeline'])
+        );
+        $layers = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $layers[] = $this->serializeAnimationShorthandLayer([
+                'duration' => $this->animationComponentAt($state['duration'], $i, '0s'),
+                'timing' => $this->animationComponentAt($state['timing'], $i, 'ease'),
+                'delay' => $this->animationComponentAt($state['delay'], $i, '0s'),
+                'iteration' => $this->animationComponentAt($state['iteration'], $i, '1'),
+                'direction' => $this->animationComponentAt($state['direction'], $i, 'normal'),
+                'fill' => $this->animationComponentAt($state['fill'], $i, 'none'),
+                'play' => $this->animationComponentAt($state['play'], $i, 'running'),
+                'name' => $this->animationComponentAt($state['name'], $i, 'none'),
+                'timeline' => $this->animationComponentAt($state['timeline'], $i, 'auto'),
+            ]);
+        }
+
+        return implode(',', $layers);
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private function animationComponentAt(array $values, int $index, string $default): string
+    {
+        if ($values === []) {
+            return $default;
+        }
+
+        return $values[$index % count($values)];
     }
 
     /**

@@ -77,6 +77,54 @@ return [
         $t->same('.foo{animation:3s foo scroll()}', $minifier->minify('.foo { animation: foo 3s scroll(block) }'));
         $t->same('.foo{animation:3s foo view(inline 10px)}', $minifier->minify('.foo { animation: foo 3s view(inline 10px 10px) }'));
     },
+    'css minifier maps upstream animation longhand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{animation:90ms ease-in-out .1s 2 alternate forwards foo}',
+            $minifier->minify('.foo { animation-name: foo; animation-duration: 0.09s; animation-timing-function: ease-in-out; animation-iteration-count: 2; animation-direction: alternate; animation-play-state: running; animation-delay: 100ms; animation-fill-mode: forwards; animation-timeline: auto; }')
+        );
+        $t->same(
+            '.foo{animation:90ms ease-in-out .1s 2 alternate forwards foo,.2s paused bar}',
+            $minifier->minify('.foo { animation-name: foo, bar; animation-duration: 0.09s, 200ms; animation-timing-function: ease-in-out, ease; animation-iteration-count: 2, 1; animation-direction: alternate, normal; animation-play-state: running, paused; animation-delay: 100ms, 0s; animation-fill-mode: forwards, none; animation-timeline: auto, auto; }')
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $minifier->minify('.foo { animation: bar 200ms; animation-timing-function: ease-in-out; }')
+        );
+        $t->same(
+            '.foo{animation:.2s bar;animation-timing-function:var(--ease)}',
+            $minifier->minify('.foo { animation: bar 200ms; animation-timing-function: var(--ease); }')
+        );
+        $t->same(
+            '.foo{animation-name:foo,bar;animation-duration:90ms;animation-timing-function:ease-in-out;animation-iteration-count:2;animation-direction:alternate;animation-play-state:running;animation-delay:.1s;animation-fill-mode:forwards;animation-timeline:auto}',
+            $minifier->minify('.foo { animation-name: foo, bar; animation-duration: 0.09s; animation-timing-function: ease-in-out; animation-iteration-count: 2; animation-direction: alternate; animation-play-state: running; animation-delay: 100ms; animation-fill-mode: forwards; animation-timeline: auto; }')
+        );
+        $t->same(
+            '.foo{animation:90ms ease-in-out .1s 2 alternate forwards foo scroll()}',
+            $minifier->minify('.foo { animation-name: foo; animation-duration: 0.09s; animation-timing-function: ease-in-out; animation-iteration-count: 2; animation-direction: alternate; animation-play-state: running; animation-delay: 100ms; animation-fill-mode: forwards; animation-timeline: scroll(); }')
+        );
+        $t->same(
+            '.foo{animation-name:foo;animation-duration:90ms;animation-timing-function:ease-in-out;animation-iteration-count:2;animation-direction:alternate;animation-play-state:running;animation-delay:.1s;animation-fill-mode:forwards;animation-timeline:scroll(),view()}',
+            $minifier->minify('.foo { animation-name: foo; animation-duration: 0.09s; animation-timing-function: ease-in-out; animation-iteration-count: 2; animation-direction: alternate; animation-play-state: running; animation-delay: 100ms; animation-fill-mode: forwards; animation-timeline: scroll(), view(); }')
+        );
+    },
+    'css minifier maps upstream prefixed animation composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{-webkit-animation:90ms ease-in-out .1s 2 alternate forwards foo}',
+            $minifier->minify('.foo { -webkit-animation-name: foo; -webkit-animation-duration: 0.09s; -webkit-animation-timing-function: ease-in-out; -webkit-animation-iteration-count: 2; -webkit-animation-direction: alternate; -webkit-animation-play-state: running; -webkit-animation-delay: 100ms; -webkit-animation-fill-mode: forwards; }')
+        );
+        $t->same(
+            '.foo{-moz-animation:.2s ease-in-out bar}',
+            $minifier->minify('.foo { -moz-animation: bar 200ms; -moz-animation-timing-function: ease-in-out; }')
+        );
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;-moz-animation:.2s ease-in-out bar}',
+            $minifier->minify('.foo { -webkit-animation: bar 200ms; -webkit-animation-timing-function: ease-in-out; -moz-animation: bar 200ms; -moz-animation-timing-function: ease-in-out; }')
+        );
+    },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -269,6 +317,26 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-entrance{animation:3s ease-in .1s 2 alternate backwards wp-cover-entrance scroll()}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block animation longhands compose without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-entrance {
+  animation-name: wp-cover-entrance;
+  animation-duration: 90ms;
+  animation-timing-function: ease-in-out;
+  animation-delay: 100ms;
+  animation-iteration-count: 2;
+  animation-direction: alternate;
+  animation-fill-mode: forwards;
+  animation-play-state: running;
+  animation-timeline: scroll();
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-entrance{animation:90ms ease-in-out .1s 2 alternate forwards wp-cover-entrance scroll()}',
             (new CssMinifier())->minify($css)
         );
     },
