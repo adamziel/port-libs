@@ -21,6 +21,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `DOLT_COMMIT_DIFF_<table>` row projection that requires exactly one `from_commit` and one `to_commit`, then applies `to_*` / `from_*` key predicates to commit snapshots.
 - Native `dolt_log` and `dolt_commits` commit metadata projection, including computed commit order, selected-head ancestry, refs decoration, and opt-in parents/signature columns.
 - Native `dolt_commit_ancestors` row projection, including root null-parent rows, merge parent indexes, commit_hash filtering that preserves both merge parents, and parent-hash joins back to `dolt_log` messages.
+- Native `has_ancestor()` commit graph checks, including branch/tag/full-ref/HEAD/hash resolution plus Dolt ancestor suffixes (`^`, `^N`, and `~N`).
 
 ## Scenario Fixtures
 
@@ -56,7 +57,9 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-commit-log-review.php` returns `dolt_log` rows with parents and decorated refs plus `dolt_commits` rows, so a migration UI can audit which import branch produced each data checkpoint without shelling out to Dolt.
 - `fixtures/wp-commit-ancestors-review.php` models the same reviewed import merge as parent-edge rows from `dolt_commit_ancestors`.
 - `examples/wordpress-commit-ancestors-review.php` returns merge parent hashes and parent-index-ordered log messages, so a migration UI can explain which branch each reviewed data checkpoint merged without shelling out to Dolt.
+- `fixtures/wp-has-ancestor-review.php` models branch/tag containment checks for the reviewed import merge, including whether `main` contains the media-import branch and whether `main^2` / `main~2` resolve to the expected review parents.
+- `examples/wordpress-has-ancestor-review.php` returns `has_ancestor` booleans and resolved commit specs, so a migration UI can gate promotion on branch ancestry without shelling out to Dolt.
 
 ## Next Task
 
-Port a narrow native `has_ancestor()` or branch ancestry predicate slice using the same commit graph model, once the unrelated root-suite failure is cleared.
+Broaden branch history coverage with `dolt_branches` / branch activity table projections, or add revision-range filtering for native `dolt_log()`.
