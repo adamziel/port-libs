@@ -184,7 +184,8 @@ final class SQLiteDatabase
         );
 
         if ($header->pageType === 'table-leaf') {
-            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $this->usablePageSize()) as $cell) {
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
                 if ($limit !== null && count($cells) >= $limit) {
                     return;
                 }
@@ -207,5 +208,56 @@ final class SQLiteDatabase
             }
         }
         $this->collectTableLeafCells($header->rightMostPointer, $visited, $cells, $limit);
+    }
+
+    private function readOverflowPayload(int $firstOverflowPage, int $byteCount): string
+    {
+        if ($byteCount < 0) {
+            throw new \InvalidArgumentException('SQLite overflow byte count cannot be negative');
+        }
+        if ($byteCount === 0) {
+            return '';
+        }
+
+        $usableSize = $this->usablePageSize();
+        $overflowPagePayloadSize = $usableSize - 4;
+        if ($overflowPagePayloadSize <= 0) {
+            throw new \InvalidArgumentException('SQLite overflow page payload size is invalid');
+        }
+
+        $payload = '';
+        $remaining = $byteCount;
+        $pageNumber = $firstOverflowPage;
+        $visited = [];
+        while ($remaining > 0) {
+            if ($pageNumber < 2) {
+                throw new \InvalidArgumentException('SQLite overflow chain ended before payload was complete');
+            }
+            if (isset($visited[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite overflow chain loops at page {$pageNumber}");
+            }
+            if ($pageNumber > $this->pageCount()) {
+                throw new \InvalidArgumentException("SQLite overflow page {$pageNumber} is not present in the database image");
+            }
+            $visited[$pageNumber] = true;
+
+            $page = $this->page($pageNumber);
+            $nextPage = self::readUInt32($page, 0);
+            $chunkLength = min($remaining, $overflowPagePayloadSize);
+            $payload .= substr($page, 4, $chunkLength);
+            $remaining -= $chunkLength;
+            $pageNumber = $nextPage;
+        }
+
+        return $payload;
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        if ($offset < 0 || $offset + 4 > strlen($bytes)) {
+            throw new \InvalidArgumentException('SQLite uint32 field is truncated');
+        }
+
+        return unpack('N', substr($bytes, $offset, 4))[1];
     }
 }

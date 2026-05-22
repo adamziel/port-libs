@@ -15,7 +15,10 @@ final class SQLiteTableLeafCell
     ) {
     }
 
-    public static function parse(string $page, int $offset, ?int $usableSize = null): self
+    /**
+     * @param null|callable(int, int): string $overflowReader
+     */
+    public static function parse(string $page, int $offset, ?int $usableSize = null, ?callable $overflowReader = null): self
     {
         $usableSize ??= strlen($page);
         if ($usableSize < 0 || $usableSize > strlen($page)) {
@@ -28,26 +31,45 @@ final class SQLiteTableLeafCell
         [$payloadLength, $payloadLengthBytes] = SQLiteVarint::decode($page, $offset);
         [$rowId, $rowIdBytes] = SQLiteVarint::decode($page, $offset + $payloadLengthBytes);
         $payloadOffset = $offset + $payloadLengthBytes + $rowIdBytes;
-        if ($payloadLength > self::maxLocalTablePayload($usableSize)) {
-            throw new \InvalidArgumentException('SQLite table leaf overflow payloads are not yet supported');
+        $localPayloadLength = self::localPayloadLength($payloadLength, $usableSize);
+        if ($payloadOffset + $localPayloadLength > $usableSize) {
+            throw new \InvalidArgumentException('SQLite table leaf cell local payload extends beyond the page');
         }
-        if ($payloadLength < 0 || $payloadOffset + $payloadLength > $usableSize) {
-            throw new \InvalidArgumentException('SQLite table leaf cell payload extends beyond the page');
+
+        $payload = substr($page, $payloadOffset, $localPayloadLength);
+        $bytesRead = $payloadLengthBytes + $rowIdBytes + $localPayloadLength;
+        if ($localPayloadLength < $payloadLength) {
+            if ($payloadOffset + $localPayloadLength + 4 > $usableSize) {
+                throw new \InvalidArgumentException('SQLite table leaf cell overflow pointer extends beyond the page');
+            }
+            if ($overflowReader === null) {
+                throw new \InvalidArgumentException('SQLite table leaf overflow payloads require an overflow reader');
+            }
+            $firstOverflowPage = self::readUInt32($page, $payloadOffset + $localPayloadLength);
+            if ($firstOverflowPage < 1) {
+                throw new \InvalidArgumentException('SQLite table leaf cell first overflow page is invalid');
+            }
+            $overflowPayload = $overflowReader($firstOverflowPage, $payloadLength - $localPayloadLength);
+            if (strlen($overflowPayload) !== $payloadLength - $localPayloadLength) {
+                throw new \InvalidArgumentException('SQLite table leaf overflow reader returned the wrong byte count');
+            }
+            $payload .= $overflowPayload;
+            $bytesRead += 4;
         }
 
         return new self(
             $payloadLength,
             $rowId,
-            substr($page, $payloadOffset, $payloadLength),
+            $payload,
             $offset,
-            $payloadLengthBytes + $rowIdBytes + $payloadLength,
+            $bytesRead,
         );
     }
 
     /**
      * @return list<self>
      */
-    public static function parsePageCells(string $page, SQLiteBTreePageHeader $header, ?int $usableSize = null): array
+    public static function parsePageCells(string $page, SQLiteBTreePageHeader $header, ?int $usableSize = null, ?callable $overflowReader = null): array
     {
         if (!$header->hasLeafData()) {
             throw new \InvalidArgumentException('SQLite table leaf cells require a table leaf b-tree page');
@@ -56,10 +78,27 @@ final class SQLiteTableLeafCell
 
         $cells = [];
         foreach ($header->cellPointers($page) as $pointer) {
-            $cells[] = self::parse($page, $pointer, $usableSize);
+            $cells[] = self::parse($page, $pointer, $usableSize, $overflowReader);
         }
 
         return $cells;
+    }
+
+    public static function localPayloadLength(int $payloadLength, int $usableSize): int
+    {
+        if ($payloadLength < 0) {
+            throw new \InvalidArgumentException('SQLite table leaf payload length cannot be negative');
+        }
+
+        $maxLocal = self::maxLocalTablePayload($usableSize);
+        if ($payloadLength <= $maxLocal) {
+            return $payloadLength;
+        }
+
+        $minLocal = self::minLocalTablePayload($usableSize);
+        $surplus = $minLocal + (($payloadLength - $minLocal) % ($usableSize - 4));
+
+        return $surplus <= $maxLocal ? $surplus : $minLocal;
     }
 
     private static function maxLocalTablePayload(int $usableSize): int
@@ -69,5 +108,23 @@ final class SQLiteTableLeafCell
         }
 
         return $usableSize - 35;
+    }
+
+    private static function minLocalTablePayload(int $usableSize): int
+    {
+        if ($usableSize < 480) {
+            throw new \InvalidArgumentException('SQLite table leaf usable size must be at least 480 bytes');
+        }
+
+        return intdiv(($usableSize - 12) * 32, 255) - 23;
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        if ($offset < 0 || $offset + 4 > strlen($bytes)) {
+            throw new \InvalidArgumentException('SQLite uint32 field is truncated');
+        }
+
+        return unpack('N', substr($bytes, $offset, 4))[1];
     }
 }

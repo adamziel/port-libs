@@ -81,3 +81,20 @@ Result: 1235 scripts, 0 errors out of 329670 tests in 01:51.
 Boundary: SQLite `all` and `release` permutations were not run in this bounded
 lane pass because they cover many build configurations and higher-cost suites.
 The stale missing `tclsh`/compiler/`make`/Tcl-header blocker is resolved.
+
+## Focused Native Mapping: Table Leaf Overflow
+
+The current PHP slice maps SQLite's table leaf overflow payload placement from
+`src/btree.c`: `maxLeaf = usableSize - 35`, `minLeaf =
+((usableSize - 12) * 32 / 255) - 23`, and overflow pages store a 4-byte
+big-endian next-page pointer followed by up to `usableSize - 4` payload bytes.
+
+Focused upstream fixture boundary:
+
+- `test/corrupt3.test` creates a page-size 1024 table row with one overflow
+  page, verifies the first overflow pointer location, and checks malformed
+  overflow chains.
+
+The native PHP tests now cover local-payload length calculation, single-page
+overflow reads, multi-page chained overflow reads, and premature overflow-chain
+termination for WordPress-shaped `wp_options` rows.

@@ -146,6 +146,27 @@ $tableInteriorPage = static function (array $cells, int $rightMostPage, int $pag
     return $page;
 };
 
+$overflowLeafCell = static function (string $payload, int $rowId, int $firstOverflowPage, int $usableSize = 512) use ($varint): array {
+    $localLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+
+    return [
+        $varint(strlen($payload)) . $varint($rowId) . substr($payload, 0, $localLength) . pack('N', $firstOverflowPage),
+        substr($payload, $localLength),
+        $localLength,
+    ];
+};
+
+$overflowPage = static function (string $payload, int $nextPage = 0, int $pageSize = 512): string {
+    if (strlen($payload) > $pageSize - 4) {
+        throw new RuntimeException('Fixture overflow payload does not fit on one page');
+    }
+
+    $page = str_repeat("\0", $pageSize);
+    $page = substr_replace($page, pack('N', $nextPage), 0, 4);
+
+    return substr_replace($page, $payload, 4, strlen($payload));
+};
+
 return [
     'parses core sqlite database header fields' => static function (TestRunner $t): void {
         $header = str_repeat("\0", 100);
@@ -267,6 +288,11 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafCell::parse($page, $offset));
     },
+    'computes sqlite table leaf local payload length for overflow rows' => static function (TestRunner $t): void {
+        $t->same(477, SQLiteTableLeafCell::localPayloadLength(477, 512));
+        $t->same(39, SQLiteTableLeafCell::localPayloadLength(478, 512));
+        $t->same(78, SQLiteTableLeafCell::localPayloadLength(586, 512));
+    },
     'sqlite records decode core serial types' => static function (TestRunner $t) use ($varint): void {
         $serialTypes = [0, 8, 9, 1, 2, 3, 4, 5, 6, 7, 18, 19];
         $header = implode('', array_map($varint, $serialTypes));
@@ -384,15 +410,67 @@ return [
         $t->same(1, count($bounded));
         $t->same('siteurl', $bounded[0]->optionName);
     },
+    'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
+        $largeValue = str_repeat('0123456789', 56) . 'endxx';
+        $payload = $recordPayload([null, 'large_option', $largeValue, 'yes']);
+        [$cell, $overflowPayload, $localLength] = $overflowLeafCell($payload, 1, 3);
+
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([$cell]);
+        $page3 = $overflowPage($overflowPayload);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+        $options = $database->wordpressOptions();
+
+        $t->same(78, $localLength);
+        $t->same(1, count($options));
+        $t->same('large_option', $options[0]->optionName);
+        $t->same($largeValue, $options[0]->optionValue);
+        $t->same('yes', $options[0]->autoload);
+    },
+    'reads a wordpress option value across chained sqlite overflow pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
+        $largeValue = str_repeat('A', 1100);
+        $payload = $recordPayload([null, 'autoload_blob', $largeValue, 'yes']);
+        [$cell, $overflowPayload] = $overflowLeafCell($payload, 1, 3);
+
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 4));
+        $page2 = $tableLeafPage([$cell]);
+        $page3 = $overflowPage(substr($overflowPayload, 0, 508), 4);
+        $page4 = $overflowPage(substr($overflowPayload, 508));
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+        $options = $database->wordpressOptions();
+
+        $t->same(1, count($options));
+        $t->same('autoload_blob', $options[0]->optionName);
+        $t->same(1100, strlen($options[0]->optionValue));
+        $t->same($largeValue, $options[0]->optionValue);
+    },
+    'rejects sqlite overflow chains that end before the payload is complete' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
+        $largeValue = str_repeat('B', 1100);
+        $payload = $recordPayload([null, 'broken_blob', $largeValue, 'yes']);
+        [$cell, $overflowPayload] = $overflowLeafCell($payload, 1, 3);
+
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([$cell]);
+        $page3 = $overflowPage(substr($overflowPayload, 0, 508), 0);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptions());
+    },
     'database reader rejects missing pages during btree traversal' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
         $page1 = $tableInteriorPage([[2, 1]], 3, 512, 100, $makeFirstPage(512, 1));
         $database = SQLiteDatabase::fromBytes($page1);
 
         $t->throws(InvalidArgumentException::class, static fn () => $database->schemaRecords());
     },
-    'table leaf cells reject overflow payloads until overflow pages are ported' => static function (TestRunner $t) use ($varint): void {
+    'standalone table leaf cells require an overflow reader for overflow payloads' => static function (TestRunner $t) use ($varint): void {
         $page = str_repeat("\0", 512);
-        $cell = $varint(478) . $varint(1) . str_repeat('x', 8);
+        $cell = $varint(478) . $varint(1) . str_repeat('x', 39) . pack('N', 3);
         $offset = 512 - strlen($cell);
         $page = substr_replace($page, $cell, $offset, strlen($cell));
 

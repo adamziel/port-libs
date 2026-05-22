@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 13,
+    "estimatedProgress": 14,
     "suiteProgress": "cloned static upstream inventory plus clean upstream SQLite veryquick runner parity",
-    "phpPass": 18,
+    "phpPass": 22,
     "phpFail": 0,
-    "wordpressScenarios": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, including bounded wp_options row inspection for recovery/import workflows.",
-    "phase": "upstream veryquick runner parity plus bounded wp_options row reader slice",
-    "audit": "audited 2026-05-22: upstream SQLite veryquick runner passes locally; PHP smoke coverage remains local mapped behavior only",
-    "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and table interior cell parsing, page-backed database reader, SQLite record serial decoding, sqlite_schema traversal, bounded table-row decoding, and standard wp_options option_id/option_name/option_value/autoload reads from resolved root pages.",
-    "blocker": "Remaining upstream boundary: full SQLite all/release permutations were not run in this bounded pass. Clean upstream evidence is configure, testfixture, and the full veryquick permutation passing 1235 scripts with 0 errors out of 329670 tests; no local Tcl/compiler/make prerequisite blocker remains. Native table leaf overflow payload chains remain unsupported and are rejected explicitly.",
-    "latestCommit": "38108a0",
-    "nextTask": "Port SQLite table leaf overflow payload chain reading so large wp_options option_value records can be decoded instead of being reported as unsupported."
+    "wordpressScenarios": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, including bounded wp_options row inspection and large option_value overflow reads for recovery/import workflows.",
+    "phase": "upstream veryquick runner parity plus table leaf overflow wp_options reader slice",
+    "audit": "audited 2026-05-22: upstream SQLite veryquick runner passes locally; PHP smoke coverage remains local mapped behavior only; root harness currently has unrelated Quadrable proof-update failures in the dirty workspace",
+    "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and table interior cell parsing, page-backed database reader, SQLite record serial decoding, sqlite_schema traversal, bounded table-row decoding, standard wp_options option_id/option_name/option_value/autoload reads from resolved root pages, and SQLite table leaf overflow payload chain reads for large option values.",
+    "blocker": "Remaining upstream boundary: full SQLite all/release permutations were not run in this bounded pass. Clean upstream evidence is configure, testfixture, and the full veryquick permutation passing 1235 scripts with 0 errors out of 329670 tests; no local Tcl/compiler/make prerequisite blocker remains. Native index b-trees, journaling/WAL, SQL execution, writes, and broader corruption validation remain unported. This lane's PHP tests pass locally, but the full root harness currently exits nonzero because of unrelated Quadrable proof-update failures in the dirty workspace.",
+    "latestCommit": "pending",
+    "nextTask": "Port SQLite index b-tree parsing and a bounded wp_options option_name lookup path so recovery tools do not need to full-scan large options tables."
 }
