@@ -36,8 +36,8 @@
 | 6 | pandoc | stopped | cloned inventory plus inline/list slice | 5% | Map a small subset of Pandoc `Tests.Readers.Markdown` golden cases into PHP fixtures, then add nested list item blocks. |
 | 7 | quadrable | stopped | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
 | 8 | syncthing | stopped | cloned static upstream inventory + scanner block parity slice | 4% | Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures. |
-| 9 | difftastic | stopped | seed implementation | 2% | Map parser fixtures and replace line-only diff with syntax token anchors. |
-| 10 | rclone | stopped | seed implementation | 2% | Map filter/checksum tests and add filesystem provider contract tests. |
+| 9 | difftastic | port-difftastic active | seed implementation | 2% | Convert the clean upstream cache into a counted manifest/license inventory before more feature work. |
+| 10 | rclone | port-rclone active | seed implementation | 2% | Convert the clean upstream cache into a counted manifest/license inventory before more feature work. |
 | 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
 | 12 | esbuild | stopped | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
 
@@ -72,7 +72,8 @@
 - Syncthing full upstream runner was not executed: `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`. The current denominator is a cloned static inventory of 211 unique test-related paths, not upstream pass parity.
 - Pandoc full upstream runner was not executed: `ghc`, `cabal`, and `stack` are unavailable in this environment, and upstream `test-pandoc` must be built as a Haskell Tasty executable from a full checkout. The current denominator is a cloned static inventory of 1,979 upstream test files/artifacts, not upstream pass parity.
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
-- Independent audit on 2026-05-22 found `port-pandoc` and `port-syncthing` active while their manifests remained static seeds and their upstream cache worktrees were dirty/empty; Syncthing and Pandoc are now reconciled with cloned static inventories, but neither has upstream runner parity.
+- Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remain static seeds; both now have clean upstream caches at the manifest commits, so their next output should be manifest/denominator/license reconciliation, not feature breadth.
+- Independent audit on 2026-05-22 found `.upstream-cache/pandoc` and `.upstream-cache/syncthing` still report mass tracked deletions even though the lane manifests now use cloned static inventories; restore or reclone those caches before relying on cache-local targeted reads or runner attempts.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
@@ -80,9 +81,9 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: none active after integrating the latest Pandoc and Syncthing slices.
+- Auditor: `port-auditor` active; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: `port-difftastic` and `port-rclone` active at audit time.
 
 ## Next Best Step
 
-Continue Syncthing with `lib/protocol/vector.go` update/merge/compare semantics and concurrent WordPress edit conflict fixtures, while keeping Pandoc focused on mapping a small subset of `Tests.Readers.Markdown` golden cases into PHP fixtures before nested list work. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
+First redirect `port-difftastic` and `port-rclone` to convert their clean upstream caches into counted `UPSTREAM_TEST_MANIFEST.json` inventories with verified licenses and runner blockers. Then restore or reclone the dirty Pandoc and Syncthing upstream caches before relying on those cloned-static inventories; keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
