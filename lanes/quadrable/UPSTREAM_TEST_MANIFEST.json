@@ -10,20 +10,20 @@
         "architecture": "Header-only C++ sparse binary Merkle tree, compact proofs, sync, copy-on-write LMDB-backed store, MemStore, and quadb CLI."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-upstream-inventory",
-        "total": "55 tracked upstream paths; check.cpp has 34 top-level scenarios, 29 equivHeads subcases, 136 verify checks, and 20 verifyThrow checks; focused markers include 10 proof/range scenarios, 5 iterator-touching scenarios, and 1 sync fuzz scenario",
-        "mapped": 24,
-        "source": "Local cloned upstream inventory of check.cpp, Makefile, include/quadrable headers, docs, and submodule gitlinks at commit 4f44437dc9b951a91986ad69e2856938387be614.",
+        "status": "cloned-upstream-runner-pass",
+        "total": "55 tracked upstream paths; check.cpp has 34 top-level scenarios, 29 equivHeads subcases, 136 verify checks, and 20 verifyThrow checks; `make -r test` passes all 34 upstream scenarios after shallow submodule initialization",
+        "mapped": 29,
+        "source": "Local cloned upstream inventory of check.cpp, Makefile, include/quadrable headers, docs, and shallow-initialized submodules at commit 4f44437dc9b951a91986ad69e2856938387be614.",
         "runner": "make test",
-        "runnerStatus": "attempted 2026-05-22: make test fails immediately with `make: g++: No such file or directory`; c++/g++/clang++ are absent, upstream submodules external/docopt.cpp, external/hoytech-cpp, and external/lmdbxx are uninitialized gitlinks, and LMDB/BLAKE2 headers/libs are not present under /usr/include",
+        "runnerStatus": "passed 2026-05-22 with `make -r test` after `sudo -n dnf install -y gcc-c++ lmdb-devel libb2-devel libasan` and `git submodule update --init --depth 1 external/hoytech-cpp external/lmdbxx external/docopt.cpp`; plain `make test` now gets past missing tooling but this GNU Make environment selects the built-in C++ rule without the repo include flags, so `-r` was used to disable built-in rules while running the upstream test target",
         "inventoryPath": "lanes/quadrable/notes/upstream-inventory.md",
-        "warning": "The denominator is counted from cloned upstream sources, but parity is still partial. Native PHP tests map hashing/key behavior, focused in-memory sparse tree update/get/delete scenarios, iterator lower/upper-bound windows, compact proof encoding/decoding, selected proof import/export, integer proof sizing, and range proofs. PHP roots/proofs currently use the lane HashTree SHA-256 surrogate because this PHP build lacks BLAKE2s."
+        "warning": "The upstream C++ runner passes locally, but native PHP parity is still partial. Native PHP tests map hashing/key behavior, focused in-memory sparse tree update/get/delete scenarios, iterator lower/upper-bound windows, compact proof encoding/decoding, selected proof import/export, integer proof sizing, range proofs, and proof-backed updates on imported partial trees. PHP roots/proofs currently use the lane HashTree SHA-256 surrogate because this PHP build lacks BLAKE2s."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, delete bubbling equivalence, raw-key iterator windows, compact proof transport encoding/decoding, selected proof import/export, proof-size checks, and raw-key range proofs."
+        "currentSlice": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, delete bubbling equivalence, raw-key iterator windows, compact proof transport encoding/decoding, selected proof import/export, proof-size checks, raw-key range proofs, and proof-backed updates against imported partial trees."
     },
     "wordpressScenario": "Authenticated local-first state sync for Playground snapshots and content databases; current fixtures/examples map ordered WordPress option/post records through raw integer keys, iterator windows, and compact authenticated range proofs.",
-    "nextTask": "Port proof-backed update/merge semantics from the upstream update proof scenarios, including witness-leaf mutation guards and partial-tree mergeProof expansion."
+    "nextTask": "Port mergeProof expansion between separately imported partial proofs, then map sync request/response proof exchange scenarios."
 }

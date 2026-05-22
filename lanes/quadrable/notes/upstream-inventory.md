@@ -14,12 +14,14 @@ The local upstream cache is a checkout, not a seed placeholder. A targeted `git 
 
 ## Runner Status
 
-The upstream test runner is `make test`, which applies AddressSanitizer flags, cleans build outputs, builds `check.cpp`, creates `testdb/`, and runs the resulting `./check` binary. It was attempted on 2026-05-22 and failed before compiling `check.cpp`:
+The upstream test runner is `make test`, which applies AddressSanitizer flags, cleans build outputs, builds `check.cpp`, creates `testdb/`, and runs the resulting `./check` binary.
 
-- `make test` exits 2 at `g++ -std=c++17 ... -c -o check.o check.cpp` with `make: g++: No such file or directory`.
-- `make` and `cc` are now present, but `c++`, `g++`, and `clang++` are not on `PATH`.
-- The three upstream submodules are uninitialized gitlinks.
-- LMDB and BLAKE2 headers/libs were not found under `/usr/include`.
+Initial 2026-05-22 evidence found missing runner dependencies. This lane then installed the directly required OS packages:
+
+- `sudo -n dnf install -y gcc-c++ lmdb-devel libb2-devel libasan`
+- `git submodule update --init --depth 1 external/hoytech-cpp external/lmdbxx external/docopt.cpp`
+
+After that, `make -r test` passed all upstream scenarios on 2026-05-22. `-r` disables GNU Make built-in rules; plain `make test` now gets past the prior missing tooling, but this shell selects the built-in C++ compile rule for `check.o` and omits the repository `-Iinclude -Iexternal -Iexternal/hoytech-cpp -Iexternal/docopt.cpp` include flags, so it fails on `#include "quadrable.h"`. With built-ins disabled, the upstream Makefile's own pattern rule is used and the upstream test binary reports `All tests OK`.
 
 Static denominator from `check.cpp`:
 
@@ -75,5 +77,6 @@ Current PHP mapping:
 - `SparseTreeTest.php` maps focused in-memory get/put/delete/update semantics from `basic put/get`, `zero-length keys`, `empty heads`, `batch insert`, `getMulti`, overwrite-before-apply, delete bubbling, missing deletes, and raw integer WordPress option/post records.
 - `IteratorTest.php` maps the externally visible lower-bound and upper-bound raw-key behavior from `iterators basic` plus representative `iterators full` sweeps.
 - `ProofTest.php` maps `proofRoundtrip`-style compact transport encode/decode, `basic proof`, `no unnecessary empty witnesses`, `integer proofs`/`proof sizing`, and `range proofs` slices. Imported proofs build a partial tree that validates the expected root, returns authenticated values or proven absences, and throws on unauthenticated witness subtrees.
+- `ProofUpdateTest.php` maps focused `update proof` subcases: mutating proven leaves, rejecting updates through opaque witness branches, updating two proven leaves at different levels, splitting a proven leaf, upgrading and mutating witness leaves, splitting a witness leaf, deletion bubbling, the upstream `can't bubble a witness node` guard, and a WordPress raw-key post update from a narrow proof.
 
 The native PHP hash primitive currently uses the lane's SHA-256 `HashTree` surrogate because this PHP build does not expose BLAKE2s. The proof command, strand, range, and partial-tree semantics are mapped, but root/proof bytes are not digest-compatible with upstream until a native BLAKE2s implementation or acceptable PHP extension path is added.

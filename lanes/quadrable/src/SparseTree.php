@@ -191,6 +191,22 @@ final class SparseTree
         return $tree;
     }
 
+    public function mergeProof(Proof $proof): self
+    {
+        $newRoot = self::importProofRoot($proof, $this->hashTree);
+        if ($newRoot['hash'] !== $this->rootHash()) {
+            throw new \RuntimeException('different roots, unable to merge proofs');
+        }
+
+        if ($this->partialRoot === null) {
+            return $this;
+        }
+
+        $this->partialRoot = $this->mergePartialProofNodes($this->partialRoot, $newRoot);
+
+        return $this;
+    }
+
     public function rootHash(): string
     {
         if ($this->partialRoot !== null) {
@@ -884,6 +900,49 @@ final class SparseTree
     private function isPartialLeaf(array $node): bool
     {
         return $node['type'] === 'leaf' || $node['type'] === 'witnessLeaf';
+    }
+
+    /**
+     * @param array<string, mixed> $original
+     * @param array<string, mixed> $new
+     *
+     * @return array<string, mixed>
+     */
+    private function mergePartialProofNodes(array $original, array $new): array
+    {
+        if (($this->isWitnessAny($original) && !$this->isWitnessAny($new))
+            || ($original['type'] === 'witness' && $new['type'] === 'witnessLeaf')) {
+            return $new;
+        }
+
+        if ($original['type'] === 'branch' && $new['type'] === 'branch') {
+            if ($original['depth'] !== $new['depth']) {
+                throw new \RuntimeException('proof branch depth mismatch');
+            }
+
+            $left = $this->mergePartialProofNodes($original['left'], $new['left']);
+            $right = $this->mergePartialProofNodes($original['right'], $new['right']);
+
+            if ($left === $original['left'] && $right === $original['right']) {
+                return $original;
+            }
+
+            if ($left === $new['left'] && $right === $new['right']) {
+                return $new;
+            }
+
+            return $this->branchPartialNode($original['depth'], $left, $right);
+        }
+
+        return $original;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isWitnessAny(array $node): bool
+    {
+        return $node['type'] === 'witness' || $node['type'] === 'witnessLeaf';
     }
 
     /**
