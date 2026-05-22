@@ -38,7 +38,15 @@ decision path, and the static inventory counted eight upstream ping/close and
 close-race test functions without hydrating the full checkout. The upstream
 denominator is still a static inventory rather
 than runner parity, but this slice also counted 658 static Go test/benchmark
-entry points across 141 upstream `_test.go` files. The Index/IndexUpdate slice
+entry points across 141 upstream `_test.go` files. The device identity slice
+now maps focused upstream `deviceid.go`, `deviceid_test.go`, `luhn.go`, and
+`luhn_test.go` behavior: raw certificate bytes hash to a 32-byte device ID,
+canonical IDs use Syncthing's base32 plus four Luhn32 check digits and
+seven-character chunks, old no-check-digit IDs and copy/paste variants with
+spaces, lowercase, or common typo digits parse back to the same canonical form,
+short IDs expose the first seven base32 characters, and malformed lengths,
+base32 data, or check digits are rejected before a peer is accepted. The
+Index/IndexUpdate slice
 now maps focused upstream `bep_index_updates.go`, `bep_fileinfo.go`,
 `vector.go`, and `proto/bep/bep.proto` behavior: Index and IndexUpdate frame
 types, repeated FileInfo payloads, last/previous sequence fields, block
@@ -223,6 +231,10 @@ BEP message type and protobuf payload semantics.
 `examples/wordpress-close-frame.php` emits a native BEP Close frame with a
 WordPress media maintenance reason and decodes it back so import tooling can
 notify a peer before intentionally disconnecting.
+`examples/wordpress-device-id.php` derives a Syncthing device ID from raw
+WordPress Playground peer certificate bytes, accepts a lowercase space-separated
+copy from an admin surface, and exposes the canonical and short peer IDs used
+for pairing.
 `examples/wordpress-index-update-frame.php` sends a native BEP IndexUpdate for
 a WordPress media upload, preserving normalized wire paths, FileInfo sequence
 metadata, version counters, block hashes, and aggregate blocks_hash values
