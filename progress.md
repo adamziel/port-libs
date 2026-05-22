@@ -53,15 +53,16 @@
 ## Open Blockers
 
 - Upstream benchmark denominators are currently static seed inventories until upstream repos are cloned or queried and their test suites counted.
+- Independent audit on 2026-05-22 found zero lanes with committed real upstream denominators; current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped to avoid saturating the 6-core VM.
 
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: pending `port-auditor` tmux session launch.
-- Worker sessions: pending capped launch via `scripts/start-tmux-team.sh`.
+- Auditor: `port-auditor` session is present; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: `port-gitoxide`, `port-lightningcss`, and `port-markerpdf` sessions are present under the current cap; lower-priority lane sessions are not active yet.
 
 ## Next Best Step
 
-Start the capped tmux team on the top-priority lanes and auditor, then replace seed manifests with full cloned/tested upstream benchmark denominators.
+Reconcile the tmux launch script changes, then replace the seed manifests for `gitoxide`, `lightningcss`, and `markerPDF` with full cloned/tested upstream benchmark denominators before counting additional implementation slices as progress.
