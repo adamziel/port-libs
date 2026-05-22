@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteHeader;
+use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
@@ -1789,6 +1790,122 @@ return [
         $t->same(120, $postsSequence?->integerSequence());
         $t->same(null, $database->sqliteSequenceForTable('wp_options'));
         $t->same([], $database->sqliteSequenceRecords(0));
+    },
+    'allocates sqlite autoincrement rowids from sqlite_sequence state' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_posts', 'wp_posts', 2, 'CREATE TABLE wp_posts(ID integer primary key autoincrement, post_title text)'], 1),
+            $schemaCell(['table', 'sqlite_sequence', 'sqlite_sequence', 3, 'CREATE TABLE sqlite_sequence(name,seq)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'Hello world'], 1),
+            $schemaCell([null, 'Imported post'], 120),
+        ]);
+        $page3 = $tableLeafPage([
+            $schemaCell(['wp_posts', 120], 1),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $state = $database->autoincrementStateForTable('wp_posts');
+        $allocated = $state->allocateRowId();
+        $state->recordInsertedRowId(12);
+
+        $t->true($state instanceof SQLiteAutoincrementState);
+        $t->same(121, $state->largestTableRowId());
+        $t->same(121, $allocated);
+        $t->same(122, $state->peekNextRowId());
+        $t->same(false, $state->sequenceRowCreated());
+        $t->same(true, $state->sequenceDirty());
+        $t->same([
+            'name' => 'wp_posts',
+            'seq' => 121,
+            'rowid' => 1,
+        ], $state->currentSequenceRecord()?->toArray());
+    },
+    'allocates sqlite autoincrement rowids with missing and invalid sequence rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_posts', 'wp_posts', 2, 'CREATE TABLE wp_posts(ID integer primary key autoincrement, post_title text)'], 1),
+            $schemaCell(['table', 'wp_comments', 'wp_comments', 3, 'CREATE TABLE wp_comments(comment_ID integer primary key autoincrement, comment_content text)'], 2),
+            $schemaCell(['table', 'wp_users', 'wp_users', 4, 'CREATE TABLE wp_users(ID integer primary key autoincrement, user_login text)'], 3),
+            $schemaCell(['table', 'sqlite_sequence', 'sqlite_sequence', 5, 'CREATE TABLE sqlite_sequence(name,seq)'], 4),
+        ], 1024, 100, $makeFirstPage(1024, 5));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'imported'], 77),
+        ], 1024);
+        $page3 = $tableLeafPage([
+            $schemaCell([null, 'held for moderation'], 12),
+        ], 1024);
+        $page4 = $tableLeafPage([], 1024);
+        $page5 = $tableLeafPage([
+            $schemaCell(['wp_comments', 'a-string'], 1),
+            $schemaCell(['wp_users', null], 2),
+        ], 1024);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $posts = $database->autoincrementStateForTable('wp_posts');
+        $comments = $database->autoincrementStateForTable('wp_comments');
+        $users = $database->autoincrementStateForTable('wp_users');
+
+        $t->same(78, $posts->allocateRowId());
+        $t->same(true, $posts->sequenceRowCreated());
+        $t->same([
+            'name' => 'wp_posts',
+            'seq' => 78,
+            'rowid' => 3,
+        ], $posts->currentSequenceRecord()?->toArray());
+        $t->same(13, $comments->allocateRowId());
+        $t->same(false, $comments->sequenceRowCreated());
+        $t->same([
+            'name' => 'wp_comments',
+            'seq' => 13,
+            'rowid' => 1,
+        ], $comments->currentSequenceRecord()?->toArray());
+        $t->same(1, $users->allocateRowId());
+        $t->same([
+            'name' => 'wp_users',
+            'seq' => 1,
+            'rowid' => 2,
+        ], $users->currentSequenceRecord()?->toArray());
+        $t->same(123, (new SQLiteSequenceRecord('wp_numeric', '123abc', 1))->autoincrementCounter());
+        $t->same(0, (new SQLiteSequenceRecord('wp_invalid', 'a-string', 1))->autoincrementCounter());
+    },
+    'preserves wordpress autoincrement continuity for explicit imported ids' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_posts', 'wp_posts', 2, 'CREATE TABLE wp_posts(ID integer primary key autoincrement, post_title text)'], 1),
+            $schemaCell(['table', 'wp_comments', 'wp_comments', 3, 'CREATE TABLE wp_comments(comment_ID integer primary key autoincrement, comment_content text)'], 2),
+            $schemaCell(['table', 'sqlite_sequence', 'sqlite_sequence', 4, 'CREATE TABLE sqlite_sequence(name,seq)'], 3),
+        ], 512, 100, $makeFirstPage(512, 4));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'existing'], 10),
+        ]);
+        $page3 = $tableLeafPage([
+            $schemaCell([null, 'existing comment'], 900),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell(['wp_posts', 10], 1),
+            $schemaCell(['wp_comments', 900], 2),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+
+        $posts = $database->autoincrementStateForTable('wp_posts');
+        $comments = $database->autoincrementStateForTable('wp_comments');
+
+        $posts->recordInsertedRowId(500);
+        $comments->recordInsertedRowId(500);
+
+        $t->same([
+            'name' => 'wp_posts',
+            'seq' => 500,
+            'rowid' => 1,
+        ], $posts->currentSequenceRecord()?->toArray());
+        $t->same(501, $posts->peekNextRowId());
+        $t->same(501, $posts->allocateRowId());
+        $t->same(501, $posts->currentCounter());
+        $t->same(901, $comments->peekNextRowId());
+        $t->same([
+            'name' => 'wp_comments',
+            'seq' => 900,
+            'rowid' => 2,
+        ], $comments->currentSequenceRecord()?->toArray());
     },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';

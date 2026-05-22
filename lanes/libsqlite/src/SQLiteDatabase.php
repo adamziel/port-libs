@@ -175,6 +175,43 @@ final class SQLiteDatabase
         return null;
     }
 
+    public function autoincrementStateForTable(string $tableName): SQLiteAutoincrementState
+    {
+        $tableRootPage = $this->tableRootPage($tableName);
+        if ($tableRootPage === null) {
+            throw new \InvalidArgumentException("SQLite table {$tableName} is not present");
+        }
+
+        if ($this->tableRootPage('sqlite_sequence') === null) {
+            throw new \InvalidArgumentException('SQLite AUTOINCREMENT allocation requires sqlite_sequence');
+        }
+
+        $largestTableRowId = null;
+        foreach ($this->tableLeafCells($tableRootPage) as $cell) {
+            if ($largestTableRowId === null || $cell->rowId > $largestTableRowId) {
+                $largestTableRowId = $cell->rowId;
+            }
+        }
+
+        $sequenceRecord = null;
+        $largestSequenceRowId = 0;
+        foreach ($this->sqliteSequenceRecords() as $record) {
+            if ($record->rowId > $largestSequenceRowId) {
+                $largestSequenceRowId = $record->rowId;
+            }
+            if ($sequenceRecord === null && $record->matchesTable($tableName)) {
+                $sequenceRecord = $record;
+            }
+        }
+
+        return SQLiteAutoincrementState::fromDatabaseState(
+            $tableName,
+            $sequenceRecord,
+            $largestTableRowId,
+            $largestSequenceRowId,
+        );
+    }
+
     public function tableRowByRowId(int $rootPageNumber, int $rowId): ?SQLiteTableRow
     {
         $visited = [];

@@ -191,13 +191,15 @@ collations, expression indexes beyond `lower(column)`, broader
 predicate-aware partial-index use, and full WITHOUT ROWID table reads remain
 unported.
 
-## Focused Native Mapping: sqlite_sequence AUTOINCREMENT Metadata
+## Focused Native Mapping: sqlite_sequence AUTOINCREMENT Metadata And Allocation
 
-This slice maps the read-only side of SQLite's internal `sqlite_sequence`
-table. SQLite creates `sqlite_sequence(name,seq)` for AUTOINCREMENT tables,
-keeps one row per table that has allocated a sequence value, and allows the
-table contents to be manually updated even though the system table itself
-cannot be indexed or dropped.
+This slice maps SQLite's internal `sqlite_sequence` table and the bounded
+AUTOINCREMENT allocation state needed by WordPress import/recovery tooling.
+SQLite creates `sqlite_sequence(name,seq)` for AUTOINCREMENT tables, keeps one
+row per table that has allocated a sequence value, and allows the table
+contents to be manually updated even though the system table itself cannot be
+indexed or dropped. The native PHP path now models the rowid counter update
+without adding a SQL execution engine or raw b-tree page writer.
 
 Focused upstream runner:
 
@@ -206,23 +208,35 @@ cd .upstream-cache/libsqlite-build-port-libsqlite
 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick autoinc.test
 ```
 
-Result: 1 Tcl script, 0 errors out of 88 tests in 00:00.
+Result: 1 Tcl script, 0 errors out of 88 tests in 00:00. This focused runner
+was re-run for the allocation slice.
 
 Focused upstream fixture boundary:
 
 - `test/autoinc.test` verifies creation of `sqlite_sequence`, empty initial
-  rows, monotonically tracked maximum sequence values, independent rows for
-  multiple AUTOINCREMENT tables, manual `seq` mutation, `NULL` name mutation,
-  and the no-index/no-drop protection around `sqlite_sequence`.
+  rows, monotonically tracked maximum sequence values, explicit rowid inserts
+  that advance `seq`, generated rowids after deletes, deleted/missing sequence
+  rows, independent AUTOINCREMENT table rows, manual invalid `seq` mutation,
+  `NULL` name mutation, maximum-rowid failure, and the no-index/no-drop
+  protection around `sqlite_sequence`.
 
 The native PHP reader now resolves the `sqlite_sequence` table from
 `sqlite_schema`, decodes its rows through the existing table b-tree reader, and
 preserves mutable SQLite scalar `name`/`seq` values instead of forcing `seq` to
 an integer. WordPress-oriented recovery tools can inspect post/comment/user
 sequence counters from a database image without invoking the SQLite extension.
-SQL writes, AUTOINCREMENT allocation, malformed schema recovery, attached/temp
-database sequence tables, and sequence updates remain outside this read-only
-slice.
+The new `SQLiteAutoincrementState` builds on those records plus the current
+table b-tree reader to pick the next generated rowid, create a missing
+sequence row in state, coerce invalid `seq` values the way SQLite's
+AUTOINCREMENT VM path does, and advance the counter for explicit WordPress
+import IDs without lowering an existing sequence. Raw SQL execution, b-tree
+page writes, malformed schema recovery, attached/temp database sequence
+tables, journaling/WAL, and trigger/upsert statement orchestration remain
+outside this bounded slice.
+The native PHP tests now cover allocation from an existing `sqlite_sequence`
+row, missing sequence rows, invalid `seq` values, numeric text coercion, and
+explicit WordPress import IDs advancing the sequence before the next generated
+ID is chosen.
 
 ## Focused Native Mapping: Automatic Index Collation And DESC Metadata
 

@@ -41,6 +41,60 @@ final class SQLiteSequenceRecord
         return is_int($this->sequence) ? $this->sequence : null;
     }
 
+    public function autoincrementCounter(): int
+    {
+        return self::sqliteIntegerify($this->sequence);
+    }
+
+    private static function sqliteIntegerify(string|int|float|null $value): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if ($value === null) {
+            return 0;
+        }
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                return 0;
+            }
+            if ($value >= PHP_INT_MAX) {
+                return PHP_INT_MAX;
+            }
+            if ($value <= PHP_INT_MIN) {
+                return PHP_INT_MIN;
+            }
+
+            return (int) $value;
+        }
+
+        if (preg_match('/^\s*([+-]?)([0-9]+)/', $value, $match) !== 1) {
+            return 0;
+        }
+
+        $negative = $match[1] === '-';
+        $digits = ltrim($match[2], '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return $negative ? PHP_INT_MIN : PHP_INT_MAX;
+        }
+        if ($negative && $digits === '9223372036854775808') {
+            return PHP_INT_MIN;
+        }
+
+        $integer = 0;
+        $length = strlen($digits);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $integer = ($integer * 10) + ((int) $digits[$offset]);
+        }
+
+        return $negative ? -$integer : $integer;
+    }
+
     /**
      * @return array{name:string|int|float|null,seq:string|int|float|null,rowid:int}
      */

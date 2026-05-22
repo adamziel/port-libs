@@ -145,6 +145,13 @@ WordPress import, recovery, or Data Liberation tooling can inspect sequence
 counters for tables such as `wp_posts`, `wp_comments`, and `wp_users` from a
 raw database image, preserving mutable SQLite `name` and `seq` scalar values
 instead of assuming every `seq` cell is an integer.
+The native AUTOINCREMENT state can now also compute the next generated ID from
+the target table plus `sqlite_sequence`, create a missing sequence row in
+state, recover from invalid mutable `seq` values, and advance the counter for
+explicitly imported WordPress IDs so the next generated post/comment/user ID
+does not collide with imported content. This is deliberately a bounded
+read/write model for sequence state, not a general SQL insert engine or raw
+SQLite page writer.
 
 ## Example
 
@@ -270,6 +277,12 @@ database file, resolves the internal `sqlite_sequence` table, and reports all
 AUTOINCREMENT rows plus selected counters such as `wp_posts`, `wp_comments`,
 and `wp_users`. This maps ID-continuity checks during imports and recovery on
 hosts where the PHP SQLite extension is unavailable.
+
+`examples/wordpress-autoincrement-continuity.php` reads a WordPress-oriented
+SQLite database file, builds AUTOINCREMENT state for selected tables, reports
+the next generated ID and sequence row after a generated insert, and can model
+planned explicit imports such as `wp_posts=500` to verify that subsequent
+generated IDs continue after imported content.
 
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
