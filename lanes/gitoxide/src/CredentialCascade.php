@@ -17,10 +17,20 @@ final class CredentialCascade
         private readonly bool $useHttpPath = false,
         private readonly bool $queryUserOnly = false,
         private readonly ?int $nowUtc = null,
+        private readonly mixed $usernamePrompt = null,
+        private readonly mixed $passwordPrompt = null,
     ) {
         foreach ($helpers as $helper) {
             if (!is_callable($helper)) {
                 throw new \InvalidArgumentException('Credential cascade helpers must be callable');
+            }
+        }
+        foreach ([
+            'usernamePrompt' => $this->usernamePrompt,
+            'passwordPrompt' => $this->passwordPrompt,
+        ] as $name => $prompt) {
+            if ($prompt !== null && !is_callable($prompt)) {
+                throw new \InvalidArgumentException("Credential cascade {$name} must be callable when provided");
             }
         }
 
@@ -36,8 +46,17 @@ final class CredentialCascade
         bool $useHttpPath = false,
         bool $queryUserOnly = false,
         ?int $nowUtc = null,
+        mixed $usernamePrompt = null,
+        mixed $passwordPrompt = null,
     ): CredentialCascadeResult {
-        return (new self($helpers, $useHttpPath, $queryUserOnly, $nowUtc))->get(
+        return (new self(
+            $helpers,
+            $useHttpPath,
+            $queryUserOnly,
+            $nowUtc,
+            $usernamePrompt,
+            $passwordPrompt,
+        ))->get(
             new CredentialContext(url: $url),
         );
     }
@@ -70,6 +89,20 @@ final class CredentialCascade
             }
             if ($context->quit === true) {
                 break;
+            }
+        }
+
+        if ($this->usernamePrompt !== null || $this->passwordPrompt !== null) {
+            $context = self::contextWith($context, ['url' => $url]);
+            if ($context->username === null) {
+                $context = self::contextWith($context, [
+                    'username' => $this->promptFor($context, 'Username', 'visible', $this->usernamePrompt),
+                ]);
+            }
+            if ($context->password === null) {
+                $context = self::contextWith($context, [
+                    'password' => $this->promptFor($context, 'Password', 'hidden', $this->passwordPrompt),
+                ]);
             }
         }
 
@@ -148,6 +181,21 @@ final class CredentialCascade
         }
 
         return $context;
+    }
+
+    private function promptFor(CredentialContext $context, string $field, string $mode, mixed $prompt): string
+    {
+        if (!is_callable($prompt)) {
+            throw new \RuntimeException("Credential prompt for {$field} is disabled");
+        }
+
+        $message = $context->toPrompt($field);
+        $value = $prompt($context, $message, $mode);
+        if (!is_string($value)) {
+            throw new \RuntimeException("Credential prompt for {$field} must return a string");
+        }
+
+        return $value;
     }
 
     private function payloadFor(CredentialCascadeResult|CredentialContext|string $target): string

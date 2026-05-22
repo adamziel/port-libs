@@ -140,6 +140,58 @@ return [
         $t->same($result->nextActionBytes() . "\n", $payloads[1]);
         $t->same($result->nextActionBytes() . "\n", $payloads[3]);
     },
+    'credential cascade prompts for missing fields when prompt callbacks are configured' => static function (TestRunner $t): void {
+        $payloads = [];
+        $prompts = [];
+        $cascade = new CredentialCascade(
+            [
+                static function (string $action, string $payload) use (&$payloads): string {
+                    $payloads[] = $payload;
+
+                    return "username=deploy-helper\n";
+                },
+            ],
+            useHttpPath: true,
+            passwordPrompt: static function (CredentialContext $context, string $message, string $mode) use (&$prompts): string {
+                $prompts[] = [$context->url, $message, $mode];
+
+                return 'prompt-token';
+            },
+        );
+
+        $result = $cascade->get(new CredentialContext(url: 'https://git.example.test/wp-content.git'));
+
+        $t->same('deploy-helper', $result->username);
+        $t->same('prompt-token', $result->password);
+        $t->contains("path=wp-content.git\n", $payloads[0]);
+        $t->same(false, str_contains($payloads[0], 'url='));
+        $t->same([[
+            'https://git.example.test/wp-content.git',
+            'Password for https://deploy-helper@git.example.test/wp-content.git: ',
+            'hidden',
+        ]], $prompts);
+        $t->contains("url=https://git.example.test/wp-content.git\n", $result->nextActionBytes());
+        $t->contains("password=prompt-token\n", $result->nextActionBytes());
+    },
+    'credential cascade prompt fallback can complete a quit-marked helper context' => static function (TestRunner $t): void {
+        $prompts = [];
+        $cascade = new CredentialCascade(
+            [static fn (): string => "username=deploy-helper\nquit=yes\n"],
+            useHttpPath: true,
+            passwordPrompt: static function (CredentialContext $context, string $message, string $mode) use (&$prompts): string {
+                $prompts[] = [$context->quit, $message, $mode];
+
+                return 'interactive-token';
+            },
+        );
+
+        $result = $cascade->get(new CredentialContext(url: 'https://git.example.test/wp-content.git'));
+
+        $t->same(true, $result->quit);
+        $t->same('deploy-helper', $result->username);
+        $t->same('interactive-token', $result->password);
+        $t->same([[true, 'Password for https://deploy-helper@git.example.test/wp-content.git: ', 'hidden']], $prompts);
+    },
     'wordpress credential cascade fixture obtains stores and erases deployment credentials' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-credential-cascade.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-credential-cascade.php';
@@ -153,5 +205,20 @@ return [
         $t->same(false, $fixture['secretsInDiagnosticLog']);
         $t->same($fixture['identity'], $summary['identity']);
         $t->contains('credential cascade', $summary['wordpressUse']);
+    },
+    'wordpress credential prompt fixture falls back without shelling out to git credential' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-credential-prompt.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-credential-prompt.php';
+
+        $t->same('site-a-deploy', $fixture['identity']['username']);
+        $t->same('manual-deploy-token', $fixture['identity']['password']);
+        $t->same('oauth-refresh', $fixture['identity']['oauthRefreshToken']);
+        $t->same(['visible', 'hidden'], array_column($fixture['prompts'], 'mode'));
+        $t->contains('Username for https://git.example.test/wp-content.git: ', $fixture['prompts'][0]['message']);
+        $t->contains('Password for https://site-a-deploy@git.example.test/wp-content.git: ', $fixture['prompts'][1]['message']);
+        $t->contains("url=https://git.example.test/wp-content.git\n", $fixture['nextActionBytes']);
+        $t->same(false, $fixture['shellOutUsed']);
+        $t->same($fixture['identity'], $summary['identity']);
+        $t->same($fixture['promptModes'], $summary['promptModes']);
     },
 ];
