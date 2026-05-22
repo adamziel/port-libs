@@ -38,7 +38,7 @@
 | 8 | syncthing | stopped | cloned static upstream inventory + scanner block parity slice | 4% | Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures. |
 | 9 | difftastic | stopped | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
 | 10 | rclone | stopped | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
-| 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
+| 11 | dolt | port-dolt active; misaligned with deferral | deferred | 2% | Stop/retire the active Dolt worker or explicitly reauthorize it only after the non-Dolt baseline is reached. |
 | 12 | esbuild | stopped | cloned static upstream inventory + lexer numeric/hashbang slice | 4% | Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports. |
 
 ## Completed Milestones
@@ -81,6 +81,8 @@
 - Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remained static seeds; rclone and difftastic are now reconciled with cloned static inventories, but neither has upstream runner parity.
 - Independent audit on 2026-05-22 found `.upstream-cache/pandoc` and `.upstream-cache/syncthing` still report mass tracked deletions even though the lane manifests now use cloned static inventories; restore or reclone those caches before relying on cache-local targeted reads or runner attempts.
 - Independent audit on 2026-05-22 found `port-esbuild` and `port-auditor` sessions active while this file still reported no active sessions; `.upstream-cache/esbuild` was recloned as a no-checkout blob-filtered cache and the esbuild manifest is now reconciled with a counted static inventory.
+- Independent audit on 2026-05-22 found `port-dolt` and `port-auditor` tmux sessions active while the current-session section still reported stopped/none; `port-dolt` conflicts with the explicit Dolt deferral and should be stopped or reauthorized before any Dolt implementation work is accepted.
+- Independent audit on 2026-05-22 found `.upstream-cache/dolt`, `.upstream-cache/esbuild`, `.upstream-cache/pandoc`, and `.upstream-cache/syncthing` all report mass tracked deletions/no-checkout working-tree states. Inventories based on `git ls-tree` remain useful, but these caches are not runner-ready or safe for cache-local targeted reads until restored or recloned.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
@@ -88,9 +90,9 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: none active after integrating the latest esbuild slice.
+- Auditor: `port-auditor` tmux session exists; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: `port-dolt` exists despite the Dolt deferral; no other worker sessions observed.
 
 ## Next Best Step
 
-Continue esbuild by mapping upstream parser/printer tests for import/export syntax, then add a small native AST/import scanner that can distinguish WordPress package imports from relative asset imports. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
+First resolve the active-session mismatch: stop/retire `port-dolt` or explicitly reauthorize it only after the non-Dolt baseline is reached. Then move implementation capacity back to the highest-priority gaps: a targeted Gitoxide object/ref denominator slice or one real markerPDF benchmark/reference mapping. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs.
