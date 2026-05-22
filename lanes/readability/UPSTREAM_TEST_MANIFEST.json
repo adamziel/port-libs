@@ -10,10 +10,10 @@
         "architecture": "JavaScript DOM scoring/extraction engine, readerable preflight, JSDOM parser shim, metadata extraction, content cleanup, and fixture-driven expected HTML/metadata parity."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory",
+        "status": "cloned-static-inventory-plus-normalize-spaces-fixture",
         "total": 1984,
-        "mapped": 7,
-        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories.",
+        "mapped": 15,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories. The Mozilla normalize-spaces source.html, expected.html, and expected-metadata.json fixture is now copied into the lane and mapped by native PHP tests.",
         "runner": "npm test",
         "inventory": {
             "mochaTests": 1984,
@@ -52,16 +52,17 @@
             "Readerable rejection for hidden, aria-hidden, li p, and unlikely class/id candidates.",
             "Readability unlikely candidate and role cleanup for migration/page-builder chrome.",
             "Semantic article/main/section scoring preference over outer page containers.",
-            "WordPress block serialization for extracted headings and paragraphs."
+            "WordPress block serialization for extracted headings and paragraphs.",
+            "Mozilla test-pages/normalize-spaces source/expected/metadata fixture: document-title precedence, readerable true classification, null byline/site/published/dir metadata, excerpt whitespace normalization, and extracted article text parity against expected.html."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 7 focused lane tests against a 1984-test upstream Mocha denominator."
+        "warning": "This replaces the seed denominator with a cloned static inventory and now maps the first Mozilla page fixture locally, but it is still not upstream runner parity. Native PHP progress maps 8 local behavior tests plus one copied source/expected/metadata fixture against a 1984-test upstream Mocha denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, and emits simple WordPress blocks.",
-        "phpBehaviorTests": 7
+        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document title before in-article headings, exposes basic byline/site/published/dir/lang metadata fields, maps the Mozilla normalize-spaces fixture, and emits simple WordPress blocks.",
+        "phpBehaviorTests": 8
     },
-    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, and surrounding theme chrome removed.",
-    "nextTask": "Map the first Mozilla test-page source.html/expected.html/expected-metadata.json fixture into a PHP parity fixture, then improve metadata/byline/media handling."
+    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, and copied Mozilla fixture parity for whitespace-normalized article extraction.",
+    "nextTask": "Map another Mozilla fixture with byline, siteName, publishedTime, lang/dir, or media handling, then improve metadata/media cleanup."
 }

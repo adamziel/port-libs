@@ -39,3 +39,8 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Unlikely candidate, role, and share-widget cleanup during extraction.
 - Semantic article/main/section scoring preference.
 - WordPress block serialization for extracted heading/paragraph content.
+- Mozilla `test-pages/normalize-spaces` source/expected/metadata fixture copied into the lane and mapped for document-title precedence, readerable classification, null byline/site/published/dir metadata, whitespace-normalized excerpt, and extracted article text parity against `expected.html`.
+
+## Next Slice
+
+Map another Mozilla fixture that exercises non-null byline, `siteName`, `publishedTime`, `lang`/`dir`, or media handling, then broaden metadata/media cleanup toward full fixture parity.

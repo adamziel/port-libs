@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "Readability/content rewrite engine",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; upstream runner probe failed before tests",
-    "phpPass": 7,
+    "estimatedProgress": 6,
+    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; normalize-spaces source/expected/metadata fixture mapped; upstream runner probe failed before tests",
+    "phpPass": 8,
     "phpFail": 0,
-    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, and surrounding theme chrome removed.",
-    "phase": "static upstream inventory plus readerable preflight slice",
+    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, and copied Mozilla fixture parity for whitespace-normalized article extraction.",
+    "phase": "cloned static inventory plus first Mozilla fixture mapping",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, and emits simple WordPress blocks.",
-    "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed.",
-    "latestCommit": "eeed1d30b898",
-    "nextTask": "Map the first Mozilla test-page source.html/expected.html/expected-metadata.json fixture into a PHP parity fixture, then improve metadata/byline/media handling."
+    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document title before in-article headings, exposes basic byline/site/published/dir/lang metadata fields, maps the Mozilla normalize-spaces fixture, and emits simple WordPress blocks.",
+    "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed. Only one Mozilla page fixture is mapped locally; broader metadata, byline, media, and exact expected-HTML parity remain incomplete.",
+    "latestCommit": "e34625b",
+    "nextTask": "Map another Mozilla fixture with byline, siteName, publishedTime, lang/dir, or media handling, then improve metadata/media cleanup."
 }
