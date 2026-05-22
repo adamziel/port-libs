@@ -855,7 +855,8 @@ ICU extension, so the native PHP reader now applies the same ASCII uppercase
 mapping to caller-supplied option names and to row verification after the index
 points back to the `wp_options` table row. The implementation intentionally
 accepts only safe `option_name IS NOT NULL` partial expression indexes for this
-new path.
+new path. It now covers point, `IN (...)`, and bounded range scans over the
+stored uppercase expression keys.
 
 Focused upstream runner:
 
@@ -867,6 +868,16 @@ cd .upstream-cache/libsqlite-build-port-libsqlite
 
 Result: 2 Tcl scripts, 0 errors out of 15138 tests in 00:01.
 
+Focused range runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  func.test indexexpr1.test where.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 15456 tests in 00:02.
+
 Focused upstream fixture boundary:
 
 - `src/func.c` implements `upper()` and `lower()` by applying
@@ -876,15 +887,21 @@ Focused upstream fixture boundary:
 - `test/indexexpr1.test` verifies deterministic expression-index lookup and
   planner use for scalar expression keys, including the existing `lower(a)`
   expression-index family.
+- `test/where.test` covers lower/upper range constraints, inclusive bounds,
+  and index-ordered range traversal boundaries used by this native uppercase
+  expression range slice.
 
 The native PHP tests now cover parsing `upper(option_name)` metadata without
 mistaking it for an ordinary column index, point lookup through
 `wp_options(upper(option_name))`, IN-list lookup with duplicate RHS
 suppression and `NULL` non-matching behavior, SQLite-style ASCII-only folding
-for a non-ASCII option name such as `café`, and rejection as a plain
+for a non-ASCII option name such as `café`, bounded uppercase range scans,
+out-of-range b-tree branch pruning for range reads, and rejection as a plain
 `option_name` index. The new
-`examples/wordpress-uppercase-options-by-name-list.php` script maps bulk
-ASCII-folded option recovery on hosts without the PHP SQLite extension.
+`examples/wordpress-uppercase-options-by-name-list.php` and
+`examples/wordpress-uppercase-option-name-range.php` scripts map bulk and
+range-based ASCII-folded option recovery on hosts without the PHP SQLite
+extension.
 
 ## Focused Native Mapping: First-Column B-Tree Seek Bounds
 
@@ -1238,6 +1255,16 @@ cd .upstream-cache/libsqlite-build-port-libsqlite
 
 Result: 2 Tcl scripts, 0 errors out of 106 tests in 00:00.
 
+Focused range runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr3.test where.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 332 tests in 00:00.
+
 Focused upstream fixture boundary:
 
 - `test/indexexpr3.test` creates
@@ -1248,6 +1275,9 @@ Focused upstream fixture boundary:
   and checks the composite expression-index planner boundary for `a=?`.
 - `test/where2.test` covers indexed `IN (...)` lookup behavior, including
   duplicate RHS values not producing duplicate output rows.
+- `test/where.test` covers lower/upper range constraints, inclusive bounds,
+  and index-ordered traversal boundaries used by the native JSON scalar range
+  slice.
 
 The native PHP tests now cover parsing `json_extract(option_value,'$.enabled')`
 metadata with qualified/quoted column names, literal JSON paths, collation,
@@ -1258,7 +1288,13 @@ lookup that reads boolean/number JSON scalar keys from
 read multiple JSON scalar buckets in one index pass, honor `COLLATE NOCASE`,
 ignore `NULL` RHS values for matching, suppress duplicate RHS output, reject
 unsupported lookup values, and skip an intentionally invalid out-of-range index
-branch. The new `examples/wordpress-json-option-value.php` and
-`examples/wordpress-json-option-value-list.php` scripts map recovery or audit
+branch. The range tests read numeric JSON priority bands with open or inclusive
+upper bounds, suppress JSON null/missing expression keys for bounded
+comparisons, honor `COLLATE NOCASE` for text ranges, and skip an intentionally
+invalid out-of-range index branch. The new
+`examples/wordpress-json-option-value.php`,
+`examples/wordpress-json-option-value-list.php`, and
+`examples/wordpress-json-option-value-range.php` scripts map recovery or audit
 tools that need one or more indexed plugin/theme JSON settings such as enabled
-flags or mode lists on hosts where the PHP SQLite extension is unavailable.
+flags, mode lists, or priority bands on hosts where the PHP SQLite extension is
+unavailable.

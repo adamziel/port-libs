@@ -77,12 +77,14 @@ RHS names, ignore `NULL` RHS terms, and skip out-of-range index branches before
 page decoding when a large or partially damaged options database contains
 unrelated lower-key subtrees.
 First-term `upper(option_name)` expression indexes are now parsed for
-ASCII-folded point and `IN (...)` reads. This maps databases or recovery tools
-that stored an uppercase expression index instead of a lowercase one: callers
-can request `siteurl,home`, the native reader probes the stored uppercase keys
-using SQLite's built-in bytewise ASCII `upper()` semantics, rejects the
-expression index as an ordinary `option_name` index, and accepts only safe
-`option_name IS NOT NULL` partial predicates for this path.
+ASCII-folded point, `IN (...)`, and bounded range reads. This maps databases or
+recovery tools that stored an uppercase expression index instead of a lowercase
+one: callers can request `siteurl,home` or a transient-prefix range, the native
+reader probes the stored uppercase keys using
+SQLite's built-in bytewise ASCII `upper()` semantics, rejects the expression
+index as an ordinary `option_name` index, accepts only safe
+`option_name IS NOT NULL` partial predicates for this path, and skips
+out-of-range b-tree branches before page decoding.
 First-term `substr(option_name,start,length)` expression indexes are now
 parsed for non-zero integer start and optional non-negative length literals. A
 WordPress recovery tool can use a `substr(option_name,1,N)` expression index to read prefix
@@ -146,6 +148,11 @@ multiple scalar buckets. Recovery and preload tools can request values such as
 `enabled,disabled`, honor `COLLATE NOCASE`, ignore `NULL` RHS values for
 matching, suppress duplicate RHS output, and skip unrelated JSON-key subtrees
 before page decoding.
+The JSON-expression path also supports bounded scalar range scans with open or
+inclusive upper bounds. Recovery and audit tools can inspect numeric priority
+bands or text status bands inside strict-JSON plugin settings through
+`json_extract(option_value,'$.key')` without scanning every option row, while
+still excluding JSON null or missing-path keys from bounded comparisons.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -171,7 +178,7 @@ when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
 First-column range, lower-expression IN-list/range, length-expression IN-list/range,
-CAST-expression IN-list/range, first-column IN-list, JSON expression point/IN-list,
+CAST-expression IN-list/range, first-column IN-list, JSON expression point/IN-list/range,
 and composite equality-prefix range scans now use bounded index b-tree traversal instead of
 decoding every index page. This matters for WordPress recovery and import tools
 that inspect a narrow option-name range or a small known option-name set from a
@@ -286,6 +293,13 @@ ASCII-folded names such as `siteurl,home` without scanning the whole table.
 This maps recovery workflows where an uppercase expression index exists and the
 PHP SQLite extension is unavailable.
 
+`examples/wordpress-uppercase-option-name-range.php` reads a
+WordPress-oriented SQLite database file, resolves a first-term
+`wp_options(upper(option_name))` expression index, and returns options whose
+ASCII-folded names fall inside caller supplied bounds. This maps transient or
+migration-prefix recovery when the available expression index stores uppercase
+keys rather than lowercase keys.
+
 `examples/wordpress-option-name-prefix.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(substr(option_name,1,N))` expression index, and returns options
@@ -362,6 +376,13 @@ options whose strict JSON scalar value is in a caller supplied list. This maps
 multi-state plugin/theme settings recovery such as enabled/disabled mode lists
 without scanning every `wp_options` row.
 
+`examples/wordpress-json-option-value-range.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term
+`wp_options(json_extract(option_value,'$.key'))` expression index, and returns
+options whose strict JSON scalar value falls inside caller supplied bounds. This
+maps plugin/theme settings audits such as numeric priority or migration stage
+bands without scanning every `wp_options` row.
+
 `examples/wordpress-sequence-counters.php` reads a WordPress-oriented SQLite
 database file, resolves the internal `sqlite_sequence` table, and reports all
 AUTOINCREMENT rows plus selected counters such as `wp_posts`, `wp_comments`,
@@ -383,6 +404,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, `upper(column)`, literal-start
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and simple
-`json_extract(column,'$.key')` point/list buckets; broader JSON path/value
+`json_extract(column,'$.key')` point/list/range buckets; broader JSON path/value
 semantics; custom collations; and composite-key ranges beyond one equality
 prefix plus one range column.

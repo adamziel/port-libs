@@ -403,6 +403,28 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForJsonExtractRangeLookup(
+        string $tableName,
+        string $columnName,
+        string $path,
+        mixed $lowerInclusive = null,
+        mixed $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?int {
+        $lowerKey = $lowerInclusive === null ? null : self::sqliteJsonScalar($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::sqliteJsonScalar($upperBound);
+        $lookup = $this->indexLookupForJsonExtractExpressionColumnRange(
+            $tableName,
+            $columnName,
+            $path,
+            $lowerKey,
+            $upperKey,
+            $upperInclusive,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForLengthRangeLookup(
         string $tableName,
         string $columnName,
@@ -466,6 +488,24 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): ?int {
         $lookup = $this->indexLookupForLowerExpressionColumnRange(
+            $tableName,
+            $columnName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    public function indexRootPageForUppercaseRangeLookup(
+        string $tableName,
+        string $columnName,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?int {
+        $lookup = $this->indexLookupForUpperExpressionColumnRange(
             $tableName,
             $columnName,
             $lowerInclusive,
@@ -1141,6 +1181,24 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return null|array{rootPage:int,collation:string,descending:bool,path:string}
+     */
+    private function indexLookupForJsonExtractExpressionColumnRange(
+        string $tableName,
+        string $columnName,
+        string $path,
+        mixed $lowerInclusive = null,
+        mixed $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?array {
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite json_extract expression index range lookup requires at least one bound');
+        }
+
+        return $this->indexLookupForJsonExtractExpressionColumn($tableName, $columnName, $path);
+    }
+
+    /**
      * @param list<mixed> $values
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
@@ -1292,6 +1350,53 @@ final class SQLiteDatabase
             }
 
             $firstExpression = SQLiteCreateIndex::firstLowerExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForUpperExpressionColumnRange(
+        string $tableName,
+        string $columnName,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?array {
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite upper expression index range lookup requires at least one bound');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstUpperExpression($record->sql);
             if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
                 continue;
             }
@@ -2393,6 +2498,87 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteWordPressOption>
      */
+    public function wordpressOptionsByIndexedJsonOptionValueRange(
+        string $jsonPath,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $lowerKey = $lowerInclusive === null ? null : self::sqliteJsonScalar($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::sqliteJsonScalar($upperBound);
+        if ($lowerKey === null && $upperKey === null) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) range lookup requires at least one bound');
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForJsonExtractExpressionColumnRange(
+            'wp_options',
+            'option_value',
+            $jsonPath,
+            $lowerKey,
+            $upperKey,
+            $upperInclusive,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) expression range index is not present');
+        }
+        if ($lowerKey !== null && $upperKey !== null) {
+            $boundaryComparison = self::compareSQLiteScalar($lowerKey, $upperKey, $indexLookup['collation']);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueRange(
+                $indexLookup['rootPage'],
+                $lowerKey,
+                $upperKey,
+                $indexLookup['collation'],
+                $upperInclusive,
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::firstValueIsInRange(
+                self::sqliteJsonExtract($option->optionValue, $jsonPath),
+                $lowerKey,
+                $upperKey,
+                $upperInclusive,
+                $indexLookup['collation'],
+            )) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
     public function wordpressOptionsByIndexedLowercaseNameRange(
         ?string $lowerInclusive,
         ?string $upperBound,
@@ -2451,6 +2637,82 @@ final class SQLiteDatabase
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::firstValueIsInRange(
                 self::asciiLower($option->optionName),
+                $lowerKey,
+                $upperKey,
+                $upperInclusive,
+                $indexLookup['collation'],
+            )) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedUppercaseNameRange(
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options upper expression indexed range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForUpperExpressionColumnRange(
+            'wp_options',
+            'option_name',
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options upper(option_name) expression range index is not present');
+        }
+
+        $lowerKey = $lowerInclusive === null ? null : self::asciiUpper($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::asciiUpper($upperBound);
+        if ($lowerKey !== null && $upperKey !== null) {
+            $boundaryComparison = self::compareSQLiteScalar($lowerKey, $upperKey, $indexLookup['collation']);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueRange(
+                $indexLookup['rootPage'],
+                $lowerKey,
+                $upperKey,
+                $indexLookup['collation'],
+                $upperInclusive,
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::firstValueIsInRange(
+                self::asciiUpper($option->optionName),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,

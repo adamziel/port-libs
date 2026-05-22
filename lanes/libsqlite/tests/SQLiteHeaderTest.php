@@ -1292,6 +1292,63 @@ return [
         $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
         $t->same(['{"mode":"enabled"}'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
     },
+    'uses json_extract expression index for wordpress plugin option value ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_priority', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_priority ON wp_options(json_extract(option_value, \'$.priority\')) WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_alpha_settings', '{"priority":1,"mode":"disabled"}', 'no'], 1),
+            $schemaCell([null, 'plugin_beta_settings', '{"priority":5,"mode":"enabled"}', 'no'], 2),
+            $schemaCell([null, 'plugin_gamma_settings', '{"priority":9,"mode":"enabled"}', 'yes'], 3),
+            $schemaCell([null, 'plugin_delta_settings', '{"priority":15,"mode":"preview"}', 'yes'], 4),
+            $schemaCell([null, 'plugin_unranked_settings', '{"mode":"manual"}', 'no'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([null, 5]),
+            $indexCell([1, 1]),
+            $indexCell([5, 2]),
+            $indexCell([9, 3]),
+            $indexCell([15, 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $exclusive = $database->wordpressOptionsByIndexedJsonOptionValueRange('$.priority', 5, 15);
+        $inclusive = $database->wordpressOptionsByIndexedJsonOptionValueRange('$.priority', 5, 15, null, true);
+        $limited = $database->wordpressOptionsByIndexedJsonOptionValueRange('$.priority', 5, 15, 1);
+        $reversed = $database->wordpressOptionsByIndexedJsonOptionValueRange('$.priority', 15, 5);
+
+        $t->same(3, $database->indexRootPageForJsonExtractRangeLookup('wp_options', 'option_value', '$.priority', 5, 15));
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
+        $t->same(['plugin_beta_settings', 'plugin_gamma_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $exclusive));
+        $t->same(['plugin_beta_settings', 'plugin_gamma_settings', 'plugin_delta_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusive));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $reversed);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValueRange('$[0]', 1, 10));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValueRange('$.priority', null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValueRange('$.priority', 1, 10, -1));
+    },
+    'uses json_extract expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_mode', 'wp_options', 2, 'CREATE INDEX wp_options_plugin_mode ON wp_options(json_extract(option_value, \'$.mode\') COLLATE NOCASE) WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['disabled', 99]]], 5);
+        $page3 = str_repeat("\0", 512);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'plugin_alpha_settings', '{"mode":"Enabled"}', 'no'], 1),
+        ]);
+        $page5 = $indexLeafPage([
+            $indexCell(['Enabled', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedJsonOptionValueRange('$.mode', 'enabled', 'enabled', null, true);
+
+        $t->same(2, $database->indexRootPageForJsonExtractRangeLookup('wp_options', 'option_value', '$.mode', 'enabled', 'enabled', true));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['{"mode":"Enabled"}'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
     'uses length expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
@@ -1543,6 +1600,58 @@ return [
         $options = $database->wordpressOptionsByIndexedLowercaseNameRange('SITEURL', null);
 
         $t->same(2, $database->indexRootPageForLowercaseRangeLookup('wp_options', 'option_name', 'SITEURL', null));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
+    'uses upper expression index range for ascii folded wordpress option_name scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_upper_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_upper_option_name ON wp_options(upper(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_Transient_Feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_transient_timeout_Feed', '1700000000', 'no'], 2),
+            $schemaCell([null, 'BLOGNAME', 'Ported SQLite', 'yes'], 3),
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['BLOGNAME', 3]),
+            $indexCell(['SITEURL', 4]),
+            $indexCell(['_TRANSIENT_FEED', 1]),
+            $indexCell(['_TRANSIENT_TIMEOUT_FEED', 2]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $transients = $database->wordpressOptionsByIndexedUppercaseNameRange('_transient_', '_transient`');
+        $limited = $database->wordpressOptionsByIndexedUppercaseNameRange('_transient_', '_transient`', 1);
+        $site = $database->wordpressOptionsByIndexedUppercaseNameRange('site', 'sitev');
+
+        $t->same(3, $database->indexRootPageForUppercaseRangeLookup('wp_options', 'option_name', '_transient_', '_transient`'));
+        $t->same(null, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_transient_', '_transient`'));
+        $t->same(['_Transient_Feed', '_transient_timeout_Feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $site));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedUppercaseNameRange(null, null));
+    },
+    'uses upper expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_upper_option_name', 'wp_options', 2, 'CREATE INDEX wp_options_upper_option_name ON wp_options(upper(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['BLOGNAME', 2]]], 5);
+        $page3 = str_repeat("\0", 512);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+        ]);
+        $page5 = $indexLeafPage([
+            $indexCell(['SITEURL', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedUppercaseNameRange('siteurl', null);
+
+        $t->same(2, $database->indexRootPageForUppercaseRangeLookup('wp_options', 'option_name', 'siteurl', null));
         $t->same(['SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
         $t->same(['https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
     },
