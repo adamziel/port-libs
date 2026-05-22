@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 15,
-    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data/delta/object-database/alternates static inventory counted; full cargo runner not executed",
-    "phpPass": 54,
+    "estimatedProgress": 16,
+    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data/delta/object-database/alternates/replacements static inventory counted; full cargo runner not executed",
+    "phpPass": 56,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, loose+packed ref resolution, pack-index offset lookup, delta-resolved packed object reads, and pack+loose+alternate object database traversal without shelling out to git.",
-    "phase": "targeted object/ref inventory plus object database alternates slice",
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, loose+packed ref resolution, pack-index offset lookup, delta-resolved packed object reads, and pack+loose+alternate+replacement object database traversal without shelling out to git.",
+    "phase": "targeted object/ref inventory plus object database replacements slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, loose+packed ref resolution, v2 pack-index parsing/lookup, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration.",
+    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, loose+packed ref resolution, v2 pack-index parsing/lookup, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
-    "latestCommit": "5ee61b2",
-    "nextTask": "Map object replacement refs or multi-pack-index semantics, then run a controlled gix-odb/gix-pack crate no-run probe if the VM remains clear."
+    "latestCommit": "bef7b5d",
+    "nextTask": "Map multi-pack-index semantics or run a controlled gix-odb/gix-pack crate no-run probe if the VM remains clear."
 }
