@@ -21,6 +21,7 @@ final class ObjectInfo
         public readonly ?string $tier = null,
         public readonly array $hashes = [],
         public readonly ?string $providerKey = null,
+        public readonly ?string $parentId = null,
     ) {
     }
 }

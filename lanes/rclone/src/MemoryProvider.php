@@ -12,21 +12,28 @@ final class MemoryProvider
     public const ERROR_DIR_EXISTS = "can't copy directory - destination already exists";
 
     /**
-     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
+     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
      */
     private array $objects = [];
 
     /**
-     * @var array<string, array{path: string, entry: array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}}>
+     * @var array<string, array{path: string, entry: array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}}>
      */
     private array $duplicateObjects = [];
 
     private int $duplicateObjectSequence = 0;
 
     /**
-     * @var array<string, array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string}>
+     * @var array<string, array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string}>
      */
     private array $directories = [];
+
+    /**
+     * @var array<string, array{path: string, entry: array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string}}>
+     */
+    private array $duplicateDirectories = [];
+
+    private int $duplicateDirectorySequence = 0;
 
     /**
      * @var array<string, string>
@@ -84,7 +91,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -95,7 +102,7 @@ final class MemoryProvider
      * Add another object with the same remote path, matching providers that
      * support duplicate names via unchecked writes.
      *
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
      */
     public function putUnchecked(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -103,7 +110,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null} $options
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null} $options
      */
     public function mkdir(string $path, array $options = []): ObjectInfo
     {
@@ -112,6 +119,24 @@ final class MemoryProvider
             'mimeType' => $options['mimeType'] ?? null,
             'metadata' => $options['metadata'] ?? [],
             'id' => $options['id'] ?? null,
+            'parentId' => $options['parentId'] ?? null,
+        ]);
+    }
+
+    /**
+     * Add another directory with the same remote path, matching providers that
+     * expose duplicate directory entries with distinct IDs.
+     *
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null} $options
+     */
+    public function mkdirUnchecked(string $path, array $options = []): ObjectInfo
+    {
+        return $this->putDuplicateDirectoryEntry($path, [
+            'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
+            'mimeType' => $options['mimeType'] ?? null,
+            'metadata' => $options['metadata'] ?? [],
+            'id' => $options['id'] ?? null,
+            'parentId' => $options['parentId'] ?? null,
         ]);
     }
 
@@ -139,6 +164,7 @@ final class MemoryProvider
             'mimeType' => null,
             'metadata' => [],
             'id' => null,
+            'parentId' => null,
         ];
         $entry['modTime'] = $this->normalizeModTime($modTime);
 
@@ -414,6 +440,7 @@ final class MemoryProvider
                         'mimeType' => $directory->mimeType,
                         'metadata' => $directory->metadata,
                         'id' => $directory->id,
+                        'parentId' => $directory->parentId,
                     ],
                 );
             }
@@ -614,6 +641,7 @@ final class MemoryProvider
             $entry['tier'],
             $entry['hashes'],
             'path:' . $path,
+            $entry['parentId'],
         );
     }
 
@@ -650,12 +678,19 @@ final class MemoryProvider
         if (!$this->directoryExists($path)) {
             throw new \RuntimeException("Directory not found: {$path}");
         }
+        if (!isset($this->directories[$path])) {
+            $duplicateKey = $this->duplicateDirectoryKey($path);
+            if ($duplicateKey !== null) {
+                return $this->duplicateDirectoryInfo($duplicateKey);
+            }
+        }
 
         $entry = $this->directories[$path] ?? [
             'modTime' => null,
             'mimeType' => null,
             'metadata' => [],
             'id' => null,
+            'parentId' => null,
         ];
 
         return new ObjectInfo(
@@ -666,6 +701,10 @@ final class MemoryProvider
             $entry['mimeType'],
             $entry['metadata'],
             $entry['id'],
+            null,
+            [],
+            null,
+            $entry['parentId'],
         );
     }
 
@@ -675,16 +714,30 @@ final class MemoryProvider
     public function directories(string $prefix = ''): array
     {
         $prefix = $this->normalize($prefix);
+        $duplicatePaths = $this->duplicateDirectoryPaths();
         $items = [];
         foreach (array_keys($this->allDirectoryPaths()) as $path) {
             if ($path === '') {
+                continue;
+            }
+            if (!isset($this->directories[$path]) && isset($duplicatePaths[$this->lookupPath($path)])) {
                 continue;
             }
             if ($prefix === '' || $path === $prefix || $this->pathStartsWith($path, $prefix)) {
                 $items[] = $this->directoryInfo($path);
             }
         }
-        usort($items, static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path);
+        foreach (array_keys($this->duplicateDirectories) as $key) {
+            $path = $this->duplicateDirectories[$key]['path'];
+            if ($prefix === '' || $path === $prefix || $this->pathStartsWith($path, $prefix)) {
+                $items[] = $this->duplicateDirectoryInfo($key);
+            }
+        }
+        usort(
+            $items,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path
+                ?: ($a->providerKey ?? '') <=> ($b->providerKey ?? ''),
+        );
 
         return $items;
     }
@@ -697,7 +750,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>} $options
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>} $options
      */
     public function updateObjectInfo(string $path, array $options): ObjectInfo
     {
@@ -715,6 +768,9 @@ final class MemoryProvider
         }
         if (array_key_exists('id', $options)) {
             $entry['id'] = $options['id'];
+        }
+        if (array_key_exists('parentId', $options)) {
+            $entry['parentId'] = $options['parentId'];
         }
         if (array_key_exists('tier', $options)) {
             $entry['tier'] = $options['tier'];
@@ -795,7 +851,7 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
      */
     private function entry(string $path): array
     {
@@ -813,8 +869,8 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
      */
     private function objectEntry(string $bytes, array $options): array
     {
@@ -825,6 +881,7 @@ final class MemoryProvider
             'mimeType' => $options['mimeType'] ?? null,
             'metadata' => $options['metadata'] ?? [],
             'id' => $options['id'] ?? null,
+            'parentId' => $options['parentId'] ?? null,
             'tier' => $options['tier'] ?? null,
             'hashes' => $this->normalizeHashes($options['hashes'] ?? []),
             'openError' => $this->normalizeThrowable($options['openError'] ?? null),
@@ -857,11 +914,36 @@ final class MemoryProvider
             $entry['tier'],
             $entry['hashes'],
             $key,
+            $entry['parentId'],
+        );
+    }
+
+    private function duplicateDirectoryInfo(string $key): ObjectInfo
+    {
+        if (!isset($this->duplicateDirectories[$key])) {
+            throw new \RuntimeException("Directory not found: {$key}");
+        }
+
+        $duplicate = $this->duplicateDirectories[$key];
+        $entry = $duplicate['entry'];
+
+        return new ObjectInfo(
+            $duplicate['path'],
+            -1,
+            '',
+            $entry['modTime'],
+            $entry['mimeType'],
+            $entry['metadata'],
+            $entry['id'],
+            null,
+            [],
+            $key,
+            $entry['parentId'],
         );
     }
 
     /**
-     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
      */
     private function putDuplicateEntry(string $path, array $entry): ObjectInfo
     {
@@ -875,7 +957,21 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @param array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string} $entry
+     */
+    private function putDuplicateDirectoryEntry(string $path, array $entry): ObjectInfo
+    {
+        $key = 'unchecked-dir:' . sprintf('%08d', ++$this->duplicateDirectorySequence);
+        $this->duplicateDirectories[$key] = [
+            'path' => $this->normalize($path),
+            'entry' => $entry,
+        ];
+
+        return $this->duplicateDirectoryInfo($key);
+    }
+
+    /**
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
      */
     private function listedObjectEntry(ObjectInfo $info): array
     {
@@ -898,7 +994,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
      */
     private function putEntry(string $path, array $entry): ObjectInfo
     {
@@ -917,7 +1013,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string} $entry
+     * @param array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string} $entry
      */
     private function putDirectoryEntry(string $path, array $entry): ObjectInfo
     {
@@ -1054,6 +1150,11 @@ final class MemoryProvider
         if (isset($this->directoryCaseIndex[$lookup])) {
             return $this->directoryCaseIndex[$lookup];
         }
+        foreach ($this->duplicateDirectories as $duplicate) {
+            if ($this->lookupPath($duplicate['path']) === $lookup) {
+                return $duplicate['path'];
+            }
+        }
 
         foreach (array_keys($this->allDirectoryPaths()) as $candidate) {
             if ($this->lookupPath($candidate) === $lookup) {
@@ -1068,7 +1169,7 @@ final class MemoryProvider
     {
         $path = $this->canonicalDirectoryPath($path);
 
-        return $path === '' || isset($this->allDirectoryPaths()[$path]);
+        return $path === '' || isset($this->allDirectoryPaths()[$path]) || $this->duplicateDirectoryKey($path) !== null;
     }
 
     /**
@@ -1086,12 +1187,40 @@ final class MemoryProvider
             $this->addParentDirectories($dirs, $duplicate['path']);
         }
 
+        foreach ($this->duplicateDirectories as $duplicate) {
+            $this->addParentDirectories($dirs, $duplicate['path']);
+        }
+
         foreach (array_keys($this->directories) as $path) {
             $dirs[$path] = true;
             $this->addParentDirectories($dirs, $path);
         }
 
         return $dirs;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function duplicateDirectoryPaths(): array
+    {
+        $paths = [];
+        foreach ($this->duplicateDirectories as $duplicate) {
+            $paths[$this->lookupPath($duplicate['path'])] = true;
+        }
+
+        return $paths;
+    }
+
+    private function duplicateDirectoryKey(string $path): ?string
+    {
+        foreach ($this->duplicateDirectories as $key => $duplicate) {
+            if ($this->sameProviderPath($duplicate['path'], $path)) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**

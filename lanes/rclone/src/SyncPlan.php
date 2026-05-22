@@ -602,6 +602,92 @@ final class SyncPlan
     }
 
     /**
+     * Discover duplicate directory entries the way rclone's dedupe pre-pass
+     * does: provider IDs identify directories and ParentIDs build recursive
+     * entry counts, while missing IDs fall back to remote paths.
+     *
+     * @return list<array{path: string, directories: list<ObjectInfo>, counts: list<int>}>
+     */
+    public function findDuplicateDirectories(MemoryProvider $provider): array
+    {
+        $directories = $provider->directories();
+        $dirsById = [];
+        $dirsByPath = [];
+
+        foreach ($directories as $directory) {
+            $id = $this->dedupeEntryId($directory);
+            $dirsById[$id] ??= [
+                'directory' => null,
+                'parent' => '',
+                'count' => 0,
+            ];
+            $dirsById[$id]['directory'] = $directory;
+            $dirsById[$id]['parent'] = $this->dedupeEntryParentId($directory);
+            $dirsByPath[$directory->path][] = $id;
+        }
+
+        $entries = array_merge($directories, $provider->list());
+        usort(
+            $entries,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path
+                ?: ($a->providerKey ?? '') <=> ($b->providerKey ?? ''),
+        );
+
+        foreach ($entries as $entry) {
+            $this->incrementDedupeDirectoryCount($dirsById, $this->dedupeEntryParentId($entry));
+        }
+
+        ksort($dirsByPath, SORT_STRING);
+        $groups = [];
+        foreach ($dirsByPath as $path => $ids) {
+            if (count($ids) <= 1) {
+                continue;
+            }
+
+            $duplicateDirectories = [];
+            $counts = [];
+            foreach ($ids as $id) {
+                $directory = $dirsById[$id]['directory'] ?? null;
+                if (!$directory instanceof ObjectInfo) {
+                    continue;
+                }
+                $duplicateDirectories[] = $directory;
+                $counts[] = $dirsById[$id]['count'];
+            }
+
+            if (count($duplicateDirectories) > 1) {
+                $groups[] = [
+                    'path' => $path,
+                    'directories' => $duplicateDirectories,
+                    'counts' => $counts,
+                ];
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Model `rclone dedupe --dedupe-mode list` for duplicate directories.
+     *
+     * @return array{groups: list<array{path: string, directories: list<ObjectInfo>, counts: list<int>, report: string}>}
+     */
+    public function listDuplicateDirectories(MemoryProvider $provider): array
+    {
+        $groups = [];
+        foreach ($this->findDuplicateDirectories($provider) as $group) {
+            $groups[] = [
+                'path' => $group['path'],
+                'directories' => $group['directories'],
+                'counts' => $group['counts'],
+                'report' => sprintf('%s: %d duplicates of this directory', $group['path'], count($group['directories'])),
+            ];
+        }
+
+        return ['groups' => $groups];
+    }
+
+    /**
      * Model the dedupe duplicate-directory merge boundary: non-list modes put
      * the largest recursive directory first before calling the provider
      * MergeDirs feature, while list mode reports duplicates without mutation.
@@ -1495,6 +1581,32 @@ final class SyncPlan
     private function dedupeObjectTimestamp(ObjectInfo $info): float
     {
         return $this->timestamp($info->modTime) ?? 0.0;
+    }
+
+    private function dedupeEntryId(ObjectInfo $info): string
+    {
+        return $info->id !== null && $info->id !== '' ? $info->id : $info->path;
+    }
+
+    private function dedupeEntryParentId(ObjectInfo $info): string
+    {
+        return $info->parentId !== null && $info->parentId !== '' ? $info->parentId : self::parentPath($info->path);
+    }
+
+    /**
+     * @param array<string, array{directory: ?ObjectInfo, parent: string, count: int}> $dirsById
+     */
+    private function incrementDedupeDirectoryCount(array &$dirsById, string $parent): void
+    {
+        while ($parent !== '') {
+            $dirsById[$parent] ??= [
+                'directory' => null,
+                'parent' => '',
+                'count' => 0,
+            ];
+            $dirsById[$parent]['count']++;
+            $parent = $dirsById[$parent]['parent'];
+        }
     }
 
     /**

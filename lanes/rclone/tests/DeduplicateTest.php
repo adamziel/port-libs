@@ -198,4 +198,51 @@ return [
             'exports-primary/site-2.wxr',
         ], array_map(static fn ($info) => $info->path, $remote->list()));
     },
+    'duplicate directory list mode reports provider ID duplicates without mutation' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->mkdir('uploads', ['id' => 'uploads-root']);
+        $remote->mkdir('uploads/2026', ['id' => 'year-2026', 'parentId' => 'uploads-root']);
+        $remote->mkdirUnchecked('uploads/2026/05', ['id' => 'month-primary', 'parentId' => 'year-2026']);
+        $remote->mkdirUnchecked('uploads/2026/05', ['id' => 'month-recovered', 'parentId' => 'year-2026']);
+        $remote->mkdirUnchecked('uploads/2026/05/thumbs', ['id' => 'thumbs-recovered', 'parentId' => 'month-recovered']);
+        $remote->putUnchecked('uploads/2026/05/hero.jpg', 'published', ['id' => 'hero-primary', 'parentId' => 'month-primary']);
+        $remote->putUnchecked('uploads/2026/05/hero.jpg', 'recovered', ['id' => 'hero-recovered', 'parentId' => 'month-recovered']);
+        $remote->putUnchecked('uploads/2026/05/thumbs/hero-150x150.jpg', 'thumb', ['id' => 'thumb-object', 'parentId' => 'thumbs-recovered']);
+
+        $result = (new SyncPlan())->listDuplicateDirectories($remote);
+
+        $t->same(1, count($result['groups']));
+        $t->same('uploads/2026/05', $result['groups'][0]['path']);
+        $t->same('uploads/2026/05: 2 duplicates of this directory', $result['groups'][0]['report']);
+        $t->same(['month-primary', 'month-recovered'], array_map(
+            static fn ($info) => $info->id,
+            $result['groups'][0]['directories'],
+        ));
+        $t->same(['year-2026', 'year-2026'], array_map(
+            static fn ($info) => $info->parentId,
+            $result['groups'][0]['directories'],
+        ));
+        $t->same([1, 3], $result['groups'][0]['counts']);
+        $t->same([
+            'month-primary',
+            'month-recovered',
+            'thumbs-recovered',
+        ], array_values(array_filter(array_map(
+            static fn ($info) => $info->id,
+            $remote->directories('uploads/2026/05'),
+        ))));
+        $t->same([
+            'uploads/2026/05/hero.jpg',
+            'uploads/2026/05/hero.jpg',
+            'uploads/2026/05/thumbs/hero-150x150.jpg',
+        ], array_map(static fn ($info) => $info->path, $remote->list('uploads/2026/05')));
+        $t->same([
+            'month-primary',
+            'month-recovered',
+            'thumbs-recovered',
+        ], array_values(array_filter(array_map(
+            static fn ($info) => $info->parentId,
+            $remote->list('uploads/2026/05'),
+        ))));
+    },
 ];
