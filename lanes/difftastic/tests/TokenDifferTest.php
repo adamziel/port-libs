@@ -81,6 +81,18 @@ return [
         $t->contains('+ $[9] <strong>', $encoded);
         $t->contains('+ $[10] </strong>', $encoded);
     },
+    'maps upstream xml sample as tag list changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-xml-1.xml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-xml-2.xml');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'xml']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $[3] <stuff/>', $encoded);
+        $t->true(!str_contains($encoded, '<root>'), 'Stable root tags should remain matched in XML mode.');
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -133,6 +145,19 @@ return [
         $t->contains('- $[0][0]/(1)[0]/(1)[0]/(0)[0]/wrap1[0]/(0)[0] carroots', $encoded);
         $t->contains('+ $[0][0]/(1)[0]/(1)[0]/(0)[0]/wrap1[0]/(0)[0] project-rootproject', $encoded);
         $t->true(!str_contains($encoded, '-when-let(roots(project-rootsproject))(setqroot(carroots))'), 'Outer wrapper deletion should not swallow the retained setq form.');
+    },
+    'maps upstream change outer elisp sample as delimiter and wrapper changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-change-outer-1.el');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-change-outer-2.el');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'elisp']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $[0]/delimiters () []', $encoded);
+        $t->contains('+ $[0]/wrap0 (...)', $encoded);
+        $t->true(!str_contains($encoded, '(lhscommarhs) [(lhs)commarhs]'), 'Changed outer delimiters should not replace the entire retained list body.');
     },
     'maps upstream slider rust sample excerpt with method and statement sliders' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-methods-1.rs');
@@ -320,6 +345,33 @@ return [
         $t->contains('data-path="$[0][0]/[0][0]/wrap0"', $html);
         $t->contains('coreGroup(...)', $html);
         $t->true(!str_contains($html, 'coreParagraph(&#039;Hero introduction&#039;)'), 'The retained inner block call should not be rendered as deleted.');
+    },
+    'wordpress block allow-list array syntax keeps retained items stable' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-array-syntax-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-array-syntax-after.php');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'title' => 'Block allow-list array syntax diff',
+        ]);
+
+        $t->contains('Block allow-list array syntax diff', $html);
+        $t->contains('data-path="$[0]/delimiters"', $html);
+        $t->contains('<del>()</del><ins>[]</ins>', $html);
+        $t->true(!str_contains($html, '&#039;core/paragraph&#039;'), 'Retained block names should not be rendered as changed by array syntax modernization.');
+        $t->true(!str_contains($html, '&#039;core/image&#039;'), 'Retained block names should not be rendered as changed by array syntax modernization.');
+    },
+    'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-after.xml');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'xml',
+            'title' => 'WXR postmeta XML tag diff',
+        ]);
+
+        $t->contains('WXR postmeta XML tag diff', $html);
+        $t->contains('wp:postmetakey=&quot;_old_builder&quot;', $html);
+        $t->contains('wp:postmetakey=&quot;_wp_page_template&quot;', $html);
+        $t->contains('&lt;wp:postmetakey=&quot;_thumbnail_id&quot;&gt;', $html);
+        $t->true(!str_contains($html, '<wp:postmeta key="_thumbnail_id">'), 'Rendered XML tags must be escaped for browser review surfaces.');
     },
     'json display renderer follows upstream file envelope and statuses' => static function (TestRunner $t): void {
         $renderer = new JsonDiffRenderer();

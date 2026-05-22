@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "404 inspected upstream behavior artifacts: 144 Rust #[test]/#[test_case] attributes in src/ and tests/, 111 sample_files/compare.expected golden output pairs, 114 numbered sample fixture pairs, and 35 vendored parser corpus files",
-        "mapped": 30,
-        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures including contiguous, hyphen_subwords, trailing_commas, html_simple, json, slider_at_end, slider, nested_slider Rust, and nested_slider Emacs Lisp pairs. See lanes/difftastic/notes/upstream-inventory.md.",
+        "mapped": 34,
+        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures including contiguous, hyphen_subwords, trailing_commas, html_simple, xml, json, slider_at_end, slider, nested_slider Rust, and nested_slider Emacs Lisp pairs. See lanes/difftastic/notes/upstream-inventory.md.",
         "inventory": {
             "treeFiles": 786,
             "rustFiles": 68,
@@ -39,11 +39,13 @@
             "mappedSubwordSampleFixtureFiles": 2,
             "mappedTrailingCommaSampleFixtureFiles": 2,
             "mappedHtmlSimpleSampleFixtureFiles": 2,
+            "mappedXmlSampleFixtureFiles": 2,
             "mappedJsonSampleFixtureFiles": 2,
             "mappedSliderAtEndSampleFixtureFiles": 2,
             "mappedSliderSampleFixtureExcerptFiles": 2,
             "mappedNestedSliderRustSampleFixtureFiles": 2,
             "mappedNestedSliderElispSampleFixtureFiles": 2,
+            "mappedChangeOuterElispSampleFixtureFiles": 2,
             "vendoredParserFiles": 382,
             "parserCorpusFiles": 35,
             "parserExampleFiles": 5,
@@ -84,9 +86,11 @@
             "The native HTML renderer escapes source text and preserves token/word operations as data-op/class metadata, matching the display-layer requirement that novel content is marked without executing source text.",
             "The WordPress theme.json palette fixture renders syntax-list changes with path metadata for embedding block/theme review diffs in a browser UI.",
             "A copied upstream `sample_files/trailing_commas_*.js` fixture maps JavaScript function arguments, arrays, and objects with trailing commas as formatting-only changes.",
-            "HTML mode treats `<` and `>` as delimiters only when requested, matching the upstream HTML parser delimiter configuration without changing default code/operator tokenization.",
+            "HTML and XML modes treat `<` and `>` as delimiters only when requested, matching upstream tag parser delimiter configuration without changing default code/operator tokenization.",
             "A copied upstream `sample_files/html_simple_*.html` fixture maps tag attribute changes and inserted inline tags as syntax-list changes.",
+            "A copied upstream `sample_files/xml_*.xml` fixture maps XML tag-list changes so a newly inserted self-closing tag is reported without replacing stable surrounding tags.",
             "The WordPress block-markup fixture renders escaped tag-list changes for saved block HTML where classes, heading IDs, and inline wrappers change.",
+            "The WordPress WXR postmeta fixture renders escaped namespaced XML tag changes for migration review surfaces.",
             "A copied upstream `sample_files/json_*.json` fixture maps JSON object-key alignment so changed array values are diffed inside the retained property instead of as whole-property replacements.",
             "The WordPress block.json fixture renders key-aware metadata changes for title, viewScriptModule, and supports mutations.",
             "A copied upstream `sample_files/slider_at_end_*.json` fixture maps focused JSON list deletions while retaining stable neighboring items.",
@@ -94,18 +98,20 @@
             "A copied upstream `sample_files/nested_slider_*.rs` fixture maps nested slider correction so retained inner expressions stay stable while newly inserted wrappers are reported as novel.",
             "The WordPress template-wrapper fixture applies nested slider correction to a block-template helper call, reporting `coreGroup(...)` as the inserted wrapper without deleting the retained `coreParagraph(...)` call.",
             "A copied upstream `sample_files/nested_slider_*.el` fixture maps the Lisp-family opposite nested-slider preference: the deleted `-when-let(...)` outer wrapper is reported separately while the retained `setq` form is diffed inside it.",
+            "A copied upstream `sample_files/change_outer_*.el` fixture maps changed outer delimiters so retained atom content is kept stable while the delimiter pair and newly introduced inner wrapper are reported separately.",
+            "The WordPress block allow-list array syntax fixture applies changed outer delimiter handling to PHP `array(...)` to `[...]` modernization without reporting retained block names as changed.",
             "A targeted excerpt from upstream `sample_files/slider_*.rs` maps Rust block item splitting so an inserted method, inserted setup statements, and the `codec_data` field are reported without swallowing the retained `receive_packet` method or unchanged negotiation statements.",
             "Targeted `src/display/json.rs` semantics are mapped for lowercase file statuses, language/path/status envelope fields, optional aligned_lines/chunks fields, zero-based line numbers, and novel token spans with start/end/content/highlight data.",
             "The native JSON display renderer emits compact machine-readable file and directory JSON without shelling out to difftastic, including unchanged/created/deleted short-status files and changed text chunks.",
             "The WordPress block.json display fixture emits review data for plugin metadata changes at `wp-content/plugins/acme-card/block.json`, including added `viewScriptModule`, alignment support, and boolean support changes."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 30 focused lane tests against an inspected 404-artifact upstream behavior inventory."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 34 focused lane tests against an inspected 404-artifact upstream behavior inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, copied upstream contiguous/trailing-comma/HTML/JSON/slider_at_end/nested_slider Rust/nested_slider Emacs Lisp fixture mapping, a targeted upstream slider Rust excerpt with method and statement item splitting, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, nested slider wrapper correction with inner-delimiter and Lisp outer-delimiter preferences, JSON object-key and list-item alignment, upstream-style word/subword diffing, HTML-mode angle-delimiter tag lists, escaped HTML rendering for token, subword, and syntax-list changes, and compact JSON display output following upstream `src/display/json.rs` envelope/status/chunk semantics."
+        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, copied upstream contiguous/trailing-comma/HTML/XML/JSON/slider_at_end/change_outer/nested_slider Rust/nested_slider Emacs Lisp fixture mapping, a targeted upstream slider Rust excerpt with method and statement item splitting, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, nested slider wrapper correction with inner-delimiter and Lisp outer-delimiter preferences, changed outer delimiter reporting for stable child atoms, JSON object-key and list-item alignment, upstream-style word/subword diffing, HTML/XML-mode angle-delimiter tag lists, escaped HTML rendering for token, subword, and syntax-list changes, and compact JSON display output following upstream `src/display/json.rs` envelope/status/chunk semantics."
     },
-    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, block.json metadata, saved block markup, theme variation cleanup, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, emit escaped HTML for block-style, template-wrapper, theme.json, block.json, block-markup, and theme-variation review UIs, and emit machine-readable JSON display chunks for block.json review pipelines.",
-    "nextTask": "Map another focused upstream sample_files display pair such as change_outer_*.el, outer_delimiter_*.el, or html_*.html without hydrating the full runner."
+    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, block.json metadata, saved block markup, WXR/XML postmeta tags, theme variation cleanup, PHP array syntax modernization, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, keep retained block allow-list items stable when `array(...)` becomes `[...]`, emit escaped HTML for block-style, template-wrapper, theme.json, block.json, block-markup, WXR XML, theme-variation, and block allow-list review UIs, and emit machine-readable JSON display chunks for block.json review pipelines.",
+    "nextTask": "Map upstream string/comment replacement semantics such as `string_subwords_*.el` or `comments_*.rs` with word-level changed-atom highlighting."
 }

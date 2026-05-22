@@ -168,7 +168,7 @@ final class TokenDiffer
 
         $oldLists = $this->directLists($oldRoot['children']);
         $newLists = $this->directLists($newRoot['children']);
-        if (($options['language'] ?? '') === 'html') {
+        if ($this->usesAngleDelimiters($options)) {
             $this->diffRootListNodes($oldLists, $newLists, $options, $changes);
 
             return $changes;
@@ -195,11 +195,19 @@ final class TokenDiffer
     private function delimiterPairs(array $options): array
     {
         $pairs = self::BASE_DELIMITER_PAIRS;
-        if (($options['language'] ?? '') === 'html') {
+        if ($this->usesAngleDelimiters($options)) {
             $pairs['<'] = '>';
         }
 
         return $pairs;
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function usesAngleDelimiters(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['html', 'xml'], true);
     }
 
     /**
@@ -468,6 +476,10 @@ final class TokenDiffer
     private function diffListNode(array $old, array $new, string $path, array $options, array &$changes): void
     {
         if (($old['open'] ?? '') !== ($new['open'] ?? '') || ($old['close'] ?? '') !== ($new['close'] ?? '')) {
+            if ($this->diffChangedOuterDelimiter($old, $new, $path, $changes)) {
+                return;
+            }
+
             $changes[] = ['op' => '~', 'path' => $path, 'old' => $this->nodeText($old), 'new' => $this->nodeText($new)];
 
             return;
@@ -532,6 +544,153 @@ final class TokenDiffer
             $changes[] = ['op' => '+', 'path' => $path . '[' . $j . ']', 'text' => $this->itemText($newItems[$j])];
             $j++;
         }
+    }
+
+    /**
+     * @param array<string, mixed> $old
+     * @param array<string, mixed> $new
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffChangedOuterDelimiter(array $old, array $new, string $path, array &$changes): bool
+    {
+        $oldAtoms = $this->flattenAtomTexts($old['children'] ?? []);
+        $newAtoms = $this->flattenAtomTexts($new['children'] ?? []);
+        if ($oldAtoms === [] || $oldAtoms !== $newAtoms) {
+            return false;
+        }
+
+        $changes[] = [
+            'op' => '~',
+            'path' => $path . '/delimiters',
+            'old' => (string) ($old['open'] ?? '') . (string) ($old['close'] ?? ''),
+            'new' => (string) ($new['open'] ?? '') . (string) ($new['close'] ?? ''),
+        ];
+
+        foreach ($this->changedDirectWrappers($old['children'] ?? [], $new['children'] ?? []) as $index => $wrapper) {
+            $changes[] = [
+                'op' => '+',
+                'path' => $path . '/wrap' . $index,
+                'text' => $wrapper,
+            ];
+        }
+        foreach ($this->changedDirectWrappers($new['children'] ?? [], $old['children'] ?? []) as $index => $wrapper) {
+            $changes[] = [
+                'op' => '-',
+                'path' => $path . '/wrap' . $index,
+                'text' => $wrapper,
+            ];
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sourceNodes
+     * @param list<array<string, mixed>> $targetNodes
+     * @return list<string>
+     */
+    private function changedDirectWrappers(array $sourceNodes, array $targetNodes): array
+    {
+        $sourceGroups = $this->directAtomGroups($sourceNodes);
+        $targetGroups = $this->directAtomGroups($targetNodes);
+        $wrappers = [];
+        $sourceIndex = 0;
+
+        foreach ($targetGroups as $targetGroup) {
+            $covered = [];
+            while ($sourceIndex < count($sourceGroups) && $this->groupAtomCount($covered) < count($targetGroup['atoms'])) {
+                $covered[] = $sourceGroups[$sourceIndex];
+                $sourceIndex++;
+            }
+
+            if (
+                $targetGroup['type'] !== 'list'
+                || $this->groupAtomTexts($covered) !== $targetGroup['atoms']
+                || (count($covered) === 1 && ($covered[0]['type'] ?? '') === 'list' && ($covered[0]['wrapper'] ?? '') === $targetGroup['wrapper'])
+            ) {
+                continue;
+            }
+
+            $wrappers[] = $targetGroup['wrapper'];
+        }
+
+        return $wrappers;
+    }
+
+    /**
+     * @param list<array{type:string, atoms:list<string>, wrapper:string}> $groups
+     * @return list<string>
+     */
+    private function groupAtomTexts(array $groups): array
+    {
+        $atoms = [];
+        foreach ($groups as $group) {
+            foreach ($group['atoms'] as $atom) {
+                $atoms[] = $atom;
+            }
+        }
+
+        return $atoms;
+    }
+
+    /**
+     * @param list<array{type:string, atoms:list<string>, wrapper:string}> $groups
+     */
+    private function groupAtomCount(array $groups): int
+    {
+        return count($this->groupAtomTexts($groups));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array{type:string, atoms:list<string>, wrapper:string}>
+     */
+    private function directAtomGroups(array $nodes): array
+    {
+        $groups = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'list') {
+                $groups[] = [
+                    'type' => 'list',
+                    'atoms' => $this->flattenAtomTexts($node['children'] ?? []),
+                    'wrapper' => (string) ($node['open'] ?? '') . '...' . (string) ($node['close'] ?? ''),
+                ];
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                $groups[] = [
+                    'type' => 'atom',
+                    'atoms' => [$node['token']->text],
+                    'wrapper' => '',
+                ];
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<string>
+     */
+    private function flattenAtomTexts(array $nodes): array
+    {
+        $atoms = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                $atoms[] = $node['token']->text;
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'list') {
+                foreach ($this->flattenAtomTexts($node['children'] ?? []) as $atom) {
+                    $atoms[] = $atom;
+                }
+            }
+        }
+
+        return $atoms;
     }
 
     /**

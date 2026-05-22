@@ -8,7 +8,7 @@ Native token-level differ that avoids raw line-only comparison, classifies comme
 
 Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
 
-HTML mode adds upstream-style angle-bracket delimiters without changing default code tokenization, where `<` and `>` remain punctuation/operators. This lets block markup and saved post content diffs report tag-list changes such as class mutations, inserted `id` attributes, and newly inserted inline tags while still escaping the rendered review HTML.
+HTML and XML modes add upstream-style angle-bracket delimiters without changing default code tokenization, where `<` and `>` remain punctuation/operators. This lets block markup, saved post content, and XML export diffs report tag-list changes such as class mutations, inserted `id` attributes, newly inserted inline tags, and namespaced metadata tags while still escaping the rendered review HTML.
 
 JSON mode aligns object items by their string property key before comparing values. This maps the upstream `sample_files/json_*.json` pair and keeps WordPress `block.json`/`theme.json` metadata reviews focused on changed values and nested arrays instead of whole-object churn.
 
@@ -22,6 +22,8 @@ The HTML fixture combines a block-style subword diff with a `theme.json` palette
 
 The block-markup fixture compares saved block HTML where a group block gains an `is-style-card` class, a heading gains an `id`, and the paragraph text is wrapped in `<strong>`. The syntax-list renderer reports the tag-level changes and escapes source tags as text for safe embedding in review UIs.
 
+The WXR XML fixture compares namespaced `wp:postmeta` tags in a migration export. XML mode now maps the upstream `sample_files/xml_*.xml` tag insertion shape and renders changed/inserted postmeta tags as escaped text, so a browser-based migration review surface does not execute or trust source XML.
+
 The block.json fixture compares block metadata where the title changes, a `viewScriptModule` is added, HTML support changes, and `full` alignment is added. JSON key alignment keeps the `supports` object matched while reporting nested changes.
 
 The JSON display fixture emits compact machine-readable review data for that same `block.json` path. It mirrors upstream `src/display/json.rs` by returning the language, path, lowercase status, aligned line pairs, and chunks with per-side line numbers and highlighted novel token spans. This gives a WordPress code review or migration UI data it can render itself without trusting source text as HTML.
@@ -31,6 +33,8 @@ The theme-variation fixture applies the upstream `slider_at_end` JSON list-delet
 The template-wrapper fixture applies upstream `nested_slider` wrapper correction to a WordPress block template helper call. When `coreParagraph('Hero introduction')` is wrapped in `coreGroup(...)`, the retained paragraph call stays out of the deletion stream and the diff reports the wrapper as a focused syntactic insertion.
 
 The upstream Emacs Lisp `nested_slider` fixture now exercises the opposite outer-delimiter preference used for Lisp-family languages. This keeps the existing WordPress template-wrapper inner-delimiter behavior honest by proving the implementation can choose the delimiter direction from the mapped language instead of using one wrapper strategy for every syntax.
+
+The upstream Emacs Lisp `change_outer` fixture now exercises changed outer delimiters. The WordPress block allow-list fixture applies the same behavior to PHP array syntax modernization, where `array('core/paragraph', 'core/image')` becomes `['core/paragraph', 'core/image']` without rendering the retained block names as changed.
 
 Run:
 
@@ -43,8 +47,10 @@ php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
 php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
+php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
+php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 ```
 
 ## Next Task
 
-Map another focused upstream sample_files display pair such as `change_outer_*.el`, `outer_delimiter_*.el`, or `html_*.html` without hydrating the full runner.
+Map upstream string/comment replacement semantics such as `string_subwords_*.el` or `comments_*.rs` with word-level changed-atom highlighting.
