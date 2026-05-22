@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "Readability/content rewrite engine",
-    "estimatedProgress": 7,
-    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; normalize-spaces and parsely-metadata source/expected/metadata fixtures mapped; upstream runner probe failed before tests",
-    "phpPass": 9,
+    "estimatedProgress": 8,
+    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; normalize-spaces, parsely-metadata, and mozilla-2 fixtures mapped; upstream runner probe failed before tests",
+    "phpPass": 10,
     "phpFail": 0,
-    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, and copied Mozilla fixture parity for whitespace-normalized article extraction plus Parse.ly metadata extraction.",
-    "phase": "cloned static inventory plus two Mozilla fixture mappings",
+    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, and OpenGraph site/lang/dir metadata.",
+    "phase": "cloned static inventory plus three Mozilla fixture mappings",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly titles before in-article headings, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces and parsely-metadata fixtures, and emits simple WordPress blocks.",
-    "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed. Only two Mozilla page fixtures are mapped locally; broader siteName, lang/dir, media, cleanup, and exact expected-HTML parity remain incomplete.",
-    "latestCommit": "5e19e0f",
-    "nextTask": "Map another Mozilla fixture with siteName, lang/dir, or media handling, then improve metadata/media cleanup and broader expected-HTML parity."
+    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, and mozilla-2 fixtures, and emits simple WordPress blocks.",
+    "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed. Three Mozilla page fixtures are mapped locally; broader media handling, cleanup, and exact expected-HTML parity remain incomplete.",
+    "latestCommit": "f02715b",
+    "nextTask": "Map another Mozilla fixture with media handling or closer expected-HTML cleanup parity, then broaden metadata cleanup."
 }
