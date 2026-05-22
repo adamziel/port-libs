@@ -332,6 +332,98 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ["Bad\nHeader" => 'x']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ['User-Agent' => "bad\nvalue"]));
     },
+    'smart http receive-pack follows safe initial redirects and reuses effective base' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress smart HTTP redirect payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $requester = static function (string $method, string $url, array $headers, ?string $body, float $timeout) use (&$requests, $packet, $flush, $advertisement, $responseBytes): array {
+            $requests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+            ];
+
+            if (count($requests) === 1) {
+                return [
+                    'status' => 301,
+                    'headers' => ['Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack'],
+                    'body' => '',
+                ];
+            }
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'redirected_session=ok; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $responseBytes,
+            ];
+        };
+
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'http://deploy:s3cret@git.example.test/wp-content.git',
+                $requester,
+                ['version=1'],
+                7.0,
+                ['User-Agent' => 'port-libs-test/redirect']
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(3, count($requests));
+        $t->same('http://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
+        $t->same('https://git.example.test/redirected.git/info/refs?service=git-receive-pack', $requests[1]['url']);
+        $t->same('https://git.example.test/redirected.git/git-receive-pack', $requests[2]['url']);
+        $t->same('Basic ' . base64_encode('deploy:s3cret'), $requests[0]['headers']['Authorization']);
+        $t->same('Basic ' . base64_encode('deploy:s3cret'), $requests[1]['headers']['Authorization']);
+        $t->same('Basic ' . base64_encode('deploy:s3cret'), $requests[2]['headers']['Authorization']);
+        $t->same('redirected_session=ok', $requests[2]['headers']['Cookie']);
+        $t->same('version=1', $requests[2]['headers']['Git-Protocol']);
+        $t->same($request->requestBytes(), $requests[2]['body']);
+
+        $crossHost = new SmartHttpReceivePackTransport(
+            'https://deploy:s3cret@git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 302,
+                'headers' => ['Location' => 'https://attacker.example.test/wp-content.git/info/refs?service=git-receive-pack'],
+                'body' => '',
+            ]
+        );
+        $t->throws(RuntimeException::class, static fn () => $crossHost->readAdvertisement());
+
+        $downgrade = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 302,
+                'headers' => ['Location' => 'http://git.example.test/wp-content.git/info/refs?service=git-receive-pack'],
+                'body' => '',
+            ]
+        );
+        $t->throws(RuntimeException::class, static fn () => $downgrade->readAdvertisement());
+    },
     'ssh receive-pack transport connects through injected exec streams' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress SSH transport payload');

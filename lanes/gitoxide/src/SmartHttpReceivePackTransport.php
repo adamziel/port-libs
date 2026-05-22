@@ -6,11 +6,14 @@ namespace PortLibs\Gitoxide;
 
 final class SmartHttpReceivePackTransport implements ReceivePackTransport
 {
+    private const MAX_INITIAL_REDIRECTS = 10;
+
     private bool $advertisementRead = false;
     private bool $requestWritten = false;
     private bool $responseRead = false;
     private ?string $requestBytes = null;
     private readonly string $repositoryUrl;
+    private ?string $effectiveRepositoryUrl = null;
     private readonly ?string $authorizationHeader;
     private readonly mixed $requester;
     /** @var array<string, string> */
@@ -70,7 +73,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $this->advertisementRead = true;
-        $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null);
+        $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null, true);
         self::assertStatus($response, [200, 304], 'smart HTTP receive-pack advertisement');
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
         $this->rememberCookies($response['headers']);
@@ -106,6 +109,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             self::receivePackUrl($this->repositoryUrl),
             $this->requestHeaders(strlen($this->requestBytes)),
             $this->requestBytes,
+            false,
         );
         self::assertStatus($response, [200], 'smart HTTP receive-pack result');
         self::assertContentType($response, 'application/x-git-receive-pack-result', 'smart HTTP receive-pack result');
@@ -181,19 +185,38 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      * @param array<string, string> $headers
      * @return array{status: int, headers: array<string, string|list<string>>, body: string}
      */
-    private function request(string $method, string $url, array $headers, ?string $body): array
+    private function request(string $method, string $url, array $headers, ?string $body, bool $followInitialRedirects): array
     {
-        $response = ($this->requester)($method, $url, $headers, $body, $this->timeout);
-        if (!is_array($response)
-            || !isset($response['status'], $response['headers'], $response['body'])
-            || !is_int($response['status'])
-            || !is_array($response['headers'])
-            || !is_string($response['body'])
-        ) {
-            throw new \RuntimeException('smart HTTP receive-pack requester returned an invalid response shape');
-        }
+        $redirectsRemaining = $followInitialRedirects ? self::MAX_INITIAL_REDIRECTS : 0;
 
-        return $response;
+        while (true) {
+            $effectiveUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, $url);
+            $response = ($this->requester)($method, $effectiveUrl, $headers, $body, $this->timeout);
+            if (!is_array($response)
+                || !isset($response['status'], $response['headers'], $response['body'])
+                || !is_int($response['status'])
+                || !is_array($response['headers'])
+                || !is_string($response['body'])
+            ) {
+                throw new \RuntimeException('smart HTTP receive-pack requester returned an invalid response shape');
+            }
+
+            if (!self::isRedirectStatus($response['status'])) {
+                return $response;
+            }
+            if ($redirectsRemaining <= 0) {
+                throw new \RuntimeException("smart HTTP receive-pack {$method} request returned an unexpected redirect status {$response['status']}");
+            }
+
+            $location = self::headerValue($response['headers'], 'location');
+            if ($location === null || $location === '') {
+                throw new \RuntimeException("smart HTTP receive-pack {$method} redirect missing Location header");
+            }
+
+            $redirectUrl = self::resolveRedirectUrl($location, $effectiveUrl);
+            $this->effectiveRepositoryUrl = self::redirectedBaseUrl($redirectUrl, $this->repositoryUrl, $url);
+            $redirectsRemaining--;
+        }
     }
 
     /**
@@ -256,6 +279,164 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $authority;
+    }
+
+    private static function isRedirectStatus(int $status): bool
+    {
+        return in_array($status, [301, 302, 303, 307, 308], true);
+    }
+
+    private static function swapBaseUrl(?string $effectiveBaseUrl, string $baseUrl, string $url): string
+    {
+        if ($effectiveBaseUrl === null) {
+            return $url;
+        }
+        if (!str_starts_with($url, $baseUrl)) {
+            throw new \LogicException('smart HTTP receive-pack redirect base does not match request URL');
+        }
+
+        return $effectiveBaseUrl . substr($url, strlen($baseUrl));
+    }
+
+    private static function redirectedBaseUrl(string $redirectUrl, string $baseUrl, string $url): string
+    {
+        if (!str_starts_with($url, $baseUrl)) {
+            throw new \LogicException('smart HTTP receive-pack redirect base does not match request URL');
+        }
+        if (!self::sharesAuthorityOrUpgradesScheme($redirectUrl, $baseUrl)) {
+            throw new \RuntimeException("smart HTTP receive-pack redirect URL {$redirectUrl} does not share authority with {$baseUrl}");
+        }
+
+        $tail = substr($url, strlen($baseUrl));
+        if ($tail === '' || !str_ends_with($redirectUrl, $tail)) {
+            throw new \RuntimeException("smart HTTP receive-pack redirect URL {$redirectUrl} does not preserve request path suffix");
+        }
+
+        return substr($redirectUrl, 0, -strlen($tail));
+    }
+
+    private static function sharesAuthorityOrUpgradesScheme(string $redirectUrl, string $baseUrl): bool
+    {
+        $redirect = self::httpUrlParts($redirectUrl, 'smart HTTP receive-pack redirect URL');
+        $base = self::httpUrlParts($baseUrl, 'smart HTTP receive-pack base URL');
+        if (strtolower($redirect['host']) !== strtolower($base['host'])) {
+            return false;
+        }
+
+        if ($redirect['scheme'] === $base['scheme']) {
+            return self::portOrDefault($redirect) === self::portOrDefault($base);
+        }
+
+        if ($base['scheme'] === 'http' && $redirect['scheme'] === 'https') {
+            $basePort = self::portOrDefault($base);
+            $redirectPort = self::portOrDefault($redirect);
+
+            return $basePort === $redirectPort || ($basePort === 80 && $redirectPort === 443);
+        }
+
+        return false;
+    }
+
+    private static function resolveRedirectUrl(string $location, string $currentUrl): string
+    {
+        if (str_contains($location, "\0") || str_contains($location, "\r") || str_contains($location, "\n")) {
+            throw new \RuntimeException('smart HTTP receive-pack redirect Location contains control bytes');
+        }
+
+        try {
+            $locationParts = parse_url($location);
+        } catch (\ValueError $error) {
+            throw new \RuntimeException('smart HTTP receive-pack redirect Location could not be parsed', 0, $error);
+        }
+
+        if (is_array($locationParts) && isset($locationParts['scheme'])) {
+            return self::normalizeRedirectUrl($location);
+        }
+
+        $current = self::httpUrlParts($currentUrl, 'smart HTTP receive-pack current URL');
+        $authority = self::authority($current['host'], $current['port']);
+        if (str_starts_with($location, '/')) {
+            return self::normalizeRedirectUrl($current['scheme'] . '://' . $authority . $location);
+        }
+
+        $basePath = $current['path'] ?? '/';
+        $directory = str_ends_with($basePath, '/') ? $basePath : substr($basePath, 0, strrpos($basePath, '/') + 1);
+
+        return self::normalizeRedirectUrl($current['scheme'] . '://' . $authority . $directory . $location);
+    }
+
+    private static function normalizeRedirectUrl(string $url): string
+    {
+        $parts = self::httpUrlParts($url, 'smart HTTP receive-pack redirect URL');
+        if (isset($parts['user']) || isset($parts['pass'])) {
+            throw new \RuntimeException('smart HTTP receive-pack redirect URL must not contain credentials');
+        }
+        if (isset($parts['fragment'])) {
+            throw new \RuntimeException('smart HTTP receive-pack redirect URL must not contain a fragment');
+        }
+
+        $normalized = $parts['scheme'] . '://' . self::authority($parts['host'], $parts['port']) . ($parts['path'] ?? '');
+        if (isset($parts['query'])) {
+            $normalized .= '?' . $parts['query'];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array{scheme: string, host: string, port: ?int, path?: string, query?: string, user?: string, pass?: string, fragment?: string}
+     */
+    private static function httpUrlParts(string $url, string $label): array
+    {
+        try {
+            $parts = parse_url($url);
+        } catch (\ValueError $error) {
+            throw new \RuntimeException("{$label} could not be parsed", 0, $error);
+        }
+
+        if (!is_array($parts)
+            || !isset($parts['scheme'], $parts['host'])
+            || !is_string($parts['scheme'])
+            || !is_string($parts['host'])
+            || $parts['host'] === ''
+        ) {
+            throw new \RuntimeException("{$label} must include an http or https scheme and host");
+        }
+
+        $scheme = strtolower($parts['scheme']);
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw new \RuntimeException("{$label} must use http or https");
+        }
+
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+        if ($port !== null && ($port < 1 || $port > 65535)) {
+            throw new \RuntimeException("{$label} port must be between 1 and 65535");
+        }
+
+        $result = [
+            'scheme' => $scheme,
+            'host' => $parts['host'],
+            'port' => $port,
+        ];
+        foreach (['path', 'query', 'user', 'pass', 'fragment'] as $key) {
+            if (isset($parts[$key]) && is_string($parts[$key])) {
+                $result[$key] = $parts[$key];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array{scheme: string, port: ?int} $parts
+     */
+    private static function portOrDefault(array $parts): int
+    {
+        if ($parts['port'] !== null) {
+            return $parts['port'];
+        }
+
+        return $parts['scheme'] === 'https' ? 443 : 80;
     }
 
     /**
@@ -486,6 +667,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'http' => [
                 'method' => $method,
                 'header' => implode("\r\n", $headerLines),
+                'follow_location' => 0,
                 'ignore_errors' => true,
                 'timeout' => $timeout,
             ],
