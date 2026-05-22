@@ -50,3 +50,18 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/html_simple_1.html` / `sample_files/html_simple_2.html`: copied locally and mapped through HTML-mode angle delimiters so tag attribute changes and inserted tags are reported as syntax-list changes.
 - `sample_files/json_1.json` / `sample_files/json_2.json`: copied locally and mapped through JSON object-key item alignment. The retained `"foo"` property is diffed inside its array value (`1` deleted and `5` inserted), while renamed/new keys (`"bar"`, `"zab"`, `"woo"`) remain property-level changes.
 - `sample_files/slider_at_end_1.json` / `sample_files/slider_at_end_2.json`: copied locally and mapped through JSON list-item alignment so repeated stable items remain matched while intervening `"novel-*"` entries are reported as focused deletions.
+
+## JSON Display Slice
+
+Targeted upstream source: `src/display/json.rs`.
+
+Mapped native behavior:
+
+- File JSON uses lowercase `unchanged`, `changed`, `created`, and `deleted` statuses.
+- `language`, `path`, and `status` are always serialized; `aligned_lines` and `chunks` are emitted only for changed text files.
+- Line numbers and aligned line pairs are zero-based, matching the upstream display source's `LineNumber.0` serialization.
+- Changed chunks include `lhs`/`rhs` sides with `line_number` and novel token `changes`.
+- Token changes carry `start`, `end`, `content`, and `highlight` fields; native highlights currently map delimiter/string/comment tokens and default other atom kinds to `normal`.
+- Directory JSON output is represented as an array of file objects and can skip unchanged files, matching upstream `print_directory`.
+
+The focused PHP lane test now passes 26 tests and 116 assertions, including the mapped upstream JSON sample and a WordPress block.json machine-readable display scenario.

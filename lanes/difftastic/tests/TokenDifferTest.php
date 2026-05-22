@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Difftastic\HtmlDiffRenderer;
+use PortLibs\Difftastic\JsonDiffRenderer;
 use PortLibs\Difftastic\TokenDiffer;
 
 return [
@@ -263,5 +264,80 @@ return [
         $t->contains('&quot;deprecated-legacy&quot;', $html);
         $t->contains('&quot;deprecated-dark&quot;', $html);
         $t->true(!str_contains($html, '&quot;primary&quot;'), 'Unchanged variations should not be rendered as deleted.');
+    },
+    'json display renderer follows upstream file envelope and statuses' => static function (TestRunner $t): void {
+        $renderer = new JsonDiffRenderer();
+
+        $t->same(['language' => 'Text', 'path' => 'same.txt', 'status' => 'unchanged'], $renderer->fileDiff('same', 'same', 'same.txt', 'Text'));
+        $t->same(['language' => 'Text', 'path' => 'created.txt', 'status' => 'created'], $renderer->fileDiff('', 'created', 'created.txt', 'Text'));
+        $t->same(['language' => 'Text', 'path' => 'deleted.txt', 'status' => 'deleted'], $renderer->fileDiff('deleted', '', 'deleted.txt', 'Text'));
+
+        $decoded = json_decode($renderer->renderFileDiff("const title = \"Old\";\n", "const title = \"New\";\n", 'block.js', 'JavaScript'), true, 512, JSON_THROW_ON_ERROR);
+        $t->same('JavaScript', $decoded['language']);
+        $t->same('block.js', $decoded['path']);
+        $t->same('changed', $decoded['status']);
+        $t->same([[0, 0], [1, 1]], $decoded['aligned_lines']);
+        $t->same(0, $decoded['chunks'][0][0]['lhs']['line_number']);
+        $t->same(0, $decoded['chunks'][0][0]['rhs']['line_number']);
+        $t->same([['start' => 14, 'end' => 19, 'content' => '"Old"', 'highlight' => 'string']], $decoded['chunks'][0][0]['lhs']['changes']);
+        $t->same([['start' => 14, 'end' => 19, 'content' => '"New"', 'highlight' => 'string']], $decoded['chunks'][0][0]['rhs']['changes']);
+    },
+    'json display renderer maps upstream json sample with line chunks' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff($before, $after, 'sample_files/json_1.json', 'JSON', ['language' => 'json']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->same('JSON', $decoded['language']);
+        $t->same('sample_files/json_1.json', $decoded['path']);
+        $t->true(isset($decoded['aligned_lines']));
+        $t->true(isset($decoded['chunks']));
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('1:normal', $encoded);
+        $t->contains('5:normal', $encoded);
+        $t->contains('"bar":string', $encoded);
+        $t->contains('"zab":string', $encoded);
+        $t->contains('"woo":string', $encoded);
+    },
+    'wordpress block json display emits machine readable review chunks' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/block.json',
+            'JSON',
+            ['language' => 'json'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('wp-content/plugins/acme-card/block.json', $decoded['path']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']));
+
+        $contents = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $contents[] = $change['content'];
+                    }
+                }
+            }
+        }
+        $joined = implode("\n", $contents);
+        $t->contains('"viewScriptModule"', $joined);
+        $t->contains('"full"', $joined);
+        $t->contains('true', $joined);
     },
 ];

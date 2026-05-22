@@ -22,6 +22,8 @@ The block-markup fixture compares saved block HTML where a group block gains an 
 
 The block.json fixture compares block metadata where the title changes, a `viewScriptModule` is added, HTML support changes, and `full` alignment is added. JSON key alignment keeps the `supports` object matched while reporting nested changes.
 
+The JSON display fixture emits compact machine-readable review data for that same `block.json` path. It mirrors upstream `src/display/json.rs` by returning the language, path, lowercase status, aligned line pairs, and chunks with per-side line numbers and highlighted novel token spans. This gives a WordPress code review or migration UI data it can render itself without trusting source text as HTML.
+
 The theme-variation fixture applies the upstream `slider_at_end` JSON list-deletion shape to `theme.json`. Deprecated button variations are reported as focused deletions while retained variations stay out of the rendered change stream.
 
 Run:
@@ -32,9 +34,10 @@ php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
+php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
 ```
 
 ## Next Task
 
-Add JSON display output parity from `src/display/json.rs` for the mapped JSON fixture family, or map the upstream nested slider fixture pair to exercise delimiter-sliding behavior.
+Map the upstream nested_slider fixture pair to exercise delimiter-sliding behavior, then connect that shape to a WordPress nested block/template array example.
