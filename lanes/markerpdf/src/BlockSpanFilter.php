@@ -15,10 +15,6 @@ final class BlockSpanFilter
      */
     public function filterSpans(array $block, array $badSpanIds): array
     {
-        if ($badSpanIds === []) {
-            return $block;
-        }
-
         $badIds = array_fill_keys(array_map(static fn (string $id): string => $id, $badSpanIds), true);
 
         return $this->filterLineSpans(
@@ -39,7 +35,7 @@ final class BlockSpanFilter
         $settings ??= new MarkerSettings();
         $blockType = (string) ($block['block_type'] ?? $block['type'] ?? '');
         if (!in_array($blockType, $settings->badSpanTypes(), true)) {
-            return $block;
+            return $this->filterLineSpans($block, static fn (array $span): bool => true, false);
         }
 
         return $this->filterLineSpans($block, static fn (array $span): bool => false, true);

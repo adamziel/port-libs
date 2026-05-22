@@ -29,6 +29,26 @@ return [
         $t->same('body_0', $filtered['lines'][0]['spans'][0]['span_id']);
         $t->same('Migration body text.', $filtered['lines'][0]['spans'][0]['text']);
     },
+    'drops already-empty lines even when upstream filters keep all spans' => static function (TestRunner $t): void {
+        $filter = new BlockSpanFilter();
+        $block = [
+            'block_type' => 'Text',
+            'lines' => [
+                ['spans' => []],
+                ['spans' => [
+                    ['span_id' => 'body_0', 'text' => 'Kept import text.'],
+                ]],
+                ['spans' => []],
+            ],
+        ];
+
+        $filteredSpans = $filter->filterSpans($block, []);
+        $filteredTypes = $filter->filterBadSpanTypes($block, new MarkerSettings());
+
+        $t->same(1, count($filteredSpans['lines']));
+        $t->same('Kept import text.', $filteredSpans['lines'][0]['spans'][0]['text']);
+        $t->same($filteredSpans, $filteredTypes);
+    },
     'clears bad span type text while preserving block metadata for image review' => static function (TestRunner $t): void {
         $filter = new BlockSpanFilter();
         $block = [

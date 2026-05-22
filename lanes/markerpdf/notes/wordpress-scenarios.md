@@ -16,6 +16,8 @@ The lane now also maps `marker/pdf/utils.py::find_filetype`. `FiletypeDetector` 
 
 The lane now also maps top-level `convert.py` batch processing. `BatchConverter` plans folder conversions with upstream chunk sizing, loads `--metadata_file` JSON keyed by basename, applies existing-output skips, min-length preflight, empty-output skips, nonfatal error reporting, and Marker-style output artifact persistence around a supplied native conversion callback.
 
+The lane now also maps top-level `convert_single.py` single-document processing. `SingleDocumentConverter` preserves upstream comma-separated language parsing, hands `max_pages`, `start_page`, `langs`, and `batch_multiplier` to a supplied converter callback, saves through Marker's per-document output layout, and intentionally persists empty output because the upstream single-file script does not apply batch skip gates.
+
 The lane now also maps the supplied-output boundary of `marker/layout/layout.py::surya_layout`. `LayoutAnnotator` computes the upstream layout batch size, records text-line detections that would be passed to Surya, assigns supplied layout predictions with Python `zip` semantics, and then feeds the existing native annotation path before WordPress block rendering.
 
 The lane now also maps the pure supplied-boundary half of `marker/ocr/recognition.py::surya_recognition`. `OcrRecognition` scales detector polygons for the higher-resolution Surya OCR pass, drops zero-area polygons before model handoff, reconstructs Marker Page/Block/Line/Span arrays from supplied OCR text lines, and feeds those pages through the existing `run_ocr` stats/replacement boundary.
@@ -82,6 +84,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-bad-span-filter-import.php` maps Marker's upstream block span cleanup into a WordPress import path. It removes a repeated header span ID and clears OCR text from a `Picture` block via `BAD_SPAN_TYPES` before Markdown rendering, while preserving the image filename and bbox metadata needed to render a core image block.
 
+`examples/wordpress-empty-line-filter-import.php` maps the upstream empty-line compaction inside `Block.filter_spans` and `filter_bad_span_types` into a WordPress paragraph import. It starts with extracted lines whose span lists are already empty, keeps the one live text line, and emits a single core paragraph plus review metadata showing the source/kept line counts.
+
 `examples/wordpress-conversion-finalizer-import.php` maps the late `convert_single_pdf` cleanup and assembly order into a WordPress import handoff. It accepts supplied native pages after earlier OCR/layout/table/equation boundaries, removes bad header spans, marks bold body spans, computes TOC and image metadata, normalizes bullet list markers, and emits heading/paragraph/list blocks without loading the upstream Python model stack.
 
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
@@ -117,6 +121,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-debug-bbox-export.php` maps Marker's upstream bbox debug dump into a WordPress review workflow. It writes a `_bbox.json` artifact, exposes layout labels and text-line counts for editorial tooling, and confirms heavy model fields are not stored in the review payload.
 
 `examples/wordpress-batch-convert-import.php` maps top-level `convert.py` into a WordPress bulk import job. It plans a folder of PDFs, loads a basename-keyed metadata JSON file with per-file titles, runs native min-length preflight, writes per-document Markdown/metadata artifacts, and reports converted/skipped/error counts without loading Python model workers.
+
+`examples/wordpress-single-convert-import.php` maps top-level `convert_single.py` into a WordPress single-upload import job. It passes single-file conversion options to a supplied native converter, writes Marker's Markdown/metadata output layout, and reports the import options a WordPress review screen can display before publishing the converted blocks.
 
 `examples/wordpress-settings-preflight.php` maps Marker's upstream settings defaults into a WordPress import preflight. It accepts `application/pdf`, rejects unsupported MIME types, applies shared-hosting overrides for image extraction and pagination, and exposes page separator and bad-span defaults without importing Torch or model dependencies.
 
