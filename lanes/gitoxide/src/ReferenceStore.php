@@ -59,6 +59,7 @@ final class ReferenceStore
         string $reflogMessage = '',
         bool $forceCreateReflog = false,
         string $packedRefsMode = self::PACKED_DELETIONS_ONLY,
+        ?ObjectDatabase $objectDatabase = null,
     ): ResolvedReference {
         self::assertPackedRefsMode($packedRefsMode);
 
@@ -74,14 +75,22 @@ final class ReferenceStore
                 && $physicalTarget->isObject()
                 && !$this->packedTargetEquals($physicalName, $physicalTarget, $algorithm)
             ) {
-                $this->rewritePackedReferences([$physicalName => $physicalTarget], [], $algorithm);
+                $packedReference = $this->packedReferenceForUpdate(
+                    $physicalName,
+                    $physicalTarget,
+                    $algorithm,
+                    $objectDatabase,
+                );
+                $this->rewritePackedReferences(
+                    [$physicalName => $packedReference],
+                    [],
+                    $algorithm,
+                );
 
                 if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
                     $this->loose->delete($physicalName);
 
-                    return $this->storeRelativeReference(
-                        ResolvedReference::fromPacked(new PackedReference($physicalName, $physicalTarget))
-                    );
+                    return $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference));
                 }
             }
 
@@ -99,14 +108,22 @@ final class ReferenceStore
         );
 
         if ($packedRefsMode !== self::PACKED_DELETIONS_ONLY && $physicalTarget->isObject()) {
-            $this->rewritePackedReferences([$physicalName => $physicalTarget], [], $algorithm);
+            $packedReference = $this->packedReferenceForUpdate(
+                $physicalName,
+                $physicalTarget,
+                $algorithm,
+                $objectDatabase,
+            );
+            $this->rewritePackedReferences(
+                [$physicalName => $packedReference],
+                [],
+                $algorithm,
+            );
 
             if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
                 $this->loose->delete($physicalName);
 
-                return $this->storeRelativeReference(
-                    ResolvedReference::fromPacked(new PackedReference($physicalName, $physicalTarget))
-                );
+                return $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference));
             }
         }
 
@@ -480,14 +497,17 @@ final class ReferenceStore
     }
 
     /**
-     * @param array<string, ReferenceTarget> $updates
+     * @param array<string, PackedReference> $updates
      * @param list<string> $deletions
      */
     private function rewritePackedReferences(array $updates, array $deletions, string $algorithm): void
     {
-        foreach ($updates as $target) {
-            if (!$target->isObject()) {
-                throw new \InvalidArgumentException('Packed reference updates must point at object ids');
+        foreach ($updates as $name => $reference) {
+            if (!$reference instanceof PackedReference) {
+                throw new \InvalidArgumentException('Packed reference updates must be packed reference instances');
+            }
+            if ($reference->name !== $name) {
+                throw new \InvalidArgumentException('Packed reference update keys must match reference names');
             }
         }
 
@@ -504,8 +524,8 @@ final class ReferenceStore
             unset($byName[$name]);
         }
 
-        foreach ($updates as $name => $target) {
-            $byName[$name] = new PackedReference($name, $target);
+        foreach ($updates as $name => $reference) {
+            $byName[$name] = $reference;
         }
 
         ksort($byName, SORT_STRING);
@@ -536,6 +556,52 @@ final class ReferenceStore
         }
 
         $this->packed = PackedReferences::fromBytes($contents, $algorithm);
+    }
+
+    private function packedReferenceForUpdate(
+        string $physicalName,
+        ReferenceTarget $target,
+        string $algorithm,
+        ?ObjectDatabase $objectDatabase,
+    ): PackedReference {
+        if (!$target->isObject()) {
+            throw new \InvalidArgumentException('Packed reference updates must point at object ids');
+        }
+
+        return new PackedReference(
+            $physicalName,
+            $target,
+            $this->resolvePeeledObjectId($target, $algorithm, $objectDatabase),
+        );
+    }
+
+    private function resolvePeeledObjectId(
+        ReferenceTarget $target,
+        string $algorithm,
+        ?ObjectDatabase $objectDatabase,
+    ): ?string {
+        if ($objectDatabase === null) {
+            return null;
+        }
+
+        $current = $target->value;
+        $peeled = null;
+        $seen = [];
+        while (true) {
+            if (isset($seen[$current])) {
+                throw new \RuntimeException("Tag peel cycle while resolving packed reference target: {$target->value}");
+            }
+            $seen[$current] = true;
+
+            $object = $objectDatabase->read($current);
+            if ($object->type !== 'tag') {
+                return $peeled;
+            }
+
+            $tag = GitTag::parse($object->body, $algorithm);
+            $peeled = $tag->target;
+            $current = $tag->target;
+        }
     }
 
     private function packedHasPhysical(string $physicalName, string $algorithm): bool

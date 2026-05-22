@@ -9,6 +9,7 @@ $review = '9902e3c3e8f0c569b4ab295ddf473e6de763e1e7';
 return [
     'productionRef' => 'refs/heads/production',
     'reviewRef' => 'refs/heads/review/plugin-a',
+    'releaseRef' => 'refs/tags/wp-release-v2026.05',
     'oldProductionCommit' => $oldProduction,
     'newProductionCommit' => $newProduction,
     'reviewCommit' => $review,
@@ -21,8 +22,16 @@ return [
         'time' => '1770000000 +0000',
     ],
     'message' => 'deploy: publish packed production branch',
+    'releaseCommitBody' => 'tree ' . str_repeat('0', 40) . "\n"
+        . "author Release Bot <release@example.com> 1770000000 +0000\n"
+        . "committer Release Bot <release@example.com> 1770000000 +0000\n\n"
+        . "Publish WordPress release package\n",
+    'releaseTagName' => 'wp-release-v2026.05',
+    'releaseTagger' => 'Release Bot <release@example.com> 1770000000 +0000',
+    'releaseTagMessage' => "WordPress release package\n",
     'expectedPackedNames' => [
         'refs/heads/production',
+        'refs/tags/wp-release-v2026.05',
     ],
-    'wordpressUse' => 'A WordPress deployment tool can promote a packed production branch, prune a reviewed plugin branch, and retain a reflog audit trail without invoking git update-ref or pack-refs.',
+    'wordpressUse' => 'A WordPress deployment tool can promote a packed production branch, prune a reviewed plugin branch, peel a packed release tag through native object lookup, and retain a reflog audit trail without invoking git update-ref or pack-refs.',
 ];

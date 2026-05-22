@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\PackedReferences;
 use PortLibs\Gitoxide\CommitSignature;
+use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\GitTag;
+use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\ReferenceName;
 use PortLibs\Gitoxide\ReferenceStore;
 use PortLibs\Gitoxide\ReferenceTarget;
@@ -342,6 +346,55 @@ return [
         $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
         $t->same(null, $store->reflogContents('refs/heads/main'));
     },
+    'reference store packed update mode peels tag objects through object database' => static function (TestRunner $t) use ($old): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-tag-peel-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n");
+
+        $objects = new LooseObjectStore($dir);
+        $commitObject = new GitObject(
+            'commit',
+            'tree ' . str_repeat('0', 40) . "\n"
+            . "author Release Bot <release@example.com> 1770000000 +0000\n"
+            . "committer Release Bot <release@example.com> 1770000000 +0000\n\n"
+            . "Publish WordPress release package\n",
+        );
+        $commitId = $objects->write($commitObject);
+        $tagObject = (new GitTag(
+            $commitId,
+            'commit',
+            'wp-release-v2026.05',
+            'Release Bot <release@example.com> 1770000000 +0000',
+            "WordPress release package\n",
+        ))->object();
+        $tagId = $objects->write($tagObject);
+
+        $store = ReferenceStore::at($dir);
+        $updated = $store->update(
+            'refs/tags/wp-release-v2026.05',
+            ReferenceTarget::object($tagId),
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+            null,
+            false,
+            'sha1',
+            null,
+            '',
+            false,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+            new ObjectDatabase($dir),
+        );
+
+        $packed = PackedReferences::open($dir . '/packed-refs');
+        $release = $packed->find('refs/tags/wp-release-v2026.05');
+
+        $t->same('packed', $updated->source);
+        $t->same($tagId, $updated->targetObjectId());
+        $t->same($commitId, $updated->objectId());
+        $t->same($tagId, $release->targetObjectId());
+        $t->same($commitId, $release->objectId());
+        $t->contains("^{$commitId}\n", (string) file_get_contents($dir . '/packed-refs'));
+        $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05'));
+    },
     'reference store deletes packed refs file when all packed entries are removed' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-remove-all-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -401,14 +454,19 @@ return [
         $t->same($fixture['productionRef'], $summary['productionRef']);
         $t->same($fixture['newProductionCommit'], $summary['productionCommit']);
         $t->same($fixture['reviewCommit'], $summary['deletedReviewCommit']);
+        $t->same($fixture['releaseRef'], $summary['releaseRef']);
+        $t->same($summary['releaseTagObject'], $summary['packedReleaseTagObject']);
+        $t->same($summary['releasePeeledCommit'], $summary['packedReleasePeeledCommit']);
         $t->same($fixture['expectedPackedNames'], $summary['packedNames']);
         $t->same($fixture['newProductionCommit'], $summary['packedProductionCommit']);
         $t->same(false, $summary['looseProductionExists']);
+        $t->same(false, $summary['looseReleaseTagExists']);
         $t->same(false, $summary['reviewRefStillExists']);
         $t->contains(
             $fixture['oldProductionCommit'] . ' ' . $fixture['newProductionCommit'],
             (string) $summary['productionReflog'],
         );
         $t->contains($fixture['message'], (string) $summary['productionReflog']);
+        $t->contains('peel a packed release tag', $summary['wordpressUse']);
     },
 ];
