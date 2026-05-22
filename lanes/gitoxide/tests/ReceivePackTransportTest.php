@@ -610,6 +610,85 @@ return [
         $t->same('version=1', $requests[2]['headers']['Git-Protocol']);
         $t->same($request->requestBytes(), $requests[2]['body']);
 
+        $noRedirects = new SmartHttpReceivePackTransport(
+            'http://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 301,
+                'headers' => ['Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack'],
+                'body' => '',
+            ],
+            [],
+            30.0,
+            [],
+            ['followRedirects' => false]
+        );
+        $t->throws(RuntimeException::class, static fn () => $noRedirects->readAdvertisement());
+
+        $postRedirectRequests = [];
+        $postRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$postRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $postRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($postRedirectRequests) === 2) {
+                        return [
+                            'status' => 307,
+                            'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack'],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                ['User-Agent' => 'port-libs-test/redirect-all'],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $postRedirectSession = $postRedirectClient->handshake();
+        $postRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $postRedirectRequest = $postRedirectSession->buildRequest([$blob]);
+
+        $postRedirectResponse = $postRedirectClient->send($postRedirectRequest);
+
+        $t->same(true, $postRedirectResponse->isSuccessful());
+        $t->same(3, count($postRedirectRequests));
+        $t->same('https://git.example.test/wp-content.git/git-receive-pack', $postRedirectRequests[1]['url']);
+        $t->same('https://git.example.test/redirected.git/git-receive-pack', $postRedirectRequests[2]['url']);
+        $t->same('POST', $postRedirectRequests[2]['method']);
+        $t->same($postRedirectRequest->requestBytes(), $postRedirectRequests[2]['body']);
+
+        $redirectFixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-follow-redirects.php';
+        $redirectExample = require dirname(__DIR__) . '/examples/wordpress-smart-http-follow-redirects.php';
+        $t->same(['GET', 'POST', 'POST'], $redirectExample['requestMethods']);
+        $t->same([
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/wp-content.git/git-receive-pack',
+            'https://git.example.test/redirected.git/git-receive-pack',
+        ], $redirectExample['requestUrls']);
+        $t->same(true, $redirectFixture['postBodyPreserved']);
+        $t->same(true, $redirectExample['responseSuccessful']);
+
         $crossHost = new SmartHttpReceivePackTransport(
             'https://deploy:s3cret@git.example.test/wp-content.git',
             static fn (): array => [
@@ -629,6 +708,7 @@ return [
             ]
         );
         $t->throws(RuntimeException::class, static fn () => $downgrade->readAdvertisement());
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['followRedirects' => 'sometimes']));
     },
     'smart http receive-pack applies proxy options and credential helpers' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';

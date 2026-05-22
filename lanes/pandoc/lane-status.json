@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader paragraph hard-line-break and inline quote/cite semantics from test/html-reader.html/native. Standalone HTML paragraphs parse through the native inline path, `<br />` becomes a `linebreak` node matching Pandoc's `LineBreak`, `<q>` becomes a double `quoted` node, and q cite metadata is preserved as a Pandoc-style `span` child. WordPressBlockWriter renders the hard break as `<br/>` and exposes citation metadata in the inline span.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 115/0 with 890 assertions. The required repo-wide php tools/run-tests.php command was run on 2026-05-22 and passed with 135 test files, 12065 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "uncommitted; current slice ready after green root tests",
+    "latestCommit": "da1fe5d",
     "nextTask": "Map the next bounded non-table HTML reader slice from test/html-reader.html, with small-caps, underline, and strikeout inline element behavior as the best follow-up."
 }
