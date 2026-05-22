@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 13,
-    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data/delta static inventory counted; full cargo runner not executed",
-    "phpPass": 48,
+    "estimatedProgress": 14,
+    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data/delta/object-database static inventory counted; full cargo runner not executed",
+    "phpPass": 52,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, loose+packed ref resolution, pack-index offset lookup, and delta-resolved packed object reads without shelling out to git.",
-    "phase": "targeted object/ref inventory plus pack delta slice",
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, loose+packed ref resolution, pack-index offset lookup, delta-resolved packed object reads, and pack+loose object database traversal without shelling out to git.",
+    "phase": "targeted object/ref inventory plus object database slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, loose+packed ref resolution, v2 pack-index parsing/lookup, pack data entry decoding, and OFS_DELTA/REF_DELTA object resolution.",
+    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, loose+packed ref resolution, v2 pack-index parsing/lookup, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose object database lookup/prefix/iteration.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
-    "latestCommit": "65174f4",
-    "nextTask": "Map pack traversal/object-database lookup semantics or run a controlled gix-pack crate no-run probe before broadening packed object coverage."
+    "latestCommit": "b4052b4",
+    "nextTask": "Map object database alternates/replacements or multi-pack-index semantics, then run a controlled gix-odb/gix-pack crate no-run probe if the VM remains clear."
 }

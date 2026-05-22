@@ -62,6 +62,14 @@ Focused pack-data/delta inventory inspected on 2026-05-22:
 - `gix-pack/src/data/delta.rs` defines the mapped delta semantics: 7-bit little-endian source/result size headers, copy instructions with offset/size bytes, zero-size copy expansion to `0x10000`, insert commands, and explicit rejection of reserved command 0/truncated data/out-of-range copies.
 - `gix-pack/tests/pack/data/file.rs` and `gix-pack/tests/pack/data/input.rs` provide the mapped non-delta commit/blob/tree decompression cases plus OFS_DELTA and REF_DELTA resolution paths.
 
+Focused object-database inventory inspected on 2026-05-22:
+
+- Selected `gix-odb` dynamic object database find, prefix, iteration, linked-store, loose-store, and test paths inspected with targeted `git show` and `git grep`.
+- 49 Rust `#[test]` attributes counted across `gix-odb/tests/odb/store/dynamic.rs`, `gix-odb/tests/odb/store/linked.rs`, `gix-odb/tests/odb/store/loose.rs`, and `gix-odb/src/store_impls/dynamic/find.rs`.
+- `gix-odb/src/store_impls/dynamic/find.rs` defines the mapped object lookup behavior: search loaded pack indices before loose object stores, read packed data by pack offset, then fall back to loose objects when no pack contains the id.
+- `gix-odb/src/store_impls/dynamic/prefix.rs` defines the mapped prefix semantics: lookup across all pack indices and loose stores, return missing/found/ambiguous, and treat duplicate sightings of the same object id as one candidate.
+- `gix-odb/src/store_impls/dynamic/iter.rs` defines the mapped traversal semantics: iterate packed objects before loose objects, with lexicographic index ordering by default and an optional pack-offset ordering for efficient packed reads.
+
 Runner status:
 
 - `cargo` is available locally.
@@ -79,3 +87,4 @@ Current PHP mapping:
 - `ReferenceStoreTest.php` maps loose-over-packed precedence, opening `packed-refs` from a Git directory, loose-only remote `HEAD` shortcuts, capitalized packed branches, and WordPress combined loose+packed ref resolution.
 - `PackIndexTest.php` maps `gix-pack` v2 pack-index fanout parsing, monotonic fanout/size/version validation, pack and index checksum access, checksum verification, full object ID lookup, prefix missing/ambiguous/found outcomes, CRC32 entries, 32-bit and large 64-bit offsets, sorted offsets, and a WordPress compacted object-offset fixture.
 - `PackDataTest.php` maps `gix-pack` pack header parsing, checksum verification, Git variable-size entry headers, non-delta commit/blob decompression by pack-index offset, OFS_DELTA/REF_DELTA resolution, Git delta copy/insert application, object ID verification, unsupported/corrupt pack errors, direct delta-entry rejection, and a WordPress packed commit/blob/delta fixture.
+- `ObjectDatabaseTest.php` maps `gix-odb` pack-before-loose object lookup, packed object counts, prefix lookup across packed and loose objects, duplicate id de-duplication, ambiguous prefix reporting, pack-missing error behavior, pack lexicographic iteration, pack-offset iteration, and a WordPress pack+loose object database fixture.
