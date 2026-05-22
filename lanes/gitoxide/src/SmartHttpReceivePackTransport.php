@@ -20,7 +20,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable} */
+    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable} */
     private readonly array $httpOptions;
 
     /**
@@ -197,21 +197,29 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
         while (true) {
             $effectiveUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, $url);
-            $response = ($this->requester)(
-                $method,
-                $effectiveUrl,
-                $headers,
-                $body,
-                $this->timeout,
-                $this->httpOptionsForUrl($effectiveUrl),
-            );
-            if (!is_array($response)
-                || !isset($response['status'], $response['headers'], $response['body'])
-                || !is_int($response['status'])
-                || !is_array($response['headers'])
-                || !is_string($response['body'])
-            ) {
-                throw new \RuntimeException('smart HTTP receive-pack requester returned an invalid response shape');
+            [$requestHttpOptions, $proxyCredentialAction] = $this->httpOptionsForUrl($effectiveUrl);
+            try {
+                $response = ($this->requester)(
+                    $method,
+                    $effectiveUrl,
+                    $headers,
+                    $body,
+                    $this->timeout,
+                    $requestHttpOptions,
+                );
+                if (!is_array($response)
+                    || !isset($response['status'], $response['headers'], $response['body'])
+                    || !is_int($response['status'])
+                    || !is_array($response['headers'])
+                    || !is_string($response['body'])
+                ) {
+                    throw new \RuntimeException('smart HTTP receive-pack requester returned an invalid response shape');
+                }
+                $this->completeProxyCredentialAction($proxyCredentialAction, $response['status']);
+            } catch (\Throwable $throwable) {
+                $this->eraseProxyCredentialAction($proxyCredentialAction);
+
+                throw $throwable;
             }
 
             if (!self::isRedirectStatus($response['status'])) {
@@ -453,18 +461,18 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{0: array<string, mixed>, 1: ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}}}
      */
     private function httpOptionsForUrl(string $url): array
     {
         $proxy = $this->httpOptions['proxy'];
         if ($proxy === null) {
-            return [];
+            return [[], null];
         }
 
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
         if (self::matchesNoProxy($request['host'], $this->httpOptions['noProxy'])) {
-            return [];
+            return [[], null];
         }
 
         $options = [
@@ -475,32 +483,33 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'proxyAuthMethod' => $this->httpOptions['proxyAuthMethod'],
         ];
         $authorization = $this->proxyAuthorization($proxy, $request['host']);
-        if ($authorization !== null) {
-            $options['proxyAuthorization'] = $authorization;
+        if ($authorization['authorization'] !== null) {
+            $options['proxyAuthorization'] = $authorization['authorization'];
         }
 
-        return $options;
+        return [$options, $authorization['credentialAction']];
     }
 
     /**
      * @param array{type: string, stream: string, url: string, authorization: ?string} $proxy
+     * @return array{authorization: ?string, credentialAction: ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}}}
      */
-    private function proxyAuthorization(array $proxy, string $requestHost): ?string
+    private function proxyAuthorization(array $proxy, string $requestHost): array
     {
         if ($this->httpOptions['proxyAuthorization'] !== null) {
-            return $this->httpOptions['proxyAuthorization'];
+            return ['authorization' => $this->httpOptions['proxyAuthorization'], 'credentialAction' => null];
         }
         if ($proxy['authorization'] !== null) {
-            return $proxy['authorization'];
+            return ['authorization' => $proxy['authorization'], 'credentialAction' => null];
         }
         $helper = $this->httpOptions['proxyCredentialHelper'];
         if ($helper === null) {
-            return null;
+            return ['authorization' => null, 'credentialAction' => null];
         }
 
         $credentials = $helper($proxy['url'], $requestHost);
         if ($credentials === null) {
-            return null;
+            return ['authorization' => null, 'credentialAction' => null];
         }
         if (!is_array($credentials)
             || !isset($credentials['username'], $credentials['password'])
@@ -510,7 +519,52 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             throw new \RuntimeException('smart HTTP receive-pack proxy credential helper returned invalid credentials');
         }
 
-        return self::basicAuthorization($credentials['username'], $credentials['password'], 'smart HTTP receive-pack proxy credentials');
+        return [
+            'authorization' => self::basicAuthorization($credentials['username'], $credentials['password'], 'smart HTTP receive-pack proxy credentials'),
+            'credentialAction' => [
+                'proxyUrl' => $proxy['url'],
+                'requestHost' => $requestHost,
+                'credentials' => [
+                    'username' => $credentials['username'],
+                    'password' => $credentials['password'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}} $credentialAction
+     */
+    private function completeProxyCredentialAction(?array $credentialAction, int $status): void
+    {
+        if ($credentialAction === null || self::isRedirectStatus($status)) {
+            return;
+        }
+
+        $callback = $status >= 200 && $status < 300
+            ? $this->httpOptions['proxyCredentialStore']
+            : $this->httpOptions['proxyCredentialErase'];
+        if ($callback === null) {
+            return;
+        }
+
+        $callback($credentialAction['proxyUrl'], $credentialAction['requestHost'], $credentialAction['credentials']);
+    }
+
+    /**
+     * @param ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}} $credentialAction
+     */
+    private function eraseProxyCredentialAction(?array $credentialAction): void
+    {
+        if ($credentialAction === null || $this->httpOptions['proxyCredentialErase'] === null) {
+            return;
+        }
+
+        ($this->httpOptions['proxyCredentialErase'])(
+            $credentialAction['proxyUrl'],
+            $credentialAction['requestHost'],
+            $credentialAction['credentials'],
+        );
     }
 
     /**
@@ -591,11 +645,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable}
+     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
-        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper'];
+        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyAuthMethod', 'proxyCredentials', 'proxyCredentialHelper', 'proxyCredentialStore', 'proxyCredentialErase'];
         foreach (array_keys($httpOptions) as $name) {
             if (!is_string($name) || !in_array($name, $allowed, true)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
@@ -639,6 +693,20 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             }
             $helper = $httpOptions['proxyCredentialHelper'];
         }
+        $store = null;
+        if (array_key_exists('proxyCredentialStore', $httpOptions) && $httpOptions['proxyCredentialStore'] !== null) {
+            if (!is_callable($httpOptions['proxyCredentialStore'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy credential store must be callable');
+            }
+            $store = $httpOptions['proxyCredentialStore'];
+        }
+        $erase = null;
+        if (array_key_exists('proxyCredentialErase', $httpOptions) && $httpOptions['proxyCredentialErase'] !== null) {
+            if (!is_callable($httpOptions['proxyCredentialErase'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy credential erase must be callable');
+            }
+            $erase = $httpOptions['proxyCredentialErase'];
+        }
 
         return [
             'proxy' => $proxy,
@@ -646,6 +714,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'proxyAuthorization' => $proxyAuthorization,
             'proxyAuthMethod' => $proxyAuthMethod,
             'proxyCredentialHelper' => $helper,
+            'proxyCredentialStore' => $store,
+            'proxyCredentialErase' => $erase,
         ];
     }
 

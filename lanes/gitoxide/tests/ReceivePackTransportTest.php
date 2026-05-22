@@ -533,6 +533,8 @@ return [
 
         $helperCalls = [];
         $helperRequests = [];
+        $storedCredentials = [];
+        $erasedCredentials = [];
         $helperTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$helperRequests, $packet, $flush): array {
@@ -554,11 +556,37 @@ return [
 
                     return ['username' => 'helper-user', 'password' => 'helper-pass'];
                 },
+                'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$storedCredentials): void {
+                    $storedCredentials[] = [$proxyUrl, $requestHost, $credentials];
+                },
+                'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$erasedCredentials): void {
+                    $erasedCredentials[] = [$proxyUrl, $requestHost, $credentials];
+                },
             ]
         );
         $helperTransport->readAdvertisement();
         $t->same([['http://proxy.example.test:8080', 'git.example.test']], $helperCalls);
         $t->same('Basic ' . base64_encode('helper-user:helper-pass'), $helperRequests[0]['proxyAuthorization']);
+        $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'helper-user', 'password' => 'helper-pass']]], $storedCredentials);
+        $t->same([], $erasedCredentials);
+
+        $failedErasures = [];
+        $failedTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => ['status' => 407, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'proxy auth required'],
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'proxyCredentialHelper' => static fn (): array => ['username' => 'bad-user', 'password' => 'bad-pass'],
+                'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$failedErasures): void {
+                    $failedErasures[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        $t->throws(RuntimeException::class, static fn () => $failedTransport->readAdvertisement());
+        $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'bad-user', 'password' => 'bad-pass']]], $failedErasures);
 
         $socksRequests = [];
         $socksTransport = new SmartHttpReceivePackTransport(
@@ -591,6 +619,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyAuthMethod' => 'bearer']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
     },
     'ssh receive-pack transport connects through injected exec streams' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -702,5 +731,15 @@ return [
         $t->contains($fixture['newCommit'], $commands[0]);
         $t->same(['ci.skip'], $options);
         $t->contains('PACK', $packBytes);
+    },
+    'wordpress fixture stores smart http proxy credentials without leaking origin headers' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-proxy-credentials.php';
+
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test']], $fixture['helperCalls']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'wp-proxy-user', 'password' => 'wp-proxy-pass']]], $fixture['storedCredentials']);
+        $t->same([], $fixture['erasedCredentials']);
+        $t->same('Basic ' . base64_encode('wp-proxy-user:wp-proxy-pass'), $fixture['proxyAuthorizationSent']);
+        $t->same(false, $fixture['originProxyHeaderLeaked']);
+        $t->contains('refs/heads/main', $fixture['advertisementBytes']);
     },
 ];
