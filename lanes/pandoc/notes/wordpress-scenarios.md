@@ -262,6 +262,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   heading-anchored source checklist, a three-level nested unordered audit list,
   paragraph-bearing ordered items, and nested decimal, roman, and alphabetic
   review queues without shelling out to Pandoc.
+- The fixture now includes an HTML reader definition-list import, exercising
+  glossary/FAQ `<dl>` content with multiple definitions and consecutive term
+  aliases that need to stay grouped in WordPress output without shelling out to
+  Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -333,6 +337,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   blocks while preserving generated heading anchors, tight nested checklist
   items, paragraph continuations, decimal starts, and nested roman/alpha queue
   styles without invoking Pandoc.
+- HTML reader definition lists render as WordPress-safe glossary/FAQ `<dl>`
+  markup while preserving consecutive `<dt>` aliases and multiple `<dd>` bodies
+  without invoking Pandoc.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -385,6 +392,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader definition-list slice from
-`test/html-reader.html`, starting with the `Definition` section immediately
-after the Fancy list markers cases.
+Map the next bounded HTML-reader inline-markup slice from
+`test/html-reader.html/native`, starting with the empty strong/emphasis and
+emphasized-link paragraphs immediately after the `Definition` section.

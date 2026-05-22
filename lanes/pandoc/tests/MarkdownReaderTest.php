@@ -1544,6 +1544,41 @@ HTML);
         $t->contains('<ol start="2"><li>begins with 2</li><li><p>and now 3</p><p>with a continuation</p><ol start="4" type="i"><li>sublist with roman numerals, starting with 4</li><li>more items<ol type="A"><li>a subsublist</li><li>a subsublist</li></ol></li></ol></li></ol>', $blocks);
         $t->contains('<ol type="A"><li>Upper Alpha<ol type="I"><li>Upper Roman.<ol start="6"><li>Decimal start with 6<ol start="3" type="a"><li>Lower alpha with paren</li></ol></li></ol></li></ol></li></ol>', $blocks);
     },
+    'maps upstream html reader definition lists' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<h2>Definition</h2>
+<dl>
+  <dt>Violin</dt>
+  <dd>Stringed musical instrument.</dd>
+  <dd>Torture device.</dd>
+  <dt>Cello</dt>
+  <dt>Violoncello</dt>
+  <dd>Low-voiced stringed instrument.</dd>
+</dl>
+HTML);
+        $heading = $document->children[0];
+        $list = $document->children[1];
+        $violin = $list->children[0];
+        $cello = $list->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('heading', $heading->type);
+        $t->same('definition', $heading->attr('id'));
+        $t->same('definition_list', $list->type);
+        $t->same(2, count($list->children));
+        $t->same('Violin', $violin->attr('term'));
+        $t->same('term', $violin->children[0]->type);
+        $t->same('Stringed musical instrument.', $violin->children[1]->children[0]->attr('text'));
+        $t->same('Torture device.', $violin->children[2]->children[0]->attr('text'));
+        $t->same("Cello\nVioloncello", $cello->attr('term'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn ($node): string => $node->type, $cello->children[0]->children));
+        $t->same('Cello', $cello->children[0]->children[0]->attr('text'));
+        $t->same('Violoncello', $cello->children[0]->children[2]->attr('text'));
+        $t->same('Low-voiced stringed instrument.', $cello->children[1]->children[0]->attr('text'));
+        $t->contains('<h2 id="definition">Definition</h2>', $blocks);
+        $t->contains('<dl><dt>Violin</dt><dd>Stringed musical instrument.</dd><dd>Torture device.</dd><dt>Cello<br/>Violoncello</dt><dd>Low-voiced stringed instrument.</dd></dl>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -3084,6 +3119,29 @@ XML;
         $t->contains('<h2 id="html-reader-nested-checklist">HTML reader nested checklist</h2>', $blocks);
         $t->contains('<ul><li>Audit source sections<ul><li>Posts<ul><li>Confirm nested review note</li></ul></li></ul></li></ul>', $blocks);
         $t->contains('<ol start="2"><li>Import source batch</li><li><p>Review media mapping</p><p>Record continuation note</p><ol start="4" type="i"><li>Check roman subqueue</li><li>Escalate captions<ol type="A"><li>Alt text</li><li>Credit line</li></ol></li></ol></li></ol>', $blocks);
+    },
+    'writes wordpress html reader definition imports from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $htmlDefinitionList = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'definition_list'
+                && ($node->children[0] ?? null)?->attr('term') === 'Migration glossary'
+            ) {
+                $htmlDefinitionList = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($htmlDefinitionList !== null, 'HTML reader dl import should stay on the native definition-list path');
+        $t->same(2, count($htmlDefinitionList->children));
+        $t->same('Reviewer FAQ entry.', $htmlDefinitionList->children[0]->children[2]->children[0]->attr('text'));
+        $t->same("Reusable block\nSynced pattern", $htmlDefinitionList->children[1]->attr('term'));
+        $t->same('linebreak', $htmlDefinitionList->children[1]->children[0]->children[1]->type);
+        $t->contains('<p>HTML reader definition import:</p>', $blocks);
+        $t->contains('<dl><dt>Migration glossary</dt><dd>Source term list.</dd><dd>Reviewer FAQ entry.</dd><dt>Reusable block<br/>Synced pattern</dt><dd>Shared block-era naming stays linked.</dd></dl>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

@@ -83,6 +83,11 @@ final class MarkdownReader
                 $blocks[] = $htmlList;
                 continue;
             }
+            $htmlDefinitionList = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlDefinitionListBlock($lines, $index) : null;
+            if ($htmlDefinitionList !== null) {
+                $blocks[] = $htmlDefinitionList;
+                continue;
+            }
             $htmlParagraph = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
             if ($htmlParagraph !== null) {
                 $blocks[] = $htmlParagraph;
@@ -1147,6 +1152,32 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadHtmlDefinitionListBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<dl\b/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'dl');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $list = $this->parseHtmlDefinitionListBlock($html);
+        if ($list === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $list;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function tryReadHtmlPreCodeBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
@@ -1270,6 +1301,33 @@ final class MarkdownReader
         return $this->parseHtmlListElement($list);
     }
 
+    private function parseHtmlDefinitionListBlock(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $list = $this->firstChildElement($body, 'dl');
+        if (!$list instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->parseHtmlDefinitionListElement($list);
+    }
+
     private function buildHtmlBlockQuoteNode(\DOMElement $quote): AstNode
     {
         return new AstNode('blockquote', $this->htmlElementPandocAttrs($quote), $this->parseHtmlBlockChildren($quote));
@@ -1305,6 +1363,7 @@ final class MarkdownReader
         return in_array(strtolower($element->localName), [
             'blockquote',
             'div',
+            'dl',
             'h1',
             'h2',
             'h3',
@@ -1334,6 +1393,9 @@ final class MarkdownReader
         }
         if ($name === 'ol' || $name === 'ul') {
             return $this->parseHtmlListElement($element);
+        }
+        if ($name === 'dl') {
+            return $this->parseHtmlDefinitionListElement($element);
         }
         if ($name === 'table') {
             return $this->parseHtmlTableElement($element);
@@ -1411,6 +1473,73 @@ final class MarkdownReader
         }
 
         return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    private function parseHtmlDefinitionListElement(\DOMElement $list): AstNode
+    {
+        $items = [];
+        $termInlines = [];
+        $termTexts = [];
+        $definitions = [];
+
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name === 'dt') {
+                if ($termInlines !== [] && $definitions !== []) {
+                    $this->flushHtmlDefinitionItem($items, $termInlines, $termTexts, $definitions);
+                } elseif ($termInlines !== []) {
+                    $termInlines[] = new AstNode('linebreak');
+                }
+
+                $inlines = $this->parseHtmlInlineChildren($child);
+                array_push($termInlines, ...$inlines);
+                $termTexts[] = trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($inlines)) ?? '');
+                continue;
+            }
+
+            if ($name === 'dd' && $termInlines !== []) {
+                $definitions[] = $this->buildHtmlDefinitionNode($child);
+            }
+        }
+
+        $this->flushHtmlDefinitionItem($items, $termInlines, $termTexts, $definitions);
+
+        return new AstNode('definition_list', $this->htmlElementPandocAttrs($list), $items);
+    }
+
+    /**
+     * @param list<AstNode> $items
+     * @param list<AstNode> $termInlines
+     * @param list<string> $termTexts
+     * @param list<AstNode> $definitions
+     */
+    private function flushHtmlDefinitionItem(
+        array &$items,
+        array &$termInlines,
+        array &$termTexts,
+        array &$definitions
+    ): void {
+        if ($termInlines === []) {
+            $termTexts = [];
+            $definitions = [];
+            return;
+        }
+
+        $termText = implode("\n", $termTexts);
+        $term = new AstNode('term', ['text' => $termText], $termInlines);
+        $items[] = new AstNode('definition_item', ['term' => $termText], array_merge([$term], $definitions));
+        $termInlines = [];
+        $termTexts = [];
+        $definitions = [];
+    }
+
+    private function buildHtmlDefinitionNode(\DOMElement $definition): AstNode
+    {
+        return new AstNode('definition', ['loose' => false], $this->parseHtmlBlockChildren($definition));
     }
 
     /**

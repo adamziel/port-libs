@@ -191,6 +191,14 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   now preserves Pandoc's tight `Plain` shape for list items whose only block
   child is a nested list, keeps paragraph-bearing HTML list items loose, and
   preserves start/style metadata through the nested ordered-list chain.
+- `test/html-reader.html` Definition slice inspected in this run: upstream
+  lines 303-311 cover one `<dl>` with two term groups, including consecutive
+  `<dt>` aliases (`Cello` and `Violoncello`) before a shared definition body.
+- `test/html-reader.native` Definition rendered native AST slice inspected in
+  this run: upstream lines 765-790 show one `DefinitionList`, two term groups,
+  three definition bodies, and a `LineBreak` between the consecutive
+  `Cello`/`Violoncello` terms. The bounded PHP mapping now preserves that term
+  grouping and emits WordPress-safe `<dl>` output.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -490,13 +498,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   styles and starts survive through nested list chains. The WordPress writer
   emits heading anchors and nested ordered-list `start`/`type` attributes
   without invoking Pandoc.
+- The HTML-reader definition-list shape from `test/html-reader.html` is now
+  mapped for the `Definition` section: balanced `<dl>` blocks become native
+  `definition_list` nodes, consecutive `<dt>` terms are joined with a
+  Pandoc-style `linebreak`, multiple `<dd>` bodies stay attached to the same
+  term, and the WordPress writer emits glossary/FAQ `<dl>` markup without
+  invoking Pandoc.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-123 tests, 970 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command was run after this slice and passed with 143
-test files, 12,794 assertions, and 0 failures. A final rerun after lane status
-updates passed with 144 test files, 12,904 assertions, and 0 failures while
-other lanes continued adding tests.
+126 tests, 1,030 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command was run after this slice and passed with 148
+test files, 13,284 assertions, and 0 failures.

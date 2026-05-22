@@ -169,6 +169,17 @@ HTML reader list import:
 </ol></li>
 </ol>
 
+HTML reader definition import:
+
+<dl>
+<dt>Migration glossary</dt>
+<dd>Source term list.</dd>
+<dd>Reviewer FAQ entry.</dd>
+<dt>Reusable block</dt>
+<dt>Synced pattern</dt>
+<dd>Shared block-era naming stays linked.</dd>
+</dl>
+
 Empty import audit table:
 
 <table>
