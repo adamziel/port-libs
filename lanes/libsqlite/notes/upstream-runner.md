@@ -119,8 +119,9 @@ index b-tree traversal that preserves interior index records, index local
 payload calculations, explicit `CREATE INDEX ... ON wp_options(option_name)`
 schema discovery, option-name index lookup, rowid-backed table retrieval, and
 automatic `PRIMARY KEY` index inference for simple first-column lookups.
-Expression indexes, partial indexes, non-BINARY collations, descending sort
-order, and full composite-key scans remain unported.
+Expression indexes, predicate-aware partial-index use, custom collations,
+automatic-index collation metadata, and full composite-key scans remain
+unported.
 
 ## Focused Native Mapping: Automatic UNIQUE Autoindexes
 
@@ -147,8 +148,8 @@ The native PHP tests cover column-level `option_name text UNIQUE`, table-level
 `sqlite_autoindex_wp_options_1` row whose `sql` is `NULL`. The lookup then uses
 the automatic index root page, decodes the index record's rowid tail, and reads
 the target `wp_options` row through the table b-tree. Full composite-key scans,
-non-BINARY collations, descending sort order, expression indexes, and partial
-indexes remain unported.
+custom collations, automatic-index collation metadata, expression indexes, and
+predicate-aware partial-index use remain unported.
 
 ## Focused Native Mapping: Automatic PRIMARY KEY Autoindexes
 
@@ -185,6 +186,76 @@ WordPress-shaped fixture verifies lookup through `sqlite_autoindex_wp_options_2`
 when `sqlite_autoindex_wp_options_1` belongs to an earlier `autoload UNIQUE`
 constraint and `PRIMARY KEY(option_name)` backs the option-name lookup.
 
-Composite duplicate scans, non-BINARY collations, descending sort order inside
-index comparison, expression indexes, partial indexes, and full
+Composite duplicate scans, custom collations, automatic-index collation
+metadata, expression indexes, predicate-aware partial-index use, and full
 WITHOUT ROWID table reads remain unported.
+
+## Focused Native Mapping: Explicit Index Collation And DESC Order
+
+This slice replaces the previous explicit-index regex boundary with a small
+`CREATE INDEX` first-column parser. It records the first indexed column,
+first-column `COLLATE` clause, first-column `ASC`/`DESC` direction, and whether
+the index is partial. Native indexed `wp_options` point lookups now carry that
+metadata into the index b-tree binary search.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  collate1.test collate2.test descidx1.test index3.test
+```
+
+Result: 6 Tcl script/permutation runs, 0 errors out of 286 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/collate1.test` and `test/collate2.test` verify built-in collation
+  ordering, especially `BINARY` versus `NOCASE` behavior.
+- `test/descidx1.test` verifies that descending indexes reverse range and
+  order traversal semantics while remaining usable for lookup.
+- `test/index3.test` verifies legacy quoted-string index column identifiers and
+  `COLLATE nocase DESC` syntax in indexed columns.
+
+The native PHP tests cover parsing quoted first-column index identifiers,
+`COLLATE NOCASE`, `DESC`, partial-index detection, expression-index rejection,
+case-insensitive lookup through a descending `wp_options(option_name)` index,
+and refusal to use unsupported partial `option_name` indexes for unconstrained
+lookup. Built-in `RTRIM` comparison is implemented for text point lookups, but
+custom collations, broader predicate-aware partial-index use, automatic-index
+collation metadata, composite keys, expression indexes, and range scans remain
+unported.
+
+## Focused Native Mapping: IS NOT NULL Partial Index Point Lookup
+
+SQLite uses a partial index whose predicate is `a IS NOT NULL` for point
+lookups such as `a=5`, because the equality constraint implies the partial
+predicate. The native PHP reader now recognizes a `CREATE INDEX` partial
+predicate of the form `WHERE <first-column> IS NOT NULL` and allows that index
+for non-null point lookups only. Other partial predicates continue to be
+rejected for `wp_options` option-name lookup until broader predicate implication
+is ported.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index7.test
+```
+
+Result: 2 Tcl script/permutation runs, 0 errors out of 60 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index7.test` verifies partial-index creation and the planner's use of
+  `CREATE INDEX t2a1 ON t2(a) WHERE a IS NOT NULL` for `SELECT * FROM t2
+  WHERE a=5`, while refusing to use unrelated partial indexes for queries that
+  do not imply the predicate.
+
+The native PHP tests now cover parsing qualified/quoted `IS NOT NULL` partial
+predicates, keeping `indexRootPageForColumn()` unconstrained, exposing a
+point-lookup root-page helper, resolving a WordPress-shaped
+`wp_options(option_name) WHERE option_name IS NOT NULL` index, and continuing
+to reject an unsupported `WHERE autoload='yes'` partial index for generic
+option-name point lookup.

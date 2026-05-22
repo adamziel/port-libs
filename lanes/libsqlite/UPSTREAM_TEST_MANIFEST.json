@@ -13,7 +13,7 @@
     "benchmarkDenominator": {
         "status": "cloned-inventory-plus-upstream-veryquick-runner",
         "total": 1454,
-        "mapped": 30,
+        "mapped": 34,
         "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest.",
         "inventory": {
             "allRepositoryFiles": 2208,
@@ -35,7 +35,10 @@
             "focusedOverflowChainScripts": 1,
             "focusedIndexTestScripts": 15,
             "focusedAutomaticUniqueIndexScripts": 4,
-            "focusedPrimaryKeyAutoindexScripts": 4
+            "focusedPrimaryKeyAutoindexScripts": 4,
+            "focusedCollationScripts": 2,
+            "focusedDescendingIndexScripts": 1,
+            "focusedPartialIndexScripts": 1
         },
         "runnerStatus": {
             "executed": true,
@@ -60,14 +63,18 @@
                 "make -C .upstream-cache/libsqlite-build-port-libsqlite -j2 testfixture",
                 "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick btree*.test pager*.test quick*.test schema*.test rowid*.test table*.test",
                 "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick",
-                "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick index.test index3.test schema6.test indexedby.test"
+                "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick index.test index3.test schema6.test indexedby.test",
+                "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick collate1.test collate2.test descidx1.test index3.test",
+                "cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick index7.test"
             ],
             "results": {
                 "configure": "Passed; Tcl detected via /usr/bin/tclsh9.0 and /usr/lib64/tclConfig.sh.",
                 "testfixture": "Passed.",
                 "focusedVeryquick": "Passed 37 scripts with 0 errors out of 6731 tests in 00:07.",
                 "fullVeryquick": "Passed 1235 scripts with 0 errors out of 329670 tests in 01:51.",
-                "focusedPrimaryKeyAutoindex": "Passed 8 Tcl script/permutation runs with 0 errors out of 404 tests in 00:00, covering index.test, index3.test, schema6.test, and indexedby.test primary-key autoindex behavior."
+                "focusedPrimaryKeyAutoindex": "Passed 8 Tcl script/permutation runs with 0 errors out of 404 tests in 00:00, covering index.test, index3.test, schema6.test, and indexedby.test primary-key autoindex behavior.",
+                "focusedCollationDescendingIndex": "Passed 6 Tcl script/permutation runs with 0 errors out of 286 tests in 00:00, covering collate1.test, collate2.test, descidx1.test, and index3.test first-column collation and DESC index behavior.",
+                "focusedPartialIndex": "Passed 2 Tcl script/permutation runs with 0 errors out of 60 tests in 00:00, covering index7.test partial-index usability including IS NOT NULL implication for point lookups."
             },
             "fullReleaseStatus": {
                 "executed": false,
@@ -79,8 +86,8 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, b-tree page header parser, table leaf and table interior cell parsers, index leaf and index interior cell parsers, SQLite record serial decoder, database page reader, sqlite_schema table-b-tree traversal, bounded table-row decoding, rowid table lookup, standard wp_options option_name/option_value reads from resolved root pages, table leaf overflow payload chain reads for large records, explicit wp_options(option_name) index lookup, automatic UNIQUE autoindex first-column inference from CREATE TABLE SQL when sqlite_schema index rows have null SQL, and automatic PRIMARY KEY autoindex inference that skips rowid-alias INTEGER PRIMARY KEY and WITHOUT ROWID table-primary-key cases."
+        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, b-tree page header parser, table leaf and table interior cell parsers, index leaf and index interior cell parsers, SQLite record serial decoder, database page reader, sqlite_schema table-b-tree traversal, bounded table-row decoding, rowid table lookup, standard wp_options option_name/option_value reads from resolved root pages, table leaf overflow payload chain reads for large records, explicit wp_options(option_name) index lookup, automatic UNIQUE autoindex first-column inference from CREATE TABLE SQL when sqlite_schema index rows have null SQL, automatic PRIMARY KEY autoindex inference that skips rowid-alias INTEGER PRIMARY KEY and WITHOUT ROWID table-primary-key cases, explicit CREATE INDEX first-column metadata parsing, built-in BINARY/NOCASE/RTRIM text comparison for indexed point lookups, DESC first-column index search, partial-index rejection for unconstrained wp_options lookups, and predicate-aware use of option_name IS NOT NULL partial indexes for non-null point lookups."
     },
-    "wordpressScenario": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, large option_value overflow reads, explicit option_name index lookup, UNIQUE autoindex-backed option lookup, and PRIMARY KEY-backed option_name lookup for recovery/import workflows.",
-    "nextTask": "Port SQLite index comparison features outside the current bounded slice: composite duplicate scans, expression indexes, partial indexes, non-BINARY collations, descending sort order, and full composite-key range scans."
+    "wordpressScenario": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, large option_value overflow reads, explicit option_name index lookup, UNIQUE autoindex-backed option lookup, PRIMARY KEY-backed option_name lookup, NOCASE/DESC explicit index lookup, safe option_name IS NOT NULL partial-index point lookup, and partial-index avoidance for unsupported predicates during recovery/import workflows.",
+    "nextTask": "Port SQLite index comparison features outside the current bounded slice: composite duplicate scans, expression indexes, broader predicate-aware partial-index lookups, custom collations, automatic-index collation metadata, and full composite-key range scans."
 }

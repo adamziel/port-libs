@@ -21,7 +21,13 @@ lookup path now handles automatic `UNIQUE` indexes where SQLite records
 first indexed column from the owning table's `CREATE TABLE` statement. It also
 handles automatic non-rowid `PRIMARY KEY` indexes, preserving earlier UNIQUE
 autoindex slots so a WordPress-shaped `PRIMARY KEY(option_name)` lookup still
-finds the correct `sqlite_autoindex_wp_options_*` root page.
+finds the correct `sqlite_autoindex_wp_options_*` root page. Explicit
+`CREATE INDEX` definitions now carry first-column `COLLATE` and `ASC`/`DESC`
+metadata into lookup, so a descending `option_name COLLATE NOCASE` index can
+serve case-insensitive option recovery. Partial `option_name` indexes are
+detected and skipped for unconstrained lookup instead of returning incomplete
+results; the safe `WHERE option_name IS NOT NULL` partial-index form is usable
+for non-null option-name point lookup.
 
 ## Example
 
@@ -37,7 +43,11 @@ import/export and recovery tooling on hosts where `sqlite3` is unavailable.
 SQLite database file, resolves an explicit `wp_options(option_name)` index,
 an automatic `UNIQUE` option-name autoindex, or an automatic non-rowid
 `PRIMARY KEY` option-name autoindex, and returns one option by name using
-native index and rowid b-tree traversal.
+native index and rowid b-tree traversal. Explicit first-column
+`COLLATE NOCASE`, `COLLATE RTRIM`, and `DESC` index metadata are honored for
+point lookups. Unsupported partial indexes are not used for unconstrained
+option lookup, while `WHERE option_name IS NOT NULL` indexes can serve normal
+non-null option-name recovery.
 
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
@@ -46,6 +56,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: composite duplicate scans, expression indexes, partial indexes,
-non-BINARY collations, descending sort order, and full composite-key range
-scans.
+slice: composite duplicate scans, expression indexes, broader predicate-aware
+partial indexes, custom collations, automatic-index collation metadata, and
+full composite-key range scans.

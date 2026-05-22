@@ -15,11 +15,13 @@ if ($databasePath === null || $optionName === null) {
 
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForColumn('wp_options', 'option_name');
+$pointLookupIndexRootPage = $database->indexRootPageForPointLookup('wp_options', 'option_name', $optionName);
 $option = $database->wordpressOptionByIndexedName($optionName);
 
 echo json_encode([
     'path' => $databasePath,
     'optionName' => $optionName,
     'wpOptionsOptionNameIndexRootPage' => $indexRootPage,
+    'wpOptionsOptionNamePointLookupIndexRootPage' => $pointLookupIndexRootPage,
     'option' => $option?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

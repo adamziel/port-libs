@@ -189,11 +189,51 @@ final class SQLiteDatabase
 
     public function indexRootPageForColumn(string $tableName, string $columnName): ?int
     {
+        $lookup = $this->indexLookupForColumn($tableName, $columnName);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    public function indexRootPageForPointLookup(string $tableName, string $columnName, mixed $value): ?int
+    {
+        $lookup = $this->indexLookupForColumn($tableName, $columnName, $value, true);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForColumn(
+        string $tableName,
+        string $columnName,
+        mixed $pointLookupValue = null,
+        bool $isPointLookup = false,
+    ): ?array
+    {
         $autoIndexFirstColumns = null;
         $autoIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable($tableName) as $record) {
-            if ($record->sql !== null && self::indexSqlMatchesFirstColumn($record->sql, $columnName)) {
-                return $record->rootPage;
+            if ($record->sql !== null) {
+                $firstColumn = SQLiteCreateIndex::firstColumn($record->sql);
+                if ($firstColumn !== null && strcasecmp($firstColumn->columnName, $columnName) === 0) {
+                    if ($firstColumn->partial) {
+                        $partialPredicate = $firstColumn->partialPredicate;
+                        if (
+                            !$isPointLookup
+                            || $partialPredicate === null
+                            || !$partialPredicate->isImpliedByPointLookup($columnName, $pointLookupValue)
+                        ) {
+                            continue;
+                        }
+                    }
+
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
             }
             if ($record->sql === null && self::isAutomaticIndex($record, $tableName)) {
                 if ($autoIndexFirstColumns === null) {
@@ -202,7 +242,11 @@ final class SQLiteDatabase
                 $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
                 $autoIndexOrdinal++;
                 if ($firstColumn !== null && strcasecmp($firstColumn, $columnName) === 0) {
-                    return $record->rootPage;
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => 'BINARY',
+                        'descending' => false,
+                    ];
                 }
             }
         }
@@ -234,13 +278,19 @@ final class SQLiteDatabase
             return null;
         }
 
-        $indexRootPage = $this->indexRootPageForColumn('wp_options', 'option_name');
-        if ($indexRootPage === null) {
+        $indexLookup = $this->indexLookupForColumn('wp_options', 'option_name', $optionName, true);
+        if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite wp_options option_name index is not present');
         }
 
         $visited = [];
-        $indexCell = $this->findIndexCellByFirstValue($indexRootPage, $optionName, $visited);
+        $indexCell = $this->findIndexCellByFirstValue(
+            $indexLookup['rootPage'],
+            $optionName,
+            $visited,
+            $indexLookup['collation'],
+            $indexLookup['descending'],
+        );
         if ($indexCell === null) {
             return null;
         }
@@ -410,7 +460,13 @@ final class SQLiteDatabase
     /**
      * @param array<int, true> $visited
      */
-    private function findIndexCellByFirstValue(int $pageNumber, mixed $value, array &$visited): ?SQLiteIndexCell
+    private function findIndexCellByFirstValue(
+        int $pageNumber,
+        mixed $value,
+        array &$visited,
+        string $collation,
+        bool $descending,
+    ): ?SQLiteIndexCell
     {
         if (isset($visited[$pageNumber])) {
             throw new \InvalidArgumentException("SQLite index b-tree lookup reached page {$pageNumber} more than once");
@@ -442,7 +498,10 @@ final class SQLiteDatabase
             if ($record->values === []) {
                 throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
             }
-            $comparison = self::compareSQLiteScalar($record->values[0], $value);
+            $comparison = self::compareSQLiteScalar($record->values[0], $value, $collation);
+            if ($descending) {
+                $comparison = -$comparison;
+            }
             if ($comparison < 0) {
                 $lower = $index + 1;
             } elseif ($comparison > 0) {
@@ -464,7 +523,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
         }
 
-        return $this->findIndexCellByFirstValue($childPage, $value, $visited);
+        return $this->findIndexCellByFirstValue($childPage, $value, $visited, $collation, $descending);
     }
 
     private function rowIdFromIndexCell(SQLiteIndexCell $cell): int
@@ -479,24 +538,6 @@ final class SQLiteDatabase
         }
 
         return $rowId;
-    }
-
-    private static function indexSqlMatchesFirstColumn(string $sql, string $columnName): bool
-    {
-        if (preg_match('/\)\s+where\b/i', $sql)) {
-            return false;
-        }
-
-        $identifier = '(?:"([^"]+)"|`([^`]+)`|\[([^\]]+)\]|([A-Za-z_][A-Za-z0-9_]*))';
-        if (!preg_match('/\bon\s+' . $identifier . '\s*\(\s*' . $identifier . '\s*(?:ASC\s*)?(?:,|\))/i', $sql, $matches)) {
-            return false;
-        }
-
-        $firstColumn = ($matches[5] ?? '') !== ''
-            ? $matches[5]
-            : (($matches[6] ?? '') !== '' ? $matches[6] : (($matches[7] ?? '') !== '' ? $matches[7] : $matches[8]));
-
-        return strcasecmp($firstColumn, $columnName) === 0;
     }
 
     private function automaticIndexFirstColumnsForTable(string $tableName): array
@@ -517,7 +558,7 @@ final class SQLiteDatabase
             && str_starts_with($record->name, "sqlite_autoindex_{$tableName}_");
     }
 
-    private static function compareSQLiteScalar(mixed $left, mixed $right): int
+    private static function compareSQLiteScalar(mixed $left, mixed $right, string $collation = 'BINARY'): int
     {
         $leftRank = self::sqliteScalarRank($left);
         $rightRank = self::sqliteScalarRank($right);
@@ -531,10 +572,38 @@ final class SQLiteDatabase
             return $left <=> $right;
         }
         if (is_string($left)) {
-            return strcmp($left, $right);
+            if (!is_string($right)) {
+                throw new \InvalidArgumentException('SQLite scalar comparison values must share a storage class');
+            }
+
+            return self::compareSQLiteText($left, $right, $collation);
         }
 
         throw new \InvalidArgumentException('Unsupported SQLite scalar comparison value');
+    }
+
+    private static function compareSQLiteText(string $left, string $right, string $collation): int
+    {
+        return match (strtoupper($collation)) {
+            'BINARY' => strcmp($left, $right),
+            'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
+            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
+            default => throw new \InvalidArgumentException("Unsupported SQLite index collation: {$collation}"),
+        };
+    }
+
+    private static function asciiLower(string $value): string
+    {
+        $bytes = $value;
+        $length = strlen($bytes);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($bytes[$i]);
+            if ($ord >= 0x41 && $ord <= 0x5a) {
+                $bytes[$i] = chr($ord + 0x20);
+            }
+        }
+
+        return $bytes;
     }
 
     private static function sqliteScalarRank(mixed $value): int
