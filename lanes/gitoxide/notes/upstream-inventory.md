@@ -144,12 +144,20 @@ Focused push/refspec inventory inspected on 2026-05-22:
 - 1 simulated push response test was counted in `gix-transport/tests/client/git.rs`.
 - Local `gitprotocol-pack(5)` documentation was used to cross-check report-status and report-status-v2 grammar: `unpack <result>`, `ok <ref>`, `ng <ref> <error>`, and v2 `option refname`, `option old-oid`, `option new-oid`, and `option forced-update` lines.
 
+Focused send-pack orchestration inventory inspected on 2026-05-22:
+
+- Selected `gix-transport/tests/client/git.rs`, `gix-transport/src/lib.rs`, `gix-transport/src/client/git/mod.rs`, `gix-protocol/CHANGELOG.md`, and local `gitprotocol-pack(5)` documentation with targeted reads.
+- 5 async/blocking client-git tests were counted in `gix-transport/tests/client/git.rs`, including `push_v1_simulated`.
+- `gix-transport/src/lib.rs` defines the mapped receive-pack service selector as `Service::ReceivePack`, while the client-git request path establishes the boundary where command packet lines and pack bytes are written to transport I/O.
+- `gix-protocol` changelog notes were used as a bounded signal that receive-pack handshakes stay constrained by protocol-v1 behavior in this area. The PHP slice maps the local orchestration layer without claiming transport I/O parity.
+- Local `gitprotocol-pack(5)` documentation remains the grammar cross-check for advertised refs, capability lines, ref update commands, push-options, pack payload separation, and report-status responses.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either map send-pack transport orchestration from advertised refs through generated pack request and status response, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either map delta/thin-pack generation for efficient send-pack payloads, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -172,3 +180,4 @@ Current PHP mapping:
 - `PartialCloneTest.php` also maps lazy promisor hydration: a promised-missing object can be resolved through a native resolver, verified against the requested object ID, persisted into loose storage, and then observed as present by a fresh object database.
 - `PushCommandTest.php` maps protocol v1 receive-pack update commands, create/update/delete ref lines, first-line capability negotiation, `atomic` and `push-options` guards, command packet-line framing before pack bytes, and a WordPress branch/tag deployment push request fixture.
 - `PushResponseTest.php` maps receive-pack report-status parsing, sideband progress/error extraction, nested sideband channel 1 report-status packet lines, accepted and rejected ref statuses, unpack failures, report-status-v2 rewritten-ref options, malformed response guards, and a WordPress branch/tag deployment push status fixture.
+- `SendPackSessionTest.php` maps receive-pack advertisement parsing, advertised-old-object create/update/delete planning, no-op update elision, generated pack request construction, delete-only request behavior, session response parsing, and a WordPress branch/tag send-pack fixture from advertised refs through status response.
