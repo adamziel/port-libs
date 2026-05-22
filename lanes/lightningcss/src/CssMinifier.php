@@ -340,7 +340,7 @@ final class CssMinifier
 
     private function minifyAnimationLonghandValue(string $property, string $value): string
     {
-        return match ($property) {
+        return match (strtolower($property)) {
             'animation',
             '-webkit-animation',
             '-moz-animation' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationShorthandLayer($part)),
@@ -359,6 +359,9 @@ final class CssMinifier
                     ? $this->minifyAnimationTimelineToken($part)
                     : trim($part)
             ),
+            'animation-range-start' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationRangeSideValue($part, 'start')),
+            'animation-range-end' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationRangeSideValue($part, 'end')),
+            'animation-range' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationRangeShorthandLayer($part)),
             default => $value,
         };
     }
@@ -631,6 +634,203 @@ final class CssMinifier
         }
 
         return $lower;
+    }
+
+    private function minifyAnimationRangeSideValue(string $value, string $side): string
+    {
+        $range = $this->parseAnimationRangeSide($value, $side);
+
+        return $range === null ? trim($value) : $this->serializeAnimationRangeSide($range);
+    }
+
+    private function minifyAnimationRangeShorthandLayer(string $value): string
+    {
+        $range = $this->parseAnimationRangeShorthandLayer($value);
+
+        return $range === null ? trim($value) : $this->serializeAnimationRangePair($range['start'], $range['end']);
+    }
+
+    /**
+     * @return array{type:string,name?:string,offset?:string}|null
+     */
+    private function parseAnimationRangeSide(string $value, string $side): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+
+        return $this->parseAnimationRangeSideTokens($tokens, $side);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{type:string,name?:string,offset?:string}|null
+     */
+    private function parseAnimationRangeSideTokens(array $tokens, string $side): ?array
+    {
+        if (count($tokens) === 1) {
+            $token = trim($tokens[0]);
+            $lower = strtolower($token);
+            if ($lower === 'normal') {
+                return ['type' => 'normal'];
+            }
+            if ($this->isAnimationRangeOffsetToken($token)) {
+                return ['type' => 'offset', 'offset' => $this->minifyLengthPercentageToken($token)];
+            }
+            if ($this->isAnimationRangeNameToken($token)) {
+                return ['type' => 'named', 'name' => $lower];
+            }
+
+            return null;
+        }
+
+        if (count($tokens) === 2 && $this->isAnimationRangeNameToken($tokens[0]) && $this->isAnimationRangeOffsetToken($tokens[1])) {
+            $offset = $this->minifyLengthPercentageToken($tokens[1]);
+            if (($side === 'start' && $this->isPercentValue($offset, 0.0))
+                || ($side === 'end' && $this->isPercentValue($offset, 100.0))
+            ) {
+                return ['type' => 'named', 'name' => strtolower(trim($tokens[0]))];
+            }
+
+            return ['type' => 'named', 'name' => strtolower(trim($tokens[0])), 'offset' => $offset];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{start:array{type:string,name?:string,offset?:string},end:array{type:string,name?:string,offset?:string}}|null
+     */
+    private function parseAnimationRangeShorthandLayer(string $value): ?array
+    {
+        if (stripos($value, 'var(') !== false) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        $count = count($tokens);
+        if ($count === 0 || $count > 4) {
+            return null;
+        }
+
+        if ($count === 1) {
+            $single = $this->parseAnimationRangeSideTokens([$tokens[0]], 'start');
+            if ($single === null) {
+                return null;
+            }
+            if ($single['type'] === 'named') {
+                return [
+                    'start' => $single,
+                    'end' => ['type' => 'named', 'name' => $single['name']],
+                ];
+            }
+
+            return [
+                'start' => $single,
+                'end' => ['type' => 'normal'],
+            ];
+        }
+
+        $candidates = match ($count) {
+            2 => [
+                [[0], [1]],
+            ],
+            3 => [
+                [[0, 1], [2]],
+                [[0], [1, 2]],
+            ],
+            4 => [
+                [[0, 1], [2, 3]],
+            ],
+            default => [],
+        };
+
+        foreach ($candidates as [$startIndices, $endIndices]) {
+            $startTokens = array_map(static fn (int $index): string => $tokens[$index], $startIndices);
+            $endTokens = array_map(static fn (int $index): string => $tokens[$index], $endIndices);
+            $start = $this->parseAnimationRangeSideTokens($startTokens, 'start');
+            $end = $this->parseAnimationRangeSideTokens($endTokens, 'end');
+            if ($start !== null && $end !== null) {
+                return ['start' => $start, 'end' => $end];
+            }
+        }
+
+        return null;
+    }
+
+    private function isAnimationRangeNameToken(string $token): bool
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+
+        return !in_array($lower, ['normal', 'inherit', 'initial', 'revert', 'revert-layer', 'unset'], true)
+            && preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $token) === 1;
+    }
+
+    private function isAnimationRangeOffsetToken(string $token): bool
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)%$/', $token) === 1) {
+            return true;
+        }
+
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:px|em|rem|vh|vw|vmin|vmax|ch|ex|lh|rlh|cm|mm|q|in|pt|pc)$/i', $token) === 1;
+    }
+
+    private function minifyLengthPercentageToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(%|[a-z]+)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        return $this->minifyNumber((float) $matches[1]) . strtolower($matches[2]);
+    }
+
+    private function isPercentValue(string $token, float $expected): bool
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) !== 1) {
+            return false;
+        }
+
+        return abs(((float) $matches[1]) - $expected) < 0.0000001;
+    }
+
+    /**
+     * @param array{type:string,name?:string,offset?:string} $side
+     */
+    private function serializeAnimationRangeSide(array $side): string
+    {
+        if ($side['type'] === 'normal') {
+            return 'normal';
+        }
+        if ($side['type'] === 'offset') {
+            return $side['offset'];
+        }
+
+        return $side['name'] . (isset($side['offset']) ? ' ' . $side['offset'] : '');
+    }
+
+    /**
+     * @param array{type:string,name?:string,offset?:string} $start
+     * @param array{type:string,name?:string,offset?:string} $end
+     */
+    private function serializeAnimationRangePair(array $start, array $end): string
+    {
+        if ($start['type'] === 'normal' && $end['type'] === 'normal') {
+            return 'normal';
+        }
+        if ($end['type'] === 'normal') {
+            return $this->serializeAnimationRangeSide($start);
+        }
+        if ($start['type'] === 'named'
+            && $end['type'] === 'named'
+            && ($start['name'] ?? null) === ($end['name'] ?? null)
+            && !isset($start['offset'])
+            && !isset($end['offset'])
+        ) {
+            return $start['name'];
+        }
+
+        return $this->serializeAnimationRangeSide($start) . ' ' . $this->serializeAnimationRangeSide($end);
     }
 
     private function minifyTransitionLonghandValue(string $property, string $value): string
@@ -1238,9 +1438,11 @@ final class CssMinifier
             return $body;
         }
 
+        $this->dropAnimationRangeResetByAnimationShorthand($entries);
         foreach (['-webkit-', '-moz-', ''] as $prefix) {
             $this->rewriteAnimationGroup($entries, $prefix);
         }
+        $this->rewriteAnimationRangeGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
     }
@@ -1583,6 +1785,10 @@ final class CssMinifier
         }
 
         $replaceAt = min(array_values($latest));
+        if ($prefix === '' && $this->hasAnimationRangeEntryBefore($entries, $replaceAt)) {
+            return;
+        }
+
         foreach ($relevantIndices as $index) {
             $entries[$index]['drop'] = true;
         }
@@ -1591,6 +1797,152 @@ final class CssMinifier
             'property' => $properties['animation'],
             'name' => $properties['animation'],
             'value' => $this->serializeAnimationComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function dropAnimationRangeResetByAnimationShorthand(array &$entries): void
+    {
+        $lastAnimation = null;
+        foreach ($entries as $index => $entry) {
+            if (!$entry['drop'] && !$entry['important'] && $entry['property'] === 'animation') {
+                $lastAnimation = $index;
+            }
+        }
+
+        if ($lastAnimation === null) {
+            return;
+        }
+
+        foreach ($entries as $index => $entry) {
+            if ($index >= $lastAnimation || $entry['drop']) {
+                continue;
+            }
+            if (in_array($entry['property'], ['animation-range', 'animation-range-start', 'animation-range-end'], true)) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function hasAnimationRangeEntryBefore(array $entries, int $before): bool
+    {
+        foreach ($entries as $index => $entry) {
+            if ($index >= $before) {
+                continue;
+            }
+            if (!$entry['drop'] && in_array($entry['property'], ['animation-range', 'animation-range-start', 'animation-range-end'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteAnimationRangeGroup(array &$entries): void
+    {
+        $properties = [
+            'range' => 'animation-range',
+            'start' => 'animation-range-start',
+            'end' => 'animation-range-end',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === 'animation-range') {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseAnimationRangeShorthandList($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'range') {
+                    continue;
+                }
+
+                $values = $this->parseAnimationRangeSideList($entries[$index]['value'], $component);
+                if ($values === null || count($values) !== count($state['start'])) {
+                    continue;
+                }
+
+                $state[$component] = $values;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeAnimationRangeComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'range') {
+                $latest[$component] = $index;
+            }
+        }
+
+        if (!isset($latest['start'], $latest['end'])) {
+            return;
+        }
+
+        $start = $this->parseAnimationRangeSideList($entries[$latest['start']]['value'], 'start');
+        $end = $this->parseAnimationRangeSideList($entries[$latest['end']]['value'], 'end');
+        if ($start === null || $end === null || count($start) !== count($end)) {
+            return;
+        }
+
+        $replaceAt = min($latest['start'], $latest['end']);
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'animation-range',
+            'name' => 'animation-range',
+            'value' => $this->serializeAnimationRangeComponents(['start' => $start, 'end' => $end]),
             'important' => false,
             'drop' => false,
         ];
@@ -1826,6 +2178,54 @@ final class CssMinifier
         }
 
         return $mapped === [] ? null : $mapped;
+    }
+
+    /**
+     * @return array{start:list<array{type:string,name?:string,offset?:string}>,end:list<array{type:string,name?:string,offset?:string}>}|null
+     */
+    private function parseAnimationRangeShorthandList(string $value): ?array
+    {
+        $state = ['start' => [], 'end' => []];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $range = $this->parseAnimationRangeShorthandLayer($layer);
+            if ($range === null) {
+                return null;
+            }
+            $state['start'][] = $range['start'];
+            $state['end'][] = $range['end'];
+        }
+
+        return $state['start'] === [] ? null : $state;
+    }
+
+    /**
+     * @return list<array{type:string,name?:string,offset?:string}>|null
+     */
+    private function parseAnimationRangeSideList(string $value, string $side): ?array
+    {
+        $values = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $range = $this->parseAnimationRangeSide($part, $side);
+            if ($range === null) {
+                return null;
+            }
+            $values[] = $range;
+        }
+
+        return $values === [] ? null : $values;
+    }
+
+    /**
+     * @param array{start:list<array{type:string,name?:string,offset?:string}>,end:list<array{type:string,name?:string,offset?:string}>} $state
+     */
+    private function serializeAnimationRangeComponents(array $state): string
+    {
+        $ranges = [];
+        for ($i = 0, $count = count($state['start']); $i < $count; $i++) {
+            $ranges[] = $this->serializeAnimationRangePair($state['start'][$i], $state['end'][$i]);
+        }
+
+        return implode(',', $ranges);
     }
 
     /**

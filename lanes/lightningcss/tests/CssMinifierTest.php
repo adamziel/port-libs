@@ -125,6 +125,88 @@ return [
             $minifier->minify('.foo { -webkit-animation: bar 200ms; -webkit-animation-timing-function: ease-in-out; -moz-animation: bar 200ms; -moz-animation-timing-function: ease-in-out; }')
         );
     },
+    'css minifier maps upstream animation range value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{animation-range-start:entry 10%}', $minifier->minify('.foo { animation-range-start: entry 10% }'));
+        $t->same('.foo{animation-range-start:entry}', $minifier->minify('.foo { animation-range-start: entry 0% }'));
+        $t->same('.foo{animation-range-start:entry}', $minifier->minify('.foo { animation-range-start: entry }'));
+        $t->same('.foo{animation-range-start:50%}', $minifier->minify('.foo { animation-range-start: 50% }'));
+        $t->same('.foo{animation-range-end:exit 10%}', $minifier->minify('.foo { animation-range-end: exit 10% }'));
+        $t->same('.foo{animation-range-end:exit}', $minifier->minify('.foo { animation-range-end: exit 100% }'));
+        $t->same('.foo{animation-range-end:exit}', $minifier->minify('.foo { animation-range-end: exit }'));
+        $t->same('.foo{animation-range-end:50%}', $minifier->minify('.foo { animation-range-end: 50% }'));
+        $t->same('.foo{animation-range:entry 10% exit 90%}', $minifier->minify('.foo { animation-range: entry 10% exit 90% }'));
+        $t->same('.foo{animation-range:entry exit}', $minifier->minify('.foo { animation-range: entry 0% exit 100% }'));
+        $t->same('.foo{animation-range:entry}', $minifier->minify('.foo { animation-range: entry }'));
+        $t->same('.foo{animation-range:entry}', $minifier->minify('.foo { animation-range: entry 0% entry 100% }'));
+        $t->same('.foo{animation-range:50%}', $minifier->minify('.foo { animation-range: 50% normal }'));
+        $t->same('.foo{animation-range:normal}', $minifier->minify('.foo { animation-range: normal normal }'));
+    },
+    'css minifier maps upstream animation range composition and resets' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{animation-range:entry 10% exit 90%}',
+            $minifier->minify('.foo { animation-range-start: entry 10%; animation-range-end: exit 90%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry}',
+            $minifier->minify('.foo { animation-range-start: entry 0%; animation-range-end: entry 100%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry exit}',
+            $minifier->minify('.foo { animation-range-start: entry 0%; animation-range-end: exit 100%; }')
+        );
+        $t->same(
+            '.foo{animation-range:10%}',
+            $minifier->minify('.foo { animation-range-start: 10%; animation-range-end: normal; }')
+        );
+        $t->same(
+            '.foo{animation-range:10% 90%}',
+            $minifier->minify('.foo { animation-range-start: 10%; animation-range-end: 90%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry 10% exit}',
+            $minifier->minify('.foo { animation-range-start: entry 10%; animation-range-end: exit 100%; }')
+        );
+        $t->same(
+            '.foo{animation-range:10% exit 90%}',
+            $minifier->minify('.foo { animation-range-start: 10%; animation-range-end: exit 90%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry 10% 90%}',
+            $minifier->minify('.foo { animation-range-start: entry 10%; animation-range-end: 90%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry 90%}',
+            $minifier->minify('.foo { animation-range: entry; animation-range-end: 90%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry;animation-range-end:var(--end)}',
+            $minifier->minify('.foo { animation-range: entry; animation-range-end: var(--end); }')
+        );
+        $t->same(
+            '.foo{animation-range-start:entry 10%,entry 50%;animation-range-end:exit 90%}',
+            $minifier->minify('.foo { animation-range-start: entry 10%, entry 50%; animation-range-end: exit 90%; }')
+        );
+        $t->same(
+            '.foo{animation-range:entry 10% exit 90%,entry 50% exit}',
+            $minifier->minify('.foo { animation-range-start: entry 10%, entry 50%; animation-range-end: exit 90%, exit 100%; }')
+        );
+        $t->same(
+            '.foo{animation:.1s spin}',
+            $minifier->minify('.foo { animation-range: entry; animation-range-end: 90%; animation: spin 100ms; }')
+        );
+        $t->same(
+            '.foo{animation:.1s spin;animation-range:entry 90%}',
+            $minifier->minify('.foo { animation: spin 100ms; animation-range: entry; animation-range-end: 90%; }')
+        );
+        $t->same(
+            '.foo{animation:var(--animation) .1s}',
+            $minifier->minify('.foo { animation-range: entry; animation-range-end: 90%; animation: var(--animation) 100ms; }')
+        );
+    },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -337,6 +419,20 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-entrance{animation:90ms ease-in-out .1s 2 alternate forwards wp-cover-entrance scroll()}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress scroll linked cover animation ranges compose without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-scroll-reveal {
+  animation: wp-cover-reveal 500ms ease;
+  animation-range-start: entry 0%;
+  animation-range-end: exit 90%;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-scroll-reveal{animation:.5s wp-cover-reveal;animation-range:entry exit 90%}',
             (new CssMinifier())->minify($css)
         );
     },

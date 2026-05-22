@@ -9,24 +9,41 @@ final class CustomMediaTransformer
     /** @var array<string, string> */
     private array $definitions = [];
 
+    /** @var array<string, array{line:int,column:int}> */
+    private array $definitionLocations = [];
+
+    private string $source = '';
+
+    /** @var array{line:int,column:int}|null */
+    private ?array $currentMediaLocation = null;
+
+    /** @var list<array{start:int,end:int,sourceStart:int}> */
+    private array $offsetMap = [];
+
     public function transform(string $css, bool $preserveDeclarations = false): string
     {
-        [$definitions, $ranges] = $this->collectDefinitions($css);
+        $this->source = $css;
+        [$definitions, $definitionLocations, $ranges] = $this->collectDefinitions($css);
         $this->definitions = $definitions;
+        $this->definitionLocations = $definitionLocations;
+        $this->currentMediaLocation = null;
 
         if (!$preserveDeclarations) {
             $css = $this->removeRanges($css, $ranges);
+        } else {
+            $this->offsetMap = [['start' => 0, 'end' => strlen($css), 'sourceStart' => 0]];
         }
 
         return $this->replaceMediaRules($css);
     }
 
     /**
-     * @return array{0: array<string, string>, 1: list<array{start:int,end:int}>}
+     * @return array{0: array<string, string>, 1: array<string, array{line:int,column:int}>, 2: list<array{start:int,end:int}>}
      */
     private function collectDefinitions(string $css): array
     {
         $definitions = [];
+        $definitionLocations = [];
         $ranges = [];
         $offset = 0;
 
@@ -43,11 +60,12 @@ final class CustomMediaTransformer
             }
 
             $definitions[$matches[1]] = trim($matches[2]);
+            $definitionLocations[$matches[1]] = $this->sourceLocation($position);
             $ranges[] = ['start' => $position, 'end' => $end + 1];
             $offset = $end + 1;
         }
 
-        return [$definitions, $ranges];
+        return [$definitions, $definitionLocations, $ranges];
     }
 
     /**
@@ -55,12 +73,35 @@ final class CustomMediaTransformer
      */
     private function removeRanges(string $css, array $ranges): string
     {
-        for ($i = count($ranges) - 1; $i >= 0; $i--) {
-            $range = $ranges[$i];
-            $css = substr($css, 0, $range['start']) . substr($css, $range['end']);
+        $output = '';
+        $this->offsetMap = [];
+        $cursor = 0;
+        foreach ($ranges as $range) {
+            if ($cursor < $range['start']) {
+                $segment = substr($css, $cursor, $range['start'] - $cursor);
+                $start = strlen($output);
+                $output .= $segment;
+                $this->offsetMap[] = [
+                    'start' => $start,
+                    'end' => strlen($output),
+                    'sourceStart' => $cursor,
+                ];
+            }
+            $cursor = $range['end'];
         }
 
-        return $css;
+        if ($cursor < strlen($css)) {
+            $segment = substr($css, $cursor);
+            $start = strlen($output);
+            $output .= $segment;
+            $this->offsetMap[] = [
+                'start' => $start,
+                'end' => strlen($output),
+                'sourceStart' => $cursor,
+            ];
+        }
+
+        return $output;
     }
 
     private function replaceMediaRules(string $css): string
@@ -76,10 +117,13 @@ final class CustomMediaTransformer
             }
 
             $prelude = trim(substr($css, $position + strlen('@media'), $open - ($position + strlen('@media'))));
+            $previousMediaLocation = $this->currentMediaLocation;
+            $this->currentMediaLocation = $this->sourceLocation($this->sourceOffsetForCurrentCss($position));
             $output .= substr($css, $cursor, $position - $cursor)
                 . '@media '
                 . $this->resolveMediaQueryList($prelude, [])
                 . '{';
+            $this->currentMediaLocation = $previousMediaLocation;
             $cursor = $open + 1;
         }
 
@@ -129,22 +173,21 @@ final class CustomMediaTransformer
         foreach ($references as $reference) {
             $signatures = $this->customMediaTypeSignatures($reference, []);
             if (count($signatures) > 1) {
-                throw new \InvalidArgumentException("Unsupported custom media boolean logic involving {$reference}");
+                throw CustomMediaException::unsupportedBooleanLogic($reference, $this->currentMediaLocation, $this->customMediaLocation($reference));
             }
 
             foreach ($signatures as $signature) {
+                if ($referenceSignatures !== [] && !array_key_exists($signature, $referenceSignatures)) {
+                    throw CustomMediaException::unsupportedBooleanLogic($reference, $this->currentMediaLocation, $this->customMediaLocation($reference));
+                }
                 $referenceSignatures[$signature] = $reference;
             }
         }
 
-        if (count($referenceSignatures) > 1) {
-            $reference = reset($referenceSignatures);
-            throw new \InvalidArgumentException("Unsupported custom media boolean logic involving {$reference}");
-        }
-
         $referenceSignature = array_key_first($referenceSignatures);
         if ($explicitSignature !== null && $referenceSignature !== null && $explicitSignature !== $referenceSignature) {
-            throw new \InvalidArgumentException('Unsupported custom media boolean logic combining media types');
+            $reference = $referenceSignatures[$referenceSignature] ?? null;
+            throw CustomMediaException::unsupportedBooleanLogic($reference, $this->currentMediaLocation, $reference === null ? null : $this->customMediaLocation($reference));
         }
     }
 
@@ -208,10 +251,10 @@ final class CustomMediaTransformer
     private function customMediaTypeSignatures(string $name, array $stack): array
     {
         if (!array_key_exists($name, $this->definitions)) {
-            throw new \InvalidArgumentException("Custom media {$name} is not defined");
+            throw CustomMediaException::notDefined($name, $this->currentMediaLocation);
         }
         if (in_array($name, $stack, true)) {
-            throw new \InvalidArgumentException("Circular custom media reference involving {$name}");
+            throw CustomMediaException::circular($name, $this->currentMediaLocation);
         }
 
         $stack[] = $name;
@@ -302,10 +345,10 @@ final class CustomMediaTransformer
     private function resolveCustomMedia(string $name, array $stack): string
     {
         if (!array_key_exists($name, $this->definitions)) {
-            throw new \InvalidArgumentException("Custom media {$name} is not defined");
+            throw CustomMediaException::notDefined($name, $this->currentMediaLocation);
         }
         if (in_array($name, $stack, true)) {
-            throw new \InvalidArgumentException("Circular custom media reference involving {$name}");
+            throw CustomMediaException::circular($name, $this->currentMediaLocation);
         }
 
         $stack[] = $name;
@@ -421,6 +464,38 @@ final class CustomMediaTransformer
     private function normalizeWhitespace(string $value): string
     {
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    /**
+     * @return array{line:int,column:int}
+     */
+    private function sourceLocation(int $offset): array
+    {
+        $before = substr($this->source, 0, $offset);
+        $line = substr_count($before, "\n");
+        $lastNewline = strrpos($before, "\n");
+        $column = $lastNewline === false ? $offset + 1 : $offset - $lastNewline;
+
+        return ['line' => $line, 'column' => $column];
+    }
+
+    private function sourceOffsetForCurrentCss(int $offset): int
+    {
+        foreach ($this->offsetMap as $segment) {
+            if ($offset >= $segment['start'] && $offset <= $segment['end']) {
+                return $segment['sourceStart'] + ($offset - $segment['start']);
+            }
+        }
+
+        return $offset;
+    }
+
+    /**
+     * @return array{line:int,column:int}|null
+     */
+    private function customMediaLocation(string $name): ?array
+    {
+        return $this->definitionLocations[$name] ?? null;
     }
 
     private function findAtKeyword(string $css, string $keyword, int $start): ?int

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LightningCSS\CssMinifier;
+use PortLibs\LightningCSS\CustomMediaException;
 use PortLibs\LightningCSS\CustomMediaTransformer;
 
 $transformAndMinify = static function (string $css): string {
@@ -130,6 +131,72 @@ CSS;
             InvalidArgumentException::class,
             static fn () => $transformer->transform('@custom-media --color screen and (color), print and (color); @media (--color) { .a { color: green } }')
         );
+    },
+    'custom media transformer reports upstream diagnostic locations' => static function (TestRunner $t): void {
+        $source = <<<'CSS'
+
+      @custom-media --color-print print and (color);
+
+      @media screen and (--color-print) {
+        .a {
+          color: green;
+        }
+      }
+CSS;
+
+        try {
+            (new CustomMediaTransformer())->transform($source);
+        } catch (CustomMediaException $exception) {
+            $t->same('unsupported-custom-media-boolean-logic', $exception->kind);
+            $t->same('--color-print', $exception->name);
+            $t->same(['line' => 3, 'column' => 7], $exception->mediaLocation);
+            $t->same(['line' => 1, 'column' => 7], $exception->customMediaLocation);
+            $t->contains('@media line 3, column 7', $exception->getMessage());
+            $t->contains('@custom-media line 1, column 7', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected custom media location exception');
+    },
+    'custom media transformer reports undefined and circular reference locations' => static function (TestRunner $t): void {
+        $sawUndefined = false;
+        try {
+            (new CustomMediaTransformer())->transform("\n      @media (--not-defined) { .a { color: green } }");
+        } catch (CustomMediaException $exception) {
+            $sawUndefined = true;
+            $t->same('custom-media-not-defined', $exception->kind);
+            $t->same('--not-defined', $exception->name);
+            $t->same(['line' => 1, 'column' => 7], $exception->mediaLocation);
+            $t->same(null, $exception->customMediaLocation);
+        }
+        if (!$sawUndefined) {
+            throw new RuntimeException('Expected custom media undefined exception');
+        }
+
+        $source = <<<'CSS'
+
+      @custom-media --circular-mq-a (--circular-mq-b);
+      @custom-media --circular-mq-b (--circular-mq-a);
+
+      @media (--circular-mq-a) {
+        body {
+          order: 3;
+        }
+      }
+CSS;
+
+        try {
+            (new CustomMediaTransformer())->transform($source);
+        } catch (CustomMediaException $exception) {
+            $t->same('circular-custom-media', $exception->kind);
+            $t->same('--circular-mq-a', $exception->name);
+            $t->same(['line' => 4, 'column' => 7], $exception->mediaLocation);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected custom media circular exception');
     },
     'wordpress custom media transformer expands block theme breakpoints without node' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
