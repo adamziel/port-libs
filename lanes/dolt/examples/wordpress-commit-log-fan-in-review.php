@@ -20,4 +20,10 @@ return [
         'graph' => true,
         'decorate' => 'short',
     ]),
+    'cliGraphOneline' => $table->renderLog($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'graph' => true,
+        'oneline' => true,
+        'decorate' => 'short',
+    ]),
 ];

@@ -383,16 +383,17 @@ final class CommitLogRenderer
     {
         $lines = [];
         $previousRow = null;
-        foreach ($commits as $commit) {
+        foreach ($commits as $i => $commit) {
             if ($previousRow !== null) {
-                for ($i = $previousRow + 1; $i < $commit['graphRow']; $i++) {
-                    $lines[] = implode('', $graph[$i]);
+                for ($row = $previousRow + 1; $row < $commit['graphRow']; $row++) {
+                    $lines[] = implode('', $graph[$row]);
                 }
             }
 
             $lines[] = $this->graphLineText($graph, $commit['graphRow'], 0)
                 . ' commit '
                 . $commit['hash']
+                . ($i === 0 ? '' : ' ')
                 . $this->refsSuffix($commit['row'])
                 . ' '
                 . implode(' ', $commit['messageLines']);

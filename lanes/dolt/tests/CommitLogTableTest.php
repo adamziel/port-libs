@@ -544,8 +544,8 @@ return [
         $t->same('| * commit branchA-1', $mergeLines[13]);
         $t->same('|/', $mergeLines[18]);
         $t->same('* commit merge-1 (HEAD -> main) Merge branchA into main', $mergeOnelineLines[0]);
-        $t->same('*\\ commit main-2 commit 2 MAIN', $mergeOnelineLines[1]);
-        $t->same('| * commit branchA-1 commit 1 BRANCHA', $mergeOnelineLines[2]);
+        $t->same('*\\ commit main-2  commit 2 MAIN', $mergeOnelineLines[1]);
+        $t->same('| * commit branchA-1  commit 1 BRANCHA', $mergeOnelineLines[2]);
         $t->same('|/', $mergeOnelineLines[3]);
         $t->throws(InvalidArgumentException::class, static fn () => $table->renderLog($mergeGraph, [
             'headHash' => 'merge-1',
@@ -629,6 +629,39 @@ return [
             '',
             "\tInitialize data repository",
         ], explode("\n", $output));
+    },
+    'dolt log graph oneline rendering maps upstream dense branch fan in spacing' => static function (TestRunner $t) use ($denseMergeFanInGraph): void {
+        $output = (new CommitLogTable())->renderLog($denseMergeFanInGraph(), [
+            'headHash' => 'merge-d',
+            'graph' => true,
+            'oneline' => true,
+            'decorate' => 'short',
+        ]);
+        $expected = <<<'GRAPH'
+* commit merge-d (HEAD -> main) Merge branchD into main
+*\ commit merge-c  Merge branchC into main
+*\| commit merge-b  Merge branchB into main
+*\\ commit merge-a  Merge branchA into main
+*\\\ commit main-2  insert into testtable
+| *\| commit branch-d-1  (branchD) commit 1 branchD
+| |\* commit branch-c-1  (branchC) commit 1 branchC
+| | \\
+| | |\* commit branch-b-1  (branchB) commit 1 branchB
+| | | \
+| | | |\
+| | | | * commit branch-a-1  (branchA) commit 1 BRANCHA
+| | | |/
+| | | /
+| | |/
+| | /
+| |/
+| /
+|/
+* commit main-1  commit 1 MAIN
+* commit init  Initialize data repository
+GRAPH;
+
+        $t->same(explode("\n", rtrim($expected, "\n")), explode("\n", $output));
     },
     'dolt log decorate auto follows upstream tty boundary in CLI rendering' => static function (TestRunner $t) use ($commitLogGraph): void {
         $table = new CommitLogTable();
@@ -1042,9 +1075,17 @@ return [
             'graph' => true,
             'decorate' => 'short',
         ]);
+        $graphOneline = $table->renderLog($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'graph' => true,
+            'oneline' => true,
+            'decorate' => 'short',
+        ]);
 
         $t->same($fixture['expectedGraphLines'], explode("\n", $graph));
+        $t->same($fixture['expectedGraphOnelineLines'], explode("\n", $graphOneline));
         $t->same($graph, $example['cliGraph']);
+        $t->same($graphOneline, $example['cliGraphOneline']);
         $t->same('wp-merge-media, wp-redirects', $example['log'][0]['parents']);
         $t->same('HEAD -> main, tag: import-reviewed', $example['log'][0]['refs']);
         $t->same('product-import', $example['log'][7]['refs']);
