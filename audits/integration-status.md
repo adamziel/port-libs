@@ -1,5 +1,90 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T20:48:36Z
+
+No lane implementation, dashboard, or generated status batch was accepted,
+staged, committed, regenerated, or pushed by this integration pass. The checkout
+remains too active for a reviewable acceptance boundary even though the latest
+live root PHP harness is green.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 22, behind 28]`.
+- Final observed `HEAD`: `4229114` (`Update esbuild lane status for comma super slice`).
+- `HEAD` advanced during this pass from `be5d051` to `4229114`; concurrent
+  commits were `4bf7b4e` (`Port dolt log oneline stat rendering`), `3dbf2f5`
+  (`Port esbuild comma super constructor slice`), and `4229114`.
+- No staged paths were present.
+- `git status --porcelain=v1 | wc -l` reported `109` dirty/untracked paths.
+
+Dirty scopes waiting for review:
+
+- Difftastic: manifest, lane status, notes, source/tests, WordPress scenario
+  note, and TypeScript module fixtures/example.
+- Gitoxide: manifest, lane status, notes, `ReferenceStore.php`, tests, and
+  packed-reference WordPress example/fixture.
+- libsqlite: `SQLiteDatabase.php`, `SQLiteSequenceRecord.php`, tests, plus
+  autoincrement continuity source/example.
+- LightningCSS: manifest/status/notes, `TransitionPrefixer.php`, tests, and
+  WordPress text-decoration prefixer example.
+- markerPDF: table recognizer source/tests/example/status/manifest/notes.
+- Pandoc: manifest/notes/source/tests and WordPress writer change.
+- Quadrable: manifest/status/notes/tests and large proof window example.
+- rclone: sync plan source/tests/notes and single-file move/copy example.
+- Readability: lane status, metadata entity cleanup source/tests/example, and
+  Mozilla fixture copy.
+- Syncthing: `BepSession.php`, `BepSessionEvent.php`, and untracked
+  `BepSessionHandlers.php`.
+- Public/status artifacts: `audits/latest.md`, `progress.md`, `porting.html`,
+  and `porting-summary.json`.
+- Untracked audit/evidence reports remain review-only and were not bundled with
+  lane work.
+
+Recent concurrent lane commits observed but not integrated by this pass:
+
+- `4bf7b4e` adds Dolt log oneline/stat rendering and metadata. Dolt was not
+  integrated by this pass despite reauthorization because the commit landed
+  concurrently while many source/status sessions remained active; treat it as a
+  recent lane commit requiring separate review.
+- `3dbf2f5` adds esbuild comma-super constructor lowering plus fixture, tests,
+  and metadata.
+- `4229114` updates esbuild lane status.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output on the full dirty tree.
+- `php tools/run-tests.php`: passed with `123 test files, 10689 assertions, 0
+  failures`.
+- `git diff --cached --name-only`: no output.
+- `php tools/generate-dashboard.php`: not run because no reviewed lane/status
+  batch was accepted by this pass.
+
+Risk:
+
+- The green root run is live-tree evidence only. The dirty set changed while it
+  was being inspected, and active lane/runner/status sessions remained present.
+- The dashboard and summary are dirty but were not regenerated from a single
+  accepted snapshot, so they should not be treated as current publication
+  evidence.
+- Dolt and esbuild commits landed concurrently and should be reviewed as recent
+  lane commits before any public status copy claims them as accepted parity.
+
+Next safe integration point: wait for active workers to quiesce or provide
+explicit handoff notes, then choose exactly one lane batch. Start with the most
+self-contained recent commits or the remaining dirty source batches, rerun
+focused lane inspection plus `php tools/run-tests.php` from a stable `HEAD`, run
+`git diff --check`, commit only that reviewed batch, and regenerate dashboard
+artifacts only after the accepted state is green.
+
+Post-write drift note: by 2026-05-22T20:49:56Z, `HEAD` had advanced again to
+`7caaa31` (`quadrable: stamp big proof status`) and the branch line was
+`main...origin/main [ahead 25, behind 28]`. Intervening commits were `ad7155b`
+(`quadrable: map upstream big proof window`) and `7caaa31`. The dirty/untracked
+path count rose to `113`, with additional esbuild status, LightningCSS notes,
+Pandoc status, rclone manifest, Readability notes, Syncthing stream/session
+tests/source, and Difftastic tree-sitter evidence visible. This pass still
+accepted no lane batch and did not regenerate public dashboard artifacts.
+
 ## Integration Worker Snapshot - 2026-05-22T20:44:11Z
 
 No lane implementation, dashboard, or generated status batch was integrated,
