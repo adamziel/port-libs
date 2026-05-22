@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 7,
-    "suiteProgress": "targeted object/ref static inventory counted; full cargo runner not executed",
-    "phpPass": 15,
+    "estimatedProgress": 8,
+    "suiteProgress": "targeted object/ref/loose-ref static inventory counted; full cargo runner not executed",
+    "phpPass": 23,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, and deploy-tree inspection without shelling out to git.",
-    "phase": "targeted object/ref inventory plus tree object slice",
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, and HEAD/deployment-branch refs without shelling out to git.",
+    "phase": "targeted object/ref inventory plus loose ref slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native loose Git object storage, commit header parsing, and Git tree entry parsing/serialization.",
+    "currentWork": "Native loose Git object storage, commit header parsing, tree entry parsing/serialization, and loose direct/symbolic reference parsing/storage.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
     "latestCommit": "c2ee31a",
-    "nextTask": "Add loose ref direct/symbolic parsing and storage from gix-ref, then map packed-ref fixture parsing."
+    "nextTask": "Map packed-ref fixture parsing and lookup rules from gix-ref, starting with without-header and unsorted fixtures."
 }
