@@ -54,10 +54,11 @@ return [
         $t->same(false, $differ->hasChanges($before, $after));
         $t->contains('No syntactic changes', $html);
     },
-    'enables html angle delimiters only in html mode' => static function (TestRunner $t): void {
+    'enables angle delimiters in markup-like modes only' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
         $defaultTokens = $differ->tokenize('<h1>');
         $htmlTokens = $differ->tokenize('<h1 id="title">Bar</h1>', ['language' => 'html']);
+        $jsxTokens = $differ->tokenize('<PanelBody title="Settings">', ['language' => 'jsx']);
 
         $t->same('punctuation', $defaultTokens[0]->kind);
         $t->same('delimiter', $htmlTokens[0]->kind);
@@ -65,6 +66,8 @@ return [
         $t->same('close', $htmlTokens[5]->delimiterRole);
         $t->same('open', $htmlTokens[7]->delimiterRole);
         $t->same('close', $htmlTokens[10]->delimiterRole);
+        $t->same('delimiter', $jsxTokens[0]->kind);
+        $t->same('open', $jsxTokens[0]->delimiterRole);
     },
     'maps upstream html simple sample as tag list changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-simple-1.html');
@@ -244,6 +247,22 @@ return [
 
         $t->contains('+ $ts.type["Symbol"][1] name:string;', $encoded);
         $t->true(!str_contains($encoded, '- $ts.type["Symbol"][1] items:string[];'), 'Inserted TypeScript members should not delete retained following members.');
+    },
+    'maps upstream jsx sample as tag list changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-1.jsx');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-2.jsx');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'jsx']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $[0][0]/<0>[0] h1', $encoded);
+        $t->contains('+ $[0][0]/<0>[0] h1className="title"', $encoded);
+        $t->contains('+ $[0][0]/<1> <span>', $encoded);
+        $t->contains('- $[1][0]/<0>[0] div', $encoded);
+        $t->contains('+ $[1][0]/<0>[0] p', $encoded);
+        $t->true(!str_contains($encoded, '$js.call["ReactDOM.render"]'), 'JSX tag changes should not collapse into one ReactDOM.render argument update.');
     },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
@@ -727,6 +746,20 @@ return [
         $t->contains('data-path="$ts.interface[&quot;BlockEditProps&quot;][1]/{0}[1]"', $html);
         $t->contains('mediaId:number;', $html);
         $t->true(!str_contains($html, 'data-op="-" data-path="$ts.interface[&quot;BlockEditProps&quot;][1]/{0}[1]">ctaText'), 'Retained nested ctaText prop should stay aligned after the mediaId insertion.');
+    },
+    'wordpress block editor tsx diff reports jsx tag attribute changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-jsx-before.tsx');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-jsx-after.tsx');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'tsx',
+            'title' => 'Block editor TSX control diff',
+        ]);
+
+        $t->contains('Block editor TSX control diff', $html);
+        $t->contains('PanelBodytitle=&quot;Settings&quot;', $html);
+        $t->contains('PanelBodytitle=&quot;Card settings&quot;initialOpen={true}', $html);
+        $t->true(!str_contains($html, 'TextControllabel=&quot;Title&quot;'), 'Retained block editor controls should stay out of the rendered TSX tag diff.');
+        $t->true(!str_contains($html, '$js.call'), 'TSX JSX tag changes should render as tag-list changes rather than JavaScript call changes.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');

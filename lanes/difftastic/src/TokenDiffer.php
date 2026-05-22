@@ -360,7 +360,7 @@ final class TokenDiffer
      */
     private function usesAngleDelimiters(array $options): bool
     {
-        return in_array(strtolower((string) ($options['language'] ?? '')), ['html', 'xml'], true);
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['html', 'jsx', 'tsx', 'xml'], true);
     }
 
     /**

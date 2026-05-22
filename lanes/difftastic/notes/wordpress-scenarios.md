@@ -70,6 +70,8 @@ Standalone JavaScript mode now also maps the larger upstream `sample_files/javas
 
 TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
 
+JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
+
 Run:
 
 ```sh
@@ -83,6 +85,7 @@ php lanes/difftastic/examples/wordpress-multi-asset-html-diff.php
 php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
+php lanes/difftastic/examples/wordpress-block-edit-jsx-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-scss-diff.php
 php lanes/difftastic/examples/wordpress-nested-at-rule-css-diff.php
@@ -101,4 +104,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map upstream JSX/TSX sample pairs or broaden TypeScript module import/export declaration alignment.
+Map upstream `whitespace_*.tsx` JSX whitespace sample or broaden TypeScript module import/export declaration alignment.
