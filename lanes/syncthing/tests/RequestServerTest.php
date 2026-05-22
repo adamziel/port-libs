@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Syncthing\BepWire;
 use PortLibs\Syncthing\Request;
 use PortLibs\Syncthing\IgnoreMatcher;
+use PortLibs\Syncthing\ProtocolValidation;
 use PortLibs\Syncthing\RequestServer;
 use PortLibs\Syncthing\RequestServingResult;
 use PortLibs\Syncthing\Response;
@@ -136,6 +137,43 @@ return [
                 size: -1,
             ));
             $t->same(Response::CODE_INVALID_FILE, $negative->response->code);
+        } finally {
+            syncthing_request_server_rm($root);
+        }
+    },
+    'maps upstream request max-size guard before serving media bytes' => static function (TestRunner $t): void {
+        $root = syncthing_request_server_root();
+        try {
+            $name = 'wp-content/uploads/2026/hero.jpg';
+            syncthing_request_server_write($root, $name, 'media bytes');
+            $server = new RequestServer('wordpress-media', $root, ['peer-a']);
+
+            $empty = $server->serve('peer-a', new Request(
+                id: 31,
+                folder: 'wordpress-media',
+                name: $name,
+                size: 0,
+            ));
+            $t->same(Response::CODE_INVALID_FILE, $empty->response->code);
+            $t->same('invalid request size', $empty->reason);
+
+            $oversized = $server->serve('peer-a', new Request(
+                id: 32,
+                folder: 'wordpress-media',
+                name: $name,
+                size: ProtocolValidation::MAX_REQUEST_SIZE + 1,
+            ));
+            $t->same(Response::CODE_INVALID_FILE, $oversized->response->code);
+            $t->same('invalid request size', $oversized->reason);
+
+            $accepted = $server->serve('peer-a', new Request(
+                id: 33,
+                folder: 'wordpress-media',
+                name: $name,
+                size: ProtocolValidation::MAX_REQUEST_SIZE,
+            ));
+            $t->true($accepted->successful());
+            $t->same('media bytes', $accepted->response->data);
         } finally {
             syncthing_request_server_rm($root);
         }

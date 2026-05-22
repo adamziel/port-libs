@@ -98,8 +98,12 @@ final class RequestServer
         }
 
         try {
-            ProtocolValidation::checkFilename($request->name);
-        } catch (\InvalidArgumentException) {
+            ProtocolValidation::checkRequest($request);
+        } catch (\InvalidArgumentException $exception) {
+            if (str_starts_with($exception->getMessage(), 'request size ')) {
+                return $this->error($request->id, Response::CODE_INVALID_FILE, 'invalid request size');
+            }
+
             return $this->error($request->id, Response::CODE_GENERIC, 'invalid filename');
         }
 

@@ -239,17 +239,25 @@ WordPress example `wordpress-receive-index.php` shows a Playground peer's media
 index replacing temporary block availability with a scheduled pull against the
 remote FileInfo state.
 The inbound request-serving slice now maps focused upstream `model.Request`,
-`readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, `fs.TempName`, and
-`fs.IsTemporary`
+`readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, `fs.TempName`,
+`fs.IsTemporary`, and `protocol.TestRequestMaxSize`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
 try the `.syncthing.<basename>.tmp` sibling first, the temporary bytes must
 match the requested SHA-256 block hash, stale or short temporary reads fall
 back to the finalized file, final-file hash mismatches return no-such-file, and
-internal/traversal/symlink paths are rejected before disk reads. Temporary-file
-detection follows upstream basename-prefix semantics: both `.syncthing.` and
-`~syncthing~` mark a file as temporary regardless of the active platform
-prefix, while parent directories with those names do not make a normal media
-leaf temporary.
+internal/traversal/symlink paths are rejected before disk reads. Direct
+RequestServer calls now apply the upstream request-size guard too: zero-length
+and oversized WordPress media block requests are rejected before disk reads,
+while exactly `MaxRequestSize` is still accepted. A bounded upstream runner was
+executed for this focused slice only: `go test ./lib/protocol -run
+'^TestRequestMaxSize$' -count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity. The WordPress example `wordpress-request-size-guard.php` shows
+Playground media request validation at zero, oversized, and maximum accepted
+sizes. Temporary-file detection follows upstream basename-prefix semantics:
+both `.syncthing.` and `~syncthing~` mark a file as temporary regardless of the
+active platform prefix, while parent directories with those names do not make a
+normal media leaf temporary.
 The request-serving boundary now also maps upstream ignore and receive-encrypted
 guards from `model.Request` and `lib/ignore`: explicit ignored matches are
 rejected with invalid-file before any temporary or finalized bytes are served,
