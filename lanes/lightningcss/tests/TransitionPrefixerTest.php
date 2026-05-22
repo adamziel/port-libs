@@ -272,6 +272,49 @@ CSS;
             $prefixer->prefixForTargets('.foo { box-shadow: 0px 0px 22px red; box-shadow: 0px 0px 22px lab(40% 56.6 39); }', ['safari' => 14])
         );
     },
+    'transition prefixer maps upstream box shadow oklch alpha fallback targets' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = <<<'CSS'
+.foo {
+  box-shadow:
+    oklch(100% 0 0deg / 50%) 0 0.63rem 0.94rem -0.19rem,
+    currentColor 0 0.44rem 0.8rem -0.58rem;
+}
+CSS;
+
+        $t->same(
+            '.foo{box-shadow:0 .63rem .94rem -.19rem #ffffff80,0 .44rem .8rem -.58rem;box-shadow:0 .63rem .94rem -.19rem lab(100% 0 0 / .5),0 .44rem .8rem -.58rem}',
+            $prefixer->prefixForTargets($css, ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{box-shadow:0 .63rem .94rem -.19rem color(display-p3 1 1 1 / .5),0 .44rem .8rem -.58rem;box-shadow:0 .63rem .94rem -.19rem lab(100% 0 0 / .5),0 .44rem .8rem -.58rem}',
+            $prefixer->prefixForTargets($css, ['safari' => 14])
+        );
+    },
+    'transition prefixer maps upstream text shadow fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{text-shadow:12px 12px #b32323;text-shadow:12px 12px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { text-shadow: 12px 12px lab(40% 56.6 39) }', ['chrome' => 4])
+        );
+        $t->same(
+            '.foo{text-shadow:12px 12px #b32323;text-shadow:12px 12px color(display-p3 .643308 .192455 .167712);text-shadow:12px 12px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { text-shadow: 12px 12px lab(40% 56.6 39) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{text-shadow:12px 12px #b32323,12px 12px #ff0;text-shadow:12px 12px lab(40% 56.6 39),12px 12px #ff0}',
+            $prefixer->prefixForTargets('.foo { text-shadow: 12px 12px lab(40% 56.6 39), 12px 12px yellow }', ['chrome' => 4])
+        );
+        $t->same(
+            '.foo{text-shadow:var(--foo) 12px #b32323}@supports (color:lab(0% 0 0)){.foo{text-shadow:var(--foo) 12px lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { text-shadow: var(--foo) 12px lab(40% 56.6 39) }', ['chrome' => 4])
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{text-shadow:var(--foo) 12px lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-shadow: var(--foo) 12px lab(40% 56.6 39); } }', ['chrome' => 4])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -357,6 +400,18 @@ CSS;
 
         $t->same(
             '.wp-block-post-template .wp-block-post{-webkit-box-shadow:var(--wp--preset--shadow--card) 12px #b32323;box-shadow:var(--wp--preset--shadow--card) 12px #b32323}@supports (color:lab(0% 0 0)){.wp-block-post-template .wp-block-post{box-shadow:var(--wp--preset--shadow--card) 12px lab(40% 56.6 39)}}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 4])
+        );
+    },
+    'wordpress heading text shadows get advanced color fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-title.has-text-shadow {
+  text-shadow: var(--wp--preset--shadow--headline) 12px lab(40% 56.6 39);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-title.has-text-shadow{text-shadow:var(--wp--preset--shadow--headline) 12px #b32323}@supports (color:lab(0% 0 0)){.wp-block-post-title.has-text-shadow{text-shadow:var(--wp--preset--shadow--headline) 12px lab(40% 56.6 39)}}',
             (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 4])
         );
     },

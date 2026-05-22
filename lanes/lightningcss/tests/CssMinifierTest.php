@@ -365,6 +365,30 @@ return [
             $minifier->minify('.foo { box-shadow: 64px 64px 12px 40px rgba(0,0,0,0.4), 12px 12px 0px 8px rgba(0,0,0,0.4) inset }')
         );
     },
+    'css minifier maps upstream text shadow value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{text-shadow:1px 1px 2px #ff0}',
+            $minifier->minify('.foo { text-shadow: 1px 1px 2px yellow; }')
+        );
+        $t->same(
+            '.foo{text-shadow:1px 1px 2px 3px #ff0}',
+            $minifier->minify('.foo { text-shadow: 1px 1px 2px 3px yellow; }')
+        );
+        $t->same(
+            '.foo{text-shadow:1px 1px #ff0}',
+            $minifier->minify('.foo { text-shadow: 1px 1px 0 yellow; }')
+        );
+        $t->same(
+            '.foo{text-shadow:1px 1px #ff0}',
+            $minifier->minify('.foo { text-shadow: 1px 1px yellow; }')
+        );
+        $t->same(
+            '.foo{text-shadow:1px 1px #ff0,2px 3px red}',
+            $minifier->minify('.foo { text-shadow: 1px 1px yellow, 2px 3px red; }')
+        );
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');

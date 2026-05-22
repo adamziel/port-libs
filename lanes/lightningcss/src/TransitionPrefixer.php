@@ -42,7 +42,7 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool}|null $targetOptions
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool}|null $targetOptions
      */
     private function rewriteRuleList(string $css, bool $insideAdvancedColorSupports = false, ?array $targetOptions = null): string
     {
@@ -77,7 +77,7 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool} $targetOptions
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
      */
     private function rewriteStyleRule(string $selectors, string $body, bool $insideAdvancedColorSupports, array $targetOptions): string
     {
@@ -109,10 +109,13 @@ final class TransitionPrefixer
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
+        $textShadowChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteTextShadowFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -127,7 +130,7 @@ final class TransitionPrefixer
 
     /**
      * @param array<string, int|float|string> $targets
-     * @return array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool}
+     * @return array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool}
      */
     private function targetOptions(array $targets): array
     {
@@ -142,6 +145,10 @@ final class TransitionPrefixer
             || ($safari !== null && $safari < 5.1);
         $supportsAdvancedColor = ($chrome !== null && $chrome >= 111.0)
             || ($safari !== null && $safari >= 16.0);
+        $usesP3Fallback = $safari !== null && $safari >= 10.0 && $safari < 16.0;
+        $needsSrgbFallback = ($chrome !== null && $chrome < 111.0)
+            || ($safari !== null && $safari < 10.0)
+            || ($chrome === null && $safari === null);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -151,6 +158,8 @@ final class TransitionPrefixer
             ),
             'boxShadowSupportsAdvancedColor' => $supportsAdvancedColor,
             'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
+            'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
+            'advancedColorUsesP3Fallback' => $usesP3Fallback,
         ];
     }
 
@@ -414,7 +423,7 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param list<string> $supportRules
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool} $targetOptions
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
      */
     private function rewriteBoxShadowPrefixEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
     {
@@ -459,12 +468,29 @@ final class TransitionPrefixer
             if ($fallback !== null) {
                 $hasPreviousFallback = $this->hasPreviousUnprefixedBoxShadow($rewritten);
                 $hasCustomPropertyReference = $this->containsCustomPropertyReference($entry['value']);
+                $p3Fallback = $hasCustomPropertyReference || !$targetOptions['advancedColorUsesP3Fallback']
+                    ? null
+                    : $this->advancedColorP3FallbackValue($entry['value']);
+                $finalValue = $this->advancedColorLabTargetValue($entry['value']) ?? $entry['value'];
 
                 if (!$hasPreviousFallback) {
-                    if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
-                        $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($fallback));
+                    if ($targetOptions['advancedColorNeedsSrgbFallback'] || $p3Fallback === null) {
+                        if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
+                            $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($fallback));
+                        }
+                        $rewritten[] = $this->entryWithValue($entry, $fallback);
+                    } else {
+                        if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
+                            $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($p3Fallback));
+                        }
+                        $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
                     }
-                    $rewritten[] = $this->entryWithValue($entry, $fallback);
+                    if ($targetOptions['advancedColorNeedsSrgbFallback'] && $p3Fallback !== null && $p3Fallback !== $fallback) {
+                        if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
+                            $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($p3Fallback));
+                        }
+                        $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
+                    }
                     $changed = true;
                 }
 
@@ -476,7 +502,7 @@ final class TransitionPrefixer
                     continue;
                 }
 
-                $rewritten[] = $entry;
+                $rewritten[] = $this->entryWithValue($entry, $finalValue);
                 $changed = true;
                 continue;
             }
@@ -487,6 +513,60 @@ final class TransitionPrefixer
             }
 
             $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
+     */
+    private function rewriteTextShadowFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || $entry['property'] !== 'text-shadow') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $fallback = $targetOptions['boxShadowSupportsAdvancedColor']
+                ? null
+                : $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $hasCustomPropertyReference = $this->containsCustomPropertyReference($entry['value']);
+            $p3Fallback = $hasCustomPropertyReference || !$targetOptions['advancedColorUsesP3Fallback']
+                ? null
+                : $this->advancedColorP3FallbackValue($entry['value']);
+
+            if ($targetOptions['advancedColorNeedsSrgbFallback'] || $p3Fallback === null) {
+                $rewritten[] = $this->entryWithValue($entry, $fallback);
+            }
+            if ($targetOptions['advancedColorUsesP3Fallback'] && $p3Fallback !== null && $p3Fallback !== $fallback) {
+                $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
+            }
+
+            if ($hasCustomPropertyReference) {
+                $labFallback = $this->advancedColorLabFallbackValue($entry['value'], true);
+                if ($labFallback !== null) {
+                    $supportRules[] = $this->supportsLabRule($selectors, [$this->entryWithValue($entry, $labFallback)]);
+                }
+                $changed = true;
+                continue;
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $this->advancedColorLabTargetValue($entry['value']) ?? $entry['value']);
+            $changed = true;
         }
 
         $entries = $rewritten;
@@ -1181,6 +1261,7 @@ final class TransitionPrefixer
             'oklab(59.686% 0.1009 0.1192)' => '#c65d07',
             'oklch(59.686% 0.15619 49.7694)' => '#c65d06',
             'oklch(40% 0.1268735435 34.568626)' => '#7e250f',
+            'oklch(100% 0 0deg/50%)' => '#ffffff80',
             'lab(47.7776% -34.2947 -7.65904)',
             'oklab(54.0% -0.10 -0.02)' => '#00807c',
             'lch(56.208% 136.76 46.312)',
@@ -1209,6 +1290,7 @@ final class TransitionPrefixer
             'lab(51% 70.4544 -115.586)' => 'color(display-p3 .440289 .28452 1.23485)',
             'lch(50.998% 135.363 338)',
             'lab(50.998% 125.506 -50.7078)' => 'color(display-p3 .972962 -.362078 .804206)',
+            'oklch(100% 0 0deg/50%)' => 'color(display-p3 1 1 1 / .5)',
             default => null,
         };
     }
@@ -1222,6 +1304,7 @@ final class TransitionPrefixer
             'oklab(59.686% 0.1009 0.1192)' => 'lab(52.2319% 40.1449 59.9171)',
             'oklch(59.686% 0.15619 49.7694)' => 'lab(52.2321% 40.1417 59.9527)',
             'oklch(40% 0.1268735435 34.568626)' => 'lab(29.2661% 38.2437 35.3889)',
+            'oklch(100% 0 0deg/50%)' => 'lab(100% 0 0 / .5)',
             'lab(47.7776% -34.2947 -7.65904)',
             'oklab(54.0% -0.10 -0.02)' => 'lab(47.7776% -34.2947 -7.65904)',
             'lch(56.208% 136.76 46.312)',

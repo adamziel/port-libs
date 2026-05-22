@@ -935,12 +935,13 @@ final class CssMinifier
         return match (strtolower($property)) {
             'box-shadow',
             '-webkit-box-shadow',
-            '-moz-box-shadow' => $this->mapCommaList($value, fn (string $part): string => $this->minifyBoxShadowLayer($part)),
+            '-moz-box-shadow',
+            'text-shadow' => $this->mapCommaList($value, fn (string $part): string => $this->minifyShadowLayer($part)),
             default => $value,
         };
     }
 
-    private function minifyBoxShadowLayer(string $layer): string
+    private function minifyShadowLayer(string $layer): string
     {
         $tokens = $this->splitWhitespaceTopLevel($layer);
         if ($tokens === []) {
@@ -965,7 +966,10 @@ final class CssMinifier
             }
 
             if ($this->isShadowColorToken($token)) {
-                $colors[] = $this->minifyShadowColorToken($token);
+                $color = $this->minifyShadowColorToken($token);
+                if (strcasecmp($color, 'currentColor') !== 0) {
+                    $colors[] = $color;
+                }
                 continue;
             }
 
