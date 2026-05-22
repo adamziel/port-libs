@@ -11,11 +11,11 @@
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": "35 inspected upstream benchmark/test/cleanup/layout-order/OCR/image artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, 1 Markdown postprocessor, 1 layout ordering module, 1 PDF utility module, 2 OCR heuristic/helper modules, and 4 image insertion/schema helper artifacts",
-        "mapped": 40,
+        "total": "37 inspected upstream benchmark/test/cleanup/layout-order/OCR/image/equation artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, 1 Markdown postprocessor, 1 layout ordering module, 1 PDF utility module, 2 OCR heuristic/helper modules, 4 image insertion/schema helper artifacts, and 2 equation/Texify helper artifacts",
+        "mapped": 45,
         "mappedBenchmarkPairs": 0,
         "mappedBenchmarkSurrogatePairs": 4,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/pdf/utils.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, marker/layout/order.py, marker/ocr/heuristics.py, marker/ocr/utils.py, marker/images/save.py, marker/images/extract.py, marker/schema/block.py, marker/schema/bbox.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/pdf/utils.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, marker/layout/order.py, marker/ocr/heuristics.py, marker/ocr/utils.py, marker/images/save.py, marker/images/extract.py, marker/schema/block.py, marker/schema/bbox.py, marker/equations/equations.py, marker/equations/inference.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, thinkpython.pdf, and thinkos.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
         "inventory": {
             "repositoryFiles": 78,
             "pythonFiles": 47,
@@ -41,6 +41,9 @@
             "imageInsertionArtifacts": 4,
             "imageInsertionFunctions": 5,
             "mappedImageInsertionFunctions": 5,
+            "equationArtifacts": 2,
+            "equationFunctions": 7,
+            "mappedEquationFunctions": 5,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
             "committedNougatMarkdownExamples": 4
@@ -64,7 +67,7 @@
             ]
         },
         "runnerStatus": "not-executed",
-        "runnerBlocker": "The upstream CI benchmark downloads benchmark_data from Google Drive and requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, and model downloads. The shallow clone contains no benchmark PDFs or references, so the full runner cannot execute locally under the modest network/CPU constraint.",
+        "runnerBlocker": "The upstream CI benchmark downloads benchmark_data from Google Drive and requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, Texify, and model downloads. The shallow clone contains no benchmark PDFs or references, so the full runner cannot execute locally under the modest network/CPU constraint.",
         "mappedSemantics": [
             "PDF content stream text operators feed Marker-style Markdown conversion.",
             "PDF text movement operators define block-ready line boundaries before WordPress import.",
@@ -104,15 +107,21 @@
             "marker.images.save images_to_dict exports page image payloads keyed by upstream filename while skipping pages with no images.",
             "marker.schema.block find_insert_block selects the nearest block by top-left distance for image regions with no detected text lines.",
             "marker.images.extract find_image_blocks rescales Figure/Picture layout boxes, clears intersecting text spans, and records insertion line positions.",
-            "marker.images.extract extract_page_images inserts upstream Markdown image spans into existing or newly-created lines before WordPress image-block rendering; native PHP supplies placeholder payloads because upstream raster rendering depends on pypdfium/PIL."
+            "marker.images.extract extract_page_images inserts upstream Markdown image spans into existing or newly-created lines before WordPress image-block rendering; native PHP supplies placeholder payloads because upstream raster rendering depends on pypdfium/PIL.",
+            "marker.equations.equations find_equation_blocks rescales Formula layout boxes, removes intersecting text lines, falls back to the nearest block when detected lines are missing, and enforces the upstream Texify model token cap at the native boundary.",
+            "marker.equations.equations increment_insert_points shifts later insertion block indexes after Formula blocks are inserted.",
+            "marker.equations.equations insert_latex_block validates supplied LaTeX predictions, inserts Formula blocks before, after, or inside split text blocks, and preserves original equation text when validation fails.",
+            "marker.equations.equations replace_equations reports successful_ocr, unsuccessful_ocr, and equations metadata for the converted document.",
+            "marker.equations.inference get_total_texify_tokens and prediction max-length guards are represented with a deterministic native token-count boundary; full Texify tokenizer/model inference remains unported.",
+            "marker.postprocessors.markdown Formula block_surround and line_separator preserve accepted LaTeX display-math fences after replacement for WordPress math block rendering."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 40 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 45 focused upstream source semantics plus four committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched. Equation replacement maps Marker structural semantics at the native boundary, but Texify model inference and PDF equation raster rendering remain unported."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, full block-merge/pagination Markdown assembly, upstream reading-order sorting for two-column WordPress imports, OCR triage heuristics for scanned or garbled pages, and upstream image filename/dictionary/insertion placeholder semantics for WordPress image blocks.",
-        "phpBehaviorTests": 61,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, thinkpython, and thinkos committed-output surrogate scoring, Marker cleaner bullet/text/font-style/code normalization, repeated header/footer/title cleanup, code block classification/indent reconstruction, heading-level inference, computed table-of-contents metadata, full block-merge/pagination Markdown assembly, upstream reading-order sorting for two-column WordPress imports, OCR triage heuristics for scanned or garbled pages, upstream image filename/dictionary/insertion placeholder semantics for WordPress image blocks, and upstream Formula-region equation replacement with supplied LaTeX predictions.",
+        "phpBehaviorTests": 67,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -152,9 +161,15 @@
             "marker.images.save page image dictionary export",
             "marker.schema.block nearest-block fallback insertion for images with no detected text",
             "marker.images.extract Figure/Picture region matching and intersecting text-span clearing",
-            "marker.images.extract Markdown image span insertion for existing or newly-created lines"
+            "marker.images.extract Markdown image span insertion for existing or newly-created lines",
+            "marker.equations.equations Formula region discovery, bbox rescaling, intersecting line removal, and nearest-block fallback insertion",
+            "marker.equations.equations Texify token-limit guard before equation replacement",
+            "marker.equations.equations LaTeX prediction validation and original-text fallback",
+            "marker.equations.equations Formula block insertion before, after, or inside split text blocks",
+            "marker.equations.equations document-level equation metadata",
+            "marker.postprocessors.markdown Formula block display-math preservation after replacement"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, model reading-order sorting for two-column imports, OCR triage for scanned or garbled pages before block rendering, deterministic image placeholder insertion before Gutenberg image block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map a focused equation, table-layout, or raster-rendering behavior against a concrete upstream artifact."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, inline bold/italic span preservation before paragraph rendering, code-block classification before Gutenberg code output, heading-level inference and table-of-contents list output before block rendering, page-boundary preservation for paginated Gutenberg output, model reading-order sorting for two-column imports, OCR triage for scanned or garbled pages before block rendering, deterministic image placeholder insertion before Gutenberg image block rendering, supplied-LaTeX equation replacement before WordPress math/HTML block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, thinkpython, and thinkos surrogate score fixtures.",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive, then map focused table-layout/raster-rendering behavior or exact Texify tokenizer/model boundaries against a concrete upstream artifact."
 }
