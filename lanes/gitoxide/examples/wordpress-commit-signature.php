@@ -16,6 +16,9 @@ $mergeTags = $commit->mergeTags();
 $tokenResults = Commit::iterateTokens($fixture['commitBody']);
 $storageBytes = $commit->storageBytes();
 $lateStandardHeaderCommit = Commit::parse($fixture['lateStandardHeaderCommitBody']);
+$oddTimestampCommit = Commit::parse($fixture['oddTimestampCommitBody']);
+$oddTimestampAuthor = $oddTimestampCommit->authorSignature();
+$oddTimestampCommitter = $oddTimestampCommit->committerSignature();
 $misorderedHeaderRejected = false;
 try {
     Commit::parse($fixture['misorderedHeaderCommitBody']);
@@ -76,6 +79,10 @@ return [
     'lateStandardHeaderParentExtra' => $lateStandardHeaderCommit->extraHeader('parent'),
     'lateStandardHeaderEncodingExtra' => $lateStandardHeaderCommit->extraHeader('encoding'),
     'misorderedHeaderRejected' => $misorderedHeaderRejected,
+    'oddTimestampAuthorTime' => $oddTimestampAuthor->time(),
+    'oddTimestampCommitterTime' => $oddTimestampCommitter->time(),
+    'oddTimestampCommitterRawTime' => $oddTimestampCommitter->time,
+    'oddTimestampRoundTripMatches' => Commit::parse($oddTimestampCommit->storageBytes())->storageBytes() === $oddTimestampCommit->storageBytes(),
     'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
     'tokenExtraHeaderNames' => array_values(array_map(
         static fn (array $result): string => $result['token']['name'],

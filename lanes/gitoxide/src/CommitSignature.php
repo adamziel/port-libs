@@ -76,24 +76,78 @@ final class CommitSignature
         return preg_match('/^-?\d+$/', $first) === 1 ? (int) $first : 0;
     }
 
+    /**
+     * @return array{seconds: int, offset: int}|null
+     */
+    public function time(): ?array
+    {
+        $input = trim($this->time);
+        if ($input === '' || str_contains($input, ':')) {
+            return null;
+        }
+
+        $parts = preg_split('/\s+/', $input);
+        if ($parts === false || $parts === []) {
+            return null;
+        }
+
+        $secondsToken = array_shift($parts);
+        if ($secondsToken === null) {
+            return null;
+        }
+
+        if (preg_match('/^-?\d+$/', $secondsToken) === 1) {
+            $seconds = (int) $secondsToken;
+        } elseif (preg_match('/^(\d+)/', $secondsToken, $matches) === 1) {
+            $seconds = (int) $matches[1];
+        } else {
+            return null;
+        }
+
+        if ($parts === []) {
+            return ['seconds' => $seconds, 'offset' => 0];
+        }
+
+        $offset = 0;
+        if (count($parts) === 1) {
+            $offset = self::parseOffsetToken($parts[0]) ?? 0;
+        }
+
+        return ['seconds' => $seconds, 'offset' => $offset];
+    }
+
     public function offsetSeconds(): ?int
     {
-        if (preg_match('/(?:^|[ \t])([+-])(\d{2})(\d{2})$/', trim($this->time), $matches) !== 1) {
+        return $this->time()['offset'] ?? null;
+    }
+
+    public function storageBytes(): string
+    {
+        self::validateWriteToken($this->name);
+        self::validateWriteToken($this->email);
+        self::validateWriteToken($this->time);
+
+        return "{$this->name} <{$this->email}> {$this->time}";
+    }
+
+    private static function parseOffsetToken(string $offset): ?int
+    {
+        if (preg_match('/^([+-])(\d{2})(\d{2})(\d{2})?$/', $offset, $matches) !== 1) {
             return null;
         }
 
         $hours = (int) $matches[2];
         $minutes = (int) $matches[3];
-        if ($minutes >= 60) {
-            return null;
-        }
+        $seconds = isset($matches[4]) && $matches[4] !== '' ? (int) $matches[4] : 0;
+        $total = ($hours * 3600) + ($minutes * 60) + $seconds;
 
-        $seconds = ($hours * 3600) + ($minutes * 60);
-        return $matches[1] === '-' ? -$seconds : $seconds;
+        return $matches[1] === '-' ? -$total : $total;
     }
 
-    public function storageBytes(): string
+    private static function validateWriteToken(string $token): void
     {
-        return "{$this->name} <{$this->email}> {$this->time}";
+        if (strpbrk($token, "<>\n") !== false) {
+            throw new \InvalidArgumentException("Signature name, email, and time must not contain '<', '>' or newline bytes");
+        }
     }
 }

@@ -40,14 +40,24 @@ $misorderedHeaderBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "\n"
     . "Import with reordered actors\n";
 
+$oddTimestampBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "author WordPress Importer <importer@example.test> 1312735823 +051800\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1288373970 --700\n"
+    . "\n"
+    . "Import with legacy timestamp offsets\n";
+
 return [
     'commitBody' => $body,
     'lateStandardHeaderCommitBody' => $lateStandardHeaderBody,
     'misorderedHeaderCommitBody' => $misorderedHeaderBody,
+    'oddTimestampCommitBody' => $oddTimestampBody,
     'expectedTree' => '0123456789abcdef0123456789abcdef01234567',
     'expectedAuthorName' => 'WordPress Importer',
     'expectedAuthorEmail' => 'importer@example.test',
     'expectedAuthorOffset' => -9000,
+    'expectedOddTimestampAuthorTime' => ['seconds' => 1312735823, 'offset' => 19080],
+    'expectedOddTimestampCommitterTime' => ['seconds' => 1288373970, 'offset' => 0],
+    'expectedOddTimestampCommitterRawTime' => '1288373970 --700',
     'expectedSummary' => 'Import WordPress export',
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
     'expectedSignedOffBy' => ['WordPress Importer <importer@example.test>'],
@@ -68,5 +78,5 @@ return [
     'expectedMergeTagTagger' => 'WordPress Release Bot',
     'expectedMergeTagMessage' => 'Release tag embedded for deployment provenance',
     'expectedLateParentExtraHeader' => '1111111111111111111111111111111111111111',
-    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
+    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, raw timestamp offsets, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
 ];

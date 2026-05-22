@@ -77,8 +77,29 @@ return [
         $t->same('gh <Gregor Hartmann<gh@openoffice.org', $signature->email);
         $t->same('1282910542 +0200', $signature->time);
         $t->same(1282910542, $signature->seconds());
+        $t->same(['seconds' => 1282910542, 'offset' => 7200], $signature->time());
         $t->same(7200, $signature->offsetSeconds());
 
+        $withOffsetSeconds = CommitSignature::parse('first last <name@example.com> 1312735823 +051800');
+        $t->same('1312735823 +051800', $withOffsetSeconds->time);
+        $t->same(['seconds' => 1312735823, 'offset' => 19080], $withOffsetSeconds->time());
+        $t->same(19080, $withOffsetSeconds->offsetSeconds());
+        $t->same('first last <name@example.com> 1312735823 +051800', $withOffsetSeconds->storageBytes());
+
+        $doubleDashOffset = CommitSignature::parse('name <name@example.com> 1288373970 --700');
+        $t->same(1288373970, $doubleDashOffset->seconds());
+        $t->same(['seconds' => 1288373970, 'offset' => 0], $doubleDashOffset->time());
+        $t->same(0, $doubleDashOffset->offsetSeconds());
+        $t->same('name <name@example.com> 1288373970 --700', $doubleDashOffset->storageBytes());
+
+        $missingTimestamp = CommitSignature::parse('first last <name@example.com>');
+        $t->same('', $missingTimestamp->time);
+        $t->same(0, $missingTimestamp->seconds());
+        $t->same(null, $missingTimestamp->time());
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CommitSignature('invalid < middlename', 'ok', '0 +0000'))->storageBytes());
+        $t->throws(InvalidArgumentException::class, static fn () => (new CommitSignature('ok', 'server>.example.com', '0 +0000'))->storageBytes());
+        $t->throws(InvalidArgumentException::class, static fn () => (new CommitSignature("hello\nnewline", 'name@example.com', '0 +0000'))->storageBytes());
         $t->throws(InvalidArgumentException::class, static fn () => CommitSignature::parse('Name <name@example.test> abc -1215'));
         $t->throws(InvalidArgumentException::class, static fn () => CommitSignature::parse('Name name@example.test> 1700000000 +0000'));
     },
@@ -425,5 +446,9 @@ return [
         $t->same($fixture['expectedLateParentExtraHeader'], $summary['lateStandardHeaderParentExtra']);
         $t->same('UTF-8', $summary['lateStandardHeaderEncodingExtra']);
         $t->same(true, $summary['misorderedHeaderRejected']);
+        $t->same($fixture['expectedOddTimestampAuthorTime'], $summary['oddTimestampAuthorTime']);
+        $t->same($fixture['expectedOddTimestampCommitterTime'], $summary['oddTimestampCommitterTime']);
+        $t->same($fixture['expectedOddTimestampCommitterRawTime'], $summary['oddTimestampCommitterRawTime']);
+        $t->same(true, $summary['oddTimestampRoundTripMatches']);
     },
 ];
