@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "syncthing",
-    "estimatedProgress": 6,
-    "suiteProgress": "cloned static upstream inventory counted: 211 unique test-related paths; scanner, protocol vector, and FileInfo conflict semantics mapped; upstream runner not executed",
-    "phpPass": 16,
+    "estimatedProgress": 7,
+    "suiteProgress": "cloned static upstream inventory counted: 264 unique behavior/test paths; scanner, protocol vector, FileInfo conflict, and FileInfo equivalence semantics mapped; upstream runner not executed",
+    "phpPass": 22,
     "phpFail": 0,
-    "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, and resolving media tombstone/conflict winner decisions.",
-    "phase": "cloned static upstream inventory plus scanner block, protocol vector, and FileInfo conflict slices",
+    "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, and treating scanner-only metadata noise as equivalent while content changes still force sync.",
+    "phase": "cloned static upstream inventory plus scanner block, protocol vector, FileInfo conflict, and FileInfo equivalence slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, immutable protocol version vectors, FileInfo conflict winner ordering, invalid/conflict flag handling, block-lineage conflict detection, and tombstone creation.",
-    "blocker": "Full upstream runner has not executed: `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
-    "latestCommit": "da34b5a",
-    "nextTask": "Port protocol FileInfo equivalence, index update message fixtures, or block comparison behavior from focused upstream tests."
+    "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, immutable protocol version vectors, FileInfo conflict winner ordering, invalid/conflict flag handling, block-lineage conflict detection, tombstone creation, and FileInfo equivalence/block comparison behavior from upstream `bep_fileinfo_test.go`.",
+    "blocker": "Full upstream runner has not executed: `.upstream-cache/syncthing` is blob-filtered/no-checkout with mass tracked deletions, `go` is not on this shell's PATH, and `go test ./...` would require hydrating the full checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
+    "latestCommit": "11f1e27",
+    "nextTask": "Port index update message fixtures, wire-format path normalization, or request validation behavior from focused upstream protocol tests."
 }

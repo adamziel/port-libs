@@ -11,16 +11,20 @@
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": 211,
-        "mapped": 16,
-        "source": "Shallow blob-filtered upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted test-related paths with git ls-tree without hydrating the full checkout.",
+        "total": 264,
+        "mapped": 22,
+        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, and focused protocol/scanner paths with git ls-tree without hydrating the full checkout.",
         "inventory": {
             "goTestFiles": 141,
-            "testAndTestdataPaths": 72,
-            "scriptPaths": 13,
-            "uniqueTestRelatedPaths": 211,
+            "testdataPaths": 32,
+            "integrationTestTreePaths": 41,
+            "scriptPaths": 21,
+            "uniqueBehaviorInventoryPaths": 264,
+            "uniqueTestRelatedPaths": 264,
             "targetScannerProtocolModelTestFiles": 34,
             "targetScannerProtocolModelTestdataFiles": 1,
+            "targetProtocolFileInfoTestFunctions": 4,
+            "targetProtocolFileInfoTableCases": 41,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -31,11 +35,19 @@
         },
         "runnerStatus": {
             "executed": false,
-            "reason": "The full upstream runner was not executed in this lane slice. Running `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building the Go module graph, and executing 141 Go test files plus integration test paths under `test/`; this exceeds the modest network/CPU budget for this worker run. The denominator is therefore a cloned static tree inventory, not upstream pass parity.",
+            "reason": "The full upstream runner was not executed in this lane slice. The upstream cache is blob-filtered/no-checkout with mass tracked deletions in its working tree, `go` is not available on this shell's PATH, and running `go test ./...` would require hydrating the full checkout, downloading/building the Go module graph, and executing 141 Go test files plus integration test paths under `test/`; this exceeds the modest network/CPU budget for this worker run. The denominator is therefore a cloned static tree inventory, not upstream pass parity.",
             "probes": [
                 {
                     "command": "git ls-tree -r --name-only HEAD",
-                    "result": "counted 211 unique test-related upstream paths without full blob hydration"
+                    "result": "counted 264 unique behavior/test inventory paths without full blob hydration"
+                },
+                {
+                    "command": "go version",
+                    "result": "not executed as runner setup; shell probe reports `go: command not found`"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_fileinfo.go and lib/protocol/bep_fileinfo_test.go",
+                    "result": "inspected FileInfo equivalence and BlocksEqual semantics without hydrating broad blobs"
                 }
             ]
         },
@@ -55,15 +67,21 @@
             "Local invalid and local conflict flags distinguish unsupported, ignored, must-rescan, receive-only, and remote-invalid states.",
             "FileInfo conflict detection accepts descendant versions and concurrent updates that preserve the previous block hash lineage.",
             "FileInfo conflict detection rejects stale concurrent updates and treats missing block hashes as conflict-prone type-change or unknown lineage cases.",
-            "Tombstone creation clears content hashes and size while advancing the local device version counter."
+            "Tombstone creation clears content hashes and size while advancing the local device version counter.",
+            "FileInfo block equality follows upstream shortcuts: matching aggregate BlocksHash accepts the file before inspecting block lists.",
+            "FileInfo block fallback compares block hash order only, matching upstream behavior that ignores block offsets and sizes in `blocksEqual`.",
+            "FileInfo equivalence checks name, type, deleted state, invalidity, file size, modtime window, blocks, directory identity, and symlink targets while ignoring version, sequence, raw block size, and no-permission noise.",
+            "Must-rescan entries are never equivalent; otherwise local invalid flags compare by invalidity, with explicit ignore flags able to mask local receive-only changes.",
+            "FileInfo comparison supports upstream permission and block ignore options for scanner/config noise.",
+            "Unix ownership equivalence accepts matching UID/GID pairs or matching resolved owner/group names, and treats missing ownership as unequal unless ownership is ignored."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 16 focused lane tests against a 211-path upstream test-related denominator."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 22 focused lane tests against a 264-path upstream behavior/test inventory denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, and FileInfo conflict/tombstone decisions."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, and FileInfo equivalence/block comparison behavior."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, and resolving media tombstone/conflict winner decisions.",
-    "nextTask": "Port protocol FileInfo equivalence, index update message fixtures, or block comparison behavior from focused upstream tests."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, and treating scanner-only metadata noise as equivalent while content changes still force sync.",
+    "nextTask": "Port index update message fixtures, wire-format path normalization, or request validation behavior from focused upstream protocol tests."
 }

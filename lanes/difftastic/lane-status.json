@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, recursive bracketed-list diffs, and upstream-style word/subword diffs for hyphenated strings and WordPress slugs.",
     "blocker": "Full upstream runner parity is not available: the sparse clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; offline no-run probe failed on missing `humansize` crate.",
-    "latestCommit": "88ee149",
+    "latestCommit": "5a78b05",
     "nextTask": "Add HTML output for syntax-list and subword hunks around WordPress block/theme code, or map another upstream sample_files pair."
 }
