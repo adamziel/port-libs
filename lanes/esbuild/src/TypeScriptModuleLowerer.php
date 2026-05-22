@@ -367,6 +367,7 @@ final class TypeScriptModuleLowerer
     private function lowerClassStatementAt(int $start): ?array
     {
         $cursor = $start;
+        $hasTypeScriptClassSyntax = false;
         if (($this->tokens[$cursor] ?? null)?->text === 'export') {
             if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
                 return null;
@@ -384,6 +385,7 @@ final class TypeScriptModuleLowerer
             if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
                 return null;
             }
+            $hasTypeScriptClassSyntax = true;
             $cursor++;
         }
 
@@ -395,20 +397,41 @@ final class TypeScriptModuleLowerer
         if ($bodyOpen === null) {
             return null;
         }
+        if ($this->classHeaderContainsTypeScriptSyntax($cursor, $bodyOpen)) {
+            $hasTypeScriptClassSyntax = true;
+        }
+
         $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
-        [$members, $hasDeclareMember] = $this->lowerClassMembers($bodyOpen + 1, $bodyClose);
-        if (!$hasDeclareMember) {
+        [$members, $hasTypeScriptMemberSyntax] = $this->lowerClassMembers($bodyOpen + 1, $bodyClose);
+        if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax) {
             return null;
         }
 
         $header = $this->classHeaderText($start, $bodyOpen);
         $lines = [$header . ' {'];
         foreach ($members as $member) {
-            $lines[] = '  ' . $member;
+            foreach (explode("\n", $member) as $line) {
+                $lines[] = '  ' . $line;
+            }
         }
         $lines[] = '}';
 
         return [implode("\n", $lines), $bodyClose];
+    }
+
+    private function classHeaderContainsTypeScriptSyntax(int $classIndex, int $bodyOpen): bool
+    {
+        for ($i = $classIndex + 1; $i < $bodyOpen; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+            if ($token->text === '<' || $token->text === 'implements') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -417,28 +440,30 @@ final class TypeScriptModuleLowerer
     private function lowerClassMembers(int $start, int $end): array
     {
         $members = [];
-        $hasDeclareMember = false;
+        $hasTypeScriptMemberSyntax = false;
         for ($cursor = $start; $cursor < $end; $cursor++) {
             if (($this->tokens[$cursor] ?? null)?->text === ';') {
                 continue;
             }
 
             $memberEnd = $this->classMemberEnd($cursor, $end);
-            [$member, $declared] = $this->lowerClassMember($cursor, $memberEnd);
-            if ($declared) {
-                $hasDeclareMember = true;
+            [$loweredMembers, $transformed] = $this->lowerClassMember($cursor, $memberEnd);
+            if ($transformed) {
+                $hasTypeScriptMemberSyntax = true;
             }
-            if ($member !== '') {
-                $members[] = $member;
+            foreach ($loweredMembers as $member) {
+                if ($member !== '') {
+                    $members[] = $member;
+                }
             }
             $cursor = $memberEnd;
         }
 
-        return [$members, $hasDeclareMember];
+        return [$members, $hasTypeScriptMemberSyntax];
     }
 
     /**
-     * @return array{0:string, 1:bool}
+     * @return array{0:list<string>, 1:bool}
      */
     private function lowerClassMember(int $start, int $end): array
     {
@@ -450,7 +475,8 @@ final class TypeScriptModuleLowerer
         }
 
         $modifiers = [];
-        while (($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+        while ($cursor <= $end
+            && ($this->tokens[$cursor] ?? null)?->kind === 'identifier'
             && in_array($this->tokens[$cursor]->text, $this->classMemberModifierKeywords(), true)
         ) {
             $modifiers[] = $this->tokens[$cursor]->text;
@@ -458,7 +484,24 @@ final class TypeScriptModuleLowerer
         }
 
         if (!in_array('declare', $modifiers, true)) {
-            return [$this->printClassMemberRange($start, $end), false];
+            if ($cursor > $end) {
+                return [[$this->printClassMemberRange($start, $end)], false];
+            }
+
+            $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor);
+            if ($constructor !== null) {
+                return $constructor;
+            }
+
+            if (in_array('abstract', $modifiers, true) && !$this->classMemberHasBody($cursor, $end)) {
+                return [[], true];
+            }
+
+            if ($this->containsClassMemberTypeScriptSyntax($start, $end, $modifiers)) {
+                return [[$this->printClassMemberRuntimeRange($start, $end)], true];
+            }
+
+            return [[$this->printClassMemberRange($start, $end)], false];
         }
 
         if ($decorated) {
@@ -490,7 +533,266 @@ final class TypeScriptModuleLowerer
             throw new \InvalidArgumentException('"declare" cannot be used with a method');
         }
 
-        return ['', true];
+        return [[], true];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:bool}|null
+     */
+    private function lowerConstructorParameterPropertyMember(int $start, int $end, int $memberNameIndex): ?array
+    {
+        if (($this->tokens[$memberNameIndex] ?? null)?->text !== 'constructor'
+            || ($this->tokens[$memberNameIndex + 1] ?? null)?->text !== '('
+        ) {
+            return null;
+        }
+
+        $paramsOpen = $memberNameIndex + 1;
+        $paramsClose = $this->findMatchingPunctuator($paramsOpen, '(', ')');
+        if ($paramsClose > $end || ($this->tokens[$paramsClose + 1] ?? null)?->text !== '{') {
+            return null;
+        }
+
+        $bodyOpen = $paramsClose + 1;
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $end) {
+            return null;
+        }
+
+        [$parameters, $propertyNames, $hasParameterProperties] = $this->lowerConstructorParameters($paramsOpen + 1, $paramsClose);
+        if (!$hasParameterProperties) {
+            return null;
+        }
+
+        $lines = ['constructor(' . implode(', ', $parameters) . ') {'];
+        foreach ($propertyNames as $propertyName) {
+            $lines[] = '  this.' . $propertyName . ' = ' . $propertyName . ';';
+        }
+
+        $body = $this->constructorBodyLines($bodyOpen, $bodyClose);
+        foreach ($body as $line) {
+            $lines[] = '  ' . $line;
+        }
+        $lines[] = '}';
+
+        $members = [implode("\n", $lines)];
+        foreach ($propertyNames as $propertyName) {
+            $members[] = $propertyName . ';';
+        }
+
+        return [$members, true];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:list<string>, 2:bool}
+     */
+    private function lowerConstructorParameters(int $start, int $close): array
+    {
+        $parameters = [];
+        $properties = [];
+        $hasParameterProperties = false;
+
+        for ($cursor = $start; $cursor < $close; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ',') {
+                continue;
+            }
+
+            $parameterEnd = $this->constructorParameterEnd($cursor, $close);
+            [$parameter, $propertyName] = $this->lowerConstructorParameter($cursor, $parameterEnd);
+            if ($parameter !== '') {
+                $parameters[] = $parameter;
+            }
+            if ($propertyName !== null) {
+                $properties[] = $propertyName;
+                $hasParameterProperties = true;
+            }
+            $cursor = $parameterEnd;
+        }
+
+        return [$parameters, $properties, $hasParameterProperties];
+    }
+
+    private function constructorParameterEnd(int $start, int $close): int
+    {
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i < $close; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '{') {
+                $braceDepth++;
+            } elseif ($text === '}') {
+                $braceDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($parenDepth === 0 && $braceDepth === 0 && $bracketDepth === 0 && $text === ',') {
+                return $i - 1;
+            }
+        }
+
+        return $close - 1;
+    }
+
+    /**
+     * @return array{0:string, 1:?string}
+     */
+    private function lowerConstructorParameter(int $start, int $end): array
+    {
+        $cursor = $start;
+        $modifiers = [];
+        while ($cursor <= $end
+            && ($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+            && in_array($this->tokens[$cursor]->text, ['public', 'protected', 'private', 'readonly', 'override'], true)
+        ) {
+            $modifiers[] = $this->tokens[$cursor]->text;
+            $cursor++;
+        }
+
+        if ($modifiers === []) {
+            return [$this->printParameterRuntimeRange($start, $end), null];
+        }
+
+        $name = $this->tokens[$cursor] ?? null;
+        if ($name === null) {
+            if (array_intersect($modifiers, ['public', 'protected', 'private']) !== []) {
+                throw new \InvalidArgumentException('Expected identifier after TypeScript constructor parameter property modifier');
+            }
+
+            return [$this->printParameterRuntimeRange($start, $end), null];
+        }
+
+        if ($name->text === '{' || $name->text === '[') {
+            throw new \InvalidArgumentException('Expected identifier after TypeScript constructor parameter property modifier');
+        }
+
+        if ($name->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected identifier after TypeScript constructor parameter property modifier');
+        }
+
+        return [$this->printParameterRuntimeRange($cursor, $end), $name->text];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function constructorBodyLines(int $bodyOpen, int $bodyClose): array
+    {
+        $body = trim(substr(
+            $this->source,
+            $this->tokens[$bodyOpen]->offset + 1,
+            $this->tokens[$bodyClose]->offset - $this->tokens[$bodyOpen]->offset - 1
+        ));
+        if ($body === '') {
+            return [];
+        }
+
+        $lines = [];
+        foreach (preg_split('/\R/', $body) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    private function printParameterRuntimeRange(int $start, int $end): string
+    {
+        $parts = [];
+        $previous = null;
+        for ($i = $start; $i <= $end; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+
+            if (($token->text === '?' || $token->text === '!') && ($this->tokens[$i + 1] ?? null)?->text === ':') {
+                continue;
+            }
+
+            if ($token->text === ':' && $this->isParameterTypeColon($i, $start, $end)) {
+                $i = $this->skipTypeExpression($i + 1, $end, ['=']) - 1;
+                continue;
+            }
+
+            $text = $token->text;
+            if ($token->kind === 'string') {
+                $text = $this->quoteJsString($this->stringTokenValue($token));
+            }
+
+            if ($previous !== null && $this->needsSpace($previous, $text)) {
+                $parts[] = ' ';
+            }
+            $parts[] = $text;
+            $previous = $text;
+        }
+
+        return implode('', $parts);
+    }
+
+    private function isParameterTypeColon(int $index, int $start, int $end): bool
+    {
+        if (!$this->isTopLevelInRange($start, $index)) {
+            return false;
+        }
+
+        $previous = $this->previousSignificantTokenIndex($index - 1);
+        if ($previous !== null && in_array(($this->tokens[$previous] ?? null)?->text, ['?', '!'], true)) {
+            $previous = $this->previousSignificantTokenIndex($previous - 1);
+        }
+
+        $previousToken = $previous === null ? null : $this->tokens[$previous];
+
+        return $previousToken !== null
+            && ($previousToken->kind === 'identifier' || in_array($previousToken->text, [')', ']'], true));
+    }
+
+    private function classMemberHasBody(int $start, int $end): bool
+    {
+        for ($i = $start; $i <= $end; $i++) {
+            if (($this->tokens[$i] ?? null)?->text === '{' && $this->isTopLevelInRange($start, $i)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $modifiers
+     */
+    private function containsClassMemberTypeScriptSyntax(int $start, int $end, array $modifiers): bool
+    {
+        if (array_intersect($modifiers, ['abstract', 'override', 'private', 'protected', 'public', 'readonly']) !== []) {
+            return true;
+        }
+
+        for ($i = $start; $i <= $end; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+            if ($token->text === ':' && $this->isClassMemberTypeColon($i, $start, $end)) {
+                return true;
+            }
+            if (($token->text === '?' || $token->text === '!')
+                && $this->isClassMemberOptionalOrDefiniteMarker($i, $start, $end)
+            ) {
+                return true;
+            }
+            if ($token->text === '<' && $this->isClassMemberTypeParameterList($i, $start, $end)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -618,6 +920,145 @@ final class TypeScriptModuleLowerer
         }
 
         return $member;
+    }
+
+    private function printClassMemberRuntimeRange(int $start, int $end): string
+    {
+        $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
+        if ($effectiveEnd < $start) {
+            return '';
+        }
+
+        $parts = [];
+        $previous = null;
+        for ($i = $start; $i <= $effectiveEnd; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+
+            if ($token->kind === 'identifier'
+                && in_array($token->text, ['abstract', 'override', 'private', 'protected', 'public', 'readonly'], true)
+                && $this->isTopLevelInRange($start, $i)
+            ) {
+                continue;
+            }
+
+            if ($token->text === '<' && $this->isClassMemberTypeParameterList($i, $start, $effectiveEnd)) {
+                $i = $this->typeParameterListEnd($i, $effectiveEnd);
+                continue;
+            }
+
+            if (($token->text === '?' || $token->text === '!')
+                && $this->isClassMemberOptionalOrDefiniteMarker($i, $start, $effectiveEnd)
+            ) {
+                continue;
+            }
+
+            if ($token->text === ':' && $this->isClassMemberTypeColon($i, $start, $effectiveEnd)) {
+                $i = $this->skipTypeExpression($i + 1, $effectiveEnd, ['=', '{', ';']) - 1;
+                continue;
+            }
+
+            $text = $token->text;
+            if ($token->kind === 'string') {
+                $text = $this->quoteJsString($this->stringTokenValue($token));
+            }
+
+            if ($previous !== null && $this->needsSpace($previous, $text)) {
+                $parts[] = ' ';
+            }
+            $parts[] = $text;
+            $previous = $text;
+        }
+
+        if ($parts === []) {
+            return '';
+        }
+
+        $member = implode('', $parts);
+        $last = $this->tokens[$effectiveEnd] ?? null;
+        if ($last?->text !== '}' && !str_ends_with($member, ';')) {
+            $member .= ';';
+        }
+
+        return $member;
+    }
+
+    private function isClassMemberTypeColon(int $index, int $start, int $end): bool
+    {
+        if (!$this->isTopLevelInRange($start, $index)) {
+            return false;
+        }
+
+        $previous = $this->previousSignificantTokenIndex($index - 1);
+        if ($previous !== null && in_array(($this->tokens[$previous] ?? null)?->text, ['?', '!'], true)) {
+            $previous = $this->previousSignificantTokenIndex($previous - 1);
+        }
+
+        $previousToken = $previous === null ? null : $this->tokens[$previous];
+        if ($previousToken === null) {
+            return false;
+        }
+
+        return $previousToken->kind === 'identifier'
+            || $previousToken->kind === 'string'
+            || in_array($previousToken->text, [')', ']'], true);
+    }
+
+    private function isClassMemberOptionalOrDefiniteMarker(int $index, int $start, int $end): bool
+    {
+        if (!$this->isTopLevelInRange($start, $index)) {
+            return false;
+        }
+
+        $previous = $this->previousSignificantTokenIndex($index - 1);
+        $next = $this->tokens[$index + 1] ?? null;
+
+        return $previous !== null
+            && $next !== null
+            && (
+                ($this->tokens[$previous]->kind === 'identifier'
+                    || $this->tokens[$previous]->kind === 'string'
+                    || $this->tokens[$previous]->text === ']')
+                && in_array($next->text, [':', '=', ';', '(', '<'], true)
+            );
+    }
+
+    private function isClassMemberTypeParameterList(int $index, int $start, int $end): bool
+    {
+        if (!$this->isTopLevelInRange($start, $index)) {
+            return false;
+        }
+
+        $close = $this->typeParameterListEnd($index, $end);
+
+        return $close > $index && ($this->tokens[$close + 1] ?? null)?->text === '(';
+    }
+
+    private function isTopLevelInRange(int $start, int $index): bool
+    {
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i < $index; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '{') {
+                $braceDepth++;
+            } elseif ($text === '}') {
+                $braceDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            }
+        }
+
+        return $parenDepth === 0 && $braceDepth === 0 && $bracketDepth === 0;
     }
 
     private function findTopLevelBlockOpenBeforeStatementEnd(int $start): ?int

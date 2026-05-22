@@ -220,6 +220,61 @@ TS);
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { static declare foo() }'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { @(() => {}) declare foo: any; bar = 1 }'));
     },
+    'lowers upstream abstract class members and headers' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A {
+  bar() {}
+}
+JS . "\n", $lowerer->lower('abstract class A { abstract foo(): void; bar(): void {} }'));
+
+        $t->same(<<<'JS'
+export class A {
+  bar() {}
+}
+JS . "\n", $lowerer->lower('export abstract class A { abstract foo(): void; bar(): void {} }'));
+
+        $t->same(<<<'JS'
+export default class A {
+  bar() {}
+}
+- after;
+JS . "\n", $lowerer->lower('export default abstract class A { abstract foo(): void; bar(): void {} } - after'));
+
+        $t->same(<<<'JS'
+class A {
+  abstract;
+  foo() {}
+}
+JS . "\n", $lowerer->lower("abstract class A { abstract \n foo(): void {} }"));
+    },
+    'lowers upstream constructor parameter properties' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor(x) {
+    this.x = x;
+  }
+  x;
+}
+JS . "\n", $lowerer->lower('class Foo { constructor(public x) {} }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor(x = "card", normal) {
+    this.x = x;
+    this.ready = true;
+  }
+  x;
+}
+JS . "\n", $lowerer->lower("class Foo { constructor(protected readonly x: string = 'card', normal: number) { this.ready = true; } }"));
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { constructor(public {x}) {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { constructor(private [x]) {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { constructor(public) {} }'));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -316,5 +371,21 @@ TS);
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, 'blockName'));
         $t->true(!str_contains($lowered, 'supports ='));
+    },
+    'lowers wordpress constructor property controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-constructor-properties.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('class BaseController {', $lowered);
+        $t->true(!str_contains($lowered, 'abstract register'));
+        $t->contains('class CardBlockController extends BaseController {', $lowered);
+        $t->contains('constructor(blockName = metadata.name, blocks = wp.blocks) {', $lowered);
+        $t->contains('this.blockName = blockName;', $lowered);
+        $t->contains('this.blocks = blocks;', $lowered);
+        $t->contains('blockName;', $lowered);
+        $t->contains('blocks;', $lowered);
+        $t->contains('register() {this.blocks.registerBlockType(this.blockName, {supports:{html:false}});}', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
 ];
