@@ -22,7 +22,7 @@
 - tmux: 3.5a
 - CPU: 6 logical cores
 - Memory at bootstrap: about 6.2 GiB available
-- Concurrency cap: 3 implementation lanes plus 1 auditor until the VM proves it can handle more.
+- Current launch target: 2 implementation lanes plus 1 auditor under the current VM load.
 
 ## Active Lanes
 
@@ -31,8 +31,8 @@
 | 1 | gitoxide | stopped | upstream tree inventory plus commit primitive slice | 5% | Target the gitoxide object/ref crates with a controlled non-filtered checkout, then add tree object parsing and ref storage tests. |
 | 2 | lightningcss | stopped | static upstream inventory + native value minifier slice | 4% | Port a small selector/tokenizer parser slice so PHP can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics. |
 | 3 | markerPDF | stopped | cloned inventory + native text-line slice | 5% | Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture. |
-| 4 | libsqlite | `port-libsqlite` | seed implementation | 4% | Parse first b-tree page headers and map SQLite file-format tests. |
-| 5 | readability | `port-readability` | cloned static inventory + readerable preflight slice | 5% | Map the first Mozilla test-page source/expected/metadata fixture into PHP parity, then improve metadata/byline/media handling. |
+| 4 | libsqlite | stopped | upstream inventory plus first b-tree page-header slice | 7% | Parse table leaf cells on the schema root page and decode `sqlite_schema` records needed to locate WordPress tables such as `wp_options`. |
+| 5 | readability | stopped | cloned static inventory + readerable preflight slice | 5% | Map the first Mozilla test-page source/expected/metadata fixture into PHP parity, then improve metadata/byline/media handling. |
 | 6 | pandoc | stopped | seed implementation | 3% | Add inline marks/list handling and map Pandoc native AST tests. |
 | 7 | quadrable | stopped | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
 | 8 | syncthing | stopped | seed implementation | 2% | Map protocol tests and add block hash/vector tests. |
@@ -53,27 +53,29 @@
 - Gitoxide: replaced the seed denominator with a safe upstream tree inventory at `87433ed33eee9ba974111d20b854f6acb07cd4a6`: 93 Cargo manifests, 472 Rust test/bench source files, and 605 fixture files counted; added native commit parsing tests.
 - markerPDF: replaced the seed denominator with a shallow cloned upstream inventory at `da6a2f5c9a7b1e92c82d85fbcf3680a79dd28a34`: 6 README benchmark documents, 2 CI score thresholds, and 8 committed markdown examples counted; added native text-line extraction plus a WordPress block import fixture/example.
 - LightningCSS: replaced the seed denominator with a shallow sparse upstream inventory at `22bdda3d190f1cd321d98026225cfc964af64ad9`: 241 behavior checks counted (160 Rust `#[test]`, 81 Node `uvu` tests) plus 8 CSS fixtures; added value-level color minification, calc operator spacing, and a WordPress block-theme fixture/example.
+- libsqlite: replaced the seed denominator with a shallow blobless upstream inventory at Git mirror `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7` / official manifest UUID `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`: 1,454 upstream test-related files/scripts counted plus 58 declared permutation suites; added native b-tree page header parsing and a WordPress SQLite root-page inspection example.
 - Readability: replaced the seed denominator with a shallow sparse Mozilla Readability inventory at `08be6b4bdb204dd333c9b7a0cfbc0e730b257252`: 1,984 Mocha tests counted over 130 fixture pages; added native `isProbablyReaderable` thresholds, unlikely-candidate cleanup, semantic article scoring, and a WordPress page-builder migration fixture/example.
-- Latest root suite: `php tools/run-tests.php` passes 14 test files, 106 assertions, 0 failures.
+- Latest root suite: `php tools/run-tests.php` passes 14 test files, 127 assertions, 0 failures.
 
 ## Open Blockers
 
-- Seven upstream benchmark manifests are still static seed inventories until upstream repos are cloned or queried and their test suites counted; Quadrable, markerPDF, Gitoxide, LightningCSS, and Readability now have stronger static inventories but not upstream runner parity.
+- Six upstream benchmark manifests are still static seed inventories until upstream repos are cloned or queried and their test suites counted; Quadrable, markerPDF, Gitoxide, LightningCSS, libsqlite, and Readability now have stronger static inventories but not upstream runner parity.
 - Gitoxide now has a safe tree inventory, but the full workspace test runner was not executed under the VM cap and the broad filtered-clone blob scan was stopped.
 - Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
 - markerPDF now has a cloned static upstream inventory, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
 - LightningCSS full upstream runners were not executed: `npm test` fails before tests because `node_modules`/`uvu` is absent, and an offline Cargo no-run probe cannot resolve `napi-derive` for the Node workspace member.
+- libsqlite full upstream runner was not executed: SQLite testing requires configuring/building `testfixture`/`sqlite3` with Tcl development libraries and then running `testrunner.tcl` suites/permutations. The current denominator is a cloned static inventory of 1,454 upstream test-related files/scripts, not upstream pass parity.
 - Readability full upstream runner was not executed: `npm test` reaches `mocha test/test-*.js` but fails before tests because the sparse upstream cache has no `node_modules` and `mocha` is not installed. The current denominator is a cloned static inventory of 1,984 Mocha tests, not upstream pass parity.
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - GitHub Pages may take a few minutes to finish its first build after each push.
-- The tmux team should stay capped to avoid saturating the 6-core VM.
+- The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
 
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
 - Auditor: `port-auditor` session is present; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions observed during latest audit: `port-libsqlite` and `port-readability`; `port-gitoxide`, `port-lightningcss`, and `port-markerpdf` were not present.
+- Worker sessions: none active after integrating the latest libsqlite and Readability slices.
 
 ## Next Best Step
 

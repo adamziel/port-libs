@@ -6,21 +6,38 @@
         "name": "sqlite/sqlite",
         "url": "https://github.com/sqlite/sqlite",
         "commit": "8f70ec615f4cd247d36f92a22c99f65ebbcc22a7",
-        "license": "SQLite blessing / public-domain style; verify exact upstream notice before redistribution",
-        "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, and SQL-visible primitives."
+        "officialManifestUuid": "9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353",
+        "license": "Public domain SQLite blessing",
+        "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, SQL engine, extensions, and TCL/C regression harnesses."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 3,
-        "source": "SQLite TCL/permutation tests plus file-format fixtures; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": 1454,
+        "mapped": 7,
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; counted with git ls-tree without hydrating broad blobs.",
+        "inventory": {
+            "allRepositoryFiles": 2208,
+            "testDirectoryTclTests": 1189,
+            "extensionTclTests": 146,
+            "testDirectoryTclHarnessFiles": 32,
+            "testDirectoryCPrograms": 33,
+            "srcTestCHelpers": 44,
+            "mptestFiles": 6,
+            "toolTestPrograms": 4,
+            "permutationSuitesDeclared": 58,
+            "allTestSuiteRuns": 27
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The upstream runner was inventoried but not executed in this modest lane run: SQLite's documented test flow requires configuring/building testfixture/sqlite3 with Tcl development libraries, then running testrunner.tcl suites such as full/all that cover thousands of TCL scripts and many permutations. The defensible denominator here is the cloned static file/script inventory, not upstream pass parity."
+        },
+        "warning": "This denominator counts upstream test files, helper programs, and declared suites, not individual do_test assertions. PHP progress is local mapped behavior only."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native SQLite database header parser and SQLite varint decoder."
+        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, and b-tree page header parser for schema/root pages."
     },
-    "wordpressScenario": "SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.",
-    "nextTask": "Parse first b-tree page headers and map SQLite file-format tests."
+    "wordpressScenario": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable.",
+    "nextTask": "Parse table leaf cells on the schema root page and decode sqlite_schema records needed to locate WordPress tables such as wp_options."
 }
