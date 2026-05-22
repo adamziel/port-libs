@@ -328,12 +328,7 @@ final class JsonDiffRenderer
             $end = $start + strlen($op['text']);
             $lineNumber = $this->lineNumberForOffset($lineStarts, $start);
             $lineStart = $lineStarts[$lineNumber];
-            $changes[$lineNumber][] = [
-                'start' => $start - $lineStart,
-                'end' => $end - $lineStart,
-                'content' => $op['text'],
-                'highlight' => $highlight,
-            ];
+            $changes[$lineNumber][] = $this->byteSpanChange($source, $start, $end, $lineStart, $highlight);
         }
 
         return $changes;
@@ -361,12 +356,7 @@ final class JsonDiffRenderer
             if ($contentStart < $contentEnd) {
                 $lineNumber = $this->lineNumberForOffset($lineStarts, $contentStart);
                 $lineStart = $lineStarts[$lineNumber];
-                $changes[$lineNumber][] = [
-                    'start' => $contentStart - $lineStart,
-                    'end' => $contentEnd - $lineStart,
-                    'content' => substr($source, $contentStart, $contentEnd - $contentStart),
-                    'highlight' => 'string',
-                ];
+                $changes[$lineNumber][] = $this->byteSpanChange($source, $contentStart, $contentEnd, $lineStart, 'string');
             }
 
             if ($newline === false || $newline + 1 >= $target->end) {
@@ -505,12 +495,7 @@ final class JsonDiffRenderer
                 }
             }
 
-            $changes[] = [
-                'start' => $position,
-                'end' => $end,
-                'content' => $op['text'],
-                'highlight' => $highlight,
-            ];
+            $changes[] = $this->byteSpanChange($line, $position, $end, 0, $highlight);
             $cursor = $end;
         }
 
@@ -575,12 +560,7 @@ final class JsonDiffRenderer
 
             $end = $position + strlen($op['text']);
             if ($op['op'] === '=' || !$this->isAllWhitespace($op['text'])) {
-                $changes[] = [
-                    'start' => $position,
-                    'end' => $end,
-                    'content' => $op['text'],
-                    'highlight' => $highlight,
-                ];
+                $changes[] = $this->byteSpanChange($line, $position, $end, 0, $highlight);
             }
             $cursor = $end;
         }
@@ -630,16 +610,28 @@ final class JsonDiffRenderer
             }
 
             $end = $position + strlen($token->text);
-            $changes[] = [
-                'start' => $position,
-                'end' => $end,
-                'content' => $token->text,
-                'highlight' => $this->highlightFor($token->text, $options),
-            ];
+            $changes[] = $this->byteSpanChange($line, $position, $end, 0, $this->highlightFor($token->text, $options));
             $cursor = $end;
         }
 
         return $changes;
+    }
+
+    /**
+     * Difftastic serializes JSON display columns as byte offsets, and slices
+     * content by those same byte ranges. Keeping that centralized avoids
+     * accidentally mixing UTF-8 character counts with byte positions.
+     *
+     * @return array{start:int, end:int, content:string, highlight:string}
+     */
+    private function byteSpanChange(string $source, int $absoluteStart, int $absoluteEnd, int $baseOffset, string $highlight): array
+    {
+        return [
+            'start' => $absoluteStart - $baseOffset,
+            'end' => $absoluteEnd - $baseOffset,
+            'content' => substr($source, $absoluteStart, $absoluteEnd - $absoluteStart),
+            'highlight' => $highlight,
+        ];
     }
 
     /**

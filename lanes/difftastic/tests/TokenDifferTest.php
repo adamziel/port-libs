@@ -1206,6 +1206,26 @@ return [
         $t->contains('"zab":string', $encoded);
         $t->contains('"woo":string', $encoded);
     },
+    'json display renderer maps upstream multibyte sample as byte spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-multibyte-1.py');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-multibyte-2.py');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff($before, $after, 'sample_files/multibyte_1.py', 'Python', ['language' => 'python']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Python', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->same([
+            ['start' => 0, 'end' => 1, 'content' => '"', 'highlight' => 'string'],
+            ['start' => 1, 'end' => 4, 'content' => 'foo', 'highlight' => 'string'],
+            ['start' => 4, 'end' => 7, 'content' => '€', 'highlight' => 'string'],
+            ['start' => 7, 'end' => 8, 'content' => '"', 'highlight' => 'string'],
+        ], $decoded['chunks'][0][0]['lhs']['changes']);
+        $t->same([
+            ['start' => 0, 'end' => 1, 'content' => '"', 'highlight' => 'string'],
+            ['start' => 1, 'end' => 4, 'content' => 'bar', 'highlight' => 'string'],
+            ['start' => 4, 'end' => 7, 'content' => '€', 'highlight' => 'string'],
+            ['start' => 7, 'end' => 8, 'content' => '"', 'highlight' => 'string'],
+        ], $decoded['chunks'][0][0]['rhs']['changes']);
+    },
     'json display renderer maps upstream string subwords as word spans' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-string-subwords-1.el');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-string-subwords-2.el');
@@ -1442,6 +1462,37 @@ return [
         $t->contains('lhs legacy:string', $encoded);
         $t->contains('rhs modern:string', $encoded);
         $t->true(!str_contains($encoded, 'Render a card with a legacy call to action'), 'WordPress block descriptions should not be reported as whole-string replacements.');
+    },
+    'wordpress i18n block copy display keeps multibyte byte offsets valid' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-i18n-block-copy-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-i18n-block-copy-after.json');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/block.json',
+            'JSON',
+            ['language' => 'json'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $legacy = null;
+        $modern = null;
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['lhs']['changes'] ?? []) as $change) {
+                    if ($change['content'] === 'legacy') {
+                        $legacy = ['line' => $line['lhs']['line_number']] + $change;
+                    }
+                }
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    if ($change['content'] === 'modern') {
+                        $modern = ['line' => $line['rhs']['line_number']] + $change;
+                    }
+                }
+            }
+        }
+
+        $t->same(['line' => 2, 'start' => 28, 'end' => 34, 'content' => 'legacy', 'highlight' => 'string'], $legacy);
+        $t->same(['line' => 2, 'start' => 28, 'end' => 34, 'content' => 'modern', 'highlight' => 'string'], $modern);
     },
     'wordpress multiline render doc comment display keeps comment word spans' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-multiline-copy-before.php');

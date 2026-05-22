@@ -54,6 +54,8 @@ The JSON display fixture emits compact machine-readable review data for that sam
 
 The block-copy JSON display fixture compares a block description string where only `legacy` changes to `modern`. It applies upstream `ReplacedString` word splitting from `src/parse/syntax.rs`, so machine-readable review data reports the changed words inside the string rather than replacing the whole description.
 
+The i18n block-copy JSON display fixture applies the upstream `sample_files/multibyte_*.py` display span shape to translated block metadata. It reports `legacy` to `modern` after a Japanese `カード` prefix with byte offsets that preserve the UTF-8 text, so browser review tools can locate changed copy without splitting multibyte characters.
+
 The multiline render doc-comment fixture compares PHP block comments beside a WordPress render callback where `legacy` changes to `modern`. Token byte spans let the JSON renderer project paired multiline comment word diffs back onto line/column spans, so browser review data keeps those words comment-highlighted instead of treating them as normal line text.
 
 The plugin workflow YAML fixture compares a GitHub Actions release step for a block plugin. YAML mode treats `run: |` command bodies as block-scalar string atoms, so WP-CLI command changes such as `make-json` to `make-pot` stay string-highlighted in machine-readable JSON review data instead of falling back to normal per-line token highlighting.
@@ -157,6 +159,7 @@ php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-block-copy-display.php
+php lanes/difftastic/examples/wordpress-i18n-block-copy-display.php
 php lanes/difftastic/examples/wordpress-multiline-comment-display.php
 php lanes/difftastic/examples/wordpress-plugin-workflow-yaml-display.php
 php lanes/difftastic/examples/wordpress-plugin-workflow-steps-yaml-diff.php
