@@ -341,12 +341,113 @@ final class CssMinifier
 
     private function minifyTransitionLonghandValue(string $property, string $value): string
     {
-        return match ($property) {
+        return match (strtolower($property)) {
+            'transition',
+            '-webkit-transition',
+            '-moz-transition' => $this->minifyTransitionShorthandValue($value),
             'transition-duration',
             'transition-delay' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTimeValue($part)),
             'transition-timing-function' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionTimingFunction($part)),
             default => $value,
         };
+    }
+
+    private function minifyTransitionShorthandValue(string $value): string
+    {
+        return $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionLayer($part));
+    }
+
+    private function minifyTransitionLayer(string $layer): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return trim($layer);
+        }
+
+        $property = null;
+        $duration = null;
+        $timing = null;
+        $delay = null;
+        $behavior = null;
+
+        foreach ($tokens as $token) {
+            if ($this->isTimeValue($token)) {
+                if ($duration === null) {
+                    $duration = $this->minifyTimeValue($token);
+                    continue;
+                }
+                if ($delay === null) {
+                    $delay = $this->minifyTimeValue($token);
+                    continue;
+                }
+
+                return trim($layer);
+            }
+
+            if ($this->isTransitionTimingFunction($token)) {
+                if ($timing !== null) {
+                    return trim($layer);
+                }
+                $timing = $this->minifyTransitionTimingFunction($token);
+                continue;
+            }
+
+            $lower = strtolower($token);
+            if ($lower === 'normal' || $lower === 'allow-discrete') {
+                if ($behavior !== null) {
+                    return trim($layer);
+                }
+                $behavior = $lower;
+                continue;
+            }
+
+            if ($property !== null) {
+                return trim($layer);
+            }
+            $property = $token;
+        }
+
+        $parts = [];
+        if ($property !== null && strtolower($property) !== 'all') {
+            $parts[] = $property;
+        }
+        if ($duration !== null) {
+            $parts[] = $duration;
+        }
+        if ($timing !== null && $timing !== 'ease') {
+            $parts[] = $timing;
+        }
+        if ($delay !== null && $delay !== '0s') {
+            if ($duration === null) {
+                $parts[] = '0s';
+            }
+            $parts[] = $delay;
+        }
+        if ($behavior !== null && $behavior !== 'normal') {
+            $parts[] = $behavior;
+        }
+
+        return $parts === [] ? 'all' : implode(' ', $parts);
+    }
+
+    private function isTimeValue(string $value): bool
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:ms|s)$/i', $value) === 1) {
+            return true;
+        }
+
+        return $this->evaluateTimeCalc($value) !== null;
+    }
+
+    private function isTransitionTimingFunction(string $value): bool
+    {
+        $value = strtolower(trim($value));
+        if (in_array($value, ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end'], true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:cubic-bezier|steps)\(/', $value) === 1;
     }
 
     private function minifyTimeValue(string $value): string
@@ -609,6 +710,60 @@ final class CssMinifier
             static fn (string $part): string => $mapper($part),
             $this->splitTopLevel($value, ',')
         ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitWhitespaceTopLevel(string $value): array
+    {
+        $tokens = [];
+        $token = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $token .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $token .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif (ctype_space($char) && $parenDepth === 0 && $bracketDepth === 0) {
+                if ($token !== '') {
+                    $tokens[] = $token;
+                    $token = '';
+                }
+                continue;
+            }
+
+            $token .= $char;
+        }
+
+        if ($token !== '') {
+            $tokens[] = $token;
+        }
+
+        return $tokens;
     }
 
     /**

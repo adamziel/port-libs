@@ -11,22 +11,23 @@
     },
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
-        "total": 312,
-        "mapped": 117,
-        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes outside tests/test_cssom.rs, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, and counted Node uvu test(...) calls with ripgrep.",
+        "total": 382,
+        "mapped": 124,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes outside tests/test_cssom.rs and the targeted src/lib.rs::test_transitions helper inventory, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, inspected 71 transition helper invocations in src/lib.rs::test_transitions, and counted Node uvu test(...) calls with ripgrep.",
         "inventory": {
-            "behaviorChecks": 312,
+            "behaviorChecks": 382,
             "rustTestFunctions": 160,
-            "rustTestFunctionsCountedAsBehaviorChecks": 157,
+            "rustTestFunctionsCountedAsBehaviorChecks": 156,
             "cssomHelperCases": 74,
             "cssomGetCases": 48,
             "cssomSetCases": 17,
             "cssomRemoveCases": 9,
+            "transitionHelperCases": 71,
             "rustTestFiles": 11,
             "nodeUvuTests": 81,
             "nodeTestFiles": 5,
             "cssFixtureFiles": 8,
-            "inventoryEntriesIncludingFixtures": 320,
+            "inventoryEntriesIncludingFixtures": 390,
             "rustBreakdown": {
                 "selectors/bloom.rs": 1,
                 "selectors/parser.rs": 6,
@@ -86,6 +87,8 @@
             "focusedTransitionLonghandMinifierInventory": {
                 "path": "src/lib.rs",
                 "test": "test_transitions",
+                "testTransitionsHelperCases": 71,
+                "mappedHelperCasesAfterThisRun": 17,
                 "newlyMappedThisRun": [
                     "minify_test transition-duration: 500ms -> .5s",
                     "minify_test transition-duration: 99ms and .099s -> 99ms",
@@ -96,6 +99,20 @@
                     "minify_test transition-duration calc((2s + 50ms) - (1s - 50ms)) -> 1.1s",
                     "minify_test transition-timing-function cubic-bezier presets serialize to ease/ease-in/ease-out/ease-in-out",
                     "minify_test transition-timing-function steps() aliases serialize to step-start/step-end/start/end"
+                ]
+            },
+            "focusedTransitionShorthandMinifierInventory": {
+                "path": "src/lib.rs",
+                "test": "test_transitions",
+                "testTransitionsHelperCases": 71,
+                "newlyMappedThisRun": [
+                    "minify_test transition: width 2s ease -> width 2s",
+                    "minify_test transition: width 2s ease, height 1000ms cubic-bezier(0.25, 0.1, 0.25, 1) -> width 2s,height 1s",
+                    "minify_test transition: width 2s 1s -> width 2s 1s",
+                    "minify_test transition: width 2s ease 1s -> width 2s 1s",
+                    "minify_test transition: ease-in 1s width 4s -> width 1s ease-in 4s",
+                    "minify_test transition: opacity 0s .6s -> opacity 0s .6s",
+                    "test vendor-prefixed transition shorthands: -webkit/-moz/background 200ms and unprefixed background 230ms shorten time units without prefix composition"
                 ]
             },
             "focusedCustomMediaInventory": {
@@ -205,15 +222,16 @@
             "Logical margin/padding CSSOM setting maps the upstream DeclarationBlock::set logical/physical category guard so logical fallbacks before later physical declarations are preserved by appending a new logical declaration.",
             "Animation longhand value minification maps focused upstream src/lib.rs::test_animation cases for duration/delay time shortening, iteration-count numeric cleanup, and lowercase list serialization for direction, play-state, and fill-mode.",
             "Transition longhand value minification maps focused upstream src/lib.rs::test_transitions cases for duration/delay shortest-unit serialization, simple time calc folding, cubic-bezier keyword aliases, cubic-bezier numeric cleanup, and steps() alias cleanup.",
+            "Transition shorthand value minification maps focused upstream src/lib.rs::test_transitions cases for shortest-unit times, default ease omission, canonical property/duration/timing/delay order, list layers, and vendor-prefixed transition shorthand time shortening.",
             "Custom media transformation maps focused upstream src/lib.rs::test_custom_media and CLI preserve cases for declaration collection, recursive/later references, list substitution, media type factoring, negation simplification, undefined/circular errors, and optional declaration preservation."
         ],
-        "warning": "Native PHP progress maps 117 focused upstream-aligned lane checks and 184 local PHP assertions against a 312-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs instead of treating that file as only three Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
+        "warning": "Native PHP progress maps 124 focused upstream-aligned lane checks and 192 local PHP assertions against a 382-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs and targeted transition helper invocations in src/lib.rs::test_transitions instead of treating those files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, animation duration/delay/iteration/list longhand value minification, transition duration/delay/timing-function longhand value minification, focused @custom-media declaration collection/substitution/error handling, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, animation duration/delay/iteration/list longhand value minification, transition duration/delay/timing-function longhand value minification, transition shorthand value minification, focused @custom-media declaration collection/substitution/error handling, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, animation and transition longhand minification, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, custom-media breakpoint/motion alias expansion, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
-    "nextTask": "Broaden transition shorthand composition from upstream src/lib.rs::test_transitions, or custom-media boolean-logic error parity from upstream src/lib.rs::test_custom_media."
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, animation and transition longhand minification, transition shorthand minification for block interactions, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, custom-media breakpoint/motion alias expansion, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "nextTask": "Broaden transition longhand-to-shorthand declaration composition from upstream src/lib.rs::test_transitions, or custom-media boolean-logic error parity from upstream src/lib.rs::test_custom_media."
 }

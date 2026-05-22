@@ -79,10 +79,39 @@ return [
             $minifier->minify('.foo { transition-timing-function: cubic-bezier(0.58, 0.2, 0.11, 1.2) }')
         );
     },
+    'css minifier maps upstream transition shorthand value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{transition:width 2s}', $minifier->minify('.foo { transition: width 2s ease }'));
+        $t->same(
+            '.foo{transition:width 2s,height 1s}',
+            $minifier->minify('.foo { transition: width 2s ease, height 1000ms cubic-bezier(0.25, 0.1, 0.25, 1) }')
+        );
+        $t->same('.foo{transition:width 2s 1s}', $minifier->minify('.foo { transition: width 2s 1s }'));
+        $t->same('.foo{transition:width 2s 1s}', $minifier->minify('.foo { transition: width 2s ease 1s }'));
+        $t->same('.foo{transition:width 1s ease-in 4s}', $minifier->minify('.foo { transition: ease-in 1s width 4s }'));
+        $t->same('.foo{transition:opacity 0s .6s}', $minifier->minify('.foo { transition: opacity 0s .6s }'));
+        $t->same(
+            '.foo{-webkit-transition:background .2s;-moz-transition:background .2s;transition:background .23s}',
+            $minifier->minify('.foo { -webkit-transition: background 200ms; -moz-transition: background 200ms; transition: background 230ms }')
+        );
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
         $t->same(trim($expected), (new CssMinifier())->minify($css));
+    },
+    'wordpress block interaction transition shorthands minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-button.is-style-slide .wp-element-button {
+  transition: ease-in 1s transform 400ms, opacity 1000ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-button.is-style-slide .wp-element-button{transition:transform 1s ease-in .4s,opacity 1s}',
+            (new CssMinifier())->minify($css)
+        );
     },
     'wordpress block style transition presets minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
