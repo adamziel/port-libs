@@ -1,5 +1,81 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T21:02:03Z
+
+No lane implementation batch, generated public status batch, audit-evidence
+bundle, dashboard update, push, or lane commit was accepted by this integration
+pass. The checkout still does not present one stable lane-scoped handoff with
+enough focused evidence, and active `php tools/run-tests.php` processes were
+observed during inspection.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 48, behind 28]`.
+- Final observed `HEAD`: `9859027` (`difftastic record lane status`).
+- No staged paths were present (`git diff --cached --name-status` produced no
+  output).
+- `git status --porcelain=v1 | wc -l` reported `99`
+  dirty/untracked paths.
+- Dirty tracked source/status scopes span esbuild, Gitoxide, libsqlite,
+  LightningCSS, markerPDF, Pandoc, Quadrable, rclone, and Readability, plus
+  stale generated public files `porting.html` and `porting-summary.json`.
+- Untracked lane files remain under esbuild, libsqlite, LightningCSS,
+  Quadrable, and Readability. Numerous untracked audit/evidence files remain
+  review-only coordination artifacts.
+
+Active sessions/processes observed:
+
+- An initial poll found an active root-style `php tools/run-tests.php` process
+  (PID `3155090`), so this pass did not start another root suite.
+- A later poll found focused markerPDF `tools/run-tests.php` processes
+  (`3165717` for `lanes/markerpdf/tests/TableRecognizerTest.php` and `3165718`
+  for `lanes/markerpdf/tests`).
+- CPU-heavy runner activity remained active, including Pandoc/GHC
+  `cabal v2-build`, Gitoxide `cargo test -p gix-refspec` plus `rustc`, Dolt
+  BATS and `go install`, LightningCSS runner sessions, markerPDF runner
+  sessions, and active Difftastic/Dolt/Pandoc/markerPDF tmux sessions.
+
+Risk checks and lane decisions:
+
+- Difftastic: no Difftastic implementation paths were dirty in the final status
+  snapshot; the current `HEAD` is a Difftastic status commit. Difftastic
+  sessions/evidence workers remain active, so no status/dashboard claim was
+  accepted from this pass.
+- Dolt: no Dolt lane paths were dirty in the final status snapshot, but Dolt
+  implementation and runner sessions remain active, including BATS and Go
+  build work. Recent Dolt commits were not reaccepted or bundled here.
+- markerPDF: dirty table-recognizer source/status/test files remain and focused
+  markerPDF tests were running in another session. Because this lane has recent
+  red/root-risk history and no fresh completed handoff in this pass, it was not
+  accepted.
+- Public/generated artifacts: `porting.html` and `porting-summary.json` are
+  dirty and were deliberately left out of any implementation decision. No
+  dashboard generation was run.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output.
+- `git diff --cached --name-status`: no staged paths.
+- `php tools/run-tests.php`: not started by this pass because active
+  `tools/run-tests.php` processes were observed and no lane batch was accepted.
+- Focused lane tests: not started by this pass; the only focused markerPDF
+  test processes observed belonged to another active session.
+
+Decision:
+
+- Hold integration. There is no stable, lane-scoped batch to accept from this
+  snapshot.
+- Leave all worker-owned dirty lane files, public/generated files, and
+  untracked audit/evidence artifacts untouched.
+- Record this status-only hold in `audits/integration-status.md` only.
+
+Post-write drift note: by 2026-05-22T21:03:25Z, another worker had staged a
+Quadrable batch (`UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, notes,
+`QuadbStore.php`, `QuadbStoreTest.php`, and the WordPress Quadb store example).
+This pass did not review, modify, unstage, commit, or otherwise accept those
+staged paths; they remain owned by their worker.
+
 ## Integration Worker Snapshot - 2026-05-22T20:57:49Z
 
 No lane implementation, generated public status batch, audit-evidence bundle, or
