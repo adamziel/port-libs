@@ -332,6 +332,7 @@ final class CssMinifier
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
+        $value = $this->minifyBoxShadowValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
@@ -927,6 +928,159 @@ final class CssMinifier
         }
 
         return 'url(' . $url . ')';
+    }
+
+    private function minifyBoxShadowValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'box-shadow',
+            '-webkit-box-shadow',
+            '-moz-box-shadow' => $this->mapCommaList($value, fn (string $part): string => $this->minifyBoxShadowLayer($part)),
+            default => $value,
+        };
+    }
+
+    private function minifyBoxShadowLayer(string $layer): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return trim($layer);
+        }
+        if (count($tokens) === 1 && strcasecmp($tokens[0], 'none') === 0) {
+            return 'none';
+        }
+
+        $inset = false;
+        $lengths = [];
+        $colors = [];
+        foreach ($tokens as $token) {
+            if (strcasecmp($token, 'inset') === 0) {
+                $inset = true;
+                continue;
+            }
+
+            if ($this->isShadowLengthToken($token)) {
+                $lengths[] = $this->minifyShadowLengthToken($token);
+                continue;
+            }
+
+            if ($this->isShadowColorToken($token)) {
+                $colors[] = $this->minifyShadowColorToken($token);
+                continue;
+            }
+
+            return implode(' ', array_map(fn (string $part): string => $this->minifyShadowTokenInPlace($part), $tokens));
+        }
+
+        if (count($lengths) === 4 && $this->isZeroMinifiedLength($lengths[3])) {
+            array_pop($lengths);
+        }
+        if (count($lengths) === 3 && $this->isZeroMinifiedLength($lengths[2])) {
+            array_pop($lengths);
+        }
+
+        $parts = [];
+        if ($inset) {
+            $parts[] = 'inset';
+        }
+        array_push($parts, ...$lengths, ...$colors);
+
+        return implode(' ', $parts);
+    }
+
+    private function minifyShadowTokenInPlace(string $token): string
+    {
+        if (strcasecmp($token, 'inset') === 0) {
+            return 'inset';
+        }
+        if ($this->isShadowLengthToken($token)) {
+            return $this->minifyShadowLengthToken($token);
+        }
+        if ($this->isShadowColorToken($token)) {
+            return $this->minifyShadowColorToken($token);
+        }
+
+        return trim($token);
+    }
+
+    private function isShadowLengthToken(string $token): bool
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+)?$/', $token) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(/i', $token) === 1;
+    }
+
+    private function minifyShadowLengthToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)?$/', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $number = (float) $matches[1];
+        if (abs($number) < 0.0000001) {
+            return '0';
+        }
+
+        return $this->minifyNumber($number) . strtolower($matches[2] ?? '');
+    }
+
+    private function isZeroMinifiedLength(string $token): bool
+    {
+        return $token === '0';
+    }
+
+    private function isShadowColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+        if (strcasecmp($token, 'currentcolor') === 0) {
+            return true;
+        }
+
+        return preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $token) === 1;
+    }
+
+    private function minifyShadowColorToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match(
+            '/^rgba\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([+-]?(?:\d+|\d*\.\d+))\s*\)$/i',
+            $token,
+            $matches
+        ) !== 1) {
+            return $token;
+        }
+
+        $red = (int) $matches[1];
+        $green = (int) $matches[2];
+        $blue = (int) $matches[3];
+        $alpha = (float) $matches[4];
+        if ($red < 0 || $red > 255 || $green < 0 || $green > 255 || $blue < 0 || $blue > 255 || $alpha < 0 || $alpha > 1) {
+            return $token;
+        }
+
+        return $this->compressHexColor(sprintf('#%02x%02x%02x%02x', $red, $green, $blue, (int) round($alpha * 255)));
+    }
+
+    private function compressHexColor(string $color): string
+    {
+        if (preg_match('/^#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3([0-9a-f])\4$/i', $color, $matches) === 1) {
+            return '#' . strtolower($matches[1] . $matches[2] . $matches[3] . $matches[4]);
+        }
+
+        return strtolower($color);
     }
 
     private function isZeroLengthToken(string $token): bool

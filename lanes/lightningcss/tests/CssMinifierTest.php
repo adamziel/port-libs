@@ -337,6 +337,34 @@ return [
         );
         $t->same('.foo{filter:hue-rotate()}', $minifier->minify('.foo { filter: hue-rotate(0) }'));
     },
+    'css minifier maps upstream box shadow value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{box-shadow:64px 64px 12px 40px #0006}',
+            $minifier->minify('.foo { box-shadow: 64px 64px 12px 40px rgba(0,0,0,0.4) }')
+        );
+        $t->same(
+            '.foo{box-shadow:inset 12px 12px 0 8px #0006}',
+            $minifier->minify('.foo { box-shadow: 12px 12px 0px 8px rgba(0,0,0,0.4) inset }')
+        );
+        $t->same(
+            '.foo{box-shadow:inset 12px 12px 0 8px #0006}',
+            $minifier->minify('.foo { box-shadow: inset 12px 12px 0px 8px rgba(0,0,0,0.4) }')
+        );
+        $t->same(
+            '.foo{box-shadow:12px 12px 8px #0006}',
+            $minifier->minify('.foo { box-shadow: 12px 12px 8px 0px rgba(0,0,0,0.4) }')
+        );
+        $t->same(
+            '.foo{box-shadow:12px 12px #0006}',
+            $minifier->minify('.foo { box-shadow: 12px 12px 0px 0px rgba(0,0,0,0.4) }')
+        );
+        $t->same(
+            '.foo{box-shadow:64px 64px 12px 40px #0006,inset 12px 12px 0 8px #0006}',
+            $minifier->minify('.foo { box-shadow: 64px 64px 12px 40px rgba(0,0,0,0.4), 12px 12px 0px 8px rgba(0,0,0,0.4) inset }')
+        );
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
@@ -466,6 +494,18 @@ CSS;
 
         $t->same(
             '.wp-block-image.is-style-duotone img{filter:contrast(175%)brightness()hue-rotate()}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress card shadow presets minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-template .wp-block-post {
+  box-shadow: 12px 12px 0px 0px rgba(0,0,0,0.4), 0px 0px 12px 4px rgba(0,0,0,0.4) inset;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-template .wp-block-post{box-shadow:12px 12px #0006,inset 0 0 12px 4px #0006}',
             (new CssMinifier())->minify($css)
         );
     },
