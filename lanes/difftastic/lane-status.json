@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "difftastic",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static inventory: 287 upstream behavior artifacts inspected; upstream runner not executed",
-    "phpPass": 6,
+    "estimatedProgress": 6,
+    "suiteProgress": "cloned static inventory: 287 upstream behavior artifacts inspected; upstream contiguous sample and recursive syntax-list slice mapped; upstream runner not executed",
+    "phpPass": 8,
     "phpFail": 0,
-    "wordpressScenarios": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current example filters PHP comment churn while preserving an escaping API change.",
-    "phase": "cloned inventory plus comment/delimiter normalization slice",
+    "wordpressScenarios": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change and recurse into nested block registration arrays.",
+    "phase": "cloned inventory plus comment/delimiter normalization and recursive syntax-list slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, and trailing-comma normalization.",
+    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, and recursive bracketed-list diffs that report item-level insertions and nested array changes.",
     "blocker": "Full upstream runner parity is not available: the sparse clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; offline no-run probe failed on missing `humansize` crate.",
-    "latestCommit": "63aa89d87636",
-    "nextTask": "Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream sample_files pair such as simple_*.js or comma_*.js into a fixture parity test."
+    "latestCommit": "88ee149",
+    "nextTask": "Map another upstream sample_files pair or add HTML output for syntax-list hunks around WordPress block/theme code."
 }

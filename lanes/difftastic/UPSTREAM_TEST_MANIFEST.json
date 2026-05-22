@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "287 inspected upstream behavior artifacts: 144 Rust #[test] functions in src/ and tests/, 112 paired sample fixture bases, 30 vendored parser corpus files, and 1 compare.expected output file",
-        "mapped": 6,
+        "mapped": 8,
         "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and hydrated only Cargo.toml, LICENSE, tests/cli.rs, targeted src files, and selected sample fixtures.",
         "inventory": {
             "treeFiles": 786,
@@ -47,15 +47,17 @@
             "Delimiter tokens carry open/close anchors and nesting depth for list-like syntax.",
             "The upstream CLI `ignore_comments` sample from tests/cli.rs and sample_files/comma_and_comment_*.js maps to `ignoreComments` diff filtering.",
             "Trailing commas before closing delimiters are ignored by default, following difftastic's tree-sitter `ignore_trailing_tokens` semantics for supported list syntaxes.",
-            "The WordPress render-callback fixture hides PHP comment churn while still reporting the `esc_html` to `wp_kses_post` API change."
+            "The WordPress render-callback fixture hides PHP comment churn while still reporting the `esc_html` to `wp_kses_post` API change.",
+            "A copied upstream `sample_files/contiguous_*.js` fixture maps JavaScript array item insertions through syntax-list paths instead of raw lines.",
+            "Recursive list diffs descend through PHP function-call arguments and nested registration arrays, reporting changed WordPress block supports at the innermost list path."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against an inspected 287-artifact upstream behavior inventory."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 8 focused lane tests against an inspected 287-artifact upstream behavior inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, and trailing-comma normalization."
+        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, copied upstream contiguous JavaScript fixture mapping, and recursive bracketed-list diffs for nested PHP/JS/CSS-like structures."
     },
-    "wordpressScenario": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current example filters PHP comment churn while preserving an escaping API change.",
-    "nextTask": "Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream sample_files pair such as simple_*.js or comma_*.js into a fixture parity test."
+    "wordpressScenario": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change and recurse into nested block registration arrays.",
+    "nextTask": "Map another upstream sample_files pair or add HTML output for syntax-list hunks around WordPress block/theme code."
 }
