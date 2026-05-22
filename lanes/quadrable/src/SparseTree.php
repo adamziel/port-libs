@@ -175,6 +175,67 @@ final class SparseTree
         );
     }
 
+    /**
+     * @param list<SyncRequest> $requests
+     *
+     * @return list<Proof>
+     */
+    public function handleSyncRequests(array $requests, int $bytesBudget = PHP_INT_MAX): array
+    {
+        if ($bytesBudget === 0) {
+            throw new \InvalidArgumentException("bytesBudget can't be 0");
+        }
+        if ($requests === []) {
+            throw new \InvalidArgumentException('empty fragments request');
+        }
+
+        $lastPath = null;
+        foreach ($requests as $request) {
+            if (!$request instanceof SyncRequest) {
+                throw new \InvalidArgumentException('handleSyncRequests expects SyncRequest instances');
+            }
+
+            $pathKey = $request->pathHex() . ':' . str_pad((string) $request->startDepth, 3, '0', STR_PAD_LEFT);
+            if ($lastPath !== null && strcmp($pathKey, $lastPath) <= 0) {
+                throw new \InvalidArgumentException('fragments request out of order');
+            }
+            $lastPath = $pathKey;
+        }
+
+        $responses = [];
+        foreach ($requests as $request) {
+            if ($bytesBudget === 0) {
+                break;
+            }
+
+            $proof = $this->exportSyncProofFragment($request);
+            $responses[] = $proof;
+
+            $estimate = self::estimateSizeProof($proof);
+            $bytesBudget = $bytesBudget > $estimate ? $bytesBudget - $estimate : 0;
+        }
+
+        return $responses;
+    }
+
+    public function exportSyncProofFragment(SyncRequest $request): Proof
+    {
+        [$root, $nodesById] = $this->fullProofTree();
+        $path = $request->path();
+        $path->keepPrefixBits($request->startDepth);
+        $subtree = $this->subtreeAtPath($root, $path, 0, $request->startDepth);
+
+        $items = [];
+        $reverseMap = [];
+
+        $this->exportSyncProofFragmentAux($subtree, 0, $request->depthLimit, $request->expandLeaves, $path, $items, $reverseMap);
+
+        return new Proof(
+            array_map(static fn (array $item): ProofStrand => $item['strand'], $items),
+            $this->exportProofCommands($items, $reverseMap, $nodesById, $subtree['id'], $request->startDepth)
+        );
+    }
+
     public static function importProof(Proof $proof, string $expectedRoot = ''): self
     {
         if ($expectedRoot !== '') {
@@ -191,6 +252,48 @@ final class SparseTree
         return $tree;
     }
 
+    /**
+     * @param list<SyncRequest> $requests
+     * @param list<Proof> $responses
+     */
+    public function importSyncResponses(array $requests, array $responses): self
+    {
+        if (count($responses) > count($requests)) {
+            throw new \RuntimeException('too many resps when importing fragments');
+        }
+        if ($responses === []) {
+            throw new \RuntimeException('no fragments to import');
+        }
+
+        foreach ($responses as $index => $response) {
+            $request = $requests[$index] ?? null;
+            if (!$request instanceof SyncRequest || !$response instanceof Proof) {
+                throw new \InvalidArgumentException('importSyncResponses expects paired SyncRequest and Proof instances');
+            }
+
+            $fragmentRoot = self::importProofRoot($response, $this->hashTree, $request->startDepth);
+
+            if ($this->partialRoot === null) {
+                if ($request->startDepth !== 0) {
+                    throw new \RuntimeException('initial sync fragment must start at depth 0');
+                }
+
+                $this->partialRoot = $fragmentRoot;
+                continue;
+            }
+
+            $this->partialRoot = $this->replaceSyncFragment(
+                $this->partialRoot,
+                $request->path(),
+                0,
+                $request->startDepth,
+                $fragmentRoot
+            );
+        }
+
+        return $this;
+    }
+
     public function mergeProof(Proof $proof): self
     {
         $newRoot = self::importProofRoot($proof, $this->hashTree);
@@ -205,6 +308,87 @@ final class SparseTree
         $this->partialRoot = $this->mergePartialProofNodes($this->partialRoot, $newRoot);
 
         return $this;
+    }
+
+    /**
+     * @return list<SyncRequest>
+     */
+    public function syncRequestsForShadow(SparseTree $shadow, int $laterDepthLimit = 4, int $bytesBudget = PHP_INT_MAX): array
+    {
+        if ($laterDepthLimit < 0 || $laterDepthLimit > 255) {
+            throw new \InvalidArgumentException('sync depth limit must be between 0 and 255');
+        }
+        if ($bytesBudget === 0) {
+            throw new \InvalidArgumentException("bytesBudget can't be 0");
+        }
+        if ($shadow->partialRoot === null) {
+            throw new \RuntimeException('sync shadow must be an imported partial tree');
+        }
+
+        [$root] = $this->fullProofTree();
+        $requests = [];
+        $path = Key::null();
+
+        $this->collectSyncRequests($root, $shadow->partialRoot, $path, $laterDepthLimit, $bytesBudget, $requests);
+
+        return $requests;
+    }
+
+    /**
+     * @return list<DiffEntry>
+     */
+    public function diffTo(SparseTree $target): array
+    {
+        if ($this->partialRoot === null && $target->partialRoot !== null) {
+            [$root] = $this->fullProofTree();
+            $diffs = [];
+            $this->diffNodeToPartial($root, $target->partialRoot, $diffs);
+
+            return $diffs;
+        }
+
+        $ours = $this->leafValueMapForDiff();
+        $theirs = $target->leafValueMapForDiff();
+        $keys = array_values(array_unique(array_merge(array_keys($ours), array_keys($theirs))));
+        sort($keys, SORT_STRING);
+
+        $diffs = [];
+        foreach ($keys as $keyHashHex) {
+            $oursHas = array_key_exists($keyHashHex, $ours);
+            $theirsHas = array_key_exists($keyHashHex, $theirs);
+
+            if (!$oursHas && $theirsHas) {
+                $diffs[] = new DiffEntry(DiffEntry::ADDED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
+            } elseif ($oursHas && !$theirsHas) {
+                $diffs[] = new DiffEntry(DiffEntry::DELETED, Key::fromHex($keyHashHex), $ours[$keyHashHex]);
+            } elseif ($oursHas && $theirsHas && $ours[$keyHashHex] !== $theirs[$keyHashHex]) {
+                $diffs[] = new DiffEntry(DiffEntry::CHANGED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
+            }
+        }
+
+        return $diffs;
+    }
+
+    /**
+     * @param list<DiffEntry> $diffs
+     */
+    public function applyDiffs(array $diffs): self
+    {
+        $changes = $this->change();
+
+        foreach ($diffs as $diff) {
+            if (!$diff instanceof DiffEntry) {
+                throw new \InvalidArgumentException('applyDiffs expects DiffEntry instances');
+            }
+
+            if ($diff->type === DiffEntry::DELETED) {
+                $changes->deleteKey($diff->key());
+            } else {
+                $changes->putKey($diff->key(), $diff->value);
+            }
+        }
+
+        return $changes->apply();
     }
 
     public function rootHash(): string
@@ -513,6 +697,105 @@ final class SparseTree
         if ($doRight) {
             $this->exportProofRangeAux($node['right'], $node['id'], $begin, $end, $currentPath, $items, $reverseMap);
         }
+
+        $currentPath->setBit($node['depth'], 0);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     *
+     * @return array<string, mixed>
+     */
+    private function subtreeAtPath(array $node, Key $path, int $depth, int $targetDepth): array
+    {
+        if ($depth === $targetDepth) {
+            return $node;
+        }
+
+        if ($node['type'] === 'empty') {
+            return [
+                'id' => 0,
+                'type' => 'empty',
+                'depth' => $targetDepth,
+                'hash' => HashTree::EMPTY_HASH,
+            ];
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('fragment path not available');
+        }
+
+        return $this->subtreeAtPath(
+            $path->getBit($depth) === 0 ? $node['left'] : $node['right'],
+            $path,
+            $depth + 1,
+            $targetDepth
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param list<array{nodeId: int, parentNodeId: int, strand: ProofStrand}> $items
+     * @param array<int, int> $reverseMap
+     */
+    private function exportSyncProofFragmentAux(array $node, int $parentNodeId, int $depthLimit, bool $expandLeaves, Key $currentPath, array &$items, array &$reverseMap): void
+    {
+        if ($node['type'] === 'empty') {
+            $items[] = [
+                'nodeId' => 0,
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::WITNESS_EMPTY, $node['depth'], $currentPath->hex()),
+            ];
+            return;
+        }
+
+        if ($node['type'] === 'leaf') {
+            if ($expandLeaves || strlen($node['value']) <= 32) {
+                $items[] = [
+                    'nodeId' => $node['id'],
+                    'parentNodeId' => $parentNodeId,
+                    'strand' => new ProofStrand(ProofStrand::LEAF, $node['depth'], $node['keyHash'], $node['value']),
+                ];
+                return;
+            }
+
+            $items[] = [
+                'nodeId' => $node['id'],
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::WITNESS_LEAF, $node['depth'], $node['keyHash'], $this->hashTree->valueHash($node['value'])),
+            ];
+            return;
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('encountered witness node: incomplete tree');
+        }
+
+        if ($node['left']['id'] !== 0) {
+            $reverseMap[$node['left']['id']] = $node['id'];
+        }
+        if ($node['right']['id'] !== 0) {
+            $reverseMap[$node['right']['id']] = $node['id'];
+        }
+
+        if ($depthLimit === 0) {
+            $items[] = [
+                'nodeId' => $node['id'],
+                'parentNodeId' => $parentNodeId,
+                'strand' => new ProofStrand(ProofStrand::WITNESS, $node['depth'], $currentPath->hex(), $node['hash']),
+            ];
+            return;
+        }
+
+        if ($node['left']['id'] !== 0 && $node['right']['id'] !== 0) {
+            $depthLimit--;
+        }
+
+        $currentPath->setBit($node['depth'], 0);
+        $this->exportSyncProofFragmentAux($node['left'], $node['id'], $depthLimit, $expandLeaves, $currentPath, $items, $reverseMap);
+
+        $currentPath->setBit($node['depth'], 1);
+        $this->exportSyncProofFragmentAux($node['right'], $node['id'], $depthLimit, $expandLeaves, $currentPath, $items, $reverseMap);
 
         $currentPath->setBit($node['depth'], 0);
     }
@@ -943,6 +1226,222 @@ final class SparseTree
     private function isWitnessAny(array $node): bool
     {
         return $node['type'] === 'witness' || $node['type'] === 'witnessLeaf';
+    }
+
+    /**
+     * @param array<string, mixed> $localNode
+     * @param array<string, mixed> $shadowNode
+     * @param list<SyncRequest> $requests
+     */
+    private function collectSyncRequests(array $localNode, array $shadowNode, Key $currentPath, int $laterDepthLimit, int &$bytesBudget, array &$requests): bool
+    {
+        if ($localNode['hash'] === $shadowNode['hash']) {
+            return true;
+        }
+        if ($bytesBudget === 0) {
+            return false;
+        }
+
+        if ($shadowNode['type'] === 'branch') {
+            $leftLocal = $localNode['type'] === 'branch' ? $localNode['left'] : $localNode;
+            $rightLocal = $localNode['type'] === 'branch' ? $localNode['right'] : $localNode;
+
+            $currentPath->setBit($shadowNode['depth'], 0);
+            $leftDone = $this->collectSyncRequests($leftLocal, $shadowNode['left'], $currentPath, $laterDepthLimit, $bytesBudget, $requests);
+
+            $currentPath->setBit($shadowNode['depth'], 1);
+            $rightDone = $this->collectSyncRequests($rightLocal, $shadowNode['right'], $currentPath, $laterDepthLimit, $bytesBudget, $requests);
+
+            $currentPath->setBit($shadowNode['depth'], 0);
+
+            return $leftDone && $rightDone;
+        }
+
+        if ($shadowNode['type'] === 'witnessLeaf' || $shadowNode['type'] === 'witness') {
+            $path = new Key($currentPath->bytes());
+            $path->keepPrefixBits($shadowNode['depth']);
+
+            $requests[] = new SyncRequest(
+                $path,
+                $shadowNode['depth'],
+                $shadowNode['type'] === 'witnessLeaf' ? 1 : $laterDepthLimit,
+                $shadowNode['type'] === 'witnessLeaf'
+            );
+
+            $bytesBudget = $bytesBudget > 16 ? $bytesBudget - 16 : 0;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, mixed> $fragmentRoot
+     *
+     * @return array<string, mixed>
+     */
+    private function replaceSyncFragment(array $node, Key $path, int $depth, int $targetDepth, array $fragmentRoot): array
+    {
+        if ($depth === $targetDepth) {
+            if (!$this->isWitnessAny($node)) {
+                throw new \RuntimeException('import proof fragment tried to expand non-witness');
+            }
+            if ($node['hash'] !== $fragmentRoot['hash']) {
+                throw new \RuntimeException('import proof fragment incompatible tree');
+            }
+
+            return $fragmentRoot;
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('fragment path not available');
+        }
+
+        if ($path->getBit($depth) === 0) {
+            return $this->branchPartialNode(
+                $node['depth'],
+                $this->replaceSyncFragment($node['left'], $path, $depth + 1, $targetDepth, $fragmentRoot),
+                $node['right']
+            );
+        }
+
+        return $this->branchPartialNode(
+            $node['depth'],
+            $node['left'],
+            $this->replaceSyncFragment($node['right'], $path, $depth + 1, $targetDepth, $fragmentRoot)
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function leafValueMapForDiff(): array
+    {
+        if ($this->partialRoot === null) {
+            return $this->entries();
+        }
+
+        $entries = [];
+        $this->collectFullPartialLeaves($this->partialRoot, $entries);
+        ksort($entries, SORT_STRING);
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $ours
+     * @param array<string, mixed> $theirs
+     * @param list<DiffEntry> $diffs
+     */
+    private function diffNodeToPartial(array $ours, array $theirs, array &$diffs): void
+    {
+        if ($ours['hash'] === $theirs['hash']) {
+            return;
+        }
+
+        if ($this->isWitnessAny($ours) || $this->isWitnessAny($theirs)) {
+            throw new \RuntimeException('encountered witness during diff');
+        }
+
+        if ($ours['type'] === 'branch' && $theirs['type'] === 'branch') {
+            $this->diffNodeToPartial($ours['left'], $theirs['left'], $diffs);
+            $this->diffNodeToPartial($ours['right'], $theirs['right'], $diffs);
+            return;
+        }
+
+        $this->appendLeafMapDiffs(
+            $this->leafValueMapFromNode($ours),
+            $this->leafValueMapFromNode($theirs),
+            $diffs
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     *
+     * @return array<string, string>
+     */
+    private function leafValueMapFromNode(array $node): array
+    {
+        $entries = [];
+        $this->collectFullPartialLeaves($node, $entries);
+        ksort($entries, SORT_STRING);
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, string> $ours
+     * @param array<string, string> $theirs
+     * @param list<DiffEntry> $diffs
+     */
+    private function appendLeafMapDiffs(array $ours, array $theirs, array &$diffs): void
+    {
+        $keys = array_values(array_unique(array_merge(array_keys($ours), array_keys($theirs))));
+        sort($keys, SORT_STRING);
+
+        foreach ($keys as $keyHashHex) {
+            $oursHas = array_key_exists($keyHashHex, $ours);
+            $theirsHas = array_key_exists($keyHashHex, $theirs);
+
+            if (!$oursHas && $theirsHas) {
+                $diffs[] = new DiffEntry(DiffEntry::ADDED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
+            } elseif ($oursHas && !$theirsHas) {
+                $diffs[] = new DiffEntry(DiffEntry::DELETED, Key::fromHex($keyHashHex), $ours[$keyHashHex]);
+            } elseif ($oursHas && $theirsHas && $ours[$keyHashHex] !== $theirs[$keyHashHex]) {
+                $diffs[] = new DiffEntry(DiffEntry::CHANGED, Key::fromHex($keyHashHex), $theirs[$keyHashHex]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, string> $entries
+     */
+    private function collectFullPartialLeaves(array $node, array &$entries): void
+    {
+        if ($node['type'] === 'empty') {
+            return;
+        }
+
+        if ($node['type'] === 'leaf') {
+            $entries[$node['keyHash']] = $node['value'];
+            return;
+        }
+
+        if ($node['type'] === 'branch') {
+            $this->collectFullPartialLeaves($node['left'], $entries);
+            $this->collectFullPartialLeaves($node['right'], $entries);
+            return;
+        }
+
+        if ($this->isWitnessAny($node)) {
+            throw new \RuntimeException('encountered witness during diff');
+        }
+
+        throw new \RuntimeException('unrecognized partial tree node type');
+    }
+
+    private static function estimateSizeProof(Proof $proof): int
+    {
+        $output = count($proof->strands) * 10;
+
+        foreach ($proof->strands as $strand) {
+            $output += strlen($strand->value);
+            $output += strlen($strand->key);
+        }
+
+        $output += count($proof->commands);
+
+        foreach ($proof->commands as $command) {
+            if ($command->operation === ProofCommand::HASH_PROVIDED) {
+                $output += 32;
+            }
+        }
+
+        return $output;
     }
 
     /**
