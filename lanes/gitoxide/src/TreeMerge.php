@@ -262,6 +262,9 @@ final class TreeMerge
 
     private static function conflictReason(?TreeEntry $base, ?TreeEntry $ours, ?TreeEntry $theirs): string
     {
+        if ($ours !== null && $theirs !== null && $ours->isTree() !== $theirs->isTree()) {
+            return 'directory-file';
+        }
         if ($base === null && $ours !== null && $theirs !== null) {
             return 'add-add';
         }

@@ -118,6 +118,15 @@ return [
         $t->same('add-add', $different->conflicts[0]->reason);
         $t->same([], $different->tree->entries);
     },
+    'reports directory file conflicts before generic add add conflicts' => static function (TestRunner $t) use ($oid, $entry): void {
+        $result = TreeMerge::mergeFlat(
+            new Tree([]),
+            new Tree([$entry('wp-content/cache', $oid('1'), '40000')]),
+            new Tree([$entry('wp-content/cache', $oid('2'))]),
+        );
+
+        $t->same('directory-file', $result->conflicts[0]->reason);
+    },
     'duplicate flat tree names are rejected' => static function (TestRunner $t) use ($oid, $entry): void {
         $tree = new Tree([$entry('wp-config.php', $oid('1')), $entry('wp-config.php', $oid('2'))]);
 
@@ -199,5 +208,38 @@ return [
         ], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
         $t->same($mergedThemeJson->oid(), $result->worktreeConflictFiles($read)[0]->oid);
         $t->contains('<<<<<<< ours/wp-content/themes/acme/theme.json', $result->worktreeConflictFiles($read)[0]->content);
+    },
+    'recursive tree merge records nested directory file conflicts with stages' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $treeEntry('wp-content', new Tree([])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $treeEntry('cache', new Tree([
+                    $blobEntry('index.php', "<?php\n"),
+                ])),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $blobEntry('cache', "legacy cache file\n"),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+
+        $t->same(false, $result->isClean());
+        $t->same('directory-file', $result->conflicts[0]->reason);
+        $t->same('wp-content/cache', $result->conflicts[0]->path);
+        $t->same([
+            MergeIndexEntry::STAGE_OURS,
+            MergeIndexEntry::STAGE_THEIRS,
+        ], array_map(static fn (MergeIndexEntry $entry): int => $entry->stage, $result->indexEntries()));
+        $t->same([
+            'tree',
+            'blob',
+        ], array_map(static fn (MergeIndexEntry $entry): string => (new TreeEntry($entry->mode, 'cache', $entry->oid))->kind(), $result->indexEntries()));
+        $t->same([], $result->worktreeConflictFiles($read));
     },
 ];
