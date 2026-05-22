@@ -1215,6 +1215,49 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline submodule-both-modify fixture shape' => static function (TestRunner $t) use ($entry, $names): void {
+        $baseOid = 'e835c0c403c8e494c0ca98f3d25d0b8464c18d38';
+        $ourOid = '64466ebdff775ad618d9cc993cf52840e0af528c';
+        $theirOid = 'ea6eb701e03c2497915c25a851f3da8f8e362ca0';
+        $base = new Tree([$entry('sub', $baseOid, '160000')]);
+        $ours = new Tree([$entry('sub', $ourOid, '160000')]);
+        $theirs = new Tree([$entry('sub', $theirOid, '160000')]);
+
+        $result = TreeMerge::mergeFlat($base, $ours, $theirs);
+        $sub = $result->tree->entryNamed('sub');
+
+        $t->same(false, $result->isClean());
+        $t->same(['sub'], $names($result->tree));
+        $t->same('commit', $sub?->kind());
+        $t->same($baseOid, $sub?->oid);
+        $t->same([
+            ['path' => 'sub', 'reason' => 'modify-modify', 'base' => $baseOid, 'ours' => $ourOid, 'theirs' => $theirOid],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->oid,
+                'ours' => $conflict->ours?->oid,
+                'theirs' => $conflict->theirs?->oid,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'sub', 'kind' => 'commit', 'oid' => $baseOid],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'sub', 'kind' => 'commit', 'oid' => $ourOid],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'sub', 'kind' => 'commit', 'oid' => $theirOid],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind(),
+                'oid' => $entry->oid,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([], $result->worktreeConflictFiles(static fn (string $oid): GitObject => throw new RuntimeException("No object read expected for {$oid}")));
+    },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "1\n2\n3\n4\n5\n")]);
