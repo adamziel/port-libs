@@ -179,8 +179,20 @@ foreach ($laneDirs as $dir) {
 
 $average = $rows === [] ? 0.0 : $total / count($rows);
 $generated = gmdate('Y-m-d H:i:s') . ' UTC';
-$sourceCommit = trim((string) shell_exec('git rev-parse HEAD 2>/dev/null')) ?: 'unknown';
-$sourceBranch = trim((string) shell_exec('git branch --show-current 2>/dev/null')) ?: 'unknown';
+$gitValue = static function (string $command): string {
+    return trim((string) shell_exec($command . ' 2>/dev/null')) ?: 'unknown';
+};
+$dashboardCommit = $gitValue('git rev-parse HEAD');
+$dashboardCommitShort = $dashboardCommit === 'unknown' ? 'unknown' : substr($dashboardCommit, 0, 12);
+$sourceCommit = trim((string) getenv('PORT_LIBS_SOURCE_COMMIT'));
+if ($sourceCommit === '') {
+    $parents = preg_split('/\s+/', $gitValue('git show -s --format=%P HEAD')) ?: [];
+    $sourceCommit = count($parents) >= 2 ? $parents[0] : $dashboardCommit;
+}
+$sourceBranch = trim((string) getenv('PORT_LIBS_SOURCE_BRANCH'));
+if ($sourceBranch === '') {
+    $sourceBranch = $gitValue('git branch --show-current');
+}
 $sourceCommitShort = $sourceCommit === 'unknown' ? 'unknown' : substr($sourceCommit, 0, 12);
 
 $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -292,6 +304,8 @@ file_put_contents($root . '/porting-summary.json', json_encode([
     'sourceCommit' => $sourceCommit,
     'sourceCommitShort' => $sourceCommitShort,
     'sourceBranch' => $sourceBranch,
+    'dashboardCommit' => $dashboardCommit,
+    'dashboardCommitShort' => $dashboardCommitShort,
     'averageProgressPercent' => number_format($average, 1),
     'lanes' => $summaryRows,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
