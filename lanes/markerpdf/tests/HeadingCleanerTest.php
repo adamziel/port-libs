@@ -4,6 +4,25 @@ declare(strict_types=1);
 
 use PortLibs\MarkerPDF\HeadingCleaner;
 
+$outlineDocument = static function (): object {
+    return new class {
+        public int $maxDepth = 0;
+
+        /**
+         * @return list<object|array<string, mixed>>
+         */
+        public function get_toc(int $max_depth = 15): array
+        {
+            $this->maxDepth = $max_depth;
+
+            return [
+                (object) ['title' => 'Migration Runbook', 'level' => 1, 'page_index' => 0],
+                ['title' => 'Media Cleanup', 'level' => 2, 'page_index' => 4],
+            ];
+        }
+    };
+};
+
 return [
     'splits heading lines out of text blocks using upstream bbox overlap threshold' => static function (TestRunner $t): void {
         $cleaner = new HeadingCleaner();
@@ -96,5 +115,29 @@ return [
             ],
             $cleaner->computeToc($pages)
         );
+    },
+    'maps upstream pdf outline items from get_toc with max depth' => static function (TestRunner $t) use ($outlineDocument): void {
+        $doc = $outlineDocument();
+        $toc = (new HeadingCleaner())->getPdfToc($doc, 7);
+
+        $t->same(7, $doc->maxDepth);
+        $t->same(
+            [
+                ['title' => 'Migration Runbook', 'level' => 1, 'page' => 0],
+                ['title' => 'Media Cleanup', 'level' => 2, 'page' => 4],
+            ],
+            $toc
+        );
+    },
+    'rejects malformed pdf outline adapters before WordPress TOC import' => static function (TestRunner $t): void {
+        $cleaner = new HeadingCleaner();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $cleaner->getPdfToc(new stdClass()));
+        $t->throws(InvalidArgumentException::class, static fn () => $cleaner->getPdfToc(new class {
+            public function get_toc(int $max_depth = 15): array
+            {
+                return [(object) ['title' => 'Missing page', 'level' => 1]];
+            }
+        }));
     },
 ];

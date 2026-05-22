@@ -24,7 +24,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-quality-score.php` uses the native `BenchmarkScorer` port of `marker/benchmark/scoring.py` to compare extracted and dewrapped import text against expected WordPress post content. It emits a JSON score and checks whether the result clears a Marker CI-style quality threshold.
 
-`examples/wordpress-benchmark-report.php` uses the native `BenchmarkReportVerifier` port of `scripts/verify_benchmark_scores.py` against the actual CI `benchmark_data_short.zip` references for `multicolcnn.pdf` and `switch_trans.pdf`. This gives WordPress import tooling a review gate: imported block content can be scored against upstream benchmark references and rejected before editorial review if either Marker threshold fails.
+`examples/wordpress-benchmark-report.php` uses the native `BenchmarkReportBuilder` port of `benchmarks/overall.py` and `BenchmarkReportVerifier` port of `scripts/verify_benchmark_scores.py` against the actual CI `benchmark_data_short.zip` references for `multicolcnn.pdf` and `switch_trans.pdf`. This gives WordPress import tooling a review gate: imported block content can be scored into the upstream report shape and rejected before editorial review if either Marker threshold fails.
 
 `examples/upstream-surrogate-score.php` scores small README-linked surrogate pairs sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. These remain useful comparison fixtures alongside the now-inspected external CI benchmark archive.
 
@@ -41,6 +41,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-pdftext-block-import.php` maps Marker's upstream pdftext dictionary conversion into a shared-hosting WordPress import path. It accepts already-supplied pdftext output, produces Marker's Page/Block/Line/Span shape natively, normalizes span text, preserves font metadata, and feeds Gutenberg paragraph rendering without loading the Python pdftext, pypdfium, or Surya stacks.
 
 `examples/wordpress-toc-import.php` maps Marker's upstream heading and TOC cleaners into a document-outline import path. It splits detected heading lines out of text blocks by bounding-box overlap, infers heading levels from line heights, emits a core list as a table of contents, and renders the heading blocks with Marker-style Markdown heading levels.
+
+`examples/wordpress-pdf-outline-import.php` maps Marker's upstream `get_pdf_toc` helper into a PDF bookmark import path. It accepts a pypdfium-style `get_toc(max_depth)` adapter, preserves upstream `title`, `level`, and `page_index` metadata, and emits a Gutenberg list with page/level review attributes before any OCR or layout model runs.
 
 `examples/wordpress-paginated-import.php` maps Marker's upstream Markdown block-merge and full-text assembly path into a paginated Gutenberg import. It preserves PDF page-start markers as separator blocks, then emits merged headings, paragraphs, and lists after applying block type transitions and bbox-based line continuation rules.
 
@@ -78,4 +80,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Use the acquired `benchmark_data_short.zip` pairs to map a fuller document-level benchmark report slice, or map another model boundary such as layout/table detection with supplied predictions before attempting real model-backed OCR/layout/table inference.
+Map another model boundary such as `marker/tables/table.py::get_table_boxes` with supplied table detections before attempting real model-backed OCR/layout/table inference.

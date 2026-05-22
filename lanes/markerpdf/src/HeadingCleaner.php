@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PortLibs\MarkerPDF;
 
+use InvalidArgumentException;
+
 final class HeadingCleaner
 {
     private const HEADING_TYPES = ['Title', 'Section-header'];
@@ -158,6 +160,42 @@ final class HeadingCleaner
         }
 
         return $pages;
+    }
+
+    /**
+     * Native boundary for marker.cleaners.toc::get_pdf_toc.
+     *
+     * @return list<array{title: string, level: int, page: int}>
+     */
+    public function getPdfToc(object $doc, int $maxDepth = 15): array
+    {
+        if (!method_exists($doc, 'get_toc')) {
+            throw new InvalidArgumentException('PDF document adapter must expose get_toc(max_depth).');
+        }
+
+        $items = $doc->get_toc($maxDepth);
+        if (!is_iterable($items)) {
+            throw new InvalidArgumentException('PDF document get_toc(max_depth) must return an iterable list.');
+        }
+
+        $toc = [];
+        foreach ($items as $item) {
+            if (!is_array($item) && !is_object($item)) {
+                throw new InvalidArgumentException('PDF TOC item must be an object or array.');
+            }
+
+            $title = $this->outlineValue($item, 'title');
+            $level = $this->outlineValue($item, 'level');
+            $page = $this->outlineValue($item, 'page_index');
+
+            $toc[] = [
+                'title' => (string) $title,
+                'level' => (int) $level,
+                'page' => (int) $page,
+            ];
+        }
+
+        return $toc;
     }
 
     /**
@@ -387,5 +425,21 @@ final class HeadingCleaner
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed>|object $item
+     */
+    private function outlineValue(array|object $item, string $key): mixed
+    {
+        if (is_array($item) && array_key_exists($key, $item)) {
+            return $item[$key];
+        }
+
+        if (is_object($item) && (property_exists($item, $key) || isset($item->{$key}))) {
+            return $item->{$key};
+        }
+
+        throw new InvalidArgumentException("PDF TOC item is missing {$key}.");
     }
 }
