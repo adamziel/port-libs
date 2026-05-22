@@ -33,9 +33,9 @@
 | 3 | markerPDF | stopped | cloned inventory + native text-line slice | 5% | Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture. |
 | 4 | libsqlite | stopped | upstream inventory plus first b-tree page-header slice | 7% | Parse table leaf cells on the schema root page and decode `sqlite_schema` records needed to locate WordPress tables such as `wp_options`. |
 | 5 | readability | stopped | cloned static inventory + readerable preflight slice | 5% | Map the first Mozilla test-page source/expected/metadata fixture into PHP parity, then improve metadata/byline/media handling. |
-| 6 | pandoc | stopped | seed implementation | 3% | Add inline marks/list handling and map Pandoc native AST tests. |
+| 6 | pandoc | port-pandoc active | seed implementation | 3% | Restore/recount the dirty upstream cache and replace the static seed manifest before adding more Markdown/AST behavior. |
 | 7 | quadrable | stopped | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
-| 8 | syncthing | stopped | seed implementation | 2% | Map protocol tests and add block hash/vector tests. |
+| 8 | syncthing | port-syncthing active | seed implementation | 2% | Restore/recount the dirty upstream cache and replace the static seed manifest before adding block vector/update conflict behavior. |
 | 9 | difftastic | stopped | seed implementation | 2% | Map parser fixtures and replace line-only diff with syntax token anchors. |
 | 10 | rclone | stopped | seed implementation | 2% | Map filter/checksum tests and add filesystem provider contract tests. |
 | 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
@@ -67,6 +67,7 @@
 - libsqlite full upstream runner was not executed: SQLite testing requires configuring/building `testfixture`/`sqlite3` with Tcl development libraries and then running `testrunner.tcl` suites/permutations. The current denominator is a cloned static inventory of 1,454 upstream test-related files/scripts, not upstream pass parity.
 - Readability full upstream runner was not executed: `npm test` reaches `mocha test/test-*.js` but fails before tests because the sparse upstream cache has no `node_modules` and `mocha` is not installed. The current denominator is a cloned static inventory of 1,984 Mocha tests, not upstream pass parity.
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
+- Independent audit on 2026-05-22 found `port-pandoc` and `port-syncthing` active while their manifests remain static seeds and their upstream cache worktrees are dirty/empty; reconcile those sessions before accepting more feature breadth.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
@@ -75,8 +76,8 @@
 
 - Supervisor: main Codex session.
 - Auditor: `port-auditor` session is present; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: none active after integrating the latest libsqlite and Readability slices.
+- Worker sessions: `port-pandoc` and `port-syncthing` are active as of the latest audit; both need denominator/cache repair before more implementation breadth.
 
 ## Next Best Step
 
-Map one Mozilla Readability `test-pages` fixture into PHP expected-content/metadata parity, then continue libsqlite with schema-root table leaf cell parsing so PHP can locate WordPress tables such as `wp_options` from a database file without the SQLite extension.
+Reconcile the active `port-pandoc` and `port-syncthing` sessions with the roadmap: restore/recount their dirty upstream caches and replace the static seed manifests, or redirect active capacity back to higher-priority denominator-backed slices. Keep the dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
