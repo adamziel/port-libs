@@ -562,4 +562,67 @@ return [
         $t->contains('rhs modern:comment', $encoded);
         $t->true(!str_contains($encoded, 'legacy:normal'), 'Changed WordPress doc-comment copy should not lose comment highlighting.');
     },
+    'yaml mode tokenizes block scalar bodies as multiline strings' => static function (TestRunner $t): void {
+        $tokens = (new TokenDiffer())->tokenize("run: |\n  set -x\n  wp plugin list\nnext: true\n", ['language' => 'yaml']);
+        $strings = array_values(array_filter($tokens, static fn ($token): bool => $token->kind === 'string'));
+
+        $t->same(1, count($strings));
+        $t->same("  set -x\n  wp plugin list", $strings[0]->text);
+        $t->same(7, $strings[0]->start);
+        $t->same(32, $strings[0]->end);
+    },
+    'json display renderer maps upstream yaml block scalar eof sample as string word spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-multiline-string-eof-1.yml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-multiline-string-eof-2.yml');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/multiline_string_eof_1.yml',
+            'YAML',
+            ['language' => 'yaml'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' line ' . $line[$side]['line_number'] . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs line 1 set:string', $encoded);
+        $t->contains('lhs line 1 x:string', $encoded);
+        $t->true(!str_contains($encoded, 'set:normal'), 'Words removed from YAML block scalars should keep string highlighting.');
+    },
+    'wordpress plugin workflow yaml display keeps wp cli command changes string highlighted' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-before.yml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-after.yml');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/.github/workflows/release.yml',
+            'YAML',
+            ['language' => 'yaml'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('wp-content/plugins/acme-card/.github/workflows/release.yml', $decoded['path']);
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs json:string', $encoded);
+        $t->contains('rhs pot:string', $encoded);
+        $t->contains('rhs acme:string', $encoded);
+        $t->true(!str_contains($encoded, 'json:normal'), 'WP-CLI command changes inside YAML run blocks should not fall back to normal highlighting.');
+    },
 ];

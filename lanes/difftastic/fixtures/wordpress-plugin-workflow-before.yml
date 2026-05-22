@@ -1,0 +1,9 @@
+name: Release block plugin
+jobs:
+  package:
+    steps:
+      - name: Build assets
+        run: |
+          npm ci
+          npm run build
+          wp i18n make-json languages --no-purge

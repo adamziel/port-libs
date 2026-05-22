@@ -14,6 +14,21 @@ final class TokenDiffer
      */
     public function tokenize(string $source, array $options = []): array
     {
+        if ($this->isYamlLanguage($options)) {
+            return $this->tokenizeYamlBlockScalars($source, $options);
+        }
+
+        $depth = 0;
+
+        return $this->tokenizeGeneric($source, $options, 0, $depth);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     * @return list<Token>
+     */
+    private function tokenizeGeneric(string $source, array $options, int $baseOffset, int &$depth): array
+    {
         preg_match_all(
             '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u',
             $source,
@@ -24,9 +39,9 @@ final class TokenDiffer
         $delimiterPairs = $this->delimiterPairs($options);
         $closeDelimiters = array_flip(array_values($delimiterPairs));
         $tokens = [];
-        $depth = 0;
         foreach ($matches[0] ?? [] as $match) {
             [$text, $start] = $match;
+            $absoluteStart = $baseOffset + $start;
             $delimiterRole = null;
             if (isset($closeDelimiters[$text])) {
                 $depth = max(0, $depth - 1);
@@ -40,8 +55,8 @@ final class TokenDiffer
                 $text,
                 $delimiterRole,
                 $depth,
-                $start,
-                $start + strlen($text),
+                $absoluteStart,
+                $absoluteStart + strlen($text),
             );
 
             if ($delimiterRole === 'open') {
@@ -50,6 +65,103 @@ final class TokenDiffer
         }
 
         return $tokens;
+    }
+
+    /**
+     * @param array{language?: string} $options
+     * @return list<Token>
+     */
+    private function tokenizeYamlBlockScalars(string $source, array $options): array
+    {
+        $depth = 0;
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($source);
+        $matched = preg_match_all(
+            '/^(?<indent>[ \t]*)(?<key>[^#:\r\n][^:\r\n]*):[ \t]*(?<style>[|>])(?<mods>[0-9+-]*)[^\r\n]*(?:\r\n|\n|\r)/m',
+            $source,
+            $matches,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE,
+        );
+
+        if ($matched === false || $matched === 0) {
+            return $this->tokenizeGeneric($source, $options, 0, $depth);
+        }
+
+        foreach ($matches as $match) {
+            $headerStart = $match[0][1];
+            if ($headerStart < $offset) {
+                continue;
+            }
+
+            $headerEnd = $headerStart + strlen($match[0][0]);
+            if ($headerStart > $offset) {
+                $tokens = array_merge(
+                    $tokens,
+                    $this->tokenizeGeneric(substr($source, $offset, $headerStart - $offset), $options, $offset, $depth),
+                );
+            }
+
+            $tokens = array_merge(
+                $tokens,
+                $this->tokenizeGeneric(substr($source, $headerStart, $headerEnd - $headerStart), $options, $headerStart, $depth),
+            );
+
+            $contentEnd = $this->yamlBlockScalarEnd($source, $headerEnd, strlen($match['indent'][0]));
+            if ($contentEnd > $headerEnd) {
+                $text = $this->trimFinalLineEnding(substr($source, $headerEnd, $contentEnd - $headerEnd));
+                if ($text !== '') {
+                    $tokens[] = new Token('string', $text, 'block-scalar', $depth, $headerEnd, $headerEnd + strlen($text));
+                }
+            }
+
+            $offset = max($contentEnd, $headerEnd);
+        }
+
+        if ($offset < $length) {
+            $tokens = array_merge(
+                $tokens,
+                $this->tokenizeGeneric(substr($source, $offset), $options, $offset, $depth),
+            );
+        }
+
+        return $tokens;
+    }
+
+    private function yamlBlockScalarEnd(string $source, int $start, int $baseIndent): int
+    {
+        $length = strlen($source);
+        $offset = $start;
+        $end = $start;
+
+        while ($offset < $length) {
+            $newline = strpos($source, "\n", $offset);
+            $lineEnd = $newline === false ? $length : $newline;
+            $lineContentEnd = $lineEnd > $offset && $source[$lineEnd - 1] === "\r" ? $lineEnd - 1 : $lineEnd;
+            $line = substr($source, $offset, $lineContentEnd - $offset);
+            $nextOffset = $newline === false ? $length : $newline + 1;
+
+            if (trim($line) !== '' && strspn($line, " \t") <= $baseIndent) {
+                break;
+            }
+
+            $end = $nextOffset;
+            $offset = $nextOffset;
+        }
+
+        return $end;
+    }
+
+    private function trimFinalLineEnding(string $text): string
+    {
+        if (str_ends_with($text, "\r\n")) {
+            return substr($text, 0, -2);
+        }
+        if (str_ends_with($text, "\n") || str_ends_with($text, "\r")) {
+            return substr($text, 0, -1);
+        }
+
+        return $text;
     }
 
     /**
@@ -1036,6 +1148,14 @@ final class TokenDiffer
     private function isRustLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['rs', 'rust'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isYamlLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['yaml', 'yml'], true);
     }
 
     /**

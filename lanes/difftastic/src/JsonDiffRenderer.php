@@ -243,7 +243,10 @@ final class JsonDiffRenderer
                 continue;
             }
 
-            if (!in_array($token->kind, ['comment', 'string'], true) || !str_contains($token->text, "\n")) {
+            if (
+                !in_array($token->kind, ['comment', 'string'], true)
+                || (!str_contains($token->text, "\n") && $token->delimiterRole !== 'block-scalar')
+            ) {
                 continue;
             }
 

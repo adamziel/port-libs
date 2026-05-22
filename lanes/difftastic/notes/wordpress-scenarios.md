@@ -32,6 +32,8 @@ The block-copy JSON display fixture compares a block description string where on
 
 The multiline render doc-comment fixture compares PHP block comments beside a WordPress render callback where `legacy` changes to `modern`. Token byte spans let the JSON renderer project paired multiline comment word diffs back onto line/column spans, so browser review data keeps those words comment-highlighted instead of treating them as normal line text.
 
+The plugin workflow YAML fixture compares a GitHub Actions release step for a block plugin. YAML mode treats `run: |` command bodies as block-scalar string atoms, so WP-CLI command changes such as `make-json` to `make-pot` stay string-highlighted in machine-readable JSON review data instead of falling back to normal per-line token highlighting.
+
 The theme-variation fixture applies the upstream `slider_at_end` JSON list-deletion shape to `theme.json`. Deprecated button variations are reported as focused deletions while retained variations stay out of the rendered change stream.
 
 The template-wrapper fixture applies upstream `nested_slider` wrapper correction to a WordPress block template helper call. When `coreParagraph('Hero introduction')` is wrapped in `coreGroup(...)`, the retained paragraph call stays out of the deletion stream and the diff reports the wrapper as a focused syntactic insertion.
@@ -51,6 +53,7 @@ php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-block-copy-display.php
 php lanes/difftastic/examples/wordpress-multiline-comment-display.php
+php lanes/difftastic/examples/wordpress-plugin-workflow-yaml-display.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
 php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
@@ -59,4 +62,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map YAML block-scalar multiline strings from upstream `multiline_string_eof_*.yml` or the larger `strings_*.el` fixture so multiline atom handling covers parser-specific string forms beyond quoted/block-comment tokens.
+Map the larger upstream `strings_*.el` fixture or broader `yaml_*.yaml` sample so parser-specific string handling covers more than block-scalar command bodies.
