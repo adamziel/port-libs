@@ -149,7 +149,7 @@ Focused send-pack orchestration inventory inspected on 2026-05-22:
 - Selected `gix-transport/tests/client/git.rs`, `gix-transport/src/lib.rs`, `gix-transport/src/client/git/mod.rs`, `gix-protocol/CHANGELOG.md`, and local `gitprotocol-pack(5)` documentation with targeted reads.
 - 5 async/blocking client-git tests were counted in `gix-transport/tests/client/git.rs`, including `push_v1_simulated`.
 - `gix-transport/src/lib.rs` defines the mapped receive-pack service selector as `Service::ReceivePack`, while the client-git request path establishes the boundary where command packet lines and pack bytes are written to transport I/O.
-- `gix-protocol` changelog notes were used as a bounded signal that receive-pack handshakes stay constrained by protocol-v1 behavior in this area. The PHP slice maps the local orchestration layer without claiming transport I/O parity.
+- `gix-protocol` changelog notes were used as a bounded signal that receive-pack handshakes stay constrained by protocol-v1 behavior in this area. The PHP slice maps the local orchestration layer without claiming full remote adapter parity.
 - Local `gitprotocol-pack(5)` documentation remains the grammar cross-check for advertised refs, capability lines, ref update commands, push-options, pack payload separation, and report-status responses.
 
 Focused thin/ref-delta pack generation inventory inspected on 2026-05-22:
@@ -163,11 +163,12 @@ Focused thin/ref-delta pack generation inventory inspected on 2026-05-22:
 
 Focused receive-pack transport I/O inventory inspected on 2026-05-22:
 
-- Selected `gix-transport/src/client/blocking_io/request.rs`, `gix-transport/src/client/git/blocking_io.rs`, `gix-transport/src/client/non_io_types.rs`, and `gix-transport/tests/client/git.rs::push_v1_simulated` with targeted reads.
+- Selected `gix-transport/src/client/blocking_io/request.rs`, `gix-transport/src/client/git/blocking_io.rs`, `gix-transport/src/client/non_io_types.rs`, `gix-transport/tests/client/git.rs::push_v1_simulated`, and local `gitprotocol-pack(5)` git-transport service request documentation with targeted reads.
 - 5 gix-transport client-git async/blocking tests remain the focused transport count for this slice, including `push_v1_simulated`.
 - `gix-transport/src/client/blocking_io/request.rs` defines the mapped request-writer boundary: binary writes are passed through, `into_read()` writes a terminating message and flushes, and `into_parts()` allows direct pack-byte writing before reading the response.
 - `gix-transport/src/client/git/blocking_io.rs` defines the mapped connection behavior: a handshake reads capabilities/refs, while `request(WriteMode::Binary, MessageKind::Flush, ...)` yields a request writer and response reader over the same transport.
 - `gix-transport/tests/client/git.rs::push_v1_simulated` defines the mapped receive-pack transport flow: write the first command, flush command packet-lines, write the remaining request bytes including pack payload, then parse sideband progress plus nested report-status lines.
+- Local `gitprotocol-pack(5)` git-transport documentation defines the mapped git-daemon receive-pack opener: send one pkt-line containing `git-receive-pack`, the repository path, a NUL-delimited `host=` parameter, and optional extra parameters before reading the receive-pack advertisement. The PHP slice now maps that service-request envelope and delegates the rest of the flow through stream-backed receive-pack packet I/O.
 
 Focused merge primitive inventory inspected on 2026-05-22:
 
@@ -190,7 +191,7 @@ Runner status:
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either add broader directory rename cases or broader rename heuristics, add concrete receive-pack URL adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either add SSH/HTTP receive-pack adapters, add broader directory rename cases or broader rename heuristics, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -214,7 +215,7 @@ Current PHP mapping:
 - `PushCommandTest.php` maps protocol v1 receive-pack update commands, create/update/delete ref lines, first-line capability negotiation, `atomic` and `push-options` guards, command packet-line framing before pack bytes, and a WordPress branch/tag deployment push request fixture.
 - `PushResponseTest.php` maps receive-pack report-status parsing, sideband progress/error extraction, nested sideband channel 1 report-status packet lines, accepted and rejected ref statuses, unpack failures, report-status-v2 rewritten-ref options, malformed response guards, and a WordPress branch/tag deployment push status fixture.
 - `SendPackSessionTest.php` maps receive-pack advertisement parsing, advertised-old-object create/update/delete planning, no-op update elision, generated pack request construction, delete-only request behavior, thin REF_DELTA request building from remote bases, session response parsing, a WordPress branch/tag send-pack fixture from advertised refs through status response, and a WordPress thin REF_DELTA send-pack fixture.
-- `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, and a WordPress receive-pack transport fixture over native PHP streams.
+- `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, git-daemon receive-pack service request bytes and URL/input validation, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, and a WordPress receive-pack transport fixture over native PHP streams.
 - `MergeBaseTest.php` maps simple commit ancestry merge-base discovery, independent criss-cross merge bases, unrelated histories, and ObjectDatabase commit-object validation.
 - `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, exact same-object rename/delete and rename/rename conflicts, bounded similar-blob rename/delete and rename/modify conflicts, same-target similar-rename content merges at the renamed path, bounded directory rename/modify merges at the renamed directory path, ambiguous exact/similar-rename guards, add/add resolution/conflicts, directory-file conflict classification, deterministic path ordering, duplicate-entry guards, recursive tree traversal over nested tree objects, clean nested blob content merges, full-path recursive content conflicts with marker blobs, nested exact rename/delete conflicts, merge-index stage entries, and worktree conflict file views.
 - `MergeWorktreeWriterTest.php` maps the bounded checkout side of recursive content conflicts: unmerged blob stages are written to a real Git index v2 `DIRC` file with stage bits and checksum, directory/file tree stages are expanded into file-level index entries, merged WordPress worktree files are written from tree objects, stale paths are removed while `.git` metadata is preserved, file/directory blockers are replaced, marker blobs are materialized for conflicted `theme.json`, unsafe checkout paths are rejected, and raw tree stages are explicitly refused unless callers use the result-aware expansion path.
