@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\FetchFilterSpec;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
+use PortLibs\Gitoxide\PromisorObjectResolver;
 use PortLibs\Gitoxide\ProtocolCapabilities;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
@@ -83,6 +84,45 @@ return [
         $emptyDatabase = new ObjectDatabase($emptyGitDir);
         $t->same(false, $emptyDatabase->hasPromisorPacks());
         $t->same('missing', $emptyDatabase->objectState($missingObject)['status']);
+    },
+    'object database can lazily resolve promised missing objects into loose storage' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $missingMediaBlob = new GitObject('blob', 'Lazily fetched WordPress media attachment bytes');
+        $missingMediaOid = $missingMediaBlob->oid();
+        $resolver = new class([$missingMediaOid => $missingMediaBlob]) implements PromisorObjectResolver {
+            public array $requests = [];
+
+            public function __construct(private readonly array $objects)
+            {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+
+                return $this->objects[$oid] ?? null;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same('promised-missing', $database->objectState($missingMediaOid)['status']);
+        $t->same($missingMediaBlob->body, $database->read($missingMediaOid)->body);
+        $t->same([$missingMediaOid], $resolver->requests);
+        $t->same('present', $database->objectState($missingMediaOid)['status']);
+        $t->same($missingMediaBlob->body, (new ObjectDatabase($gitDir))->read($missingMediaOid)->body);
+    },
+    'object database rejects promisor resolver object id mismatches' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $requestedOid = str_repeat('f', 40);
+        $resolver = new class implements PromisorObjectResolver {
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                return new GitObject('blob', 'wrong promised object');
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->throws(RuntimeException::class, static fn () => $database->read($requestedOid));
     },
     'wordpress blobless partial clone fixture keeps missing media object promised' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir, $fixture] = $writePromisorPackFixture();

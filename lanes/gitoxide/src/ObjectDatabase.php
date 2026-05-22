@@ -38,6 +38,7 @@ final class ObjectDatabase
         private readonly string $gitDirectory,
         private readonly bool $ignoreReplacements = false,
         private readonly string $replacementRefBase = 'refs/replace',
+        private readonly ?PromisorObjectResolver $promisorResolver = null,
     )
     {
     }
@@ -103,6 +104,11 @@ final class ObjectDatabase
         }
 
         if ($this->hasPromisorPacks()) {
+            $object = $this->resolvePromisedObject($oid);
+            if ($object !== null) {
+                return $object;
+            }
+
             throw new \RuntimeException("Object promised by partial clone filter but not present locally: {$oid}");
         }
 
@@ -246,7 +252,12 @@ final class ObjectDatabase
 
     public function withReplacementsIgnored(): self
     {
-        return new self($this->gitDirectory, true, $this->replacementRefBase);
+        return new self($this->gitDirectory, true, $this->replacementRefBase, $this->promisorResolver);
+    }
+
+    public function withPromisorResolver(PromisorObjectResolver $resolver): self
+    {
+        return new self($this->gitDirectory, $this->ignoreReplacements, $this->replacementRefBase, $resolver);
     }
 
     /**
@@ -380,6 +391,32 @@ final class ObjectDatabase
         }
 
         return $this->promisorPacks;
+    }
+
+    private function resolvePromisedObject(string $oid): ?GitObject
+    {
+        if ($this->promisorResolver === null) {
+            return null;
+        }
+
+        $object = $this->promisorResolver->resolvePromisedObject($oid, $this);
+        if ($object === null) {
+            return null;
+        }
+
+        $actualOid = $object->oid();
+        if ($actualOid !== $oid) {
+            throw new \RuntimeException("Promisor resolver returned {$actualOid} for requested object: {$oid}");
+        }
+
+        $this->primaryLooseStore()->write($object);
+
+        return $object;
+    }
+
+    private function primaryLooseStore(): LooseObjectStore
+    {
+        return LooseObjectStore::fromObjectsDirectory($this->objectDirectories()[0]);
     }
 
     /**
