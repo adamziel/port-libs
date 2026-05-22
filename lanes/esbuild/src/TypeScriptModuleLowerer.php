@@ -1189,6 +1189,25 @@ final class TypeScriptModuleLowerer
 
         $body = $this->rewriteDeadFalseSuperCalls($body);
         foreach ($body as $index => $line) {
+            $split = $this->splitTopLevelCommaSuperExpressionStatement($line);
+            if ($split !== null) {
+                $replacement = [];
+                if ($split['before'] !== null) {
+                    $replacement[] = $split['before'];
+                }
+                $replacement[] = $split['super'];
+                $indent = $split['indent'];
+                foreach ($assignments as $assignment) {
+                    $replacement[] = $indent . $assignment;
+                }
+                if ($split['after'] !== null) {
+                    $replacement[] = $split['after'];
+                }
+                array_splice($body, $index, 1, $replacement);
+
+                return $body;
+            }
+
             if (preg_match('/^(\s*)super\s*\(/', $line, $match) === 1) {
                 $indent = $match[1] ?? '';
                 $prefixedAssignments = array_map(static fn (string $assignment): string => $indent . $assignment, $assignments);
@@ -1216,7 +1235,7 @@ final class TypeScriptModuleLowerer
             }
 
             $liveSuperCalls += $superCalls;
-            if ($superCalls > 1 || !$this->constructorLineHasDirectSuperCall($line)) {
+            if ($superCalls > 1 || (!$this->constructorLineHasDirectSuperCall($line) && $this->splitTopLevelCommaSuperExpressionStatement($line) === null)) {
                 return true;
             }
         }
@@ -1232,6 +1251,184 @@ final class TypeScriptModuleLowerer
     private function isDeadFalseSuperLine(string $line): bool
     {
         return preg_match('/^\s*if\s*\(\s*false\s*\)\s*super\s*\(/', $line) === 1;
+    }
+
+    /**
+     * @return array{indent:string, before:?string, super:string, after:?string}|null
+     */
+    private function splitTopLevelCommaSuperExpressionStatement(string $line): ?array
+    {
+        if (preg_match('/^(\s*)(.*?);$/s', $line, $match) !== 1) {
+            return null;
+        }
+
+        $indent = $match[1];
+        $expression = trim($match[2]);
+        if ($expression === ''
+            || str_starts_with($expression, 'return ')
+            || str_starts_with($expression, 'throw ')
+            || preg_match('/^(if|switch|for|while)\b/', $expression) === 1
+        ) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevelCommaExpression($expression);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $superIndex = null;
+        foreach ($parts as $index => $part) {
+            if (preg_match('/(^|[^\w$])super\s*\(/', $part) !== 1) {
+                continue;
+            }
+
+            if (!$this->isDirectSuperCallExpression($part) || $superIndex !== null) {
+                return null;
+            }
+            $superIndex = $index;
+        }
+
+        if ($superIndex === null) {
+            return null;
+        }
+
+        $before = array_slice($parts, 0, $superIndex);
+        $after = array_slice($parts, $superIndex + 1);
+
+        return [
+            'indent' => $indent,
+            'before' => $before === [] ? null : $indent . implode(', ', $before) . ';',
+            'super' => $indent . $parts[$superIndex] . ';',
+            'after' => $after === [] ? null : $indent . implode(', ', $after) . ';',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTopLevelCommaExpression(string $expression): array
+    {
+        $parts = [];
+        $start = 0;
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        $quote = null;
+        $length = strlen($expression);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expression[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth--;
+                continue;
+            }
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth--;
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth--;
+                continue;
+            }
+            if ($char !== ',' || $parenDepth !== 0 || $braceDepth !== 0 || $bracketDepth !== 0) {
+                continue;
+            }
+
+            $part = trim(substr($expression, $start, $i - $start));
+            if ($part === '') {
+                return [$expression];
+            }
+            $parts[] = $part;
+            $start = $i + 1;
+        }
+
+        $tail = trim(substr($expression, $start));
+        if ($tail === '') {
+            return [$expression];
+        }
+        $parts[] = $tail;
+
+        return $parts;
+    }
+
+    private function isDirectSuperCallExpression(string $expression): bool
+    {
+        $expression = trim($expression);
+        if (!str_starts_with($expression, 'super')) {
+            return false;
+        }
+
+        $cursor = 5;
+        $length = strlen($expression);
+        while ($cursor < $length && ctype_space($expression[$cursor])) {
+            $cursor++;
+        }
+        if (($expression[$cursor] ?? null) !== '(') {
+            return false;
+        }
+
+        $depth = 0;
+        $quote = null;
+        for ($i = $cursor; $i < $length; $i++) {
+            $char = $expression[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return trim(substr($expression, $i + 1)) === '';
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
