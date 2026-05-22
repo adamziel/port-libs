@@ -17,6 +17,7 @@ use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
+use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteVarint;
 
@@ -633,6 +634,31 @@ return [
         $t->same(null, $otherExpression);
         $t->same(null, $ordinaryColumn);
     },
+    'parses sqlite trim expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
+        $trimIndex = SQLiteCreateIndex::firstTrimExpression("CREATE INDEX idx_trim_name ON wp_options(trim(main.wp_options.\"option_name\", ' _') COLLATE nocase DESC) WHERE option_name IS NOT NULL");
+        $leftIndex = SQLiteCreateIndex::firstTrimExpression('CREATE INDEX idx_ltrim_name ON wp_options(ltrim(option_name))');
+        $rightIndex = SQLiteCreateIndex::firstTrimExpression("CREATE INDEX idx_rtrim_name ON wp_options(rtrim(option_name, '-'))");
+        $constantExpression = SQLiteCreateIndex::firstTrimExpression("CREATE INDEX idx_constant ON wp_options(trim('option_name'))");
+        $nonStringCharacters = SQLiteCreateIndex::firstTrimExpression('CREATE INDEX idx_number ON wp_options(trim(option_name, 7))');
+        $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_trim_name ON wp_options(trim(option_name))');
+
+        $t->true($trimIndex instanceof SQLiteTrimIndexExpression);
+        $t->same('trim', $trimIndex?->functionName);
+        $t->same('option_name', $trimIndex?->columnName);
+        $t->same(' _', $trimIndex?->characters);
+        $t->same('NOCASE', $trimIndex?->collation);
+        $t->same(true, $trimIndex?->descending);
+        $t->same(true, $trimIndex?->partial);
+        $t->same('option_name', $trimIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $trimIndex?->partialPredicate?->operator);
+        $t->same('ltrim', $leftIndex?->functionName);
+        $t->same(null, $leftIndex?->characters);
+        $t->same('rtrim', $rightIndex?->functionName);
+        $t->same('-', $rightIndex?->characters);
+        $t->same(null, $constantExpression);
+        $t->same(null, $nonStringCharacters);
+        $t->same(null, $ordinaryColumn);
+    },
     'parses sqlite length expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $lengthIndex = SQLiteCreateIndex::firstLengthExpression('CREATE INDEX idx_name_length ON wp_options(length(main.wp_options."option_name") DESC) WHERE option_name IS NOT NULL');
         $constantExpression = SQLiteCreateIndex::firstLengthExpression("CREATE INDEX idx_constant ON wp_options(length('option_name'))");
@@ -956,6 +982,55 @@ return [
         $t->same('Ported SQLite', $option->optionValue);
         $t->same(null, $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('blogname'));
+    },
+    'uses trim expression index for whitespace-normalized wordpress option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_trim_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_trim_option_name ON wp_options(trim(option_name) COLLATE NOCASE) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, ' SiteURL  ', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, null, 'draft option without name', 'no'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['SiteURL', 1]),
+            $indexCell(['home', 2]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedTrimmedName('siteurl');
+        $spacePaddedLookup = $database->wordpressOptionByIndexedTrimmedName('  SITEURL ');
+        $missing = $database->wordpressOptionByIndexedTrimmedName('missing');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'siteurl'));
+        $t->same(3, $database->indexRootPageForTrimmedPointLookup('wp_options', 'option_name', '  SITEURL '));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->optionId);
+        $t->same(' SiteURL  ', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
+        $t->same(' SiteURL  ', $spacePaddedLookup?->optionName);
+        $t->same(null, $missing);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedTrimmedName('siteurl', 'ltrim'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('siteurl'));
+
+        $customPage1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_trim_option_name', 'wp_options', 3, "CREATE INDEX wp_options_trim_option_name ON wp_options(trim(option_name, ' _') COLLATE NOCASE) WHERE option_name IS NOT NULL"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $customPage2 = $tableLeafPage([
+            $schemaCell([null, '__Plugin_Cache__', 'enabled', 'no'], 1),
+        ]);
+        $customPage3 = $indexLeafPage([
+            $indexCell(['Plugin_Cache', 1]),
+        ]);
+        $customDatabase = SQLiteDatabase::fromBytes($customPage1 . $customPage2 . $customPage3);
+        $customOption = $customDatabase->wordpressOptionByIndexedTrimmedName('__PLUGIN_CACHE__', 'trim', ' _');
+
+        $t->same(3, $customDatabase->indexRootPageForTrimmedPointLookup('wp_options', 'option_name', '__PLUGIN_CACHE__', 'trim', ' _'));
+        $t->same('__Plugin_Cache__', $customOption?->optionName);
+        $t->same('enabled', $customOption?->optionValue);
     },
     'uses upper expression index for ascii folded wordpress option_name IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

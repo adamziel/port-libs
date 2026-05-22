@@ -1337,3 +1337,41 @@ expression index without scanning `wp_options`. The new
 `examples/wordpress-json-option-arrow.php` script maps plugin/theme settings
 recovery where the available SQLite database uses `option_value ->> 'key'`
 instead of a `json_extract(...)` index.
+
+## Focused Native Mapping: `trim()` Expression Indexes
+
+This slice extends the bounded expression-index family to first-term
+`trim(column)`, `ltrim(column)`, and `rtrim(column)` expressions with either
+SQLite's default space trimming or a literal character-set argument. The native
+reader preserves the function name, literal character set, collation, `DESC`,
+and safe `IS NOT NULL` partial predicate metadata, rejects these expressions as
+ordinary column indexes, and resolves a WordPress option row through an indexed
+trimmed key plus rowid lookup.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  func.test indexexpr1.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 15138 tests in 00:01.
+
+Focused upstream fixture boundary:
+
+- `test/func.test` covers `trim()`, `ltrim()`, and `rtrim()` arity, default
+  space trimming, literal trim-character sets, empty trim sets, NULL behavior,
+  and UTF-8 character boundaries.
+- `test/indexexpr1.test` covers deterministic expression-index planning and
+  equality lookups through expression-index payloads.
+
+The native PHP tests now cover parsing `trim(option_name,' _')`,
+`ltrim(option_name)`, and `rtrim(option_name,'-')` index metadata, rejecting
+constant/non-string trim arguments for this bounded slice, preserving safe
+partial predicates, and a WordPress-shaped `trim(option_name) COLLATE NOCASE`
+lookup that finds a stored option named ` SiteURL  ` when the recovery caller
+asks for `siteurl`. The new
+`examples/wordpress-trimmed-option-name.php` script maps recovery of
+whitespace-damaged option names without requiring the PHP SQLite extension or a
+full table scan.

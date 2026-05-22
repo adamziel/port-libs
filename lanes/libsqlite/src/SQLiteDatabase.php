@@ -330,6 +330,19 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForTrimmedPointLookup(
+        string $tableName,
+        string $columnName,
+        string $value,
+        string $functionName = 'trim',
+        ?string $characters = null,
+    ): ?int {
+        self::sqliteTrim($value, $functionName, $characters);
+        $lookup = $this->indexLookupForTrimExpressionColumn($tableName, $columnName, $functionName, $characters);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForLengthPointLookup(string $tableName, string $columnName, int $length): ?int
     {
         $lookup = $this->indexLookupForLengthExpressionColumn($tableName, $columnName, $length);
@@ -864,6 +877,54 @@ final class SQLiteDatabase
 
             $firstExpression = SQLiteCreateIndex::firstUpperExpression($record->sql);
             if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForTrimExpressionColumn(
+        string $tableName,
+        string $columnName,
+        string $functionName,
+        ?string $characters,
+    ): ?array {
+        $functionName = self::normalizeTrimFunctionName($functionName);
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstTrimExpression($record->sql);
+            if (
+                $firstExpression === null
+                || $firstExpression->functionName !== $functionName
+                || $firstExpression->characters !== $characters
+                || strcasecmp($firstExpression->columnName, $columnName) !== 0
+            ) {
                 continue;
             }
 
@@ -1799,6 +1860,49 @@ final class SQLiteDatabase
 
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::compareSQLiteScalar(self::asciiUpper($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
+                return $option;
+            }
+        }
+
+        return null;
+    }
+
+    public function wordpressOptionByIndexedTrimmedName(
+        string $optionName,
+        string $functionName = 'trim',
+        ?string $characters = null,
+    ): ?SQLiteWordPressOption {
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return null;
+        }
+
+        $indexLookup = $this->indexLookupForTrimExpressionColumn('wp_options', 'option_name', $functionName, $characters);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options trim(option_name) expression index is not present');
+        }
+
+        $lookupValue = self::sqliteTrim($optionName, $functionName, $characters);
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $lookupValue,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::compareSQLiteScalar(
+                self::sqliteTrim($option->optionName, $functionName, $characters),
+                $lookupValue,
+                $indexLookup['collation'],
+            ) === 0) {
                 return $option;
             }
         }
@@ -4408,6 +4512,92 @@ final class SQLiteDatabase
         }
 
         return $bytes;
+    }
+
+    private static function normalizeTrimFunctionName(string $functionName): string
+    {
+        $normalized = strtolower($functionName);
+        if (!in_array($normalized, ['trim', 'ltrim', 'rtrim'], true)) {
+            throw new \InvalidArgumentException('SQLite trim expression lookup function must be trim, ltrim, or rtrim');
+        }
+
+        return $normalized;
+    }
+
+    private static function sqliteTrim(string $value, string $functionName, ?string $characters): string
+    {
+        $functionName = self::normalizeTrimFunctionName($functionName);
+        $characters ??= ' ';
+        if ($characters === '' || $value === '') {
+            return $value;
+        }
+
+        $valueCharacters = self::sqliteTextCharacters($value);
+        $trimCharacters = self::sqliteTextCharacters($characters);
+        if ($valueCharacters === null || $trimCharacters === null) {
+            return self::sqliteTrimBytes($value, $functionName, $characters);
+        }
+
+        $trimSet = array_fill_keys($trimCharacters, true);
+        if ($functionName === 'trim' || $functionName === 'ltrim') {
+            while ($valueCharacters !== [] && isset($trimSet[$valueCharacters[0]])) {
+                array_shift($valueCharacters);
+            }
+        }
+        if ($functionName === 'trim' || $functionName === 'rtrim') {
+            while ($valueCharacters !== []) {
+                $lastIndex = count($valueCharacters) - 1;
+                if (!isset($trimSet[$valueCharacters[$lastIndex]])) {
+                    break;
+                }
+                array_pop($valueCharacters);
+            }
+        }
+
+        return implode('', $valueCharacters);
+    }
+
+    /**
+     * @return null|list<string>
+     */
+    private static function sqliteTextCharacters(string $value): ?array
+    {
+        if ($value === '') {
+            return [];
+        }
+        if (function_exists('mb_check_encoding') && !mb_check_encoding($value, 'UTF-8')) {
+            return null;
+        }
+
+        $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false) {
+            return null;
+        }
+
+        return $characters;
+    }
+
+    private static function sqliteTrimBytes(string $value, string $functionName, string $characters): string
+    {
+        $trimBytes = [];
+        for ($i = 0, $length = strlen($characters); $i < $length; $i++) {
+            $trimBytes[$characters[$i]] = true;
+        }
+
+        $start = 0;
+        $end = strlen($value);
+        if ($functionName === 'trim' || $functionName === 'ltrim') {
+            while ($start < $end && isset($trimBytes[$value[$start]])) {
+                $start++;
+            }
+        }
+        if ($functionName === 'trim' || $functionName === 'rtrim') {
+            while ($end > $start && isset($trimBytes[$value[$end - 1]])) {
+                $end--;
+            }
+        }
+
+        return substr($value, $start, $end - $start);
     }
 
     private static function sqliteSubstring(string $value, int $start, ?int $length): string

@@ -85,6 +85,40 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstTrimExpression(string $sql): ?SQLiteTrimIndexExpression
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $expression = self::parseTrimExpressionColumn($term);
+        if ($expression === null) {
+            return null;
+        }
+
+        return new SQLiteTrimIndexExpression(
+            $expression['functionName'],
+            $expression['name'],
+            $expression['characters'],
+            $expression['collation'],
+            $expression['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     public static function firstLengthExpression(string $sql): ?SQLiteIndexColumn
     {
         $index = self::indexedTermsAndTail($sql);
@@ -367,6 +401,68 @@ final class SQLiteCreateIndex
     private static function parseUpperExpressionColumn(string $term): ?array
     {
         return self::parseUnaryColumnFunctionExpression($term, 'upper');
+    }
+
+    /**
+     * @return null|array{functionName:string,name:string,characters:?string,collation:string,descending:bool}
+     */
+    private static function parseTrimExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $function = self::readIdentifier($term, 0);
+        if (
+            $function === null
+            || !in_array(strtolower($function[0]), ['trim', 'ltrim', 'rtrim'], true)
+        ) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $function[1]);
+        if (!isset($term[$offset]) || $term[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($term, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $arguments = self::topLevelTerms(substr($term, $offset + 1, $close - $offset - 1));
+        if (count($arguments) < 1 || count($arguments) > 2) {
+            return null;
+        }
+
+        $columnArgument = trim($arguments[0]);
+        if ($columnArgument === '' || $columnArgument[0] === "'") {
+            return null;
+        }
+
+        $column = self::readPossiblyQualifiedIdentifier($columnArgument, 0);
+        if ($column === null || trim(substr($columnArgument, $column[1])) !== '') {
+            return null;
+        }
+
+        $characters = null;
+        if (count($arguments) === 2) {
+            $literal = self::readLiteral($arguments[1], 0);
+            if ($literal === null || trim(substr($arguments[1], $literal[1])) !== '' || !is_string($literal[0])) {
+                return null;
+            }
+            $characters = $literal[0];
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $close + 1);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'functionName' => strtolower($function[0]),
+            'name' => $column[0],
+            'characters' => $characters,
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
     }
 
     /**

@@ -85,6 +85,14 @@ SQLite's built-in bytewise ASCII `upper()` semantics, rejects the expression
 index as an ordinary `option_name` index, accepts only safe
 `option_name IS NOT NULL` partial predicates for this path, and skips
 out-of-range b-tree branches before page decoding.
+First-term `trim(option_name)`, `ltrim(option_name)`, and
+`rtrim(option_name)` expression indexes are now parsed for point lookups with
+SQLite's default space trimming or a literal character-set argument. This maps
+recovery databases where option names were accidentally padded during a manual
+import or migration: callers can request `siteurl`, the native reader probes a
+stored `trim(option_name)` key such as `SiteURL`, preserves `COLLATE NOCASE`
+metadata, accepts only safe `option_name IS NOT NULL` partial predicates, and
+returns the original row name such as ` SiteURL  ` for review or repair.
 First-term `substr(option_name,start,length)` expression indexes are now
 parsed for non-zero integer start and optional non-negative length literals. A
 WordPress recovery tool can use a `substr(option_name,1,N)` expression index to read prefix
@@ -395,6 +403,13 @@ expression index, and returns options whose strict JSON scalar value matches
 the requested label/path and scalar. This maps plugin/theme settings recovery
 when the database uses SQLite's JSON text-operator shorthand.
 
+`examples/wordpress-trimmed-option-name.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term
+`wp_options(trim(option_name))`/`ltrim`/`rtrim` expression index, and returns
+the option whose normalized name matches the requested input. This maps
+whitespace-damaged option-name recovery without requiring the PHP SQLite
+extension or a full table scan.
+
 `examples/wordpress-sequence-counters.php` reads a WordPress-oriented SQLite
 database file, resolves the internal `sqlite_sequence` table, and reports all
 AUTOINCREMENT rows plus selected counters such as `wp_posts`, `wp_comments`,
@@ -414,7 +429,8 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: expression indexes beyond `lower(column)`, `upper(column)`, literal-start
+slice: expression indexes beyond `lower(column)`, `upper(column)`,
+`trim/ltrim/rtrim(column[, literal characters])` point lookups, literal-start
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and simple
 `json_extract(column,'$.key')`/`column ->> 'key'` point/list/range buckets;
 broader JSON path/value semantics; custom collations; and composite-key ranges
