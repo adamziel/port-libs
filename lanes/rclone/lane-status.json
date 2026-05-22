@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "rclone",
-    "estimatedProgress": 9,
-    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; bounded upstream Go runner passes 299 packages with provider TestIntegration skipped and mount/FUSE packages excluded; filter, hash-set, check, copy, checksum-file, CheckSum verification, hashsum, lsf, and lsjson slices mapped",
-    "phpPass": 20,
+    "estimatedProgress": 10,
+    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; bounded upstream Go runner passes 299 packages with provider TestIntegration skipped and mount/FUSE packages excluded; filter, hash-set, check, copy, checksum-file, CheckSum verification, hashsum, lsf, lsjson, and case-insensitive StatJSON slices mapped",
+    "phpPass": 22,
     "phpFail": 0,
     "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, checksum manifest verification, recursive lsjson catalogs, and shared-hosting cloud storage workflows.",
-    "phase": "cloned static inventory plus bounded upstream Go runner evidence and native filter/hash/check/copy/checksum/listing/json slices",
-    "audit": "audited 2026-05-22: bounded upstream Go runner passes 299 packages; native PHP smoke coverage now maps 20 tests, not full upstream parity",
-    "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, CheckSum-style manifest verification, hashsum output, lsf path/size/hash formatting, lsjson list/stat JSON manifests, and bounded upstream Go runner evidence.",
+    "phase": "cloned static inventory plus bounded upstream Go runner evidence and native filter/hash/check/copy/checksum/listing/json/case-insensitive provider slices",
+    "audit": "audited 2026-05-22: bounded upstream Go runner passes 299 packages; native PHP smoke coverage now maps 22 tests, not full upstream parity",
+    "currentWork": "Native in-memory provider contract, case-insensitive provider path lookup, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, CheckSum-style manifest verification, hashsum output, lsf path/size/hash formatting, lsjson list/stat JSON manifests, case-insensitive StatJSON canonical path lookups, and bounded upstream Go runner evidence.",
     "blocker": "Resolved the prior missing Go/module/tooling blocker for a bounded upstream runner: local Go 1.25.0, rebuilt rclone, local rsync, and a temporary MIME database overlay support a clean 299-package Go run. Full provider/mount parity remains open because live provider TestIntegration cases, FUSE mount packages, and Docker-backed serve/docker coverage are intentionally excluded from this bounded pass.",
-    "latestCommit": "01ab0eb",
-    "nextTask": "Map deeper fs provider contract behavior, lsjson --stat edge cases against case-insensitive providers, or download-mode checksum verification/error behavior."
+    "latestCommit": "d50b80b",
+    "nextTask": "Map download-mode checksum verification/error behavior or deeper fs provider contract behavior beyond the in-memory case-insensitive lookup slice."
 }
