@@ -85,6 +85,8 @@
 - Independent audit on 2026-05-22 found `port-esbuild` and `port-auditor` sessions active while this file still reported no active sessions; `.upstream-cache/esbuild` was recloned as a no-checkout blob-filtered cache and the esbuild manifest is now reconciled with a counted static inventory.
 - Independent audit on 2026-05-22 found `port-dolt` and `port-auditor` tmux sessions active while the current-session section still reported stopped/none; Dolt was later explicitly reauthorized for this lane run and now has a reconciled cloned inventory plus native PHP slice.
 - Independent audit on 2026-05-22 found `.upstream-cache/dolt`, `.upstream-cache/esbuild`, `.upstream-cache/pandoc`, and `.upstream-cache/syncthing` all report mass tracked deletions/no-checkout working-tree states. Inventories based on `git ls-tree` and targeted `git show` reads remain useful, but these caches are not runner-ready or safe for broad working-tree scans until restored or recloned.
+- Independent audit on 2026-05-22 after `f409148` found the portfolio baseline marker is only a coordination milestone: all lanes still lack upstream runner parity, markerPDF maps 0 upstream benchmark pairs, Gitoxide remains tree-inventory-only, and dashboard PHP pass/fail values are local smoke tests.
+- Independent audit on 2026-05-22 found dashboard/status hygiene issues to fix before more status stamping: LightningCSS maps 7 manifest behaviors while the dashboard reports 6 local PHP passes, and every lane audit cell still says it needs independent auditor review after this run.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - `.upstream-cache/dolt` is a blob-filtered no-checkout cache. Its `git ls-tree` inventory and targeted `git show` reads are valid, but it is not runner-ready until checked out/restored and the missing Go/BATS dependencies are installed.
@@ -97,4 +99,4 @@
 
 ## Next Best Step
 
-Return capacity to the highest-priority gaps: target Gitoxide object/ref storage with a controlled checkout and map one markerPDF benchmark/reference pair or documented surrogate. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs or focused upstream fixture parity.
+Fix coordination truthfulness first: label dashboard pass/fail as local PHP, reconcile the LightningCSS mapped/pass mismatch, and stamp audit status from the latest independent audit. Then return capacity to the highest-priority gaps: target Gitoxide object/ref storage with a controlled checkout and map one markerPDF benchmark/reference pair or documented surrogate.

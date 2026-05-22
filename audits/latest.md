@@ -1,48 +1,48 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, representative tests/examples, upstream cache state, `tmux list-sessions`, bridge/shell-out search, and recent Git history through `3504c40` (`Mark esbuild session stopped`). The worktree was clean at audit start. No lane implementation files were edited.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, upstream cache state, bridge/shell-out search, and recent Git history through `f409148` (`Mark portfolio baseline reached`). The worktree was clean at audit start. No lane implementation files were edited. During final verification, untracked markerPDF lane files appeared in the worktree; they were not edited or committed by this audit, and the final test run below includes their untracked test file.
 
 ## Findings
 
-1. **Critical - No lane has upstream runner parity, and the required portfolio baseline is still unmet.**
-   - Paths: `goal.md:22-44`, `progress.md:11-15`, `progress.md:68-79`, `porting.html:48-59`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:12-17`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:47-70`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:38-57`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:44-64`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:32-50`.
-   - Evidence: every non-Dolt lane is still a static or cloned-static inventory with the upstream runner not executed. Dolt remains a `static-seed` manifest with `total: pending full upstream inventory`.
-   - Goal requirement at risk: build a real upstream benchmark denominator, use upstream tests as the source of truth where possible, and reach the required baseline for every lane.
-   - Audit judgment: local PHP tests are useful smoke tests, but none of the lanes can claim upstream parity or baseline completion.
+1. **Critical - The portfolio baseline marker is a coordination milestone, not upstream-quality completion.**
+   - Paths: `goal.md:22-40`, `goal.md:52`, `progress.md:11-15`, `progress.md:67-90`, `porting.html:48-59`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`.
+   - Evidence: all 12 manifests still report static or cloned-static inventories, and no full upstream runner has executed. The latest commit `f409148` marks the required baseline reached, but `progress.md:11` still correctly leaves "Replace seed manifests with full cloned/tested upstream benchmark denominators" open. Root PHP success is local smoke coverage only.
+   - Goal requirement at risk: real upstream benchmark denominators, upstream tests as source of truth, meaningful fixture parity, edge-case coverage, and not treating passing tests as enough.
+   - Audit judgment: keep `f409148` as "all lanes have visible native slices," but do not treat it as upstream parity or quality completion.
 
-2. **High - Coordination is wrong, and an active Dolt worker conflicts with the explicit deferral.**
-   - Paths: `progress.md:41`, `progress.md:86`, `progress.md:88-96`, `.tmux-team/tmp/port-dolt.md:1-22`, `.tmux-team/prompts/auditor.md:1-20`.
-   - Evidence: `tmux list-sessions` reports `port-auditor` and `port-dolt`, while `progress.md` reported the auditor stopped and no active workers. The Dolt prompt instructs a worker to replace the Dolt denominator and implement a slice, but `progress.md` and the manifest both say Dolt is deferred until other lanes reach baseline.
-   - Goal requirement at risk: `progress.md` must include current owner/session, the supervisor must keep the roadmap honest, and the portfolio is priority ordered with Dolt explicitly deferred by current direction.
-   - Audit action: updated `progress.md` to record the active sessions and make resolving `port-dolt` the next intervention.
+2. **High - markerPDF remains the weakest high-priority lane because it maps zero upstream benchmark pairs.**
+   - Paths: `goal.md:9`, `goal.md:24-27`, `goal.md:35`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13-37`, `lanes/markerpdf/tests/PdfTextExtractorTest.php`, `porting.html:54`.
+   - Evidence: the manifest identifies 6 upstream benchmark documents and 2 CI score thresholds but records `mapped: 0`; the dashboard likewise says 0 benchmark documents mapped. Current PHP tests cover small synthetic/local PDFs, not a real upstream PDF/reference Markdown pair or score threshold.
+   - Goal requirement at risk: PDF-to-structured-content extraction suitable for WordPress import/Data Liberation with meaningful fixture parity.
+   - Audit judgment: the next markerPDF intervention should map one real upstream benchmark/reference pair or a documented upstream-derived surrogate before broadening extraction behavior.
 
-3. **High - Several upstream caches are not reproducible working trees, yet manifests cite them as evidence.**
-   - Paths: `.upstream-cache/dolt`, `.upstream-cache/esbuild`, `.upstream-cache/pandoc`, `.upstream-cache/syncthing`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:16`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:16-17`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:16`, `progress.md:82-83`.
+3. **High - The dashboard and lane status can still mislead reviewers about what passed.**
+   - Paths: `goal.md:44-45`, `porting.html:36-38`, `porting.html:48-59`, `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:13-16`, `lanes/lightningcss/lane-status.json`, `tools/generate-dashboard.php:25-29`.
+   - Evidence: `porting.html` labels the column `PHP Pass / Fail` without saying these are local lane tests, while all upstream runners are unexecuted. LightningCSS has `mapped: 7` in the manifest but the dashboard/lane status report `6 / 0` local PHP passes. Every lane's dashboard audit cell still says it needs auditor review after the audit run.
+   - Goal requirement at risk: `porting.html` must honestly show mapped tests, PHP pass/fail, audit status, and suite progress without implying that passing local tests are upstream parity.
+   - Audit judgment: label dashboard pass/fail as local PHP, reconcile LightningCSS mapped/pass counts, and stamp the audit status from this run.
+
+4. **Medium - Gitoxide is priority 1 but still has only a tree inventory and commit/object smoke slice.**
+   - Paths: `goal.md:7`, `goal.md:24-25`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:13-20`, `lanes/gitoxide/lane-status.json`, `porting.html:51`.
+   - Evidence: the manifest counts repository files, Rust test/bench sources, and fixtures, but warns this is not a full upstream test denominator. The PHP slice covers loose objects and canonical commit parsing; refs, tree parsing, packfiles, object database semantics, protocol v2, merge, push, sparse/partial clone, and server primitives remain unmapped.
+   - Goal requirement at risk: priority-ordered work and a real upstream denominator for the Git implementation lane.
+   - Audit judgment: target a controlled object/ref crate denominator next, not more broad inventory counting.
+
+5. **Medium - Recent slices are useful but mostly not tied to upstream fixture IDs or golden outputs.**
+   - Paths: `goal.md:33-40`, `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:13-60`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:13-81`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:13-79`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:13-42`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:13-66`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:13-73`.
+   - Evidence: Difftastic is still token/comment normalization rather than recursive syntax-tree diffing; Dolt maps 5 local tests against 613 executable upstream test files and 3,808 BATS cases; esbuild is lexer-only against 2,567 counted upstream entries; Pandoc has no mapped golden `.native` cases; Readability has not mapped a Mozilla `test-pages` source/expected/metadata fixture; Rclone has filters and an in-memory provider but not upstream provider contract/check/copy parity.
+   - Goal requirement at risk: meaningful fixture parity, edge-case coverage, error behavior, and small correct slices anchored to upstream behavior.
+   - Audit judgment: future implementation commits should name the upstream fixture/test they close or explicitly record why a temporary local surrogate is being used.
+
+6. **Medium - Four upstream caches remain object-store/no-checkout evidence, not runner-ready worktrees.**
+   - Paths: `.upstream-cache/dolt`, `.upstream-cache/esbuild`, `.upstream-cache/pandoc`, `.upstream-cache/syncthing`, `progress.md:84-90`.
    - Evidence: `git status --short | wc -l` reports 2,387 deletions in `.upstream-cache/dolt`, 349 in `.upstream-cache/esbuild`, 2,781 in `.upstream-cache/pandoc`, and 940 in `.upstream-cache/syncthing`.
-   - Goal requirement at risk: keep generated artifacts reproducible and record blockers precisely.
-   - Audit judgment: `git ls-tree` inventories can still be defensible static counts, but these caches are not runner-ready and should not be used for cache-local targeted reads until restored, recloned, or explicitly documented as no-checkout object stores.
-
-4. **High - The dashboard still makes local PHP micro-tests easy to misread as upstream pass counts.**
-   - Paths: `porting.html:36-38`, `porting.html:49-59`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13-37`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:61-70`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:13-17`.
-   - Evidence: markerPDF shows `Mapped Tests` 0 but PHP `5 / 0`; Pandoc shows 1,979 upstream artifacts with only 5 mapped local tests; esbuild shows 2,567 counted upstream entries with 6 local lexer tests. The dashboard header says `PHP Pass / Fail` without labeling these as local lane tests.
-   - Goal requirement at risk: `porting.html` must show honest suite progress, upstream denominator, mapped tests, and PHP pass/fail without implying that passing tests are enough.
-   - Audit judgment: until each PHP pass/fail count is tied to upstream fixture IDs or test names, the dashboard should explicitly label the column as local PHP pass/fail.
-
-5. **Medium - markerPDF remains weak for a priority-3 lane because no real benchmark PDF/reference pair is mapped.**
-   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13-37`, `lanes/markerpdf/tests/PdfTextExtractorTest.php`, `porting.html:54`.
-   - Evidence: the manifest identifies six benchmark documents and two CI score thresholds but records `mapped: 0`. The PHP tests exercise tiny synthetic/local PDFs, not an upstream benchmark document, reference Markdown, or score threshold.
-   - Goal requirement at risk: the markerPDF lane is supposed to port a PDF-to-structured-content extraction pipeline with meaningful fixture parity.
-   - Audit judgment: the next markerPDF slice should map one real benchmark/reference pair or a documented upstream-derived surrogate before broadening extraction behavior.
-
-6. **Medium - Recent implementation slices are still shallow relative to the named port scopes.**
-   - Paths: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:44-52`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:36-42`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:48-57`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:54-64`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:61-70`.
-   - Evidence: Difftastic is token normalization rather than recursive syntax-tree diffing; Pandoc has hand-written Markdown snippets rather than golden `.native` parity; Readability has not mapped a Mozilla `test-pages` source/expected/metadata fixture; Rclone tests an in-memory provider and filters but not upstream provider contract behavior; Esbuild is still lexer-only.
-   - Goal requirement at risk: each lane needs meaningful fixture parity, edge-case coverage, error behavior, docs/examples, and WordPress-oriented scenarios, not broad shallow ports.
-   - Audit judgment: future implementation commits should map directly to manifest items or close an explicit blocker.
+   - Goal requirement at risk: reproducible generated artifacts and precise blocker recording.
+   - Audit judgment: `git ls-tree` and targeted `git show` counts can support static inventory claims, but these caches must be restored/recloned before any runner attempt or broad working-tree scan.
 
 ## Bridge / Shell-Out Check
 
-Searched `lanes`, `tools`, `scripts`, and `.tmux-team` for `shell_exec`, `exec(`, `passthru`, `proc_open`, and `system(`. No matches were found, so I did not find committed bridge code or shell-outs being counted as native implementation progress.
+Searched committed lane/tool/script files for `shell_exec`, `exec(`, `passthru`, `proc_open`, `system(`, and `popen(`. No matches were found in `lanes`, `tools`, or `scripts`, so I did not find committed bridge code or shell-outs being counted as native implementation progress.
 
 ## Test Run
 
@@ -51,11 +51,11 @@ Command: `php tools/run-tests.php`
 Exact result:
 
 ```text
-14 test files, 220 assertions, 0 failures
+15 test files, 241 assertions, 0 failures
 ```
 
 Exit status: 0.
 
 ## Recommended Next Intervention
 
-Stop/retire `port-dolt` or explicitly reauthorize it only after the non-Dolt baseline is reached. Then use implementation capacity on the highest-priority gaps: a targeted Gitoxide object/ref denominator slice or one real markerPDF benchmark/reference mapping. Keep dashboard PHP pass/fail values labeled as local until tied to upstream fixture IDs.
+First fix coordination truthfulness: label dashboard pass/fail as local PHP, reconcile the LightningCSS mapped/pass mismatch, and stamp audit status from this run. Then spend implementation capacity on the highest-priority gaps: Gitoxide object/ref denominator work and one real markerPDF benchmark/reference mapping.
