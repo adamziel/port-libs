@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, and deploy-tree inspection without shelling out to git.",
     "phase": "targeted object/ref inventory plus tree object slice",
-    "audit": "needs auditor review against targeted object/ref static denominator and tree slice",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native loose Git object storage, commit header parsing, and Git tree entry parsing/serialization.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
     "latestCommit": "c2ee31a",

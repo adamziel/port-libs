@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset.",
     "phase": "cloned static upstream inventory plus scanner block parity slice",
-    "audit": "needs independent auditor review after cloned inventory update",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, and upstream block size selection.",
     "blocker": "Full upstream runner has not executed: `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
     "latestCommit": "7af2cb2fef6f",

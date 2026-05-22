@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, and shared-hosting cloud storage workflows.",
     "phase": "cloned static inventory plus native filter slice",
-    "audit": "needs independent auditor review",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native in-memory provider contract plus rclone-style path glob filters applied to checksum sync planning.",
     "blocker": "No upstream runner parity yet: go test ./... and fstest/test_all were not run because they require Go module builds and may exercise backend integration remotes under a larger CPU/network budget.",
     "latestCommit": "8564ff9",

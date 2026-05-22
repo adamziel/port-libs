@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, and surrounding theme chrome removed.",
     "phase": "static upstream inventory plus readerable preflight slice",
-    "audit": "needs independent auditor review after cloned inventory update",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native DOM extractor removes chrome and unlikely candidates, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, and emits simple WordPress blocks.",
     "blocker": "Full upstream runner has not executed: `npm test` fails in the sparse upstream cache because node_modules is absent and `mocha` is not installed.",
     "latestCommit": "eeed1d30b898",

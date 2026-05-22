@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; block theme fixture covers custom properties, block selectors, color minification, and calc spacing.",
     "phase": "static upstream inventory plus native value minifier slice",
-    "audit": "needs independent auditor review",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, color keyword shortening, calc/min/max/clamp operator spacing, and WordPress block-theme fixture/example.",
     "blocker": "Full upstream runner not executed: npm test lacks node_modules/uvu, and offline Cargo no-run cannot resolve napi-derive for the Node workspace; full parity run requires dependency install/build beyond this modest lane slice.",
     "latestCommit": "ee033cd72d1e",

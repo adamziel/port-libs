@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current example filters PHP comment churn while preserving an escaping API change.",
     "phase": "cloned inventory plus comment/delimiter normalization slice",
-    "audit": "needs independent auditor review after cloned inventory update",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, and trailing-comma normalization.",
     "blocker": "Full upstream runner parity is not available: the sparse clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; offline no-run probe failed on missing `humansize` crate.",
     "latestCommit": "63aa89d87636",

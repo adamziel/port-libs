@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Versioned WordPress content/data migrations and inspectable database change sets; current fixture shows wp_posts publish/remove/import changes as Dolt-shaped diff rows.",
     "phase": "cloned static upstream inventory + Dolt diff table row slice",
-    "audit": "needs independent auditor review",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native table diff classification plus Dolt-style DOLT_DIFF_* row projection with to/from columns, commit metadata, diff_type values, composite primary keys, and WordPress wp_posts fixture coverage.",
     "blocker": "No upstream runner parity yet: go and bats are unavailable, and upstream BATS also requires building Dolt utilities plus Python/parquet dependencies.",
     "latestCommit": "e47acb6152ce",

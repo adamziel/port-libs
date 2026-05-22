@@ -100,4 +100,4 @@
 
 ## Next Best Step
 
-Fix coordination truthfulness first: label dashboard pass/fail as local PHP, reconcile the LightningCSS mapped/pass mismatch, and stamp audit status from the latest independent audit. Then return capacity to the highest-priority gaps: add Gitoxide loose direct/symbolic ref parsing from `gix-ref` and map one markerPDF benchmark/reference pair or documented surrogate.
+Continue the highest-priority gaps: add Gitoxide loose direct/symbolic ref parsing from `gix-ref` and map one markerPDF benchmark/reference pair or documented surrogate. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs or focused upstream fixture parity.

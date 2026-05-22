@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, and ordered conversion steps as WordPress blocks.",
     "phase": "cloned inventory plus inline/list slice",
-    "audit": "needs independent auditor review",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native Markdown reader groups bullet/ordered lists and parses emphasis, strong, links, and code spans; WordPress writer renders escaped block output.",
     "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable; upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout.",
     "latestCommit": "1c7f6cbccdff",

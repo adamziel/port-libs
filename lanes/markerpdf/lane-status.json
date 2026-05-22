@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output and wrapped-line dehyphenation before paragraph rendering.",
     "phase": "cloned inventory + native markdown postprocess slice",
-    "audit": "needs independent auditor review",
+    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native PDF text-line extraction plus Marker markdown post-processing for hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and hash escaping.",
     "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required; no external benchmark PDF/reference pair is mapped yet.",
     "latestCommit": "ca0d8e0",

@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory",
         "total": 241,
-        "mapped": 7,
+        "mapped": 6,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 241,
@@ -63,7 +63,7 @@
             "Shorter color keyword serialization mirrors common Lightning CSS outputs such as yellow to #ff0, blue to #00f, white to #fff, black to #000, and transparent to #0000.",
             "URL tokens and custom property token streams are treated conservatively for WordPress theme CSS."
         ],
-        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 7 focused lane tests against a 241-behavior-check upstream denominator."
+        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against a 241-behavior-check upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",

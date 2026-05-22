@@ -98,7 +98,7 @@ $html = <<<HTML
         <th>Benchmark Source</th>
         <th>Upstream Denominator</th>
         <th>Mapped Tests</th>
-        <th>PHP Pass / Fail</th>
+        <th>Local PHP Pass / Fail</th>
         <th>WordPress Scenarios</th>
         <th>Phase</th>
         <th>Audit</th>
@@ -116,4 +116,3 @@ HTML;
 
 file_put_contents($root . '/porting.html', $html);
 fwrite(STDOUT, "Generated porting.html with " . count($rows) . " lanes\n");
-
