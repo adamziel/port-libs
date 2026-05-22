@@ -1140,18 +1140,19 @@ final class SQLiteDatabase
         string $columnName,
         string $path,
     ): ?array {
-        self::parseSimpleJsonPath($path);
+        $requestedPath = self::parseSimpleJsonPath($path);
 
         foreach ($this->indexRecordsForTable($tableName) as $record) {
             if ($record->sql === null) {
                 continue;
             }
 
-            $expression = SQLiteCreateIndex::firstJsonExtractExpression($record->sql);
+            $expression = SQLiteCreateIndex::firstJsonExtractExpression($record->sql)
+                ?? SQLiteCreateIndex::firstJsonTextOperatorExpression($record->sql);
             if (
                 $expression === null
                 || strcasecmp($expression->columnName, $columnName) !== 0
-                || $expression->path !== $path
+                || !self::jsonExpressionPathMatches($expression->path, $requestedPath)
             ) {
                 continue;
             }
@@ -1178,6 +1179,18 @@ final class SQLiteDatabase
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $requestedPath
+     */
+    private static function jsonExpressionPathMatches(string $expressionPath, array $requestedPath): bool
+    {
+        try {
+            return self::parseSimpleJsonPath($expressionPath) === $requestedPath;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
     }
 
     /**

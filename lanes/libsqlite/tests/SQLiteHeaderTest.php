@@ -685,6 +685,26 @@ return [
         $t->same(null, $multiPath);
         $t->same(null, $ordinaryColumn);
     },
+    'parses sqlite json text operator expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
+        $jsonIndex = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(main.wp_options."option_value" ->> \'enabled\' COLLATE nocase DESC) WHERE option_value IS NOT NULL');
+        $pathIndex = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_key ON wp_options(option_value ->> \'$."plugin.enabled"\')');
+        $unsupportedLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_dotted ON wp_options(option_value ->> \'plugin.enabled\')');
+        $jsonExtractIndex = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(json_extract(option_value, \'$.enabled\'))');
+        $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled ON wp_options(option_value ->> \'enabled\')');
+
+        $t->true($jsonIndex instanceof SQLiteJsonExtractIndexExpression);
+        $t->same('option_value', $jsonIndex?->columnName);
+        $t->same('$.enabled', $jsonIndex?->path);
+        $t->same('NOCASE', $jsonIndex?->collation);
+        $t->same(true, $jsonIndex?->descending);
+        $t->same(true, $jsonIndex?->partial);
+        $t->same('option_value', $jsonIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $jsonIndex?->partialPredicate?->operator);
+        $t->same('$."plugin.enabled"', $pathIndex?->path);
+        $t->same(null, $unsupportedLabel);
+        $t->same(null, $jsonExtractIndex);
+        $t->same(null, $ordinaryColumn);
+    },
     'parses sqlite substr expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $prefixIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_prefix ON wp_options(substr(main.wp_options."option_name", 1, 11) COLLATE nocase DESC) WHERE option_name IS NOT NULL');
         $tailIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_tail ON wp_options(substring(option_name, 2))');
@@ -1236,6 +1256,32 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$[0]', true));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', new stdClass()));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', true, -1));
+    },
+    'uses json text operator expression index for wordpress plugin option value lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_enabled_arrow', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_enabled_arrow ON wp_options(option_value ->> \'enabled\') WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_alpha_settings', '{"enabled":true,"version":2}', 'no'], 1),
+            $schemaCell([null, 'plugin_beta_settings', '{"enabled":false,"version":3}', 'no'], 2),
+            $schemaCell([null, 'theme_settings', '{"enabled":1,"label":"active"}', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([0, 2]),
+            $indexCell([1, 1]),
+            $indexCell([1, 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $enabled = $database->wordpressOptionsByIndexedJsonOptionValue('$."enabled"', true);
+        $disabled = $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', false);
+
+        $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.enabled', true));
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
+        $t->same(['plugin_alpha_settings', 'theme_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $disabled));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('plugin_alpha_settings'));
     },
     'uses json_extract expression index for wordpress plugin option value IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

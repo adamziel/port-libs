@@ -1298,3 +1298,42 @@ invalid out-of-range index branch. The new
 tools that need one or more indexed plugin/theme JSON settings such as enabled
 flags, mode lists, or priority bands on hosts where the PHP SQLite extension is
 unavailable.
+
+## Focused Native Mapping: JSON `->>` Expression Indexes
+
+This slice extends the bounded JSON expression-index family to SQLite's
+`->>` text operator. The native PHP reader now recognizes first-term
+`column ->> 'key'` expression indexes as equivalent to the supported simple
+object-member path `json_extract(column,'$.key')`, preserves collation and
+`DESC` metadata, and still rejects the expression as an ordinary column index.
+The lookup path compares parsed JSON path segments, so `$.enabled` and
+`$."enabled"` requests can resolve the same supported expression index. Dotted
+label operands remain unsupported unless written as an explicit JSON path.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test indexexpr3.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 121 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` creates expression indexes such as
+  `CREATE INDEX t1_one ON t1(a, b->>'one')` and verifies SQLite can use those
+  expression-index payloads for covered JSON text-operator reads.
+- `test/indexexpr3.test` keeps the existing `json_extract(j,'$.x')`
+  expression-index baseline for JSON scalar expression behavior.
+
+The native PHP tests now cover parsing `option_value ->> 'enabled'` metadata
+with a qualified/quoted column, `COLLATE NOCASE`, `DESC`, and a safe partial
+predicate; rejecting dotted shorthand labels outside this bounded path; path
+equivalence between `$.enabled` and `$."enabled"`; and a WordPress-shaped
+plugin settings lookup that reads boolean JSON keys through an arrow-operator
+expression index without scanning `wp_options`. The new
+`examples/wordpress-json-option-arrow.php` script maps plugin/theme settings
+recovery where the available SQLite database uses `option_value ->> 'key'`
+instead of a `json_extract(...)` index.
