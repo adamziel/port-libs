@@ -8,6 +8,10 @@ Native PDF content stream text-line extraction for literal, array, hex, UTF-16 h
 
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
+The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.
+
+The lane now also maps `marker/schema/page.py` page helper properties. `PageInspector` flattens page lines, filters nonblank lines and spans, extracts font-size and line-height distributions, and exposes Marker's `prelim_text` view for WordPress review metadata before editorial handoff.
+
 The lane now also maps `marker/pdf/utils.py::find_filetype`. `FiletypeDetector` uses magic-MIME style detection to accept PDF uploads, reject extension-spoofed non-PDF payloads as `other`, and preserve the upstream settings-backed MIME mapping branch.
 
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
@@ -40,6 +44,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdftext-block-import.php` maps Marker's upstream pdftext dictionary conversion into a shared-hosting WordPress import path. It accepts already-supplied pdftext output, produces Marker's Page/Block/Line/Span shape natively, normalizes span text, preserves font metadata, and feeds Gutenberg paragraph rendering without loading the Python pdftext, pypdfium, or Surya stacks.
 
+`examples/wordpress-pdftext-page-range-import.php` maps Marker's upstream `get_text_blocks` page-range boundary into a partial WordPress import path. It selects only the requested pages from supplied pdftext dictionaries, preserves page metadata and TOC review comments, and emits Gutenberg paragraph blocks without loading pdftext, pypdfium, or Surya.
+
+`examples/wordpress-page-inspection-preflight.php` maps Marker's upstream Page helper properties into a WordPress review preflight. It records nonblank line/span counts, font-size and line-height distributions, and the upstream `prelim_text` page view as block metadata before content is sent to editorial review.
+
 `examples/wordpress-toc-import.php` maps Marker's upstream heading and TOC cleaners into a document-outline import path. It splits detected heading lines out of text blocks by bounding-box overlap, infers heading levels from line heights, emits a core list as a table of contents, and renders the heading blocks with Marker-style Markdown heading levels.
 
 `examples/wordpress-pdf-outline-import.php` maps Marker's upstream `get_pdf_toc` helper into a PDF bookmark import path. It accepts a pypdfium-style `get_toc(max_depth)` adapter, preserves upstream `title`, `level`, and `page_index` metadata, and emits a Gutenberg list with page/level review attributes before any OCR or layout model runs.
@@ -59,6 +67,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-ocr-recognition-handoff.php` maps Marker's upstream `run_ocr` orchestration into a WordPress OCR handoff. It uses native page selection and `ocr_stats` accounting, accepts supplied recognized page content from a later OCR adapter, replaces only successful OCR pages, and renders the recovered text as a core paragraph without loading Surya, Tesseract, or OCRmyPDF.
 
 `examples/wordpress-bad-span-filter-import.php` maps Marker's upstream block span cleanup into a WordPress import path. It removes a repeated header span ID and clears OCR text from a `Picture` block via `BAD_SPAN_TYPES` before Markdown rendering, while preserving the image filename and bbox metadata needed to render a core image block.
+
+`examples/wordpress-conversion-finalizer-import.php` maps the late `convert_single_pdf` cleanup and assembly order into a WordPress import handoff. It accepts supplied native pages after earlier OCR/layout/table/equation boundaries, removes bad header spans, marks bold body spans, computes TOC and image metadata, normalizes bullet list markers, and emits heading/paragraph/list blocks without loading the upstream Python model stack.
 
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
@@ -94,4 +104,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded task: use the two external CI benchmark pairs for a larger document-level extraction parity slice, starting with supplied pdftext/layout/table boundaries for `multicolcnn.pdf` or `switch_trans.pdf`.
+Next bounded task: use the two external CI benchmark pairs for a larger document-level extraction parity slice, starting with supplied pdftext/layout/table dictionaries for `multicolcnn.pdf` or `switch_trans.pdf`.

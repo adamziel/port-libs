@@ -106,14 +106,15 @@ final class HeaderFooterCleaner
     }
 
     /**
-     * @param list<array{type: string, text: string}> $blocks
-     * @return list<array{type: string, text: string}>
+     * @param list<array<string, mixed>> $blocks
+     * @return list<array<string, mixed>>
      */
     public function filterCommonTitles(array $blocks): array
     {
         $titles = [];
         foreach ($blocks as $index => $block) {
-            if (!in_array($block['type'], ['Title', 'Section-header'], true)) {
+            $blockType = (string) ($block['type'] ?? $block['block_type'] ?? '');
+            if (!in_array($blockType, ['Title', 'Section-header'], true)) {
                 continue;
             }
 
