@@ -27,6 +27,7 @@ Resource constraints:
 - On filtered/blobless clones, do not run broad `git grep` or commands that hydrate every blob. Use `git ls-tree`, path inventories, manifests, and targeted file reads first.
 - Do not run all upstream suites unless they are clearly small; inventory first.
 - Do not launch additional agents or tmux sessions.
+- Passwordless `sudo` is available. If missing build/test tooling is the blocker for defensible upstream evidence, install the required OS packages with `sudo -n` instead of recording the missing tool as final. Keep installs directly tied to your lane runner and record the exact packages/commands used.
 
 Git constraints:
 
