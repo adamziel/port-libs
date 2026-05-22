@@ -26,6 +26,10 @@ The JSON display fixture emits compact machine-readable review data for that sam
 
 The theme-variation fixture applies the upstream `slider_at_end` JSON list-deletion shape to `theme.json`. Deprecated button variations are reported as focused deletions while retained variations stay out of the rendered change stream.
 
+The template-wrapper fixture applies upstream `nested_slider` wrapper correction to a WordPress block template helper call. When `coreParagraph('Hero introduction')` is wrapped in `coreGroup(...)`, the retained paragraph call stays out of the deletion stream and the diff reports the wrapper as a focused syntactic insertion.
+
+The upstream Emacs Lisp `nested_slider` fixture now exercises the opposite outer-delimiter preference used for Lisp-family languages. This keeps the existing WordPress template-wrapper inner-delimiter behavior honest by proving the implementation can choose the delimiter direction from the mapped language instead of using one wrapper strategy for every syntax.
+
 Run:
 
 ```sh
@@ -36,8 +40,9 @@ php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
+php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 ```
 
 ## Next Task
 
-Map the upstream nested_slider fixture pair to exercise delimiter-sliding behavior, then connect that shape to a WordPress nested block/template array example.
+Map the larger upstream slider_*.rs sample or another focused sample_files display pair without hydrating the full runner.

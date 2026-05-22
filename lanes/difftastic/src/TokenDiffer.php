@@ -499,6 +499,22 @@ final class TokenDiffer
                 continue;
             }
 
+            $nestedSliderChanges = $this->nestedSliderChanges(
+                $oldItems[$i],
+                $newItems[$j],
+                $path . '[' . $i . ']',
+                $path . '[' . $j . ']',
+                $options,
+            );
+            if ($nestedSliderChanges !== null) {
+                foreach ($nestedSliderChanges as $change) {
+                    $changes[] = $change;
+                }
+                $i++;
+                $j++;
+                continue;
+            }
+
             if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
                 $changes[] = ['op' => '-', 'path' => $path . '[' . $i . ']', 'text' => $this->itemText($oldItems[$i])];
                 $i++;
@@ -516,6 +532,186 @@ final class TokenDiffer
             $changes[] = ['op' => '+', 'path' => $path . '[' . $j . ']', 'text' => $this->itemText($newItems[$j])];
             $j++;
         }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldItem
+     * @param list<array<string, mixed>> $newItem
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @return ?list<array{op:string, path:string, text:string}>
+     */
+    private function nestedSliderChanges(array $oldItem, array $newItem, string $oldPath, string $newPath, array $options): ?array
+    {
+        if ($this->preferOuterDelimiter($options)) {
+            $deletion = $this->outerWrapperChanges($oldItem, $newItem, '-', $oldPath, $options);
+            if ($deletion !== null) {
+                return $deletion;
+            }
+
+            $addition = $this->outerWrapperChanges($newItem, $oldItem, '+', $newPath, $options);
+            if ($addition !== null) {
+                return $addition;
+            }
+        }
+
+        $addition = $this->wrapperChange($oldItem, $newItem, '+', $newPath, $options);
+        if ($addition !== null) {
+            return [$addition];
+        }
+
+        $deletion = $this->wrapperChange($newItem, $oldItem, '-', $oldPath, $options);
+        if ($deletion !== null) {
+            return [$deletion];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function preferOuterDelimiter(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), [
+            'clojure',
+            'common-lisp',
+            'commonlisp',
+            'elisp',
+            'emacs-lisp',
+            'hcl',
+            'janet',
+            'json',
+            'newick',
+            'racket',
+            'scheme',
+            'sql',
+            'toml',
+        ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $wrapperItem
+     * @param list<array<string, mixed>> $innerItem
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @return ?list<array{op:string, path:string, text?:string, old?:string, new?:string}>
+     */
+    private function outerWrapperChanges(array $wrapperItem, array $innerItem, string $operation, string $path, array $options): ?array
+    {
+        $innerLead = $this->itemLeadSignature($innerItem);
+        if ($innerLead === '') {
+            return null;
+        }
+
+        $candidateIndex = 0;
+        foreach ($wrapperItem as $nodeIndex => $node) {
+            if (($node['type'] ?? '') !== 'list') {
+                continue;
+            }
+
+            $items = $this->listItems($node);
+            if (count($items) !== 1 || $this->itemLeadSignature($items[0]) !== $innerLead) {
+                $candidateIndex++;
+                continue;
+            }
+
+            $wrapperPath = $path . '/wrap' . $candidateIndex;
+            $changes = [[
+                'op' => $operation,
+                'path' => $wrapperPath,
+                'text' => $this->wrapperText($wrapperItem, $nodeIndex),
+            ]];
+            $innerList = [
+                'type' => 'list',
+                'open' => $node['open'] ?? '',
+                'close' => $node['close'] ?? '',
+                'children' => $innerItem,
+            ];
+            $nestedChanges = [];
+
+            if ($operation === '-') {
+                $this->diffListNode($node, $innerList, $wrapperPath, $options, $nestedChanges);
+            } else {
+                $this->diffListNode($innerList, $node, $wrapperPath, $options, $nestedChanges);
+            }
+
+            foreach ($nestedChanges as $change) {
+                $changes[] = $change;
+            }
+
+            return $changes;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $item
+     */
+    private function itemLeadSignature(array $item): string
+    {
+        $signature = '';
+        foreach ($item as $node) {
+            if (($node['type'] ?? '') === 'list') {
+                break;
+            }
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                return '';
+            }
+
+            $signature .= $node['token']->text;
+        }
+
+        return $signature;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $innerItem
+     * @param list<array<string, mixed>> $wrapperItem
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @return ?array{op:string, path:string, text:string}
+     */
+    private function wrapperChange(array $innerItem, array $wrapperItem, string $operation, string $path, array $options): ?array
+    {
+        $innerText = $this->itemText($innerItem);
+        $innerSignature = $this->itemSignature($innerItem, $options);
+        $candidateIndex = 0;
+
+        foreach ($wrapperItem as $nodeIndex => $node) {
+            if (($node['type'] ?? '') !== 'list') {
+                continue;
+            }
+
+            $items = $this->listItems($node);
+            if (count($items) === 1 && $this->itemText($items[0]) === $innerText && $this->itemSignature($items[0], $options) === $innerSignature) {
+                return [
+                    'op' => $operation,
+                    'path' => $path . '/wrap' . $candidateIndex,
+                    'text' => $this->wrapperText($wrapperItem, $nodeIndex),
+                ];
+            }
+
+            $candidateIndex++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $wrapperItem
+     */
+    private function wrapperText(array $wrapperItem, int $innerListIndex): string
+    {
+        $parts = [];
+        foreach ($wrapperItem as $index => $node) {
+            if ($index === $innerListIndex) {
+                $parts[] = (string) ($node['open'] ?? '') . '...' . (string) ($node['close'] ?? '');
+                continue;
+            }
+
+            $parts[] = $this->nodeText($node);
+        }
+
+        return implode('', $parts);
     }
 
     /**

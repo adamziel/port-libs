@@ -107,6 +107,33 @@ return [
 
         $t->same(['$[0][1] "novel-1"', '$[0][3] "novel-2"'], $deletions);
     },
+    'maps upstream nested slider rust sample as wrapper insertions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-nested-slider-1.rs');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-nested-slider-2.rs');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after);
+        $insertions = array_values(array_map(
+            static fn (array $change): string => $change['path'] . ' ' . ($change['text'] ?? ''),
+            array_filter($changes, static fn (array $change): bool => $change['op'] === '+')
+        ));
+        $deletions = array_values(array_filter($changes, static fn (array $change): bool => $change['op'] === '-'));
+
+        $t->same(['$[1][0]/{0}[0]/wrap0 ifpad_last{...}', '$[3][0]/(0)[0]/wrap0 bar(...)'], $insertions);
+        $t->same([], $deletions, 'Nested slider correction should keep the retained x node stable.');
+    },
+    'maps upstream nested slider elisp sample as outer wrapper deletion' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-nested-slider-1.el');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-nested-slider-2.el');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'elisp']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $[0][0]/(1)[0]/(1)[0]/(0)[0]/wrap1 -when-let(roots(project-rootsproject))(...)', $encoded);
+        $t->contains('- $[0][0]/(1)[0]/(1)[0]/(0)[0]/wrap1[0]/(0)[0] carroots', $encoded);
+        $t->contains('+ $[0][0]/(1)[0]/(1)[0]/(0)[0]/wrap1[0]/(0)[0] project-rootproject', $encoded);
+        $t->true(!str_contains($encoded, '-when-let(roots(project-rootsproject))(setqroot(carroots))'), 'Outer wrapper deletion should not swallow the retained setq form.');
+    },
     'splits words like upstream words rs' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
 
@@ -264,6 +291,18 @@ return [
         $t->contains('&quot;deprecated-legacy&quot;', $html);
         $t->contains('&quot;deprecated-dark&quot;', $html);
         $t->true(!str_contains($html, '&quot;primary&quot;'), 'Unchanged variations should not be rendered as deleted.');
+    },
+    'wordpress template wrapper diff reports wrappers without deleting inner block' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-template-wrapper-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-template-wrapper-after.php');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'title' => 'Template wrapper syntax-list diff',
+        ]);
+
+        $t->contains('Template wrapper syntax-list diff', $html);
+        $t->contains('data-path="$[0][0]/[0][0]/wrap0"', $html);
+        $t->contains('coreGroup(...)', $html);
+        $t->true(!str_contains($html, 'coreParagraph(&#039;Hero introduction&#039;)'), 'The retained inner block call should not be rendered as deleted.');
     },
     'json display renderer follows upstream file envelope and statuses' => static function (TestRunner $t): void {
         $renderer = new JsonDiffRenderer();
