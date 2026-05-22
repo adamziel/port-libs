@@ -1,20 +1,20 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status summaries, current dirty worktree state, bridge/shell-out usage, and recent Git history through `bdeea57`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status summaries, current dirty worktree state, bridge/shell-out usage, and recent Git history through `1337432`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: `HEAD` advanced during this audit from `77e9cf3` to `bdeea57`, and the worktree remained dirty with lane implementation, manifest, status, dashboard, and untracked fixture/audit changes. The root test result changed during the same audit window: the first run failed, then a later rerun passed after additional work landed. Findings below are against the latest observed dirty worktree after the final manifest/status read.
+Audit boundary: `HEAD` advanced during this audit from `77e9cf3` to `1337432`, and the worktree remained dirty with lane implementation, manifest, status, dashboard, and untracked fixture/audit changes. The root test result changed during the same audit window: the first run failed, then later reruns passed after additional work landed. Findings below are against the latest observed dirty worktree after the final manifest/status read.
 
 ## Findings
 
 1. **Critical - the repo is still a moving dirty integration target, so no coordination surface is a stable release signal.**
-   - Paths: current `git status --short --untracked-files=all`, recent history `77e9cf3..bdeea57`, `progress.md:229-231`, `porting.html:32`, `porting-summary.json:2`.
-   - Evidence: `HEAD` advanced from `77e9cf3` to `6867d11` while evidence was being gathered, then advanced again through `8ac8f39`, `f14db3f`, and `bdeea57` before the final status read. The root suite changed from `87 test files, 5876 assertions, 2 failures` to `89 test files, 6056 assertions, 0 failures` during this audit. The worktree still contains modified lane implementation files, manifests/status files, modified `porting.html`/`porting-summary.json`, plus untracked fixtures/examples/audit files.
+   - Paths: current `git status --short --untracked-files=all`, recent history `77e9cf3..1337432`, `progress.md:229-231`, `porting.html:32`, `porting-summary.json:2`.
+   - Evidence: `HEAD` advanced from `77e9cf3` to `6867d11` while evidence was being gathered, then advanced again through `8ac8f39`, `f14db3f`, `bdeea57`, and `1337432` before the final status read. The root suite changed from `87 test files, 5876 assertions, 2 failures` to `90 test files, 6101 assertions, 0 failures` during this audit. The worktree still contains modified lane implementation files, manifests/status files, modified `porting.html`/`porting-summary.json`, plus untracked fixtures/examples/audit files.
    - Goal requirement at risk: `goal.md` requires durable coordination, verified finished agent work, cleanup of unrelated changes, passing tests, and small committed slices.
    - Audit judgment: quiesce or explicitly coordinate active writers before accepting any dashboard, lane status, progress file, or root-suite result as authoritative.
 
 2. **High - the root suite was red during the audit before later moving green, proving the current evidence is not reproducible from one stable state.**
    - Paths: `lanes/pandoc/tests/MarkdownReaderTest.php:215`, `lanes/pandoc/tests/MarkdownReaderTest.php:821`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:15-17`, `progress.md:194`.
-   - Evidence: the first required `php tools/run-tests.php` run exited 1 with Pandoc failures in `maps upstream markdown apostrophe after math` (`Expected: 'math'; Actual: 'quoted'`) and `writes wordpress math and raw tex preservation markup from import notes`. A later rerun exited 0 after the tree changed under audit. The old `progress.md:194` green result was stale before this audit update, and the final green result is still dirty/uncommitted.
+   - Evidence: the first required `php tools/run-tests.php` run exited 1 with Pandoc failures in `maps upstream markdown apostrophe after math` (`Expected: 'math'; Actual: 'quoted'`) and `writes wordpress math and raw tex preservation markup from import notes`. Later reruns exited 0 after the tree changed under audit. The old `progress.md:194` green result was stale before this audit update, and the final green result is still dirty/uncommitted.
    - Goal requirement at risk: `goal.md` requires honest, periodically recorded repo-wide tests and small reviewable slices with passing tests.
    - Audit judgment: do not publish or stamp the green result until the exact passing state is committed and dashboard/progress are regenerated from that same state.
 
@@ -89,7 +89,7 @@ Exit status: 0
 Exact result:
 
 ```text
-89 test files, 6056 assertions, 0 failures
+90 test files, 6101 assertions, 0 failures
 ```
 
 ## Recommended Next Intervention
