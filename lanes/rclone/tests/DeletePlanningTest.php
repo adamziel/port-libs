@@ -120,6 +120,91 @@ return [
         $t->same('old', $target->get('old.txt'));
         $t->same(['old.txt'], $plan->deletePaths($source, $target));
     },
+    'compare dest skips copies when an upstream reference matches source bytes' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $compare = new MemoryProvider();
+        $source->put('one', 'onet2');
+        $source->put('two', 'two');
+        $source->put('three', 'threet3');
+        $target->put('one', 'one');
+        $compare->put('one', 'onet2');
+        $compare->put('two', 'two');
+        $compare->put('three', 'three');
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, compareDest: [$compare]);
+
+        $t->same(['three'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('one', $target->get('one'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('two'));
+        $t->same('threet3', $target->get('three'));
+    },
+    'multiple compare dest references are checked in upstream order' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $first = new MemoryProvider();
+        $second = new MemoryProvider();
+        $source->put('a-one', 'one');
+        $source->put('b-two', 'two');
+        $source->put('c-three', 'three');
+        $first->put('a-one', 'one');
+        $first->put('b-two', 'stale');
+        $second->put('b-two', 'two');
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, compareDest: [$first, $second]);
+
+        $t->same(['c-three'], array_map(static fn ($info) => $info->path, $copied));
+        $t->throws(RuntimeException::class, static fn () => $target->get('a-one'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('b-two'));
+        $t->same('three', $target->get('c-three'));
+    },
+    'copy dest uses matching upstream reference and archives overwritten targets' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $copyDest = new MemoryProvider();
+        $source->put('a-one', 'onet2');
+        $source->put('b-two', 'two');
+        $source->put('c-three', 'threet3');
+        $target->put('a-one', 'one');
+        $copyDest->put('a-one', 'onet2');
+        $copyDest->put('b-two', 'two');
+        $copyDest->put('c-three', 'three');
+
+        $copied = (new SyncPlan())->copyChanged(
+            $source,
+            $target,
+            backupPrefix: 'BackupDir',
+            copyDest: [$copyDest],
+        );
+
+        $t->same(['a-one', 'b-two', 'c-three'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('one', $target->get('BackupDir/a-one'));
+        $t->same('onet2', $target->get('a-one'));
+        $t->same('two', $target->get('b-two'));
+        $t->same('threet3', $target->get('c-three'));
+    },
+    'validates backup dir roots like upstream BackupDir' => static function (TestRunner $t): void {
+        $t->same('remote:backup', SyncPlan::resolveBackupRoot('remote:dst', 'remote:src', 'remote:backup'));
+        $t->same('remote:dst', SyncPlan::resolveBackupRoot('remote:dst', 'remote:src', suffix: '.bak'));
+        $t->same('remote:dst', SyncPlan::resolveBackupRoot('remote:dst', 'remote:src', 'remote:dst', 'one', '.bak'));
+
+        foreach ([
+            ['other:backup', '', true, 'parameter to --backup-dir has to be on the same remote as destination'],
+            ['remote:dst/archive', '', true, "destination and parameter to --backup-dir mustn't overlap"],
+            ['remote:src/archive', '', true, "source and parameter to --backup-dir mustn't overlap"],
+            ['remote:dst', 'one', true, "destination and parameter to --backup-dir mustn't be the same"],
+            ['remote:backup', '', false, "can't use --backup-dir on a remote which doesn't support server-side move or copy"],
+            ['', '', true, 'internal error: BackupDir called when --backup-dir and --suffix both empty'],
+        ] as [$backupRoot, $sourceFileName, $supportsMove, $message]) {
+            $error = null;
+            try {
+                SyncPlan::resolveBackupRoot('remote:dst', 'remote:src', $backupRoot, $sourceFileName, '', $supportsMove);
+            } catch (RuntimeException $throwable) {
+                $error = $throwable->getMessage();
+            }
+            $t->same($message, $error);
+        }
+    },
     'moves overwritten and deleted destination files into backup dir like upstream sync' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
@@ -306,6 +391,51 @@ return [
         $t->same('previous published hero', $target->get('archive/2026-05-22/wp-content/uploads/2026/05/hero-previous.jpg'));
         $t->same('<rss>old</rss>', $target->get('archive/2026-05-22/exports/old-site-previous.wxr'));
         $t->same('obsolete image bytes', $target->get('wp-content/uploads/2024/01/obsolete.jpg'));
+        $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
+    },
+    'copy dest mirror hydrates wordpress backups while preserving backup dir archives' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $copyDest = new MemoryProvider();
+        $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
+        foreach ($tree as $path => $bytes) {
+            $source->put($path, $bytes);
+            if (str_starts_with($path, 'wp-content/cache/') || str_ends_with($path, '.log') || str_ends_with($path, '.psd')) {
+                continue;
+            }
+            $copyDest->put($path, $bytes);
+        }
+
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'previous hero bytes');
+        $target->put('wp-content/cache/orphan.html', '<html>stale cache</html>');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '- *.log',
+            '- *.psd',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $copied = (new SyncPlan())->copyChanged(
+            $source,
+            $target,
+            $filter,
+            backupPrefix: 'archive/2026-05-22',
+            copyDest: [$copyDest],
+        );
+
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('previous hero bytes', $target->get('archive/2026-05-22/wp-content/uploads/2026/05/hero.jpg'));
+        $t->same($tree['wp-content/uploads/2026/05/hero.jpg'], $target->get('wp-content/uploads/2026/05/hero.jpg'));
+        $t->same($tree['database/site.sql'], $target->get('database/site.sql'));
         $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
     },
 ];

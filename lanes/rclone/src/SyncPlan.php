@@ -17,13 +17,12 @@ final class SyncPlan
                 continue;
             }
 
-            try {
-                $targetInfo = $target->info($sourceInfo->path);
-            } catch (\RuntimeException) {
+            $targetInfo = $this->optionalInfo($target, $sourceInfo->path);
+            if ($targetInfo === null) {
                 $changed[] = $sourceInfo->path;
                 continue;
             }
-            if ($sourceInfo->sha256 !== $targetInfo->sha256 || $sourceInfo->size !== $targetInfo->size) {
+            if (!$this->sameObject($sourceInfo, $targetInfo)) {
                 $changed[] = $sourceInfo->path;
             }
         }
@@ -127,6 +126,9 @@ final class SyncPlan
 
     /**
      * @return list<ObjectInfo>
+     *
+     * @param list<MemoryProvider> $compareDest
+     * @param list<MemoryProvider> $copyDest
      */
     public function copyChanged(
         MemoryProvider $source,
@@ -136,17 +138,36 @@ final class SyncPlan
         string $backupPrefix = '',
         string $suffix = '',
         bool $suffixKeepExtension = false,
+        array $compareDest = [],
+        array $copyDest = [],
     ): array {
         $copied = [];
-        foreach ($this->changedPaths($source, $target, $filter) as $path) {
-            if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
-                $hasTarget = true;
-                try {
-                    $target->info($path);
-                } catch (\RuntimeException) {
-                    $hasTarget = false;
+        foreach ($source->list() as $sourceInfo) {
+            $path = $sourceInfo->path;
+            if ($filter !== null && !$filter->includes($path)) {
+                continue;
+            }
+
+            $targetInfo = $this->optionalInfo($target, $path);
+            if (!$this->needsTransfer($sourceInfo, $targetInfo)) {
+                continue;
+            }
+
+            if ($this->findEqualReference($sourceInfo, $targetInfo, $compareDest) !== null) {
+                continue;
+            }
+
+            $copyDestReference = $this->findEqualReference($sourceInfo, $targetInfo, $copyDest);
+            if ($copyDestReference !== null) {
+                if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+                    $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
                 }
-                if ($hasTarget) {
+                $copied[] = $copyDestReference['provider']->copyTo($copyDestReference['path'], $target, $path);
+                continue;
+            }
+
+            if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
+                if ($targetInfo !== null) {
                     $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
                 }
             }
@@ -237,6 +258,50 @@ final class SyncPlan
         return $backupPrefix === '' ? $path : $backupPrefix . '/' . $path;
     }
 
+    public static function resolveBackupRoot(
+        string $destinationRoot,
+        string $sourceRoot,
+        string $backupRoot = '',
+        string $sourceFileName = '',
+        string $suffix = '',
+        bool $backupSupportsServerSideMove = true,
+    ): string {
+        $destinationRoot = self::normalizeRoot($destinationRoot);
+        $sourceRoot = self::normalizeRoot($sourceRoot);
+        $backupRoot = self::normalizeRoot($backupRoot);
+
+        if ($backupRoot !== '') {
+            if (!self::sameRootConfig($destinationRoot, $backupRoot)) {
+                throw new \RuntimeException('parameter to --backup-dir has to be on the same remote as destination');
+            }
+            if ($sourceFileName === '') {
+                if (self::rootsOverlap($backupRoot, $destinationRoot)) {
+                    throw new \RuntimeException("destination and parameter to --backup-dir mustn't overlap");
+                }
+                if (self::rootsOverlap($backupRoot, $sourceRoot)) {
+                    throw new \RuntimeException("source and parameter to --backup-dir mustn't overlap");
+                }
+            } elseif ($suffix === '') {
+                if (self::sameRootPath($destinationRoot, $backupRoot)) {
+                    throw new \RuntimeException("destination and parameter to --backup-dir mustn't be the same");
+                }
+                if (self::sameRootPath($sourceRoot, $backupRoot)) {
+                    throw new \RuntimeException("source and parameter to --backup-dir mustn't be the same");
+                }
+            }
+        } elseif ($suffix !== '') {
+            $backupRoot = $destinationRoot;
+        } else {
+            throw new \RuntimeException('internal error: BackupDir called when --backup-dir and --suffix both empty');
+        }
+
+        if (!$backupSupportsServerSideMove) {
+            throw new \RuntimeException("can't use --backup-dir on a remote which doesn't support server-side move or copy");
+        }
+
+        return $backupRoot;
+    }
+
     /**
      * @return array<string, ObjectInfo>
      */
@@ -277,6 +342,46 @@ final class SyncPlan
         }
 
         return ReaderComparison::checkEqualReaders($targetReader, $sourceReader);
+    }
+
+    private function optionalInfo(MemoryProvider $provider, string $path): ?ObjectInfo
+    {
+        try {
+            return $provider->info($path);
+        } catch (\RuntimeException) {
+            return null;
+        }
+    }
+
+    private function needsTransfer(ObjectInfo $sourceInfo, ?ObjectInfo $targetInfo): bool
+    {
+        return $targetInfo === null || !$this->sameObject($sourceInfo, $targetInfo);
+    }
+
+    private function sameObject(ObjectInfo $left, ObjectInfo $right): bool
+    {
+        return $left->size === $right->size && $left->sha256 === $right->sha256;
+    }
+
+    /**
+     * @param list<MemoryProvider> $references
+     *
+     * @return array{provider: MemoryProvider, path: string}|null
+     */
+    private function findEqualReference(ObjectInfo $sourceInfo, ?ObjectInfo $targetInfo, array $references): ?array
+    {
+        $referencePath = $targetInfo?->path ?? $sourceInfo->path;
+        foreach ($references as $reference) {
+            $referenceInfo = $this->optionalInfo($reference, $referencePath);
+            if ($referenceInfo !== null && $this->sameObject($sourceInfo, $referenceInfo)) {
+                return [
+                    'provider' => $reference,
+                    'path' => $referenceInfo->path,
+                ];
+            }
+        }
+
+        return null;
     }
 
     private function assertDeleteWithinLimits(
@@ -401,5 +506,58 @@ final class SyncPlan
         $prefix = self::normalizePath($prefix);
 
         return $path === $prefix || str_starts_with($path, $prefix . '/');
+    }
+
+    private static function normalizeRoot(string $root): string
+    {
+        $root = str_replace('\\', '/', trim($root));
+        $root = preg_replace('#/+#', '/', $root) ?? $root;
+        if (str_contains($root, ':')) {
+            [$remote, $path] = explode(':', $root, 2);
+
+            return $remote . ':' . trim($path, '/');
+        }
+
+        return trim($root, '/');
+    }
+
+    private static function sameRootConfig(string $left, string $right): bool
+    {
+        return self::splitRoot($left)[0] === self::splitRoot($right)[0];
+    }
+
+    private static function sameRootPath(string $left, string $right): bool
+    {
+        return self::splitRoot($left) === self::splitRoot($right);
+    }
+
+    private static function rootsOverlap(string $left, string $right): bool
+    {
+        [$leftConfig, $leftPath] = self::splitRoot($left);
+        [$rightConfig, $rightPath] = self::splitRoot($right);
+        if ($leftConfig !== $rightConfig) {
+            return false;
+        }
+        if ($leftPath === '' || $rightPath === '') {
+            return true;
+        }
+
+        return $leftPath === $rightPath
+            || str_starts_with($leftPath, $rightPath . '/')
+            || str_starts_with($rightPath, $leftPath . '/');
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private static function splitRoot(string $root): array
+    {
+        if (str_contains($root, ':')) {
+            [$config, $path] = explode(':', $root, 2);
+
+            return [$config, trim($path, '/')];
+        }
+
+        return ['local', trim($root, '/')];
     }
 }
