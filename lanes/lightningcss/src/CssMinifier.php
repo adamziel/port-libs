@@ -1155,7 +1155,7 @@ final class CssMinifier
 
     private function minifyDeclarationValue(string $property, string $value): string
     {
-        $value = $this->foldSimpleContainerUnitCalcs($this->normalizeMathFunctionOperators($value));
+        $value = $this->foldSimpleLengthCalcs($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
@@ -2653,6 +2653,9 @@ final class CssMinifier
 
     private function compressHexColor(string $color): string
     {
+        if (preg_match('/^#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3$/i', $color, $matches) === 1) {
+            return '#' . strtolower($matches[1] . $matches[2] . $matches[3]);
+        }
         if (preg_match('/^#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3([0-9a-f])\4$/i', $color, $matches) === 1) {
             return '#' . strtolower($matches[1] . $matches[2] . $matches[3] . $matches[4]);
         }
@@ -4933,7 +4936,7 @@ final class CssMinifier
         return $output;
     }
 
-    private function foldSimpleContainerUnitCalcs(string $value): string
+    private function foldSimpleLengthCalcs(string $value): string
     {
         $output = '';
         $quote = null;
@@ -4971,7 +4974,7 @@ final class CssMinifier
                 $next = $i + strlen($identifier);
                 if (strtolower($identifier) === 'calc' && ($value[$next] ?? '') === '(') {
                     [$function, $offset] = $this->readFunctionRaw($value, $i);
-                    $output .= $this->foldSimpleContainerUnitCalc($function);
+                    $output .= $this->foldSimpleLengthCalc($function);
                     $i = $offset;
                     continue;
                 }
@@ -4987,11 +4990,37 @@ final class CssMinifier
         return $output;
     }
 
-    private function foldSimpleContainerUnitCalc(string $function): string
+    private function foldSimpleLengthCalc(string $function): string
     {
+        $numberPattern = '[+-]?(?:\d+|\d*\.\d+)';
+        $unitPattern = '(?:%|[a-zA-Z]+)';
+        if (preg_match('/^calc\((.*)\)$/is', trim($function), $calcMatches) !== 1) {
+            return $function;
+        }
+        $inner = trim($calcMatches[1]);
+
+        if (preg_match('/^(' . $numberPattern . ')(' . $unitPattern . ')\s*([*\/])\s*(' . $numberPattern . ')$/i', $inner, $matches) === 1) {
+            $left = (float) $matches[1];
+            $right = (float) $matches[4];
+            if ($matches[3] === '/' && abs($right) < 0.0000001) {
+                return $function;
+            }
+            $value = $matches[3] === '*' ? $left * $right : $left / $right;
+            $number = $this->minifyNumber($value);
+
+            return $number === '0' ? '0' : $number . strtolower($matches[2]);
+        }
+
+        if (preg_match('/^(' . $numberPattern . ')\s*\*\s*(' . $numberPattern . ')(' . $unitPattern . ')$/i', $inner, $matches) === 1) {
+            $value = (float) $matches[1] * (float) $matches[2];
+            $number = $this->minifyNumber($value);
+
+            return $number === '0' ? '0' : $number . strtolower($matches[3]);
+        }
+
         if (preg_match(
-            '/^calc\(\s*([+-]?(?:\d+|\d*\.\d+))(cqw|cqh|cqi|cqb|cqmin|cqmax)\s*([+-])\s*([+-]?(?:\d+|\d*\.\d+))\2\s*\)$/i',
-            $function,
+            '/^(' . $numberPattern . ')(' . $unitPattern . ')\s*([+-])\s*(' . $numberPattern . ')\2$/i',
+            $inner,
             $matches
         ) !== 1) {
             return $function;
@@ -5108,6 +5137,12 @@ final class CssMinifier
                 $lower = strtolower($identifier);
                 $previous = $value[$i - 1] ?? '';
                 $next = $value[$i + strlen($identifier)] ?? '';
+                if ($next === '(' && in_array($lower, ['hsl', 'hsla', 'rgb', 'rgba'], true)) {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $this->minifyColorFunction($function) ?? $function;
+                    $i = $offset;
+                    continue;
+                }
                 if ($previous === '-' || $next === '(') {
                     $output .= $identifier;
                     $i += strlen($identifier) - 1;
@@ -5123,6 +5158,190 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function minifyColorFunction(string $function): ?string
+    {
+        if (preg_match('/^(hsl|hsla|rgb|rgba)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return null;
+        }
+
+        $name = strtolower($matches[1]);
+        $parts = $this->parseColorFunctionParts($matches[2]);
+        if ($parts === null) {
+            return null;
+        }
+
+        if ($name === 'hsl' || $name === 'hsla') {
+            $hue = $this->parseHueDegrees($parts['components'][0] ?? '');
+            $saturation = $this->parsePercentageComponent($parts['components'][1] ?? '');
+            $lightness = $this->parsePercentageComponent($parts['components'][2] ?? '');
+            if ($hue === null || $saturation === null || $lightness === null) {
+                return null;
+            }
+
+            $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
+            if ($alpha === null) {
+                return null;
+            }
+
+            [$red, $green, $blue] = $this->hslToRgbBytes($hue, $saturation, $lightness);
+
+            return $this->serializeColorBytes($red, $green, $blue, $alpha);
+        }
+
+        $red = $this->parseRgbComponent($parts['components'][0] ?? '');
+        $green = $this->parseRgbComponent($parts['components'][1] ?? '');
+        $blue = $this->parseRgbComponent($parts['components'][2] ?? '');
+        if ($red === null || $green === null || $blue === null) {
+            return null;
+        }
+
+        $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    /**
+     * @return array{components:list<string>,alpha:?string}|null
+     */
+    private function parseColorFunctionParts(string $arguments): ?array
+    {
+        $arguments = trim($arguments);
+        if ($arguments === '') {
+            return null;
+        }
+
+        $commaParts = $this->splitTopLevel($arguments, ',');
+        if (count($commaParts) > 1) {
+            if (count($commaParts) !== 3 && count($commaParts) !== 4) {
+                return null;
+            }
+
+            return [
+                'components' => array_slice($commaParts, 0, 3),
+                'alpha' => $commaParts[3] ?? null,
+            ];
+        }
+
+        $slashParts = $this->splitTopLevel($arguments, '/');
+        if (count($slashParts) > 2) {
+            return null;
+        }
+        $components = $this->splitWhitespaceTopLevel($slashParts[0] ?? '');
+        if (count($components) !== 3) {
+            return null;
+        }
+
+        return [
+            'components' => $components,
+            'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
+        ];
+    }
+
+    private function parseHueDegrees(string $token): ?float
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)?$/i', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $value = (float) $matches[1];
+        $unit = strtolower($matches[2] ?? 'deg');
+        $degrees = match ($unit) {
+            'grad' => $value * 0.9,
+            'rad' => $value * 180 / M_PI,
+            'turn' => $value * 360,
+            default => $value,
+        };
+        $degrees = fmod($degrees, 360.0);
+
+        return $degrees < 0 ? $degrees + 360.0 : $degrees;
+    }
+
+    private function parsePercentageComponent(string $token): ?float
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $value = (float) $matches[1] / 100;
+
+        return $value < 0 || $value > 1 ? null : $value;
+    }
+
+    private function parseRgbComponent(string $token): ?int
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            $value = (float) $matches[1];
+            if ($value < 0 || $value > 100) {
+                return null;
+            }
+
+            return (int) round($value * 255 / 100);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))$/', $token, $matches) !== 1) {
+            return null;
+        }
+
+        $value = (float) $matches[1];
+        if ($value < 0 || $value > 255) {
+            return null;
+        }
+
+        return (int) round($value);
+    }
+
+    private function parseAlphaComponent(string $token): ?float
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            $value = (float) $matches[1] / 100;
+        } elseif (preg_match('/^([+-]?(?:\d+|\d*\.\d+))$/', $token, $matches) === 1) {
+            $value = (float) $matches[1];
+        } else {
+            return null;
+        }
+
+        return $value < 0 || $value > 1 ? null : $value;
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int}
+     */
+    private function hslToRgbBytes(float $hue, float $saturation, float $lightness): array
+    {
+        $chroma = (1 - abs(2 * $lightness - 1)) * $saturation;
+        $x = $chroma * (1 - abs(fmod($hue / 60, 2) - 1));
+        $m = $lightness - $chroma / 2;
+
+        [$red, $green, $blue] = match (true) {
+            $hue < 60 => [$chroma, $x, 0.0],
+            $hue < 120 => [$x, $chroma, 0.0],
+            $hue < 180 => [0.0, $chroma, $x],
+            $hue < 240 => [0.0, $x, $chroma],
+            $hue < 300 => [$x, 0.0, $chroma],
+            default => [$chroma, 0.0, $x],
+        };
+
+        return [
+            (int) round(($red + $m) * 255),
+            (int) round(($green + $m) * 255),
+            (int) round(($blue + $m) * 255),
+        ];
+    }
+
+    private function serializeColorBytes(int $red, int $green, int $blue, float $alpha): string
+    {
+        if (abs($alpha - 1.0) < 0.0000001) {
+            return $this->compressHexColor(sprintf('#%02x%02x%02x', $red, $green, $blue));
+        }
+
+        return $this->compressHexColor(sprintf('#%02x%02x%02x%02x', $red, $green, $blue, (int) round($alpha * 255)));
     }
 
     private function startsUrlFunction(string $value, int $offset): bool

@@ -114,6 +114,18 @@ CSS;
             (new CssMinifier())->minify($css)
         );
     },
+    'css minifier maps upstream supports rule declaration value minification boundary' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@supports (width:calc(10px * 2)){.test{width:20px}}',
+            $minifier->minify('@supports (width: calc(10px * 2)) { .test { width: calc(10px * 2); } }')
+        );
+        $t->same(
+            '@supports (color:hsl(0deg, 0%, 0%)){.test{color:#000}}',
+            $minifier->minify('@supports (color: hsl(0deg, 0%, 0%)) { .test { color: hsl(0deg, 0%, 0%); } }')
+        );
+    },
     'css minifier maps upstream image-set string url type and gradient normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -945,6 +957,26 @@ CSS;
 
         $t->same(
             '@supports (display:grid) and (not (display:subgrid)){.wp-block-query>.wp-block-post-template{display:grid;color:#ff0}}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress supports-gated block values minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@supports (width: calc(10px * 2)) {
+  .wp-block-gallery {
+    width: calc(10px * 2);
+  }
+}
+
+@supports (color: hsl(0deg, 0%, 0%)) {
+  .wp-block-post-title {
+    color: hsl(0deg, 0%, 0%);
+  }
+}
+CSS;
+
+        $t->same(
+            '@supports (width:calc(10px * 2)){.wp-block-gallery{width:20px}}@supports (color:hsl(0deg, 0%, 0%)){.wp-block-post-title{color:#000}}',
             (new CssMinifier())->minify($css)
         );
     },
