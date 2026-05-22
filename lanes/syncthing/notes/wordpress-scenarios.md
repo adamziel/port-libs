@@ -122,6 +122,28 @@ per-file block-count summaries, availability includes `fromTemporary`
 candidates from shared devices with matching advertised file versions, and a
 planned WordPress media block request sets `Request.fromTemporary` when the
 only source is a peer's temporary file.
+The device-activity slice now maps focused upstream `deviceactivity.go` and
+`deviceactivity_test.go` behavior: least-busy selection returns the first
+candidate with the lowest outstanding request count, repeated selection checks
+do not mutate activity, `using` and `done` adjust the peer's outstanding count
+by device ID regardless of full-file or temporary availability, empty
+availability has no selection, and WordPress media request planning can shift a
+block from a busy full-file peer to a less-busy temporary-block peer while
+preserving `Request.fromTemporary`. A bounded upstream runner was executed for
+this focused slice only: `go test ./lib/model -run '^TestDeviceActivity$'
+-count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity.
+The FileInfoBatch slice now maps focused upstream `fileinfobatch.go` and
+`fileinfobatch_test.go` behavior: pending FileInfo entries track uncompressed
+FileInfo protobuf bytes, batches become full at 1000 files or 250 KiB,
+`FlushIfFull` is a no-op below those limits, successful `Flush` resets file
+and size state, returned or thrown flush errors are sticky until `Reset`, and
+appending to a failed batch is rejected. A bounded upstream runner was executed
+for this focused slice only: `go test ./lib/model -run
+'^TestFileInfoBatchError$' -count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity.
 The block-pull ordering slice now maps focused upstream
 `lib/model/blockpullreorderer.go`, `blockpullreorderer_test.go`, and
 `lib/config/blockpullorder.go` behavior: in-order leaves blocks untouched,
@@ -379,6 +401,10 @@ session, and answered with a native BEP Response.
 Index, IndexUpdate, and DownloadProgress: the stream dispatcher invokes local
 WordPress media callbacks that update a catalog entry and a temporary-block
 progress map without shelling out.
+`examples/wordpress-file-info-batch.php` shows three WordPress media FileInfo
+entries being accumulated into a native FileInfoBatch, flushed into one
+IndexUpdate frame with previous/last sequence metadata, and reset after the
+flush so later filesystem scan chunks can reuse the same batch lifecycle.
 `examples/wordpress-block-pull-order.php` shows a large WordPress media archive
 being split into upstream standard pull chunks across three sorted Syncthing
 device IDs, with the local Playground peer's assigned chunk requested first and
@@ -390,6 +416,5 @@ completion while the remaining queued files keep FIFO order.
 
 ## Next Task
 
-Map upstream `deviceactivity.go` least-busy peer selection into temporary/full
-availability planning, or run another focused upstream package test before the
-next protocol/model behavior slice.
+Map upstream `service_map.go` lifecycle behavior, or run another focused
+upstream package test before the next protocol/model behavior slice.

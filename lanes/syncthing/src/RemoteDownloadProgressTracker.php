@@ -24,7 +24,7 @@ final class RemoteDownloadProgressTracker
     /**
      * @param array<string, list<string>> $sharedFolders
      */
-    public function __construct(array $sharedFolders = [])
+    public function __construct(array $sharedFolders = [], private readonly ?DeviceActivity $activity = null)
     {
         foreach ($sharedFolders as $folder => $deviceIds) {
             $this->shareFolderWith($folder, $deviceIds);
@@ -149,11 +149,15 @@ final class RemoteDownloadProgressTracker
             return null;
         }
 
-        $selected = $availability[0];
+        $selected = ($this->activity ?? new DeviceActivity())->leastBusy($availability);
+        if ($selected === null) {
+            return null;
+        }
 
         return new BlockRequestPlan(
             $selected->deviceId,
             $this->requestForBlock($folder, $file, $block, $selected->fromTemporary, $requestId),
+            $selected,
         );
     }
 
