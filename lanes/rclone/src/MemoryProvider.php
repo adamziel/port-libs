@@ -54,9 +54,16 @@ final class MemoryProvider
         return $target->put($targetPath, $this->get($sourcePath));
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function hashes(string $path, ?HashSet $set = null): array
+    {
+        return MultiHasher::hashBytes($this->get($path), $set);
+    }
+
     private function normalize(string $path): string
     {
         return trim(preg_replace('#/+#', '/', $path) ?? $path, '/');
     }
 }
-
