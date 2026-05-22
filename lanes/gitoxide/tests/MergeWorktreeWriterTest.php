@@ -159,6 +159,49 @@ return [
         $t->contains('>>>>>>> theirs/wp-content/themes/acme/theme.json', $themeJson);
         $t->same('0644', substr(sprintf('%o', fileperms($worktree . '/wp-content/post.meta')), -4));
     },
+    'checkout merged tree removes stale paths but preserves git metadata' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, , $blobEntry, $treeEntry] = $objectStore();
+        $result = new TreeMergeResult(new Tree([
+            $treeEntry('wp-content', new Tree([
+                $blobEntry('new.php', "<?php\nreturn 'new';\n"),
+            ])),
+        ]), []);
+        $worktree = sys_get_temp_dir() . '/port-libs-clean-worktree-' . bin2hex(random_bytes(4));
+        mkdir($worktree . '/.git', 0777, true);
+        mkdir($worktree . '/wp-content/cache', 0777, true);
+        file_put_contents($worktree . '/.git/config', "[core]\n");
+        file_put_contents($worktree . '/wp-content/old.php', "<?php\nreturn 'old';\n");
+        file_put_contents($worktree . '/wp-content/cache/transient.txt', "cached\n");
+
+        $files = MergeWorktreeWriter::checkoutMergedTree($result, $worktree, $read);
+
+        $t->same(['wp-content/new.php'], array_map(static fn ($file): string => $file->path, $files));
+        $t->same(true, is_file($worktree . '/.git/config'));
+        $t->same(false, file_exists($worktree . '/wp-content/old.php'));
+        $t->same(false, file_exists($worktree . '/wp-content/cache'));
+        $t->same("<?php\nreturn 'new';\n", (string) file_get_contents($worktree . '/wp-content/new.php'));
+    },
+    'checkout merged tree replaces file and directory blockers' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, , $blobEntry, $treeEntry] = $objectStore();
+        $result = new TreeMergeResult(new Tree([
+            $treeEntry('wp-content', new Tree([
+                $blobEntry('cache', "cache file\n"),
+                $treeEntry('plugins', new Tree([
+                    $blobEntry('acme.php', "<?php\n"),
+                ])),
+            ])),
+        ]), []);
+        $worktree = sys_get_temp_dir() . '/port-libs-blocker-worktree-' . bin2hex(random_bytes(4));
+        mkdir($worktree . '/wp-content/cache', 0777, true);
+        file_put_contents($worktree . '/wp-content/cache/index.php', "<?php\n");
+        file_put_contents($worktree . '/wp-content/plugins', "legacy plugin file\n");
+
+        MergeWorktreeWriter::checkoutMergedTree($result, $worktree, $read);
+
+        $t->same("cache file\n", (string) file_get_contents($worktree . '/wp-content/cache'));
+        $t->same(true, is_dir($worktree . '/wp-content/plugins'));
+        $t->same("<?php\n", (string) file_get_contents($worktree . '/wp-content/plugins/acme.php'));
+    },
     'writes only content conflict files when requested' => static function (TestRunner $t) use ($recursiveConflict): void {
         [$result, $read] = $recursiveConflict();
         $worktree = sys_get_temp_dir() . '/port-libs-conflict-worktree-' . bin2hex(random_bytes(4));

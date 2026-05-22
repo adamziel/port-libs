@@ -60,8 +60,13 @@ $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', tr
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
 $indexChecksum = MergeIndexFile::writeResult($demoRoot . '/.git/index', $result, $read);
-$worktreeFiles = MergeWorktreeWriter::writeMergedTree($result, $demoRoot . '/worktree', $read);
-$themeJsonPath = $demoRoot . '/worktree/wp-content/themes/acme/theme.json';
+$worktreeRoot = $demoRoot . '/worktree';
+mkdir($worktreeRoot . '/.git', 0777, true);
+mkdir($worktreeRoot . '/wp-content/plugins/old-plugin', 0777, true);
+file_put_contents($worktreeRoot . '/.git/config', "[core]\n");
+file_put_contents($worktreeRoot . '/wp-content/plugins/old-plugin/bootstrap.php', "<?php\nreturn 'stale';\n");
+$worktreeFiles = MergeWorktreeWriter::checkoutMergedTree($result, $worktreeRoot, $read);
+$themeJsonPath = $worktreeRoot . '/wp-content/themes/acme/theme.json';
 
 echo json_encode([
     'clean' => $result->isClean(),
@@ -92,9 +97,11 @@ echo json_encode([
         'stages' => count(MergeIndexFile::entriesFromBytes((string) file_get_contents($demoRoot . '/.git/index'))),
     ],
     'writtenWorktree' => [
-        'root' => $demoRoot . '/worktree',
+        'root' => $worktreeRoot,
         'files' => array_map(static fn ($file): string => $file->path, $worktreeFiles),
         'themeJsonContainsMarkers' => str_contains((string) file_get_contents($themeJsonPath), '<<<<<<<'),
+        'stalePluginRemoved' => !file_exists($worktreeRoot . '/wp-content/plugins/old-plugin/bootstrap.php'),
+        'gitMetadataPreserved' => is_file($worktreeRoot . '/.git/config'),
     ],
     'mergedMetadata' => $metadata->body,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
