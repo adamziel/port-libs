@@ -45,6 +45,13 @@ npm test
 1984 passing (30s)
 ```
 
+It was rerun on 2026-05-22 after the lazy-image slice and still passed:
+
+```text
+npm test
+1984 passing (44s)
+```
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -60,9 +67,12 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/parsely-metadata` copied into the lane and mapped for Parse.ly title, author, publication date, readerable classification, excerpt normalization, and text parity.
 - Mozilla `test-pages/mozilla-2` copied into the lane and mapped for OpenGraph site name/description metadata, lang/dir extraction, false readerable classification, and preserved in-main header markers.
 - Mozilla `test-pages/embedded-videos` copied into the lane and mapped for readerable classification, excerpt normalization, and preservation of the five expected YouTube, YouTube-nocookie, and Vimeo iframe sources.
+- Mozilla `test-pages/videos-2` copied into the lane and mapped for UTF-8 DOM parsing, JSON-LD author/publisher/datePublished metadata, readerable classification, excerpt normalization, article-body selection, exact whitespace-normalized article text parity, and preservation of seven expected YouTube/Dailymotion iframe sources.
+- Mozilla `test-pages/lazy-image-3` copied into the lane and mapped for full-fixture `data-src` jpg/png image promotion, expected title/null metadata, and false readerable classification.
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
+- Focused Mozilla `lazy-image-2` shape: short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 
 ## Next Slice
 
-Map Mozilla `videos-2` or copy a full lazy-image fixture locally for closer expected-HTML parity, then broaden metadata/media cleanup toward full fixture parity.
+Copy Mozilla `lazy-image-1` or `lazy-image-2` locally for broader exact expected-HTML parity, then broaden metadata/media cleanup toward full fixture parity.

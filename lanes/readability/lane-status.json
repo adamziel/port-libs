@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "Readability/content rewrite engine",
-    "estimatedProgress": 11,
-    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; upstream `npm test` now passes 1984/1984 after lockfile install; normalize-spaces, parsely-metadata, mozilla-2, embedded-videos, and lazy-image media cleanup semantics mapped",
-    "phpPass": 14,
+    "estimatedProgress": 13,
+    "suiteProgress": "cloned static upstream inventory counted: 1984 Mocha tests over 130 Mozilla fixture pages; upstream `npm test` now passes 1984/1984 after lockfile install; normalize-spaces, parsely-metadata, mozilla-2, embedded-videos, videos-2, lazy-image-3, and lazy placeholder/srcset media cleanup semantics mapped",
+    "phpPass": 17,
     "phpFail": 0,
-    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, preserved allowed video embeds and lazy-loaded images, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, OpenGraph site/lang/dir metadata, and embedded-video source preservation.",
-    "phase": "cloned static inventory plus upstream npm runner evidence and Mozilla fixture/video media mappings",
-    "audit": "audited 2026-05-22: upstream npm test passes locally; native PHP smoke coverage now maps 14 tests / 78 checks, not full upstream fixture parity",
-    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and allowed video/lazy-loaded media, removes generic unsafe iframe/embed/object nodes, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, mozilla-2, and embedded-videos fixtures plus lazy-image media cleanup semantics, emits simple WordPress blocks, and has upstream `npm test` runner evidence from the hydrated sparse cache.",
-    "blocker": "No readability-local execution blocker: the lane's focused PHP tests pass 14/14, root `php tools/run-tests.php` passes, and upstream `npm test` passes 1984/1984. Remaining readability gaps are broader video handling, cleanup, and exact expected-HTML parity.",
-    "latestCommit": "72553c8",
-    "nextTask": "Map Mozilla videos-2 or copy a full lazy-image fixture locally for closer expected-HTML parity, then broaden video/embed cleanup toward exact expected-HTML parity."
+    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, preserved allowed video embeds and lazy-loaded responsive images, JSON-LD publication metadata, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, OpenGraph site/lang/dir metadata, embedded-video source preservation, and data-src image promotion.",
+    "phase": "cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media mappings",
+    "audit": "audited 2026-05-22: upstream npm test rerun passes 1984/1984 in 44s; native PHP smoke coverage now maps 17 tests / 103 checks, not full upstream fixture parity",
+    "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and allowed video/lazy-loaded media, removes generic unsafe iframe/embed/object nodes, scores semantic content containers and article-body containers, parses UTF-8 HTML safely, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors and JSON-LD author/publisher/datePublished selectors, maps the Mozilla normalize-spaces, parsely-metadata, mozilla-2, embedded-videos, videos-2, and lazy-image-3 fixtures, promotes lazy data-src/data-srcset media including short base64 placeholder cases, emits simple WordPress blocks, and has upstream `npm test` runner evidence from the hydrated sparse cache.",
+    "blocker": "No readability-local execution blocker: focused readability PHP tests pass 17/17 with 103 assertions and upstream `npm test` passes 1984/1984. The latest repo-wide `php tools/run-tests.php` run is blocked by an unrelated libsqlite lane failure (`reads a wordpress option value from a sqlite overflow page`, expected 78 actual 76), so this lane should not be committed until the shared root suite is green again. Remaining readability gaps are broader cleanup and exact expected-HTML parity for image-heavy fixtures.",
+    "latestCommit": "pending in current shared dirty worktree",
+    "nextTask": "Copy lazy-image-1 or lazy-image-2 locally for broader exact expected-HTML parity, then tighten cleanup for image-heavy migration pages."
 }

@@ -22,15 +22,11 @@ final class ArticleExtractor
 
     public function extract(string $html): Article
     {
-        $dom = new \DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
+        $dom = $this->loadHtmlDocument($html);
         $xpath = new \DOMXPath($dom);
         $this->unwrapNoscriptImages($xpath, $dom);
         $this->fixLazyImages($xpath);
+        $jsonLdMetadata = $this->jsonLdMetadata($xpath);
 
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
@@ -40,6 +36,9 @@ final class ArticleExtractor
 
         $title = $this->title($xpath, $dom);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
+        if ($best instanceof \DOMElement) {
+            $this->removePlatformArticleChrome($best);
+        }
         $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
         $excerpt = $this->excerpt($xpath, $best, $text);
@@ -51,17 +50,19 @@ final class ArticleExtractor
             $excerpt,
             $this->metadataValue($xpath, [
                 '//meta[@name="parsely-author"]/@content',
+                $jsonLdMetadata['byline'] ?? '',
                 '//meta[@name="author"]/@content',
                 '//meta[@property="article:author"]/@content',
                 '//*[contains(concat(" ", normalize-space(@class), " "), " byline ")]',
                 '//*[contains(concat(" ", normalize-space(@class), " "), " author ")]',
             ]),
-            $this->metadataValue($xpath, [
+            $jsonLdMetadata['siteName'] ?? $this->metadataValue($xpath, [
                 '//meta[@property="og:site_name"]/@content',
                 '//meta[@name="application-name"]/@content',
             ]),
             $this->metadataValue($xpath, [
                 '//meta[@name="parsely-pub-date"]/@content',
+                $jsonLdMetadata['publishedTime'] ?? '',
                 '//meta[@property="article:published_time"]/@content',
                 '//meta[@name="pubdate"]/@content',
                 '//time[@datetime]/@datetime',
@@ -89,12 +90,7 @@ final class ArticleExtractor
             $visibilityChecker = [$this, 'isNodeVisible'];
         }
 
-        $dom = new \DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
+        $dom = $this->loadHtmlDocument($html);
         $xpath = new \DOMXPath($dom);
         $nodes = [];
         foreach ($xpath->query('//p|//pre|//article') ?: [] as $node) {
@@ -142,12 +138,7 @@ final class ArticleExtractor
 
     public function toWordPressBlocks(Article $article): string
     {
-        $dom = new \DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $dom->loadHTML('<main>' . $article->contentHtml . '</main>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
+        $dom = $this->loadHtmlDocument('<main>' . $article->contentHtml . '</main>');
         $blocks = [];
         $main = $dom->getElementsByTagName('main')->item(0);
         if (!$main) {
@@ -197,9 +188,10 @@ final class ArticleExtractor
     private function excerpt(\DOMXPath $xpath, ?\DOMNode $best, string $fallbackText): string
     {
         $metadataDescription = $this->metadataValue($xpath, [
+            '//meta[@name="description"]/@content',
             '//meta[@property="og:description"]/@content',
             '//meta[@name="twitter:description"]/@content',
-            '//meta[@name="description"]/@content',
+            '//meta[@property="twitter:description"]/@content',
         ]);
         if ($metadataDescription !== null) {
             return $metadataDescription;
@@ -217,15 +209,175 @@ final class ArticleExtractor
         return mb_substr($fallbackText, 0, 180);
     }
 
+    private function loadHtmlDocument(string $html): \DOMDocument
+    {
+        $dom = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="UTF-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $remove = [];
+        foreach ($dom->childNodes as $child) {
+            if ($child instanceof \DOMProcessingInstruction) {
+                $remove[] = $child;
+            }
+        }
+        foreach ($remove as $child) {
+            $dom->removeChild($child);
+        }
+
+        return $dom;
+    }
+
     /**
      * @param list<string> $queries
      */
     private function metadataValue(\DOMXPath $xpath, array $queries): ?string
     {
         foreach ($queries as $query) {
+            if (!str_starts_with($query, '/')) {
+                $value = trim($query);
+
+                if ($value !== '') {
+                    return $value;
+                }
+
+                continue;
+            }
+
             $value = trim($xpath->query($query)?->item(0)?->nodeValue ?? '');
             if ($value !== '') {
                 return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{byline?: string, siteName?: string, publishedTime?: string}
+     */
+    private function jsonLdMetadata(\DOMXPath $xpath): array
+    {
+        $metadata = [];
+        foreach ($xpath->query('//script[contains(translate(@type, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "ld+json")]') ?: [] as $node) {
+            $decoded = $this->decodeJsonLd($node->textContent);
+            foreach ($this->jsonLdNodes($decoded) as $entry) {
+                if (!isset($metadata['byline']) && array_key_exists('author', $entry)) {
+                    $byline = $this->jsonLdAuthorNames($entry['author']);
+                    if ($byline !== null) {
+                        $metadata['byline'] = $byline;
+                    }
+                }
+
+                if (!isset($metadata['siteName']) && array_key_exists('publisher', $entry)) {
+                    $siteName = $this->jsonLdName($entry['publisher']);
+                    if ($siteName !== null) {
+                        $metadata['siteName'] = $siteName;
+                    }
+                }
+
+                foreach (['datePublished', 'dateCreated'] as $key) {
+                    if (!isset($metadata['publishedTime']) && isset($entry[$key]) && is_string($entry[$key]) && trim($entry[$key]) !== '') {
+                        $metadata['publishedTime'] = trim($entry[$key]);
+                    }
+                }
+            }
+        }
+
+        return $metadata;
+    }
+
+    private function decodeJsonLd(string $text): mixed
+    {
+        $json = trim($text);
+        $json = preg_replace('/^\s*<!\[CDATA\[\s*/', '', $json) ?? $json;
+        $json = preg_replace('/\s*\]\]>\s*$/', '', $json) ?? $json;
+        $json = trim($json);
+
+        $decoded = json_decode($json, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
+
+        $decoded = json_decode(html_entity_decode($json, ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function jsonLdNodes(mixed $decoded): array
+    {
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        if (array_is_list($decoded)) {
+            $nodes = [];
+            foreach ($decoded as $entry) {
+                $nodes = array_merge($nodes, $this->jsonLdNodes($entry));
+            }
+
+            return $nodes;
+        }
+
+        $nodes = [$decoded];
+        if (isset($decoded['@graph'])) {
+            $nodes = array_merge($nodes, $this->jsonLdNodes($decoded['@graph']));
+        }
+
+        return $nodes;
+    }
+
+    private function jsonLdAuthorNames(mixed $author): ?string
+    {
+        if (is_string($author)) {
+            $author = trim($author);
+
+            return $author !== '' && !filter_var($author, FILTER_VALIDATE_URL) ? $author : null;
+        }
+
+        if (!is_array($author)) {
+            return null;
+        }
+
+        $authors = array_is_list($author) ? $author : [$author];
+        $names = [];
+        foreach ($authors as $entry) {
+            $name = $this->jsonLdName($entry);
+            if ($name !== null) {
+                $names[] = $name;
+            }
+        }
+
+        return $names === [] ? null : implode(', ', $names);
+    }
+
+    private function jsonLdName(mixed $value): ?string
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+
+            return $value === '' ? null : $value;
+        }
+
+        if (!is_array($value)) {
+            return null;
+        }
+
+        if (isset($value['name']) && is_string($value['name']) && trim($value['name']) !== '') {
+            return trim($value['name']);
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $entry) {
+                $name = $this->jsonLdName($entry);
+                if ($name !== null) {
+                    return $name;
+                }
             }
         }
 
@@ -289,8 +441,10 @@ final class ArticleExtractor
                 continue;
             }
 
+            $this->removeTinyDataUriPlaceholder($node);
+
             $class = strtolower($node->getAttribute('class'));
-            $hasUsableSource = $this->imageSourceAttribute($node) !== null && !str_contains($class, 'lazy');
+            $hasUsableSource = $this->hasLoadedImageSource($node) && !str_contains($class, 'lazy');
             if ($hasUsableSource) {
                 continue;
             }
@@ -314,14 +468,58 @@ final class ArticleExtractor
         }
     }
 
+    private function removeTinyDataUriPlaceholder(\DOMElement $image): void
+    {
+        $src = trim($image->getAttribute('src'));
+        if (!$this->isTinyNonSvgBase64Image($src) || !$this->hasAlternativeImageAttribute($image)) {
+            return;
+        }
+
+        $image->removeAttribute('src');
+    }
+
+    private function hasLoadedImageSource(\DOMElement $image): bool
+    {
+        if (trim($image->getAttribute('src')) !== '') {
+            return true;
+        }
+
+        $srcset = trim($image->getAttribute('srcset'));
+
+        return $srcset !== '' && strtolower($srcset) !== 'null';
+    }
+
+    private function hasAlternativeImageAttribute(\DOMElement $image): bool
+    {
+        foreach ($image->attributes ?: [] as $attribute) {
+            if (strtolower($attribute->name) === 'src') {
+                continue;
+            }
+
+            if ($this->looksLikeImageUrl($attribute->value) || $this->looksLikeSrcset($attribute->value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isTinyNonSvgBase64Image(string $src): bool
+    {
+        if (preg_match('~^data:([^;,]+);base64,([a-z0-9+/=]+)$~i', $src, $matches) !== 1) {
+            return false;
+        }
+
+        if (strtolower($matches[1]) === 'image/svg+xml') {
+            return false;
+        }
+
+        return strlen($matches[2]) < 133;
+    }
+
     private function singleImageFromHtml(string $html): ?\DOMElement
     {
-        $dom = new \DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $dom->loadHTML('<div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
+        $dom = $this->loadHtmlDocument('<div>' . $html . '</div>');
         $wrapper = $dom->getElementsByTagName('div')->item(0);
         if (!$wrapper instanceof \DOMElement) {
             return null;
@@ -504,14 +702,106 @@ final class ArticleExtractor
         return false;
     }
 
+    private function removePlatformArticleChrome(\DOMElement $scope): void
+    {
+        $directArticle = null;
+        $elementChildren = [];
+        foreach ($scope->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $elementChildren[] = $child;
+            }
+
+            if ($child instanceof \DOMElement && strtolower($child->tagName) === 'article') {
+                if ($directArticle instanceof \DOMElement) {
+                    return;
+                }
+
+                $directArticle = $child;
+            }
+        }
+
+        if (!$directArticle instanceof \DOMElement) {
+            if (count($elementChildren) === 1 && $this->containsSingleArticle($elementChildren[0])) {
+                $this->removePlatformArticleChrome($elementChildren[0]);
+            }
+
+            return;
+        }
+
+        $trailingText = '';
+        for ($node = $directArticle->nextSibling; $node instanceof \DOMNode; $node = $node->nextSibling) {
+            $trailingText .= ' ' . $this->normalizedNodeText($node);
+        }
+
+        if (!$this->looksLikePlatformChrome($trailingText)) {
+            return;
+        }
+
+        $remove = [];
+        for ($node = $directArticle->nextSibling; $node instanceof \DOMNode; $node = $node->nextSibling) {
+            $remove[] = $node;
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function containsSingleArticle(\DOMElement $scope): bool
+    {
+        $articles = $scope->getElementsByTagName('article');
+
+        return $articles->length === 1;
+    }
+
+    private function looksLikePlatformChrome(string $text): bool
+    {
+        $text = $this->normalizeWhitespace($text);
+        if ($text === '') {
+            return false;
+        }
+
+        foreach ([
+            'More From Medium',
+            'Discover Medium',
+            'Related reads',
+            'Write the first response',
+            'Written by ',
+            ' claps Written by',
+            'Welcome to a place where words matter',
+        ] as $marker) {
+            if (str_contains($text, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizedNodeText(\DOMNode $node): string
+    {
+        return $this->normalizeWhitespace($node->textContent ?? '');
+    }
+
+    private function normalizeWhitespace(string $text): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $text) ?? '');
+    }
+
     private function bestContentNode(\DOMXPath $xpath): ?\DOMNode
     {
         $best = null;
         $bestScore = -1;
         foreach ($xpath->query('//article|//main|//section|//div|//body') ?: [] as $node) {
             $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
+            if ($node instanceof \DOMElement
+                && $this->looksLikePlatformChrome($text)
+                && ($xpath->query('.//article', $node)?->length ?? 0) === 0) {
+                continue;
+            }
+
             $paragraphs = $xpath->query('.//p', $node)?->length ?? 0;
-            $score = strlen($text) + (substr_count($text, ',') * 20) + ($paragraphs * 80) + $this->semanticContentWeight($node);
+            $score = strlen($text) + (substr_count($text, ',') * 20) + ($paragraphs * 80) + $this->semanticContentWeight($node) + $this->contentClassWeight($node);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = $node;
@@ -534,6 +824,24 @@ final class ArticleExtractor
             'body' => -300,
             default => 0,
         };
+    }
+
+    private function contentClassWeight(\DOMNode $node): int
+    {
+        if (!$node instanceof \DOMElement) {
+            return 0;
+        }
+
+        $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id'));
+        if (preg_match('/\b(article-body|article__body|entry-content|post-content|article-content)\b/', $matchString) === 1) {
+            return 10000;
+        }
+
+        if (preg_match('/\b(content|main-content)\b/', $matchString) === 1) {
+            return 1500;
+        }
+
+        return 0;
     }
 
     private function innerHtml(\DOMNode $node): string
