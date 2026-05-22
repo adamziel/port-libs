@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 16:53:29 UTC",
-    "averageProgressPercent": "20.5",
+    "generated": "2026-05-22 17:01:09 UTC",
+    "averageProgressPercent": "20.9",
     "lanes": [
         {
             "library": "difftastic",
@@ -38,54 +38,54 @@
         },
         {
             "library": "esbuild",
-            "progressPercent": "9.0",
+            "progressPercent": "10.0",
             "suite": "cloned-static-inventory-plus-make-test-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-make-test-runner-evidence",
             "denominator": "2,567",
-            "mapped": "33",
-            "coverage": "33 / 2,567",
-            "php": "33 pass / 0 fail",
+            "mapped": "39",
+            "coverage": "39 / 2,567",
+            "php": "39 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream make test runner...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native JavaScript lexer plus module analyzer for static imports, expression/direct-string...",
-            "nextTarget": "Map the next bounded TypeScript printer slice, such as selected enum/namespace value expo...",
+            "nextTarget": "Map the next bounded TypeScript printer slice, such as namespace value export lowering or...",
             "blocker": "No current esbuild implementation blocker.",
-            "commit": "3586e58"
+            "commit": "8a155d4"
         },
         {
             "library": "gitoxide",
-            "progressPercent": "72.0",
+            "progressPercent": "73.0",
             "suite": "targeted-object-ref-commit-signature-actor-extra-header...",
             "benchmark": "targeted-object-ref-commit-signature-actor-extra-header...",
             "denominator": "2877",
-            "mapped": "843",
-            "coverage": "843 / 2877",
-            "php": "1409 pass / 0 fail",
+            "mapped": "847",
+            "coverage": "847 / 2877",
+            "php": "1421 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted object/ref/commit-extra-header/message/annotat...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native loose Git object storage, commit/tree parsing, merge-base ancestry traversal, flat...",
-            "nextTarget": "Broaden annotated tag iterator error parity and raw-target preservation, broaden commit t...",
+            "nextTarget": "Broaden commit trailer edge cases from upstream fixtures, add broader directory rename co...",
             "blocker": "cargo runner not executed",
-            "commit": "6a4cdd3"
+            "commit": "ea70a53"
         },
         {
             "library": "libsqlite",
-            "progressPercent": "20.0",
+            "progressPercent": "21.0",
             "suite": "cloned-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-inventory-plus-upstream-veryquick-runner",
             "denominator": "1454",
-            "mapped": "36",
-            "coverage": "36 / 1454",
-            "php": "36 pass / 0 fail",
+            "mapped": "38",
+            "coverage": "38 / 1454",
+            "php": "38 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "upstream veryquick runner parity plus duplicate first-c...",
+            "phase": "upstream veryquick runner parity plus composite wp_opti...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and ta...",
-            "nextTarget": "Port SQLite index comparison features outside the current bounded slice: optimized compos...",
+            "nextTarget": "Port SQLite index comparison features outside the current bounded slice: composite prefix...",
             "blocker": "Lane implementation blocker: none for this slice.",
-            "commit": "7fb0c19"
+            "commit": "pending"
         },
         {
             "library": "LightningCSS",
@@ -123,20 +123,20 @@
         },
         {
             "library": "pandoc",
-            "progressPercent": "18.0",
+            "progressPercent": "19.0",
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2028",
-            "mapped": "47",
-            "coverage": "47 / 2028",
-            "php": "47 pass / 0 fail",
+            "mapped": "49",
+            "coverage": "49 / 2028",
+            "php": "49 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus Markdown reader/list-loose-contin...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native Markdown reader groups bullet/ordered lists with a recursive list-block parser, ke...",
-            "nextTarget": "Map the test/testsuite.txt Inline Markup section for underscore emphasis/strong and neste...",
-            "blocker": "No pandoc-local PHP blocker: focused pandoc tests pass 47/0 with 233 asse...",
-            "commit": "f599888"
+            "nextTarget": "Map the remaining test/testsuite.txt Inline Markup strikeout, superscript, and subscript...",
+            "blocker": "No pandoc-local PHP blocker: focused pandoc tests pass 49/0 with 250 asse...",
+            "commit": "cd37da4"
         },
         {
             "library": "quadrable",
@@ -191,20 +191,20 @@
         },
         {
             "library": "syncthing",
-            "progressPercent": "14.0",
+            "progressPercent": "15.0",
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "264",
-            "mapped": "55",
-            "coverage": "55 / 264",
-            "php": "55 pass / 0 fail",
+            "mapped": "59",
+            "coverage": "59 / 264",
+            "php": "59 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static upstream inventory plus scanner block, pr...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native scanner-style block hashing, version vectors, FileInfo conflict/equivalence behavi...",
-            "nextTarget": "Port the live scheduling/connection edge around ProgressEmitter: timer-driven event emiss...",
+            "nextTarget": "Port the inbound temporary-block availability edge: model-level DownloadProgress(conn, p)...",
             "blocker": "upstream runner not executed",
-            "commit": "5f00a1b"
+            "commit": "pending"
         }
     ]
 }
