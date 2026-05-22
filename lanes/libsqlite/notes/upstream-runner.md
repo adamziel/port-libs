@@ -1305,8 +1305,8 @@ This slice extends the bounded JSON expression-index path parser from simple
 object members to non-negative array indexes. The native PHP reader now treats
 paths such as `$.rules[0].enabled`, `$."rules"[0].enabled`, and `$[0]` as
 valid supported paths for `json_extract(...)` and compatible `->>` expression
-indexes. Reverse indexes such as `[#-1]`, append indexes `[#]`, JSONB, JSON5,
-and full JSON path mutation behavior remain outside this slice.
+indexes. JSONB, JSON5, append/edit behavior for `[#]`, and full JSON path
+mutation behavior remain outside this slice.
 
 Focused upstream runner:
 
@@ -1330,14 +1330,55 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover parsing `json_extract(option_value,
 '$.rules[0].enabled')`, matching a quoted object-member request
-`$."rules"[0].enabled` to the same stored expression path, rejecting the
-unsupported `[#-1]` reverse-index form, and resolving WordPress plugin settings
-where a first rule's `enabled` flag is stored inside a JSON array. A second
-WordPress-shaped fixture covers `option_value ->> '[0]'` expression indexes for
-root-array settings such as plugin channel lists. The updated
+`$."rules"[0].enabled` to the same stored expression path, and resolving
+WordPress plugin settings where a first rule's `enabled` flag is stored inside
+a JSON array. A second WordPress-shaped fixture covers `option_value ->> '[0]'`
+expression indexes for root-array settings such as plugin channel lists. The updated
 `examples/wordpress-json-option-arrow.php` accepts bracket and numeric array
 operands, and the new `examples/wordpress-json-array-option-value.php` script
 documents the array-path recovery flow directly.
+
+## Focused Native Mapping: JSON Reverse Array Path Expression Indexes
+
+This slice maps SQLite's read-side `[#-N]` JSON path extension for expression
+indexes. The native PHP reader now treats `$.rules[#-1].enabled`,
+`$."rules"[#-000001].enabled`, `option_value ->> '[#-1]'`, and
+`option_value ->> -1` as equivalent reverse-array paths for indexed JSON scalar
+lookups. `[#]` is parsed as SQLite's append-position marker and returns
+not-found/null for extraction, while malformed forms such as `[#-]`, `[#9]`,
+and `[#-1x]` remain path errors.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json105.test
+```
+
+Result: 1 Tcl script, 0 errors out of 53 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json105.test` verifies `json_extract(j,'$.b[#-1]')`,
+  `json_extract(j,'$.b[#-2]')`, leading-zero reverse offsets such as
+  `[#-02]`, out-of-range reverse offsets returning NULL, nested reverse
+  lookups such as `$.b[#-2][#-1]`, multi-path extraction with `[#-1]`, and
+  malformed reverse/append path errors.
+- `src/json.c` `jsonLookupStep()` counts array entries for `[#]`, subtracts a
+  parsed `-N` reverse offset, returns not-found when the offset is outside the
+  array, and treats malformed `#` syntax as a path error.
+- The `->>` operator path normalization in `src/json.c` maps negative integer
+  operands to `$[#-N]`, which is the boundary used by the native
+  `option_value ->> -1` expression-index parser.
+
+The native PHP tests now cover reverse JSON path metadata parsing, leading-zero
+reverse path equivalence, malformed reverse path rejection, nested WordPress
+plugin rule lookups through `json_extract(option_value,'$.rules[#-1].enabled')`,
+and root-array channel recovery through `option_value ->> -1`. The new
+`examples/wordpress-json-last-array-option-value.php` script maps plugin/theme
+settings that store the active channel, latest migration stage, or last rule in
+a JSON array and need indexed recovery without the PHP SQLite extension.
 
 ## Focused Native Mapping: JSON `->>` Expression Indexes
 

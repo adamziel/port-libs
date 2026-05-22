@@ -757,7 +757,7 @@ final class SQLiteCreateIndex
     private static function normalizeJsonTextOperatorPath(mixed $operand): ?string
     {
         if (is_int($operand)) {
-            return $operand < 0 ? null : '$[' . $operand . ']';
+            return $operand < 0 ? '$[#' . $operand . ']' : '$[' . $operand . ']';
         }
         if (!is_string($operand)) {
             return null;
@@ -768,7 +768,7 @@ final class SQLiteCreateIndex
         if (str_starts_with($operand, '$')) {
             return $operand;
         }
-        if (preg_match('/^\[\d+\]$/', $operand) === 1) {
+        if (preg_match('/^\[(?:\d+|#|#-\d+)\]$/', $operand) === 1) {
             return '$' . $operand;
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $operand) === 1) {

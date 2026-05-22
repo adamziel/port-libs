@@ -1243,7 +1243,7 @@ final class SQLiteDatabase
     }
 
     /**
-     * @param list<int|string> $requestedPath
+     * @param list<array{kind:string,value:int|string|null}> $requestedPath
      */
     private static function jsonExpressionPathMatches(string $expressionPath, array $requestedPath): bool
     {
@@ -4702,19 +4702,41 @@ final class SQLiteDatabase
         }
 
         foreach ($segments as $segment) {
-            if (is_int($segment)) {
-                if (!is_array($value) || !array_is_list($value) || !array_key_exists($segment, $value)) {
+            if ($segment['kind'] === 'index' || $segment['kind'] === 'indexFromEnd' || $segment['kind'] === 'arrayAppend') {
+                if (!is_array($value) || !array_is_list($value)) {
                     return null;
                 }
 
-                $value = $value[$segment];
+                if ($segment['kind'] === 'arrayAppend') {
+                    return null;
+                }
+
+                $indexValue = $segment['value'];
+                if (!is_int($indexValue)) {
+                    return null;
+                }
+
+                $index = $segment['kind'] === 'indexFromEnd'
+                    ? count($value) - $indexValue
+                    : $indexValue;
+                if ($index < 0 || !array_key_exists($index, $value)) {
+                    return null;
+                }
+
+                $value = $value[$index];
                 continue;
             }
 
-            if (!is_array($value) || array_is_list($value) || !array_key_exists($segment, $value)) {
+            $member = $segment['value'];
+            if (
+                !is_string($member)
+                || !is_array($value)
+                || array_is_list($value)
+                || !array_key_exists($member, $value)
+            ) {
                 return null;
             }
-            $value = $value[$segment];
+            $value = $value[$member];
         }
 
         return self::sqliteJsonScalar($value);
@@ -4755,7 +4777,7 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<int|string>
+     * @return list<array{kind:string,value:int|string|null}>
      */
     private static function parseSimpleJsonPath(string $path): array
     {
@@ -4777,23 +4799,55 @@ final class SQLiteDatabase
                 }
 
                 $indexText = substr($path, $offset + 1, $close - $offset - 1);
-                if ($indexText === '' || preg_match('/^\d+$/', $indexText) !== 1) {
-                    throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only non-negative array indexes');
-                }
-                $maxIndexText = (string) PHP_INT_MAX;
-                if (
-                    strlen($indexText) > strlen($maxIndexText)
-                    || (strlen($indexText) === strlen($maxIndexText) && strcmp($indexText, $maxIndexText) > 0)
-                ) {
-                    throw new \InvalidArgumentException('SQLite json_extract expression index array index is too large for this slice');
+                if (preg_match('/^\d+$/', $indexText) === 1) {
+                    $maxIndexText = (string) PHP_INT_MAX;
+                    if (
+                        strlen($indexText) > strlen($maxIndexText)
+                        || (strlen($indexText) === strlen($maxIndexText) && strcmp($indexText, $maxIndexText) > 0)
+                    ) {
+                        throw new \InvalidArgumentException('SQLite json_extract expression index array index is too large for this slice');
+                    }
+
+                    $segments[] = [
+                        'kind' => 'index',
+                        'value' => (int) $indexText,
+                    ];
+                    $offset = $close + 1;
+                    continue;
                 }
 
-                $segments[] = (int) $indexText;
-                $offset = $close + 1;
-                continue;
+                if ($indexText === '#') {
+                    $segments[] = [
+                        'kind' => 'arrayAppend',
+                        'value' => null,
+                    ];
+                    $offset = $close + 1;
+                    continue;
+                }
+
+                if (preg_match('/^#-(\d+)$/', $indexText, $matches) === 1) {
+                    $digits = ltrim($matches[1], '0');
+                    $digits = $digits === '' ? '0' : $digits;
+                    $maxIndexText = (string) PHP_INT_MAX;
+                    $value = (
+                        strlen($digits) > strlen($maxIndexText)
+                        || (strlen($digits) === strlen($maxIndexText) && strcmp($digits, $maxIndexText) > 0)
+                    )
+                        ? $digits
+                        : (int) $digits;
+
+                    $segments[] = [
+                        'kind' => 'indexFromEnd',
+                        'value' => $value,
+                    ];
+                    $offset = $close + 1;
+                    continue;
+                }
+
+                throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only non-negative array indexes, [#], or [#-N] reverse array indexes');
             }
             if ($path[$offset] !== '.') {
-                throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only object-member and non-negative array-index paths');
+                throw new \InvalidArgumentException('SQLite json_extract expression indexes in this slice support only object-member and array-index paths');
             }
             $offset++;
             if ($offset >= $length) {
@@ -4811,7 +4865,10 @@ final class SQLiteDatabase
                 if (!is_string($member)) {
                     throw new \InvalidArgumentException('SQLite json_extract expression index quoted path member must decode to text');
                 }
-                $segments[] = $member;
+                $segments[] = [
+                    'kind' => 'member',
+                    'value' => $member,
+                ];
                 $offset = $end + 1;
                 continue;
             }
@@ -4819,7 +4876,10 @@ final class SQLiteDatabase
             if (!preg_match('/[A-Za-z_][A-Za-z0-9_]*/A', substr($path, $offset), $matches)) {
                 throw new \InvalidArgumentException('SQLite json_extract expression index path member is outside the supported subset');
             }
-            $segments[] = $matches[0];
+            $segments[] = [
+                'kind' => 'member',
+                'value' => $matches[0],
+            ];
             $offset += strlen($matches[0]);
         }
 
