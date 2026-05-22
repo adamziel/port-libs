@@ -114,7 +114,7 @@ php tools/run-tests.php
 The required root run for this lane slice is green:
 
 ```text
-128 test files, 11591 assertions, 0 failures
+129 test files, 11605 assertions, 0 failures
 ```
 
 The difftastic-focused test file remains green with 84 tests, 425 assertions, and 0 failures via a direct `TestRunner` invocation.
