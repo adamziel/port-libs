@@ -543,6 +543,23 @@ final class TreeMerge
                         continue;
                     }
 
+                    $renameTypeChange = self::tryMergeRenameTypeChange(
+                        $pathPrefix,
+                        $path,
+                        $ourRename['path'],
+                        $baseEntry,
+                        $ourRename['entry'],
+                        $theirEntry,
+                        true,
+                    );
+                    if ($renameTypeChange !== null) {
+                        array_push($merged, ...$renameTypeChange['merged']);
+                        $conflicts[] = $renameTypeChange['conflict'];
+                        $consumed[$path] = true;
+                        $consumed[$ourRename['path']] = true;
+                        continue;
+                    }
+
                     $renameModifyMerge = self::tryMergeDirectoryRenameModify(
                         $pathPrefix,
                         $ourRename['path'],
@@ -625,6 +642,23 @@ final class TreeMerge
                         $consumed[$path] = true;
                         $consumed[$theirRename['path']] = true;
                         $merged[] = $baseEntry;
+                        continue;
+                    }
+
+                    $renameTypeChange = self::tryMergeRenameTypeChange(
+                        $pathPrefix,
+                        $path,
+                        $theirRename['path'],
+                        $baseEntry,
+                        $theirRename['entry'],
+                        $ourEntry,
+                        false,
+                    );
+                    if ($renameTypeChange !== null) {
+                        array_push($merged, ...$renameTypeChange['merged']);
+                        $conflicts[] = $renameTypeChange['conflict'];
+                        $consumed[$path] = true;
+                        $consumed[$theirRename['path']] = true;
                         continue;
                     }
 
@@ -803,6 +837,37 @@ final class TreeMerge
         }
 
         return ['conflicts' => $conflicts, 'consumed' => $consumed, 'merged' => $merged];
+    }
+
+    /**
+     * @return null|array{merged:list<TreeEntry>,conflict:TreeMergeConflict}
+     */
+    private static function tryMergeRenameTypeChange(
+        string $pathPrefix,
+        string $sourcePath,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        TreeEntry $renameEntry,
+        ?TreeEntry $otherEntry,
+        bool $renamedByOurs,
+    ): ?array {
+        if ($otherEntry === null || $baseEntry->kind() === $otherEntry->kind()) {
+            return null;
+        }
+
+        $sourceEntry = new TreeEntry($otherEntry->mode, $sourcePath, $otherEntry->oid);
+        $targetEntry = new TreeEntry($renameEntry->mode, $targetPath, $renameEntry->oid);
+
+        return [
+            'merged' => $renamedByOurs ? [$targetEntry, $sourceEntry] : [$sourceEntry, $targetEntry],
+            'conflict' => new TreeMergeConflict(
+                self::joinPath($pathPrefix, $targetPath),
+                'delete-modify',
+                $baseEntry,
+                $renamedByOurs ? $renameEntry : null,
+                $renamedByOurs ? null : $renameEntry,
+            ),
+        ];
     }
 
     /**
