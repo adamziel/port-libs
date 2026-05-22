@@ -20,6 +20,8 @@ final class TypeScriptModuleLowerer
     private bool $lowerUsingDeclarations = false;
     private bool $hasLoweredUsingDeclarations = false;
     private bool $hasLoweredAwaitUsingDeclarations = false;
+    private bool $needsUsingHelperRuntime = false;
+    private int $usingScopeCounter = 0;
 
     public function lower(
         string $source,
@@ -36,6 +38,8 @@ final class TypeScriptModuleLowerer
         $this->lowerUsingDeclarations = $lowerUsingDeclarations;
         $this->hasLoweredUsingDeclarations = false;
         $this->hasLoweredAwaitUsingDeclarations = false;
+        $this->needsUsingHelperRuntime = false;
+        $this->usingScopeCounter = 0;
 
         $lines = [];
         $exportAssignments = [];
@@ -92,6 +96,14 @@ final class TypeScriptModuleLowerer
                 [$functionOutput, $functionEnd] = $functionUsingStatement;
                 $lines[] = $functionOutput;
                 $i = $functionEnd;
+                continue;
+            }
+
+            $blockUsingStatement = $this->lowerBlockScopedUsingStatementAt($i, $effectiveEnd);
+            if ($blockUsingStatement !== null) {
+                [$blockOutput, $blockEnd] = $blockUsingStatement;
+                $lines[] = $blockOutput;
+                $i = $blockEnd;
                 continue;
             }
 
@@ -169,7 +181,9 @@ final class TypeScriptModuleLowerer
             return $this->wrapUsingHelperStatements($lines);
         }
 
-        return $lines === [] ? '' : implode("\n", $lines) . "\n";
+        $output = $lines === [] ? '' : implode("\n", $lines) . "\n";
+
+        return $this->needsUsingHelperRuntime ? $this->usingHelperRuntime() . $output : $output;
     }
 
     /**
@@ -3378,6 +3392,50 @@ final class TypeScriptModuleLowerer
         return [implode("\n", $lines), $bodyClose];
     }
 
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function lowerBlockScopedUsingStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        if (!$this->lowerUsingDeclarations) {
+            return null;
+        }
+
+        $first = ($this->tokens[$start] ?? null)?->text;
+        if ($first !== '{' && $first !== 'if') {
+            return null;
+        }
+
+        $bodyOpen = $first === '{' ? $start : $this->findTopLevelBlockOpenBeforeStatementEnd($start);
+        if ($bodyOpen === null || $bodyOpen > $effectiveEnd) {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd || $bodyClose !== $effectiveEnd) {
+            return null;
+        }
+
+        [$bodyLines, $changed] = $this->lowerBlockScopedUsingStatements($bodyOpen + 1, $bodyClose);
+        if (!$changed) {
+            return null;
+        }
+
+        $header = trim(substr(
+            $this->source,
+            $this->tokens[$start]->offset,
+            $this->tokens[$bodyOpen]->offset - $this->tokens[$start]->offset,
+        ));
+
+        $lines = [$header === '' ? '{' : $header . ' {'];
+        foreach ($bodyLines as $line) {
+            $lines[] = '  ' . $line;
+        }
+        $lines[] = '}';
+
+        return [implode("\n", $lines), $bodyClose];
+    }
+
     private function isFunctionLikeBodyHeader(int $start, int $bodyOpen): bool
     {
         for ($i = $start; $i < $bodyOpen; $i++) {
@@ -3425,19 +3483,43 @@ final class TypeScriptModuleLowerer
     {
         $lines = [];
         $changed = false;
+        $hasFunctionScopeUsing = false;
+        $hasAwaitUsing = false;
+        $stackName = null;
         for ($cursor = $start; $cursor < $bodyClose; $cursor++) {
             if (($this->tokens[$cursor] ?? null)?->text === ';') {
                 continue;
             }
 
             $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
-            $this->validateForUsingStatement($cursor, $this->withoutTrailingSemicolon($statementEnd));
+            $effectiveEnd = $this->withoutTrailingSemicolon($statementEnd);
+            $this->validateForUsingStatement($cursor, $effectiveEnd);
+
+            $nested = $this->lowerUsingDeclarations ? $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd) : null;
+            if ($nested !== null) {
+                [$nestedOutput, $nestedEnd] = $nested;
+                $lines[] = $nestedOutput;
+                $changed = true;
+                $cursor = $nestedEnd;
+                continue;
+            }
+
             if ($this->isUsingDeclarationStart($cursor)) {
-                $using = $this->parseUsingDeclaration($cursor, $this->withoutTrailingSemicolon($statementEnd));
+                $using = $this->parseUsingDeclaration($cursor, $effectiveEnd);
                 if ($using['await'] && !$isAsyncFunction) {
                     throw new \InvalidArgumentException('Cannot use await using inside a non-async function');
                 }
-                $lines[] = $this->printUsingDeclaration($using, allowHelperLowering: false);
+
+                if ($this->lowerUsingDeclarations && !($this->minifySyntax && $this->usingDeclarationsCanSkipUsingMachinery($using))) {
+                    if ($stackName === null) {
+                        [$stackName] = $this->nextUsingScopeNames();
+                    }
+                    $lines[] = 'const ' . $this->printUsingDeclarators($using['declarations'], true, $using['await'], $stackName) . ';';
+                    $hasFunctionScopeUsing = true;
+                    $hasAwaitUsing = $hasAwaitUsing || $using['await'];
+                } else {
+                    $lines[] = $this->printUsingDeclaration($using, allowHelperLowering: false);
+                }
                 $changed = true;
                 $cursor = $statementEnd;
                 continue;
@@ -3452,7 +3534,63 @@ final class TypeScriptModuleLowerer
             $cursor = $statementEnd;
         }
 
+        if ($hasFunctionScopeUsing) {
+            return [$this->usingHelperScopeLines($lines, $hasAwaitUsing, $stackName), true];
+        }
+
         return [$lines, $changed];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:bool, 2:bool}
+     */
+    private function lowerBlockScopedUsingStatements(int $start, int $bodyClose): array
+    {
+        $lines = [];
+        $changed = false;
+        $hasAwaitUsing = false;
+        [$stackName] = $this->nextUsingScopeNames();
+        for ($cursor = $start; $cursor < $bodyClose; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                continue;
+            }
+
+            $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
+            $effectiveEnd = $this->withoutTrailingSemicolon($statementEnd);
+            $this->validateForUsingStatement($cursor, $effectiveEnd);
+
+            $nested = $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd);
+            if ($nested !== null) {
+                [$nestedOutput, $nestedEnd] = $nested;
+                $lines[] = $nestedOutput;
+                $changed = true;
+                $cursor = $nestedEnd;
+                continue;
+            }
+
+            if ($this->isUsingDeclarationStart($cursor)) {
+                $using = $this->parseUsingDeclaration($cursor, $effectiveEnd);
+                $lines[] = 'const ' . $this->printUsingDeclarators($using['declarations'], true, $using['await'], $stackName) . ';';
+                $hasAwaitUsing = $hasAwaitUsing || $using['await'];
+                $changed = true;
+                $cursor = $statementEnd;
+                continue;
+            }
+
+            $line = $this->containsErasableTypeScriptSyntax($cursor, $statementEnd) || $this->containsInlineableEnumReference($cursor, $statementEnd)
+                ? $this->printRuntimeStatement($cursor, $statementEnd)
+                : $this->originalStatementText($cursor, $statementEnd);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+            $cursor = $statementEnd;
+        }
+
+        if (!$changed) {
+            return [$lines, false, false];
+        }
+
+        return [$this->usingHelperScopeLines($lines, $hasAwaitUsing, $stackName), true, $hasAwaitUsing];
     }
 
     private function functionBodyStatementEnd(int $start, int $bodyClose): int
@@ -3462,6 +3600,7 @@ final class TypeScriptModuleLowerer
         }
 
         $depth = 0;
+        $canEndAtTopLevelCloseBrace = $this->statementCanEndAtTopLevelCloseBrace($start);
         for ($i = $start; $i < $bodyClose; $i++) {
             $text = $this->tokens[$i]->text;
             if (in_array($text, ['(', '{', '['], true)) {
@@ -3470,6 +3609,9 @@ final class TypeScriptModuleLowerer
             }
             if (in_array($text, [')', '}', ']'], true)) {
                 $depth--;
+                if ($canEndAtTopLevelCloseBrace && $depth === 0 && $text === '}') {
+                    return $i;
+                }
                 continue;
             }
             if ($text === ';' && $depth === 0) {
@@ -3478,6 +3620,25 @@ final class TypeScriptModuleLowerer
         }
 
         return max($start, $bodyClose - 1);
+    }
+
+    private function statementCanEndAtTopLevelCloseBrace(int $start): bool
+    {
+        $first = ($this->tokens[$start] ?? null)?->text;
+        if (in_array($first, ['{', 'if', 'for', 'while', 'switch', 'try', 'do', 'class', 'function'], true)) {
+            return true;
+        }
+
+        if ($first !== 'export') {
+            return false;
+        }
+
+        $second = ($this->tokens[$start + 1] ?? null)?->text;
+        $third = ($this->tokens[$start + 2] ?? null)?->text;
+
+        return in_array($second, ['class', 'function'], true)
+            || ($second === 'default' && in_array($third, ['class', 'function'], true))
+            || ($second === 'async' && $third === 'function');
     }
 
     private function validateForUsingStatement(int $start, int $end): void
@@ -4085,6 +4246,7 @@ final class TypeScriptModuleLowerer
 
         if ($this->lowerUsingDeclarations && $allowHelperLowering) {
             $this->hasLoweredUsingDeclarations = true;
+            $this->needsUsingHelperRuntime = true;
             if ($using['await']) {
                 $this->hasLoweredAwaitUsingDeclarations = true;
             }
@@ -4100,13 +4262,18 @@ final class TypeScriptModuleLowerer
     /**
      * @param list<array{name:string, valueStart:int, valueEnd:int}> $declarations
      */
-    private function printUsingDeclarators(array $declarations, bool $wrapInHelper, bool $isAwaitUsing = false): string
+    private function printUsingDeclarators(
+        array $declarations,
+        bool $wrapInHelper,
+        bool $isAwaitUsing = false,
+        string $stackName = '_stack'
+    ): string
     {
         $parts = [];
         foreach ($declarations as $declaration) {
             $value = $this->printUsingInitializer($declaration['valueStart'], $declaration['valueEnd']);
             if ($wrapInHelper) {
-                $args = '_stack, ' . $value;
+                $args = $stackName . ', ' . $value;
                 if ($isAwaitUsing) {
                     $args .= ', true';
                 }
@@ -4214,6 +4381,54 @@ final class TypeScriptModuleLowerer
     }
 
     /**
+     * @return array{0:string, 1:string, 2:string, 3:string, 4:string}
+     */
+    private function nextUsingScopeNames(): array
+    {
+        $this->usingScopeCounter++;
+        $suffix = (string) ($this->usingScopeCounter + 1);
+
+        return ['_stack' . $suffix, '_' . $suffix, '_error' . $suffix, '_hasError' . $suffix, '_promise' . $suffix];
+    }
+
+    /**
+     * @param list<string> $bodyLines
+     * @return list<string>
+     */
+    private function usingHelperScopeLines(array $bodyLines, bool $hasAwaitUsing, ?string $stackName = null): array
+    {
+        $this->needsUsingHelperRuntime = true;
+        [$stack, $catch, $error, $hasError, $promise] = $stackName === null
+            ? $this->nextUsingScopeNames()
+            : [$stackName, substr($stackName, 6) === '' ? '_' : '_' . substr($stackName, 6), '_error' . substr($stackName, 6), '_hasError' . substr($stackName, 6), '_promise' . substr($stackName, 6)];
+
+        $lines = [
+            'var ' . $stack . ' = [];',
+            'try {',
+        ];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
+        }
+        $lines[] = '} catch (' . $catch . ') {';
+        $lines[] = '  var ' . $error . ' = ' . $catch . ', ' . $hasError . ' = true;';
+        $lines[] = '} finally {';
+        if ($hasAwaitUsing) {
+            $lines[] = '  var ' . $promise . ' = __callDispose(' . $stack . ', ' . $error . ', ' . $hasError . ');';
+            $lines[] = '  ' . $promise . ' && await ' . $promise . ';';
+        } else {
+            $lines[] = '  __callDispose(' . $stack . ', ' . $error . ', ' . $hasError . ');';
+        }
+        $lines[] = '}';
+
+        return $lines;
+    }
+
+    /**
      * @param list<string> $lines
      */
     private function wrapUsingHelperStatements(array $lines): string
@@ -4291,7 +4506,7 @@ var __callDispose = (stack, error, hasError) => {
   };
   return next();
 };
-JS;
+JS . "\n";
     }
 
     private function usingInitializerEnd(int $start, int $end): int

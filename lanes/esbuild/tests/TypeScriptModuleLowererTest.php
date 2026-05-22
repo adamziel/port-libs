@@ -222,6 +222,48 @@ TS);
         $t->same("var x = null;\n", $optimized);
         $t->true(!str_contains($optimized, '__using'));
     },
+    'lowers upstream block scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            'if (nested) { using x: Disposable = y; bar(x); }',
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains("if (nested) {\n  var _stack2 = [];\n  try {\n    const x = __using(_stack2, y);\n    bar(x);\n  } catch (_2) {\n    var _error2 = _2, _hasError2 = true;\n  } finally {\n    __callDispose(_stack2, _error2, _hasError2);\n  }\n}", $lowered);
+        $t->true(strpos($lowered, 'var __using') < strpos($lowered, 'if (nested)'));
+
+        $awaitLowered = (new TypeScriptModuleLowerer())->lower(
+            'if (nested) { await using y: AsyncDisposable = acquire(); done(y); }',
+            lowerUsingDeclarations: true
+        );
+        $t->contains('const y = __using(_stack2, acquire(), true);', $awaitLowered);
+        $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $awaitLowered);
+        $t->contains('_promise2 && await _promise2;', $awaitLowered);
+    },
+    'lowers upstream function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            'function foo() { using a: Disposable = b; if (nested) { using x: Disposable = y; bar(x); } done(a); }',
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains("function foo() {\n  var _stack2 = [];\n  try {\n    const a = __using(_stack2, b);", $lowered);
+        $t->contains("if (nested) {\n      var _stack3 = [];\n      try {\n        const x = __using(_stack3, y);\n        bar(x);", $lowered);
+        $t->contains('__callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->true(strpos($lowered, 'const a = __using(_stack2, b);') < strpos($lowered, 'done(a);'));
+        $t->true(strpos($lowered, 'bar(x);') < strpos($lowered, '__callDispose(_stack3'));
+
+        $awaitLowered = (new TypeScriptModuleLowerer())->lower(
+            'async function bar() { using a: Disposable = b; await using c: AsyncDisposable = d; if (nested) { await using y: AsyncDisposable = acquire(); done(y); } done(a, c); }',
+            lowerUsingDeclarations: true
+        );
+        $t->contains('const c = __using(_stack2, d, true);', $awaitLowered);
+        $t->contains('const y = __using(_stack3, acquire(), true);', $awaitLowered);
+        $t->contains('var _promise3 = __callDispose(_stack3, _error3, _hasError3);', $awaitLowered);
+        $t->contains('_promise3 && await _promise3;', $awaitLowered);
+        $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $awaitLowered);
+        $t->contains('_promise2 && await _promise2;', $awaitLowered);
+    },
     'erases upstream function scoped typescript using declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1109,6 +1151,37 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));
+    },
+    'lowers wordpress function scoped disposable asset cleanup without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-function-using-disposable.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('export function registerPreviewAsset(metadata) {', $lowered);
+        $t->contains('var _stack2 = [];', $lowered);
+        $t->contains('const previewAsset = __using(_stack2, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->true(strpos($lowered, 'const previewAsset = __using') < strpos($lowered, 'wp.blocks.registerBlockType'));
+        $t->true(strpos($lowered, 'wp.blocks.registerBlockType') < strpos($lowered, '__callDispose(_stack2'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+    },
+    'lowers wordpress block scoped disposable asset cleanup without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-block-using-disposable.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('if (metadata.viewScript) {', $lowered);
+        $t->contains('const previewAsset = __using(_stack2, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('queueAsset(previewAsset.url);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(strpos($lowered, 'const previewAsset = __using') < strpos($lowered, 'queueAsset(previewAsset.url);'));
+        $t->true(strpos($lowered, 'queueAsset(previewAsset.url);') < strpos($lowered, '__callDispose(_stack2'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'satisfies'));
     },
     'lowers wordpress for using asset loops without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-for-using-assets.ts');
