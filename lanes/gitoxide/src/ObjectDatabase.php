@@ -29,6 +29,10 @@ final class ObjectDatabase
      * @var null|array<string,string>
      */
     private ?array $replacementMap = null;
+    /**
+     * @var null|list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string,promisorPath:string}>
+     */
+    private ?array $promisorPacks = null;
 
     public function __construct(
         private readonly string $gitDirectory,
@@ -96,6 +100,10 @@ final class ObjectDatabase
             if ($object !== null) {
                 return $object;
             }
+        }
+
+        if ($this->hasPromisorPacks()) {
+            throw new \RuntimeException("Object promised by partial clone filter but not present locally: {$oid}");
         }
 
         throw new \RuntimeException("Object not found in database: {$oid}");
@@ -242,6 +250,75 @@ final class ObjectDatabase
     }
 
     /**
+     * @return list<string>
+     */
+    public function promisorPackNames(): array
+    {
+        return array_map(
+            static fn (array $bundle): string => basename($bundle['promisorPath']),
+            $this->promisorPackBundles()
+        );
+    }
+
+    public function hasPromisorPacks(): bool
+    {
+        return $this->promisorPackBundles() !== [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function promisorObjectIds(): array
+    {
+        $ids = [];
+        foreach ($this->promisorPackBundles() as $bundle) {
+            foreach ($bundle['index']->entries() as $entry) {
+                $ids[$entry->oid] = true;
+            }
+        }
+
+        $ids = array_keys($ids);
+        sort($ids, SORT_STRING);
+
+        return $ids;
+    }
+
+    public function isPromisorObject(string $oid): bool
+    {
+        self::assertObjectId($oid);
+        $oid = strtolower($oid);
+
+        foreach ($this->promisorPackBundles() as $bundle) {
+            if ($bundle['index']->lookup($oid) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{status:'present'|'promisor-present'|'promised-missing'|'missing',oid:string}
+     */
+    public function objectState(string $oid): array
+    {
+        self::assertObjectId($oid);
+        $oid = strtolower($oid);
+
+        if ($this->contains($oid)) {
+            return [
+                'status' => $this->isPromisorObject($oid) ? 'promisor-present' : 'present',
+                'oid' => $oid,
+            ];
+        }
+
+        return [
+            'status' => $this->hasPromisorPacks() ? 'promised-missing' : 'missing',
+            'oid' => $oid,
+        ];
+    }
+
+    /**
      * @return list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}>
      */
     private function packBundles(): array
@@ -282,6 +359,27 @@ final class ObjectDatabase
         }
 
         return $this->packs;
+    }
+
+    /**
+     * @return list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string,promisorPath:string}>
+     */
+    private function promisorPackBundles(): array
+    {
+        if ($this->promisorPacks !== null) {
+            return $this->promisorPacks;
+        }
+
+        $this->promisorPacks = [];
+        foreach ($this->packBundles() as $bundle) {
+            $promisorPath = substr($bundle['indexPath'], 0, -4) . '.promisor';
+            if (!is_file($promisorPath)) {
+                continue;
+            }
+            $this->promisorPacks[] = $bundle + ['promisorPath' => $promisorPath];
+        }
+
+        return $this->promisorPacks;
     }
 
     /**

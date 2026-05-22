@@ -346,9 +346,10 @@ final class FetchCommand
         $this->arguments[] = 'deepen-not ' . $refPath;
     }
 
-    public function filter(string $spec): void
+    public function filter(string|FetchFilterSpec $spec): void
     {
         $this->requireCapability($this->canUseFilter(), 'filter');
+        $spec = $spec instanceof FetchFilterSpec ? $spec->spec : $spec;
         if ($spec === '') {
             throw new \InvalidArgumentException('fetch: filter spec cannot be empty');
         }
