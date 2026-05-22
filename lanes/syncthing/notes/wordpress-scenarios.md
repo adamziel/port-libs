@@ -96,6 +96,16 @@ ranges/brace alternatives follow focused upstream `gobwas/glob` behavior, and
 receive-encrypted folders skip finalized-file hash validation for encrypted
 hash tokens while still requiring temporary bytes to validate before they can
 be served.
+The receive-encrypted envelope slice maps focused upstream
+`lib/protocol/encryption.go`, `lib/protocol/encryption_test.go`,
+`lib/model/sharedpullerstate.go`, and `lib/model/folder_sendrecv.go`
+boundaries without claiming full crypto parity: encrypted requests add the
+40-byte nonce/tag overhead per block and pad small plaintext requests to the
+upstream 1024-byte minimum, inbound encrypted request geometry subtracts that
+overhead before dispatch, synthetic encrypted parent directories are detected
+with the upstream `.syncthing-enc` and 200-character component rules, and
+receive-encrypted file trailers append a FileInfo wire payload followed by a
+big-endian payload length.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -161,9 +171,16 @@ digest.
 loading a shared private-export ignore snippet via `#include`, then using a
 custom `#escape=|` rule to block a literal filename containing `*` without
 blocking an ordinary public media request.
+`examples/wordpress-receive-encrypted-envelope.php` shows the adjacent
+untrusted-peer boundary: a WordPress media block request is reshaped into an
+encrypted-name request with padded size, per-block overhead, and an opaque hash
+token, while the encrypted file bytes carry a recoverable normalized FileInfo
+trailer for later metadata reconstruction.
 
 ## Next Task
 
-Map the adjacent receive-encrypted trailer/puller boundaries from
-`folder_sendrecv.go`, including encrypted filename/hash token request handling
-beyond the finalized-file bypass already covered.
+Map more receive-encrypted encryption semantics from
+`lib/protocol/encryption.go`, especially exact AES-SIV name/hash token
+generation and ChaCha20-Poly1305 block encryption/decryption if standard-PHP
+crypto support is available or a small audited native implementation is
+justified.
