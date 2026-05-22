@@ -557,7 +557,6 @@ final class TreeMerge
         }
 
         $candidatesByDeletedPath = [];
-        $candidateUseCounts = [];
         foreach ($baseEntries as $deletedPath => $baseEntry) {
             if (isset($sideEntries[$deletedPath]) || isset($knownRenames[$deletedPath]) || !$baseEntry->isBlob()) {
                 continue;
@@ -573,23 +572,10 @@ final class TreeMerge
                     continue;
                 }
                 $candidatesByDeletedPath[$deletedPath][$addedPath] = ['score' => $score, 'entry' => $sideEntry];
-                $candidateUseCounts[$addedPath] = ($candidateUseCounts[$addedPath] ?? 0) + 1;
             }
         }
 
-        $renames = [];
-        foreach ($candidatesByDeletedPath as $deletedPath => $candidates) {
-            if (count($candidates) !== 1) {
-                continue;
-            }
-            $addedPath = array_key_first($candidates);
-            if (($candidateUseCounts[$addedPath] ?? 0) !== 1) {
-                continue;
-            }
-            $renames[$deletedPath] = ['path' => $addedPath, 'entry' => $candidates[$addedPath]['entry']];
-        }
-
-        return $renames;
+        return self::strictBestSimilarityRenames($candidatesByDeletedPath);
     }
 
     /**
@@ -607,7 +593,6 @@ final class TreeMerge
         }
 
         $candidatesByDeletedPath = [];
-        $candidateUseCounts = [];
         foreach ($baseEntries as $deletedPath => $baseEntry) {
             if (isset($sideEntries[$deletedPath]) || isset($knownRenames[$deletedPath]) || !$baseEntry->isTree()) {
                 continue;
@@ -623,20 +608,45 @@ final class TreeMerge
                     continue;
                 }
                 $candidatesByDeletedPath[$deletedPath][$addedPath] = ['score' => $score, 'entry' => $sideEntry];
-                $candidateUseCounts[$addedPath] = ($candidateUseCounts[$addedPath] ?? 0) + 1;
             }
         }
 
-        $renames = [];
+        return self::strictBestSimilarityRenames($candidatesByDeletedPath);
+    }
+
+    /**
+     * @param array<string, array<string, array{score:int,entry:TreeEntry}>> $candidatesByDeletedPath
+     * @return array<string, array{path:string,entry:TreeEntry}>
+     */
+    private static function strictBestSimilarityRenames(array $candidatesByDeletedPath): array
+    {
+        $selected = [];
+        $selectedTargetCounts = [];
         foreach ($candidatesByDeletedPath as $deletedPath => $candidates) {
-            if (count($candidates) !== 1) {
+            uasort(
+                $candidates,
+                static fn (array $left, array $right): int => $right['score'] <=> $left['score'],
+            );
+            $candidatePaths = array_keys($candidates);
+            $bestPath = $candidatePaths[0] ?? null;
+            if ($bestPath === null) {
                 continue;
             }
-            $addedPath = array_key_first($candidates);
-            if (($candidateUseCounts[$addedPath] ?? 0) !== 1) {
+            $secondPath = $candidatePaths[1] ?? null;
+            if ($secondPath !== null && $candidates[$secondPath]['score'] === $candidates[$bestPath]['score']) {
                 continue;
             }
-            $renames[$deletedPath] = ['path' => $addedPath, 'entry' => $candidates[$addedPath]['entry']];
+
+            $selected[$deletedPath] = ['path' => $bestPath, 'entry' => $candidates[$bestPath]['entry']];
+            $selectedTargetCounts[$bestPath] = ($selectedTargetCounts[$bestPath] ?? 0) + 1;
+        }
+
+        $renames = [];
+        foreach ($selected as $deletedPath => $rename) {
+            if (($selectedTargetCounts[$rename['path']] ?? 0) !== 1) {
+                continue;
+            }
+            $renames[$deletedPath] = $rename;
         }
 
         return $renames;

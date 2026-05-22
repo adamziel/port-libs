@@ -452,6 +452,67 @@ return [
         $t->same($theirReadme, $read($pluginTree->entryNamed('readme.txt')?->oid ?? '')->body);
         $t->same([], $result->indexEntries());
     },
+    'recursive tree merge chooses strict best directory rename candidate' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\nEntry: acme.php\n";
+        $ourPlugin = "Plugin: Acme Pro\nVersion: 1.1\nRequires: 6.5\nStatus: active\nEntry: acme-pro.php\n";
+        $litePlugin = "Plugin: Acme Lite\nVersion: 0.1\nRequires: 6.5\nStatus: inactive\nEntry: acme-lite.php\n";
+        $baseReadme = "Acme plugin\nStable tag: 1.0\n";
+        $theirReadme = "Acme plugin\nStable tag: 1.2\n";
+        $api = "<?php\nreturn 'api';\n";
+        $admin = "<?php\nreturn 'admin';\n";
+        $style = ".acme { color: #135e96; }\n";
+        $basePluginTree = new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $baseReadme),
+            $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+            $treeEntry('includes', new Tree([
+                $blobEntry('admin.php', $admin),
+                $blobEntry('api.php', $api),
+            ])),
+        ]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([
+            $treeEntry('acme-lite', new Tree([
+                $blobEntry('acme-lite.php', $litePlugin),
+                $blobEntry('readme.txt', $baseReadme),
+                $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+                $treeEntry('includes', new Tree([$blobEntry('api.php', $api)])),
+            ])),
+            $treeEntry('acme-pro', new Tree([
+                $blobEntry('acme-pro.php', $ourPlugin),
+                $blobEntry('readme.txt', $baseReadme),
+                $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+                $treeEntry('includes', new Tree([
+                    $blobEntry('admin.php', $admin),
+                    $blobEntry('api.php', $api),
+                ])),
+            ])),
+        ]))]))]);
+        $base = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', $basePluginTree)]))]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $theirReadme),
+            $treeEntry('assets', new Tree([$blobEntry('style.css', $style)])),
+            $treeEntry('includes', new Tree([
+                $blobEntry('admin.php', $admin),
+                $blobEntry('api.php', $api),
+            ])),
+        ]))]))]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $pluginsTree = Tree::fromObject($read($contentTree->entryNamed('plugins', true)?->oid ?? ''));
+        $proTree = Tree::fromObject($read($pluginsTree->entryNamed('acme-pro', true)?->oid ?? ''));
+        $liteTree = Tree::fromObject($read($pluginsTree->entryNamed('acme-lite', true)?->oid ?? ''));
+
+        $t->true($result->isClean());
+        $t->same(['acme-lite', 'acme-pro'], $names($pluginsTree));
+        $t->same(['acme-pro.php', 'assets', 'includes', 'readme.txt'], $names($proTree));
+        $t->same($ourPlugin, $read($proTree->entryNamed('acme-pro.php')?->oid ?? '')->body);
+        $t->same($theirReadme, $read($proTree->entryNamed('readme.txt')?->oid ?? '')->body);
+        $t->same($litePlugin, $read($liteTree->entryNamed('acme-lite.php')?->oid ?? '')->body);
+        $t->same([], $result->indexEntries());
+    },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
