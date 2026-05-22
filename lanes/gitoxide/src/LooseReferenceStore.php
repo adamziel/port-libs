@@ -41,9 +41,19 @@ final class LooseReferenceStore
 
     public function read(string $name, string $algorithm = 'sha1'): LooseReference
     {
+        $reference = $this->tryRead($name, $algorithm);
+        if ($reference === null) {
+            throw new \RuntimeException("Loose reference not found: {$name}");
+        }
+
+        return $reference;
+    }
+
+    public function tryRead(string $name, string $algorithm = 'sha1'): ?LooseReference
+    {
         $path = $this->pathFor($name);
         if (!is_file($path)) {
-            throw new \RuntimeException("Loose reference not found: {$name}");
+            return null;
         }
 
         return LooseReference::parse($name, (string) file_get_contents($path), $algorithm);
