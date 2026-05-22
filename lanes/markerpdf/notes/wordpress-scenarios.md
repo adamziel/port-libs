@@ -36,6 +36,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-reading-order-import.php` maps Marker's upstream layout ordering path into a two-column Gutenberg import. It applies model order positions by maximum bounding-box overlap, uses Marker's vertical-bucket/horizontal tie sorting, keeps page headers before body content and footers after it, then emits the body text as paragraph blocks in reading order.
 
+`examples/wordpress-layout-annotation-import.php` maps Marker's upstream layout annotation path into a Gutenberg import preflight. It assigns Title/Text/Picture labels from supplied layout boxes, merges title fragments that came from the same layout region, applies Marker's bad-span type filtering for Picture text, and emits clean heading plus paragraph blocks without calling Surya.
+
 `examples/wordpress-ocr-triage.php` maps Marker's upstream OCR heuristics into a pre-render import decision. It uses text quality, detected-line coverage, all-empty document detection, and force-OCR flags to send scanned or garbled pages to OCR before Gutenberg block conversion while leaving clean extracted pages on the native text path.
 
 `examples/wordpress-ocr-language-preflight.php` maps Marker's upstream OCR language normalization into multilingual import metadata. It converts human language names from a WordPress PDF metadata file to OCRmyPDF/Tesseract codes, applies Marker's default English fallback when languages are omitted, and rejects invalid engine-specific codes before the OCR handoff.

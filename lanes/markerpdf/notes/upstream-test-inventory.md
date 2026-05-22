@@ -4,17 +4,17 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 ## Counted Denominator
 
-- Repository files inspected with `git ls-tree`: 78.
-- Targeted lane-relevant workflow/benchmark/example/source/support paths inspected with `git ls-tree`: 61.
+- Repository files inventoried with `git ls-tree`: 78.
+- Targeted lane-relevant workflow/benchmark/example/source/support paths inspected with `git ls-tree` and targeted `git show`: 62.
 - Python files: 47, including 39 files under `marker/`.
 - Committed Python unit tests: 0 found.
 - CI benchmark workflow: 1 integration workflow, `.github/workflows/tests.yml`.
 - Benchmark/scoring scripts inspected: `benchmarks/overall.py`, `marker/benchmark/scoring.py`, `marker/benchmark/table.py`, and `scripts/verify_benchmark_scores.py`.
 - Benchmark scoring functions inspected: 6 (`chunk_text`, `overlap_score`, `score_text`, `split_to_cells`, `align_rows`, and `score_table`).
-- Cleaner/postprocessor/source utilities inspected: 7 cleaner modules with 17 functions under `marker/cleaners/`, 8 functions in `marker/postprocessors/markdown.py`, `marker/layout/order.py`, `marker/pdf/utils.py`, `marker/ocr/heuristics.py`, `marker/ocr/utils.py`, `marker/equations/equations.py`, `marker/equations/inference.py`, `marker/tables/table.py`, and `marker/tables/utils.py`.
+- Cleaner/postprocessor/source utilities inspected: 7 cleaner modules with 17 functions under `marker/cleaners/`, 8 functions in `marker/postprocessors/markdown.py`, `marker/layout/layout.py`, `marker/layout/order.py`, `marker/pdf/utils.py`, `marker/ocr/heuristics.py`, `marker/ocr/utils.py`, `marker/equations/equations.py`, `marker/equations/inference.py`, `marker/tables/table.py`, and `marker/tables/utils.py`.
 - Cleaner functions mapped: `marker/cleaners/bullets.py::replace_bullets`, `marker/cleaners/text.py::cleanup_text`, `marker/cleaners/fontstyle.py::find_bold_italic`, five focused functions from `marker/cleaners/headers.py` (`filter_common_elements`, `filter_header_footer`, `replace_leading_trailing_digits`, `find_overlap_elements`, and `filter_common_titles`), four focused functions from `marker/cleaners/code.py` (`is_code_linelen`, `comment_count`, `identify_code_blocks`, and `indent_blocks`), all three functions from `marker/cleaners/headings.py` (`split_heading_blocks`, `bucket_headings`, and `infer_heading_levels`), and `marker/cleaners/toc.py::compute_toc`.
 - Markdown postprocessor functions mapped: 7 of 8 (`escape_markdown`, `surround_text`, `block_surround`, `line_separator`, `block_separator`, `merge_lines`, and `get_full_text`). The styled-span branch of `merge_spans` is represented by `FontStyleCleaner`, but the full page-level wrapper is still only partially mapped.
-- Layout/order utilities mapped: `marker/pdf/utils.py::sort_block_group` and `marker/layout/order.py::sort_blocks_in_reading_order`, including order-position assignment by maximum bbox overlap, vertical-bucket/horizontal row sorting, fallback ordering for unpositioned blocks, and header/footer pinning.
+- Layout utilities mapped: `marker/layout/layout.py::annotate_block_types`, `marker/pdf/utils.py::sort_block_group`, and `marker/layout/order.py::sort_blocks_in_reading_order`, including layout-label assignment by maximum bbox overlap, closest annotated-block fallback, default Text fallback, consecutive same-layout block merging, order-position assignment by maximum bbox overlap, vertical-bucket/horizontal row sorting, fallback ordering for unpositioned blocks, and header/footer pinning.
 - OCR heuristic utilities mapped: all four focused functions from `marker/ocr/heuristics.py` (`should_ocr_page`, `detect_bad_ocr`, `no_text_found`, and `detected_line_coverage`) plus `marker/ocr/utils.py::alphanum_ratio`.
 - OCR language utilities mapped: `marker/ocr/lang.py::replace_langs_with_codes` and `marker/ocr/lang.py::validate_langs`, backed by `marker/ocr/tesseract.py`'s 93-entry Tesseract language map and the 94-entry Surya language map from the locked `surya-ocr==0.6.13` wheel hash recorded in `poetry.lock`. `langs_to_ids` remains unported because it calls the Surya recognition tokenizer.
 - Image insertion helpers mapped from `marker/images/save.py`, `marker/images/extract.py`, `marker/schema/block.py`, and `marker/schema/bbox.py`: deterministic image filenames, page image dictionary export, nearest-block fallback insertion, Figure/Picture layout-region matching, intersecting text-span clearing, and Markdown image-span insertion. Native PHP does not raster-render PDF crops yet; upstream uses `pypdfium2` and PIL for that part.
@@ -27,7 +27,7 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 - CI score assertions: 3 thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`, and average table report score `>= 0.7`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
 
-The lane manifest now counts 61 targeted upstream lane-relevant paths for dashboard purposes: workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/equation/table/output/settings/schema/source modules, and support scripts, plus 6 README benchmark document identifiers. This is a static inventory, not upstream pass parity.
+The lane manifest now counts all 78 tracked upstream repository paths as the static cloned inventory and 62 targeted upstream lane-relevant paths for dashboard purposes: workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/equation/table/output/settings/schema/source modules, and support scripts, plus 6 README benchmark document identifiers. This is a static inventory, not upstream pass parity.
 
 ## Mapped Surrogate Pairs
 
@@ -47,6 +47,7 @@ The lane manifest now counts 61 targeted upstream lane-relevant paths for dashbo
 - `marker/postprocessors/markdown.py` block merging, block separators, and full-text assembly are mapped by `MarkdownPostProcessor::mergeBlocks`, `MarkdownPostProcessor::blockSeparator`, and `MarkdownPostProcessor::getFullText`.
 - `marker/postprocessors/markdown.py` continuation geometry is mapped by `MarkdownPostProcessor::mergeBlocks` for equal-height, same-x lines whose vertical gap is below the upstream `max_block_gap`.
 - `marker/pdf/utils.py` vertical-bucket and horizontal-row sorting is mapped by `LayoutOrderer::sortBlockGroup`.
+- `marker/layout/layout.py` layout annotation is mapped by `LayoutAnnotator::annotateBlockTypes`, including maximum-overlap layout-label assignment, nearest annotated-block fallback for unassigned blocks, default Text fallback, and consecutive same-layout block merging before Markdown assembly.
 - `marker/layout/order.py` reading-order assignment is mapped by `LayoutOrderer::sortBlocksInReadingOrder`, including maximum bbox-overlap position assignment, fallback positions for unordered blocks, `sort_block_group` tie sorting, and Page-header/Page-footer/Footnote pinning.
 - `marker/ocr/utils.py` alphanumeric quality scoring is mapped by `OcrHeuristics::alphanumRatio`, including the upstream behavior that removes spaces and newlines before counting alphanumeric characters.
 - `marker/ocr/heuristics.py` bad-OCR detection is mapped by `OcrHeuristics::detectBadOcr`, including empty text, whitespace/newline runs, garbled low-alphanumeric text, and repeated replacement-character checks.
@@ -93,6 +94,7 @@ The lane manifest now counts 61 targeted upstream lane-relevant paths for dashbo
 - `examples/wordpress-output-artifact.php` maps `marker/output.py` into a WordPress import artifact handoff. It writes converted block Markdown, review metadata, and image artifacts to Marker's per-document output layout without shelling out to Python or PIL.
 - `examples/wordpress-settings-preflight.php` maps `marker/settings.py` into a WordPress import preflight. It accepts PDF uploads, rejects unsupported MIME types, applies shared-hosting overrides for image extraction and pagination, and exposes the same page separator and bad-span defaults that later conversion stages consume.
 - `examples/wordpress-ocr-language-preflight.php` maps `marker/ocr/lang.py` into a multilingual WordPress OCR metadata preflight. It normalizes imported PDF metadata such as `["Spanish", "Russian"]` to OCRmyPDF/Tesseract codes such as `["spa", "rus"]`, and applies Marker's default English language when metadata omits languages.
+- `examples/wordpress-layout-annotation-import.php` maps `marker/layout/layout.py::annotate_block_types` into a WordPress import preflight. It assigns Title/Text/Picture labels from supplied layout boxes, merges split title lines from the same layout region, filters bad span types with `MarkerSettings::badSpanTypes()`, and renders only block-ready heading and paragraph output.
 
 ## Runner Status
 
