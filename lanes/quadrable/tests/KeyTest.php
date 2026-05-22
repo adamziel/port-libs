@@ -8,9 +8,28 @@ use PortLibs\Quadrable\SparseTree;
 
 return [
     'integer keys round-trip across upstream boundary examples' => static function (TestRunner $t): void {
-        foreach ([0, 1, 2, 10, 63, 64, 65, 1024, (1 << 20) - 5, PHP_INT_MAX - 2] as $number) {
+        foreach ([0, 1, 2, 10, 63, 64, 65, 1024, (1 << 20) - 5, Key::MAX_INTEGER] as $number) {
             $t->same($number, Key::fromInteger($number)->toInteger(), 'round-trip failed for ' . $number);
         }
+    },
+    'integer key overflow fails before native php arithmetic can corrupt the key' => static function (TestRunner $t): void {
+        foreach ([Key::MAX_INTEGER + 1, Key::MAX_INTEGER + 2] as $number) {
+            try {
+                Key::fromInteger($number);
+            } catch (InvalidArgumentException $exception) {
+                $t->contains('int range exceeded', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected integer key overflow rejection for ' . $number);
+        }
+
+        $overRange = Key::null();
+        foreach ([0, 1, 2, 3, 4] as $bit) {
+            $overRange->setBit($bit, 1);
+        }
+
+        $t->throws(RuntimeException::class, static fn () => $overRange->toInteger());
     },
     'integer key zero encodes as the null key' => static function (TestRunner $t): void {
         $t->same(str_repeat('0', 64), Key::fromInteger(0)->hex());

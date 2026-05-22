@@ -7,6 +7,7 @@ namespace PortLibs\Quadrable;
 final class Key
 {
     public const BYTE_LENGTH = 32;
+    public const MAX_INTEGER = PHP_INT_MAX - 2;
 
     private string $bytes;
 
@@ -47,6 +48,9 @@ final class Key
         if ($number < 0) {
             throw new \InvalidArgumentException('integer keys must be non-negative');
         }
+        if ($number > self::MAX_INTEGER) {
+            throw new \InvalidArgumentException('int range exceeded');
+        }
 
         $valueBits = self::floorLog2($number + 2);
         $offset = (1 << $valueBits) - 2;
@@ -82,6 +86,10 @@ final class Key
 
         $bitsMinusOne = $this->readBits(0, 6);
         $valueBits = $bitsMinusOne + 1;
+        if ($valueBits > 62) {
+            throw new \RuntimeException('int range exceeded');
+        }
+
         $payload = $this->readBits(6, $valueBits);
         $offset = (1 << $valueBits) - 2;
 
