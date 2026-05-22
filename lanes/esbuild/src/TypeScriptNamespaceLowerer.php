@@ -41,16 +41,51 @@ final class TypeScriptNamespaceLowerer
      */
     private function lowerNamespaceAt(int $index, bool $exported = false, ?string $parentNamespace = null): array
     {
-        $name = $this->tokens[$index + 1] ?? null;
-        if ($name?->kind !== 'identifier') {
+        [$qualifiedName, $blockStart] = $this->readNamespaceName($index + 1);
+        if ($qualifiedName === '') {
             throw new \InvalidArgumentException('Expected TypeScript namespace name');
         }
-        if (($this->tokens[$index + 2] ?? null)?->text !== '{') {
+        if (($this->tokens[$blockStart] ?? null)?->text !== '{') {
             throw new \InvalidArgumentException('Expected TypeScript namespace block');
         }
 
-        $blockStart = $index + 2;
         $blockEnd = $this->findMatchingPunctuator($blockStart, '{', '}');
+        $parts = explode('.', $qualifiedName);
+
+        return [
+            $this->lowerNamespaceParts($parts, $blockStart, $blockEnd, $exported, $parentNamespace),
+            $blockEnd,
+        ];
+    }
+
+    /**
+     * @param non-empty-list<string> $parts
+     */
+    private function lowerNamespaceParts(array $parts, int $blockStart, int $blockEnd, bool $exported, ?string $parentNamespace): string
+    {
+        $name = array_shift($parts);
+        if ($parts === []) {
+            return $this->lowerNamespaceBlock($name, $blockStart, $blockEnd, $exported, $parentNamespace);
+        }
+
+        $childName = $parts[0];
+        $parameter = $this->namespaceParameterName($name, [], [], [$childName => true]);
+        $childOutput = $this->lowerNamespaceParts($parts, $blockStart, $blockEnd, true, $parameter);
+        if ($childOutput === '') {
+            return '';
+        }
+
+        return $this->renderNamespaceIife(
+            $name,
+            $parameter,
+            $exported,
+            $parentNamespace,
+            explode("\n", rtrim($childOutput, "\n")),
+        );
+    }
+
+    private function lowerNamespaceBlock(string $name, int $blockStart, int $blockEnd, bool $exported, ?string $parentNamespace): string
+    {
         $statements = $this->namespaceStatements($blockStart + 1, $blockEnd);
         $imports = [];
         $exportedValues = [];
@@ -136,7 +171,7 @@ final class TypeScriptNamespaceLowerer
             $hasRuntimeNamespaceStatement = true;
         }
 
-        $parameter = $this->namespaceParameterName($name->text, $imports, $exportedValues, $exportedLocalBindings);
+        $parameter = $this->namespaceParameterName($name, $imports, $exportedValues, $exportedLocalBindings);
         $rendered = [];
         foreach ($ordered as $index => $item) {
             if ($item['kind'] === 'body') {
@@ -192,25 +227,30 @@ final class TypeScriptNamespaceLowerer
         }
 
         if ($lines === [] && !$hasRuntimeNamespaceStatement) {
-            return ['', $blockEnd];
+            return '';
         }
 
-        $declaration = $parentNamespace === null
-            ? ($exported ? 'export var ' : 'var ') . $name->text . ';'
-            : 'let ' . $name->text . ';';
-        $initializer = $parentNamespace === null
-            ? $name->text . ' || (' . $name->text . ' = {})'
-            : ($exported
-                ? $name->text . ' = ' . $parentNamespace . '.' . $name->text . ' || (' . $parentNamespace . '.' . $name->text . ' = {})'
-                : $name->text . ' || (' . $name->text . ' = {})');
+        return $this->renderNamespaceIife($name, $parameter, $exported, $parentNamespace, $lines);
+    }
 
-        return [
-            $declaration . "\n"
+    /**
+     * @param list<string> $lines
+     */
+    private function renderNamespaceIife(string $name, string $parameter, bool $exported, ?string $parentNamespace, array $lines): string
+    {
+        $declaration = $parentNamespace === null
+            ? ($exported ? 'export var ' : 'var ') . $name . ';'
+            : 'let ' . $name . ';';
+        $initializer = $parentNamespace === null
+            ? $name . ' || (' . $name . ' = {})'
+            : ($exported
+                ? $name . ' = ' . $parentNamespace . '.' . $name . ' || (' . $parentNamespace . '.' . $name . ' = {})'
+                : $name . ' || (' . $name . ' = {})');
+
+        return $declaration . "\n"
             . '((' . $parameter . ") => {\n"
             . implode('', array_map(static fn (string $line): string => '  ' . $line . "\n", $lines))
-            . '})(' . $initializer . ");\n",
-            $blockEnd,
-        ];
+            . '})(' . $initializer . ");\n";
     }
 
     /**
@@ -461,27 +501,192 @@ final class TypeScriptNamespaceLowerer
      */
     private function parseExportedDeclareVariableNames(int $start, int $end): array
     {
+        return $this->bindingNamesInVariableDeclarations($start + 3, $end);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function bindingNamesInVariableDeclarations(int $start, int $end): array
+    {
         $names = [];
-        $cursor = $start + 3;
+        $cursor = $start;
 
         while ($cursor <= $end) {
-            $name = $this->tokens[$cursor] ?? null;
-            if ($name?->kind !== 'identifier') {
-                break;
+            [$declarationNames, $cursor] = $this->bindingNamesAt($cursor, $end);
+            foreach ($declarationNames as $name) {
+                $names[] = $name;
             }
 
-            $names[] = $name->text;
-            $cursor++;
-            if (($this->tokens[$cursor] ?? null)?->text === '=') {
-                $cursor = $this->variableInitializerEnd($cursor + 1, $end) + 1;
-            }
-            if (($this->tokens[$cursor] ?? null)?->text !== ',') {
+            $cursor = $this->skipToNextVariableDeclaration($cursor, $end);
+            if ($cursor > $end) {
                 break;
             }
             $cursor++;
         }
 
         return array_values(array_unique($names));
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function bindingNamesAt(int $start, int $end): array
+    {
+        $token = $this->tokens[$start] ?? null;
+        if ($token === null) {
+            return [[], $start + 1];
+        }
+
+        if ($token->kind === 'identifier') {
+            return [[$token->text], $start + 1];
+        }
+
+        if ($token->text === '[') {
+            return $this->arrayBindingNamesAt($start, $end);
+        }
+
+        if ($token->text === '{') {
+            return $this->objectBindingNamesAt($start, $end);
+        }
+
+        return [[], $start + 1];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function arrayBindingNamesAt(int $open, int $end): array
+    {
+        $close = min($this->findMatchingPunctuator($open, '[', ']'), $end);
+        $names = [];
+        $cursor = $open + 1;
+
+        while ($cursor < $close) {
+            if (($this->tokens[$cursor] ?? null)?->text === ',') {
+                $cursor++;
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 1] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 2] ?? null)?->text === '.'
+            ) {
+                $cursor += 3;
+            }
+
+            [$elementNames, $cursor] = $this->bindingNamesAt($cursor, $close);
+            foreach ($elementNames as $name) {
+                $names[] = $name;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->skipBindingInitializer($cursor + 1, $close);
+            }
+        }
+
+        return [$names, $close + 1];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function objectBindingNamesAt(int $open, int $end): array
+    {
+        $close = min($this->findMatchingPunctuator($open, '{', '}'), $end);
+        $names = [];
+        $cursor = $open + 1;
+
+        while ($cursor < $close) {
+            if (($this->tokens[$cursor] ?? null)?->text === ',') {
+                $cursor++;
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 1] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 2] ?? null)?->text === '.'
+            ) {
+                [$restNames, $cursor] = $this->bindingNamesAt($cursor + 3, $close);
+                foreach ($restNames as $name) {
+                    $names[] = $name;
+                }
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '[') {
+                $cursor = $this->findMatchingPunctuator($cursor, '[', ']') + 1;
+                if (($this->tokens[$cursor] ?? null)?->text === ':') {
+                    [$valueNames, $cursor] = $this->bindingNamesAt($cursor + 1, $close);
+                    foreach ($valueNames as $name) {
+                        $names[] = $name;
+                    }
+                    if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                        $cursor = $this->skipBindingInitializer($cursor + 1, $close);
+                    }
+                }
+                continue;
+            }
+
+            $property = $this->tokens[$cursor] ?? null;
+            if ($property === null) {
+                break;
+            }
+
+            if (($this->tokens[$cursor + 1] ?? null)?->text === ':') {
+                [$valueNames, $cursor] = $this->bindingNamesAt($cursor + 2, $close);
+                foreach ($valueNames as $name) {
+                    $names[] = $name;
+                }
+            } else {
+                if ($property->kind === 'identifier') {
+                    $names[] = $property->text;
+                }
+                $cursor++;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->skipBindingInitializer($cursor + 1, $close);
+            }
+        }
+
+        return [$names, $close + 1];
+    }
+
+    private function skipBindingInitializer(int $start, int $patternClose): int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $patternClose; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $patternClose;
+    }
+
+    private function skipToNextVariableDeclaration(int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $end + 1;
     }
 
     /**
@@ -989,6 +1194,28 @@ final class TypeScriptNamespaceLowerer
         return ($this->tokens[$index] ?? null)?->kind === 'identifier'
             && in_array($this->tokens[$index]->text, ['namespace', 'module'], true)
             && ($this->tokens[$index + 1] ?? null)?->kind === 'identifier';
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private function readNamespaceName(int $start): array
+    {
+        $parts = [];
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->kind === 'identifier') {
+            $parts[] = $this->tokens[$cursor]->text;
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text !== '.') {
+                break;
+            }
+            if (($this->tokens[$cursor + 1] ?? null)?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier after "." in TypeScript namespace name');
+            }
+            $cursor++;
+        }
+
+        return [implode('.', $parts), $cursor];
     }
 
     private function adjustDepth(int $depth, Token $token): int

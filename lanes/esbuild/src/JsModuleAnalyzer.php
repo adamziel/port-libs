@@ -500,9 +500,11 @@ final class JsModuleAnalyzer
                 continue;
             }
 
-            [$namespace, $blockStart, $blockEnd] = $parsed;
-            $namespaces[] = $namespace;
-            foreach ($this->collectTypeScriptNamespacesInRange($blockStart + 1, $blockEnd, $namespace->qualifiedName) as $child) {
+            [$namespaceChain, $blockStart, $blockEnd, $childParent] = $parsed;
+            foreach ($namespaceChain as $namespace) {
+                $namespaces[] = $namespace;
+            }
+            foreach ($this->collectTypeScriptNamespacesInRange($blockStart + 1, $blockEnd, $childParent) as $child) {
                 $namespaces[] = $child;
             }
             $i = $blockEnd;
@@ -512,7 +514,7 @@ final class JsModuleAnalyzer
     }
 
     /**
-     * @return array{0:TypeScriptNamespace, 1:int, 2:int}|null
+     * @return array{0:list<TypeScriptNamespace>, 1:int, 2:int, 3:string}|null
      */
     private function parseTypeScriptNamespaceAt(int $index, ?string $parent): ?array
     {
@@ -524,28 +526,40 @@ final class JsModuleAnalyzer
             return null;
         }
 
-        [$name, $cursor] = $this->readNamespaceName($index + 1);
+        [$nameParts, $cursor] = $this->readNamespaceNameParts($index + 1);
         if (($this->tokens[$cursor] ?? null)?->text !== '{') {
             return null;
         }
 
         [$exported, $declared] = $this->namespaceModifiers($index);
         $blockEnd = $this->findMatchingPunctuator($cursor, '{', '}');
-        $qualifiedName = $parent === null ? $name : $parent . '.' . $name;
+        $namespaces = [];
+        $currentParent = $parent;
+        $lastQualifiedName = null;
+        $partCount = count($nameParts);
 
-        return [
-            new TypeScriptNamespace(
-                $name,
+        foreach ($nameParts as $partIndex => $part) {
+            $isLast = $partIndex === $partCount - 1;
+            $qualifiedName = $currentParent === null ? $part['name'] : $currentParent . '.' . $part['name'];
+            $members = $isLast
+                ? $this->collectTypeScriptNamespaceMembers($cursor + 1, $blockEnd)
+                : [new TypeScriptNamespaceMember($nameParts[$partIndex + 1]['name'], 'namespace', true, $declared, false, $nameParts[$partIndex + 1]['offset'])];
+
+            $namespaces[] = new TypeScriptNamespace(
+                $part['name'],
                 $qualifiedName,
-                $parent,
-                $exported,
+                $currentParent,
+                $partIndex === 0 ? $exported : true,
                 $declared,
-                $this->tokens[$index]->offset,
-                $this->collectTypeScriptNamespaceMembers($cursor + 1, $blockEnd),
-            ),
-            $cursor,
-            $blockEnd,
-        ];
+                $part['offset'],
+                $members,
+            );
+
+            $currentParent = $qualifiedName;
+            $lastQualifiedName = $qualifiedName;
+        }
+
+        return [$namespaces, $cursor, $blockEnd, $lastQualifiedName ?? ''];
     }
 
     /**
@@ -574,11 +588,19 @@ final class JsModuleAnalyzer
                     $cursor++;
                 }
 
-                $member = $this->typeScriptNamespaceMemberFromDeclaration($cursor, true, $declared);
-                if ($member !== null && $member->kind === 'namespace') {
-                    $skipTo = $this->namespaceBlockEnd($cursor);
-                } elseif ($member !== null && $member->kind === 'import-equals') {
-                    $skipTo = $this->findStatementEnd($i);
+                $variableMembers = $this->typeScriptNamespaceVariableMembersFromDeclaration($cursor, true, $declared, $i);
+                if ($variableMembers !== null) {
+                    foreach ($variableMembers as $variableMember) {
+                        $members[] = $variableMember;
+                    }
+                    $skipTo = $this->findStatementEndOrLineBreak($i);
+                } else {
+                    $member = $this->typeScriptNamespaceMemberFromDeclaration($cursor, true, $declared);
+                    if ($member !== null && $member->kind === 'namespace') {
+                        $skipTo = $this->namespaceBlockEnd($cursor);
+                    } elseif ($member !== null && $member->kind === 'import-equals') {
+                        $skipTo = $this->findStatementEnd($i);
+                    }
                 }
             } elseif ($token->text === 'declare'
                 && $this->isTypeScriptNamespaceKeywordAt($i + 1)
@@ -622,7 +644,11 @@ final class JsModuleAnalyzer
         }
 
         if ($this->isTypeScriptNamespaceKeywordAt($start)) {
-            [$name] = $this->readNamespaceName($start + 1);
+            [$nameParts] = $this->readNamespaceNameParts($start + 1);
+            $name = $nameParts[0]['name'] ?? null;
+            if ($name === null) {
+                return null;
+            }
 
             return new TypeScriptNamespaceMember($name, 'namespace', $exported, $declared, false, $token->offset);
         }
@@ -664,6 +690,29 @@ final class JsModuleAnalyzer
         return null;
     }
 
+    /**
+     * @return list<TypeScriptNamespaceMember>|null
+     */
+    private function typeScriptNamespaceVariableMembersFromDeclaration(int $start, bool $exported, bool $declared, int $statementStart): ?array
+    {
+        $token = $this->tokens[$start] ?? null;
+        if ($token === null || !in_array($token->text, ['var', 'let', 'const'], true)) {
+            return null;
+        }
+
+        $end = $this->findStatementEndOrLineBreak($statementStart);
+        if (($this->tokens[$end] ?? null)?->text === ';') {
+            $end--;
+        }
+
+        $members = [];
+        foreach ($this->bindingNamesInVariableDeclarations($start + 1, $end) as $name) {
+            $members[] = new TypeScriptNamespaceMember($name, $token->text, $exported, $declared, false, $token->offset);
+        }
+
+        return $members;
+    }
+
     private function namespaceBlockEnd(int $index): ?int
     {
         if (!$this->isTypeScriptNamespaceKeywordAt($index)
@@ -681,14 +730,212 @@ final class JsModuleAnalyzer
     }
 
     /**
+     * @return list<string>
+     */
+    private function bindingNamesInVariableDeclarations(int $start, int $end): array
+    {
+        $names = [];
+        $cursor = $start;
+
+        while ($cursor <= $end) {
+            [$declarationNames, $cursor] = $this->bindingNamesAt($cursor, $end);
+            foreach ($declarationNames as $name) {
+                $names[] = $name;
+            }
+
+            $cursor = $this->skipToNextVariableDeclaration($cursor, $end);
+            if ($cursor > $end) {
+                break;
+            }
+            $cursor++;
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function bindingNamesAt(int $start, int $end): array
+    {
+        $token = $this->tokens[$start] ?? null;
+        if ($token === null) {
+            return [[], $start + 1];
+        }
+
+        if ($token->kind === 'identifier') {
+            return [[$token->text], $start + 1];
+        }
+
+        if ($token->text === '[') {
+            return $this->arrayBindingNamesAt($start, $end);
+        }
+
+        if ($token->text === '{') {
+            return $this->objectBindingNamesAt($start, $end);
+        }
+
+        return [[], $start + 1];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function arrayBindingNamesAt(int $open, int $end): array
+    {
+        $close = min($this->findMatchingPunctuator($open, '[', ']'), $end);
+        $names = [];
+        $cursor = $open + 1;
+
+        while ($cursor < $close) {
+            if (($this->tokens[$cursor] ?? null)?->text === ',') {
+                $cursor++;
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 1] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 2] ?? null)?->text === '.'
+            ) {
+                $cursor += 3;
+            }
+
+            [$elementNames, $cursor] = $this->bindingNamesAt($cursor, $close);
+            foreach ($elementNames as $name) {
+                $names[] = $name;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->skipBindingInitializer($cursor + 1, $close);
+            }
+        }
+
+        return [$names, $close + 1];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function objectBindingNamesAt(int $open, int $end): array
+    {
+        $close = min($this->findMatchingPunctuator($open, '{', '}'), $end);
+        $names = [];
+        $cursor = $open + 1;
+
+        while ($cursor < $close) {
+            if (($this->tokens[$cursor] ?? null)?->text === ',') {
+                $cursor++;
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 1] ?? null)?->text === '.'
+                && ($this->tokens[$cursor + 2] ?? null)?->text === '.'
+            ) {
+                [$restNames, $cursor] = $this->bindingNamesAt($cursor + 3, $close);
+                foreach ($restNames as $name) {
+                    $names[] = $name;
+                }
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '[') {
+                $cursor = $this->findMatchingPunctuator($cursor, '[', ']') + 1;
+                if (($this->tokens[$cursor] ?? null)?->text === ':') {
+                    [$valueNames, $cursor] = $this->bindingNamesAt($cursor + 1, $close);
+                    foreach ($valueNames as $name) {
+                        $names[] = $name;
+                    }
+                    if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                        $cursor = $this->skipBindingInitializer($cursor + 1, $close);
+                    }
+                }
+                continue;
+            }
+
+            $property = $this->tokens[$cursor] ?? null;
+            if ($property === null) {
+                break;
+            }
+
+            if (($this->tokens[$cursor + 1] ?? null)?->text === ':') {
+                [$valueNames, $cursor] = $this->bindingNamesAt($cursor + 2, $close);
+                foreach ($valueNames as $name) {
+                    $names[] = $name;
+                }
+            } else {
+                if ($property->kind === 'identifier') {
+                    $names[] = $property->text;
+                }
+                $cursor++;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->skipBindingInitializer($cursor + 1, $close);
+            }
+        }
+
+        return [$names, $close + 1];
+    }
+
+    private function skipBindingInitializer(int $start, int $patternClose): int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $patternClose; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $patternClose;
+    }
+
+    private function skipToNextVariableDeclaration(int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $end + 1;
+    }
+
+    /**
      * @return array{0:string, 1:int}
      */
     private function readNamespaceName(int $start): array
     {
+        [$parts, $cursor] = $this->readNamespaceNameParts($start);
+
+        return [implode('.', array_map(static fn (array $part): string => $part['name'], $parts)), $cursor];
+    }
+
+    /**
+     * @return array{0:list<array{name:string, offset:int}>, 1:int}
+     */
+    private function readNamespaceNameParts(int $start): array
+    {
         $parts = [];
         $cursor = $start;
         while (($this->tokens[$cursor] ?? null)?->kind === 'identifier') {
-            $parts[] = $this->tokens[$cursor]->text;
+            $parts[] = [
+                'name' => $this->tokens[$cursor]->text,
+                'offset' => $this->tokens[$cursor]->offset,
+            ];
             $cursor++;
             if (($this->tokens[$cursor] ?? null)?->text !== '.') {
                 break;
@@ -699,7 +946,7 @@ final class JsModuleAnalyzer
             $cursor++;
         }
 
-        return [implode('.', $parts), $cursor];
+        return [$parts, $cursor];
     }
 
     /**

@@ -122,6 +122,23 @@ var A;
 })(A || (A = {}));
 JS . "\n", $lowerer->lower('namespace A { export namespace B { export function fn() {} } namespace C { export enum Mode { Card, Grid = 3 } Mode.Card } }'));
     },
+    'lowers upstream dot qualified namespace declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+        $expected = <<<'JS'
+var foo;
+((foo) => {
+  let bar;
+  ((bar) => {
+    foo(bar);
+  })(bar = foo.bar || (foo.bar = {}));
+})(foo || (foo = {}));
+JS;
+
+        $t->same($expected . "\n", $lowerer->lower('namespace foo.bar { foo(bar) }'));
+        $t->same($expected . "\n", $lowerer->lower('module foo.bar { foo(bar) }'));
+        $t->same($expected . "\n", $lowerer->lower('module foo { export namespace bar { foo(bar) } }'));
+        $t->same($expected . "\n", $lowerer->lower('namespace foo { export module bar { foo(bar) } }'));
+    },
     'rewrites simple upstream declared namespace variable exports' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptNamespaceLowerer();
 
@@ -131,6 +148,16 @@ var ns;
   console.log(ns.L1);
 })(ns || (ns = {}));
 JS . "\n", $lowerer->lower('namespace ns { export declare const L1; console.log(L1) }'));
+    },
+    'rewrites upstream declared namespace binding pattern exports' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+
+        $t->same(<<<'JS'
+var ns;
+((ns) => {
+  console.log(ns.L2, ns.L3, x, y);
+})(ns || (ns = {}));
+JS . "\n", $lowerer->lower('namespace ns { export declare let [[L2 = x, { [y]: L3 }]]; console.log(L2, L3, x, y) }'));
     },
     'lowers wordpress namespace import equals aliases without node' => static function (TestRunner $t): void {
         $source = <<<'TS'
@@ -181,5 +208,16 @@ JS . "\n", $lowered);
         $t->contains('DisplayMode[DisplayMode["List"] = 4] = "List";', $lowered);
         $t->contains('Supports.settings = {viewMode:DisplayMode.Card, layout:DisplayMode.Grid, fallback:DisplayMode.List,};', $lowered);
         $t->contains('CardBlockRuntime.blocks.registerBlockType(metadata.name, Supports.settings);', $lowered);
+    },
+    'lowers wordpress dot namespace block runtime without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-dot-namespace.ts');
+        $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
+
+        $t->contains('var PortLibs;', $lowered);
+        $t->contains('let CardBlock;', $lowered);
+        $t->contains('})(CardBlock = PortLibs.CardBlock || (PortLibs.CardBlock = {}));', $lowered);
+        $t->contains('CardBlock.blocks = wp.blocks;', $lowered);
+        $t->contains('CardBlock.settings = {name:metadata.name, viewScript:"file:./view.js"};', $lowered);
+        $t->contains('CardBlock.blocks.registerBlockType(CardBlock.settings.name, CardBlock.settings);', $lowered);
     },
 ];

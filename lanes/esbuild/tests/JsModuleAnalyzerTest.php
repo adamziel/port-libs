@@ -142,6 +142,25 @@ JS);
         $t->same([], $d?->runtimeExportedMembers() ?? []);
         $t->same(['value'], array_map(static fn ($member): string => $member->name, $public?->runtimeExportedMembers() ?? []));
     },
+    'maps upstream dot qualified typescript namespaces as nested metadata' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+namespace foo.bar {
+  export const value = 1;
+}
+JS);
+
+        $t->same(['foo', 'foo.bar'], array_map(static fn ($namespace): string => $namespace->qualifiedName, $analysis->typeScriptNamespaces));
+
+        $foo = $analysis->typeScriptNamespace('foo');
+        $bar = $analysis->typeScriptNamespace('foo.bar');
+
+        $t->true($foo !== null && !$foo->exported);
+        $t->true($bar !== null && $bar->exported);
+        $t->same('bar', $bar?->name);
+        $t->same('foo', $bar?->parent);
+        $t->same(['bar'], array_map(static fn ($member): string => $member->name, $foo?->runtimeExportedMembers() ?? []));
+        $t->same(['value'], array_map(static fn ($member): string => $member->name, $bar?->runtimeExportedMembers() ?? []));
+    },
     'maps upstream typescript import pruning and side effect downgrades' => static function (TestRunner $t): void {
         $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
 import {x} from 'drop-named';
@@ -222,6 +241,22 @@ JS);
         $t->same([], $analysis->imports);
         $t->same([], $analysis->exports);
         $t->true(!$analysis->isConsideredESModule());
+    },
+    'maps upstream namespace declared binding pattern members' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+namespace ns {
+  export declare let [[L2 = x, { [y]: L3 }]];
+}
+JS);
+
+        $namespace = $analysis->typeScriptNamespace('ns');
+        $t->true($namespace !== null);
+        $t->same(['L2', 'L3'], array_map(static fn ($member): string => $member->name, $namespace?->members ?? []));
+        $t->same(['L2', 'L3'], array_map(
+            static fn ($member): string => $member->name,
+            array_values(array_filter($namespace?->members ?? [], static fn ($member): bool => $member->exported && $member->declared))
+        ));
+        $t->same([], array_map(static fn ($member): string => $member->name, $namespace?->runtimeExportedMembers() ?? []));
     },
     'maps upstream import meta module classification and properties' => static function (TestRunner $t): void {
         $analysis = (new JsModuleAnalyzer())->analyze('console.log(import.meta.url, import.meta.path)');
