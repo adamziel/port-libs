@@ -719,6 +719,14 @@ final class QuadbStore
     }
 
     /**
+     * @param list<string> $keys
+     */
+    public function exportProofDumpText(array $keys): string
+    {
+        return $this->exportProof($keys)->dumpText();
+    }
+
+    /**
      * @param list<int> $integers
      */
     public function exportIntegerProof(array $integers): Proof
@@ -751,9 +759,22 @@ final class QuadbStore
         return '0x' . bin2hex($this->exportIntegerProofBytes($integers, $encodingType)) . "\n";
     }
 
+    /**
+     * @param list<int> $integers
+     */
+    public function exportIntegerProofDumpText(array $integers): string
+    {
+        return $this->exportIntegerProof($integers)->dumpText();
+    }
+
     public function importProofHex(string $proofHex, ?string $expectedRoot = null): string
     {
         return $this->importProofBytes(self::decodeProofHexText($proofHex), $expectedRoot);
+    }
+
+    public function importProofHexDumpText(string $proofHex): string
+    {
+        return Proof::decode(self::decodeProofHexText($proofHex))->dumpText();
     }
 
     public function importProofBytes(string $encodedProof, ?string $expectedRoot = null): string
@@ -783,6 +804,22 @@ final class QuadbStore
         $this->persist();
 
         return $state['rootHash'];
+    }
+
+    public function importProofHexOutputText(string $proofHex, ?string $expectedRoot = null): string
+    {
+        return $this->importProofBytesOutputText(self::decodeProofHexText($proofHex), $expectedRoot);
+    }
+
+    public function importProofBytesOutputText(string $encodedProof, ?string $expectedRoot = null): string
+    {
+        $rootHash = $this->importProofBytes($encodedProof, $expectedRoot);
+
+        if ($expectedRoot !== null) {
+            return '';
+        }
+
+        return 'Imported UNAUTHENTICATED proof. Root: 0x' . $rootHash . "\n";
     }
 
     public function mergeProofHex(string $proofHex): string

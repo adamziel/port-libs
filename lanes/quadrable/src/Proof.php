@@ -153,6 +153,51 @@ final class Proof
         return $output;
     }
 
+    public function dumpText(): string
+    {
+        $output = 'ITEMS (' . count($this->strands) . "):\n";
+
+        foreach ($this->strands as $index => $strand) {
+            $strandType = match ($strand->type) {
+                ProofStrand::LEAF => 'Leaf',
+                ProofStrand::WITNESS_LEAF => 'WitnessLeaf',
+                ProofStrand::WITNESS_EMPTY => 'WitnessEmpty',
+                default => '?',
+            };
+
+            $output .= '  ITEM ' . $index . ': 0x' . $strand->keyHash . ")\n";
+            $output .= '    ' . $strandType . '  depth=' . $strand->depth . "\n";
+
+            if ($strand->type === ProofStrand::LEAF) {
+                if ($strand->key !== '') {
+                    $output .= '    Key: ' . $strand->key . "\n";
+                }
+                $output .= '    Val: ' . $strand->value . "\n";
+            } elseif ($strand->type === ProofStrand::WITNESS_LEAF) {
+                $output .= '    Val hash: 0x' . $strand->value . "\n";
+            }
+        }
+
+        $output .= 'CMDS (' . count($this->commands) . "):\n";
+
+        foreach ($this->commands as $index => $command) {
+            $operation = match ($command->operation) {
+                ProofCommand::HASH_EMPTY => 'HashEmpty',
+                ProofCommand::HASH_PROVIDED => 'HashProvided',
+                ProofCommand::MERGE => 'Merge',
+                default => '?',
+            };
+
+            $output .= '  CMD ' . $index . ': ' . $operation . ' @ ' . $command->nodeOffset . "\n";
+
+            if ($command->operation === ProofCommand::HASH_PROVIDED) {
+                $output .= '    Sibling hash: 0x' . $command->hash . "\n";
+            }
+        }
+
+        return $output;
+    }
+
     public static function decode(string $encoded, ?HashTree $hashTree = null): self
     {
         $offset = 0;

@@ -254,6 +254,60 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store dumps proofs and reports unauthenticated proof imports like quadb' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+        $trustedDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $keys = [
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ];
+            $dump = $source->exportProofDumpText($keys);
+            $fullKeyProofHex = $source->exportProofHex($keys, Proof::ENCODING_FULL_KEYS);
+
+            $t->same($source->exportProof($keys)->dumpText(), $dump);
+            $t->contains('ITEMS (', $dump);
+            $t->contains('  ITEM 0: 0x', $dump);
+            $t->contains("    Leaf  depth=", $dump);
+            $t->contains("    Key: wp_options:siteurl\n", $dump);
+            $t->contains("    Val: https://example.test\n", $dump);
+            $t->contains("    WitnessLeaf  depth=", $dump);
+            $t->contains('CMDS (', $dump);
+
+            $target = QuadbStore::init($targetDir);
+            $t->same($source->exportProof($keys)->dumpText(), $target->importProofHexDumpText($fullKeyProofHex));
+            $t->same(HashTree::EMPTY_HASH, $target->tree()->rootHash());
+
+            $t->same(
+                "Imported UNAUTHENTICATED proof. Root: 0x{$trustedRoot}\n",
+                $target->importProofHexOutputText($fullKeyProofHex)
+            );
+            $t->same($trustedRoot, $target->status()['rootHash']);
+            $t->same('https://example.test', $target->get('wp_options:siteurl'));
+            $t->throws(RuntimeException::class, static fn () => $target->get('wp_options:home'));
+            $t->same('https://example.test', QuadbStore::open($targetDir)->get('wp_options:siteurl'));
+
+            $trusted = QuadbStore::init($trustedDir);
+            $trusted->checkout('wp-trusted-partial');
+            $t->same('', $trusted->importProofHexOutputText($fullKeyProofHex, '0x' . $trustedRoot));
+            $t->same($trustedRoot, $trusted->status()['rootHash']);
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+            quadrableQuadbRemoveDir($trustedDir);
+        }
+    },
     'native quadb store updates raw integer proof-backed heads' => static function (TestRunner $t): void {
         $sourceDir = quadrableQuadbTempDir();
         $targetDir = quadrableQuadbTempDir();
