@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, FakeSeeker/NoSeeker reader adapter behavior, PatternReader deterministic fixture bytes, LimitedReadCloser byte-limit and close-error behavior, NoCloseReader close-hiding behavior, GzipReader decompression and provider-close behavior, ContextReader cancellation-before-read behavior, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -34,6 +34,18 @@ The `../examples/wordpress-repeatable-artifact-scan.php` example models a restor
 
 The `../examples/wordpress-repeatable-limited-artifact-scan.php` example adds the upstream limit-buffer constructor behavior. It models a known-length WXR artifact read from a concatenated provider stream, confirms the sniffed header can be replayed, and verifies bytes after the artifact limit are not exposed to the importer.
 
+The `../examples/wordpress-fakeseeker-import-preflight.php` example maps upstream `FakeSeeker` behavior for a known-length but otherwise non-seekable WXR stream. A migration importer can seek to the end before reading to confirm the expected artifact length, rewind to the start, then treat post-read rewind attempts as unsupported like rclone's adapter.
+
+The `../examples/wordpress-pattern-reader-artifact.php` example maps upstream `PatternReader` behavior for deterministic binary fixture generation. A backup smoke test can recreate a generated media artifact from just its length, verify the modulo-251 wrap point, and compare a stable MD5 without storing a large binary fixture in the repo.
+
+The `../examples/wordpress-limited-read-closer-import.php` example maps upstream `LimitedReadCloser` behavior for a fixed-length WXR artifact inside a longer provider stream. It reads only the known WXR member bytes, hides trailing archive bytes from the importer, and ignores a provider cleanup close error after the expected artifact has already been consumed.
+
+The `../examples/wordpress-noclose-upload-body.php` example maps upstream `NoCloser` behavior for WXR upload/request bodies. It keeps a closable provider stream readable while hiding the close method so an HTTP request layer cannot close the underlying stream unexpectedly.
+
+The `../examples/wordpress-gzip-wxr-import.php` example maps upstream `GzipReader` behavior for compressed WXR imports. It decompresses the export body with native zlib and closes the underlying provider stream when the importer is done.
+
+The `../examples/wordpress-cancelled-restore.php` example maps upstream `ContextReader` behavior for canceled restore streams. It reads an initial WXR probe, cancels the import context, then confirms the wrapped provider body is not read again after cancellation.
+
 ## Next Task
 
-Map another bounded `lib/readers` provider-contract slice such as context cancellation, fake seeker/no-seeker behavior, or gzip/no-close helpers.
+Map the bounded `lib/readers` `CountingReader` byte-accounting helper.
