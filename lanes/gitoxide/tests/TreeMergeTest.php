@@ -101,6 +101,67 @@ return [
             $result->indexEntries(),
         ));
     },
+    'reports exact rename delete conflicts with staged sides' => static function (TestRunner $t) use ($oid, $entry, $names): void {
+        $base = new Tree([$entry('old.php', $oid('1'))]);
+        $ours = new Tree([$entry('new.php', $oid('1'))]);
+        $theirs = new Tree([]);
+
+        $result = TreeMerge::mergeFlat($base, $ours, $theirs);
+
+        $t->same(false, $result->isClean());
+        $t->same(1, count($result->conflicts));
+        $t->same('rename-delete', $result->conflicts[0]->reason);
+        $t->same('old.php', $result->conflicts[0]->path);
+        $t->same($oid('1'), $result->conflicts[0]->base?->oid);
+        $t->same('new.php', $result->conflicts[0]->ours?->filename);
+        $t->same(null, $result->conflicts[0]->theirs);
+        $t->same(['old.php'], $names($result->tree));
+        $t->same($oid('1'), $result->tree->entryNamed('old.php')?->oid);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'oid' => $oid('1')],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'oid' => $oid('1')],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'oid' => $entry->oid],
+            $result->indexEntries(),
+        ));
+    },
+    'reports exact rename rename conflicts and keeps base path' => static function (TestRunner $t) use ($oid, $entry, $names): void {
+        $base = new Tree([$entry('old.php', $oid('1'))]);
+        $ours = new Tree([$entry('ours.php', $oid('1'))]);
+        $theirs = new Tree([$entry('theirs.php', $oid('1'))]);
+
+        $result = TreeMerge::mergeFlat($base, $ours, $theirs);
+
+        $t->same(false, $result->isClean());
+        $t->same(1, count($result->conflicts));
+        $t->same('rename-rename', $result->conflicts[0]->reason);
+        $t->same('old.php', $result->conflicts[0]->path);
+        $t->same('ours.php', $result->conflicts[0]->ours?->filename);
+        $t->same('theirs.php', $result->conflicts[0]->theirs?->filename);
+        $t->same(['old.php'], $names($result->tree));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'oid' => $oid('1')],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'oid' => $oid('1')],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'oid' => $oid('1')],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'oid' => $entry->oid],
+            $result->indexEntries(),
+        ));
+    },
+    'does not infer ambiguous exact renames from duplicate objects' => static function (TestRunner $t) use ($oid, $entry, $names): void {
+        $base = new Tree([
+            $entry('old-a.php', $oid('1')),
+            $entry('old-b.php', $oid('1')),
+        ]);
+        $ours = new Tree([$entry('new.php', $oid('1'))]);
+        $theirs = new Tree([]);
+
+        $result = TreeMerge::mergeFlat($base, $ours, $theirs);
+
+        $t->true($result->isClean());
+        $t->same(['new.php'], $names($result->tree));
+        $t->same([], $result->indexEntries());
+    },
     'resolves identical add add entries but reports divergent additions' => static function (TestRunner $t) use ($oid, $entry): void {
         $same = TreeMerge::mergeFlat(
             new Tree([]),
@@ -208,6 +269,31 @@ return [
         ], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
         $t->same($mergedThemeJson->oid(), $result->worktreeConflictFiles($read)[0]->oid);
         $t->contains('<<<<<<< ours/wp-content/themes/acme/theme.json', $result->worktreeConflictFiles($read)[0]->content);
+    },
+    'recursive tree merge reports nested exact rename delete conflicts' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old.php', "<?php\nreturn 'base';\n")]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('new.php', "<?php\nreturn 'base';\n")]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+
+        $t->same(false, $result->isClean());
+        $t->same(1, count($result->conflicts));
+        $t->same('rename-delete', $result->conflicts[0]->reason);
+        $t->same('wp-content/old.php', $result->conflicts[0]->path);
+        $t->same('new.php', $result->conflicts[0]->ours?->filename);
+        $t->same(null, $result->conflicts[0]->theirs);
+        $t->same(['old.php'], $names($contentTree));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'wp-content/old.php'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'wp-content/old.php'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'path' => $entry->path],
+            $result->indexEntries(),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
     },
     'recursive tree merge records nested directory file conflicts with stages' => static function (TestRunner $t) use ($objectStore): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();

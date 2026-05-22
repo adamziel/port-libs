@@ -12,12 +12,16 @@ final class TreeMerge
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
 
+        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, '');
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
         sort($paths, SORT_STRING);
 
-        $merged = [];
-        $conflicts = [];
+        $merged = $renameMerged;
+        $conflicts = $renameConflicts;
         foreach ($paths as $path) {
+            if (isset($consumedPaths[$path])) {
+                continue;
+            }
             $baseEntry = $baseEntries[$path] ?? null;
             $ourEntry = $ourEntries[$path] ?? null;
             $theirEntry = $theirEntries[$path] ?? null;
@@ -65,6 +69,8 @@ final class TreeMerge
             }
         }
 
+        self::sortEntries($merged);
+
         return new TreeMergeResult(new Tree($merged), $conflicts);
     }
 
@@ -100,12 +106,16 @@ final class TreeMerge
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
 
+        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix);
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
         sort($paths, SORT_STRING);
 
-        $merged = [];
-        $conflicts = [];
+        $merged = $renameMerged;
+        $conflicts = $renameConflicts;
         foreach ($paths as $path) {
+            if (isset($consumedPaths[$path])) {
+                continue;
+            }
             $baseEntry = $baseEntries[$path] ?? null;
             $ourEntry = $ourEntries[$path] ?? null;
             $theirEntry = $theirEntries[$path] ?? null;
@@ -162,6 +172,8 @@ final class TreeMerge
                 $merged[] = $baseEntry;
             }
         }
+
+        self::sortEntries($merged);
 
         return new TreeMergeResult(new Tree($merged), $conflicts);
     }
@@ -258,6 +270,136 @@ final class TreeMerge
         }
 
         return $left->mode === $right->mode && $left->oid === $right->oid;
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $ourEntries
+     * @param array<string, TreeEntry> $theirEntries
+     * @return array{0:list<TreeMergeConflict>,1:array<string,true>,2:list<TreeEntry>}
+     */
+    private static function renameConflicts(array $baseEntries, array $ourEntries, array $theirEntries, string $pathPrefix): array
+    {
+        $ourRenames = self::exactRenames($baseEntries, $ourEntries);
+        $theirRenames = self::exactRenames($baseEntries, $theirEntries);
+        $conflicts = [];
+        $consumed = [];
+        $merged = [];
+
+        $paths = array_keys($baseEntries);
+        sort($paths, SORT_STRING);
+        foreach ($paths as $path) {
+            $baseEntry = $baseEntries[$path];
+            $ourRename = $ourRenames[$path] ?? null;
+            $theirRename = $theirRenames[$path] ?? null;
+            if ($ourRename !== null && $theirRename !== null) {
+                if ($ourRename['path'] !== $theirRename['path']) {
+                    $conflicts[] = new TreeMergeConflict(
+                        self::joinPath($pathPrefix, $path),
+                        'rename-rename',
+                        $baseEntry,
+                        $ourRename['entry'],
+                        $theirRename['entry'],
+                    );
+                    $consumed[$path] = true;
+                    $consumed[$ourRename['path']] = true;
+                    $consumed[$theirRename['path']] = true;
+                    $merged[] = $baseEntry;
+                }
+                continue;
+            }
+
+            if ($ourRename !== null) {
+                $theirEntry = $theirEntries[$path] ?? null;
+                if ($theirEntry === null || !self::sameEntry($baseEntry, $theirEntry)) {
+                    $conflicts[] = new TreeMergeConflict(
+                        self::joinPath($pathPrefix, $path),
+                        $theirEntry === null ? 'rename-delete' : 'rename-modify',
+                        $baseEntry,
+                        $ourRename['entry'],
+                        $theirEntry,
+                    );
+                    $consumed[$path] = true;
+                    $consumed[$ourRename['path']] = true;
+                    $merged[] = $baseEntry;
+                }
+                continue;
+            }
+
+            if ($theirRename !== null) {
+                $ourEntry = $ourEntries[$path] ?? null;
+                if ($ourEntry === null || !self::sameEntry($baseEntry, $ourEntry)) {
+                    $conflicts[] = new TreeMergeConflict(
+                        self::joinPath($pathPrefix, $path),
+                        $ourEntry === null ? 'rename-delete' : 'rename-modify',
+                        $baseEntry,
+                        $ourEntry,
+                        $theirRename['entry'],
+                    );
+                    $consumed[$path] = true;
+                    $consumed[$theirRename['path']] = true;
+                    $merged[] = $baseEntry;
+                }
+            }
+        }
+
+        return [$conflicts, $consumed, $merged];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $sideEntries
+     * @return array<string, array{path:string,entry:TreeEntry}>
+     */
+    private static function exactRenames(array $baseEntries, array $sideEntries): array
+    {
+        $deletedByObject = [];
+        foreach ($baseEntries as $path => $entry) {
+            if (isset($sideEntries[$path])) {
+                continue;
+            }
+            $key = self::entryIdentity($entry);
+            $deletedByObject[$key] ??= [];
+            $deletedByObject[$key][$path] = $entry;
+        }
+
+        $addedByObject = [];
+        foreach ($sideEntries as $path => $entry) {
+            if (isset($baseEntries[$path])) {
+                continue;
+            }
+            $key = self::entryIdentity($entry);
+            $addedByObject[$key] ??= [];
+            $addedByObject[$key][$path] = $entry;
+        }
+
+        $renames = [];
+        foreach ($deletedByObject as $key => $deletedEntries) {
+            if (count($deletedEntries) !== 1) {
+                continue;
+            }
+            $candidates = $addedByObject[$key] ?? [];
+            if (count($candidates) === 1) {
+                $path = array_key_first($deletedEntries);
+                $newPath = array_key_first($candidates);
+                $renames[$path] = ['path' => $newPath, 'entry' => $candidates[$newPath]];
+            }
+        }
+
+        return $renames;
+    }
+
+    private static function entryIdentity(TreeEntry $entry): string
+    {
+        return $entry->mode . "\0" . $entry->oid;
+    }
+
+    /**
+     * @param list<TreeEntry> $entries
+     */
+    private static function sortEntries(array &$entries): void
+    {
+        usort($entries, static fn (TreeEntry $left, TreeEntry $right): int => strcmp($left->filename, $right->filename));
     }
 
     private static function conflictReason(?TreeEntry $base, ?TreeEntry $ours, ?TreeEntry $theirs): string
