@@ -74,4 +74,4 @@ The required root test runner was attempted after this slice:
 php tools/run-tests.php
 ```
 
-It now passes: 68 test files, 3717 assertions, and 0 failures. The difftastic-focused test file remains green.
+It now passes: 68 test files, 3800 assertions, and 0 failures. The difftastic-focused test file remains green.
