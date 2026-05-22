@@ -6,6 +6,12 @@ namespace PortLibs\Syncthing;
 
 final class FileInfo
 {
+    public const TYPE_FILE = 0;
+    public const TYPE_DIRECTORY = 1;
+    public const TYPE_SYMLINK_FILE = 2;
+    public const TYPE_SYMLINK_DIRECTORY = 3;
+    public const TYPE_SYMLINK = 4;
+
     public const FLAG_LOCAL_UNSUPPORTED = 1;
     public const FLAG_LOCAL_IGNORED = 1 << 1;
     public const FLAG_LOCAL_MUST_RESCAN = 1 << 2;
@@ -34,9 +40,46 @@ final class FileInfo
         public readonly int $size = 0,
         public readonly string $blocksHash = '',
         public readonly string $previousBlocksHash = '',
+        public readonly int $type = self::TYPE_FILE,
+        public readonly int $permissions = 0,
+        public readonly bool $noPermissions = false,
+        public readonly int $rawBlockSize = 0,
+        public readonly int $sequence = 0,
+        public readonly string $symlinkTarget = '',
+        /** @var list<Block> */
+        public readonly array $blocks = [],
+        public readonly ?string $unixOwnerName = null,
+        public readonly ?string $unixGroupName = null,
+        public readonly ?int $unixUid = null,
+        public readonly ?int $unixGid = null,
     ) {
-        if ($this->modifiedS < 0 || $this->modifiedNs < 0 || $this->size < 0 || $this->localFlags < 0) {
+        if (
+            $this->modifiedS < 0
+            || $this->modifiedNs < 0
+            || $this->size < 0
+            || $this->localFlags < 0
+            || $this->permissions < 0
+            || $this->rawBlockSize < 0
+            || $this->sequence < 0
+        ) {
             throw new \InvalidArgumentException('FileInfo numeric fields must not be negative');
+        }
+        if (!in_array($this->type, [
+            self::TYPE_FILE,
+            self::TYPE_DIRECTORY,
+            self::TYPE_SYMLINK_FILE,
+            self::TYPE_SYMLINK_DIRECTORY,
+            self::TYPE_SYMLINK,
+        ], true)) {
+            throw new \InvalidArgumentException('Unknown FileInfo type');
+        }
+        foreach ($this->blocks as $block) {
+            if (!$block instanceof Block) {
+                throw new \InvalidArgumentException('Expected only Block instances');
+            }
+        }
+        if (($this->unixUid === null) !== ($this->unixGid === null)) {
+            throw new \InvalidArgumentException('Unix ownership IDs must be both present or both absent');
         }
         $this->assertOptionalHash($this->blocksHash, 'blocks hash');
         $this->assertOptionalHash($this->previousBlocksHash, 'previous blocks hash');
@@ -49,7 +92,27 @@ final class FileInfo
 
     public function isInvalid(): bool
     {
-        return ($this->localFlags & self::LOCAL_INVALID_FLAGS) !== 0;
+        return self::flagsInvalid($this->localFlags);
+    }
+
+    public function isUnsupported(): bool
+    {
+        return ($this->localFlags & self::FLAG_LOCAL_UNSUPPORTED) !== 0;
+    }
+
+    public function isIgnored(): bool
+    {
+        return ($this->localFlags & self::FLAG_LOCAL_IGNORED) !== 0;
+    }
+
+    public function mustRescan(): bool
+    {
+        return ($this->localFlags & self::FLAG_LOCAL_MUST_RESCAN) !== 0;
+    }
+
+    public function isReceiveOnlyChanged(): bool
+    {
+        return ($this->localFlags & self::FLAG_LOCAL_RECEIVE_ONLY) !== 0;
     }
 
     public function shouldConflict(): bool
@@ -68,6 +131,68 @@ final class FileInfo
         }
 
         return !hash_equals($previous->blocksHash, $this->previousBlocksHash);
+    }
+
+    public function blocksEqual(self $other): bool
+    {
+        if ($this->blocksHash !== '' && $other->blocksHash !== '' && hash_equals($this->blocksHash, $other->blocksHash)) {
+            return true;
+        }
+
+        if (count($this->blocks) !== count($other->blocks)) {
+            return false;
+        }
+
+        foreach ($this->blocks as $index => $block) {
+            if (!hash_equals(strtolower($block->hashHex), strtolower($other->blocks[$index]->hashHex))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function isEquivalent(self $other, ?FileInfoComparison $comparison = null): bool
+    {
+        $comparison ??= new FileInfoComparison();
+
+        if ($this->mustRescan() || $other->mustRescan()) {
+            return false;
+        }
+
+        $leftFlags = $this->localFlags & ~$comparison->ignoreFlags;
+        $rightFlags = $other->localFlags & ~$comparison->ignoreFlags;
+
+        if (
+            $this->name !== $other->name
+            || $this->type !== $other->type
+            || $this->deleted !== $other->deleted
+            || self::flagsInvalid($leftFlags) !== self::flagsInvalid($rightFlags)
+        ) {
+            return false;
+        }
+
+        if (!$comparison->ignoreOwnership && !$this->unixOwnershipEqual($other)) {
+            return false;
+        }
+
+        if (
+            !$comparison->ignorePerms
+            && !$this->noPermissions
+            && !$other->noPermissions
+            && !self::permissionsEqual($this->permissions, $other->permissions)
+        ) {
+            return false;
+        }
+
+        return match ($this->type) {
+            self::TYPE_FILE => $this->size === $other->size
+                && $this->modTimeEqual($other, $comparison->modTimeWindowNs)
+                && ($comparison->ignoreBlocks || $this->blocksEqual($other)),
+            self::TYPE_DIRECTORY => true,
+            self::TYPE_SYMLINK => $this->symlinkTarget === $other->symlinkTarget,
+            default => false,
+        };
     }
 
     public function winsConflict(self $other): bool
@@ -96,6 +221,16 @@ final class FileInfo
             version: $this->version->update($deviceId, $modifiedS),
             deleted: true,
             localFlags: $this->localFlags,
+            type: $this->type,
+            permissions: $this->permissions,
+            noPermissions: $this->noPermissions,
+            rawBlockSize: $this->rawBlockSize,
+            sequence: $this->sequence,
+            symlinkTarget: $this->symlinkTarget,
+            unixOwnerName: $this->unixOwnerName,
+            unixGroupName: $this->unixGroupName,
+            unixUid: $this->unixUid,
+            unixGid: $this->unixGid,
         );
     }
 
@@ -109,5 +244,45 @@ final class FileInfo
         if ($hashHex !== '' && !preg_match('/^[0-9a-f]{64}$/', $hashHex)) {
             throw new \InvalidArgumentException('Expected lowercase SHA-256 hex for ' . $label);
         }
+    }
+
+    private static function flagsInvalid(int $flags): bool
+    {
+        return ($flags & self::LOCAL_INVALID_FLAGS) !== 0;
+    }
+
+    private static function permissionsEqual(int $left, int $right): bool
+    {
+        return ($left & 0777) === ($right & 0777);
+    }
+
+    private function modTimeEqual(self $other, int $windowNs): bool
+    {
+        if ($this->modifiedS === $other->modifiedS && $this->modifiedNs === $other->modifiedNs) {
+            return true;
+        }
+
+        $diff = abs((($this->modifiedS - $other->modifiedS) * 1_000_000_000) + ($this->modifiedNs - $other->modifiedNs));
+
+        return $diff < $windowNs;
+    }
+
+    private function unixOwnershipEqual(self $other): bool
+    {
+        $leftEmpty = $this->unixUid === null && $this->unixGid === null && $this->unixOwnerName === null && $this->unixGroupName === null;
+        $rightEmpty = $other->unixUid === null && $other->unixGid === null && $other->unixOwnerName === null && $other->unixGroupName === null;
+
+        if ($leftEmpty && $rightEmpty) {
+            return true;
+        }
+        if ($leftEmpty || $rightEmpty || $this->unixUid === null || $this->unixGid === null || $other->unixUid === null || $other->unixGid === null) {
+            return false;
+        }
+        if ($this->unixUid === $other->unixUid && $this->unixGid === $other->unixGid) {
+            return true;
+        }
+
+        return ($this->unixOwnerName ?? '') === ($other->unixOwnerName ?? '')
+            && ($this->unixGroupName ?? '') === ($other->unixGroupName ?? '');
     }
 }
