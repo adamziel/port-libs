@@ -15,6 +15,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_diff_summary()` ignore-pattern filtering for working/staged comparisons, including wildcard patterns and false-pattern overrides.
 - Native `dolt_ignore` conflict reporting for ambiguous true/false scratch-table patterns, with upstream-shaped pattern details.
 - Native `dolt_status` and `dolt_status_ignored` row projection for staged/unstaged table changes, table renames, merge/conflict states, and ignored unstaged new tables.
+- Native `dolt_merge_status` and `dolt_conflicts` row projection for active merge metadata, unmerged table lists, and table/root-object conflict counts.
+- Native `dolt_history_dolt_schemas` and `dolt_diff_dolt_schemas` row projection for versioned schema objects such as views, triggers, and events.
 
 ## Scenario Fixtures
 
@@ -38,7 +40,11 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-primary-key-warning.php` returns summary/stat warnings for that blocked table while still showing unaffected `wp_posts` review rows.
 - `fixtures/wp-status-review.php` models a migration review queue with staged post changes, unstaged option edits, a term relationship conflict, a visible import-review table, and a generated cache table ignored by `dolt_ignore`.
 - `examples/wordpress-status-review.php` returns both `dolt_status` rows and `dolt_status_ignored` rows, so a WordPress UI can show reviewable work while still explaining hidden generated tables.
+- `fixtures/wp-merge-review.php` models an active import-branch merge where `wp_posts` has row conflicts, `wp_postmeta` has a constraint violation, `wp_options` has a schema conflict, and a preview view has a root-object conflict.
+- `examples/wordpress-merge-status-review.php` returns the `dolt_merge_status` row plus `dolt_conflicts` table/count rows, so a WordPress migration UI can display unresolved merge state without shelling out to Dolt.
+- `fixtures/wp-schema-history.php` models versioned WordPress migration views, an import cleanup trigger, and working changes that add review/checkpoint schema objects while removing the trigger.
+- `examples/wordpress-schema-history-review.php` returns `dolt_history_dolt_schemas` rows plus working `dolt_diff_dolt_schemas` rows, so a migration UI can audit schema-object history without shelling out to Dolt.
 
 ## Next Task
 
-Port a narrow native merge-status/conflict-summary or schema-history table slice from the focused upstream BATS and sqle integration evidence.
+Port a narrow native `dolt_history_dolt_procedures` or `dolt_diff_dolt_procedures` slice from the adjacent upstream integration evidence.
