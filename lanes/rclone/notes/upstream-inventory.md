@@ -108,4 +108,4 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - Rclone-only PHP lane check on 2026-05-22 after the ContextReader slice: 9 rclone test files, 67 tests, 1,412 assertions, 0 failures.
 - Required root `php tools/run-tests.php` on 2026-05-22 after the ContextReader slice: 89 test files, 6,056 assertions, 0 failures in the current shared dirty worktree.
 - Rclone-only PHP lane check on 2026-05-22 after the CountingReader slice: 10 rclone test files, 71 tests, 1,432 assertions, 0 failures.
-- Required root `php tools/run-tests.php` on 2026-05-22 after the CountingReader slice: 93 test files, 6,233 assertions, 0 failures in the current shared dirty worktree.
+- Required root `php tools/run-tests.php` on 2026-05-22 after the CountingReader slice: 93 test files, 6,257 assertions, 0 failures in the current shared dirty worktree.
