@@ -36,8 +36,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-reading-order-import.php` maps Marker's upstream layout ordering path into a two-column Gutenberg import. It applies model order positions by maximum bounding-box overlap, uses Marker's vertical-bucket/horizontal tie sorting, keeps page headers before body content and footers after it, then emits the body text as paragraph blocks in reading order.
 
+`examples/wordpress-ocr-triage.php` maps Marker's upstream OCR heuristics into a pre-render import decision. It uses text quality, detected-line coverage, all-empty document detection, and force-OCR flags to send scanned or garbled pages to OCR before Gutenberg block conversion while leaving clean extracted pages on the native text path.
+
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
 ## Next Task
 
-Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, then map another focused layout/table/OCR behavior against a concrete upstream artifact.
+Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, then map another focused table/image/OCR behavior against a concrete upstream artifact.
