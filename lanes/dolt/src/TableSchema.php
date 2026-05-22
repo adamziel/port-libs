@@ -240,6 +240,35 @@ final class TableSchema
     }
 
     /**
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null
+     */
+    public function columnByName(string $name): ?array
+    {
+        foreach ($this->columns as $column) {
+            if ($column['name'] === $name) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, true> $names
+     */
+    public function withoutColumnNames(array $names): self
+    {
+        if ($names === []) {
+            return $this;
+        }
+
+        return new self(array_values(array_filter(
+            $this->columns,
+            static fn (array $column): bool => !isset($names[$column['name']])
+        )));
+    }
+
+    /**
      * @param array<string, scalar|null> $row
      * @param list<array{code:int, message:string}> $warnings
      * @return array<string, scalar|null>
@@ -427,6 +456,11 @@ final class TableSchema
         }
 
         return $value;
+    }
+
+    public static function sqlTypesEqual(string $left, string $right): bool
+    {
+        return self::sameSqlType($left, $right);
     }
 
     private static function sameSqlType(string $left, string $right): bool

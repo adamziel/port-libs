@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-bounded-upstream-runner",
         "total": "613 upstream executable test files counted: 399 Go _test.go files and 214 BATS files; 3,808 BATS @test cases were counted from targeted BATS hydration, plus 256 fixture/data artifact paths by static inventory",
-        "mapped": 18,
+        "mapped": 22,
         "source": "Shallow blob-filtered upstream clone in .upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef; counted with git ls-tree -r --name-only HEAD and targeted reads of LICENSE, integration-tests/bats/README.md, go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go, go/libraries/doltcore/sqle/dtables/diff_iter.go, go/libraries/doltcore/sqle/dtables/prolly_row_conv.go, go/libraries/doltcore/sqle/dtables/diff_table.go, go/libraries/doltcore/diff/table_deltas.go, go/libraries/doltcore/diff/schema_diff.go, go/libraries/doltcore/schema/schema.go, and focused tests/BATS files.",
         "inventory": {
             "repositoryPaths": 2387,
@@ -137,19 +137,23 @@
             "Non-primary-key row conversion maps columns by name instead of tag, preserving Dolt's drop/recreate and rename behavior.",
             "Integer-to-varchar row conversion emits string values and uncoercible varchar-to-int conversion emits Dolt warning code 1105 with null projected values.",
             "Primary-key set changes report Dolt's primary key warning and stop non-fuzzy row rendering.",
+            "Skinny diff schema projection drops unchanged same-name, same-type non-primary-key columns across aligned rows.",
+            "Skinny `--include-cols` behavior keeps requested columns visible even when their values are unchanged.",
+            "Added columns remain visible in skinny projection, and deleted rows keep the full row shape instead of eliding unchanged columns.",
             "WordPress `wp_posts` migration fixture renders inspectable Dolt-shaped content changes.",
             "WordPress table-delta fixture detects a renamed content table separately from dropped legacy links and added import audit tables.",
-            "WordPress plugin schema-drift fixture projects a dropped/recreated event-count column through the latest diff schema."
+            "WordPress plugin schema-drift fixture projects a dropped/recreated event-count column through the latest diff schema.",
+            "WordPress skinny diff fixture keeps reviewer-requested post status while hiding unchanged GUID/order/comment-count noise."
         ],
         "inventoryPath": "lanes/dolt/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream package runner evidence, not full upstream runner parity. Native PHP progress maps 18 focused lane tests against a 613-test-file upstream denominator."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream package runner evidence, not full upstream runner parity. Native PHP progress maps 22 focused lane tests against a 613-test-file upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native table diff classification, Dolt-style `DOLT_DIFF_*` row projection, tag-aware schema column diffs, primary-key set diffability checks, table delta matching for same-name and renamed tables, and schema-aware row projection with Dolt warning collection.",
-        "phpBehaviorTests": 18
+        "currentSlice": "Native table diff classification, Dolt-style `DOLT_DIFF_*` row projection, tag-aware schema column diffs, primary-key set diffability checks, table delta matching for same-name and renamed tables, schema-aware row projection with Dolt warning collection, and skinny diff schema projection with include-cols.",
+        "phpBehaviorTests": 22
     },
-    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show `wp_posts` publish/remove/import row changes, a `wp_posts` to `wp_content_posts` table rename summary, and plugin table schema-drift projection.",
-    "nextTask": "Map skinny diff schema filtering and --include-cols behavior from upstream `dolt_diff('--skinny', ...)` tests."
+    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show `wp_posts` publish/remove/import row changes, a `wp_posts` to `wp_content_posts` table rename summary, plugin table schema-drift projection, and skinny post-review diffs that keep requested status while hiding unchanged noise.",
+    "nextTask": "Map `dolt diff` / `dolt_diff()` row filtering such as `--where`, `--limit`, and table-function predicate pushdown from focused upstream diff tests."
 }

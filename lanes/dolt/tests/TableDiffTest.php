@@ -6,6 +6,27 @@ use PortLibs\Dolt\TableDiff;
 use PortLibs\Dolt\TableDeltaMatcher;
 use PortLibs\Dolt\TableSchema;
 
+$dataColumns = static function (array $row): array {
+    $columns = [];
+    foreach (array_keys($row) as $name) {
+        if (in_array($name, ['to_commit', 'to_commit_date', 'from_commit', 'from_commit_date', 'diff_type'], true)) {
+            continue;
+        }
+        if (str_starts_with($name, 'to_')) {
+            $column = substr($name, 3);
+        } elseif (str_starts_with($name, 'from_')) {
+            $column = substr($name, 5);
+        } else {
+            continue;
+        }
+        if (!in_array($column, $columns, true)) {
+            $columns[] = $column;
+        }
+    }
+
+    return $columns;
+};
+
 return [
     'table diff classifies added removed and modified rows by primary key' => static function (TestRunner $t): void {
         $old = [
@@ -382,6 +403,150 @@ return [
         $t->same(1, count($rows));
         $t->same(2, $rows[0]['from_c1']);
         $t->same(null, $rows[0]['to_c1']);
+        $t->same([], $warnings);
+    },
+    'skinny schema-aware diff rows keep primary keys and changed columns' => static function (TestRunner $t) use ($dataColumns): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 0, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 1, 'type' => 'bigint'],
+            ['name' => 'c2', 'tag' => 2, 'type' => 'bigint'],
+            ['name' => 'c3', 'tag' => 3, 'type' => 'bigint'],
+            ['name' => 'c4', 'tag' => 4, 'type' => 'bigint'],
+            ['name' => 'c5', 'tag' => 5, 'type' => 'bigint'],
+        ]);
+        $warnings = [];
+        $rows = (new TableDiff())->diffTableRowsForSchemas(
+            [
+                ['pk' => 0, 'c1' => 1, 'c2' => 2, 'c3' => 3, 'c4' => 4, 'c5' => 5],
+                ['pk' => 1, 'c1' => 1, 'c2' => 2, 'c3' => 3, 'c4' => 4, 'c5' => 5],
+            ],
+            [
+                ['pk' => 0, 'c1' => 100, 'c2' => 2, 'c3' => 300, 'c4' => 4, 'c5' => 5],
+                ['pk' => 1, 'c1' => 1, 'c2' => 200, 'c3' => 3, 'c4' => 4, 'c5' => 5],
+            ],
+            'pk',
+            $schema,
+            $schema,
+            null,
+            null,
+            'C1',
+            null,
+            'C2',
+            null,
+            $warnings,
+            true,
+        );
+
+        $t->same(['modified', 'modified'], array_column($rows, 'diff_type'));
+        $t->same(['pk', 'c1', 'c2', 'c3'], $dataColumns($rows[0]));
+        $t->same(100, $rows[0]['to_c1']);
+        $t->true(!array_key_exists('to_c4', $rows[0]));
+        $t->same([], $warnings);
+    },
+    'skinny include-cols keeps requested unchanged columns and added columns' => static function (TestRunner $t) use ($dataColumns): void {
+        $fromSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 0, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 1, 'type' => 'bigint'],
+            ['name' => 'c2', 'tag' => 2, 'type' => 'bigint'],
+            ['name' => 'c3', 'tag' => 3, 'type' => 'bigint'],
+            ['name' => 'c4', 'tag' => 4, 'type' => 'bigint'],
+            ['name' => 'c5', 'tag' => 5, 'type' => 'bigint'],
+        ]);
+        $toSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 0, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 1, 'type' => 'bigint'],
+            ['name' => 'c2', 'tag' => 2, 'type' => 'bigint'],
+            ['name' => 'c3', 'tag' => 3, 'type' => 'bigint'],
+            ['name' => 'c4', 'tag' => 4, 'type' => 'bigint'],
+            ['name' => 'c5', 'tag' => 5, 'type' => 'bigint'],
+            ['name' => 'c6', 'tag' => 6, 'type' => 'bigint'],
+        ]);
+
+        $warnings = [];
+        $rows = (new TableDiff())->diffTableRowsForSchemas(
+            [['pk' => 0, 'c1' => 100, 'c2' => 2, 'c3' => 300, 'c4' => 4, 'c5' => 5]],
+            [['pk' => 0, 'c1' => 100, 'c2' => 2, 'c3' => 300, 'c4' => 4, 'c5' => 5, 'c6' => 600]],
+            'pk',
+            $fromSchema,
+            $toSchema,
+            null,
+            null,
+            'C2',
+            null,
+            'C3',
+            null,
+            $warnings,
+            true,
+            ['c1', 'c2'],
+        );
+
+        $t->same(['pk', 'c1', 'c2', 'c6'], $dataColumns($rows[0]));
+        $t->same(600, $rows[0]['to_c6']);
+        $t->same(100, $rows[0]['from_c1']);
+        $t->true(!array_key_exists('from_c6', $rows[0]));
+        $t->true(!array_key_exists('to_c3', $rows[0]));
+        $t->same([], $warnings);
+    },
+    'skinny schema-aware diff rows keep all columns when rows are deleted' => static function (TestRunner $t) use ($dataColumns): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 0, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'val1', 'tag' => 1, 'type' => 'int'],
+            ['name' => 'val2', 'tag' => 2, 'type' => 'int'],
+        ]);
+
+        $warnings = [];
+        $rows = (new TableDiff())->diffTableRowsForSchemas(
+            [
+                ['pk' => 1, 'val1' => 1, 'val2' => 1],
+                ['pk' => 2, 'val1' => 2, 'val2' => 2],
+            ],
+            [
+                ['pk' => 2, 'val1' => 2, 'val2' => 2],
+            ],
+            'pk',
+            $schema,
+            $schema,
+            null,
+            null,
+            'C3',
+            null,
+            'C4',
+            null,
+            $warnings,
+            true,
+        );
+
+        $t->same(1, count($rows));
+        $t->same(TableDiff::DIFF_REMOVED, $rows[0]['diff_type']);
+        $t->same(['pk', 'val1', 'val2'], $dataColumns($rows[0]));
+        $t->same(1, $rows[0]['from_val2']);
+        $t->same([], $warnings);
+    },
+    'wordpress skinny diff fixture keeps reviewer-requested status column' => static function (TestRunner $t) use ($dataColumns): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-skinny-diff.php';
+        $warnings = [];
+        $rows = (new TableDiff())->diffTableRowsForSchemas(
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            'ID',
+            $fixture['fromSchema'],
+            $fixture['toSchema'],
+            null,
+            null,
+            $fixture['fromCommit'],
+            null,
+            $fixture['toCommit'],
+            null,
+            $warnings,
+            true,
+            $fixture['includeColumns'],
+        );
+
+        $t->same(1, count($rows));
+        $t->same($fixture['expectedDataColumns'], $dataColumns($rows[0]));
+        $t->same('publish', $rows[0]['to_post_status']);
+        $t->same('Liberated launch page', $rows[0]['to_post_title']);
+        $t->true(!array_key_exists('to_guid', $rows[0]));
         $t->same([], $warnings);
     },
     'primary key set changes report dolt warning and stop non-fuzzy diffs' => static function (TestRunner $t): void {

@@ -54,6 +54,8 @@ Targeted upstream files inspected for the current native slice:
 - `go/libraries/doltcore/sqle/dtables/diff_iter.go`: target-schema row projection and `to_*` / `from_*` field order.
 - `go/libraries/doltcore/sqle/dtables/prolly_row_conv.go`: row conversion through `MapSchemaBasedOnTagAndName`, target type coercion, and warning behavior.
 - `go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go`: 22 schema-aware diff ScriptTest names covering column drop/recreate/rename, coercion warnings, and primary-key-change warnings.
+- `go/libraries/doltcore/sqle/dtablefunctions/dolt_diff.go`: `filterDeltaSchemaToSkinnyCols` behavior for same-name/same-type non-PK column elision, row-set mismatch fallback, and `--include-cols`.
+- `go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go`: the focused `dolt_diff: SELECT * skinny schema visibility` ScriptTest includes direct skinny row assertions plus view column-count assertions for `--skinny` and `--include-cols`.
 - `go/libraries/doltcore/diff/column_identity_test.go`: 2 `Test*` functions, read as background for conservative table/column matching semantics.
 - `integration-tests/bats/rename-tables.bats`: 5 BATS cases.
 - `integration-tests/bats/primary-key-changes.bats`: 40 BATS cases.
@@ -99,4 +101,5 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - Non-primary-key row conversion maps by column name rather than tag, so drop/recreate and rename cases follow the upstream `ProllyRowConverter` boundary.
 - Integer-to-varchar target conversion emits string values; uncoercible varchar-to-int target conversion emits Dolt warning code 1105 and projects null values.
 - Primary-key set changes emit Dolt's primary-key warning and stop non-fuzzy row rendering.
-- WordPress fixtures now cover `wp_posts` row-level migration changes, `wp_posts` -> `wp_content_posts` table rename summaries, and a plugin table schema-drift projection without shelling out to Dolt.
+- Skinny diff projection removes unchanged same-name, same-type non-PK columns across aligned rows, keeps `--include-cols` columns, keeps added columns, and falls back to full row shape when rows are deleted.
+- WordPress fixtures now cover `wp_posts` row-level migration changes, `wp_posts` -> `wp_content_posts` table rename summaries, a plugin table schema-drift projection, and a skinny post-review diff without shelling out to Dolt.

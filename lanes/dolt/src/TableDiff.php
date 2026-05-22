@@ -129,6 +129,8 @@ final class TableDiff
         string $toCommit = 'TO',
         ?string $toCommitDate = null,
         array &$warnings = [],
+        bool $skinny = false,
+        array $includeColumns = [],
     ): array {
         $targetFromSchema ??= $fromSchema;
         $targetToSchema ??= $toSchema;
@@ -139,6 +141,17 @@ final class TableDiff
         }
         if (!$diffability['simple'] && !$diffability['fuzzy']) {
             return [];
+        }
+
+        if ($skinny) {
+            [$targetFromSchema, $targetToSchema] = $this->filterSchemasToSkinnyColumns(
+                $fromRows,
+                $toRows,
+                $primaryKey,
+                $targetFromSchema,
+                $targetToSchema,
+                $includeColumns
+            );
         }
 
         $from = $this->index($fromRows, $primaryKey);
@@ -326,6 +339,93 @@ final class TableDiff
         }
 
         return array_values($columns);
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @param non-empty-string|list<non-empty-string> $primaryKey
+     * @param list<string> $includeColumns
+     * @return array{0:TableSchema, 1:TableSchema}
+     */
+    private function filterSchemasToSkinnyColumns(
+        array $fromRows,
+        array $toRows,
+        string|array $primaryKey,
+        TableSchema $fromSchema,
+        TableSchema $toSchema,
+        array $includeColumns,
+    ): array {
+        $removable = $this->skinnyRemovableColumns($fromSchema, $toSchema, $includeColumns);
+        if ($removable === []) {
+            return [$fromSchema, $toSchema];
+        }
+
+        $from = $this->index($fromRows, $primaryKey);
+        $to = $this->index($toRows, $primaryKey);
+
+        foreach ($this->orderedKeys($from, $to) as $key) {
+            if (!array_key_exists($key, $from) || !array_key_exists($key, $to)) {
+                $removable = [];
+                break;
+            }
+
+            foreach (array_keys($removable) as $column) {
+                if (($from[$key][$column] ?? null) !== ($to[$key][$column] ?? null)) {
+                    unset($removable[$column]);
+                }
+            }
+
+            if ($removable === []) {
+                break;
+            }
+        }
+
+        return [
+            $fromSchema->withoutColumnNames($removable),
+            $toSchema->withoutColumnNames($removable),
+        ];
+    }
+
+    /**
+     * @param list<string> $includeColumns
+     * @return array<string, true>
+     */
+    private function skinnyRemovableColumns(TableSchema $fromSchema, TableSchema $toSchema, array $includeColumns): array
+    {
+        $include = $this->normalizeIncludeColumns($includeColumns);
+        $removable = [];
+        foreach ($fromSchema->columns() as $fromColumn) {
+            if ($fromColumn['primaryKey'] || isset($include[$fromColumn['name']])) {
+                continue;
+            }
+
+            $toColumn = $toSchema->columnByName($fromColumn['name']);
+            if ($toColumn === null || !TableSchema::sqlTypesEqual($fromColumn['type'], $toColumn['type'])) {
+                continue;
+            }
+
+            $removable[$fromColumn['name']] = true;
+        }
+
+        return $removable;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return array<string, true>
+     */
+    private function normalizeIncludeColumns(array $columns): array
+    {
+        $include = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('Included diff columns must be non-empty strings.');
+            }
+            $include[$column] = true;
+        }
+
+        return $include;
     }
 
     /**
