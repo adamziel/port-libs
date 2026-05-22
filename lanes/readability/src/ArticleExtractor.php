@@ -28,7 +28,7 @@ final class ArticleExtractor
         libxml_use_internal_errors($previous);
 
         $xpath = new \DOMXPath($dom);
-        foreach ($xpath->query('//script|//style|//nav|//footer|//header|//aside|//form') ?: [] as $node) {
+        foreach ($xpath->query('//script|//style|//nav|//footer|//aside|//form') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
         }
         $this->removeUnlikelyCandidates($xpath);
@@ -191,10 +191,19 @@ final class ArticleExtractor
 
     private function excerpt(\DOMXPath $xpath, ?\DOMNode $best, string $fallbackText): string
     {
+        $metadataDescription = $this->metadataValue($xpath, [
+            '//meta[@property="og:description"]/@content',
+            '//meta[@name="twitter:description"]/@content',
+            '//meta[@name="description"]/@content',
+        ]);
+        if ($metadataDescription !== null) {
+            return $metadataDescription;
+        }
+
         if ($best instanceof \DOMNode) {
             foreach ($xpath->query('.//p|.//div', $best) ?: [] as $node) {
                 $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
-                if (mb_strlen($text) >= 80) {
+                if ($text !== '') {
                     return $text;
                 }
             }

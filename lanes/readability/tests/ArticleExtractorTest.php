@@ -123,4 +123,25 @@ return [
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
         $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
     },
+    'maps Mozilla mozilla-2 fixture metadata and retained content markers' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/mozilla-2';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $contentText = $fixtureText($article->contentHtml);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'] ?? null, $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->contains('Get to know the features that make it the most complete browser for building the Web.', $contentText);
+        $t->contains('Features and tools', $contentText);
+        $t->true(!str_contains($contentText, 'Interested in having a direct impact'), 'head comment text should not enter content');
+    },
 ];
