@@ -266,7 +266,7 @@
                 },
                 {
                     "command": "php tools/run-tests.php",
-                    "result": "PASS after commit-diff slice and final Dolt runner metadata refresh: 100 test files, 6,747 assertions, 0 failures."
+                    "result": "PASS on post-metadata rerun: 102 test files, 6,868 assertions, 0 failures. Transient non-Dolt readability and pandoc failures were observed while other lanes were active. A later required rerun passed: 102 test files, 6,955 assertions, 0 failures."
                 },
                 {
                     "command": "lane-only Dolt PHP tests",
