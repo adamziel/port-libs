@@ -8,13 +8,15 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 - Python files: 47, including 39 files under `marker/`.
 - Committed Python unit tests: 0 found.
 - CI benchmark workflow: 1 integration workflow, `.github/workflows/tests.yml`.
-- Benchmark/scoring scripts inspected: `benchmarks/overall.py`, `marker/benchmark/scoring.py`, and `scripts/verify_benchmark_scores.py`.
-- Benchmark scoring functions inspected: 3 (`chunk_text`, `overlap_score`, and `score_text`).
+- Benchmark/scoring scripts inspected: `benchmarks/overall.py`, `marker/benchmark/scoring.py`, `marker/benchmark/table.py`, and `scripts/verify_benchmark_scores.py`.
+- Benchmark scoring functions inspected: 6 (`chunk_text`, `overlap_score`, `score_text`, `split_to_cells`, `align_rows`, and `score_table`).
+- Cleaner/postprocessor source inspected: 7 cleaner modules with 16 functions under `marker/cleaners/`, plus 8 functions in `marker/postprocessors/markdown.py`.
+- Cleaner functions mapped: `marker/cleaners/bullets.py::replace_bullets` and `marker/cleaners/text.py::cleanup_text`.
 - Published benchmark documents in the README accuracy table: 6 (`multicolcnn.pdf`, `switch_trans.pdf`, `thinkpython.pdf`, `thinkos.pdf`, `thinkdsp.pdf`, `crowd.pdf`).
 - CI score assertions: 2 marker thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
 
-The lane manifest counts 18 inspected benchmark/test artifacts for dashboard purposes: 1 CI workflow, 1 benchmark runner, 1 scoring module, 1 verifier, 6 benchmark documents, and 8 committed reference-like markdown outputs. This is a static inventory, not upstream pass parity.
+The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashboard purposes: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, and 1 Markdown postprocessor. This is a static inventory, not upstream pass parity.
 
 ## Mapped Surrogate Pair
 
@@ -29,6 +31,8 @@ The lane manifest counts 18 inspected benchmark/test artifacts for dashboard pur
 - `marker/postprocessors/markdown.py` hyphenated line dewrapping is mapped by `MarkdownPostProcessor::mergeLines`.
 - `marker/postprocessors/markdown.py` heading/list/text wrapping and hash escaping are mapped by `MarkdownPostProcessor::surroundBlock`.
 - `marker/benchmark/scoring.py` chunking, local-window overlap, and text score aggregation are mapped by `BenchmarkScorer`.
+- `marker/cleaners/bullets.py` bullet glyph normalization is mapped by `TextCleaner::replaceBullets`.
+- `marker/cleaners/text.py` excessive whitespace and non-breaking-space cleanup is mapped by `TextCleaner::cleanupText`.
 - README-linked committed Marker/Nougat `multicolcnn` markdown outputs are mapped as an upstream-derived surrogate benchmark pair.
 
 ## Runner Status

@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: upstream make test passes locally; native PHP smoke coverage now maps 13 tests, not full upstream parity",
     "currentWork": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, import assertions/attributes, package/relative source classification, WordPress package imports, and upstream `make test` runner evidence from a detached hydrated worktree.",
     "blocker": "Resolved the prior missing Go/Node/OpenSSL checkout blocker for the core upstream runner: a detached runner worktree plus `nix-shell -p go nodejs openssl` runs `make test` successfully. Remaining release-extra coverage is `make test-all` with Deno, WASM browser/node, typecheck, and Yarn PnP targets.",
-    "latestCommit": "4ee0a91",
+    "latestCommit": "6a1e69f",
     "nextTask": "Map additional parser/printer syntax such as import.meta/new URL asset references or TypeScript import/export forms."
 }

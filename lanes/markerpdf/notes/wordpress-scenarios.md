@@ -22,6 +22,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/upstream-surrogate-score.php` scores a small README-linked `multicolcnn.pdf` surrogate pair sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. This keeps benchmark scoring tied to an upstream document-output pair while the external `benchmark_data` PDF/reference archive remains unavailable in this VM.
 
+`examples/wordpress-list-import.php` maps Marker's upstream bullet/text cleaners into a Gutenberg list import path. It extracts PDF text lines containing Marker-supported bullet glyphs, normalizes them to Markdown `- ` markers with `TextCleaner`, and emits a core list block.
+
 ## Next Task
 
 Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map another README-linked committed example surrogate before broadening layout/table/OCR behavior.
