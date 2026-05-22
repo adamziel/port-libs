@@ -15,6 +15,7 @@ $object = $tag->object();
 return [
     'name' => $tag->name,
     'target' => $tag->target,
+    'rawTarget' => $tag->rawTarget,
     'targetKind' => $tag->targetKind,
     'tagger' => $tagger === null ? null : [
         'name' => $tagger->name,
@@ -25,6 +26,7 @@ return [
     'message' => $tag->message,
     'pgpSignature' => $tag->pgpSignature,
     'tokens' => $tag->tokens(),
+    'tokenResults' => GitTag::iterateTokens($fixture['tagBody']),
     'size' => $tag->size(),
     'storageSha1' => sha1($storage),
     'objectSha1' => $object->oid(),

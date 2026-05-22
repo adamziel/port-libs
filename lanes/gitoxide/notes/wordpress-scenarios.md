@@ -18,6 +18,8 @@ Native loose Git object storage with canonical object headers, SHA-1 and SHA-256
 
 `examples/wordpress-annotated-tag.php` parses, tokenizes, sizes, hashes, and roundtrips a signed WordPress release tag as native tag object bytes. This models deployment tooling that needs to verify release-tag provenance and object identity without invoking `git tag`, `git cat-file`, or ad hoc tag-body regexes.
 
+The example now uses an uppercase raw target ID in the fixture and reports both the normalized object ID and raw tag-body target bytes. This matches Gitoxide's `TagRef` boundary where callers can compare normalized object identity while still roundtripping the exact annotated-tag bytes used for release provenance hashes.
+
 ## WordPress Reference Example
 
 `examples/wordpress-references.php` writes and reads `HEAD`, `refs/heads/main`, and `refs/remotes/origin/HEAD` using native PHP loose-ref files. This models a shared-hosting deployment tool or Playground snapshot manager discovering the active WordPress branch and its commit without invoking the Git binary.

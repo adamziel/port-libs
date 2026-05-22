@@ -66,6 +66,14 @@ Focused annotated tag / mergetag inventory inspected on 2026-05-22:
 - `gix-object/src/tag/write.rs`, `gix-object/src/tag/write/tests.rs`, and `gix-validate/src/tag.rs` define the mapped write boundary: tag bodies write canonical `object`/`type`/`tag`/optional `tagger` headers, preserve all-newline messages without adding an extra separator, write one newline before PGP signature bytes, report size from the exact emitted bytes, reject names that start with `-`, and apply Git tag-name validation before writing.
 - The PHP slice maps these annotated tag semantics into `GitTag`, connects `Commit::mergeTags()` so raw commit `mergetag` headers are parsed into native tag objects for provenance workflows, and now adds `GitTag::storageBytes()`, `size()`, `object()`, and ordered `tokens()` for write/ref-iterator parity. Focused PHP coverage added upstream-shaped signed/empty tag roundtrips, write-name validation, token ordering, object hashing, and a WordPress signed release-tag fixture.
 
+Focused annotated tag raw-target/ref-iterator inventory inspected on 2026-05-22:
+
+- Re-inspected `gix-object/src/tag/decode.rs`, `gix-object/src/tag/ref_iter.rs`, `gix-object/src/tag/write.rs`, `gix-object/tests/object/tag.rs`, and `gix-object/src/tag/write/tests.rs` with targeted `git show`/`git grep`.
+- The focused annotated-tag denominator remains 25 Rust `#[test]` attributes across the selected tag test files. This slice specifically maps 4 already-counted upstream tag/ref-iterator cases: `uppercase_target_id`, `invalid`, `iter::error_handling`, and `iter::no_tagger`.
+- `TagRef::from_bytes` preserves the raw `object` header bytes in `TagRef::target`, while `TagRef::target()` normalizes uppercase hex through `ObjectId::from_hex`. `TagRef::write_to` writes the raw target bytes back out, whereas the owned `Tag` writer emits the normalized object ID.
+- `TagRefIter` advances field by field and returns an error token once a later field fails, leaving earlier target/kind/name tokens available to callers. It also emits a `Tagger(None)` token when the optional tagger header is absent.
+- The PHP slice now keeps `GitTag::$target` normalized while preserving `GitTag::$rawTarget` for storage-byte roundtrips, adds `GitTag::iterateTokens()` for upstream-shaped partial iterator results, and updates the WordPress release-tag fixture/example to prove uppercase raw target bytes survive provenance hashing.
+
 Focused reference-store overlay inventory inspected on 2026-05-22:
 
 - 3 selected `gix-ref` file-store find and overlay fixture paths inspected with targeted `git show` and `git grep`.

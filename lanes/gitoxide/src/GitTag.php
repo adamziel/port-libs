@@ -9,14 +9,24 @@ final class GitTag
     private const OBJECT_KINDS = ['blob', 'tree', 'commit', 'tag'];
     private const PGP_SIGNATURE_BEGIN = '-----BEGIN PGP SIGNATURE-----';
 
+    public readonly string $target;
+    public readonly string $targetKind;
+    public readonly string $name;
+    public readonly ?string $tagger;
+    public readonly string $message;
+    public readonly ?string $pgpSignature;
+    public readonly ?string $rawBody;
+    public readonly string $rawTarget;
+
     public function __construct(
-        public readonly string $target,
-        public readonly string $targetKind,
-        public readonly string $name,
-        public readonly ?string $tagger,
-        public readonly string $message,
-        public readonly ?string $pgpSignature = null,
-        public readonly ?string $rawBody = null,
+        string $target,
+        string $targetKind,
+        string $name,
+        ?string $tagger,
+        string $message,
+        ?string $pgpSignature = null,
+        ?string $rawBody = null,
+        ?string $rawTarget = null,
     ) {
         if (!in_array($targetKind, self::OBJECT_KINDS, true)) {
             throw new \InvalidArgumentException("Unsupported Git tag target kind: {$targetKind}");
@@ -24,6 +34,15 @@ final class GitTag
         if ($name === '') {
             throw new \InvalidArgumentException('Git tag name cannot be empty');
         }
+
+        $this->target = strtolower($target);
+        $this->targetKind = $targetKind;
+        $this->name = $name;
+        $this->tagger = $tagger;
+        $this->message = $message;
+        $this->pgpSignature = $pgpSignature;
+        $this->rawBody = $rawBody;
+        $this->rawTarget = $rawTarget ?? $target;
     }
 
     public static function parse(string $body, string $algorithm = 'sha1'): self
@@ -53,7 +72,55 @@ final class GitTag
 
         [$message, $pgpSignature] = self::parseMessageAndSignature(substr($body, $offset));
 
-        return new self(strtolower($target), $targetKind, $name, $tagger, $message, $pgpSignature, $body);
+        return new self(strtolower($target), $targetKind, $name, $tagger, $message, $pgpSignature, $body, $target);
+    }
+
+    /**
+     * @return list<array{ok: bool, token?: array<string, mixed>, error?: string}>
+     */
+    public static function iterateTokens(string $body, string $algorithm = 'sha1'): array
+    {
+        $offset = 0;
+        $tokens = [];
+
+        if ($body === '') {
+            return [];
+        }
+
+        try {
+            $target = self::readRequiredHeader($body, $offset, 'object');
+            $length = ReferenceTarget::hashHexLength($algorithm);
+            if (preg_match('/^[0-9a-fA-F]{' . $length . '}$/', $target) !== 1) {
+                throw new \InvalidArgumentException("Git tag target must be a {$length}-character {$algorithm} hex object id");
+            }
+            $tokens[] = self::okToken(['type' => 'target', 'id' => strtolower($target), 'rawId' => $target]);
+
+            $targetKind = self::readRequiredHeader($body, $offset, 'type');
+            if (!in_array($targetKind, self::OBJECT_KINDS, true)) {
+                throw new \InvalidArgumentException("Unsupported Git tag target kind: {$targetKind}");
+            }
+            $tokens[] = self::okToken(['type' => 'targetKind', 'kind' => $targetKind]);
+
+            $name = self::readRequiredHeader($body, $offset, 'tag');
+            if ($name === '') {
+                throw new \InvalidArgumentException('Git tag name cannot be empty');
+            }
+            $tokens[] = self::okToken(['type' => 'name', 'name' => $name]);
+
+            $tagger = null;
+            if (substr($body, $offset, 7) === 'tagger ') {
+                $tagger = self::readRequiredHeader($body, $offset, 'tagger');
+                CommitSignature::parse($tagger);
+            }
+            $tokens[] = self::okToken(['type' => 'tagger', 'signature' => $tagger]);
+
+            [$message, $pgpSignature] = self::parseMessageAndSignature(substr($body, $offset));
+            $tokens[] = self::okToken(['type' => 'body', 'message' => $message, 'pgpSignature' => $pgpSignature]);
+        } catch (\InvalidArgumentException $exception) {
+            $tokens[] = ['ok' => false, 'error' => $exception->getMessage()];
+        }
+
+        return $tokens;
     }
 
     public function taggerSignature(): ?CommitSignature
@@ -64,9 +131,9 @@ final class GitTag
     public function storageBytes(): string
     {
         self::validateWritableName($this->name);
-        self::validateTarget($this->target);
+        self::validateTarget($this->rawTarget);
 
-        $out = "object {$this->target}\n"
+        $out = "object {$this->rawTarget}\n"
             . "type {$this->targetKind}\n"
             . "tag {$this->name}\n";
         if ($this->tagger !== null) {
@@ -108,6 +175,15 @@ final class GitTag
             ['type' => 'tagger', 'signature' => $this->tagger],
             ['type' => 'body', 'message' => $this->message, 'pgpSignature' => $this->pgpSignature],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $token
+     * @return array{ok: bool, token: array<string, mixed>}
+     */
+    private static function okToken(array $token): array
+    {
+        return ['ok' => true, 'token' => $token];
     }
 
     private static function readRequiredHeader(string $input, int &$offset, string $name): string

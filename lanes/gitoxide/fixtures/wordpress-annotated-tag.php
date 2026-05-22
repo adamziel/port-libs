@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-$body = "object 4444444444444444444444444444444444444444\n"
+$rawTarget = 'ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD';
+$target = strtolower($rawTarget);
+
+$body = "object {$rawTarget}\n"
     . "type commit\n"
     . "tag wp-release-2026.05-signed\n"
     . "tagger WordPress Release Bot <release@example.test> 1770000000 +0000\n"
@@ -16,7 +19,8 @@ $body = "object 4444444444444444444444444444444444444444\n"
 return [
     'tagBody' => $body,
     'expectedName' => 'wp-release-2026.05-signed',
-    'expectedTarget' => '4444444444444444444444444444444444444444',
+    'expectedTarget' => $target,
+    'expectedRawTarget' => $rawTarget,
     'expectedKind' => 'commit',
     'expectedTagger' => 'WordPress Release Bot',
     'expectedMessage' => "Release WordPress 2026.05 deployment bundle\n\nIncludes block templates and plugin packages.",

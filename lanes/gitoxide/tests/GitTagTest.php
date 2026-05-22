@@ -140,6 +140,46 @@ return [
             . "tagger Sebastian Thiel <sebastian.thiel@icloud.com> 1592381636 +0800\n";
         $t->same($emptyMissingNewline, GitTag::parse($emptyMissingNewline)->storageBytes());
     },
+    'tag parser preserves raw target bytes and iterator surfaces partial errors' => static function (TestRunner $t): void {
+        $uppercase = "object FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC\n"
+            . "type commit\n"
+            . "tag uppercase-target\n"
+            . "\n"
+            . "message";
+        $tag = GitTag::parse($uppercase);
+
+        $t->same('ffa700b4aca13b80cb6b98a078e7c96804f8e0ec', $tag->target);
+        $t->same('FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC', $tag->rawTarget);
+        $t->same($uppercase, $tag->storageBytes());
+
+        $tokens = GitTag::iterateTokens($uppercase);
+        $t->same([
+            'ok' => true,
+            'token' => [
+                'type' => 'target',
+                'id' => 'ffa700b4aca13b80cb6b98a078e7c96804f8e0ec',
+                'rawId' => 'FFA700B4ACA13B80CB6B98A078E7C96804F8E0EC',
+            ],
+        ], $tokens[0]);
+        $t->same(['target', 'targetKind', 'name', 'tagger', 'body'], array_map(static fn (array $result): ?string => $result['token']['type'] ?? null, $tokens));
+
+        $withoutTagger = GitTag::iterateTokens("object ffa700b4aca13b80cb6b98a078e7c96804f8e0ec\n"
+            . "type tree\n"
+            . "tag no-tagger\n"
+            . "\n"
+            . "body");
+        $t->same('tagger', $withoutTagger[3]['token']['type']);
+        $t->same(null, $withoutTagger[3]['token']['signature']);
+
+        $partial = "object ffa700b4aca13b80cb6b98a078e7c96804f8e0ec\n"
+            . "type commit\n"
+            . "tag partial\n"
+            . "tagger Broken <broken@example.test> 1700000000 +0000";
+        $partialTokens = GitTag::iterateTokens($partial);
+        $t->same(['target', 'targetKind', 'name', null], array_map(static fn (array $result): ?string => $result['token']['type'] ?? null, $partialTokens));
+        $t->same(false, $partialTokens[3]['ok']);
+        $t->contains('tagger header is not newline terminated', $partialTokens[3]['error'] ?? '');
+    },
     'tag writer follows gitoxide tag name validation' => static function (TestRunner $t): void {
         $target = 'ffa700b4aca13b80cb6b98a078e7c96804f8e0ec';
 
@@ -173,6 +213,7 @@ return [
 
         $t->same($fixture['expectedName'], $summary['name']);
         $t->same($fixture['expectedTarget'], $summary['target']);
+        $t->same($fixture['expectedRawTarget'], $summary['rawTarget']);
         $t->same($fixture['expectedKind'], $summary['targetKind']);
         $t->same($fixture['expectedTagger'], $summary['tagger']['name']);
         $t->same($fixture['expectedMessage'], $summary['message']);
@@ -183,5 +224,6 @@ return [
         $t->same(true, $summary['roundTripMatches']);
         $t->same('body', $summary['tokens'][4]['type']);
         $t->same($fixture['expectedSignature'], $summary['tokens'][4]['pgpSignature']);
+        $t->same($fixture['expectedRawTarget'], $summary['tokenResults'][0]['token']['rawId']);
     },
 ];
