@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "pandoc",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static upstream inventory; full Haskell runner not executed",
-    "phpPass": 5,
+    "estimatedProgress": 6,
+    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list slice mapped; full Haskell runner not executed",
+    "phpPass": 7,
     "phpFail": 0,
-    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, and ordered conversion steps as WordPress blocks.",
-    "phase": "cloned inventory plus inline/list slice",
+    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, ordered conversion steps, and nested editorial checklists as WordPress blocks.",
+    "phase": "cloned inventory plus Markdown reader/list slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native Markdown reader groups bullet/ordered lists and parses emphasis, strong, links, and code spans; WordPress writer renders escaped block output.",
+    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items from Tests.Readers.Markdown, and parses emphasis, strong, links, and code spans; WordPress writer renders escaped block output plus nested list markup.",
     "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable; upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout.",
-    "latestCommit": "1c7f6cbccdff",
-    "nextTask": "Map a small subset of Pandoc Tests.Readers.Markdown golden cases into PHP fixtures, then add nested list item blocks."
+    "latestCommit": "81b0495",
+    "nextTask": "Map more Pandoc Tests.Readers.Markdown cases such as inline code across list markers, block quotes, fenced code blocks, or definition lists."
 }
