@@ -166,6 +166,17 @@ slice only: `go test ./lib/model -run
 'TestJobQueue|TestBringToFront|TestQueuePagination' -count=1` passed in a
 throwaway worktree at commit `3962a237232473c20a44945a6c8ce8c930375360`; this
 is not full upstream runner parity.
+The service-map slice now maps focused upstream `lib/model/service_map.go` and
+`service_map_test.go` behavior: adding a keyed service starts it, overwriting
+the same key stops the previous service before the replacement starts, `Stop`
+halts a service but keeps it retrievable from the map, `Remove` and
+`RemoveAndWait` delete keyed services with the upstream `service not found`
+boundary for absent keys, and `Each` can remove matching services during
+iteration while stopping early on callback errors. A bounded upstream runner was
+executed for this focused slice only: `go test ./lib/model -run
+'^TestServiceMap$' -count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
 behavior: shared devices can read regular file ranges, `fromTemporary` requests
@@ -413,8 +424,13 @@ the remaining chunks following as whole ranges.
 where a private export is bumped ahead of ordinary uploads, appears in the
 in-progress page before queued media, and is removed from progress after
 completion while the remaining queued files keep FIFO order.
+`examples/wordpress-service-map.php` shows WordPress media and receive-encrypted
+folder workers using upstream service-map lifecycle semantics: a private folder
+worker can be stopped while its retained configuration remains inspectable, a
+media indexer can be replaced for a rescan after stopping the old worker, and a
+stopped folder can be removed after maintenance.
 
 ## Next Task
 
-Map upstream `service_map.go` lifecycle behavior, or run another focused
-upstream package test before the next protocol/model behavior slice.
+Map upstream `indexhandler.go` folder index sequence behavior, or run another
+focused upstream package test before the next protocol/model behavior slice.
