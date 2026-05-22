@@ -85,6 +85,15 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 
+## Current Lane Status
+
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading mappings.
+- Native PHP lane tests: 21 passing, 0 failing, 146 assertions.
+- Current root verification: `php tools/run-tests.php` passes 63 test files, 3526 assertions, 0 failures.
+- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
+- Blocker: no readability-local execution blocker remains; exact expected-HTML parity is still incomplete for `lazy-image-1` out-of-band Medium images and full-width figure wrappers.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, preserves lazy media/video fixtures, cleans platform chrome, and emits WordPress block output.
+
 ## Next Slice
 
 Tighten `lazy-image-1` exact expected-HTML parity by removing the remaining out-of-band Medium images and structural wrappers around full-width figures, then broaden exact structural HTML parity for the copied lazy-image fixtures.
