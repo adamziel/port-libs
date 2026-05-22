@@ -232,6 +232,10 @@
   - Result: `dolt version 2.0.5`.
 - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(CommitDiffSystemTable|CommitDiffSystemTablePrepared|LogTableFunction|LogTableFunctionPrepared)$' -count=1 -timeout 20m`
   - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.987s`; this covers bounded `DOLT_COMMIT_DIFF_<table>` and `dolt_log()` engine script tests without a live SQL server.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(LogTableFunction|LogTableFunctionPrepared|DoltCommit)$' -count=1 -timeout 20m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.749s`; fresh focused log/commit metadata engine coverage for this native slice.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test ./libraries/doltcore/sqle/dtablefunctions -run TestDoltLog -count=1 -timeout 5m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/dtablefunctions 0.045s`; fresh focused `dolt_log()` option/type/bind-variable unit coverage.
 - `env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go test ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 15m`
   - Result: diff, schema, typecompatibility, schema/encoding, table, table/untyped, table/untyped/csv, table/untyped/tabular, table/untyped/sqlexport, table/typed/json, sqle/sqlfmt, sqle/expreval, sqle/dtablefunctions, and merge passed; rowconv and sqle/dtables compiled with `[no test files]`; merge completed in `6.434s`.
 - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 30m bats sql-commit-diff.bats log.bats`
@@ -245,10 +249,13 @@
   - Post-metadata rerun passed after the commit-diff/log runner refresh: 102 test files, 6,868 assertions, 0 failures.
   - Two transient non-Dolt failures were observed while other lanes were active: one readability fixture failure and one pandoc footnote fixture failure.
   - A later required rerun after those transient failures passed: 102 test files, 6,955 assertions, 0 failures.
+  - Required rerun after the native commit-log slice passed: 104 test files, 7,219 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
+  - The latest root runner additionally covers native `dolt_log`/`dolt_commits` commit metadata projection and the WordPress commit-log review fixture.
 - Lane-only Dolt PHP test command:
   - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $runner=new TestRunner(); foreach (glob("lanes/dolt/tests/*Test.php") as $file) { $runner->runTests(require $file, $file); } fwrite(STDOUT, "\nDolt: " . count(glob("lanes/dolt/tests/*Test.php")) . " test files, " . $runner->assertions() . " assertions, " . $runner->failures() . " failures\n"); exit($runner->failures() === 0 ? 0 : 1);'`
-  - Result: pass with 6 Dolt test files, 64 behavior tests, 273 assertions, and 0 failures.
+  - Previous result before the commit-log slice: pass with 6 Dolt test files, 64 behavior tests, 273 assertions, and 0 failures.
+  - Current result after the commit-log slice: pass with 7 Dolt test files, 70 behavior tests, 306 assertions, and 0 failures.
 
 ## Skipped Suites
 

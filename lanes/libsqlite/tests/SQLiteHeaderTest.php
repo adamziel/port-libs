@@ -595,6 +595,22 @@ return [
         $t->same(SQLiteIndexPredicate::NOT_EQUALS, $notEqualIndex?->partialPredicate?->operator);
         $t->same('no', $notEqualIndex?->partialPredicate?->value);
     },
+    'parses sqlite lower expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
+        $lowerIndex = SQLiteCreateIndex::firstLowerExpression('CREATE INDEX idx_lower_name ON wp_options(lower(main.wp_options."option_name") COLLATE nocase DESC) WHERE option_name IS NOT NULL');
+        $constantExpression = SQLiteCreateIndex::firstLowerExpression("CREATE INDEX idx_constant ON wp_options(lower('option_name'))");
+        $otherExpression = SQLiteCreateIndex::firstLowerExpression('CREATE INDEX idx_substr ON wp_options(substr(option_name,1,4))');
+        $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_lower_name ON wp_options(lower(option_name))');
+
+        $t->same('option_name', $lowerIndex?->columnName);
+        $t->same('NOCASE', $lowerIndex?->collation);
+        $t->same(true, $lowerIndex?->descending);
+        $t->same(true, $lowerIndex?->partial);
+        $t->same('option_name', $lowerIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $lowerIndex?->partialPredicate?->operator);
+        $t->same(null, $constantExpression);
+        $t->same(null, $otherExpression);
+        $t->same(null, $ordinaryColumn);
+    },
     'parses explicit sqlite composite index column metadata' => static function (TestRunner $t): void {
         $columns = SQLiteCreateIndex::columns('CREATE INDEX idx_autoload_name ON wp_options(autoload, option_name COLLATE nocase DESC, option_value) WHERE autoload IS NOT NULL');
         $expressionColumns = SQLiteCreateIndex::columns('CREATE INDEX idx_expr ON wp_options(autoload, lower(option_name))');
@@ -631,6 +647,36 @@ return [
         $t->same(3, $option->optionId);
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
+    },
+    'uses lower expression index for case folded wordpress option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_lower_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_lower_option_name ON wp_options(lower(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['blogname', 3]),
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedLowercaseName('SITEURL');
+        $missing = $database->wordpressOptionByIndexedLowercaseName('missing');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'SITEURL'));
+        $t->same(3, $database->indexRootPageForLowercasePointLookup('wp_options', 'option_name', 'SITEURL'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->optionId);
+        $t->same('SiteURL', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
+        $t->same(null, $missing);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('SITEURL'));
     },
     'skips partial option_name indexes for whole-table wordpress lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -827,6 +873,71 @@ return [
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
         $t->same(null, $missing);
+    },
+    'uses composite autoload equality and option_name range to scan wordpress options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoload_name', 'wp_options', 3, 'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_site_transient_update_plugins', 'site-cache', 'yes'], 1),
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 2),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 3),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 4),
+            $schemaCell([null, 'cron_lock', '1', 'no'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['no', '_transient_feed', 2]),
+            $indexCell(['no', '_transient_timeout_feed', 3]),
+            $indexCell(['no', 'cron_lock', 5]),
+            $indexCell(['yes', '_site_transient_update_plugins', 1]),
+            $indexCell(['yes', 'blogname', 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $transients = $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', '_transient_', '_transient`');
+        $limited = $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', '_transient_', '_transient`', 1);
+        $inclusiveSingle = $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', '_transient_feed', '_transient_feed', null, true);
+        $exclusiveEmpty = $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', '_transient_feed', '_transient_feed');
+
+        $t->same(3, $database->indexRootPageForPrefixRangeLookup('wp_options', [
+            'autoload' => 'no',
+        ], 'option_name', '_transient_', '_transient`'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusiveSingle));
+        $t->same([], $exclusiveEmpty);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', null, null));
+    },
+    'uses partial composite autoload and option_name range indexes when predicates are implied' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_no_autoload_name', 'wp_options', 3, "CREATE INDEX wp_options_no_autoload_name ON wp_options(autoload, option_name COLLATE NOCASE DESC) WHERE autoload='no' AND option_name IS NOT NULL"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_TRANSIENT_TIMEOUT_FEED', '1700000000', 'no'], 2),
+            $schemaCell([null, '_transient_update_plugins', 'autoloaded-cache', 'yes'], 3),
+            $schemaCell([null, null, 'draft missing name', 'no'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['no', '_TRANSIENT_TIMEOUT_FEED', 2]),
+            $indexCell(['no', '_transient_feed', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $transients = $database->wordpressOptionsByIndexedAutoloadAndNameRange('no', '_TRANSIENT_', '_TRANSIENT`');
+
+        $t->same(3, $database->indexRootPageForPrefixRangeLookup('wp_options', [
+            'autoload' => 'no',
+        ], 'option_name', '_TRANSIENT_', '_TRANSIENT`'));
+        $t->same(null, $database->indexRootPageForPrefixRangeLookup('wp_options', [
+            'autoload' => 'yes',
+        ], 'option_name', '_TRANSIENT_', '_TRANSIENT`'));
+        $t->same(['_TRANSIENT_TIMEOUT_FEED', '_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['1700000000', 'cached-feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedAutoloadAndNameRange('yes', '_TRANSIENT_', '_TRANSIENT`'));
     },
     'uses partial autoload is not null index for duplicate wordpress option scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

@@ -21,10 +21,80 @@ final class SQLiteCreateIndex
         return self::parseColumns($sql, null);
     }
 
+    public static function firstLowerExpression(string $sql): ?SQLiteIndexColumn
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $column = self::parseLowerExpressionColumn($term);
+        if ($column === null) {
+            return null;
+        }
+
+        return new SQLiteIndexColumn(
+            $column['name'],
+            $column['collation'],
+            $column['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     /**
      * @return null|list<SQLiteIndexColumn>
      */
     private static function parseColumns(string $sql, ?int $limit): ?array
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $columns = [];
+        foreach ($index['terms'] as $term) {
+            if ($limit !== null && count($columns) >= $limit) {
+                break;
+            }
+            $column = self::parseIndexedColumn($term);
+            if ($column === null) {
+                return null;
+            }
+
+            $columns[] = new SQLiteIndexColumn(
+                $column['name'],
+                $column['collation'],
+                $column['descending'],
+                $partial,
+                $partialPredicate,
+            );
+        }
+
+        return $columns === [] ? null : $columns;
+    }
+
+    /**
+     * @return null|array{terms:list<string>,tail:string}
+     */
+    private static function indexedTermsAndTail(string $sql): ?array
     {
         $onOffset = self::findTopLevelKeyword($sql, 'ON');
         if ($onOffset === null) {
@@ -53,33 +123,10 @@ final class SQLiteCreateIndex
             return null;
         }
 
-        $tail = substr($sql, $close + 1);
-        $whereOffset = self::findTopLevelKeyword($tail, 'WHERE');
-        $partial = $whereOffset !== null;
-        $partialPredicate = $whereOffset === null
-            ? null
-            : self::parsePartialPredicate(substr($tail, $whereOffset + strlen('WHERE')));
-
-        $columns = [];
-        foreach (self::topLevelTerms(substr($sql, $offset + 1, $close - $offset - 1)) as $term) {
-            if ($limit !== null && count($columns) >= $limit) {
-                break;
-            }
-            $column = self::parseIndexedColumn($term);
-            if ($column === null) {
-                return null;
-            }
-
-            $columns[] = new SQLiteIndexColumn(
-                $column['name'],
-                $column['collation'],
-                $column['descending'],
-                $partial,
-                $partialPredicate,
-            );
-        }
-
-        return $columns === [] ? null : $columns;
+        return [
+            'terms' => self::topLevelTerms(substr($sql, $offset + 1, $close - $offset - 1)),
+            'tail' => substr($sql, $close + 1),
+        ];
     }
 
     /**
@@ -98,8 +145,69 @@ final class SQLiteCreateIndex
             return null;
         }
 
+        $modifiers = self::parseIndexTermModifiers($term, $offset);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $identifier[0],
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
+    /**
+     * @return null|array{name:string,collation:string,descending:bool}
+     */
+    private static function parseLowerExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $function = self::readIdentifier($term, 0);
+        if ($function === null || strcasecmp($function[0], 'lower') !== 0) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $function[1]);
+        if (!isset($term[$offset]) || $term[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($term, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $argument = trim(substr($term, $offset + 1, $close - $offset - 1));
+        if ($argument === '' || $argument[0] === "'") {
+            return null;
+        }
+
+        $column = self::readPossiblyQualifiedIdentifier($argument, 0);
+        if ($column === null || trim(substr($argument, $column[1])) !== '') {
+            return null;
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $close + 1);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $column[0],
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
+    /**
+     * @return null|array{collation:string,descending:bool}
+     */
+    private static function parseIndexTermModifiers(string $term, int $offset): ?array
+    {
         $collation = 'BINARY';
         $descending = false;
+        $offset = self::skipWhitespace($term, $offset);
         while ($offset < strlen($term)) {
             $token = self::readIdentifier($term, $offset);
             if ($token === null) {
@@ -130,7 +238,6 @@ final class SQLiteCreateIndex
         }
 
         return [
-            'name' => $identifier[0],
             'collation' => $collation,
             'descending' => $descending,
         ];

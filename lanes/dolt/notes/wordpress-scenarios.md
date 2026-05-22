@@ -19,6 +19,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_history_dolt_schemas` and `dolt_diff_dolt_schemas` row projection for versioned schema objects such as views, triggers, and events.
 - Native `dolt_history_dolt_procedures` and `dolt_diff_dolt_procedures` row projection for versioned stored procedures.
 - Native `DOLT_COMMIT_DIFF_<table>` row projection that requires exactly one `from_commit` and one `to_commit`, then applies `to_*` / `from_*` key predicates to commit snapshots.
+- Native `dolt_log` and `dolt_commits` commit metadata projection, including computed commit order, selected-head ancestry, refs decoration, and opt-in parents/signature columns.
 
 ## Scenario Fixtures
 
@@ -50,7 +51,9 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-procedure-history-review.php` returns `dolt_history_dolt_procedures` rows plus working `dolt_diff_dolt_procedures` rows, so a migration UI can audit stored-routine drift without shelling out to Dolt.
 - `fixtures/wp-commit-diff-review.php` models a WordPress import review between two named commits, with a bounded post-ID window over the changed `wp_posts` rows.
 - `examples/wordpress-commit-diff-review.php` returns `DOLT_COMMIT_DIFF`-style rows after applying the fixture's `to_ID > 900 AND to_ID < 950` predicate, so a migration UI can review a commit-to-commit window without shelling out to Dolt.
+- `fixtures/wp-commit-log-review.php` models a reviewed WordPress import merge with a main branch, media-import side branch, import tags, merge parents, and separate author/committer metadata.
+- `examples/wordpress-commit-log-review.php` returns `dolt_log` rows with parents and decorated refs plus `dolt_commits` rows, so a migration UI can audit which import branch produced each data checkpoint without shelling out to Dolt.
 
 ## Next Task
 
-Port a narrow native `dolt_log` / `dolt_commits` commit metadata slice, including parents/refs opt-in behavior from `log_table.go` and `dolt_log.go`.
+Port a narrow native `dolt_commit_ancestors` slice and connect it to commit-log rows, including root parent-null behavior and parent indexes from `commit_ancestors_table.go`.
