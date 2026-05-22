@@ -134,6 +134,11 @@ HTML `<em>` and `<strong>` spans stay semantic, empty strong/emphasis markers
 are preserved as empty inline nodes, emphasized links stay nested under the
 emphasis node, and the upstream implicit paragraph close before a following
 `<p>` no longer swallows the next paragraph.
+The remaining bounded HTML-reader Inline Markup nested/code slice is now
+represented too: nested `<strong><em>...</em></strong>` source emphasis stays
+nested in the AST and WordPress output, and HTML `<code>` spans preserve
+literal reviewer/source tokens such as `>`, `$`, `\`, `\$`, and `<html>`
+without becoming raw HTML or Markdown code-span re-parses.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -274,6 +279,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes an HTML reader inline-markup import, exercising
   empty strong/emphasis markers and an emphasized WordPress edit link after an
   implicitly closed paragraph without shelling out to Pandoc.
+- The fixture now includes nested HTML reader strong/emphasis review text and
+  HTML `<code>` source tokens, exercising preservation of urgent review marks,
+  block-comment source snippets, PHP variable names, and literal dollar escapes
+  without shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -403,6 +412,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the remaining bounded HTML-reader Inline Markup slice from
-`test/html-reader.html/native`, starting with the nested strong-emphasis
-paragraphs and HTML code-span paragraph after the emphasized-link case.
+Map the next bounded HTML-reader Smart quotes, ellipses, dashes slice from
+`test/html-reader.html/native`, starting with straight quote/apostrophe text
+and the quoted HTML code/link paragraph after the Inline Markup section.

@@ -209,6 +209,15 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `Emph []` nodes, and an `Emph [ Link ... ]` shape. The bounded PHP mapping
   now preserves those nodes and handles the implicit paragraph close without
   swallowing the following emphasized-link paragraph.
+- `test/html-reader.html` remaining Inline Markup nested/code slice inspected
+  in this run: upstream lines 318-322 cover four nested
+  `<strong><em>...</em></strong>` paragraphs plus one paragraph with five
+  `<code>` spans containing `>`, `$`, `\`, `\$`, and `<html>`.
+- `test/html-reader.native` remaining Inline Markup rendered native AST slice
+  inspected in this run: upstream lines 847-921 show four nested
+  `Strong [ Emph ... ]` paragraph shapes and five `Code` inline nodes. The
+  bounded PHP mapping now preserves the nested strong/emphasis shape and code
+  span literal text through WordPress output.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header

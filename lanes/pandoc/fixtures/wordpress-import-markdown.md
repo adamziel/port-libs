@@ -184,6 +184,8 @@ HTML reader inline markup import:
 
 <p>Empty importer marks <strong></strong> and <em></em>.
 <p>An <em><a href="/wp-admin/post.php?post=42&action=edit">emphasized edit link</a></em> stays attached to review copy.</p>
+<p><strong><em>Urgent media cleanup</em></strong> stays nested for reviewer emphasis.</p>
+<p>Legacy block source: <code>&lt;!-- wp:paragraph --&gt;</code>, <code>$post_id</code>, and <code>\$literal</code>.</p>
 
 Empty import audit table:
 

@@ -1613,6 +1613,41 @@ HTML);
         $t->contains('<p>Empty <strong></strong> and <em></em>.</p>', $blocks);
         $t->contains('<p>An <em><a href="/url">emphasized link</a></em>.</p>', $blocks);
     },
+    'maps upstream html reader nested strong emphasis and code spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p><strong><em>This is strong and em.</em></strong></p>
+<p>So is <strong><em>this</em></strong> word.</p>
+<p><strong><em>This is strong and em.</em></strong></p>
+<p>So is <strong><em>this</em></strong> word.</p>
+<p>This is code: <code>&gt;</code>, <code>$</code>, <code>\</code>, <code>\$</code>, <code>&lt;html&gt;</code>.</p>
+HTML);
+        $firstNested = $document->children[0]->children[0];
+        $firstWord = $document->children[1]->children[1];
+        $secondNested = $document->children[2]->children[0];
+        $secondWord = $document->children[3]->children[1];
+        $codeParagraph = $document->children[4];
+        $codeNodes = array_values(array_filter(
+            $codeParagraph->children,
+            static fn (AstNode $node): bool => $node->type === 'code'
+        ));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(5, count($document->children));
+        foreach ([$firstNested, $secondNested] as $nested) {
+            $t->same('strong', $nested->type);
+            $t->same('emph', $nested->children[0]->type);
+            $t->same('This is strong and em.', $nested->children[0]->children[0]->attr('text'));
+        }
+        foreach ([$firstWord, $secondWord] as $nestedWord) {
+            $t->same('strong', $nestedWord->type);
+            $t->same('emph', $nestedWord->children[0]->type);
+            $t->same('this', $nestedWord->children[0]->children[0]->attr('text'));
+        }
+        $t->same(['>', '$', '\\', '\\$', '<html>'], array_map(static fn (AstNode $node): mixed => $node->attr('text'), $codeNodes));
+        $t->contains('<p><strong><em>This is strong and em.</em></strong></p>', $blocks);
+        $t->contains('<p>So is <strong><em>this</em></strong> word.</p>', $blocks);
+        $t->contains('<p>This is code: <code>&gt;</code>, <code>$</code>, <code>\</code>, <code>\$</code>, <code>&lt;html&gt;</code>.</p>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -2982,6 +3017,36 @@ XML;
         $t->same(['small_caps', 'text', 'underline', 'text', 'underline', 'text', 'strikeout', 'text', 'strikeout', 'text', 'strikeout', 'text'], array_map(static fn ($node): string => $node->type, $markedParagraph->children));
         $t->contains('<p>HTML reader editorial inline marks:</p>', $blocks);
         $t->contains('<p><span style="font-variant:small-caps">source glossary</span> flags <u>underlined source text</u>, <u>inserted reviewer note</u>, <del>stale caption</del>, <del>old shortcode</del>, and <del>deleted widget</del>.</p>', $blocks);
+    },
+    'writes wordpress html reader nested emphasis and code spans from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $nestedParagraph = null;
+        $codeParagraph = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'paragraph'
+                && ($node->children[0] ?? null)?->type === 'strong'
+                && ($node->children[0]->children[0] ?? null)?->type === 'emph'
+            ) {
+                $nestedParagraph = $node;
+            }
+            if (
+                $node->type === 'paragraph'
+                && count(array_filter($node->children, static fn (AstNode $child): bool => $child->type === 'code')) === 3
+                && str_contains((string) $node->attr('text'), 'Legacy block source')
+            ) {
+                $codeParagraph = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($nestedParagraph !== null, 'HTML reader nested strong/emphasis should stay semantic on the native path');
+        $t->same('Urgent media cleanup', $nestedParagraph->children[0]->children[0]->children[0]->attr('text'));
+        $t->true($codeParagraph !== null, 'HTML reader code spans should stay semantic on the native path');
+        $t->same(['text', 'code', 'text', 'code', 'text', 'code', 'text'], array_map(static fn (AstNode $node): string => $node->type, $codeParagraph->children));
+        $t->contains('<p><strong><em>Urgent media cleanup</em></strong> stays nested for reviewer emphasis.</p>', $blocks);
+        $t->contains('<p>Legacy block source: <code>&lt;!-- wp:paragraph --&gt;</code>, <code>$post_id</code>, and <code>\$literal</code>.</p>', $blocks);
     },
     'writes wordpress pipe table blocks for import metrics' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
