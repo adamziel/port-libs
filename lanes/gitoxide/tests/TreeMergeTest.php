@@ -1971,6 +1971,81 @@ return [
             $result->worktreeConflictFiles($read),
         ));
     },
+    'maps upstream gix-merge tree-baseline super-1 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $lines = static fn (array $lines): string => implode("\n", $lines) . "\n";
+        $base = new Tree([
+            $blobEntry('one', $lines(range(11, 19))),
+            $blobEntry('three', $lines(range(31, 39))),
+            $blobEntry('five', $lines(range(51, 59))),
+        ]);
+        $ours = new Tree([
+            $blobEntry('two', $lines(range(10, 19))),
+            $blobEntry('four', $lines([...range(31, 39), 40])),
+            $blobEntry('six', $lines(range(51, 59))),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('six', $lines([...range(11, 19), 20])),
+            $blobEntry('two', $lines([...range(31, 39), 'forty'])),
+            $blobEntry('four', $lines([...range(51, 59), 60])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $merged = [];
+        foreach (['four', 'six', 'two'] as $path) {
+            $merged[$path] = $read($result->tree->entryNamed($path)?->oid ?? '')->body;
+        }
+        $conflicts = array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        );
+        usort($conflicts, static fn (array $left, array $right): int => strcmp($left['path'], $right['path']));
+        $worktreePaths = array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read));
+        sort($worktreePaths, SORT_STRING);
+
+        $t->same(false, $result->isClean());
+        $t->same(['four', 'six', 'two'], $names($result->tree));
+        $t->contains('<<<<<<< ours/four', $merged['four']);
+        $t->contains("31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n", $merged['four']);
+        $t->contains("51\n52\n53\n54\n55\n56\n57\n58\n59\n60\n", $merged['four']);
+        $t->contains('<<<<<<< ours/six', $merged['six']);
+        $t->contains("51\n52\n53\n54\n55\n56\n57\n58\n59\n", $merged['six']);
+        $t->contains("11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n", $merged['six']);
+        $t->contains('<<<<<<< ours/two', $merged['two']);
+        $t->contains("10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n", $merged['two']);
+        $t->contains("31\n32\n33\n34\n35\n36\n37\n38\n39\nforty\n", $merged['two']);
+        $t->same([
+            ['path' => 'four', 'reason' => 'content-conflict', 'base' => 'four', 'ours' => 'four', 'theirs' => 'four'],
+            ['path' => 'six', 'reason' => 'content-conflict', 'base' => 'six', 'ours' => 'six', 'theirs' => 'six'],
+            ['path' => 'two', 'reason' => 'content-conflict', 'base' => 'two', 'ours' => 'two', 'theirs' => 'two'],
+        ], $conflicts);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'four', 'body' => $lines(range(51, 59))],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'four', 'body' => $lines([...range(31, 39), 40])],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'four', 'body' => $lines([...range(51, 59), 60])],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'six', 'body' => $lines(range(11, 19))],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'six', 'body' => $lines(range(51, 59))],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'six', 'body' => $lines([...range(11, 19), 20])],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'two', 'body' => $lines(range(31, 39))],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'two', 'body' => $lines(range(10, 19))],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'two', 'body' => $lines([...range(31, 39), 'forty'])],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same(['four', 'six', 'two'], $worktreePaths);
+    },
     'maps upstream gix-merge tree-baseline conflicting-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";

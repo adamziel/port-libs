@@ -841,6 +841,8 @@ final class TreeMerge
     {
         $ourRenames = self::detectedRenames($baseEntries, $ourEntries, $readObject);
         $theirRenames = self::detectedRenames($baseEntries, $theirEntries, $readObject);
+        $ourRenamesByTarget = self::renamesByTarget($ourRenames);
+        $theirRenamesByTarget = self::renamesByTarget($theirRenames);
         $directoryFileRelocations = self::directoryRenameFileRelocations(
             $baseEntries,
             $ourEntries,
@@ -898,6 +900,40 @@ final class TreeMerge
                         $consumed[$ourRename['path']] = true;
                     }
                 } else {
+                    $handledTargetCollision = false;
+                    foreach ([$ourRename['path'], $theirRename['path']] as $targetPath) {
+                        if (isset($consumed[$targetPath])) {
+                            continue;
+                        }
+                        $targetCollisionMerge = self::tryMergeDivergentRenameTargetCollision(
+                            $pathPrefix,
+                            $targetPath,
+                            $baseEntries,
+                            $ourEntries,
+                            $theirEntries,
+                            $ourRenamesByTarget,
+                            $theirRenamesByTarget,
+                            $readObject,
+                            $writeObject,
+                            $conflictStyle,
+                            $bigFileThreshold,
+                        );
+                        if ($targetCollisionMerge === null) {
+                            continue;
+                        }
+
+                        if ($targetCollisionMerge['entry'] !== null) {
+                            $merged[] = $targetCollisionMerge['entry'];
+                        }
+                        array_push($conflicts, ...$targetCollisionMerge['conflicts']);
+                        $consumed[$targetPath] = true;
+                        $handledTargetCollision = true;
+                    }
+                    if ($handledTargetCollision || (isset($consumed[$ourRename['path']]) && isset($consumed[$theirRename['path']]))) {
+                        $consumed[$path] = true;
+                        continue;
+                    }
+
                     $divergentSymlinkRename = self::tryMergeDivergentSymlinkRenames(
                         $pathPrefix,
                         $path,
@@ -1184,6 +1220,60 @@ final class TreeMerge
         }
 
         return [$conflicts, $consumed, $merged];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $ourEntries
+     * @param array<string, TreeEntry> $theirEntries
+     * @param array<string, string> $ourRenamesByTarget
+     * @param array<string, string> $theirRenamesByTarget
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     * @return null|array{entry:?TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeDivergentRenameTargetCollision(
+        string $pathPrefix,
+        string $targetPath,
+        array $baseEntries,
+        array $ourEntries,
+        array $theirEntries,
+        array $ourRenamesByTarget,
+        array $theirRenamesByTarget,
+        ?callable $readObject,
+        ?callable $writeObject,
+        string $conflictStyle,
+        ?int $bigFileThreshold = null,
+    ): ?array {
+        if ($readObject === null || $writeObject === null) {
+            return null;
+        }
+
+        $ourSource = $ourRenamesByTarget[$targetPath] ?? null;
+        $theirSource = $theirRenamesByTarget[$targetPath] ?? null;
+        if ($ourSource === null || $theirSource === null || $ourSource === $theirSource) {
+            return null;
+        }
+
+        $baseEntry = $baseEntries[$theirSource] ?? $baseEntries[$ourSource] ?? null;
+        $ourEntry = $ourEntries[$targetPath] ?? null;
+        $theirEntry = $theirEntries[$targetPath] ?? null;
+        if ($baseEntry === null || $ourEntry === null || $theirEntry === null) {
+            return null;
+        }
+
+        return self::tryMergeChangedEntry(
+            $targetPath,
+            self::joinPath($pathPrefix, $targetPath),
+            new TreeEntry($baseEntry->mode, $targetPath, $baseEntry->oid),
+            new TreeEntry($ourEntry->mode, $targetPath, $ourEntry->oid),
+            new TreeEntry($theirEntry->mode, $targetPath, $theirEntry->oid),
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+            [],
+            $bigFileThreshold,
+        );
     }
 
     /**
@@ -1692,6 +1782,25 @@ final class TreeMerge
                 }
             }
         }
+    }
+
+    /**
+     * @param array<string, array{path:string,entry:TreeEntry}> $renames
+     * @return array<string, string>
+     */
+    private static function renamesByTarget(array $renames): array
+    {
+        $targets = [];
+        foreach ($renames as $sourcePath => $rename) {
+            $targetPath = $rename['path'];
+            if (array_key_exists($targetPath, $targets)) {
+                $targets[$targetPath] = null;
+                continue;
+            }
+            $targets[$targetPath] = $sourcePath;
+        }
+
+        return array_filter($targets, static fn (?string $sourcePath): bool => $sourcePath !== null);
     }
 
     /**
