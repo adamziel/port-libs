@@ -20,11 +20,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
+    /** @var array{proxy: ?array{stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyCredentialHelper: ?callable} */
+    private readonly array $httpOptions;
 
     /**
-     * @param null|callable(string, string, array<string, string>, ?string, float): array{status: int, headers: array<string, string|list<string>>, body: string} $requester
+     * @param null|callable(string, string, array<string, string>, ?string, float, array<string, mixed>): array{status: int, headers: array<string, string|list<string>>, body: string} $requester
      * @param list<string> $extraParameters
      * @param array<string, string> $extraHeaders
+     * @param array<string, mixed> $httpOptions
      */
     public function __construct(
         string $repositoryUrl,
@@ -32,12 +35,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         private readonly array $extraParameters = [],
         private readonly float $timeout = 30.0,
         array $extraHeaders = [],
+        array $httpOptions = [],
     ) {
         if ($timeout <= 0.0) {
             throw new \InvalidArgumentException('smart HTTP receive-pack transport timeout must be greater than zero');
         }
         self::validateExtraParameters($extraParameters);
         $this->extraHeaders = self::normalizeExtraHeaders($extraHeaders);
+        $this->httpOptions = self::normalizeHttpOptions($httpOptions);
 
         $target = self::normalizeRepositoryUrl($repositoryUrl);
         $this->repositoryUrl = $target['url'];
@@ -48,7 +53,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             array $headers,
             ?string $body,
             float $timeout,
-        ): array => self::performHttpRequest($method, $url, $headers, $body, $timeout);
+            array $requestHttpOptions,
+        ): array => self::performHttpRequest($method, $url, $headers, $body, $timeout, $requestHttpOptions);
     }
 
     public static function infoRefsUrl(string $repositoryUrl): string
@@ -191,7 +197,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
         while (true) {
             $effectiveUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, $url);
-            $response = ($this->requester)($method, $effectiveUrl, $headers, $body, $this->timeout);
+            $response = ($this->requester)(
+                $method,
+                $effectiveUrl,
+                $headers,
+                $body,
+                $this->timeout,
+                $this->httpOptionsForUrl($effectiveUrl),
+            );
             if (!is_array($response)
                 || !isset($response['status'], $response['headers'], $response['body'])
                 || !is_int($response['status'])
@@ -440,6 +453,94 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function httpOptionsForUrl(string $url): array
+    {
+        $proxy = $this->httpOptions['proxy'];
+        if ($proxy === null) {
+            return [];
+        }
+
+        $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
+        if (self::matchesNoProxy($request['host'], $this->httpOptions['noProxy'])) {
+            return [];
+        }
+
+        $options = [
+            'proxy' => $proxy['stream'],
+            'proxyUrl' => $proxy['url'],
+            'requestFullUri' => true,
+        ];
+        $authorization = $this->proxyAuthorization($proxy, $request['host']);
+        if ($authorization !== null) {
+            $options['proxyAuthorization'] = $authorization;
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array{stream: string, url: string, authorization: ?string} $proxy
+     */
+    private function proxyAuthorization(array $proxy, string $requestHost): ?string
+    {
+        if ($this->httpOptions['proxyAuthorization'] !== null) {
+            return $this->httpOptions['proxyAuthorization'];
+        }
+        if ($proxy['authorization'] !== null) {
+            return $proxy['authorization'];
+        }
+        $helper = $this->httpOptions['proxyCredentialHelper'];
+        if ($helper === null) {
+            return null;
+        }
+
+        $credentials = $helper($proxy['url'], $requestHost);
+        if ($credentials === null) {
+            return null;
+        }
+        if (!is_array($credentials)
+            || !isset($credentials['username'], $credentials['password'])
+            || !is_string($credentials['username'])
+            || !is_string($credentials['password'])
+        ) {
+            throw new \RuntimeException('smart HTTP receive-pack proxy credential helper returned invalid credentials');
+        }
+
+        return self::basicAuthorization($credentials['username'], $credentials['password'], 'smart HTTP receive-pack proxy credentials');
+    }
+
+    /**
+     * @param list<string> $patterns
+     */
+    private static function matchesNoProxy(string $host, array $patterns): bool
+    {
+        $host = strtolower(trim($host, '[]'));
+        foreach ($patterns as $pattern) {
+            if ($pattern === '*') {
+                return true;
+            }
+
+            $pattern = strtolower(ltrim(trim($pattern), '*'));
+            if ($pattern === '') {
+                continue;
+            }
+            if (str_starts_with($pattern, '.')) {
+                if (str_ends_with($host, $pattern) || $host === substr($pattern, 1)) {
+                    return true;
+                }
+                continue;
+            }
+            if ($host === $pattern || str_ends_with($host, '.' . $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param list<string> $extraParameters
      */
     private static function validateExtraParameters(array $extraParameters): void
@@ -484,6 +585,139 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $httpOptions
+     * @return array{proxy: ?array{stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyCredentialHelper: ?callable}
+     */
+    private static function normalizeHttpOptions(array $httpOptions): array
+    {
+        $allowed = ['proxy', 'noProxy', 'proxyAuthorization', 'proxyCredentials', 'proxyCredentialHelper'];
+        foreach (array_keys($httpOptions) as $name) {
+            if (!is_string($name) || !in_array($name, $allowed, true)) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack HTTP option is not supported');
+            }
+        }
+
+        $proxy = null;
+        if (array_key_exists('proxy', $httpOptions) && $httpOptions['proxy'] !== null && $httpOptions['proxy'] !== '') {
+            if (!is_string($httpOptions['proxy'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy must be a string');
+            }
+            $proxy = self::normalizeProxy($httpOptions['proxy']);
+        }
+
+        $proxyAuthorization = null;
+        if (array_key_exists('proxyCredentials', $httpOptions)) {
+            $credentials = $httpOptions['proxyCredentials'];
+            if (!is_array($credentials)
+                || !isset($credentials['username'], $credentials['password'])
+                || !is_string($credentials['username'])
+                || !is_string($credentials['password'])
+            ) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy credentials must include string username and password');
+            }
+            $proxyAuthorization = self::basicAuthorization($credentials['username'], $credentials['password'], 'smart HTTP receive-pack proxy credentials');
+        }
+        if (array_key_exists('proxyAuthorization', $httpOptions) && $httpOptions['proxyAuthorization'] !== null) {
+            if (!is_string($httpOptions['proxyAuthorization'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy authorization must be a string');
+            }
+            self::validateHeader('Proxy-Authorization', $httpOptions['proxyAuthorization']);
+            $proxyAuthorization = $httpOptions['proxyAuthorization'];
+        }
+
+        $helper = null;
+        if (array_key_exists('proxyCredentialHelper', $httpOptions) && $httpOptions['proxyCredentialHelper'] !== null) {
+            if (!is_callable($httpOptions['proxyCredentialHelper'])) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy credential helper must be callable');
+            }
+            $helper = $httpOptions['proxyCredentialHelper'];
+        }
+
+        return [
+            'proxy' => $proxy,
+            'noProxy' => self::normalizeNoProxy($httpOptions['noProxy'] ?? null),
+            'proxyAuthorization' => $proxyAuthorization,
+            'proxyCredentialHelper' => $helper,
+        ];
+    }
+
+    /**
+     * @return array{stream: string, url: string, authorization: ?string}
+     */
+    private static function normalizeProxy(string $proxy): array
+    {
+        if ($proxy === '' || str_contains($proxy, "\0") || str_contains($proxy, "\r") || str_contains($proxy, "\n")) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack proxy must be non-empty and must not contain control bytes');
+        }
+
+        $parseTarget = str_contains($proxy, '://') ? $proxy : '//' . $proxy;
+        try {
+            $parts = parse_url($parseTarget);
+        } catch (\ValueError $error) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack proxy could not be parsed', 0, $error);
+        }
+        if (!is_array($parts)) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack proxy could not be parsed');
+        }
+
+        $scheme = strtolower(str_contains($proxy, '://') ? (string) ($parts['scheme'] ?? '') : 'http');
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw new \InvalidArgumentException('smart HTTP receive-pack proxy must use http or https');
+        }
+        if (!isset($parts['host']) || !is_string($parts['host']) || $parts['host'] === '') {
+            throw new \InvalidArgumentException('smart HTTP receive-pack proxy must include a host');
+        }
+        if (isset($parts['path']) || isset($parts['query']) || isset($parts['fragment'])) {
+            throw new \InvalidArgumentException('smart HTTP receive-pack proxy must not include a path, query, or fragment');
+        }
+
+        $port = isset($parts['port']) ? (int) $parts['port'] : ($scheme === 'https' ? 443 : 80);
+        $authority = self::authority($parts['host'], $port);
+        $authorization = null;
+        if (isset($parts['user'])) {
+            $authorization = self::basicAuthorization(
+                rawurldecode((string) $parts['user']),
+                rawurldecode((string) ($parts['pass'] ?? '')),
+                'smart HTTP receive-pack proxy credentials',
+            );
+        }
+
+        return [
+            'stream' => 'tcp://' . $authority,
+            'url' => $scheme . '://' . $authority,
+            'authorization' => $authorization,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function normalizeNoProxy(mixed $noProxy): array
+    {
+        if ($noProxy === null || $noProxy === '') {
+            return [];
+        }
+
+        $items = is_array($noProxy) ? $noProxy : explode(',', (string) $noProxy);
+        $patterns = [];
+        foreach ($items as $item) {
+            if (!is_string($item)) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must be strings');
+            }
+            $pattern = trim($item);
+            if ($pattern === '') {
+                continue;
+            }
+            if (str_contains($pattern, "\0") || str_contains($pattern, "\r") || str_contains($pattern, "\n")) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain control bytes');
+            }
+            $patterns[] = $pattern;
+        }
+
+        return $patterns;
     }
 
     /**
@@ -655,12 +889,17 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      * @param array<string, string> $headers
      * @return array{status: int, headers: array<string, list<string>>, body: string}
      */
-    private static function performHttpRequest(string $method, string $url, array $headers, ?string $body, float $timeout): array
+    private static function performHttpRequest(string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions = []): array
     {
         $headerLines = [];
         foreach ($headers as $name => $value) {
             self::validateHeader($name, $value);
             $headerLines[] = $name . ': ' . $value;
+        }
+        if (isset($httpOptions['proxyAuthorization'])) {
+            $proxyAuthorization = (string) $httpOptions['proxyAuthorization'];
+            self::validateHeader('Proxy-Authorization', $proxyAuthorization);
+            $headerLines[] = 'Proxy-Authorization: ' . $proxyAuthorization;
         }
 
         $options = [
@@ -674,6 +913,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         ];
         if ($body !== null) {
             $options['http']['content'] = $body;
+        }
+        if (isset($httpOptions['proxy'])) {
+            $options['http']['proxy'] = (string) $httpOptions['proxy'];
+            $options['http']['request_fulluri'] = !empty($httpOptions['requestFullUri']);
         }
 
         $context = stream_context_create($options);
@@ -699,6 +942,17 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if (str_contains($value, "\r") || str_contains($value, "\n") || str_contains($value, "\0")) {
             throw new \InvalidArgumentException('smart HTTP receive-pack header value is invalid');
         }
+    }
+
+    private static function basicAuthorization(string $username, string $password, string $label): string
+    {
+        if (str_contains($username, "\0") || str_contains($username, "\r") || str_contains($username, "\n")
+            || str_contains($password, "\0") || str_contains($password, "\r") || str_contains($password, "\n")
+        ) {
+            throw new \InvalidArgumentException("{$label} must not contain control bytes");
+        }
+
+        return 'Basic ' . base64_encode($username . ':' . $password);
     }
 
     /**

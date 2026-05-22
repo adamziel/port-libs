@@ -424,6 +424,143 @@ return [
         );
         $t->throws(RuntimeException::class, static fn () => $downgrade->readAdvertisement());
     },
+    'smart http receive-pack applies proxy options and credential helpers' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress smart HTTP proxy payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $requester = static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$requests, $packet, $flush, $advertisement, $responseBytes): array {
+            $requests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $responseBytes,
+            ];
+        };
+
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                $requester,
+                ['version=1'],
+                6.0,
+                [],
+                [
+                    'proxy' => 'http://proxy-user:proxy-pass@proxy.example.test:8080',
+                    'noProxy' => 'localhost,.bypass.test',
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('tcp://proxy.example.test:8080', $requests[0]['httpOptions']['proxy']);
+        $t->same('http://proxy.example.test:8080', $requests[0]['httpOptions']['proxyUrl']);
+        $t->same(true, $requests[0]['httpOptions']['requestFullUri']);
+        $t->same('Basic ' . base64_encode('proxy-user:proxy-pass'), $requests[0]['httpOptions']['proxyAuthorization']);
+        $t->same($requests[0]['httpOptions'], $requests[1]['httpOptions']);
+        $t->same(null, $requests[0]['headers']['Proxy-Authorization'] ?? null);
+        $t->same(null, $requests[1]['headers']['Proxy-Authorization'] ?? null);
+        $t->same($request->requestBytes(), $requests[1]['body']);
+
+        $directRequests = [];
+        $directTransport = new SmartHttpReceivePackTransport(
+            'https://git.bypass.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$directRequests, $packet, $flush): array {
+                $directRequests[] = ['url' => $url, 'httpOptions' => $httpOptions];
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            ['proxy' => 'proxy.example.test:8080', 'noProxy' => ['.bypass.test']]
+        );
+        $directTransport->readAdvertisement();
+        $t->same([], $directRequests[0]['httpOptions']);
+
+        $defaultPortRequests = [];
+        $defaultPortTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$defaultPortRequests, $packet, $flush): array {
+                $defaultPortRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            ['proxy' => 'proxy.example.test']
+        );
+        $defaultPortTransport->readAdvertisement();
+        $t->same('tcp://proxy.example.test:80', $defaultPortRequests[0]['proxy']);
+
+        $helperCalls = [];
+        $helperRequests = [];
+        $helperTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$helperRequests, $packet, $flush): array {
+                $helperRequests[] = $httpOptions;
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$helperCalls): array {
+                    $helperCalls[] = [$proxyUrl, $requestHost];
+
+                    return ['username' => 'helper-user', 'password' => 'helper-pass'];
+                },
+            ]
+        );
+        $helperTransport->readAdvertisement();
+        $t->same([['http://proxy.example.test:8080', 'git.example.test']], $helperCalls);
+        $t->same('Basic ' . base64_encode('helper-user:helper-pass'), $helperRequests[0]['proxyAuthorization']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'socks5://proxy.example.test:1080']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
+    },
     'ssh receive-pack transport connects through injected exec streams' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress SSH transport payload');
