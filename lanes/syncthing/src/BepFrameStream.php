@@ -117,9 +117,12 @@ final class BepFrameStream
         return BepWire::decodeMessageFrame($this->readFrame());
     }
 
-    public function receiveNext(BepSession $session, ?callable $requestHandler = null): BepSessionEvent
+    /**
+     * @param null|BepSessionHandlers|callable(Request): (RequestServingResult|Response|string|null) $handlers
+     */
+    public function receiveNext(BepSession $session, null|BepSessionHandlers|callable $handlers = null): BepSessionEvent
     {
-        return $session->receiveFrame($this->readFrame(), $requestHandler);
+        return $session->receiveFrame($this->readFrame(), $handlers);
     }
 
     /**

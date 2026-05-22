@@ -19,6 +19,7 @@ final class BepSessionEvent
         public readonly array $outboundFrames = [],
         public readonly array $closedResults = [],
         public readonly ?string $error = null,
+        public readonly mixed $handlerResult = null,
     ) {
         if ($this->type === '') {
             throw new \InvalidArgumentException('Session event type must not be empty');
@@ -39,7 +40,23 @@ final class BepSessionEvent
     {
         return $this->type === BepSession::EVENT_CLOSE
             || $this->type === BepSession::EVENT_PROTOCOL_ERROR
+            || $this->type === BepSession::EVENT_HANDLER_ERROR
             || $this->type === BepSession::EVENT_CLOSED;
+    }
+
+    public function withHandlerResult(mixed $handlerResult): self
+    {
+        return new self(
+            type: $this->type,
+            messageType: $this->messageType,
+            message: $this->message,
+            requestResult: $this->requestResult,
+            response: $this->response,
+            outboundFrames: $this->outboundFrames,
+            closedResults: $this->closedResults,
+            error: $this->error,
+            handlerResult: $handlerResult,
+        );
     }
 
     /**

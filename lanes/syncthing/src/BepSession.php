@@ -16,6 +16,7 @@ final class BepSession
     public const EVENT_CLOSE = 'close';
     public const EVENT_IGNORED_UNKNOWN = 'ignored-unknown';
     public const EVENT_PROTOCOL_ERROR = 'protocol-error';
+    public const EVENT_HANDLER_ERROR = 'handler-error';
     public const EVENT_CLOSED = 'closed';
 
     private bool $sentClusterConfig = false;
@@ -24,10 +25,12 @@ final class BepSession
     private ?string $closedError = null;
 
     private RequestExchange $exchange;
+    private BepSessionHandlers $handlers;
 
     public function __construct(
         private readonly int $compressionMode = Device::COMPRESSION_NEVER,
         ?RequestExchange $exchange = null,
+        ?BepSessionHandlers $handlers = null,
     ) {
         if (!in_array($this->compressionMode, [
             Device::COMPRESSION_METADATA,
@@ -38,6 +41,7 @@ final class BepSession
         }
 
         $this->exchange = $exchange ?? new RequestExchange();
+        $this->handlers = $handlers ?? new BepSessionHandlers();
     }
 
     public function hasSentClusterConfig(): bool
@@ -71,6 +75,46 @@ final class BepSession
     public function pendingRequestIds(): array
     {
         return $this->exchange->pendingIds();
+    }
+
+    /**
+     * @param callable(Request): (RequestServingResult|Response|string|null) $handler
+     */
+    public function onRequest(callable $handler): self
+    {
+        $this->handlers = $this->handlers->withRequestHandler($handler);
+
+        return $this;
+    }
+
+    /**
+     * @param callable(Index): mixed $handler
+     */
+    public function onIndex(callable $handler): self
+    {
+        $this->handlers = $this->handlers->withIndexHandler($handler);
+
+        return $this;
+    }
+
+    /**
+     * @param callable(IndexUpdate): mixed $handler
+     */
+    public function onIndexUpdate(callable $handler): self
+    {
+        $this->handlers = $this->handlers->withIndexUpdateHandler($handler);
+
+        return $this;
+    }
+
+    /**
+     * @param callable(DownloadProgress): mixed $handler
+     */
+    public function onDownloadProgress(callable $handler): self
+    {
+        $this->handlers = $this->handlers->withDownloadProgressHandler($handler);
+
+        return $this;
     }
 
     public function sendClusterConfig(ClusterConfig $config): ?string
@@ -135,9 +179,9 @@ final class BepSession
     }
 
     /**
-     * @param null|callable(Request): (RequestServingResult|Response|string|null) $requestHandler
+     * @param null|BepSessionHandlers|callable(Request): (RequestServingResult|Response|string|null) $handlers
      */
-    public function receiveFrame(string $frame, ?callable $requestHandler = null): BepSessionEvent
+    public function receiveFrame(string $frame, null|BepSessionHandlers|callable $handlers = null): BepSessionEvent
     {
         if ($this->closed) {
             return new BepSessionEvent(
@@ -147,6 +191,7 @@ final class BepSession
             );
         }
 
+        $activeHandlers = $this->resolveHandlers($handlers);
         $decoded = BepWire::decodeMessageFrame($frame);
         $messageType = $decoded['type'];
         if ($messageType < BepWire::MESSAGE_TYPE_CLUSTER_CONFIG || $messageType > BepWire::MESSAGE_TYPE_CLOSE) {
@@ -158,11 +203,11 @@ final class BepSession
 
         return match ($messageType) {
             BepWire::MESSAGE_TYPE_CLUSTER_CONFIG => $this->receiveClusterConfig($decoded['payload']),
-            BepWire::MESSAGE_TYPE_INDEX => $this->receiveIndex($decoded['payload']),
-            BepWire::MESSAGE_TYPE_INDEX_UPDATE => $this->receiveIndexUpdate($decoded['payload']),
-            BepWire::MESSAGE_TYPE_REQUEST => $this->receiveRequest($decoded['payload'], $requestHandler),
+            BepWire::MESSAGE_TYPE_INDEX => $this->receiveIndex($decoded['payload'], $activeHandlers),
+            BepWire::MESSAGE_TYPE_INDEX_UPDATE => $this->receiveIndexUpdate($decoded['payload'], $activeHandlers),
+            BepWire::MESSAGE_TYPE_REQUEST => $this->receiveRequest($decoded['payload'], $activeHandlers->requestHandler()),
             BepWire::MESSAGE_TYPE_RESPONSE => $this->receiveResponse($decoded['payload']),
-            BepWire::MESSAGE_TYPE_DOWNLOAD_PROGRESS => $this->receiveDownloadProgress($decoded['payload']),
+            BepWire::MESSAGE_TYPE_DOWNLOAD_PROGRESS => $this->receiveDownloadProgress($decoded['payload'], $activeHandlers),
             BepWire::MESSAGE_TYPE_PING => $this->receivePing(),
             BepWire::MESSAGE_TYPE_CLOSE => $this->receiveClose($decoded['payload']),
         };
@@ -180,7 +225,7 @@ final class BepSession
         );
     }
 
-    private function receiveIndex(string $payload): BepSessionEvent
+    private function receiveIndex(string $payload, BepSessionHandlers $handlers): BepSessionEvent
     {
         $index = BepWire::decodeIndexPayload($payload);
         $context = self::messageContext(BepWire::MESSAGE_TYPE_INDEX, $index);
@@ -194,14 +239,14 @@ final class BepSession
             return $this->protocolError(BepWire::MESSAGE_TYPE_INDEX, $throwable->getMessage() . ' in ' . $context);
         }
 
-        return new BepSessionEvent(
+        return $this->dispatchModelHandler(new BepSessionEvent(
             type: self::EVENT_INDEX,
             messageType: BepWire::MESSAGE_TYPE_INDEX,
             message: $index,
-        );
+        ), $handlers->indexHandler(), $context);
     }
 
-    private function receiveIndexUpdate(string $payload): BepSessionEvent
+    private function receiveIndexUpdate(string $payload, BepSessionHandlers $handlers): BepSessionEvent
     {
         $indexUpdate = BepWire::decodeIndexUpdatePayload($payload);
         $context = self::messageContext(BepWire::MESSAGE_TYPE_INDEX_UPDATE, $indexUpdate);
@@ -215,11 +260,11 @@ final class BepSession
             return $this->protocolError(BepWire::MESSAGE_TYPE_INDEX_UPDATE, $throwable->getMessage() . ' in ' . $context);
         }
 
-        return new BepSessionEvent(
+        return $this->dispatchModelHandler(new BepSessionEvent(
             type: self::EVENT_INDEX_UPDATE,
             messageType: BepWire::MESSAGE_TYPE_INDEX_UPDATE,
             message: $indexUpdate,
-        );
+        ), $handlers->indexUpdateHandler(), $context);
     }
 
     /**
@@ -271,7 +316,7 @@ final class BepSession
         );
     }
 
-    private function receiveDownloadProgress(string $payload): BepSessionEvent
+    private function receiveDownloadProgress(string $payload, BepSessionHandlers $handlers): BepSessionEvent
     {
         $progress = BepWire::decodeDownloadProgressPayload($payload);
         $context = self::messageContext(BepWire::MESSAGE_TYPE_DOWNLOAD_PROGRESS, $progress);
@@ -279,11 +324,11 @@ final class BepSession
             return $this->protocolError(BepWire::MESSAGE_TYPE_DOWNLOAD_PROGRESS, 'invalid state 0 for ' . $context);
         }
 
-        return new BepSessionEvent(
+        return $this->dispatchModelHandler(new BepSessionEvent(
             type: self::EVENT_DOWNLOAD_PROGRESS,
             messageType: BepWire::MESSAGE_TYPE_DOWNLOAD_PROGRESS,
             message: $progress,
-        );
+        ), $handlers->downloadProgressHandler(), $context);
     }
 
     private function receivePing(): BepSessionEvent
@@ -321,6 +366,31 @@ final class BepSession
         return $encoder();
     }
 
+    private function resolveHandlers(null|BepSessionHandlers|callable $handlers): BepSessionHandlers
+    {
+        if ($handlers === null) {
+            return $this->handlers;
+        }
+        if ($handlers instanceof BepSessionHandlers) {
+            return $this->handlers->mergedWith($handlers);
+        }
+
+        return $this->handlers->withRequestHandler($handlers);
+    }
+
+    private function dispatchModelHandler(BepSessionEvent $event, ?\Closure $handler, string $context): BepSessionEvent
+    {
+        if ($handler === null) {
+            return $event;
+        }
+
+        try {
+            return $event->withHandlerResult($handler($event->message));
+        } catch (\Throwable $throwable) {
+            return $this->handlerError($event->messageType, $event->message, $context, $throwable);
+        }
+    }
+
     /**
      * @param callable(Request): (RequestServingResult|Response|string|null) $requestHandler
      */
@@ -354,6 +424,20 @@ final class BepSession
         }
 
         return new Response($request->id, $response->data, $response->code);
+    }
+
+    private function handlerError(int $messageType, mixed $message, string $context, \Throwable $throwable): BepSessionEvent
+    {
+        $reason = $throwable->getMessage() === '' ? $throwable::class : $throwable->getMessage();
+        $error = 'handling ' . $context . ': ' . $reason;
+
+        return new BepSessionEvent(
+            type: self::EVENT_HANDLER_ERROR,
+            messageType: $messageType,
+            message: $message,
+            closedResults: $this->markClosed($error),
+            error: $error,
+        );
     }
 
     private function protocolError(int $messageType, string $reason): BepSessionEvent

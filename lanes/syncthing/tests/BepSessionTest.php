@@ -3,12 +3,21 @@
 declare(strict_types=1);
 
 use PortLibs\Syncthing\BepSession;
+use PortLibs\Syncthing\BepSessionHandlers;
 use PortLibs\Syncthing\BepWire;
+use PortLibs\Syncthing\Block;
+use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\ClusterConfig;
+use PortLibs\Syncthing\DownloadProgress;
+use PortLibs\Syncthing\FileDownloadProgressUpdate;
+use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\Folder;
+use PortLibs\Syncthing\Index;
+use PortLibs\Syncthing\IndexUpdate;
 use PortLibs\Syncthing\ProtocolValidation;
 use PortLibs\Syncthing\Request;
 use PortLibs\Syncthing\Response;
+use PortLibs\Syncthing\VersionVector;
 
 return [
     'maps upstream cluster-config-first writer boundary' => static function (TestRunner $t): void {
@@ -129,9 +138,101 @@ return [
         $t->contains('filename is invalid', $invalid->error ?? '');
         $t->true($session->isClosed());
     },
+    'dispatches inbound model messages to registered wordpress callbacks' => static function (TestRunner $t): void {
+        $seen = [];
+        $session = (new BepSession())
+            ->onIndex(static function (Index $index) use (&$seen): array {
+                $seen[] = 'index:' . $index->folder . ':' . count($index->files);
+
+                return ['lastSequence' => $index->lastSequence];
+            })
+            ->onIndexUpdate(static function (IndexUpdate $indexUpdate) use (&$seen): array {
+                $seen[] = 'index-update:' . $indexUpdate->folder . ':' . $indexUpdate->prevSequence . '>' . $indexUpdate->lastSequence;
+
+                return ['file' => $indexUpdate->files[0]->name];
+            })
+            ->onDownloadProgress(static function (DownloadProgress $progress) use (&$seen): array {
+                $seen[] = 'download-progress:' . $progress->folder . ':' . implode(',', $progress->updates[0]->blockIndexes);
+
+                return ['updates' => count($progress->updates)];
+            });
+        $session->receiveFrame(BepWire::encodeClusterConfigMessage(new ClusterConfig()));
+
+        $file = syncthing_session_callback_file_info('wp-content/uploads/2026/hero.jpg', 91);
+        $indexEvent = $session->receiveFrame(BepWire::encodeIndexMessage(new Index('wordpress-media', [$file], lastSequence: 91)));
+        $updateEvent = $session->receiveFrame(BepWire::encodeIndexUpdateMessage(new IndexUpdate(
+            'wordpress-media',
+            [$file->withSequence(92)],
+            lastSequence: 92,
+            prevSequence: 91,
+        )));
+        $progressEvent = $session->receiveFrame(BepWire::encodeDownloadProgressMessage(new DownloadProgress('wordpress-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: 'wp-content/uploads/2026/hero.jpg',
+                version: $file->version,
+                blockIndexes: [0, 1],
+                blockSize: BlockList::MIN_BLOCK_SIZE,
+            ),
+        ])));
+
+        $t->same(BepSession::EVENT_INDEX, $indexEvent->type);
+        $t->same(['lastSequence' => 91], $indexEvent->handlerResult);
+        $t->same(BepSession::EVENT_INDEX_UPDATE, $updateEvent->type);
+        $t->same(['file' => 'wp-content/uploads/2026/hero.jpg'], $updateEvent->handlerResult);
+        $t->same(BepSession::EVENT_DOWNLOAD_PROGRESS, $progressEvent->type);
+        $t->same(['updates' => 1], $progressEvent->handlerResult);
+        $t->same([
+            'index:wordpress-media:1',
+            'index-update:wordpress-media:91>92',
+            'download-progress:wordpress-media:0,1',
+        ], $seen);
+        $t->true(!$session->isClosed());
+    },
+    'closes session when a provided model callback fails' => static function (TestRunner $t): void {
+        $session = new BepSession();
+        $session->receiveFrame(BepWire::encodeClusterConfigMessage(new ClusterConfig()));
+        $file = syncthing_session_callback_file_info('wp-content/uploads/2026/failing.jpg', 93);
+
+        $event = $session->receiveFrame(
+            BepWire::encodeIndexMessage(new Index('wordpress-media', [$file], lastSequence: 93)),
+            BepSessionHandlers::model(index: static function (Index $index): void {
+                throw new RuntimeException('catalog write failed for ' . $index->folder);
+            }),
+        );
+
+        $t->same(BepSession::EVENT_HANDLER_ERROR, $event->type);
+        $t->contains('handling index for wordpress-media: catalog write failed for wordpress-media', $event->error ?? '');
+        $t->true($event->closed());
+        $t->true($session->isClosed());
+
+        $closed = $session->receiveFrame(BepWire::encodePingMessage());
+        $t->same(BepSession::EVENT_CLOSED, $closed->type);
+    },
 ];
 
 function syncthing_unknown_post_auth_frame(): string
 {
     return hex2bin('0002086300000000');
+}
+
+function syncthing_session_callback_file_info(string $name, int $sequence): FileInfo
+{
+    $bytes = 'wordpress session callback bytes ' . $sequence;
+    $blockList = new BlockList();
+    $blocks = $blockList->fromBytes($bytes, 64);
+
+    return new FileInfo(
+        name: $name,
+        modifiedS: 1700000900 + $sequence,
+        version: VersionVector::fromCounters([101 => 1700000900 + $sequence]),
+        size: strlen($bytes),
+        blocksHash: $blockList->hashBlocks($blocks),
+        rawBlockSize: 64,
+        sequence: $sequence,
+        blocks: [
+            new Block($blocks[0]->offset, $blocks[0]->size, $blocks[0]->hashHex),
+        ],
+        modifiedBy: 101,
+    );
 }

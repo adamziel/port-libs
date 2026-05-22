@@ -61,7 +61,13 @@ frame at a time using the upstream uint16 header length, protobuf Header bytes,
 uint32 message length, max-message guard, and exact payload bytes; truncated or
 oversized frames fail before protobuf decoding; and a stream-read WordPress
 media Request can be dispatched through the bounded BEP session to produce a
-native BEP Response. The device identity slice
+native BEP Response. The stream-backed model callback slice maps the adjacent
+upstream `Model`/`rawModel` dispatch boundary: inbound Index, IndexUpdate, and
+DownloadProgress frames can invoke registered session handlers or per-read
+handler bundles after the normal ClusterConfig-first decode/validation path;
+callback return values are surfaced on the session event for local catalog and
+progress bookkeeping; and thrown callback errors close the session as handling
+errors rather than protocol errors. The device identity slice
 now maps focused upstream `deviceid.go`, `deviceid_test.go`, `luhn.go`, and
 `luhn_test.go` behavior: raw certificate bytes hash to a 32-byte device ID,
 canonical IDs use Syncthing's base32 plus four Luhn32 check digits and
@@ -347,9 +353,12 @@ request as connection-closed.
 over a PHP stream boundary: ClusterConfig and Request frames are written into a
 stream, read back with exact Syncthing post-auth framing, dispatched through the
 session, and answered with a native BEP Response.
+`examples/wordpress-bep-model-callbacks.php` extends that stream boundary to
+Index, IndexUpdate, and DownloadProgress: the stream dispatcher invokes local
+WordPress media callbacks that update a catalog entry and a temporary-block
+progress map without shelling out.
 
 ## Next Task
 
-Broaden the bounded stream-backed BEP session into model callbacks for
-Index/IndexUpdate/DownloadProgress, then reassess whether a bounded upstream Go
-package runner is affordable.
+Reassess whether a bounded upstream Go package runner is affordable, then
+choose the next narrow protocol/model slice.
