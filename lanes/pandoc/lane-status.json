@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader Definition section from test/html-reader.html/native. Balanced HTML dl blocks become definition_list AST nodes, consecutive dt aliases are joined as one term with a linebreak, multiple dd bodies stay attached to the same term, and WordPress output preserves glossary/FAQ dl markup.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 126/0 with 1030 assertions. The required repo-wide php tools/run-tests.php command was run on 2026-05-22 after this lane slice and passes with 148 test files, 13284 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "pending",
+    "latestCommit": "a7cd6d6",
     "nextTask": "Map the next bounded HTML-reader inline-markup slice from test/html-reader.html/native, starting with empty strong/emphasis and emphasized-link paragraphs immediately after the Definition section."
 }
