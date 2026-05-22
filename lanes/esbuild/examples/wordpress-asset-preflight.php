@@ -22,6 +22,7 @@ $classDeclareTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/
 $constructorPropertiesTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-constructor-properties.ts');
 $classFieldsAssignTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-fields-assign.ts');
 $computedClassFieldsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-class-fields.ts');
+$conditionalSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-conditional-super-controller.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
@@ -42,6 +43,7 @@ $classDeclareLowered = (new TypeScriptModuleLowerer())->lower($classDeclareTypeS
 $constructorPropertiesLowered = (new TypeScriptModuleLowerer())->lower($constructorPropertiesTypeScriptSource);
 $classFieldsAssignLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false);
 $computedClassFieldsLowered = (new TypeScriptModuleLowerer())->lower($computedClassFieldsTypeScriptSource, false);
+$conditionalSuperLowered = (new TypeScriptModuleLowerer())->lower($conditionalSuperTypeScriptSource, false);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -75,6 +77,7 @@ printf("WordPress TypeScript declared class field bytes: %d\n", strlen($classDec
 printf("WordPress TypeScript constructor property bytes: %d\n", strlen($constructorPropertiesLowered));
 printf("WordPress TypeScript class field assign-semantics bytes: %d\n", strlen($classFieldsAssignLowered));
 printf("WordPress TypeScript computed class field bytes: %d\n", strlen($computedClassFieldsLowered));
+printf("WordPress TypeScript conditional super controller bytes: %d\n", strlen($conditionalSuperLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));

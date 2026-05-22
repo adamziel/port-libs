@@ -461,6 +461,54 @@ class A extends B {
 }
 TS, false));
     },
+    'wraps upstream multiple derived super calls for parameter properties' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+      return this;
+    };
+    foo();
+    __super(1);
+    __super(2);
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { foo(); super(1); super(2); } }', false));
+    },
+    'wraps upstream conditional derived super calls for parameter properties' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+      return this;
+    };
+    if (foo) __super(1);
+    else __super(2);
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { if (foo) super(1); else super(2); } }', false));
+    },
+    'injects upstream assign semantics fields into one line derived constructors' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor() {
+    foo();
+    super(1);
+    this.x = 1;
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { x = 1; constructor() { foo(); super(1); } }', false));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -612,6 +660,19 @@ TS, false));
         $t->contains('this[_a] = "file:./view.js";', $lowered);
         $t->contains('this[_b] = "file:./card-worker.js";', $lowered);
         $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress conditional super constructor controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-conditional-super-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('var __super = (...args) => {', $lowered);
+        $t->contains('super(...args);', $lowered);
+        $t->contains('this.blockName = blockName;', $lowered);
+        $t->contains('if (previewMode) __super(metadata);', $lowered);
+        $t->contains('else __super({name:blockName});', $lowered);
+        $t->contains('this.blocks.registerBlockType(this.blockName, this.settings);', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },

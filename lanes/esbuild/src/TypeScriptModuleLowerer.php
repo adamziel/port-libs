@@ -1042,20 +1042,36 @@ final class TypeScriptModuleLowerer
      */
     private function injectAssignmentsIntoConstructor(string $member, array $assignments, bool $hasExtends): string
     {
-        $lines = explode("\n", $member);
-        $insertAt = 1;
-        if ($hasExtends) {
-            foreach ($lines as $index => $line) {
-                if (str_contains($line, 'super(')) {
-                    $insertAt = $index + 1;
-                    break;
-                }
-            }
-        }
+        [$header, $body] = $this->constructorMemberParts($member);
+        $body = $this->injectParameterPropertyAssignmentsIntoBody($body, $assignments, $hasExtends);
 
-        array_splice($lines, $insertAt, 0, array_map(static fn (string $assignment): string => '  ' . $assignment, $assignments));
+        $lines = [$header];
+        foreach ($body as $line) {
+            $lines[] = '  ' . $line;
+        }
+        $lines[] = '}';
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @return array{0:string, 1:list<string>}
+     */
+    private function constructorMemberParts(string $member): array
+    {
+        $lines = explode("\n", $member);
+        if (count($lines) > 1) {
+            $header = array_shift($lines) ?? 'constructor() {';
+            array_pop($lines);
+
+            return [$header, array_map(static fn (string $line): string => preg_replace('/^  /', '', $line) ?? $line, $lines)];
+        }
+
+        if (preg_match('/^(constructor\s*\([^)]*\)\s*)\{(.*)\}$/s', $member, $match) !== 1) {
+            return [$member, []];
+        }
+
+        return [trim($match[1]) . ' {', $this->constructorBodyTextLines($match[2])];
     }
 
     /**
@@ -1151,19 +1167,54 @@ final class TypeScriptModuleLowerer
             return $body;
         }
 
-        $insertAt = 0;
-        if ($hasExtends) {
-            foreach ($body as $index => $line) {
-                if (preg_match('/(^|[^\w$])super\s*\(/', $line) === 1) {
-                    $insertAt = $index + 1;
-                    break;
-                }
+        if (!$hasExtends) {
+            array_splice($body, 0, 0, $assignments);
+
+            return $body;
+        }
+
+        if ($this->constructorNeedsSuperHelper($body)) {
+            $helper = ['var __super = (...args) => {', '  super(...args);'];
+            foreach ($assignments as $assignment) {
+                $helper[] = '  ' . $assignment;
+            }
+            $helper[] = '  return this;';
+            $helper[] = '};';
+
+            return array_merge($helper, array_map(
+                static fn (string $line): string => preg_replace('/(^|[^\w$])super\s*\(/', '$1__super(', $line) ?? $line,
+                $body,
+            ));
+        }
+
+        foreach ($body as $index => $line) {
+            if (preg_match('/^(\s*)super\s*\(/', $line, $match) === 1
+                || preg_match('/(^|[^\w$])super\s*\(/', $line) === 1
+            ) {
+                $indent = $match[1] ?? '';
+                $prefixedAssignments = array_map(static fn (string $assignment): string => $indent . $assignment, $assignments);
+                array_splice($body, $index + 1, 0, $prefixedAssignments);
+
+                return $body;
             }
         }
 
-        array_splice($body, $insertAt, 0, $assignments);
+        array_splice($body, 0, 0, $assignments);
 
         return $body;
+    }
+
+    /**
+     * @param list<string> $body
+     */
+    private function constructorNeedsSuperHelper(array $body): bool
+    {
+        $superCalls = 0;
+        foreach ($body as $line) {
+            $superCalls += preg_match_all('/(^|[^\w$])super\s*\(/', $line);
+        }
+
+        return $superCalls > 1;
     }
 
     /**
@@ -1266,11 +1317,38 @@ final class TypeScriptModuleLowerer
      */
     private function constructorBodyLines(int $bodyOpen, int $bodyClose): array
     {
-        $body = trim(substr(
-            $this->source,
-            $this->tokens[$bodyOpen]->offset + 1,
-            $this->tokens[$bodyClose]->offset - $this->tokens[$bodyOpen]->offset - 1
-        ));
+        $lines = [];
+        for ($cursor = $bodyOpen + 1; $cursor < $bodyClose; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                continue;
+            }
+
+            if (($this->tokens[$cursor] ?? null)?->text === 'if') {
+                [$ifLines, $next] = $this->constructorIfStatementLines($cursor, $bodyClose);
+                foreach ($ifLines as $line) {
+                    $lines[] = $line;
+                }
+                $cursor = $next;
+                continue;
+            }
+
+            $statementEnd = $this->constructorStatementEnd($cursor, $bodyClose);
+            $line = $this->printConstructorStatement($cursor, $statementEnd);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+            $cursor = $statementEnd;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function constructorBodyTextLines(string $body): array
+    {
+        $body = trim($body);
         if ($body === '') {
             return [];
         }
@@ -1278,12 +1356,133 @@ final class TypeScriptModuleLowerer
         $lines = [];
         foreach (preg_split('/\R/', $body) ?: [] as $line) {
             $line = trim($line);
-            if ($line !== '') {
-                $lines[] = $line;
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/^if\s*\((.*?)\)\s*(.*?)\s*else\s*(.*?)$/', $line, $match) === 1) {
+                $lines[] = 'if (' . trim($match[1]) . ') ' . $this->ensureStatementSemicolon(trim($match[2]));
+                $lines[] = 'else ' . $this->ensureStatementSemicolon(trim($match[3]));
+                continue;
+            }
+
+            foreach ($this->splitSimpleSemicolonStatements($line) as $statement) {
+                $lines[] = $statement;
             }
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitSimpleSemicolonStatements(string $line): array
+    {
+        $statements = [];
+        $start = 0;
+        $depth = 0;
+        $length = strlen($line);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $line[$i];
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' || $char === ']' || $char === '}') {
+                $depth--;
+                continue;
+            }
+            if ($char !== ';' || $depth !== 0) {
+                continue;
+            }
+
+            $statement = trim(substr($line, $start, $i - $start + 1));
+            if ($statement !== '') {
+                $statements[] = $statement;
+            }
+            $start = $i + 1;
+        }
+
+        $tail = trim(substr($line, $start));
+        if ($tail !== '') {
+            $statements[] = $this->ensureStatementSemicolon($tail);
+        }
+
+        return $statements;
+    }
+
+    /**
+     * @return array{0:list<string>, 1:int}
+     */
+    private function constructorIfStatementLines(int $ifIndex, int $bodyClose): array
+    {
+        if (($this->tokens[$ifIndex + 1] ?? null)?->text !== '(') {
+            return [[$this->printConstructorStatement($ifIndex, $this->constructorStatementEnd($ifIndex, $bodyClose))], $ifIndex];
+        }
+
+        $conditionOpen = $ifIndex + 1;
+        $conditionClose = $this->findMatchingPunctuator($conditionOpen, '(', ')');
+        $thenStart = $conditionClose + 1;
+        $thenEnd = $this->constructorStatementEnd($thenStart, $bodyClose);
+        $lines = ['if (' . $this->printTokenRange($conditionOpen + 1, $conditionClose - 1) . ') ' . $this->printConstructorStatement($thenStart, $thenEnd)];
+        $next = $thenEnd;
+
+        if (($this->tokens[$thenEnd + 1] ?? null)?->text === 'else') {
+            $elseStart = $thenEnd + 2;
+            $elseEnd = $this->constructorStatementEnd($elseStart, $bodyClose);
+            $lines[] = 'else ' . $this->printConstructorStatement($elseStart, $elseEnd);
+            $next = $elseEnd;
+        }
+
+        return [$lines, $next];
+    }
+
+    private function constructorStatementEnd(int $start, int $bodyClose): int
+    {
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i < $bodyClose; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($text === '{') {
+                $braceDepth++;
+            } elseif ($text === '}') {
+                $braceDepth--;
+                if ($parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
+                    return $i;
+                }
+            } elseif ($parenDepth === 0 && $braceDepth === 0 && $bracketDepth === 0 && $text === ';') {
+                return $i;
+            }
+        }
+
+        return $bodyClose - 1;
+    }
+
+    private function printConstructorStatement(int $start, int $end): string
+    {
+        $statement = $this->printTokenRange($start, $end);
+        if ($statement === '') {
+            return '';
+        }
+
+        return $this->ensureStatementSemicolon($statement);
+    }
+
+    private function ensureStatementSemicolon(string $statement): string
+    {
+        return str_ends_with($statement, ';') || str_ends_with($statement, '}')
+            ? $statement
+            : $statement . ';';
     }
 
     private function printParameterRuntimeRange(int $start, int $end): string
