@@ -179,6 +179,9 @@ foreach ($laneDirs as $dir) {
 
 $average = $rows === [] ? 0.0 : $total / count($rows);
 $generated = gmdate('Y-m-d H:i:s') . ' UTC';
+$sourceCommit = trim((string) shell_exec('git rev-parse HEAD 2>/dev/null')) ?: 'unknown';
+$sourceBranch = trim((string) shell_exec('git branch --show-current 2>/dev/null')) ?: 'unknown';
+$sourceCommitShort = $sourceCommit === 'unknown' ? 'unknown' : substr($sourceCommit, 0, 12);
 
 $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $htmlRows = '';
@@ -255,9 +258,10 @@ $html = <<<HTML
       <span>Average progress: <strong>{$escape(number_format($average, 1))}%</strong></span>
       <span>Lanes: <strong>{$escape((string) count($rows))}</strong></span>
       <span>Generated: <strong>{$escape($generated)}</strong></span>
+      <span>Snapshot: <strong>{$escape($sourceBranch)} {$escape($sourceCommitShort)}</strong></span>
     </div>
   </header>
-  <p class="note">Rows are intentionally compact for low-context review. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
+  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit {$escape($sourceCommitShort)}; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -285,6 +289,9 @@ HTML;
 file_put_contents($root . '/porting.html', $html);
 file_put_contents($root . '/porting-summary.json', json_encode([
     'generated' => $generated,
+    'sourceCommit' => $sourceCommit,
+    'sourceCommitShort' => $sourceCommitShort,
+    'sourceBranch' => $sourceBranch,
     'averageProgressPercent' => number_format($average, 1),
     'lanes' => $summaryRows,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");

@@ -32,14 +32,17 @@ Publication procedure:
 5. Run `php tools/generate-dashboard.php`.
 6. Run `php tools/run-tests.php`.
 7. Run `git diff --check`.
-8. Before committing/pushing, fetch `source main` again. If the source commit
-   moved, compare the old and new source commits. If the movement changed any
-   dashboard input (`progress.md`, `goal.md`, `tools/generate-dashboard.php`,
-   `lanes/*/lane-status.json`, `lanes/*/UPSTREAM_TEST_MANIFEST.json`, or
-   `lanes/*/notes/*.md`), discard the temp clone result, write
-   `audits/publisher-status.md`, and stop this attempt as stale. If movement is
-   only unrelated implementation/test files, be conservative: stop unless you
-   can clearly justify that the generated status is still current.
+8. Before committing/pushing, fetch `source main` again and compare the old and
+   new source commits. If source moved, record the movement and whether it
+   touched dashboard inputs (`progress.md`, `goal.md`,
+   `tools/generate-dashboard.php`, `lanes/*/lane-status.json`,
+   `lanes/*/UPSTREAM_TEST_MANIFEST.json`, or `lanes/*/notes/*.md`). Do not
+   discard a verified result solely because newer commits landed after the
+   snapshot: `porting-summary.json` and `porting.html` include source snapshot
+   commit metadata, so a clean tested snapshot is publishable as long as it is
+   newer than the live page. Stop only if the source movement changes the
+   dashboard generator itself or otherwise invalidates the already-generated
+   snapshot.
 9. Commit only `porting.html` and `porting-summary.json` in the temp clone with
    message `Update progress dashboard`.
 10. Push with gh credential helper, without printing any secret values:
@@ -54,6 +57,9 @@ Rules:
 - Do not edit lane implementation files.
 - Do not publish if tests or `git diff --check` fail.
 - Do not publish if the generated dashboard would be older than the live page.
+- It is acceptable to publish a clean tested snapshot that is behind the latest
+  moving local `source/main`, provided the dashboard includes the snapshot source
+  commit and the result report says newer local commits landed after generation.
 - Do not claim a push happened unless it actually happened.
 - Keep the final response short: pushed/not pushed, generated timestamp, tests,
   diff-check, live verification, and blocker if any.
