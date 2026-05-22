@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use PortLibs\Rclone\MemoryProvider;
+use PortLibs\Rclone\FilterRuleSet;
+use PortLibs\Rclone\Glob;
 use PortLibs\Rclone\SyncPlan;
 
 return [
@@ -22,5 +24,88 @@ return [
         $target->put('a.txt', 'changed');
         $t->same(['a.txt', 'b.txt'], (new SyncPlan())->changedPaths($source, $target));
     },
-];
+    'rclone path globs compile like upstream filter glob tests' => static function (TestRunner $t): void {
+        $t->same('(^|/)potato$', Glob::pathToRegex('potato'));
+        $t->same('^potato$', Glob::pathToRegex('/potato'));
+        $t->same('(^|/)[^/]*\.jpg$', Glob::pathToRegex('*.jpg'));
+        $t->same('(^|/)a(b|c|d)e$', Glob::pathToRegex('a{b,c,d}e'));
+        $t->same('(^|/)potato.*sausage$', Glob::pathToRegex('potato**sausage'));
+        $t->same('(?i)(^|/)[^/]*\.jpg$', Glob::pathToRegex('*.jpg', true));
+    },
+    'rclone path globs reject upstream invalid patterns' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => Glob::pathToRegex('***'));
+        $t->throws(InvalidArgumentException::class, static fn () => Glob::pathToRegex('ab]c'));
+        $t->throws(InvalidArgumentException::class, static fn () => Glob::pathToRegex('ab[c'));
+        $t->throws(InvalidArgumentException::class, static fn () => Glob::pathToRegex('ab{c'));
+    },
+    'filter rules honor upstream first match include exclude order' => static function (TestRunner $t): void {
+        $filter = FilterRuleSet::fromRules([
+            '+ cleared',
+            '!',
+            '- /file1.jpg',
+            '+ /file2.png',
+            '+ /*.jpg',
+            '- /*.png',
+            '- /potato',
+            '+ /sausage1',
+            '+ /sausage2*',
+            '+ /sausage3**',
+            '+ /a/*.jpg',
+            '- *',
+        ]);
 
+        $t->same(false, $filter->includes('cleared'));
+        $t->same(false, $filter->includes('file1.jpg'));
+        $t->same(true, $filter->includes('file2.png'));
+        $t->same(false, $filter->includes('FILE2.png'));
+        $t->same(false, $filter->includes('afile2.png'));
+        $t->same(true, $filter->includes('file3.jpg'));
+        $t->same(false, $filter->includes('file4.png'));
+        $t->same(false, $filter->includes('potato'));
+        $t->same(true, $filter->includes('sausage1'));
+        $t->same(false, $filter->includes('sausage1/potato'));
+        $t->same(true, $filter->includes('sausage2potato'));
+        $t->same(false, $filter->includes('sausage2/potato'));
+        $t->same(true, $filter->includes('sausage3/potato'));
+        $t->same(true, $filter->includes('a/one.jpg'));
+        $t->same(false, $filter->includes('a/one.png'));
+        $t->same(false, $filter->includes('unicorn'));
+    },
+    'filter rules can ignore case like rclone filter option' => static function (TestRunner $t): void {
+        $filter = FilterRuleSet::fromRules([
+            '+ /file2.png',
+            '+ /sausage3**',
+            '- *',
+        ], true);
+
+        $t->same(true, $filter->includes('file2.png'));
+        $t->same(true, $filter->includes('FILE2.png'));
+        $t->same(true, $filter->includes('SAUSAGE3/sub'));
+    },
+    'sync plan applies rclone filters to WordPress backup objects' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
+        foreach ($tree as $path => $bytes) {
+            $source->put($path, $bytes);
+        }
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'old image bytes');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '- *.log',
+            '- *.psd',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], (new SyncPlan())->changedPaths($source, $target, $filter));
+    },
+];

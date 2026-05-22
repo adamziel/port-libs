@@ -36,8 +36,8 @@
 | 6 | pandoc | stopped | cloned inventory plus inline/list slice | 5% | Map a small subset of Pandoc `Tests.Readers.Markdown` golden cases into PHP fixtures, then add nested list item blocks. |
 | 7 | quadrable | stopped | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
 | 8 | syncthing | stopped | cloned static upstream inventory + scanner block parity slice | 4% | Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures. |
-| 9 | difftastic | port-difftastic active | seed implementation | 2% | Convert the clean upstream cache into a counted manifest/license inventory before more feature work. |
-| 10 | rclone | port-rclone active | seed implementation | 2% | Convert the clean upstream cache into a counted manifest/license inventory before more feature work. |
+| 9 | difftastic | port-difftastic active | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
+| 10 | rclone | port-rclone active | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
 | 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
 | 12 | esbuild | stopped | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
 
@@ -58,11 +58,13 @@
 - Syncthing: replaced the seed denominator with a shallow blob-filtered upstream inventory at `3962a237232473c20a44945a6c8ce8c930375360`: 211 unique test-related paths counted, including 141 Go test files; added scanner-style block hashing, empty-file blocks, block-list hashes, upstream block size selection, and a WordPress media-resume example. Lane PHP: 6 passing tests, 0 failing tests.
 - Pandoc: replaced the seed denominator with a blob-filtered shallow upstream inventory at `0640c4c9859aa5a3ede082c190fcd5883c24ac83`: 1,979 upstream test files/artifacts counted, including 1,974 under `test/`, 62 Haskell test modules, 1,064 command markdown fixtures, 252 `.native` expected artifacts, and 5 Lua engine test modules.
 - Pandoc: added native Markdown inline emphasis/strong/link/code parsing, grouped bullet/ordered list AST nodes, escaped WordPress block output, and a WordPress Markdown import fixture/example. Lane PHP: 5 passing tests, 0 failing tests.
-- Latest root suite: `php tools/run-tests.php` passes 14 test files, 166 assertions, 0 failures.
+- Rclone: replaced the seed denominator with a shallow blob-filtered upstream inventory at `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`: 327 Go test files counted, including 124 backend, 91 fs, 47 cmd, 43 lib, 19 vfs, 2 cmdtest, and 1 fstest test file, plus 836 testdata paths. Added native rclone-style path glob filters, first-match include/exclude rules, ignore-case matching, filtered sync planning, and a WordPress backup fixture/example. Lane PHP: 7 passing tests, 0 failing tests.
+- Difftastic: replaced the seed denominator with a shallow sparse blob-filtered upstream inventory at `7ccfcb315f7e46fd015809416c7d7dffa5be7078`: 287 inspected behavior artifacts counted, including 144 Rust `#[test]` functions, 112 paired sample fixture bases, 30 vendored parser corpus files, and `sample_files/compare.expected`. Added native comment classification, delimiter anchors, `ignoreComments`, trailing-comma normalization, and a WordPress render-callback fixture/example. Lane PHP: 6 passing tests, 0 failing tests.
+- Latest root suite: `php tools/run-tests.php` currently fails 14 test files, 206 assertions, 1 failure in `lanes/rclone/tests/MemoryProviderTest.php`; the difftastic lane-only probe passes 6 tests, 16 assertions, 0 failures.
 
 ## Open Blockers
 
-- Four upstream benchmark manifests are still static seed inventories until upstream repos are cloned or queried and their test suites counted: difftastic, rclone, dolt, and esbuild. Quadrable, markerPDF, Gitoxide, LightningCSS, libsqlite, Readability, Syncthing, and Pandoc now have stronger static inventories but not upstream runner parity.
+- Two upstream benchmark manifests are still static seed inventories until upstream repos are cloned or queried and their test suites counted: dolt and esbuild. Quadrable, markerPDF, Gitoxide, LightningCSS, libsqlite, Readability, Syncthing, Pandoc, rclone, and difftastic now have stronger static inventories but not upstream runner parity.
 - Gitoxide now has a safe tree inventory, but the full workspace test runner was not executed under the VM cap and the broad filtered-clone blob scan was stopped.
 - Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
 - markerPDF now has a cloned static upstream inventory, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
@@ -71,8 +73,11 @@
 - Readability full upstream runner was not executed: `npm test` reaches `mocha test/test-*.js` but fails before tests because the sparse upstream cache has no `node_modules` and `mocha` is not installed. The current denominator is a cloned static inventory of 1,984 Mocha tests, not upstream pass parity.
 - Syncthing full upstream runner was not executed: `go test ./...` would require hydrating the full blob-filtered checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`. The current denominator is a cloned static inventory of 211 unique test-related paths, not upstream pass parity.
 - Pandoc full upstream runner was not executed: `ghc`, `cabal`, and `stack` are unavailable in this environment, and upstream `test-pandoc` must be built as a Haskell Tasty executable from a full checkout. The current denominator is a cloned static inventory of 1,979 upstream test files/artifacts, not upstream pass parity.
+- rclone full upstream runner was not executed: `go test ./...` and `fstest/test_all` require Go module builds and may exercise backend/provider integration remotes. The current denominator is a cloned static inventory of 327 Go test files plus 836 testdata paths, not upstream pass parity.
+- Difftastic full upstream runner was not executed: the sparse cache would need broad checkout hydration plus online Cargo dependency downloads and compilation of difftastic plus many tree-sitter parser/native parser crates. A limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacks `humansize`. The current denominator is a cloned static inventory of 287 inspected behavior artifacts, not upstream pass parity.
+- Root tests are currently blocked outside the difftastic lane by one rclone failure: `sync plan applies rclone filters to WordPress backup objects` includes `wp-content/uploads/2026/05/private-draft.psd` unexpectedly.
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
-- Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remain static seeds; both now have clean upstream caches at the manifest commits, so their next output should be manifest/denominator/license reconciliation, not feature breadth.
+- Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remained static seeds; rclone and difftastic are now reconciled with cloned static inventories, but neither has upstream runner parity.
 - Independent audit on 2026-05-22 found `.upstream-cache/pandoc` and `.upstream-cache/syncthing` still report mass tracked deletions even though the lane manifests now use cloned static inventories; restore or reclone those caches before relying on cache-local targeted reads or runner attempts.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
@@ -86,4 +91,4 @@
 
 ## Next Best Step
 
-First redirect `port-difftastic` and `port-rclone` to convert their clean upstream caches into counted `UPSTREAM_TEST_MANIFEST.json` inventories with verified licenses and runner blockers. Then restore or reclone the dirty Pandoc and Syncthing upstream caches before relying on those cloned-static inventories; keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
+For difftastic, port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair such as `simple_*.js` or `comma_*.js` into a fixture parity test. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.

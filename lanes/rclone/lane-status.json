@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "rclone",
-    "estimatedProgress": 2,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 2,
+    "estimatedProgress": 4,
+    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; upstream runner not executed",
+    "phpPass": 7,
     "phpFail": 0,
-    "wordpressScenarios": "Portable backup/import/export sync for shared hosts and cloud storage providers.",
-    "phase": "seed implementation",
+    "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, and shared-hosting cloud storage workflows.",
+    "phase": "cloned static inventory plus native filter slice",
     "audit": "needs independent auditor review",
-    "currentWork": "Native in-memory provider contract with object metadata, copy, list, and checksum sync plan.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Map filter/checksum tests and add filesystem provider contract tests."
+    "currentWork": "Native in-memory provider contract plus rclone-style path glob filters applied to checksum sync planning.",
+    "blocker": "No upstream runner parity yet: go test ./... and fstest/test_all were not run because they require Go module builds and may exercise backend integration remotes under a larger CPU/network budget.",
+    "latestCommit": "pending current rclone commit",
+    "nextTask": "Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics."
 }

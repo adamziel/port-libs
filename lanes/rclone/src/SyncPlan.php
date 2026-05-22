@@ -9,10 +9,14 @@ final class SyncPlan
     /**
      * @return list<string>
      */
-    public function changedPaths(MemoryProvider $source, MemoryProvider $target): array
+    public function changedPaths(MemoryProvider $source, MemoryProvider $target, ?FilterRuleSet $filter = null): array
     {
         $changed = [];
         foreach ($source->list() as $sourceInfo) {
+            if ($filter !== null && !$filter->includes($sourceInfo->path)) {
+                continue;
+            }
+
             try {
                 $targetInfo = $target->info($sourceInfo->path);
             } catch (\RuntimeException) {
@@ -27,4 +31,3 @@ final class SyncPlan
         return $changed;
     }
 }
-
