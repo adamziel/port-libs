@@ -1,14 +1,14 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `3e48e53` (`Port esbuild return super constructor slice`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `f71f145` (`Update esbuild lane status for return super slice`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: the required PHP harness is green on the current checkout, but `HEAD` moved during this audit from `4ef72c8` to `3e48e53`, and the worktree remains broad and dirty. Treat this as green test evidence, not an accepted integration checkpoint.
+Audit boundary: the required PHP harness is green on the current checkout, but `HEAD` moved during this audit from `4ef72c8` to `f71f145`, and the worktree remains dirty after several lane batches landed. Treat this as green test evidence, not an accepted integration checkpoint.
 
 ## Findings
 
 1. **Critical - the integration state is moving and too dirty to review as one unit.**
    - Paths: `lanes/difftastic/src/TokenDiffer.php`, `lanes/dolt/src/CommitLogRenderer.php`, `lanes/gitoxide/src/ReferenceStore.php`, `lanes/libsqlite/src/SQLiteDatabase.php`, `lanes/markerpdf/src/TableFormatter.php`, `lanes/pandoc/src/MarkdownReader.php`, `lanes/quadrable/src/QuadbStore.php`, `lanes/readability/src/ArticleExtractor.php`, `porting.html`, `porting-summary.json`.
-   - Evidence: current `git status --porcelain=v1` has `124` entries: `53` modified tracked files and `71` untracked files. The tracked dirty diff is `53 files changed, 2740 insertions(+), 313 deletions(-)`. Recent history advanced during the audit to `3e48e53`, after starting at `4ef72c8`.
+   - Evidence: current `git status --porcelain=v1` has `89` entries: `22` modified tracked files and `67` untracked files. The tracked dirty diff is `22 files changed, 1256 insertions(+), 136 deletions(-)`. Recent history advanced during the audit to `f71f145`, after starting at `4ef72c8`.
    - Goal requirement at risk: `goal.md` requires small reviewable slices with passing tests, cleanup of unrelated changes, and coordination status generated from accepted state.
    - Audit judgment: freeze or explicitly coordinate writers before integration. Accept or reject one lane batch at a time, rerunning the root suite after each accepted batch.
 
@@ -26,7 +26,7 @@ Audit boundary: the required PHP harness is green on the current checkout, but `
 
 4. **High - lane status files contain contradictory root-suite evidence.**
    - Paths: `lanes/readability/lane-status.json:5`, `lanes/readability/lane-status.json:10`, `lanes/readability/lane-status.json:12`, `lanes/markerpdf/lane-status.json:10`, `lanes/dolt/lane-status.json:10`, `lanes/dolt/lane-status.json:13`, `lanes/quadrable/lane-status.json:10`, `lanes/quadrable/lane-status.json:12`, `lanes/syncthing/lane-status.json:10`, `lanes/syncthing/lane-status.json:12`.
-   - Evidence: the current required root run is green with `126 test files, 11197 assertions, 0 failures`, but lane statuses still cite older incompatible root states: markerPDF says root is red with `59` outside-lane failures; LightningCSS says root failed twice outside the lane; libsqlite says root currently fails in Syncthing; Gitoxide says `124` files and `10948` assertions; rclone and esbuild say `124` files and `10969` assertions; Quadrable says `124` files and `10885` assertions; Syncthing says `125` files and `11002` assertions; Readability says `125` files and `11020` assertions.
+   - Evidence: the current required root run is green with `126 test files, 11197 assertions, 0 failures`, but lane statuses still cite incompatible root states: LightningCSS says root failed twice outside the lane; Gitoxide says `124` files and `10948` assertions; rclone says `124` files and `10969` assertions; libsqlite says `125` files and `11056` assertions; Syncthing says `125` files and `11002` assertions; Readability says `125` files and `11020` assertions; Difftastic says a first root attempt ended red before a green `125`-file rerun; Quadrable and esbuild say `126` files and `11229` assertions.
    - Goal requirement at risk: `goal.md` requires precise blockers and honest repo-wide test recording.
    - Audit judgment: normalize lane status audit/blocker strings after the current dirty batches are accepted or rejected, not piecemeal while writers are still moving `HEAD`.
 
