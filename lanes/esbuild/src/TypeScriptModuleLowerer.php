@@ -672,6 +672,11 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
+        $privateField = $this->lowerAssignSemanticsPrivateClassField($memberNameIndex, $effectiveEnd, $modifiers);
+        if ($privateField !== null) {
+            return $privateField;
+        }
+
         $field = $this->classFieldTarget($memberNameIndex, $effectiveEnd);
         if ($field === null) {
             return null;
@@ -739,6 +744,52 @@ final class TypeScriptModuleLowerer
         return in_array('static', $modifiers, true)
             ? [[], true, [], [$assignment], $keyEffects]
             : [[], true, [$assignment], [], $keyEffects];
+    }
+
+    /**
+     * @param list<string> $modifiers
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>}|null
+     */
+    private function lowerAssignSemanticsPrivateClassField(int $start, int $effectiveEnd, array $modifiers): ?array
+    {
+        $name = $this->tokens[$start] ?? null;
+        if ($name?->kind !== 'private_identifier') {
+            return null;
+        }
+
+        $cursor = $start + 1;
+        if (($this->tokens[$cursor] ?? null)?->text === '?' || ($this->tokens[$cursor] ?? null)?->text === '!') {
+            $cursor++;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text === '(') {
+            return null;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+            $cursor = $this->skipTypeExpression($cursor + 1, $effectiveEnd, ['=', ';']);
+        }
+
+        $declaration = in_array('static', $modifiers, true)
+            ? 'static ' . $name->text . ';'
+            : $name->text . ';';
+
+        if (($this->tokens[$cursor] ?? null)?->text !== '=') {
+            return [[$declaration], $cursor !== $start + 1, [], [], []];
+        }
+
+        if ($cursor + 1 > $effectiveEnd) {
+            throw new \InvalidArgumentException('Expected initializer after TypeScript private class field');
+        }
+
+        $value = $this->printTokenRange($cursor + 1, $effectiveEnd);
+        if ($value === '') {
+            throw new \InvalidArgumentException('Expected initializer after TypeScript private class field');
+        }
+
+        $assignment = 'this.' . $name->text . ' = ' . $value . ';';
+
+        return in_array('static', $modifiers, true)
+            ? [[$declaration], true, [], [$assignment], []]
+            : [[$declaration], true, [$assignment], [], []];
     }
 
     /**
@@ -1028,6 +1079,10 @@ final class TypeScriptModuleLowerer
             }
 
             $members[$index] = $this->injectAssignmentsIntoConstructor($member, $assignments, $hasExtends);
+            if ($index > 0 && $this->allPreviousMembersArePrivateFieldDeclarations($members, $index)) {
+                $constructor = array_splice($members, $index, 1);
+                array_splice($members, 0, 0, $constructor);
+            }
 
             return $members;
         }
@@ -1035,6 +1090,20 @@ final class TypeScriptModuleLowerer
         array_unshift($members, $this->syntheticConstructorForAssignments($assignments, $hasExtends));
 
         return $members;
+    }
+
+    /**
+     * @param list<string> $members
+     */
+    private function allPreviousMembersArePrivateFieldDeclarations(array $members, int $beforeIndex): bool
+    {
+        for ($i = 0; $i < $beforeIndex; $i++) {
+            if (preg_match('/^#[$_\pL][$_\pL\pN]*;$/u', $members[$i]) !== 1) {
+                return false;
+            }
+        }
+
+        return $beforeIndex > 0;
     }
 
     /**

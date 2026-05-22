@@ -571,6 +571,30 @@ JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { foo(
         $lowered = $lowerer->lower('class A extends B { constructor(public x = 1) { foo(), super(1), bar(); } }', false);
         $t->true(!str_contains($lowered, '__super'));
     },
+    'lowers upstream private class fields in assign semantics super insertion' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor() {
+    super();
+    this.y = 1;
+  }
+  #x;
+}
+JS . "\n", $lowerer->lower('class A extends B { #x; y = 1; constructor() { super() } }', false));
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor() {
+    super();
+    this.#x = 1;
+    this.y = 2;
+  }
+  #x;
+}
+JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { super() } }', false));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -761,6 +785,22 @@ JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { foo(
         $t->contains('hydrateAssets(), markReady();', $lowered);
         $t->contains('this.blocks.registerBlockType(this.blockName, this.settings);', $lowered);
         $t->true(!str_contains($lowered, '__super'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress private settings controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-private-settings-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('constructor(blockName = metadata.name, blocks = wp.blocks) {', $lowered);
+        $t->contains('super(metadata);', $lowered);
+        $t->contains('this.#settings = {supports:{html:false}, viewScript:"file:./view.js"};', $lowered);
+        $t->contains('this.blockName = blockName;', $lowered);
+        $t->contains('this.blocks = blocks;', $lowered);
+        $t->contains('#settings;', $lowered);
+        $t->contains('this.blocks.registerBlockType(this.blockName, this.#settings);', $lowered);
+        $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this.#settings ='));
+        $t->true(strpos($lowered, 'this.#settings =') < strpos($lowered, 'this.blockName = blockName;'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
