@@ -45,34 +45,98 @@ final class TokenDiffer
     {
         $a = array_map(static fn (Token $token): string => $token->text, $this->tokensForDiff($old, $options));
         $b = array_map(static fn (Token $token): string => $token->text, $this->tokensForDiff($new, $options));
-        $table = array_fill(0, count($a) + 1, array_fill(0, count($b) + 1, 0));
-        for ($i = count($a) - 1; $i >= 0; $i--) {
-            for ($j = count($b) - 1; $j >= 0; $j--) {
-                $table[$i][$j] = $a[$i] === $b[$j] ? $table[$i + 1][$j + 1] + 1 : max($table[$i + 1][$j], $table[$i][$j + 1]);
-            }
-        }
 
-        $ops = [];
-        $i = 0;
-        $j = 0;
-        while ($i < count($a) && $j < count($b)) {
-            if ($a[$i] === $b[$j]) {
-                $ops[] = ['op' => '=', 'text' => $a[$i++]];
-                $j++;
-            } elseif ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
-                $ops[] = ['op' => '-', 'text' => $a[$i++]];
+        return $this->diffSequences($a, $b);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function splitWords(string $source): array
+    {
+        $words = [];
+        $current = '';
+        foreach ($this->characters($source) as $character) {
+            if ($current !== '') {
+                if ($this->isWordCharacter($character)) {
+                    $current .= $character;
+                    continue;
+                }
+
+                $words[] = $current;
+                $words[] = $character;
+                $current = '';
+                continue;
+            }
+
+            if ($this->isWordCharacter($character)) {
+                $current = $character;
             } else {
-                $ops[] = ['op' => '+', 'text' => $b[$j++]];
+                $words[] = $character;
             }
         }
-        while ($i < count($a)) {
-            $ops[] = ['op' => '-', 'text' => $a[$i++]];
-        }
-        while ($j < count($b)) {
-            $ops[] = ['op' => '+', 'text' => $b[$j++]];
+
+        if ($current !== '') {
+            $words[] = $current;
         }
 
-        return $ops;
+        return $words;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function splitWordsAndNumbers(string $source): array
+    {
+        $words = [];
+        $current = '';
+        $currentIsAsciiDigit = false;
+        foreach ($this->characters($source) as $character) {
+            if ($current !== '') {
+                if ($this->isWordCharacter($character)) {
+                    $characterIsAsciiDigit = $this->isAsciiDigit($character);
+                    if ($characterIsAsciiDigit === $currentIsAsciiDigit) {
+                        $current .= $character;
+                    } else {
+                        $words[] = $current;
+                        $current = $character;
+                        $currentIsAsciiDigit = $characterIsAsciiDigit;
+                    }
+                    continue;
+                }
+
+                $words[] = $current;
+                $words[] = $character;
+                $current = '';
+                continue;
+            }
+
+            if ($this->isWordCharacter($character)) {
+                $current = $character;
+                $currentIsAsciiDigit = $this->isAsciiDigit($character);
+            } else {
+                $words[] = $character;
+            }
+        }
+
+        if ($current !== '') {
+            $words[] = $current;
+        }
+
+        return $words;
+    }
+
+    /**
+     * @param array{splitNumbers?: bool} $options
+     * @return list<array{op:string, text:string}>
+     */
+    public function diffWords(string $old, string $new, array $options = []): array
+    {
+        $splitNumbers = ($options['splitNumbers'] ?? false) === true;
+        $a = $splitNumbers ? $this->splitWordsAndNumbers($old) : $this->splitWords($old);
+        $b = $splitNumbers ? $this->splitWordsAndNumbers($new) : $this->splitWords($new);
+
+        return $this->diffSequences($a, $b);
     }
 
     /**
@@ -127,6 +191,63 @@ final class TokenDiffer
             isset(self::OPEN_DELIMITERS[$text]) || isset(self::CLOSE_DELIMITERS[$text]) => 'delimiter',
             default => 'punctuation',
         };
+    }
+
+    /**
+     * @param list<string> $a
+     * @param list<string> $b
+     * @return list<array{op:string, text:string}>
+     */
+    private function diffSequences(array $a, array $b): array
+    {
+        $table = $this->lcsTable($a, $b);
+        $ops = [];
+        $i = 0;
+        $j = 0;
+        while ($i < count($a) && $j < count($b)) {
+            if ($a[$i] === $b[$j]) {
+                $ops[] = ['op' => '=', 'text' => $a[$i++]];
+                $j++;
+            } elseif ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
+                $ops[] = ['op' => '-', 'text' => $a[$i++]];
+            } else {
+                $ops[] = ['op' => '+', 'text' => $b[$j++]];
+            }
+        }
+        while ($i < count($a)) {
+            $ops[] = ['op' => '-', 'text' => $a[$i++]];
+        }
+        while ($j < count($b)) {
+            $ops[] = ['op' => '+', 'text' => $b[$j++]];
+        }
+
+        return $ops;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function characters(string $source): array
+    {
+        if ($source === '') {
+            return [];
+        }
+
+        if (preg_match_all('/./us', $source, $matches) === false || ($matches[0] ?? []) === []) {
+            return str_split($source);
+        }
+
+        return $matches[0];
+    }
+
+    private function isWordCharacter(string $character): bool
+    {
+        return preg_match('/^[\p{L}\p{N}_]$/u', $character) === 1;
+    }
+
+    private function isAsciiDigit(string $character): bool
+    {
+        return $character >= '0' && $character <= '9';
     }
 
     /**

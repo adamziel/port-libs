@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "difftastic",
-    "estimatedProgress": 6,
-    "suiteProgress": "cloned static inventory: 287 upstream behavior artifacts inspected; upstream contiguous sample and recursive syntax-list slice mapped; upstream runner not executed",
-    "phpPass": 8,
+    "estimatedProgress": 7,
+    "suiteProgress": "cloned static inventory: 287 upstream behavior artifacts inspected; upstream contiguous and hyphen-subword samples mapped; recursive syntax-list and word-splitting slices mapped; upstream runner not executed",
+    "phpPass": 12,
     "phpFail": 0,
-    "wordpressScenarios": "Readable diffs for block render callbacks, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change and recurse into nested block registration arrays.",
-    "phase": "cloned inventory plus comment/delimiter normalization and recursive syntax-list slices",
+    "wordpressScenarios": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, and report hyphenated slug/version changes at subword granularity.",
+    "phase": "cloned inventory plus comment/delimiter normalization, recursive syntax-list, and subword diff slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, and recursive bracketed-list diffs that report item-level insertions and nested array changes.",
+    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, recursive bracketed-list diffs, and upstream-style word/subword diffs for hyphenated strings and WordPress slugs.",
     "blocker": "Full upstream runner parity is not available: the sparse clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; offline no-run probe failed on missing `humansize` crate.",
     "latestCommit": "88ee149",
-    "nextTask": "Map another upstream sample_files pair or add HTML output for syntax-list hunks around WordPress block/theme code."
+    "nextTask": "Add HTML output for syntax-list and subword hunks around WordPress block/theme code, or map another upstream sample_files pair."
 }

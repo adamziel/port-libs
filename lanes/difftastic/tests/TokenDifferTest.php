@@ -41,6 +41,33 @@ return [
 
         $t->same(false, $differ->hasChanges($old, $new));
     },
+    'splits words like upstream words rs' => static function (TestRunner $t): void {
+        $differ = new TokenDiffer();
+
+        $t->same(['example', '.', 'com'], $differ->splitWords('example.com'));
+        $t->same(['example', '.', '.'], $differ->splitWords('example..'));
+        $t->same(['foo123bar'], $differ->splitWords('foo123bar'));
+        $t->same(['example', '.', "\n", 'com'], $differ->splitWords("example.\ncom"));
+        $t->same(['a', ' ', 'ö', ' ', 'b'], $differ->splitWords('a ö b'));
+        $t->same(['a', ' ', '💝', ' ', 'b'], $differ->splitWords('a 💝 b'));
+        $t->same(['a', ' ', 'xöy', ' ', 'b'], $differ->splitWords('a xöy b'));
+    },
+    'splits words and numbers like upstream words rs' => static function (TestRunner $t): void {
+        $differ = new TokenDiffer();
+
+        $t->same(['a', '123', 'b'], $differ->splitWordsAndNumbers('a123b'));
+        $t->same(['foo', ' ', 'bar'], $differ->splitWordsAndNumbers('foo bar'));
+    },
+    'maps upstream hyphen subwords fixture as a focused deletion' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-hyphen-subwords-1.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-hyphen-subwords-2.json');
+        $deletions = array_values(array_map(
+            static fn (array $op): string => $op['text'],
+            array_filter((new TokenDiffer())->diffWords($before, $after, ['splitNumbers' => true]), static fn (array $op): bool => $op['op'] === '-')
+        ));
+
+        $t->same(['foo', '-'], $deletions);
+    },
     'maps upstream contiguous sample as syntax list insertions' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-contiguous-1.js');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-contiguous-2.js');
@@ -76,5 +103,16 @@ return [
         $t->contains('-esc_html', $encoded);
         $t->contains('+wp_kses_post', $encoded);
         $t->true(!str_contains($encoded, 'Classic template fallback'), 'Comment-only churn should be filtered.');
+    },
+    'wordpress block style slug diff reports subword changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-after.php');
+        $ops = (new TokenDiffer())->diffWords($before, $after, ['splitNumbers' => true]);
+        $encoded = implode('', array_map(static fn (array $op): string => $op['op'] . $op['text'], $ops));
+
+        $t->contains('-legacy', $encoded);
+        $t->contains('+modern', $encoded);
+        $t->contains('-2', $encoded);
+        $t->contains('+3', $encoded);
     },
 ];
