@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 19,
-    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data/delta/object-database/alternates/replacements/multi-pack-index/protocol-v2 static inventory counted; full cargo runner not executed",
-    "phpPass": 70,
+    "estimatedProgress": 20,
+    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data/delta/object-database/alternates/replacements/multi-pack-index/protocol-v2/fetch-negotiation static inventory counted; full cargo runner not executed",
+    "phpPass": 79,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, protocol v2 ls-refs discovery, loose+packed ref resolution, pack-index offset lookup, multi-pack-index pack selection/de-duplication, delta-resolved packed object reads, and pack+loose+alternate+replacement object database traversal without shelling out to git.",
-    "phase": "targeted object/ref inventory plus protocol v2 ls-refs slice",
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, protocol v2 ls-refs discovery, protocol v2 shallow blobless ref-in-want fetch negotiation, loose+packed ref resolution, pack-index offset lookup, multi-pack-index pack selection/de-duplication, delta-resolved packed object reads, and pack+loose+alternate+replacement object database traversal without shelling out to git.",
+    "phase": "targeted object/ref inventory plus protocol v2 fetch negotiation slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, protocol v2 capability and ls-refs parsing, loose+packed ref resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.",
+    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, protocol v2 capability, ls-refs parsing, fetch feature negotiation and argument building, loose+packed ref resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration with replacement refs.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
-    "latestCommit": "b15b804",
-    "nextTask": "Run a controlled gix-protocol/gix-transport crate no-run probe or map fetch negotiation arguments if the VM remains clear."
+    "latestCommit": "cd79db7",
+    "nextTask": "Map protocol v2 fetch response sections and sideband pack handling, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear."
 }
