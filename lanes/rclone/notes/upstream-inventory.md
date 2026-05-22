@@ -172,4 +172,4 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 - Rclone-only PHP lane check on 2026-05-22 after the refresh-times slice: 11 rclone test files, 98 tests, 1,571 assertions, 0 failures.
 - Required root `php tools/run-tests.php` on 2026-05-22 after the refresh-times slice first found 1 unrelated esbuild fixture failure, then passed after concurrent non-rclone lane updates landed: 110 test files, 7,961 assertions, 0 failures in the current shared dirty worktree.
 - Rclone-only PHP lane check on 2026-05-22 after the directory modtime/metadata slice: 11 rclone test files, 102 tests, 1,596 assertions, 0 failures.
-- Required root `php tools/run-tests.php` on 2026-05-22 after the directory modtime/metadata slice: 111 test files, 8,178 assertions, 0 failures in the current shared dirty worktree.
+- Required root `php tools/run-tests.php` on 2026-05-22 after the directory modtime/metadata slice: 112 test files, 8,231 assertions, 0 failures in the current shared dirty worktree.
