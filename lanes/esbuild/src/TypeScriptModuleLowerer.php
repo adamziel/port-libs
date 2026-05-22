@@ -423,10 +423,12 @@ final class TypeScriptModuleLowerer
         $lines[] = '}';
 
         $classOutput = implode("\n", $lines);
-        if ($this->useDefineForClassFields === false && $fieldKeyPrelude !== []) {
-            $classOutput = 'var ' . implode(', ', $fieldKeyTemps) . ";\n"
-                . implode("\n", $fieldKeyPrelude) . "\n"
-                . $classOutput;
+        if ($this->useDefineForClassFields === false && $fieldKeyTemps !== []) {
+            $prefix = 'var ' . implode(', ', $fieldKeyTemps) . ';';
+            if ($fieldKeyPrelude !== []) {
+                $prefix .= "\n" . implode("\n", $fieldKeyPrelude);
+            }
+            $classOutput = $prefix . "\n" . $classOutput;
         }
 
         return [$classOutput, $bodyClose];
@@ -468,6 +470,8 @@ final class TypeScriptModuleLowerer
         $staticAssignments = [];
         $fieldKeyTemps = [];
         $fieldKeyPrelude = [];
+        $pendingFieldKeyEffects = [];
+        $lastComputedMethod = null;
         $hasTypeScriptMemberSyntax = false;
         for ($cursor = $start; $cursor < $end; $cursor++) {
             if (($this->tokens[$cursor] ?? null)?->text === ';') {
@@ -475,12 +479,14 @@ final class TypeScriptModuleLowerer
             }
 
             $memberEnd = $this->classMemberEnd($cursor, $end);
-            [$loweredMembers, $transformed, $memberInstanceAssignments, $memberStaticAssignments] = $this->lowerClassMember(
+            [$loweredMembers, $transformed, $memberInstanceAssignments, $memberStaticAssignments, $fieldKeyEffects] = $this->lowerClassMember(
                 $cursor,
                 $memberEnd,
                 $fieldKeyTemps,
-                $fieldKeyPrelude
             );
+            $computedMethod = $this->useDefineForClassFields === false
+                ? $this->computedClassMethodKey($cursor, $memberEnd)
+                : null;
             if ($transformed) {
                 $hasTypeScriptMemberSyntax = true;
             }
@@ -490,12 +496,64 @@ final class TypeScriptModuleLowerer
             foreach ($memberStaticAssignments as $assignment) {
                 $staticAssignments[] = $assignment;
             }
+
+            $hasOutputMember = false;
             foreach ($loweredMembers as $member) {
                 if ($member !== '') {
-                    $members[] = $member;
+                    $hasOutputMember = true;
+                    break;
                 }
             }
+            if ($hasOutputMember && $staticAssignments !== []) {
+                $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
+                $staticAssignments = [];
+            }
+
+            if ($computedMethod !== null && $loweredMembers !== [] && $loweredMembers[0] !== '') {
+                $prefixExpressions = $this->fieldKeyEffectSequenceExpressions($pendingFieldKeyEffects);
+                $replacement = $prefixExpressions === []
+                    ? $computedMethod['expression']
+                    : '(' . implode(', ', array_merge($prefixExpressions, [$computedMethod['expression']])) . ')';
+                $memberIndex = count($members);
+                $members[] = $this->printClassMemberRuntimeRangeWithComputedKeyReplacement(
+                    $cursor,
+                    $memberEnd,
+                    $computedMethod['open'],
+                    $computedMethod['close'],
+                    $replacement
+                );
+                $lastComputedMethod = [
+                    'memberIndex' => $memberIndex,
+                    'start' => $cursor,
+                    'end' => $memberEnd,
+                    'open' => $computedMethod['open'],
+                    'close' => $computedMethod['close'],
+                    'prefixEffects' => $pendingFieldKeyEffects,
+                    'expression' => $computedMethod['expression'],
+                ];
+                $pendingFieldKeyEffects = [];
+                $hasTypeScriptMemberSyntax = true;
+            } else {
+                foreach ($loweredMembers as $member) {
+                    if ($member !== '') {
+                        $members[] = $member;
+                    }
+                }
+            }
+
+            foreach ($fieldKeyEffects as $effect) {
+                $pendingFieldKeyEffects[] = $effect;
+            }
             $cursor = $memberEnd;
+        }
+
+        if ($this->useDefineForClassFields === false && $pendingFieldKeyEffects !== []) {
+            if ($lastComputedMethod !== null) {
+                $this->appendFieldKeyEffectsToComputedMethod($members, $lastComputedMethod, $pendingFieldKeyEffects, $fieldKeyTemps);
+            } else {
+                $this->appendFieldKeyEffectsToPrelude($fieldKeyPrelude, $pendingFieldKeyEffects, $fieldKeyTemps);
+            }
+            $hasTypeScriptMemberSyntax = true;
         }
 
         if ($this->useDefineForClassFields === false && $instanceAssignments !== []) {
@@ -511,10 +569,9 @@ final class TypeScriptModuleLowerer
 
     /**
      * @param list<string> $fieldKeyTemps
-     * @param list<string> $fieldKeyPrelude
-     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>}
      */
-    private function lowerClassMember(int $start, int $end, array &$fieldKeyTemps, array &$fieldKeyPrelude): array
+    private function lowerClassMember(int $start, int $end, array &$fieldKeyTemps): array
     {
         $cursor = $start;
         $decorated = false;
@@ -534,30 +591,30 @@ final class TypeScriptModuleLowerer
 
         if (!in_array('declare', $modifiers, true)) {
             if ($cursor > $end) {
-                return [[$this->printClassMemberRange($start, $end)], false, [], []];
+                return [[$this->printClassMemberRange($start, $end)], false, [], [], []];
             }
 
             $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor);
             if ($constructor !== null) {
-                return [$constructor[0], $constructor[1], [], []];
+                return [$constructor[0], $constructor[1], [], [], []];
             }
 
             if ($this->useDefineForClassFields === false) {
-                $assignSemanticsField = $this->lowerAssignSemanticsClassField($start, $end, $cursor, $modifiers, $fieldKeyTemps, $fieldKeyPrelude);
+                $assignSemanticsField = $this->lowerAssignSemanticsClassField($start, $end, $cursor, $modifiers, $fieldKeyTemps);
                 if ($assignSemanticsField !== null) {
                     return $assignSemanticsField;
                 }
             }
 
             if (in_array('abstract', $modifiers, true) && !$this->classMemberHasBody($cursor, $end)) {
-                return [[], true, [], []];
+                return [[], true, [], [], []];
             }
 
             if ($this->containsClassMemberTypeScriptSyntax($start, $end, $modifiers)) {
-                return [[$this->printClassMemberRuntimeRange($start, $end)], true, [], []];
+                return [[$this->printClassMemberRuntimeRange($start, $end)], true, [], [], []];
             }
 
-            return [[$this->printClassMemberRange($start, $end)], false, [], []];
+            return [[$this->printClassMemberRange($start, $end)], false, [], [], []];
         }
 
         if ($decorated) {
@@ -589,22 +646,20 @@ final class TypeScriptModuleLowerer
             throw new \InvalidArgumentException('"declare" cannot be used with a method');
         }
 
-        return [[], true, [], []];
+        return [[], true, [], [], []];
     }
 
     /**
      * @param list<string> $modifiers
      * @param list<string> $fieldKeyTemps
-     * @param list<string> $fieldKeyPrelude
-     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}|null
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>}|null
      */
     private function lowerAssignSemanticsClassField(
         int $start,
         int $end,
         int $memberNameIndex,
         array $modifiers,
-        array &$fieldKeyTemps,
-        array &$fieldKeyPrelude
+        array &$fieldKeyTemps
     ): ?array
     {
         if (in_array('accessor', $modifiers, true)) {
@@ -616,13 +671,13 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
-        $field = $this->classFieldTarget($memberNameIndex, $effectiveEnd, $fieldKeyTemps, $fieldKeyPrelude);
+        $field = $this->classFieldTarget($memberNameIndex, $effectiveEnd);
         if ($field === null) {
             return null;
         }
 
-        [$target, $nameEnd, $erasableIndexSignature] = $field;
-        if ($target === null && !$erasableIndexSignature) {
+        [$target, $nameEnd, $erasableIndexSignature, $computedExpression] = $field;
+        if ($target === null && !$erasableIndexSignature && $computedExpression === null) {
             return null;
         }
 
@@ -651,11 +706,22 @@ final class TypeScriptModuleLowerer
         }
 
         if ($erasableIndexSignature) {
-            return [[], true, [], []];
+            return [[], true, [], [], []];
         }
 
         if (($this->tokens[$cursor] ?? null)?->text !== '=') {
-            return [[], true, [], []];
+            $keyEffects = $computedExpression === null
+                ? []
+                : [['sequence' => $computedExpression, 'preludeExpression' => $computedExpression]];
+
+            return [[], true, [], [], $keyEffects];
+        }
+
+        $keyEffects = [];
+        if ($target === null && $computedExpression !== null) {
+            $temp = $this->allocateClassFieldTemp($fieldKeyTemps);
+            $target = 'this[' . $temp . ']';
+            $keyEffects[] = ['sequence' => $temp . ' = ' . $computedExpression, 'preludeExpression' => null];
         }
 
         if ($target === null || $cursor + 1 > $effectiveEnd) {
@@ -670,16 +736,14 @@ final class TypeScriptModuleLowerer
         $assignment = $target . ' = ' . $value . ';';
 
         return in_array('static', $modifiers, true)
-            ? [[], true, [], [$assignment]]
-            : [[], true, [$assignment], []];
+            ? [[], true, [], [$assignment], $keyEffects]
+            : [[], true, [$assignment], [], $keyEffects];
     }
 
     /**
-     * @param list<string> $fieldKeyTemps
-     * @param list<string> $fieldKeyPrelude
-     * @return array{0:?string, 1:int, 2:bool}|null
+     * @return array{0:?string, 1:int, 2:bool, 3:?string}|null
      */
-    private function classFieldTarget(int $start, int $end, array &$fieldKeyTemps, array &$fieldKeyPrelude): ?array
+    private function classFieldTarget(int $start, int $end): ?array
     {
         $name = $this->tokens[$start] ?? null;
         if ($name === null) {
@@ -687,7 +751,7 @@ final class TypeScriptModuleLowerer
         }
 
         if ($name->kind === 'private_identifier') {
-            return [null, $start, false];
+            return [null, $start, false, null];
         }
 
         if ($name->kind === 'identifier') {
@@ -699,11 +763,11 @@ final class TypeScriptModuleLowerer
                 return null;
             }
 
-            return ['this.' . $name->text, $start, false];
+            return ['this.' . $name->text, $start, false, null];
         }
 
         if ($name->kind === 'string') {
-            return ['this[' . $this->quoteJsString($this->stringTokenValue($name)) . ']', $start, false];
+            return ['this[' . $this->quoteJsString($this->stringTokenValue($name)) . ']', $start, false, null];
         }
 
         if ($name->text !== '[') {
@@ -717,11 +781,11 @@ final class TypeScriptModuleLowerer
 
         $colon = $this->findTopLevelTokenInRange(':', $start + 1, $close - 1);
         if ($colon !== null) {
-            return [null, $close, true];
+            return [null, $close, true, null];
         }
 
         if ($close === $start + 2 && ($this->tokens[$start + 1] ?? null)?->kind === 'string') {
-            return ['this[' . $this->quoteJsString($this->stringTokenValue($this->tokens[$start + 1])) . ']', $close, false];
+            return ['this[' . $this->quoteJsString($this->stringTokenValue($this->tokens[$start + 1])) . ']', $close, false, null];
         }
 
         $computed = $this->printTokenRange($start + 1, $close - 1);
@@ -729,11 +793,18 @@ final class TypeScriptModuleLowerer
             throw new \InvalidArgumentException('Expected TypeScript computed class field name');
         }
 
+        return [null, $close, false, $computed];
+    }
+
+    /**
+     * @param list<string> $fieldKeyTemps
+     */
+    private function allocateClassFieldTemp(array &$fieldKeyTemps): string
+    {
         $temp = $this->nextClassFieldTempName(count($fieldKeyTemps));
         $fieldKeyTemps[] = $temp;
-        $fieldKeyPrelude[] = $temp . ' = ' . $computed . ';';
 
-        return ['this[' . $temp . ']', $close, false];
+        return $temp;
     }
 
     private function nextClassFieldTempName(int $index): string
@@ -745,6 +816,202 @@ final class TypeScriptModuleLowerer
         } while ($index >= 0);
 
         return '_' . $name;
+    }
+
+    /**
+     * @param list<array{sequence:string, preludeExpression:?string}> $effects
+     * @return list<string>
+     */
+    private function fieldKeyEffectSequenceExpressions(array $effects): array
+    {
+        return array_map(static fn (array $effect): string => $effect['sequence'], $effects);
+    }
+
+    /**
+     * @param list<string> $members
+     * @param array{memberIndex:int, start:int, end:int, open:int, close:int, prefixEffects:list<array{sequence:string, preludeExpression:?string}>, expression:string} $method
+     * @param list<array{sequence:string, preludeExpression:?string}> $effects
+     * @param list<string> $fieldKeyTemps
+     */
+    private function appendFieldKeyEffectsToComputedMethod(
+        array &$members,
+        array $method,
+        array $effects,
+        array &$fieldKeyTemps
+    ): void {
+        $keyTemp = $this->allocateClassFieldTemp($fieldKeyTemps);
+        $expressions = array_merge(
+            $this->fieldKeyEffectSequenceExpressions($method['prefixEffects']),
+            [$keyTemp . ' = ' . $method['expression']],
+            $this->fieldKeyEffectSequenceExpressions($effects),
+            [$keyTemp],
+        );
+
+        $members[$method['memberIndex']] = $this->printClassMemberRuntimeRangeWithComputedKeyReplacement(
+            $method['start'],
+            $method['end'],
+            $method['open'],
+            $method['close'],
+            '(' . implode(', ', $expressions) . ')'
+        );
+    }
+
+    /**
+     * @param list<string> $prelude
+     * @param list<array{sequence:string, preludeExpression:?string}> $effects
+     * @param list<string> $fieldKeyTemps
+     */
+    private function appendFieldKeyEffectsToPrelude(array &$prelude, array $effects, array &$fieldKeyTemps): void
+    {
+        foreach ($effects as $effect) {
+            if ($effect['preludeExpression'] !== null) {
+                $temp = $this->allocateClassFieldTemp($fieldKeyTemps);
+                $prelude[] = $temp . ' = ' . $effect['preludeExpression'] . ';';
+                continue;
+            }
+
+            $prelude[] = $effect['sequence'] . ';';
+        }
+    }
+
+    /**
+     * @return array{open:int, close:int, expression:string}|null
+     */
+    private function computedClassMethodKey(int $start, int $end): ?array
+    {
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->text === '@') {
+            $cursor = $this->decoratorEnd($cursor) + 1;
+        }
+
+        while ($cursor <= $end
+            && ($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+            && in_array($this->tokens[$cursor]->text, $this->classMemberModifierKeywords(), true)
+        ) {
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === '*') {
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== '[') {
+            return null;
+        }
+
+        $close = $this->findMatchingPunctuator($cursor, '[', ']');
+        if ($close > $end) {
+            return null;
+        }
+
+        $afterName = $close + 1;
+        if (($this->tokens[$afterName] ?? null)?->text === '?') {
+            $afterName++;
+        }
+        if (($this->tokens[$afterName] ?? null)?->text === '<') {
+            $typeParametersEnd = $this->typeParameterListEnd($afterName, $end);
+            if ($typeParametersEnd <= $afterName) {
+                return null;
+            }
+            $afterName = $typeParametersEnd + 1;
+        }
+
+        if (($this->tokens[$afterName] ?? null)?->text !== '(') {
+            return null;
+        }
+
+        return [
+            'open' => $cursor,
+            'close' => $close,
+            'expression' => $this->printTokenRange($cursor + 1, $close - 1),
+        ];
+    }
+
+    private function printClassMemberRuntimeRangeWithComputedKeyReplacement(
+        int $start,
+        int $end,
+        int $keyOpen,
+        int $keyClose,
+        string $replacement
+    ): string {
+        $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
+        if ($effectiveEnd < $start) {
+            return '';
+        }
+
+        $parts = [];
+        $previous = null;
+        for ($i = $start; $i <= $effectiveEnd; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                continue;
+            }
+
+            if ($i === $keyOpen) {
+                $text = '[' . $replacement . ']';
+                if ($previous !== null && ($this->needsSpace($previous, $text) || $previous === 'static')) {
+                    $parts[] = ' ';
+                }
+                $parts[] = $text;
+                $previous = ']';
+                $i = $keyClose;
+                continue;
+            }
+
+            if ($token->kind === 'identifier'
+                && in_array($token->text, ['abstract', 'override', 'private', 'protected', 'public', 'readonly'], true)
+                && $this->isTopLevelInRange($start, $i)
+            ) {
+                continue;
+            }
+
+            if ($token->text === '<' && $this->isClassMemberTypeParameterList($i, $start, $effectiveEnd)) {
+                $i = $this->typeParameterListEnd($i, $effectiveEnd);
+                continue;
+            }
+
+            if (($token->text === '?' || $token->text === '!')
+                && $this->isClassMemberOptionalOrDefiniteMarker($i, $start, $effectiveEnd)
+            ) {
+                if ($token->text === '!' && $this->classMemberMarkerStartsMethod($i, $start, $effectiveEnd)) {
+                    throw new \InvalidArgumentException('Expected ";" but found "' . (($this->tokens[$i + 1] ?? null)?->text ?? '') . '"');
+                }
+                continue;
+            }
+
+            if ($token->text === ':' && $this->isClassMemberTypeColon($i, $start, $effectiveEnd)) {
+                $i = $this->skipTypeExpression($i + 1, $effectiveEnd, ['=', '{', ';']) - 1;
+                continue;
+            }
+
+            if ($token->text === ':' && $this->isClassMethodParameterTypeColon($i, $start, $effectiveEnd)) {
+                $i = $this->skipTypeExpression($i + 1, $effectiveEnd, ['=', ',', ')']) - 1;
+                continue;
+            }
+
+            $text = $token->text;
+            if ($token->kind === 'string') {
+                $text = $this->quoteJsString($this->stringTokenValue($token));
+            }
+
+            if ($previous !== null && ($this->needsSpace($previous, $text) || ($previous === 'static' && $text === '['))) {
+                $parts[] = ' ';
+            }
+            $parts[] = $text;
+            $previous = $text;
+        }
+
+        if ($parts === []) {
+            return '';
+        }
+
+        $member = implode('', $parts);
+        $last = $this->tokens[$effectiveEnd] ?? null;
+        if ($last?->text !== '}' && !str_ends_with($member, ';')) {
+            $member .= ';';
+        }
+
+        return $member;
     }
 
     /**

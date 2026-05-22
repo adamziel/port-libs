@@ -367,6 +367,35 @@ class Foo {
 }
 JS . "\n", $lowerer->lower('class Foo { static [x()] = 1 }', false));
     },
+    'preserves upstream computed class key side effect order in assign semantics mode' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _a, _b, _c;
+class Foo {
+  constructor() {
+    this[_a] = 1;
+  }
+  [a()]() {}
+  [(b(), _a = c(), d())]() {}
+  static {
+    this[_b] = 1;
+  }
+  static [(e(), _b = f(), _c = g(), h(), _c)]() {}
+}
+JS . "\n", $lowerer->lower(<<<'TS'
+class Foo {
+  [a()]() {}
+  [b()];
+  [c()] = 1;
+  [d()]() {}
+  static [e()];
+  static [f()] = 1;
+  static [g()]() {}
+  [h()];
+}
+TS, false));
+    },
     'lowers upstream constructor parameter properties' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
