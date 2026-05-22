@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "404 inspected upstream behavior artifacts: 144 Rust #[test]/#[test_case] attributes in src/ and tests/, 111 sample_files/compare.expected golden output pairs, 114 numbered sample fixture pairs, and 35 vendored parser corpus files",
-        "mapped": 15,
-        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures. See lanes/difftastic/notes/upstream-inventory.md.",
+        "mapped": 23,
+        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures including contiguous, hyphen_subwords, trailing_commas, html_simple, json, and slider_at_end pairs. See lanes/difftastic/notes/upstream-inventory.md.",
         "inventory": {
             "treeFiles": 786,
             "rustFiles": 68,
@@ -36,6 +36,10 @@
             "compareExpectedGoldenPairs": 111,
             "wordSplitTestAttributes": 9,
             "mappedSubwordSampleFixtureFiles": 2,
+            "mappedTrailingCommaSampleFixtureFiles": 2,
+            "mappedHtmlSimpleSampleFixtureFiles": 2,
+            "mappedJsonSampleFixtureFiles": 2,
+            "mappedSliderAtEndSampleFixtureFiles": 2,
             "vendoredParserFiles": 382,
             "parserCorpusFiles": 35,
             "parserExampleFiles": 5,
@@ -44,15 +48,19 @@
         },
         "runnerStatus": {
             "executed": false,
-            "reason": "The full upstream runner was not executed in this lane slice. The current shell has no `cargo` or `rustc` on PATH. Even with Rust available, `cargo test` would require hydrating the sparse checkout with src/, tests/, sample_files/, img/, and vendored parser sources, downloading the Cargo dependency graph, and compiling difftastic plus many tree-sitter parser crates/native parsers. A prior limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacked the `humansize` crate, confirming that an online dependency fetch would be required. This exceeds the modest network/CPU budget for this worker run.",
+            "reason": "The full upstream runner was not executed in this lane slice. Rust tooling was installed with `sudo -n dnf install -y cargo rust`, but the sparse blob-filtered cache would still need broad checkout hydration plus online Cargo dependency downloads and compilation of difftastic plus many tree-sitter parser/native parser crates. A bounded offline no-run probe failed before compilation because the local Cargo cache cannot resolve `clap` from crates.io. Running the probe online or running full `cargo test` exceeds this worker's modest network/CPU budget.",
             "probes": [
                 {
-                    "command": "command -v cargo; command -v rustc",
-                    "result": "both commands returned no path in the current shell"
+                    "command": "sudo -n dnf install -y cargo rust",
+                    "result": "installed cargo 1.95.0-5.fc44, rust 1.95.0-5.fc44, rust-std-static, llvm-libs, libgit2, libssh2, llhttp, and llvm-filesystem"
+                },
+                {
+                    "command": "cargo --version; rustc --version",
+                    "result": "cargo 1.95.0 (Fedora 1.95.0-5.fc44); rustc 1.95.0 (Fedora 1.95.0-5.fc44)"
                 },
                 {
                     "command": "cargo test --no-run --locked --offline",
-                    "result": "prior bounded probe failed before compiling tests: no matching package named `humansize` found in the local offline Cargo cache"
+                    "result": "failed before compiling tests: no matching package named `clap` found in the local offline Cargo cache"
                 }
             ]
         },
@@ -70,15 +78,23 @@
             "The WordPress block-style fixture uses number-aware subword diffs so slug/version changes such as `legacy-cta-v2` to `modern-cta-v3` are reviewable at word granularity.",
             "Targeted upstream display inventory now counts src/display, src/diff, src/parse test attributes and sample_files/compare.expected golden output pairs as the static display baseline.",
             "The native HTML renderer escapes source text and preserves token/word operations as data-op/class metadata, matching the display-layer requirement that novel content is marked without executing source text.",
-            "The WordPress theme.json palette fixture renders syntax-list changes with path metadata for embedding block/theme review diffs in a browser UI."
+            "The WordPress theme.json palette fixture renders syntax-list changes with path metadata for embedding block/theme review diffs in a browser UI.",
+            "A copied upstream `sample_files/trailing_commas_*.js` fixture maps JavaScript function arguments, arrays, and objects with trailing commas as formatting-only changes.",
+            "HTML mode treats `<` and `>` as delimiters only when requested, matching the upstream HTML parser delimiter configuration without changing default code/operator tokenization.",
+            "A copied upstream `sample_files/html_simple_*.html` fixture maps tag attribute changes and inserted inline tags as syntax-list changes.",
+            "The WordPress block-markup fixture renders escaped tag-list changes for saved block HTML where classes, heading IDs, and inline wrappers change.",
+            "A copied upstream `sample_files/json_*.json` fixture maps JSON object-key alignment so changed array values are diffed inside the retained property instead of as whole-property replacements.",
+            "The WordPress block.json fixture renders key-aware metadata changes for title, viewScriptModule, and supports mutations.",
+            "A copied upstream `sample_files/slider_at_end_*.json` fixture maps focused JSON list deletions while retaining stable neighboring items.",
+            "The WordPress theme-variation fixture applies the slider-at-end deletion shape to deprecated theme.json variation cleanup."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 15 focused lane tests against an inspected 404-artifact upstream behavior inventory."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 23 focused lane tests against an inspected 404-artifact upstream behavior inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, copied upstream contiguous JavaScript fixture mapping, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, upstream-style word/subword diffing, and escaped HTML rendering for token, subword, and syntax-list changes."
+        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, copied upstream contiguous/trailing-comma/HTML/JSON/slider_at_end fixture mapping, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, JSON object-key and list-item alignment, upstream-style word/subword diffing, HTML-mode angle-delimiter tag lists, and escaped HTML rendering for token, subword, and syntax-list changes."
     },
-    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, and emit escaped HTML for block-style and theme.json review UIs.",
-    "nextTask": "Map another upstream sample_files display pair such as html_*.html, json_*.json, or trailing_commas_*.js, then tie it to HTML/JSON output expectations."
+    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, block.json metadata, saved block markup, theme variation cleanup, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, and emit escaped HTML for block-style, theme.json, block.json, block-markup, and theme-variation review UIs.",
+    "nextTask": "Add JSON display output parity from `src/display/json.rs` for the mapped JSON fixture family, or map the upstream nested slider fixture pair to exercise delimiter-sliding behavior."
 }

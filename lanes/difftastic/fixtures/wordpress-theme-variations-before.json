@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/theme.json",
+  "version": 3,
+  "styles": {
+    "blocks": {
+      "core/button": {
+        "variations": [
+          "primary",
+          "deprecated-legacy",
+          "outline",
+          "deprecated-dark",
+          "ghost"
+        ]
+      }
+    }
+  }
+}

@@ -23,4 +23,30 @@ This gives the lane 404 inspected behavior artifacts for the current cloned stat
 
 ## Runner Status
 
-The full upstream runner was not executed in this slice. The current shell has no `cargo` or `rustc` on `PATH`, and a runner attempt would require hydrating the sparse checkout and downloading/building the Cargo dependency graph, difftastic, and many tree-sitter parser/native parser crates. A prior bounded offline probe, `cargo test --no-run --locked --offline`, failed before compilation because the local Cargo cache lacked `humansize`.
+Rust tooling was installed for this lane on 2026-05-22 with:
+
+```sh
+sudo -n dnf install -y cargo rust
+```
+
+Installed versions:
+
+```text
+cargo 1.95.0 (f2d3ce0bd 2026-03-21) (Fedora 1.95.0-5.fc44)
+rustc 1.95.0 (59807616e 2026-04-14) (Fedora 1.95.0-5.fc44)
+```
+
+The full upstream runner was not executed in this slice. The cache is still sparse/blob-filtered, and a full `cargo test` would require hydrating the checkout, downloading the Cargo dependency graph, and compiling difftastic plus many tree-sitter parser/native parser crates. A bounded offline probe was run after installing Rust:
+
+```sh
+cargo test --no-run --locked --offline
+```
+
+It failed before compilation because the local Cargo cache cannot resolve `clap` from crates.io in offline mode. Running the same probe online or running the full upstream suite would exceed this worker's modest network/CPU budget.
+
+## Newly Mapped Fixture Pairs
+
+- `sample_files/trailing_commas_1.js` / `sample_files/trailing_commas_2.js`: copied locally and mapped as a no-change formatting/trailing-comma diff under the token differ's default JavaScript-like trailing-comma normalization.
+- `sample_files/html_simple_1.html` / `sample_files/html_simple_2.html`: copied locally and mapped through HTML-mode angle delimiters so tag attribute changes and inserted tags are reported as syntax-list changes.
+- `sample_files/json_1.json` / `sample_files/json_2.json`: copied locally and mapped through JSON object-key item alignment. The retained `"foo"` property is diffed inside its array value (`1` deleted and `5` inserted), while renamed/new keys (`"bar"`, `"zab"`, `"woo"`) remain property-level changes.
+- `sample_files/slider_at_end_1.json` / `sample_files/slider_at_end_2.json`: copied locally and mapped through JSON list-item alignment so repeated stable items remain matched while intervening `"novel-*"` entries are reported as focused deletions.

@@ -2,14 +2,14 @@
     "schemaVersion": 1,
     "library": "difftastic",
     "estimatedProgress": 8,
-    "suiteProgress": "cloned static inventory: 404 upstream behavior artifacts inspected; upstream contiguous and hyphen-subword samples mapped; recursive syntax-list, word-splitting, and escaped HTML display slices mapped; upstream runner not executed",
-    "phpPass": 15,
+    "suiteProgress": "cloned static inventory: 404 upstream behavior artifacts inspected; upstream contiguous, hyphen-subword, trailing-comma, html_simple, JSON, and slider_at_end samples mapped; recursive syntax-list, JSON key/list alignment, word-splitting, HTML tag-list, and escaped HTML display slices mapped; upstream runner not executed",
+    "phpPass": 23,
     "phpFail": 0,
-    "wordpressScenarios": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, and emit escaped HTML for block-style and theme.json review UIs.",
-    "phase": "cloned static inventory plus comment/delimiter normalization, recursive syntax-list, subword diff, and HTML display slices",
+    "wordpressScenarios": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, block.json metadata, saved block markup, theme variation cleanup, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, and emit escaped HTML for block-style, theme.json, block.json, block-markup, and theme-variation review UIs.",
+    "phase": "cloned static inventory plus comment/delimiter normalization, recursive syntax-list, JSON key/list alignment, subword diff, HTML tag-list, and HTML display slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, recursive bracketed-list diffs, upstream-style word/subword diffs, and escaped HTML rendering for token, subword, and syntax-list changes.",
-    "blocker": "Full upstream runner parity is not available: the current shell has no `cargo` or `rustc`; the sparse blob-filtered clone would also need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds, and a prior offline no-run probe failed on missing `humansize` crate.",
-    "latestCommit": "eaf28e1",
-    "nextTask": "Map another upstream sample_files display pair such as html_*.html, json_*.json, or trailing_commas_*.js, then tie it to HTML/JSON output expectations."
+    "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, recursive bracketed-list diffs, JSON object-key item alignment, JSON list deletion alignment for slider_at_end-shaped arrays, upstream-style word/subword diffs, optional HTML angle delimiters for tag-list changes, root tag-list alignment, and escaped HTML rendering for token, subword, and syntax-list changes.",
+    "blocker": "Lane blocker: full upstream runner parity is not available. Rust tooling was installed with `sudo -n dnf install -y cargo rust`, but the sparse blob-filtered clone would need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds; `cargo test --no-run --locked --offline` now fails before compilation because the local Cargo cache cannot resolve `clap`. No lane-local or root PHP blocker is present in the latest run: `php tools/run-tests.php` passes 59 test files, 3203 assertions, 0 failures.",
+    "latestCommit": "pending difftastic implementation commit; previous committed lane slice was eaf28e1",
+    "nextTask": "Add JSON display output parity from `src/display/json.rs` for the mapped JSON fixture family, or map the upstream nested slider fixture pair to exercise delimiter-sliding behavior."
 }

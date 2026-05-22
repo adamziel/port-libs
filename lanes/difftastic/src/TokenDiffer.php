@@ -6,28 +6,30 @@ namespace PortLibs\Difftastic;
 
 final class TokenDiffer
 {
-    private const OPEN_DELIMITERS = ['(' => true, '[' => true, '{' => true];
-    private const CLOSE_DELIMITERS = [')' => true, ']' => true, '}' => true];
+    private const BASE_DELIMITER_PAIRS = ['(' => ')', '[' => ']', '{' => '}'];
 
     /**
+     * @param array{language?: string} $options
      * @return list<Token>
      */
-    public function tokenize(string $source): array
+    public function tokenize(string $source, array $options = []): array
     {
         preg_match_all('/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u', $source, $matches);
 
+        $delimiterPairs = $this->delimiterPairs($options);
+        $closeDelimiters = array_flip(array_values($delimiterPairs));
         $tokens = [];
         $depth = 0;
         foreach ($matches[0] ?? [] as $text) {
             $delimiterRole = null;
-            if (isset(self::CLOSE_DELIMITERS[$text])) {
+            if (isset($closeDelimiters[$text])) {
                 $depth = max(0, $depth - 1);
                 $delimiterRole = 'close';
-            } elseif (isset(self::OPEN_DELIMITERS[$text])) {
+            } elseif (isset($delimiterPairs[$text])) {
                 $delimiterRole = 'open';
             }
 
-            $tokens[] = new Token($this->classify($text), $text, $delimiterRole, $depth);
+            $tokens[] = new Token($this->classify($text, $delimiterPairs), $text, $delimiterRole, $depth);
 
             if ($delimiterRole === 'open') {
                 $depth++;
@@ -38,7 +40,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @return list<array{op:string, text:string}>
      */
     public function diff(string $old, string $new, array $options = []): array
@@ -140,7 +142,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      */
     public function hasChanges(string $old, string $new, array $options = []): bool
     {
@@ -154,20 +156,27 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
      */
     public function diffSyntaxLists(string $old, string $new, array $options = []): array
     {
-        $oldRoot = $this->parseTokenTree($this->tokensForDiff($old, $options));
-        $newRoot = $this->parseTokenTree($this->tokensForDiff($new, $options));
+        $delimiterPairs = $this->delimiterPairs($options);
+        $oldRoot = $this->parseTokenTree($this->tokensForDiff($old, $options), $delimiterPairs);
+        $newRoot = $this->parseTokenTree($this->tokensForDiff($new, $options), $delimiterPairs);
         $changes = [];
 
         $oldLists = $this->directLists($oldRoot['children']);
         $newLists = $this->directLists($newRoot['children']);
+        if (($options['language'] ?? '') === 'html') {
+            $this->diffRootListNodes($oldLists, $newLists, $options, $changes);
+
+            return $changes;
+        }
+
         $pairs = min(count($oldLists), count($newLists));
         for ($i = 0; $i < $pairs; $i++) {
-            $this->diffListNode($oldLists[$i], $newLists[$i], '$[' . $i . ']', $changes);
+            $this->diffListNode($oldLists[$i], $newLists[$i], '$[' . $i . ']', $options, $changes);
         }
         for ($i = $pairs; $i < count($oldLists); $i++) {
             $changes[] = ['op' => '-', 'path' => '$[' . $i . ']', 'text' => $this->nodeText($oldLists[$i])];
@@ -179,8 +188,27 @@ final class TokenDiffer
         return $changes;
     }
 
-    private function classify(string $text): string
+    /**
+     * @param array{language?: string} $options
+     * @return array<string, string>
+     */
+    private function delimiterPairs(array $options): array
     {
+        $pairs = self::BASE_DELIMITER_PAIRS;
+        if (($options['language'] ?? '') === 'html') {
+            $pairs['<'] = '>';
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param array<string, string> $delimiterPairs
+     */
+    private function classify(string $text, array $delimiterPairs): string
+    {
+        $closeDelimiters = array_flip(array_values($delimiterPairs));
+
         return match (true) {
             str_starts_with($text, '/*'),
             str_starts_with($text, '//'),
@@ -188,7 +216,7 @@ final class TokenDiffer
             preg_match('/^[A-Za-z_]/', $text) === 1 => 'identifier',
             preg_match('/^\d/', $text) === 1 => 'number',
             str_starts_with($text, '"') || str_starts_with($text, "'") => 'string',
-            isset(self::OPEN_DELIMITERS[$text]) || isset(self::CLOSE_DELIMITERS[$text]) => 'delimiter',
+            isset($delimiterPairs[$text]) || isset($closeDelimiters[$text]) => 'delimiter',
             default => 'punctuation',
         };
     }
@@ -251,12 +279,12 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @return list<Token>
      */
     private function tokensForDiff(string $source, array $options): array
     {
-        $tokens = $this->tokenize($source);
+        $tokens = $this->tokenize($source, $options);
 
         if (($options['ignoreComments'] ?? false) === true) {
             $tokens = array_values(array_filter(
@@ -311,20 +339,22 @@ final class TokenDiffer
 
     /**
      * @param list<Token> $tokens
+     * @param array<string, string> $delimiterPairs
      * @return array{type:string, children:list<array<string, mixed>>}
      */
-    private function parseTokenTree(array $tokens): array
+    private function parseTokenTree(array $tokens, array $delimiterPairs): array
     {
         $offset = 0;
 
-        return ['type' => 'root', 'children' => $this->parseTokenNodes($tokens, $offset, null)];
+        return ['type' => 'root', 'children' => $this->parseTokenNodes($tokens, $offset, null, $delimiterPairs)];
     }
 
     /**
      * @param list<Token> $tokens
+     * @param array<string, string> $delimiterPairs
      * @return list<array<string, mixed>>
      */
-    private function parseTokenNodes(array $tokens, int &$offset, ?string $expectedClose): array
+    private function parseTokenNodes(array $tokens, int &$offset, ?string $expectedClose, array $delimiterPairs): array
     {
         $nodes = [];
         $count = count($tokens);
@@ -342,8 +372,8 @@ final class TokenDiffer
                 $nodes[] = [
                     'type' => 'list',
                     'open' => $open,
-                    'close' => $this->matchingCloseDelimiter($open),
-                    'children' => $this->parseTokenNodes($tokens, $offset, $this->matchingCloseDelimiter($open)),
+                    'close' => $this->matchingCloseDelimiter($open, $delimiterPairs),
+                    'children' => $this->parseTokenNodes($tokens, $offset, $this->matchingCloseDelimiter($open, $delimiterPairs), $delimiterPairs),
                 ];
                 continue;
             }
@@ -355,22 +385,87 @@ final class TokenDiffer
         return $nodes;
     }
 
-    private function matchingCloseDelimiter(string $open): string
+    /**
+     * @param array<string, string> $delimiterPairs
+     */
+    private function matchingCloseDelimiter(string $open, array $delimiterPairs): string
     {
-        return match ($open) {
-            '(' => ')',
-            '[' => ']',
-            '{' => '}',
-            default => '',
-        };
+        return $delimiterPairs[$open] ?? '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldLists
+     * @param list<array<string, mixed>> $newLists
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffRootListNodes(array $oldLists, array $newLists, array $options, array &$changes): void
+    {
+        $oldSignatures = array_map(fn (array $list): string => $this->rootListSignature($list), $oldLists);
+        $newSignatures = array_map(fn (array $list): string => $this->rootListSignature($list), $newLists);
+        $table = $this->lcsTable($oldSignatures, $newSignatures);
+
+        $i = 0;
+        $j = 0;
+        while ($i < count($oldLists) && $j < count($newLists)) {
+            if ($oldSignatures[$i] === $newSignatures[$j]) {
+                $this->diffListNode($oldLists[$i], $newLists[$j], '$[' . $j . ']', $options, $changes);
+                $i++;
+                $j++;
+                continue;
+            }
+
+            if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
+                $changes[] = ['op' => '-', 'path' => '$[' . $i . ']', 'text' => $this->nodeText($oldLists[$i])];
+                $i++;
+            } else {
+                $changes[] = ['op' => '+', 'path' => '$[' . $j . ']', 'text' => $this->nodeText($newLists[$j])];
+                $j++;
+            }
+        }
+
+        while ($i < count($oldLists)) {
+            $changes[] = ['op' => '-', 'path' => '$[' . $i . ']', 'text' => $this->nodeText($oldLists[$i])];
+            $i++;
+        }
+        while ($j < count($newLists)) {
+            $changes[] = ['op' => '+', 'path' => '$[' . $j . ']', 'text' => $this->nodeText($newLists[$j])];
+            $j++;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $list
+     */
+    private function rootListSignature(array $list): string
+    {
+        $label = '';
+        foreach ($list['children'] ?? [] as $node) {
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                continue;
+            }
+
+            $token = $node['token'];
+            if ($label === '' && $token->text === '/') {
+                $label = '/';
+                continue;
+            }
+
+            if ($token->kind === 'identifier' || $token->kind === 'number' || $token->kind === 'string') {
+                return (string) ($list['open'] ?? '') . $label . $token->text . (string) ($list['close'] ?? '');
+            }
+        }
+
+        return $this->nodeText($list);
     }
 
     /**
      * @param array<string, mixed> $old
      * @param array<string, mixed> $new
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
      */
-    private function diffListNode(array $old, array $new, string $path, array &$changes): void
+    private function diffListNode(array $old, array $new, string $path, array $options, array &$changes): void
     {
         if (($old['open'] ?? '') !== ($new['open'] ?? '') || ($old['close'] ?? '') !== ($new['close'] ?? '')) {
             $changes[] = ['op' => '~', 'path' => $path, 'old' => $this->nodeText($old), 'new' => $this->nodeText($new)];
@@ -380,8 +475,8 @@ final class TokenDiffer
 
         $oldItems = $this->listItems($old);
         $newItems = $this->listItems($new);
-        $oldSignatures = array_map(fn (array $item): string => $this->itemSignature($item), $oldItems);
-        $newSignatures = array_map(fn (array $item): string => $this->itemSignature($item), $newItems);
+        $oldSignatures = array_map(fn (array $item): string => $this->itemSignature($item, $options), $oldItems);
+        $newSignatures = array_map(fn (array $item): string => $this->itemSignature($item, $options), $newItems);
         $table = $this->lcsTable($oldSignatures, $newSignatures);
 
         $i = 0;
@@ -394,7 +489,7 @@ final class TokenDiffer
                     $nestedOld = $this->directLists($oldItems[$i]);
                     $nestedNew = $this->directLists($newItems[$j]);
                     if ($nestedOld !== [] || $nestedNew !== []) {
-                        $this->diffNestedLists($nestedOld, $nestedNew, $path . '[' . $i . ']', $changes);
+                        $this->diffNestedLists($nestedOld, $nestedNew, $path . '[' . $i . ']', $options, $changes);
                     } else {
                         $changes[] = ['op' => '~', 'path' => $path . '[' . $i . ']', 'old' => $oldText, 'new' => $newText];
                     }
@@ -426,13 +521,14 @@ final class TokenDiffer
     /**
      * @param list<array<string, mixed>> $oldLists
      * @param list<array<string, mixed>> $newLists
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
      */
-    private function diffNestedLists(array $oldLists, array $newLists, string $path, array &$changes): void
+    private function diffNestedLists(array $oldLists, array $newLists, string $path, array $options, array &$changes): void
     {
         $pairs = min(count($oldLists), count($newLists));
         for ($index = 0; $index < $pairs; $index++) {
-            $this->diffListNode($oldLists[$index], $newLists[$index], $path . '/' . $oldLists[$index]['open'] . $index . $oldLists[$index]['close'], $changes);
+            $this->diffListNode($oldLists[$index], $newLists[$index], $path . '/' . $oldLists[$index]['open'] . $index . $oldLists[$index]['close'], $options, $changes);
         }
         for ($index = $pairs; $index < count($oldLists); $index++) {
             $changes[] = ['op' => '-', 'path' => $path . '/' . $oldLists[$index]['open'] . $index . $oldLists[$index]['close'], 'text' => $this->nodeText($oldLists[$index])];
@@ -495,9 +591,17 @@ final class TokenDiffer
 
     /**
      * @param list<array<string, mixed>> $item
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      */
-    private function itemSignature(array $item): string
+    private function itemSignature(array $item, array $options): string
     {
+        if (($options['language'] ?? '') === 'json') {
+            $jsonPropertyKey = $this->jsonPropertyKeySignature($item);
+            if ($jsonPropertyKey !== null) {
+                return $jsonPropertyKey;
+            }
+        }
+
         $prefix = '';
         foreach ($item as $node) {
             if (($node['type'] ?? '') === 'list') {
@@ -508,6 +612,37 @@ final class TokenDiffer
         }
 
         return $prefix;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $item
+     */
+    private function jsonPropertyKeySignature(array $item): ?string
+    {
+        $key = null;
+        foreach ($item as $node) {
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                return null;
+            }
+
+            $token = $node['token'];
+            if ($key === null) {
+                if ($token->kind !== 'string') {
+                    return null;
+                }
+
+                $key = $token->text;
+                continue;
+            }
+
+            if ($token->text === ':') {
+                return 'json-key:' . $key;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     /**

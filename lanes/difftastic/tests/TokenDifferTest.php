@@ -42,6 +42,70 @@ return [
 
         $t->same(false, $differ->hasChanges($old, $new));
     },
+    'maps upstream trailing commas sample as formatting only' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-trailing-commas-1.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-trailing-commas-2.js');
+        $differ = new TokenDiffer();
+        $html = (new HtmlDiffRenderer())->renderTokenDiff($before, $after, [
+            'title' => 'Upstream trailing commas sample',
+        ]);
+
+        $t->same(false, $differ->hasChanges($before, $after));
+        $t->contains('No syntactic changes', $html);
+    },
+    'enables html angle delimiters only in html mode' => static function (TestRunner $t): void {
+        $differ = new TokenDiffer();
+        $defaultTokens = $differ->tokenize('<h1>');
+        $htmlTokens = $differ->tokenize('<h1 id="title">Bar</h1>', ['language' => 'html']);
+
+        $t->same('punctuation', $defaultTokens[0]->kind);
+        $t->same('delimiter', $htmlTokens[0]->kind);
+        $t->same('open', $htmlTokens[0]->delimiterRole);
+        $t->same('close', $htmlTokens[5]->delimiterRole);
+        $t->same('open', $htmlTokens[7]->delimiterRole);
+        $t->same('close', $htmlTokens[10]->delimiterRole);
+    },
+    'maps upstream html simple sample as tag list changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-simple-1.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-simple-2.html');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'html']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $[5][0] bodyclass="foo"', $encoded);
+        $t->contains('+ $[5][0] bodyclass="bar"', $encoded);
+        $t->contains('+ $[6][0] h1id="title"', $encoded);
+        $t->contains('+ $[9] <strong>', $encoded);
+        $t->contains('+ $[10] </strong>', $encoded);
+    },
+    'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'json']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $[0][0]/[0][0] 1', $encoded);
+        $t->contains('+ $[0][0]/[0][3] 5', $encoded);
+        $t->contains('- $[0][1] "bar":"testing"', $encoded);
+        $t->contains('+ $[0][1] "zab":"testing"', $encoded);
+        $t->contains('+ $[0][2] "woo":["foobar"]', $encoded);
+    },
+    'maps upstream slider at end json sample as focused list deletions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-at-end-1.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-at-end-2.json');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'json']);
+        $deletions = array_values(array_map(
+            static fn (array $change): string => $change['path'] . ' ' . ($change['text'] ?? ''),
+            array_filter($changes, static fn (array $change): bool => $change['op'] === '-')
+        ));
+
+        $t->same(['$[0][1] "novel-1"', '$[0][3] "novel-2"'], $deletions);
+    },
     'splits words like upstream words rs' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
 
@@ -155,5 +219,49 @@ return [
         $t->contains('data-path=', $html);
         $t->contains('&quot;tertiary&quot;', $html);
         $t->contains('&quot;#16a34a&quot;', $html);
+    },
+    'html syntax-list renderer reports wordpress block markup tag changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-markup-before.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-markup-after.html');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'html',
+            'title' => 'Block markup <tag> diff',
+        ]);
+
+        $t->contains('Block markup &lt;tag&gt; diff', $html);
+        $t->contains('divclass=&quot;wp-block-group hero is-style-card&quot;', $html);
+        $t->contains('h2id=&quot;featured&quot;', $html);
+        $t->contains('&lt;strong&gt;', $html);
+        $t->contains('&lt;/strong&gt;', $html);
+    },
+    'json syntax-list renderer reports wordpress block metadata key changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'json',
+            'title' => 'block.json key-aware diff',
+        ]);
+
+        $t->contains('block.json key-aware diff', $html);
+        $t->contains('&quot;title&quot;:&quot;Card&quot;', $html);
+        $t->contains('&quot;title&quot;:&quot;Editorial Card&quot;', $html);
+        $t->contains('&quot;viewScriptModule&quot;:&quot;file:./view.js&quot;', $html);
+        $t->contains('&quot;html&quot;:false', $html);
+        $t->contains('&quot;html&quot;:true', $html);
+        $t->contains('&quot;full&quot;', $html);
+    },
+    'json syntax-list renderer reports wordpress theme variation deletions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-theme-variations-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-theme-variations-after.json');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'json',
+            'title' => 'theme.json variation deletion diff',
+        ]);
+
+        $t->contains('theme.json variation deletion diff', $html);
+        $t->contains('data-op="-"', $html);
+        $t->contains('&quot;deprecated-legacy&quot;', $html);
+        $t->contains('&quot;deprecated-dark&quot;', $html);
+        $t->true(!str_contains($html, '&quot;primary&quot;'), 'Unchanged variations should not be rendered as deleted.');
     },
 ];
