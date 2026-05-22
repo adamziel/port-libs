@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 327,
-        "mapped": 7,
-        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, and fs/hash tests.",
+        "mapped": 11,
+        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, and fs/operations check/copy tests.",
         "inventory": {
             "allRepositoryFiles": 2553,
             "goTestFiles": 327,
@@ -58,17 +58,22 @@
             "fs/filter ignore_case matching option.",
             "Sync planning skips objects excluded by filter rules.",
             "Checksum/size change detection remains native PHP without shelling out.",
-            "WordPress backup fixture filters uploads, WXR exports, and SQL dumps while excluding cache/log/source files."
+            "WordPress backup fixture filters uploads, WXR exports, and SQL dumps while excluding cache/log/source files.",
+            "fs/hash Set count, add, overlap, subset, get-one, array ordering, string formatting, and type alias parsing for MD5/SHA-1/none.",
+            "fs/hash MultiHasher fixtures for MD5, SHA-1, CRC-32, SHA-256, and SHA-512 on upstream byte vectors and empty input.",
+            "fs/operations check-style classification reports matching, differing, missing-on-source, and missing-on-destination objects with rclone combined sigils.",
+            "fs/operations check one-way mode ignores destination-only objects.",
+            "fs/operations copy-style changed path copying is idempotent and honors WordPress backup filter rules."
         ],
         "inventoryPath": "lanes/rclone/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 7 focused lane tests against a 327-Go-test-file upstream denominator."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 11 focused lane tests against a 327-Go-test-file upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native in-memory provider contract with object metadata, copy, list, checksum sync planning, and rclone-style path filter rules.",
-        "phpBehaviorTests": 7
+        "currentSlice": "Native in-memory provider contract with object metadata, copy, list, checksum sync planning, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, and filtered copy-changed planning.",
+        "phpBehaviorTests": 11
     },
     "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, and excluded cache/log/source artifacts.",
-    "nextTask": "Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics."
+    "nextTask": "Map checksum file parsing, lsf/hash listing output, or deeper fs provider contract behavior."
 }

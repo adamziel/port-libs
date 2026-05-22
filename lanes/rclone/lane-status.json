@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "rclone",
-    "estimatedProgress": 4,
-    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; upstream runner not executed",
-    "phpPass": 7,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; filter, hash-set, check, and copy slices mapped; upstream runner not executed",
+    "phpPass": 11,
     "phpFail": 0,
     "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, and shared-hosting cloud storage workflows.",
-    "phase": "cloned static inventory plus native filter slice",
+    "phase": "cloned static inventory plus native filter/hash/check/copy slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native in-memory provider contract plus rclone-style path glob filters applied to checksum sync planning.",
+    "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, and filtered copy-changed planning.",
     "blocker": "No upstream runner parity yet: go test ./... and fstest/test_all were not run because they require Go module builds and may exercise backend integration remotes under a larger CPU/network budget.",
-    "latestCommit": "8564ff9",
-    "nextTask": "Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics."
+    "latestCommit": "6786e8e",
+    "nextTask": "Map checksum file parsing, lsf/hash listing output, or deeper fs provider contract behavior."
 }
