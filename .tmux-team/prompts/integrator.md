@@ -22,7 +22,9 @@ Responsibilities:
 Constraints:
 
 - Do not implement new features yourself.
-- Do not touch Dolt.
+- Dolt is reauthorized. Integrate Dolt only when the implementation and runner
+  workers have a coherent lane-scoped handoff with passing verification; skip it
+  while either Dolt session is actively editing the same metadata or source files.
 - Do not read, print, or copy secret values.
 - Do not revert or overwrite active worker changes. If a worker is currently editing a lane, skip that lane and record the reason.
 - Do not push; the supervisor/evaluator handles publication.
