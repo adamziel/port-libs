@@ -1,6 +1,6 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `eb4ddc2` (`pandoc: stamp HTML table row header slice`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, process-execution bridge usage, and recent Git history through `eb67640` (`Record rclone single-file move copy status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
 Audit boundary: the required PHP harness is green on the current checkout, but this is not an accepted integration checkpoint. `HEAD` advanced while the audit was running, the worktree remains broad and dirty, and the visible dashboard/progress/status surfaces disagree with current manifests and each other.
 
@@ -14,7 +14,7 @@ Audit boundary: the required PHP harness is green on the current checkout, but t
 
 2. **Critical - the current dirty worktree is too broad and too mobile to be a reviewable integration unit.**
    - Paths: `lanes/difftastic/src/TokenDiffer.php`, `lanes/gitoxide/src/ReferenceStore.php`, `lanes/lightningcss/src/TransitionPrefixer.php`, `lanes/markerpdf/src/TableRecognizer.php`, `lanes/pandoc/src/MarkdownReader.php`, `lanes/rclone/src/SyncPlan.php`, `lanes/readability/src/ArticleExtractor.php`, `lanes/syncthing/src/BepSession.php`, `porting.html`, `porting-summary.json`, plus many untracked evidence/example files.
-   - Evidence: excluding this audit/progress edit, the current tracked diff is `33 files changed, 1881 insertions(+), 238 deletions(-)`. `git status --short` has `88` entries: `31` modified tracked paths, `2` added tracked paths, and `55` untracked paths. Recent history advanced during the audit from `be5d051` to `eb4ddc2`, adding multiple lane commits while unrelated lane implementation changes remain dirty.
+   - Evidence: excluding this audit/progress edit, the current tracked diff is `30 files changed, 1887 insertions(+), 211 deletions(-)`. `git status --short` has `93` entries: `30` modified tracked paths and `63` untracked paths. Recent history advanced during the audit from `be5d051` to `eb67640`, adding multiple lane commits while unrelated lane implementation changes remain dirty.
    - Goal requirement at risk: `goal.md` requires small reviewable slices with passing tests, cleanup of unrelated changes, and generated progress/status from accepted state.
    - Audit judgment: do not batch-commit this portfolio state. Accept or reject one lane batch at a time, rerun the root harness after each accepted batch, and then regenerate coordination outputs.
 
@@ -26,7 +26,7 @@ Audit boundary: the required PHP harness is green on the current checkout, but t
 
 4. **High - lane status files contain stale and contradictory root-suite evidence.**
    - Paths: `lanes/difftastic/lane-status.json:10`, `lanes/difftastic/lane-status.json:12`, `lanes/markerpdf/lane-status.json:12`, `lanes/rclone/lane-status.json:10`, `lanes/syncthing/lane-status.json:10`, `lanes/libsqlite/lane-status.json:10`, `lanes/esbuild/lane-status.json:10`, `lanes/gitoxide/lane-status.json:10`, `lanes/pandoc/lane-status.json:12`.
-   - Evidence: the current required run is `123 test files, 10737 assertions, 0 failures`. Status files still preserve older and conflicting root evidence, including Difftastic saying a final root rerun failed with `10659` assertions and `5` unrelated failures, markerPDF saying root was blocked with `9513` assertions and `24` failures, and several lanes citing older green counts such as `9537`, `10675`, `10689`, or `10673` assertions.
+   - Evidence: the current required run is `123 test files, 10759 assertions, 0 failures`. Status files still preserve older and conflicting root evidence, including Difftastic saying a final root rerun failed with `10659` assertions and `5` unrelated failures, markerPDF saying root was blocked with `9513` assertions and `24` failures, and several lanes citing older green counts such as `9537`, `10675`, `10689`, or `10673` assertions.
    - Goal requirement at risk: `goal.md` requires precise blockers and honest repo-wide test recording.
    - Audit judgment: lane status audit/blocker strings should be normalized after each accepted integration slice instead of preserving every transient root count as current truth.
 
@@ -64,7 +64,7 @@ Required command: `php tools/run-tests.php`
 
 ```text
 Exit status: 0
-123 test files, 10737 assertions, 0 failures
+123 test files, 10759 assertions, 0 failures
 ```
 
 ## Recommended Next Intervention
