@@ -52,7 +52,7 @@ final class ArticleExtractor
         $effectiveBaseUri = $this->effectiveBaseUri($xpath, $url);
         $this->unwrapNoscriptImages($xpath, $dom);
         $this->fixLazyImages($xpath);
-        $jsonLdMetadata = $this->jsonLdMetadata($xpath);
+        $jsonLdMetadata = $this->jsonLdMetadata($xpath, $this->documentTitleForJsonLd($xpath));
         $metaValues = $this->metaValues($xpath);
         $metadataByline = $this->firstMetadataValue([
             $jsonLdMetadata['byline'] ?? null,
@@ -81,6 +81,7 @@ final class ArticleExtractor
             $this->removeDuplicateTitleHeader($best, $title);
             $this->removeSectionScaffoldHeadings($best);
             $this->removeLeadingBylineActionBar($best);
+            $this->removeTrailingArticleChrome($best);
             $this->demoteHeadingOnes($best);
             $best = $this->postProcessContent($best, $effectiveBaseUri, $url);
         }
@@ -668,7 +669,7 @@ final class ArticleExtractor
     /**
      * @return array{title?: string, byline?: string, excerpt?: string, siteName?: string, publishedTime?: string}
      */
-    private function jsonLdMetadata(\DOMXPath $xpath): array
+    private function jsonLdMetadata(\DOMXPath $xpath, string $documentTitle): array
     {
         $metadata = [];
         foreach ($xpath->query('//script[contains(translate(@type, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "ld+json")]') ?: [] as $node) {
@@ -682,9 +683,20 @@ final class ArticleExtractor
                 }
 
                 if ($this->isJsonLdArticleEntry($entry)) {
-                    foreach (['headline', 'name'] as $key) {
-                        if (!isset($metadata['title']) && isset($entry[$key]) && is_string($entry[$key]) && trim($entry[$key]) !== '') {
-                            $metadata['title'] = trim($entry[$key]);
+                    if (!isset($metadata['title'])) {
+                        $name = isset($entry['name']) && is_string($entry['name']) ? trim($entry['name']) : null;
+                        $headline = isset($entry['headline']) && is_string($entry['headline']) ? trim($entry['headline']) : null;
+                        $name = $name === '' ? null : $name;
+                        $headline = $headline === '' ? null : $headline;
+
+                        if ($name !== null && $headline !== null && $name !== $headline) {
+                            $nameMatches = $documentTitle !== '' && $this->textSimilarity($name, $documentTitle) > 0.75;
+                            $headlineMatches = $documentTitle !== '' && $this->textSimilarity($headline, $documentTitle) > 0.75;
+                            $metadata['title'] = $headlineMatches && !$nameMatches ? $headline : $name;
+                        } elseif ($name !== null) {
+                            $metadata['title'] = $name;
+                        } elseif ($headline !== null) {
+                            $metadata['title'] = $headline;
                         }
                     }
 
@@ -709,6 +721,24 @@ final class ArticleExtractor
         }
 
         return $metadata;
+    }
+
+    private function documentTitleForJsonLd(\DOMXPath $xpath): string
+    {
+        $title = trim($xpath->query('//title')?->item(0)?->nodeValue ?? '');
+        if ($title !== '') {
+            return $this->cleanArticleTitle($title, $xpath);
+        }
+
+        foreach (['//h1', '//h2'] as $query) {
+            $heading = $xpath->query($query)?->item(0);
+            $value = $this->normalizeWhitespace($heading?->nodeValue ?? '');
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 
     private function decodeJsonLd(string $text): mixed
@@ -1359,6 +1389,57 @@ final class ArticleExtractor
                 $node->parentNode?->removeChild($node);
             }
         }
+    }
+
+    private function removeTrailingArticleChrome(\DOMElement $scope): void
+    {
+        while (($node = $this->lastElementChild($scope)) instanceof \DOMElement
+            && $this->isTrailingArticleChrome($node)) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function isTrailingArticleChrome(\DOMElement $node): bool
+    {
+        if (!$this->hasSubstantialPreviousSibling($node)) {
+            return false;
+        }
+
+        $tagName = strtolower($node->tagName);
+        if (!in_array($tagName, ['center', 'div', 'nav', 'p', 'section'], true)) {
+            return false;
+        }
+
+        $text = $this->normalizeWhitespace($node->textContent);
+        if (mb_strlen($text) > 180) {
+            return false;
+        }
+
+        $linkCount = $node->getElementsByTagName('a')->length;
+        $imageCount = $node->getElementsByTagName('img')->length;
+        if (($linkCount + $imageCount) < 2) {
+            return false;
+        }
+
+        $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id') . ' ' . $text);
+        if (preg_match('/\b(?:footer|home|links?|nav|navigation|share|subscribe|without notes)\b/', $matchString) === 1) {
+            return true;
+        }
+
+        return $imageCount > 0 && $this->linkDensity($node) >= 0.5 && ($linkCount >= 2 || $imageCount >= 2);
+    }
+
+    private function hasSubstantialPreviousSibling(\DOMElement $node): bool
+    {
+        $text = '';
+        for ($sibling = $node->previousSibling; $sibling instanceof \DOMNode; $sibling = $sibling->previousSibling) {
+            $text = ($sibling->textContent ?? '') . ' ' . $text;
+            if (mb_strlen($this->normalizeWhitespace($text)) >= 200) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2548,6 +2629,17 @@ final class ArticleExtractor
     private function firstElementChild(\DOMElement $element): ?\DOMElement
     {
         foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function lastElementChild(\DOMElement $element): ?\DOMElement
+    {
+        for ($child = $element->lastChild; $child instanceof \DOMNode; $child = $child->previousSibling) {
             if ($child instanceof \DOMElement) {
                 return $child;
             }

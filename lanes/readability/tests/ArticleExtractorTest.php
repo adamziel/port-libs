@@ -618,14 +618,12 @@ return [
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
 
         $articleHrefs = $attributeValues($article->contentHtml, '//a[@href]/@href');
-        foreach ($attributeValues($expected, '//a[@href]/@href') as $href) {
-            $t->true(in_array($href, $articleHrefs, true), 'expected cleaned href should be retained: ' . $href);
-        }
-
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $articleHrefs);
         $articleImageSources = $attributeValues($article->contentHtml, '//img[@src]/@src');
-        foreach ($attributeValues($expected, '//img[@src]/@src') as $src) {
-            $t->true(in_array($src, $articleImageSources, true), 'expected cleaned image source should be retained: ' . $src);
-        }
+        $t->same($attributeValues($expected, '//img[@src]/@src'), $articleImageSources);
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same([], $attributeValues($article->contentHtml, '//a[contains(@href, "bartleby/bartleby.html") or contains(@href, "web-hm.htm")]/@href'));
+        $t->same([], $attributeValues($article->contentHtml, '//img[contains(@src, "bar.gif") or contains(@src, "myhome.jpg")]/@src'));
 
         foreach (array_merge($articleHrefs, $articleImageSources) as $uri) {
             $t->same(false, str_contains($uri, '%20'), 'cleaned URIs should not retain encoded trailing spaces');
@@ -634,6 +632,24 @@ return [
 
         $t->same([], $attributeValues($article->contentHtml, '//a[starts-with(@href, "javascript:")]/@href'));
         $t->same([], $attributeValues($article->contentHtml, '//@onclick|//@onmouseout'));
+    },
+    'removes trailing WordPress footer link bars after article content' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Legacy Footer Link Cleanup</title></head><body><article>'
+            . '<h1>Legacy Footer Link Cleanup</h1>'
+            . '<p>' . str_repeat('Migrated longform posts can end with source-theme footer bars after the actual editorial body. ', 3) . '<a href="/editorial/source">Editorial source</a>.</p>'
+            . '<p>' . str_repeat('The importer should keep article links while dropping compact navigation strips that follow the content. ', 3) . '</p>'
+            . '<center><img src="../theme-bar.gif" width="500" height="12"><p><a href="/archive">Archive</a><br><a href="/links">More Links</a></p><p><a href="/"><img src="../home.gif" width="50" height="21"></a></p></center>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html, 'https://example.com/imports/story.html');
+        $blocks = (new ArticleExtractor())->toWordPressBlocks($article);
+
+        $t->contains('href="https://example.com/editorial/source"', $article->contentHtml);
+        $t->contains('actual editorial body', $blocks);
+        $t->same(false, str_contains($article->contentHtml, 'theme-bar.gif'), 'source footer bar image should be dropped');
+        $t->same(false, str_contains($article->contentHtml, 'home.gif'), 'source footer home image should be dropped');
+        $t->same(false, str_contains($article->contentHtml, '/archive'), 'source footer archive link should be dropped');
+        $t->same(false, str_contains($article->contentHtml, 'More Links'), 'source footer navigation text should be dropped');
     },
     'promotes single article bodies and removes empty paragraphs before block migration' => static function (TestRunner $t): void {
         $html = '<html><head><title>Single Article Import</title></head><body>'
@@ -945,6 +961,29 @@ return [
         $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
         $t->same(false, str_contains($article->title, 'My website'), 'site suffix should not be retained in the article title');
     },
+    'maps Mozilla title and h1 discrepancy fixture without replacing the document title' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/title-and-h1-discrepancy';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h2')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
+        );
+        $t->same([], $attributeValues($article->contentHtml, '//h1'));
+    },
     'removes source site suffixes from WordPress import titles' => static function (TestRunner $t): void {
         $html = '<html><head><title>Reusable Pattern Migration Planning Guide – Legacy Agency Site</title></head><body><article>'
             . '<h1>Reusable Pattern Migration Planning Guide</h1>'
@@ -963,6 +1002,28 @@ return [
         $t->contains('<h2>Block Review</h2>', $article->contentHtml);
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('Imported posts should not carry the source site name', $blocks);
+    },
+    'uses JSON-LD name when headline does not match the WordPress import title' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Canonical Import Title – Legacy Site</title>'
+            . '<script type="application/ld+json">{"@context":"http://schema.org","@type":"NewsArticle","name":"Canonical Import Title","headline":"Injected Theme Teaser Should Not Win","description":"Structured excerpt for the import.","author":{"@type":"Person","name":"Migration Desk"},"publisher":{"@type":"Organization","name":"Legacy Site"},"datePublished":"2024-05-01T10:00:00+00:00"}</script>'
+            . '</head><body><article>'
+            . '<h1>Canonical Import Title</h1>'
+            . '<p>' . str_repeat('WordPress migrations can carry plugin-injected structured data with competing title-like fields. ', 3) . '</p>'
+            . '<p>' . str_repeat('The native extractor should keep the title that matches the document and imported post metadata. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Canonical Import Title', $article->title);
+        $t->same('Migration Desk', $article->byline);
+        $t->same('Legacy Site', $article->siteName);
+        $t->same('2024-05-01T10:00:00+00:00', $article->publishedTime);
+        $t->same('Structured excerpt for the import.', $article->excerpt);
+        $t->same(false, str_contains($article->title, 'Injected Theme Teaser'), 'non-matching JSON-LD headline should not replace the matching name');
+        $t->same(false, str_contains($article->text, 'Canonical Import Title'), 'duplicate title heading should still be removed from block content');
+        $t->contains('plugin-injected structured data', $blocks);
     },
     'maps Mozilla mozilla-2 fixture metadata and retained content markers' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/mozilla-2';
