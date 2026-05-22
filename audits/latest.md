@@ -1,8 +1,8 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate dashboard/status drift, current dirty worktree state, bridge/shell-out usage, and recent Git history through `628e02b` (`Stamp rclone lane status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate dashboard/status drift, current dirty worktree state, bridge/shell-out usage, and recent Git history through `8f5a576` (`Stamp Dolt merge log status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Audit boundary: the required PHP harness is currently green, but the repository is still not an accepted integration checkpoint. The dirty worktree spans many lanes, and the generated dashboard/status surfaces are materially stale against the manifests and the latest root test result.
+Audit boundary: the latest root PHP harness run I recorded is green, but the repository is still not an accepted integration checkpoint. The dirty worktree spans many lanes, and the generated dashboard/status surfaces are materially stale against the manifests and the latest root test result.
 
 ## Findings
 
@@ -26,7 +26,7 @@ Audit boundary: the required PHP harness is currently green, but the repository 
 
 4. **High - lane status files carry conflicting root-suite evidence and blockers.**
    - Paths: `lanes/rclone/lane-status.json:10`, `lanes/rclone/lane-status.json:12`, `lanes/pandoc/lane-status.json:12`, `lanes/gitoxide/lane-status.json:10`, `lanes/gitoxide/lane-status.json:12`, `lanes/readability/lane-status.json:10`, `lanes/readability/lane-status.json:12`, `lanes/difftastic/lane-status.json:10`, `lanes/syncthing/lane-status.json:10`, `lanes/libsqlite/lane-status.json:10`.
-   - Evidence: the current root run is `116 test files, 8955 assertions, 0 failures`. Rclone mentions that exact result, but Dolt cites `8947`, esbuild cites `8939`, Gitoxide and Readability still cite `8826`, and Difftastic/Syncthing/libsqlite/Quadrable still cite `8875` assertions.
+   - Evidence: the latest root run recorded during this audit is `116 test files, 8955 assertions, 0 failures`. Rclone mentions that exact result, but Dolt cites `8947`, esbuild cites `8939`, Gitoxide and Readability still cite `8826`, and Difftastic/Syncthing/libsqlite/Quadrable still cite `8875` assertions.
    - Goal requirement at risk: `goal.md` requires precise blockers, current audit/status evidence, and honest repo-wide test recording.
    - Audit judgment: stale root-suite strings should not drive lane acceptance. Normalize lane status evidence after the dirty batches are integrated or rejected.
 
