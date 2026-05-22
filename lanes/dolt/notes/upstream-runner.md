@@ -49,6 +49,9 @@
 - Required repository check before this metadata edit:
   - `tmp=.upstream-cache/dolt/tmp/root-php-before-dolt-runner-metadata-20260522T2353.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 160 "$tmp"; exit $status`
   - Result: exit 1 with 152 test files, 13,837 assertions, and 2 failures outside Dolt in `lanes/readability/tests/ArticleExtractorTest.php`; Dolt tests reached by the root run passed.
+- Required repository check after this runner metadata update:
+  - `tmp=.upstream-cache/dolt/tmp/root-php-after-dolt-runner-metadata-20260523T0000.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 160 "$tmp"; exit $status`
+  - Result: exit 0 with 153 test files, 13,923 assertions, and 0 failures.
 - Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, or benchmark suites were run.
 
 ## Runner Tooling Refresh 2026-05-22 23:04-23:18 UTC

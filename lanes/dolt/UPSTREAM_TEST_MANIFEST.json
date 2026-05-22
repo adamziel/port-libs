@@ -903,6 +903,10 @@
                 {
                     "command": "tmp=.upstream-cache/dolt/tmp/root-php-before-dolt-runner-metadata-20260522T2353.log; php tools/run-tests.php > \"$tmp\" 2>&1; status=$?; tail -n 160 \"$tmp\"; exit $status",
                     "result": "FAIL outside Dolt: root PHP harness before this metadata edit reported 152 test files, 13,837 assertions, and 2 failures in lanes/readability/tests/ArticleExtractorTest.php; Dolt tests reached by the root run passed"
+                },
+                {
+                    "command": "tmp=.upstream-cache/dolt/tmp/root-php-after-dolt-runner-metadata-20260523T0000.log; php tools/run-tests.php > \"$tmp\" 2>&1; status=$?; tail -n 160 \"$tmp\"; exit $status",
+                    "result": "PASS: root PHP harness after this runner metadata update passed with 153 test files, 13,923 assertions, and 0 failures"
                 }
             ]
         },
