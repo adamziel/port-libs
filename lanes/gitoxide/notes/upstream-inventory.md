@@ -175,7 +175,7 @@ Focused merge primitive inventory inspected on 2026-05-22:
 - 5 merge-focused Rust test attributes were counted across the selected merge-base and tree baseline tests.
 - `gix-revision/src/merge_base/function.rs` defines the mapped merge-base shape: paint ancestry from both sides, collect common ancestors, and remove redundant ancestors so the topologically most recent independent bases remain.
 - `gix-merge/src/tree/function.rs` and `gix-merge/src/tree/mod.rs` define the much broader tree-merge model: diff both sides against the ancestor tree, apply clean changes to an editor, keep structured conflict entries, and distinguish unresolved tree/content conflicts.
-- `gix-merge/tests/merge/tree/mod.rs` drives Git baseline cases through commit-level merge and index conflict comparison. The PHP slice now maps flat tree decisions plus a bounded recursive content-merge path that reads nested tree/blob objects, writes merged blob/tree objects, and records full-path content conflicts. Rename handling, directory conflicts, index stages, worktree updates, and full commit merge orchestration remain unported.
+- `gix-merge/tests/merge/tree/mod.rs` drives Git baseline cases through commit-level merge and index conflict comparison. The PHP slice now maps flat tree decisions plus a bounded recursive content-merge path that reads nested tree/blob objects, writes merged blob/tree objects, records full-path content conflicts, exposes ancestor/ours/theirs index stage views, and exposes marker-file worktree views for content conflicts. Rename handling, directory conflicts, real index writes, filesystem worktree updates, and full commit merge orchestration remain unported.
 
 Focused blob merge inventory inspected on 2026-05-22:
 
@@ -190,7 +190,7 @@ Runner status:
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either model merge-index/worktree state for recursive content conflicts, add concrete receive-pack URL adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either add rename/directory conflict handling, add real index/worktree writes, add concrete receive-pack URL adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -216,5 +216,5 @@ Current PHP mapping:
 - `SendPackSessionTest.php` maps receive-pack advertisement parsing, advertised-old-object create/update/delete planning, no-op update elision, generated pack request construction, delete-only request behavior, thin REF_DELTA request building from remote bases, session response parsing, a WordPress branch/tag send-pack fixture from advertised refs through status response, and a WordPress thin REF_DELTA send-pack fixture.
 - `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, and a WordPress receive-pack transport fixture over native PHP streams.
 - `MergeBaseTest.php` maps simple commit ancestry merge-base discovery, independent criss-cross merge bases, unrelated histories, and ObjectDatabase commit-object validation.
-- `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, add/add resolution/conflicts, deterministic path ordering, duplicate-entry guards, recursive tree traversal over nested tree objects, clean nested blob content merges, and full-path recursive content conflicts with marker blobs.
+- `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, add/add resolution/conflicts, deterministic path ordering, duplicate-entry guards, recursive tree traversal over nested tree objects, clean nested blob content merges, full-path recursive content conflicts with marker blobs, merge-index stage entries, and worktree conflict file views.
 - `BlobMergeTest.php` maps text same-change and one-sided clean merges, independent line edits, merge-style and diff3 conflict markers, binary unresolved default picks, binary auto-resolved side picks, and a WordPress metadata/theme merge fixture.

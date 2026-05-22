@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, merge-base ancestry traversal, flat and recursive tree three-way merge decisions, recursive blob-content merges with conflict-marker output, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, common partial-clone fetch filter specs, sparse checkout path matching, lazy promisor object hydration, protocol v2 fetch response section and sideband parsing, protocol v1 receive-pack push request building, receive-pack advertisement parsing, generated pack handoff, REF_DELTA pack generation, thin send-pack request building, stream-backed receive-pack transport I/O, send-pack session orchestration, status parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate+promisor object database lookup/prefix/iteration with replacement refs.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, merge-base ancestry traversal, flat and recursive tree three-way merge decisions, recursive blob-content merges with conflict-marker output, merge-index stage views for ancestor/ours/theirs conflict entries, worktree marker-file views for content conflicts, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, common partial-clone fetch filter specs, sparse checkout path matching, lazy promisor object hydration, protocol v2 fetch response section and sideband parsing, protocol v1 receive-pack push request building, receive-pack advertisement parsing, generated pack handoff, REF_DELTA pack generation, thin send-pack request building, stream-backed receive-pack transport I/O, send-pack session orchestration, status parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate+promisor object database lookup/prefix/iteration with replacement refs.
 
 ## WordPress Deploy Tree Example
 
@@ -68,7 +68,7 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## WordPress Recursive Tree Merge Example
 
-`examples/wordpress-recursive-tree-merge.php` walks nested WordPress trees, merges independent `post.meta` edits into a new blob, and records a full-path `theme.json` content conflict with diff3 marker output. This models the next PHP-native merge layer for deployment snapshots before index stages and worktree writes are ported.
+`examples/wordpress-recursive-tree-merge.php` walks nested WordPress trees, merges independent `post.meta` edits into a new blob, records a full-path `theme.json` content conflict with diff3 marker output, and reports the ancestor/ours/theirs index stages plus the marker-file worktree view. This models the next PHP-native merge layer for deployment snapshots before real index and filesystem worktree writes are ported.
 
 ## WordPress Partial Clone Example
 
@@ -104,4 +104,4 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## Next Task
 
-Model merge-index/worktree stages for recursive content conflicts, then add rename/directory conflict handling or concrete git-daemon/SSH/HTTP receive-pack URL adapters.
+Add rename/directory conflict handling for recursive merges, real index/worktree writes, or concrete git-daemon/SSH/HTTP receive-pack URL adapters.
