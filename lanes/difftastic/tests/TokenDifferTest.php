@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Difftastic\HtmlDiffRenderer;
 use PortLibs\Difftastic\TokenDiffer;
 
 return [
@@ -114,5 +115,45 @@ return [
         $t->contains('+modern', $encoded);
         $t->contains('-2', $encoded);
         $t->contains('+3', $encoded);
+    },
+    'html token renderer escapes source and preserves operation markers' => static function (TestRunner $t): void {
+        $html = (new HtmlDiffRenderer())->renderTokenDiff(
+            "return '<section>';",
+            "return '<script>';",
+            ['title' => 'Render callback <change>'],
+        );
+
+        $t->contains('class="difftastic-token-diff"', $html);
+        $t->contains('Render callback &lt;change&gt;', $html);
+        $t->contains('data-op="-"', $html);
+        $t->contains('data-op="+"', $html);
+        $t->contains('&lt;script&gt;', $html);
+    },
+    'html word renderer reports wordpress subword additions and deletions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-after.php');
+        $html = (new HtmlDiffRenderer())->renderWordDiff($before, $after, [
+            'splitNumbers' => true,
+            'title' => 'Block style subword diff',
+        ]);
+
+        $t->contains('class="difftastic-word-diff"', $html);
+        $t->contains('<span class="dft-del" data-op="-">legacy</span>', $html);
+        $t->contains('<span class="dft-add" data-op="+">modern</span>', $html);
+        $t->contains('<span class="dft-del" data-op="-">2</span>', $html);
+        $t->contains('<span class="dft-add" data-op="+">3</span>', $html);
+    },
+    'html syntax-list renderer reports wordpress theme json palette changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-theme-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-theme-json-after.json');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'title' => 'theme.json palette syntax-list diff',
+        ]);
+
+        $t->contains('class="difftastic-syntax-list-diff"', $html);
+        $t->contains('data-difftastic-display="syntax-list"', $html);
+        $t->contains('data-path=', $html);
+        $t->contains('&quot;tertiary&quot;', $html);
+        $t->contains('&quot;#16a34a&quot;', $html);
     },
 ];

@@ -7,39 +7,52 @@
         "url": "https://github.com/Wilfred/difftastic",
         "commit": "7ccfcb315f7e46fd015809416c7d7dffa5be7078",
         "license": "MIT",
-        "architecture": "Rust syntax-aware structural diff with tree-sitter parser integrations, delimiter/list atoms, comment/string-aware matching, CLI behavior tests, sample fixtures, and text/HTML output."
+        "architecture": "Rust syntax-aware structural diff with tree-sitter parser integrations, delimiter/list atoms, comment/string-aware matching, CLI behavior tests, sample fixtures, and text/JSON display output. The PHP lane adds WordPress-oriented escaped HTML rendering on top of mapped token, word, and syntax-list semantics."
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
-        "total": "287 inspected upstream behavior artifacts: 144 Rust #[test] functions in src/ and tests/, 112 paired sample fixture bases, 30 vendored parser corpus files, and 1 compare.expected output file",
-        "mapped": 12,
-        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and hydrated only Cargo.toml, LICENSE, tests/cli.rs, targeted src files including src/words.rs, and selected sample fixtures.",
+        "total": "404 inspected upstream behavior artifacts: 144 Rust #[test]/#[test_case] attributes in src/ and tests/, 111 sample_files/compare.expected golden output pairs, 114 numbered sample fixture pairs, and 35 vendored parser corpus files",
+        "mapped": 15,
+        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures. See lanes/difftastic/notes/upstream-inventory.md.",
         "inventory": {
             "treeFiles": 786,
+            "rustFiles": 68,
             "rustSourceFiles": 32,
             "rustIntegrationTestFiles": 1,
             "rustTestAttributes": 144,
             "rustFilesWithTests": 20,
+            "cliRustTestAttributes": 23,
+            "displayRustTestAttributes": 30,
+            "diffRustTestAttributes": 32,
+            "parseRustTestAttributes": 24,
+            "displaySourceFiles": 7,
+            "diffSourceFiles": 8,
+            "parseSourceFiles": 4,
             "sampleFiles": 248,
-            "pairedSampleFixtureBases": 112,
+            "numberedSampleFixturePairs": 114,
             "cliFixtureFiles": 9,
             "directoryFixtureFiles": 8,
             "compareExpectedFiles": 1,
+            "compareExpectedGoldenPairs": 111,
             "wordSplitTestAttributes": 9,
             "mappedSubwordSampleFixtureFiles": 2,
             "vendoredParserFiles": 382,
-            "parserCorpusFiles": 30,
+            "parserCorpusFiles": 35,
             "parserExampleFiles": 5,
             "parserBenchFiles": 1,
-            "parserBindingTestFiles": 1
+            "parserBindingFiles": 42
         },
         "runnerStatus": {
             "executed": false,
-            "reason": "The full upstream runner was not executed in this lane slice. `cargo test` would require hydrating the sparse checkout with src/, tests/, sample_files/, img/, and vendored parser sources, downloading the Cargo dependency graph, and compiling difftastic plus many tree-sitter parser crates/native parsers. A limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacks the `humansize` crate, confirming that an online dependency fetch would be required. This exceeds the modest network/CPU budget for this worker run.",
+            "reason": "The full upstream runner was not executed in this lane slice. The current shell has no `cargo` or `rustc` on PATH. Even with Rust available, `cargo test` would require hydrating the sparse checkout with src/, tests/, sample_files/, img/, and vendored parser sources, downloading the Cargo dependency graph, and compiling difftastic plus many tree-sitter parser crates/native parsers. A prior limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacked the `humansize` crate, confirming that an online dependency fetch would be required. This exceeds the modest network/CPU budget for this worker run.",
             "probes": [
                 {
+                    "command": "command -v cargo; command -v rustc",
+                    "result": "both commands returned no path in the current shell"
+                },
+                {
                     "command": "cargo test --no-run --locked --offline",
-                    "result": "failed before compiling tests: no matching package named `humansize` found in the local offline Cargo cache"
+                    "result": "prior bounded probe failed before compiling tests: no matching package named `humansize` found in the local offline Cargo cache"
                 }
             ]
         },
@@ -54,15 +67,18 @@
             "Recursive list diffs descend through PHP function-call arguments and nested registration arrays, reporting changed WordPress block supports at the innermost list path.",
             "Upstream `src/words.rs` word splitting semantics are ported for punctuation, newlines, Unicode alphanumerics, and number-aware splitting.",
             "A copied upstream `sample_files/hyphen_subwords_*.json` fixture maps hyphenated string subword deletion without replacing the full string.",
-            "The WordPress block-style fixture uses number-aware subword diffs so slug/version changes such as `legacy-cta-v2` to `modern-cta-v3` are reviewable at word granularity."
+            "The WordPress block-style fixture uses number-aware subword diffs so slug/version changes such as `legacy-cta-v2` to `modern-cta-v3` are reviewable at word granularity.",
+            "Targeted upstream display inventory now counts src/display, src/diff, src/parse test attributes and sample_files/compare.expected golden output pairs as the static display baseline.",
+            "The native HTML renderer escapes source text and preserves token/word operations as data-op/class metadata, matching the display-layer requirement that novel content is marked without executing source text.",
+            "The WordPress theme.json palette fixture renders syntax-list changes with path metadata for embedding block/theme review diffs in a browser UI."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 12 focused lane tests against an inspected 287-artifact upstream behavior inventory."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 15 focused lane tests against an inspected 404-artifact upstream behavior inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, copied upstream contiguous JavaScript fixture mapping, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, and upstream-style word/subword diffing."
+        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, copied upstream contiguous JavaScript fixture mapping, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, upstream-style word/subword diffing, and escaped HTML rendering for token, subword, and syntax-list changes."
     },
-    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, and report hyphenated slug/version changes at subword granularity.",
-    "nextTask": "Add HTML output for syntax-list and subword hunks around WordPress block/theme code, or map another upstream sample_files pair."
+    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, and emit escaped HTML for block-style and theme.json review UIs.",
+    "nextTask": "Map another upstream sample_files display pair such as html_*.html, json_*.json, or trailing_commas_*.js, then tie it to HTML/JSON output expectations."
 }
