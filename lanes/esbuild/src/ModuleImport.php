@@ -8,6 +8,7 @@ final class ModuleImport
 {
     /**
      * @param list<array{imported:string, local:?string}> $specifiers
+     * @param list<array{imported:string, local:?string}> $typeSpecifiers
      * @param array<string, string> $attributes
      */
     public function __construct(
@@ -17,6 +18,8 @@ final class ModuleImport
         public readonly int $offset,
         public readonly ?string $attributesKeyword = null,
         public readonly array $attributes = [],
+        public readonly bool $typeOnly = false,
+        public readonly array $typeSpecifiers = [],
     ) {
     }
 
@@ -41,5 +44,10 @@ final class ModuleImport
     public function hasJsonTypeAttribute(): bool
     {
         return ($this->attributes['type'] ?? null) === 'json';
+    }
+
+    public function hasTypeOnlySpecifiers(): bool
+    {
+        return $this->typeOnly || $this->typeSpecifiers !== [];
     }
 }

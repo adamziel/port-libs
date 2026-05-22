@@ -10,31 +10,43 @@ final class JsModuleAnalyzer
      * @var list<Token>
      */
     private array $tokens = [];
+    private string $source = '';
 
     public function analyze(string $source): ModuleAnalysis
     {
+        $this->source = $source;
         $this->tokens = (new JsLexer())->tokenize($source);
         $imports = [];
         $exports = [];
 
         $count = count($this->tokens);
+        $depth = 0;
         for ($index = 0; $index < $count; $index++) {
             $token = $this->tokens[$index];
             if ($token->kind !== 'identifier') {
+                $depth = $this->adjustDepth($depth, $token);
                 continue;
             }
 
             if ($token->text === 'import') {
+                if (($this->tokens[$index + 1] ?? null)?->text !== '(' && $depth !== 0) {
+                    $depth = $this->adjustDepth($depth, $token);
+                    continue;
+                }
+
                 $import = $this->parseImport($index);
                 if ($import !== null) {
                     $imports[] = $import;
                 }
+                $depth = $this->adjustDepth($depth, $token);
                 continue;
             }
 
-            if ($token->text === 'export') {
+            if ($token->text === 'export' && $depth === 0) {
                 $exports[] = $this->parseExport($index);
             }
+
+            $depth = $this->adjustDepth($depth, $token);
         }
 
         [$importMetaOffsets, $importMetaProperties] = $this->collectImportMetaReferences();
@@ -45,6 +57,7 @@ final class JsModuleAnalyzer
             $importMetaOffsets,
             $importMetaProperties,
             $this->collectAssetReferences(),
+            $this->collectTypeScriptNamespaces(),
         );
     }
 
@@ -63,6 +76,21 @@ final class JsModuleAnalyzer
             return $this->parseDynamicImport($index);
         }
 
+        if ($next->kind === 'identifier' && ($this->tokens[$index + 2] ?? null)?->text === '=') {
+            return $this->parseImportEquals($index, false, $index + 1);
+        }
+
+        if ($next->text === 'type'
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'identifier'
+            && ($this->tokens[$index + 3] ?? null)?->text === '='
+        ) {
+            return $this->parseImportEquals($index, true, $index + 2);
+        }
+
+        if ($next->text === 'type' && !$this->isRuntimeDefaultImportNamedType($index)) {
+            return $this->parseTypeOnlyImport($index);
+        }
+
         $end = $this->findStatementEnd($index);
         if ($next->kind === 'string') {
             [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($index + 2, $end);
@@ -70,13 +98,14 @@ final class JsModuleAnalyzer
             return new ModuleImport('side-effect', $this->stringValue($next), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
         }
 
-        $from = $this->findIdentifierBetween('from', $index + 1, $end);
+        $from = $this->findSourceStringAfterFrom($index + 1, $end);
         if ($from === null || !isset($this->tokens[$from + 1]) || $this->tokens[$from + 1]->kind !== 'string') {
             throw new \InvalidArgumentException('Static import must include a string source');
         }
         [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
 
         $specifiers = [];
+        $typeSpecifiers = [];
         $kind = 'named';
         $cursor = $index + 1;
 
@@ -97,13 +126,14 @@ final class JsModuleAnalyzer
             $kind = $kind === 'default' ? 'default-namespace' : 'namespace';
         } elseif (($this->tokens[$cursor] ?? null)?->text === '{') {
             $braceEnd = $this->findMatchingPunctuator($cursor, '{', '}');
-            foreach ($this->parseImportSpecifiers($cursor + 1, $braceEnd) as $specifier) {
+            [$namedSpecifiers, $typeSpecifiers] = $this->parseImportSpecifiers($cursor + 1, $braceEnd);
+            foreach ($namedSpecifiers as $specifier) {
                 $specifiers[] = $specifier;
             }
             $kind = $kind === 'default' ? 'default-named' : 'named';
         }
 
-        return new ModuleImport($kind, $this->stringValue($this->tokens[$from + 1]), $specifiers, $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+        return new ModuleImport($kind, $this->stringValue($this->tokens[$from + 1]), $specifiers, $this->tokens[$index]->offset, $attributesKeyword, $attributes, false, $typeSpecifiers);
     }
 
     private function parseExport(int $index): ModuleExport
@@ -117,9 +147,21 @@ final class JsModuleAnalyzer
             return new ModuleExport('default', null, [], $this->tokens[$index]->offset);
         }
 
+        if ($next->text === '=') {
+            return new ModuleExport('ts-export-equals', null, [], $this->tokens[$index]->offset);
+        }
+
+        if ($next->text === 'import') {
+            return $this->parseExportImportEquals($index);
+        }
+
+        if ($next->text === 'type') {
+            return $this->parseTypeOnlyExport($index);
+        }
+
         $end = $this->findStatementEnd($index);
         if ($next->text === '*') {
-            $from = $this->findIdentifierBetween('from', $index + 1, $end);
+            $from = $this->findSourceStringAfterFrom($index + 1, $end);
             if ($from === null || ($this->tokens[$from + 1] ?? null)?->kind !== 'string') {
                 throw new \InvalidArgumentException('Export star must include a string source');
             }
@@ -141,7 +183,7 @@ final class JsModuleAnalyzer
 
         if ($next->text === '{') {
             $braceEnd = $this->findMatchingPunctuator($index + 1, '{', '}');
-            $from = $this->findIdentifierBetween('from', $braceEnd + 1, $end);
+            $from = $this->findSourceStringAfterFrom($braceEnd + 1, $end);
             $source = null;
             $attributesKeyword = null;
             $attributes = [];
@@ -153,7 +195,9 @@ final class JsModuleAnalyzer
                 [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
             }
 
-            return new ModuleExport($source === null ? 'named' : 're-export-named', $source, $this->parseExportSpecifiers($index + 2, $braceEnd), $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+            [$specifiers, $typeSpecifiers] = $this->parseExportSpecifiers($index + 2, $braceEnd);
+
+            return new ModuleExport($source === null ? 'named' : 're-export-named', $source, $specifiers, $this->tokens[$index]->offset, $attributesKeyword, $attributes, false, $typeSpecifiers);
         }
 
         return new ModuleExport('declaration', null, [], $this->tokens[$index]->offset);
@@ -184,6 +228,154 @@ final class JsModuleAnalyzer
         }
 
         return new ModuleImport('dynamic', $this->stringValue($source), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+    }
+
+    private function parseImportEquals(int $index, bool $typeOnly, int $localIndex): ModuleImport
+    {
+        $local = $this->tokens[$localIndex] ?? null;
+        if ($local === null || $local->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected identifier in TypeScript import equals');
+        }
+        if (($this->tokens[$localIndex + 1] ?? null)?->text !== '=') {
+            throw new \InvalidArgumentException('Expected "=" in TypeScript import equals');
+        }
+
+        [$kind, $source, $cursor] = $this->parseImportEqualsTarget($localIndex + 2);
+        $end = $this->findStatementEnd($index);
+        if ($cursor < $end && !$this->hasLineBreakBetween($cursor - 1, $cursor)) {
+            throw new \InvalidArgumentException('Expected TypeScript import equals to end after its target');
+        }
+
+        $specifier = ['imported' => $source, 'local' => $local->text];
+
+        return new ModuleImport(
+            $kind,
+            $source,
+            $typeOnly ? [] : [$specifier],
+            $this->tokens[$index]->offset,
+            null,
+            [],
+            $typeOnly,
+            $typeOnly ? [$specifier] : [],
+        );
+    }
+
+    private function parseTypeOnlyImport(int $index): ModuleImport
+    {
+        $end = $this->findStatementEnd($index);
+        $from = $this->findSourceStringAfterFrom($index + 2, $end);
+        if ($from === null || ($this->tokens[$from + 1] ?? null)?->kind !== 'string') {
+            throw new \InvalidArgumentException('Type-only import must include a string source');
+        }
+
+        [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
+        $cursor = $index + 2;
+        $typeSpecifiers = [];
+        $kind = 'type-only-named';
+
+        if (($this->tokens[$cursor] ?? null)?->kind === 'identifier' && $cursor < $from) {
+            $typeSpecifiers[] = ['imported' => 'default', 'local' => $this->tokens[$cursor]->text];
+            $kind = 'type-only-default';
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === ',') {
+                throw new \InvalidArgumentException('Type-only default imports cannot be combined with named or namespace imports');
+            }
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === '*') {
+            if (($this->tokens[$cursor + 1] ?? null)?->text !== 'as' || ($this->tokens[$cursor + 2] ?? null)?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected "as" in type-only namespace import');
+            }
+            $typeSpecifiers[] = ['imported' => '*', 'local' => $this->tokens[$cursor + 2]->text];
+            $kind = 'type-only-namespace';
+        } elseif (($this->tokens[$cursor] ?? null)?->text === '{') {
+            $braceEnd = $this->findMatchingPunctuator($cursor, '{', '}');
+            if ($braceEnd > $from) {
+                throw new \InvalidArgumentException('Type-only import specifier list must end before "from"');
+            }
+            [, $typeSpecifiers] = $this->parseImportSpecifiers($cursor + 1, $braceEnd, true);
+            $kind = 'type-only-named';
+        }
+
+        return new ModuleImport($kind, $this->stringValue($this->tokens[$from + 1]), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes, true, $typeSpecifiers);
+    }
+
+    private function parseExportImportEquals(int $index): ModuleExport
+    {
+        $local = $this->tokens[$index + 2] ?? null;
+        if ($local === null || $local->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected identifier after export import');
+        }
+        if (($this->tokens[$index + 3] ?? null)?->text !== '=') {
+            throw new \InvalidArgumentException('Expected "=" after export import name');
+        }
+
+        [, $source] = $this->parseImportEqualsTarget($index + 4);
+
+        return new ModuleExport(
+            'ts-export-import-equals',
+            $source,
+            [['exported' => $local->text, 'local' => $local->text]],
+            $this->tokens[$index]->offset,
+        );
+    }
+
+    private function parseTypeOnlyExport(int $index): ModuleExport
+    {
+        $end = $this->findStatementEnd($index);
+        $next = $this->tokens[$index + 2] ?? null;
+        if ($next === null) {
+            throw new \InvalidArgumentException('Unexpected end after export type');
+        }
+
+        if ($next->text === '*') {
+            $from = $this->findSourceStringAfterFrom($index + 2, $end);
+            if ($from === null || ($this->tokens[$from + 1] ?? null)?->kind !== 'string') {
+                throw new \InvalidArgumentException('Type-only export star must include a string source');
+            }
+            [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
+
+            $typeSpecifiers = [];
+            $kind = 'type-only-star';
+            if (($this->tokens[$index + 3] ?? null)?->text === 'as') {
+                $alias = $this->tokens[$index + 4] ?? null;
+                if ($alias === null || ($alias->kind !== 'identifier' && $alias->kind !== 'string')) {
+                    throw new \InvalidArgumentException('Expected namespace alias after export type star as');
+                }
+                $typeSpecifiers[] = ['exported' => $this->tokenName($alias), 'local' => '*'];
+                $kind = 'type-only-star-as';
+            }
+
+            return new ModuleExport($kind, $this->stringValue($this->tokens[$from + 1]), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes, true, $typeSpecifiers);
+        }
+
+        if ($next->text === '{') {
+            $braceEnd = $this->findMatchingPunctuator($index + 2, '{', '}');
+            $from = $this->findSourceStringAfterFrom($braceEnd + 1, $end);
+            $source = null;
+            $attributesKeyword = null;
+            $attributes = [];
+            if ($from !== null) {
+                if (($this->tokens[$from + 1] ?? null)?->kind !== 'string') {
+                    throw new \InvalidArgumentException('Type-only re-export must include a string source');
+                }
+                $source = $this->stringValue($this->tokens[$from + 1]);
+                [$attributesKeyword, $attributes] = $this->parseImportAttributesClause($from + 2, $end);
+            }
+
+            [, $typeSpecifiers] = $this->parseExportSpecifiers($index + 3, $braceEnd, true);
+            if ($source === null) {
+                foreach ($typeSpecifiers as $specifier) {
+                    if ($specifier['local'] === 'default') {
+                        throw new \InvalidArgumentException('Type-only local export cannot reference default');
+                    }
+                }
+            }
+
+            return new ModuleExport($source === null ? 'type-only-named' : 'type-only-re-export-named', $source, [], $this->tokens[$index]->offset, $attributesKeyword, $attributes, true, $typeSpecifiers);
+        }
+
+        return new ModuleExport('type-declaration', null, [], $this->tokens[$index]->offset, null, [], true);
     }
 
     /**
@@ -288,11 +480,342 @@ final class JsModuleAnalyzer
     }
 
     /**
-     * @return list<array{imported:string, local:?string}>
+     * @return list<TypeScriptNamespace>
      */
-    private function parseImportSpecifiers(int $start, int $end): array
+    private function collectTypeScriptNamespaces(): array
+    {
+        return $this->collectTypeScriptNamespacesInRange(0, count($this->tokens), null);
+    }
+
+    /**
+     * @return list<TypeScriptNamespace>
+     */
+    private function collectTypeScriptNamespacesInRange(int $start, int $end, ?string $parent): array
+    {
+        $namespaces = [];
+        for ($i = $start; $i < $end; $i++) {
+            $parsed = $this->parseTypeScriptNamespaceAt($i, $parent);
+            if ($parsed === null) {
+                continue;
+            }
+
+            [$namespace, $blockStart, $blockEnd] = $parsed;
+            $namespaces[] = $namespace;
+            foreach ($this->collectTypeScriptNamespacesInRange($blockStart + 1, $blockEnd, $namespace->qualifiedName) as $child) {
+                $namespaces[] = $child;
+            }
+            $i = $blockEnd;
+        }
+
+        return $namespaces;
+    }
+
+    /**
+     * @return array{0:TypeScriptNamespace, 1:int, 2:int}|null
+     */
+    private function parseTypeScriptNamespaceAt(int $index, ?string $parent): ?array
+    {
+        if (!$this->isTypeScriptNamespaceKeywordAt($index)
+            || ($this->tokens[$index - 1] ?? null)?->text === '.'
+            || ($this->tokens[$index + 1] ?? null)?->kind !== 'identifier'
+            || $this->hasLineBreakBetween($index, $index + 1)
+        ) {
+            return null;
+        }
+
+        [$name, $cursor] = $this->readNamespaceName($index + 1);
+        if (($this->tokens[$cursor] ?? null)?->text !== '{') {
+            return null;
+        }
+
+        [$exported, $declared] = $this->namespaceModifiers($index);
+        $blockEnd = $this->findMatchingPunctuator($cursor, '{', '}');
+        $qualifiedName = $parent === null ? $name : $parent . '.' . $name;
+
+        return [
+            new TypeScriptNamespace(
+                $name,
+                $qualifiedName,
+                $parent,
+                $exported,
+                $declared,
+                $this->tokens[$index]->offset,
+                $this->collectTypeScriptNamespaceMembers($cursor + 1, $blockEnd),
+            ),
+            $cursor,
+            $blockEnd,
+        ];
+    }
+
+    /**
+     * @return list<TypeScriptNamespaceMember>
+     */
+    private function collectTypeScriptNamespaceMembers(int $start, int $end): array
+    {
+        $members = [];
+        $depth = 0;
+        for ($i = $start; $i < $end; $i++) {
+            $token = $this->tokens[$i];
+            if ($depth !== 0 || $token->kind !== 'identifier') {
+                $depth = $this->adjustDepth($depth, $token);
+                continue;
+            }
+
+            $member = null;
+            $skipTo = null;
+            if ($token->text === 'export') {
+                $cursor = $i + 1;
+                $declared = false;
+                if (($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+                    && $this->tokens[$cursor]->text === 'declare'
+                ) {
+                    $declared = true;
+                    $cursor++;
+                }
+
+                $member = $this->typeScriptNamespaceMemberFromDeclaration($cursor, true, $declared);
+                if ($member !== null && $member->kind === 'namespace') {
+                    $skipTo = $this->namespaceBlockEnd($cursor);
+                }
+            } elseif ($token->text === 'declare'
+                && $this->isTypeScriptNamespaceKeywordAt($i + 1)
+            ) {
+                $member = $this->typeScriptNamespaceMemberFromDeclaration($i + 1, false, true);
+                if ($member !== null) {
+                    $skipTo = $this->namespaceBlockEnd($i + 1);
+                }
+            } elseif ($this->isTypeScriptNamespaceKeywordAt($i)) {
+                $member = $this->typeScriptNamespaceMemberFromDeclaration($i, false, false);
+                if ($member !== null) {
+                    $skipTo = $this->namespaceBlockEnd($i);
+                }
+            }
+
+            if ($member !== null) {
+                $members[] = $member;
+            }
+            if ($skipTo !== null) {
+                $i = $skipTo;
+                $depth = 0;
+                continue;
+            }
+
+            $depth = $this->adjustDepth($depth, $token);
+        }
+
+        return $members;
+    }
+
+    private function typeScriptNamespaceMemberFromDeclaration(int $start, bool $exported, bool $declared): ?TypeScriptNamespaceMember
+    {
+        $token = $this->tokens[$start] ?? null;
+        if ($token === null || $token->kind !== 'identifier') {
+            return null;
+        }
+
+        if ($this->isTypeScriptNamespaceKeywordAt($start)) {
+            [$name] = $this->readNamespaceName($start + 1);
+
+            return new TypeScriptNamespaceMember($name, 'namespace', $exported, $declared, false, $token->offset);
+        }
+
+        if (in_array($token->text, ['type', 'interface'], true)) {
+            $name = $this->tokens[$start + 1] ?? null;
+            if ($name?->kind !== 'identifier') {
+                return null;
+            }
+
+            return new TypeScriptNamespaceMember($name->text, $token->text, $exported, $declared, true, $token->offset);
+        }
+
+        if (in_array($token->text, ['var', 'let', 'const', 'function', 'class', 'enum'], true)) {
+            $nameIndex = $start + 1;
+            if ($token->text === 'function' && ($this->tokens[$nameIndex] ?? null)?->text === '*') {
+                $nameIndex++;
+            }
+
+            $name = $this->tokens[$nameIndex] ?? null;
+            if ($name?->kind !== 'identifier') {
+                return null;
+            }
+
+            return new TypeScriptNamespaceMember($name->text, $token->text, $exported, $declared, false, $token->offset);
+        }
+
+        if ($token->text === 'import') {
+            $name = $this->tokens[$start + 1] ?? null;
+            if ($name?->kind !== 'identifier' || ($this->tokens[$start + 2] ?? null)?->text !== '=') {
+                return null;
+            }
+
+            [, $source] = $this->parseImportEqualsTarget($start + 3);
+
+            return new TypeScriptNamespaceMember($name->text, 'import-equals', $exported, $declared, false, $token->offset, $source);
+        }
+
+        return null;
+    }
+
+    private function namespaceBlockEnd(int $index): ?int
+    {
+        if (!$this->isTypeScriptNamespaceKeywordAt($index)
+            || ($this->tokens[$index + 1] ?? null)?->kind !== 'identifier'
+        ) {
+            return null;
+        }
+
+        [, $cursor] = $this->readNamespaceName($index + 1);
+        if (($this->tokens[$cursor] ?? null)?->text !== '{') {
+            return null;
+        }
+
+        return $this->findMatchingPunctuator($cursor, '{', '}');
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private function readNamespaceName(int $start): array
+    {
+        $parts = [];
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->kind === 'identifier') {
+            $parts[] = $this->tokens[$cursor]->text;
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text !== '.') {
+                break;
+            }
+            if (($this->tokens[$cursor + 1] ?? null)?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier after "." in TypeScript namespace name');
+            }
+            $cursor++;
+        }
+
+        return [implode('.', $parts), $cursor];
+    }
+
+    /**
+     * @return array{0:bool, 1:bool}
+     */
+    private function namespaceModifiers(int $keywordIndex): array
+    {
+        $exported = false;
+        $declared = false;
+        $cursor = $keywordIndex - 1;
+
+        if (($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+            && $this->tokens[$cursor]->text === 'declare'
+            && !$this->hasLineBreakBetween($cursor, $keywordIndex)
+        ) {
+            $declared = true;
+            $cursor--;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->kind === 'identifier'
+            && $this->tokens[$cursor]->text === 'export'
+            && !$this->hasLineBreakBetween($cursor, $cursor + 1)
+        ) {
+            $exported = true;
+        }
+
+        return [$exported, $declared];
+    }
+
+    private function isTypeScriptNamespaceKeywordAt(int $index): bool
+    {
+        return ($this->tokens[$index] ?? null)?->kind === 'identifier'
+            && in_array($this->tokens[$index]->text, ['namespace', 'module'], true);
+    }
+
+    private function adjustDepth(int $depth, Token $token): int
+    {
+        if (in_array($token->text, ['(', '{', '['], true)) {
+            return $depth + 1;
+        }
+        if (in_array($token->text, [')', '}', ']'], true)) {
+            return max(0, $depth - 1);
+        }
+
+        return $depth;
+    }
+
+    private function isRuntimeDefaultImportNamedType(int $index): bool
+    {
+        return ($this->tokens[$index + 1] ?? null)?->text === 'type'
+            && ($this->tokens[$index + 2] ?? null)?->text === 'from'
+            && ($this->tokens[$index + 3] ?? null)?->kind === 'string';
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:int}
+     */
+    private function parseImportEqualsTarget(int $start): array
+    {
+        if (($this->tokens[$start] ?? null)?->kind === 'identifier'
+            && $this->tokens[$start]->text === 'require'
+            && ($this->tokens[$start + 1] ?? null)?->text === '('
+            && ($this->tokens[$start + 2] ?? null)?->kind === 'string'
+        ) {
+            $end = $this->findMatchingPunctuator($start + 1, '(', ')');
+            if ($end !== $start + 3) {
+                throw new \InvalidArgumentException('TypeScript import equals require target must contain one string argument');
+            }
+
+            return ['ts-import-equals-require', $this->stringValue($this->tokens[$start + 2]), $end + 1];
+        }
+
+        [$qualifiedName, $cursor] = $this->readQualifiedName($start);
+
+        return ['ts-import-equals-reference', $qualifiedName, $cursor];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private function readQualifiedName(int $start): array
+    {
+        $parts = [];
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->kind === 'identifier') {
+            $parts[] = $this->tokens[$cursor]->text;
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text !== '.') {
+                break;
+            }
+            if (($this->tokens[$cursor + 1] ?? null)?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier after "." in TypeScript import equals target');
+            }
+            $cursor++;
+        }
+
+        if ($parts === []) {
+            throw new \InvalidArgumentException('Expected TypeScript import equals target');
+        }
+
+        return [implode('.', $parts), $cursor];
+    }
+
+    private function hasLineBreakBetween(int $leftIndex, int $rightIndex): bool
+    {
+        $left = $this->tokens[$leftIndex] ?? null;
+        $right = $this->tokens[$rightIndex] ?? null;
+        if ($left === null || $right === null) {
+            return false;
+        }
+
+        $start = $left->offset + strlen($left->text);
+        $gap = substr($this->source, $start, $right->offset - $start);
+
+        return str_contains($gap, "\n") || str_contains($gap, "\r");
+    }
+
+    /**
+     * @return array{0:list<array{imported:string, local:?string}>, 1:list<array{imported:string, local:?string}>}
+     */
+    private function parseImportSpecifiers(int $start, int $end, bool $forceTypeOnly = false): array
     {
         $specifiers = [];
+        $typeSpecifiers = [];
         for ($i = $start; $i < $end; $i++) {
             $token = $this->tokens[$i];
             if ($token->text === ',') {
@@ -300,6 +823,22 @@ final class JsModuleAnalyzer
             }
             if ($token->kind !== 'identifier' && $token->kind !== 'string') {
                 continue;
+            }
+
+            $isTypeSpecifier = $forceTypeOnly;
+            if (!$forceTypeOnly
+                && $token->kind === 'identifier'
+                && $token->text === 'type'
+                && ($this->tokens[$i + 1] ?? null) !== null
+                && $this->tokens[$i + 1]->text !== ','
+                && $this->tokens[$i + 1]->text !== '}'
+            ) {
+                $isTypeSpecifier = true;
+                $i++;
+                $token = $this->tokens[$i];
+                if ($token->kind !== 'identifier' && $token->kind !== 'string') {
+                    throw new \InvalidArgumentException('Expected imported identifier after type-only import marker');
+                }
             }
 
             $imported = $this->tokenName($token);
@@ -313,18 +852,23 @@ final class JsModuleAnalyzer
                 $i += 2;
             }
 
-            $specifiers[] = ['imported' => $imported, 'local' => $local];
+            if ($isTypeSpecifier) {
+                $typeSpecifiers[] = ['imported' => $imported, 'local' => $local];
+            } else {
+                $specifiers[] = ['imported' => $imported, 'local' => $local];
+            }
         }
 
-        return $specifiers;
+        return [$specifiers, $typeSpecifiers];
     }
 
     /**
-     * @return list<array{exported:string, local:?string}>
+     * @return array{0:list<array{exported:string, local:?string}>, 1:list<array{exported:string, local:?string}>}
      */
-    private function parseExportSpecifiers(int $start, int $end): array
+    private function parseExportSpecifiers(int $start, int $end, bool $forceTypeOnly = false): array
     {
         $specifiers = [];
+        $typeSpecifiers = [];
         for ($i = $start; $i < $end; $i++) {
             $token = $this->tokens[$i];
             if ($token->text === ',') {
@@ -332,6 +876,22 @@ final class JsModuleAnalyzer
             }
             if ($token->kind !== 'identifier' && $token->kind !== 'string') {
                 continue;
+            }
+
+            $isTypeSpecifier = $forceTypeOnly;
+            if (!$forceTypeOnly
+                && $token->kind === 'identifier'
+                && $token->text === 'type'
+                && ($this->tokens[$i + 1] ?? null) !== null
+                && $this->tokens[$i + 1]->text !== ','
+                && $this->tokens[$i + 1]->text !== '}'
+            ) {
+                $isTypeSpecifier = true;
+                $i++;
+                $token = $this->tokens[$i];
+                if ($token->kind !== 'identifier' && $token->kind !== 'string') {
+                    throw new \InvalidArgumentException('Expected exported identifier after type-only export marker');
+                }
             }
 
             $local = $this->tokenName($token);
@@ -345,10 +905,14 @@ final class JsModuleAnalyzer
                 $i += 2;
             }
 
-            $specifiers[] = ['exported' => $exported, 'local' => $local];
+            if ($isTypeSpecifier) {
+                $typeSpecifiers[] = ['exported' => $exported, 'local' => $local];
+            } else {
+                $specifiers[] = ['exported' => $exported, 'local' => $local];
+            }
         }
 
-        return $specifiers;
+        return [$specifiers, $typeSpecifiers];
     }
 
     /**
@@ -470,6 +1034,32 @@ final class JsModuleAnalyzer
     private function tokenName(Token $token): string
     {
         return $token->kind === 'string' ? $this->stringValue($token) : $token->text;
+    }
+
+    private function findSourceStringAfterFrom(int $start, int $end): ?int
+    {
+        $depth = 0;
+        $from = null;
+        for ($i = $start; $i < $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(' || $text === '{' || $text === '[') {
+                $depth++;
+                continue;
+            }
+            if ($text === ')' || $text === '}' || $text === ']') {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0
+                && $this->tokens[$i]->kind === 'identifier'
+                && $text === 'from'
+                && ($this->tokens[$i + 1] ?? null)?->kind === 'string'
+            ) {
+                $from = $i;
+            }
+        }
+
+        return $from;
     }
 
     private function findIdentifierBetween(string $text, int $start, int $end): ?int

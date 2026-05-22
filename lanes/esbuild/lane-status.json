@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "esbuild",
-    "estimatedProgress": 8,
-    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; upstream `make test` now passes in a detached runner worktree with Nix Go/Node/OpenSSL; lexer, import/export, import-attribute, import.meta, and new URL asset-reference slices mapped",
-    "phpPass": 16,
+    "estimatedProgress": 9,
+    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; upstream `make test` now passes in a detached runner worktree with Nix Go/Node/OpenSSL; lexer, import/export, import-attribute, import.meta, new URL asset-reference, and TypeScript import-equals/type-only import-export slices mapped",
+    "phpPass": 20,
     "phpFail": 0,
-    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights a WordPress block view script importing @wordpress/dom-ready, block metadata via `./block.json` with `{ type: \"json\" }`, and relative stylesheet/worker assets via `new URL(..., import.meta.url)`.",
-    "phase": "cloned static inventory plus upstream make test runner evidence and lexer/import-export/import-attribute/import-meta asset slices",
-    "audit": "audited 2026-05-22: upstream make test passes locally; native PHP smoke coverage now maps 16 tests, not full upstream parity",
-    "currentWork": "Native JavaScript lexer plus module analyzer for static imports, expression/direct-string dynamic imports, exports, re-exports, import assertions/attributes, import.meta ESM markers, new URL(import.meta.url) asset references, package/relative source classification, WordPress package imports, and upstream `make test` runner evidence from a detached hydrated worktree.",
-    "blocker": "Resolved the prior missing Go/Node/OpenSSL checkout blocker for the core upstream runner: a detached runner worktree plus `nix-shell -p go nodejs openssl` runs `make test` successfully. Remaining release-extra coverage is `make test-all` with Deno, WASM browser/node, typecheck, and Yarn PnP targets.",
-    "latestCommit": "2e1fcb0",
-    "nextTask": "Map TypeScript import/export forms such as import equals, type-only imports/exports, and namespace exports."
+    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixtures preflight a WordPress block view script importing @wordpress/dom-ready, block metadata via `./block.json` with `{ type: \"json\" }`, relative stylesheet/worker assets via `new URL(..., import.meta.url)`, and a TypeScript block script that keeps erased @wordpress type imports out of runtime dependency lists.",
+    "phase": "cloned static inventory plus upstream make test runner evidence and lexer/import-export/import-attribute/import-meta/new-url/typescript import-export slices",
+    "audit": "audited 2026-05-22: upstream make test passes locally; native PHP smoke coverage now maps 20 tests and 108 esbuild assertions, not full upstream parity",
+    "currentWork": "Native JavaScript lexer plus module analyzer for static imports, expression/direct-string dynamic imports, exports, re-exports, import assertions/attributes, import.meta ESM markers, new URL(import.meta.url) asset references, TypeScript import-equals/export-equals/type-only import/export forms, package/relative source classification, WordPress package imports, and upstream `make test` runner evidence from a detached hydrated worktree.",
+    "blocker": "No current esbuild implementation blocker. The core upstream runner blocker is resolved via detached runner worktree plus `nix-shell -p go nodejs openssl make test`; remaining release-extra coverage is `make test-all` with Deno, WASM browser/node, typecheck, and Yarn PnP targets. The current shared root `php tools/run-tests.php` exits nonzero because unrelated markerPDF CodeBlockDetector tests fail in the dirty worktree, so this lane slice is not committed yet.",
+    "latestCommit": "08993f2",
+    "nextTask": "Map TypeScript namespace/export namespace forms and import-use elision from `TestTSNamespaceExports` plus bundled TS namespace cases."
 }
