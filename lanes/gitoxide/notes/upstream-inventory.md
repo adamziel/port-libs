@@ -177,12 +177,20 @@ Focused merge primitive inventory inspected on 2026-05-22:
 - `gix-merge/src/tree/function.rs` and `gix-merge/src/tree/mod.rs` define the much broader tree-merge model: diff both sides against the ancestor tree, apply clean changes to an editor, keep structured conflict entries, and distinguish unresolved tree/content conflicts.
 - `gix-merge/tests/merge/tree/mod.rs` drives Git baseline cases through commit-level merge and index conflict comparison. The PHP slice intentionally maps only non-recursive flat tree decisions plus structured conflict records; recursive traversal, rename handling, content merge drivers, index stages, and worktree updates remain unported.
 
+Focused blob merge inventory inspected on 2026-05-22:
+
+- Selected `gix-merge/src/blob/builtin_driver/text/function.rs`, `gix-merge/src/blob/builtin_driver/text/mod.rs`, `gix-merge/src/blob/builtin_driver/binary.rs`, and `gix-merge/tests/merge/blob/builtin_driver.rs` with targeted reads.
+- 22 blob-focused Rust test attributes were counted across selected `gix-merge` blob source and tests.
+- `gix-merge/src/blob/builtin_driver/text/function.rs` defines the mapped text merge shape: compare ours/base/theirs as tokenized lines, render conflict markers, support merge and diff3-style sections, and return a resolution enum.
+- `gix-merge/src/blob/builtin_driver/text/mod.rs` defines conflict style labels and default marker size. The PHP slice maps merge and diff3 markers with labels, but does not yet port zealous diff3 hunk contraction or Gitoxide's diff-backend internals.
+- `gix-merge/tests/merge/blob/builtin_driver.rs` defines same-change clean merges, partially overlapping conflicts, binary default/side-pick behavior, fuzz regressions, and text-baseline corpus checks. The PHP slice maps the first useful subset with line-based independent edit merging, conflict markers, and minimal binary side picks.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either deepen recursive/content merge semantics, add concrete receive-pack URL adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either integrate blob merge results into recursive tree/commit merge, add concrete receive-pack URL adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -209,3 +217,4 @@ Current PHP mapping:
 - `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, and a WordPress receive-pack transport fixture over native PHP streams.
 - `MergeBaseTest.php` maps simple commit ancestry merge-base discovery, independent criss-cross merge bases, unrelated histories, and ObjectDatabase commit-object validation.
 - `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, add/add resolution/conflicts, deterministic path ordering, and duplicate-entry guards.
+- `BlobMergeTest.php` maps text same-change and one-sided clean merges, independent line edits, merge-style and diff3 conflict markers, binary unresolved default picks, binary auto-resolved side picks, and a WordPress metadata/theme merge fixture.
