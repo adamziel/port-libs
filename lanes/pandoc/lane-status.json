@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader inline style semantics from test/html-reader.html/native. Standalone HTML paragraphs parse `font-variant: small-caps` spans as `small_caps`, `<u>` and `<ins>` as `underline`, and `<s>`, `<strike>`, and `<del>` as `strikeout`, matching Pandoc's native `SmallCaps`, `Underline`, and `Strikeout` shapes. WordPressBlockWriter renders those nodes as safe inline small-caps, underline, and deletion markup.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 117/0 with 910 assertions. The required repo-wide php tools/run-tests.php command was run on 2026-05-22 after this lane slice and passed with 139 test files, 12328 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "pending",
+    "latestCommit": "70a953c",
     "nextTask": "Map the next bounded non-table HTML reader slice from test/html-reader.html, with `<pre><code>` code block behavior as the best follow-up."
 }
