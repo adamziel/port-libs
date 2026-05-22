@@ -244,6 +244,41 @@ return [
         $t->same($tree->nodeHash($rightBranchNodeId), $tree->nodeHash($newChildren['rightNodeId']));
         $t->same('right-0', $tree->getKey(Key::fromHex('80' . str_repeat('00', 31))));
     },
+    'persisted tracked node store restores named heads and branch node ids' => static function (TestRunner $t): void {
+        $store = new TrackedNodeStore();
+        $published = (new TrackedSparseTree($store))->checkout('published');
+        $published->change()
+            ->putKey(Key::fromHex('00' . str_repeat('00', 31)), 'left-0')
+            ->putKey(Key::fromHex('40' . str_repeat('00', 31)), 'left-1')
+            ->putKey(Key::fromHex('80' . str_repeat('00', 31)), 'right-0')
+            ->putKey(Key::fromHex('c0' . str_repeat('00', 31)), 'right-1')
+            ->apply();
+
+        $publishedHeadNodeId = $published->headNodeId();
+        $publishedRoot = $published->rootHash();
+        $publishedChildren = $published->branchChildren($publishedHeadNodeId);
+        $rightBranchNodeId = $publishedChildren['rightNodeId'];
+
+        $restoredStore = TrackedNodeStore::fromSnapshot($store->exportSnapshot());
+        $restored = (new TrackedSparseTree($restoredStore))->checkout('published');
+
+        $t->same($publishedHeadNodeId, $restored->headNodeId());
+        $t->same($publishedRoot, $restored->rootHash());
+        $t->same($publishedChildren, $restored->branchChildren($restored->headNodeId()));
+        $t->same('left-0', $restored->getKey(Key::fromHex('00' . str_repeat('00', 31))));
+        $t->same('right-1', $restored->getKey(Key::fromHex('c0' . str_repeat('00', 31))));
+
+        $restored->putKey(Key::fromHex('00' . str_repeat('00', 31)), 'left-0-updated');
+        $updatedChildren = $restored->branchChildren($restored->headNodeId());
+
+        $t->true($restored->headNodeId() !== $publishedHeadNodeId);
+        $t->same($rightBranchNodeId, $updatedChildren['rightNodeId']);
+        $t->same('right-0', $restored->getKey(Key::fromHex('80' . str_repeat('00', 31))));
+
+        $badSnapshot = $store->exportSnapshot();
+        $badSnapshot['branches'][$publishedHeadNodeId]['rightNodeId'] = 123456789;
+        $t->throws(InvalidArgumentException::class, static fn () => TrackedNodeStore::fromSnapshot($badSnapshot));
+    },
     'tracked diffs emit upstream sync leaf node ids for changed added and deleted leaves' => static function (TestRunner $t): void {
         $local = new TrackedSparseTree();
         $local->change()
@@ -426,6 +461,38 @@ return [
         $t->same($addedPostNodeId, $diffsByKey[6]->nodeId);
         $t->same(DiffEntry::DELETED, $diffsByKey[4]->type);
         $t->true($remote->rootHash() !== $local->rootHash());
+    },
+    'wordpress published tracked snapshot reloads from persisted node store JSON' => static function (TestRunner $t): void {
+        $records = json_decode((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-ordered-snapshot.json'), true, flags: JSON_THROW_ON_ERROR);
+        $store = new TrackedNodeStore();
+        $published = (new TrackedSparseTree($store))->checkout('wp-published');
+        $changes = $published->change();
+
+        foreach ($records as $record) {
+            $changes->putKey(Key::fromInteger((int) $record['key']), (string) $record['value']);
+        }
+        $changes->apply();
+
+        $siteUrlNodeId = 0;
+        $t->same('wp_options:siteurl=https://example.test', $published->getKey(Key::fromInteger(1), $siteUrlNodeId));
+
+        $encodedSnapshot = json_encode($store->exportSnapshot(), JSON_THROW_ON_ERROR);
+        $restoredStore = TrackedNodeStore::fromSnapshot(json_decode($encodedSnapshot, true, flags: JSON_THROW_ON_ERROR));
+        $restored = (new TrackedSparseTree($restoredStore))->checkout('wp-published');
+        $restoredSiteUrlNodeId = 0;
+
+        $t->same($published->headNodeId(), $restored->headNodeId());
+        $t->same($published->rootHash(), $restored->rootHash());
+        $t->same('wp_options:siteurl=https://example.test', $restored->getKey(Key::fromInteger(1), $restoredSiteUrlNodeId));
+        $t->same($siteUrlNodeId, $restoredSiteUrlNodeId);
+        $t->same('wp_posts:1=Hello world', $restored->getKey(Key::fromInteger(3)));
+
+        $preview = $restored->withMemStoreWrites()->fork();
+        $preview->putKey(Key::fromInteger(3), 'wp_posts:1=Reloaded preview edit');
+
+        $t->true($preview->headNodeId() >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID);
+        $t->same('wp_posts:1=Hello world', $restored->getKey(Key::fromInteger(3)));
+        $t->same('wp_posts:1=Reloaded preview edit', $preview->getKey(Key::fromInteger(3)));
     },
 ];
 

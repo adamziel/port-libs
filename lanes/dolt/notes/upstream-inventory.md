@@ -81,6 +81,12 @@ Targeted upstream files inspected for the current native slice:
 - `go/libraries/doltcore/sqle/dtables/commits_table.go`: `dolt_commits` all-branch metadata row schema without log-only parents/refs/signature/order columns.
 - `go/libraries/doltcore/sqle/dtables/commit_ancestors_table.go`: `dolt_commit_ancestors` row shape (`commit_hash`, `parent_hash`, `parent_index`), root commit null-parent row, `ResolveAllParents` parent-index ordering, and commit-hash point lookup partitions.
 - `go/libraries/doltcore/sqle/enginetest/dolt_queries.go`: focused HistorySystemTable assertions for sorting `dolt_commit_ancestors`, commit_hash-filtered merge-parent rows, and joining parent hashes back to `dolt_log` messages.
+- `go/libraries/doltcore/sqle/dtables/branches_table.go`: `dolt_branches` / `dolt_remote_branches` schema, latest commit metadata columns, tracking remote/branch fields, dirty bit, remote-name prefixing, and name-index range filtering.
+- `go/libraries/doltcore/sqle/dtables/branch_activity_table.go`: `dolt_branch_activity` row schema, tracking-enabled error boundary, current-branch filtering, nullable last-read/write times, active session counts, and system-start time.
+- `go/libraries/doltcore/sqle/dfunctions/active_branch.go`: `active_branch()` current branch resolution, detached-head null handling, non-Dolt database null handling, and case-insensitive branch ref matching.
+- `go/libraries/doltcore/doltdb/branch_activity.go`: branch activity tracker behavior, read/write event recording, HEAD/stat/event-session ignore rules, current-branch filtering, and sorted branch rows.
+- `go/libraries/doltcore/sqle/enginetest/branch_activity_queries.go`: focused branch activity ScriptTests for all branches, branch creation write-only rows, AS OF read updates, checkout read activity, deleted branch filtering, cross-branch writes, and disabled tracking errors.
+- `integration-tests/bats/sql-branch.bats` and `integration-tests/bats/branch-activity.bats`: BATS coverage for `dolt_branches` inserts/copies/tracking metadata and SQL-server branch activity behavior.
 - `go/libraries/doltcore/sqle/dfunctions/has_ancestor.go`: `has_ancestor(reference, ancestor)` argument/type boundary, ref resolution, self-ancestor check, and commit-closure membership check.
 - `go/libraries/doltcore/doltdb/ancestor_spec.go`: `^`, `^N`, and `~N` ancestor suffix parsing and splitting from a commit spec.
 - `go/libraries/doltcore/doltdb/ancestor_spec_test.go`: 2 focused `Test*` functions for instruction parsing and commit-spec splitting.
@@ -105,7 +111,7 @@ Targeted upstream files inspected for the current native slice:
 
 ## Runner Status
 
-The full upstream runners were not executed for this lane slice, but bounded upstream Go package, Go engine, Dolt CLI build, and local BATS diff/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status/log/has_ancestor runners were executed after installing directly relevant tooling.
+The full upstream runners were not executed for this lane slice, but bounded upstream Go package, Go engine, Dolt CLI build, and local BATS diff/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status/log/commit-ancestor/has_ancestor/branch runners were executed after installing directly relevant tooling.
 
 - Tooling probes now return `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, and `expect version 5.45.4`.
 - Installed/probed commands used in this lane: `sudo -n dnf install -y golang bats` and `sudo -n dnf install -y expect`; resulting direct versions include `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, and `expect-5.45.4-31.fc44.x86_64`.
@@ -116,6 +122,8 @@ The full upstream runners were not executed for this lane slice, but bounded ups
 - Fresh has_ancestor runner refresh:
   - `env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test ./libraries/doltcore/doltdb -run 'Test(ParseInstructions|SplitAncestorSpec)$' -count=1 -timeout 5m`: pass in `0.049s`.
   - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltScripts/test has_ancestor$' -count=1 -timeout 10m`: pass in `0.354s`.
+- Fresh branch table/activity runner refresh:
+  - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(DoltBranchesSystemTable|DoltBranchesSystemTablePrepared|BranchActivity)$' -count=1 -timeout 20m`: pass in `10.400s`.
 - Bounded Go runner results:
   - `go test ./libraries/doltcore/diff -count=1 -timeout 5m`: pass.
   - `go test ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json -count=1 -timeout 5m`: pass.
@@ -220,9 +228,14 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - Native commit ancestor parent hashes can be joined back to `dolt_log` rows to recover parent commit messages in parent-index order.
 - Native `has_ancestor()` now resolves commit hashes, `HEAD`, branch refs, tag refs, full refs, and `^`, `^N`, and `~N` suffixes before traversing the commit parent closure.
 - Native ancestor-spec parsing maps upstream's `doltdb/ancestor_spec.go` grammar, including second-parent merge traversal and explicit errors for invalid merge-parent numbers.
+- Native `dolt_branches` rows now project upstream's local branch metadata shape, including latest committer/author metadata, tracking remote/branch fields, dirty state, and name-index range filtering.
+- Native `dolt_remote_branches` rows now prefix remote names with `remotes/` and omit local tracking/dirty fields.
+- Native `active_branch()` returns the matched branch name case-insensitively and returns null for detached or missing branch contexts.
+- Native `dolt_branch_activity` rows now include every current branch, filter deleted and `HEAD` activity, preserve nullable last-read/last-write times, and attach active session counts plus system-start time.
 - WordPress commit-log fixtures now cover an import/review branch merge with `HEAD -> main`, a review tag, side-branch refs, merge parents, and separate author/committer metadata for migration audit UIs.
 - WordPress commit-ancestors fixtures now cover the same reviewed import merge as `dolt_commit_ancestors` parent edges joined to parent log messages.
 - WordPress has-ancestor fixtures now cover reviewed import branch and tag containment checks, including media-import branch ancestry, `HEAD`, `^2`, and `~2` commit specs.
+- WordPress branch-review fixtures now cover active migration branches, dirty media-import work, active reviewer sessions, and branch activity timestamps for migration review queues.
 - WordPress fixtures now cover `wp_posts` row-level migration changes, `wp_posts` -> `wp_content_posts` table rename summaries, a plugin table schema-drift projection, skinny post-review diffs, filtered publish-impacting review rows, aggregate migration-review diff stats, ignore-aware generated-table summaries, ambiguous scratch/cache ignore-rule conflict reporting, a `wp_postmeta` primary-key-change warning scenario, a status-review queue that hides generated cache tables without shelling out to Dolt, schema-object history for migration views/triggers/events, and stored-procedure history for import/review routines.
 - WordPress commit-diff fixtures now cover a named import commit-to-commit `wp_posts` review window with an upstream-shaped `to_ID` range predicate.
 - WordPress merge-review fixtures now surface unresolved import branch state for `wp_posts`, `wp_postmeta`, `wp_options`, and a preview view, including the upstream distinction that constraint-only tables appear in `dolt_merge_status.unmerged_tables` but not in `dolt_conflicts` row counts.

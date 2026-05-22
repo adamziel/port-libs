@@ -22,6 +22,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_log` and `dolt_commits` commit metadata projection, including computed commit order, selected-head ancestry, refs decoration, and opt-in parents/signature columns.
 - Native `dolt_commit_ancestors` row projection, including root null-parent rows, merge parent indexes, commit_hash filtering that preserves both merge parents, and parent-hash joins back to `dolt_log` messages.
 - Native `has_ancestor()` commit graph checks, including branch/tag/full-ref/HEAD/hash resolution plus Dolt ancestor suffixes (`^`, `^N`, and `~N`).
+- Native `dolt_branches`, `dolt_remote_branches`, `active_branch()`, and `dolt_branch_activity` projection rows for branch metadata, current branch context, dirty branches, active sessions, and read/write activity timestamps.
 
 ## Scenario Fixtures
 
@@ -59,7 +60,9 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-commit-ancestors-review.php` returns merge parent hashes and parent-index-ordered log messages, so a migration UI can explain which branch each reviewed data checkpoint merged without shelling out to Dolt.
 - `fixtures/wp-has-ancestor-review.php` models branch/tag containment checks for the reviewed import merge, including whether `main` contains the media-import branch and whether `main^2` / `main~2` resolve to the expected review parents.
 - `examples/wordpress-has-ancestor-review.php` returns `has_ancestor` booleans and resolved commit specs, so a migration UI can gate promotion on branch ancestry without shelling out to Dolt.
+- `fixtures/wp-branch-review.php` models active WordPress migration branches, including an upstream-tracked main branch, a dirty media-import branch, a review-drafts branch, active reviewer session counts, and branch activity timestamps.
+- `examples/wordpress-branch-review.php` returns `dolt_branches` rows, `dolt_branch_activity` rows, the active branch, and a compact branch review queue so a migration UI can prioritize dirty or actively reviewed branches without shelling out to Dolt.
 
 ## Next Task
 
-Broaden branch history coverage with `dolt_branches` / branch activity table projections, or add revision-range filtering for native `dolt_log()`.
+Add revision-range filtering for native `dolt_log()` / `dolt_log()` table-function semantics.
