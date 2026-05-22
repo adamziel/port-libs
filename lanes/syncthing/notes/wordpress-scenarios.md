@@ -29,7 +29,14 @@ big-endian uncompressed-length prefix, the Syncthing 1.18.6 compatibility
 fixture decodes and re-encodes exactly, LZ4 post-auth frames decompress before
 protobuf decoding, compression is skipped below the 128-byte threshold, metadata
 mode leaves responses uncompressed, and incompressible payloads fall back to
-uncompressed frames. The upstream denominator is still a static inventory rather
+uncompressed frames. The control-message slice now maps focused upstream
+`proto/bep/bep.proto`, `protocol.go`, and `protocol_test.go` behavior for Ping
+and Close messages: Ping frames use an empty protobuf payload with BEP message
+type 6, Close frames preserve the reason string in protobuf field 1 with BEP
+message type 7, close reasons participate in the normal metadata compression
+decision path, and the static inventory counted eight upstream ping/close and
+close-race test functions without hydrating the full checkout. The upstream
+denominator is still a static inventory rather
 than runner parity, but this slice also counted 658 static Go test/benchmark
 entry points across 141 upstream `_test.go` files. The Index/IndexUpdate slice
 now maps focused upstream `bep_index_updates.go`, `bep_fileinfo.go`,
@@ -213,6 +220,9 @@ sequence, and frame type survive the wire boundary.
 media ClusterConfig through metadata compression and decodes it back, showing
 native LZ4 reduces repeated folder/device metadata while preserving the same
 BEP message type and protobuf payload semantics.
+`examples/wordpress-close-frame.php` emits a native BEP Close frame with a
+WordPress media maintenance reason and decodes it back so import tooling can
+notify a peer before intentionally disconnecting.
 `examples/wordpress-index-update-frame.php` sends a native BEP IndexUpdate for
 a WordPress media upload, preserving normalized wire paths, FileInfo sequence
 metadata, version counters, block hashes, and aggregate blocks_hash values

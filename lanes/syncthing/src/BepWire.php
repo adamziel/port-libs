@@ -171,6 +171,42 @@ final class BepWire
         return self::decodeDownloadProgressPayload($message['payload']);
     }
 
+    public static function encodePingMessage(int $compressionMode = Device::COMPRESSION_NEVER): string
+    {
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_PING,
+            '',
+            $compressionMode,
+        );
+    }
+
+    public static function decodePingMessage(string $frame): void
+    {
+        $message = self::decodeMessageFrame($frame);
+        if ($message['type'] !== self::MESSAGE_TYPE_PING) {
+            throw new \UnexpectedValueException('expected ping message');
+        }
+    }
+
+    public static function encodeCloseMessage(Close $close, int $compressionMode = Device::COMPRESSION_NEVER): string
+    {
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_CLOSE,
+            self::encodeClosePayload($close),
+            $compressionMode,
+        );
+    }
+
+    public static function decodeCloseMessage(string $frame): Close
+    {
+        $message = self::decodeMessageFrame($frame);
+        if ($message['type'] !== self::MESSAGE_TYPE_CLOSE) {
+            throw new \UnexpectedValueException('expected close message');
+        }
+
+        return self::decodeClosePayload($message['payload']);
+    }
+
     public static function encodeMessageFrame(int $messageType, string $payload, int $compression = self::MESSAGE_COMPRESSION_NONE): string
     {
         if ($messageType < self::MESSAGE_TYPE_CLUSTER_CONFIG || $messageType > self::MESSAGE_TYPE_CLOSE) {
@@ -649,6 +685,18 @@ final class BepWire
             blockIndexes: self::allIntValues($fields, 4),
             blockSize: self::lastIntOrZero($fields, 5),
         );
+    }
+
+    public static function encodeClosePayload(Close $close): string
+    {
+        return self::fieldBytes(1, $close->reason);
+    }
+
+    public static function decodeClosePayload(string $payload): Close
+    {
+        $fields = self::decodeFields($payload);
+
+        return new Close(reason: self::lastBytes($fields, 1));
     }
 
     public static function encodeFileInfoPayload(FileInfo $file): string

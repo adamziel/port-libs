@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Syncthing\BepWire;
 use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
+use PortLibs\Syncthing\Close;
 use PortLibs\Syncthing\ClusterConfig;
 use PortLibs\Syncthing\Device;
 use PortLibs\Syncthing\DownloadProgress;
@@ -159,6 +160,37 @@ return [
         $t->same(BepWire::MESSAGE_COMPRESSION_LZ4, $message['compression']);
         $t->same($payload, $message['payload']);
         $t->same($request->name, BepWire::decodeRequestMessage($frame)->name);
+    },
+    'maps upstream ping and close post-auth frames' => static function (TestRunner $t): void {
+        $ping = BepWire::encodePingMessage();
+        $t->same('0002080600000000', bin2hex($ping));
+        BepWire::decodePingMessage($ping);
+        $t->true(true);
+
+        $close = new Close('wordpress media sync paused for maintenance');
+        $payload = BepWire::encodeClosePayload($close);
+        $t->same('0a2b776f72647072657373206d656469612073796e632070617573656420666f72206d61696e74656e616e6365', bin2hex($payload));
+
+        $frame = BepWire::encodeCloseMessage($close);
+        $message = BepWire::decodeMessageFrame($frame);
+        $decoded = BepWire::decodeCloseMessage($frame);
+
+        $t->same(BepWire::MESSAGE_TYPE_CLOSE, $message['type']);
+        $t->same(BepWire::MESSAGE_COMPRESSION_NONE, $message['compression']);
+        $t->same($payload, $message['payload']);
+        $t->same($close->reason, $decoded->reason);
+    },
+    'maps compressed close frames and specific decode guards' => static function (TestRunner $t): void {
+        $reason = str_repeat('wordpress-import-clean-shutdown;', 40);
+        $frame = BepWire::encodeCloseMessage(new Close($reason), Device::COMPRESSION_ALWAYS);
+        $message = BepWire::decodeMessageFrame($frame);
+
+        $t->same(BepWire::MESSAGE_TYPE_CLOSE, $message['type']);
+        $t->same(BepWire::MESSAGE_COMPRESSION_LZ4, $message['compression']);
+        $t->same($reason, BepWire::decodeCloseMessage($frame)->reason);
+
+        $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodePingMessage($frame));
+        $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodeCloseMessage(BepWire::encodePingMessage()));
     },
     'maps cluster config folder and device protobuf fields' => static function (TestRunner $t): void {
         $config = new ClusterConfig([
