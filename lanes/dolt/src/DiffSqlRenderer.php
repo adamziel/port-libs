@@ -15,12 +15,24 @@ final class DiffSqlRenderer
      */
     public function render(string $tableName, TableSchema $schema, array $diffRows, array $options = []): string
     {
+        return implode("\n", $this->statements($tableName, $schema, $diffRows, $options));
+    }
+
+    /**
+     * Return one SQL patch statement per projected diff row.
+     *
+     * @param list<array<string, scalar|null>> $diffRows
+     * @param array{filter?:string|null} $options
+     * @return list<string>
+     */
+    public function statements(string $tableName, TableSchema $schema, array $diffRows, array $options = []): array
+    {
         if ($tableName === '') {
             throw new \InvalidArgumentException('Diff SQL table name must be a non-empty string.');
         }
 
         $filter = $this->normalizeFilter($options['filter'] ?? null);
-        $lines = [];
+        $statements = [];
         foreach ($diffRows as $row) {
             $diffType = $this->requiredDiffType($row['diff_type'] ?? null);
             if ($filter !== null && $diffType !== $filter) {
@@ -34,11 +46,11 @@ final class DiffSqlRenderer
             };
 
             if ($statement !== null) {
-                $lines[] = $statement;
+                $statements[] = $statement;
             }
         }
 
-        return implode("\n", $lines);
+        return $statements;
     }
 
     private function normalizeFilter(mixed $filter): ?string

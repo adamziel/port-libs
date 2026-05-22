@@ -17,6 +17,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt diff --stat -r json` rendering for machine-readable row/cell impact review, including successful empty output for unchanged requested tables and empty `stats` objects for schema-only no-row diffs.
 - Native keyless `dolt diff --stat` text and JSON rendering for duplicate/cardinality-based import logs where Dolt reports row inserts/deletes instead of modified cells.
 - Native keyless `dolt_diff()` row projection plus `dolt diff -r sql` and tabular rendering for duplicate/cardinality-based import logs, where duplicate count changes become repeated added/removed rows and SQL deletes predicate on every keyless column.
+- Native `dolt_patch()` row projection for schema/data SQL patch queues, including schema-before-data ordering, schema/data partition filters, focused CREATE/DROP/ALTER DDL, keyed INSERT/UPDATE/DELETE statements, and keyless duplicate-cardinality INSERT/DELETE statements.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -58,6 +59,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-diff-stat-cli.php` renders those counters as CLI-style `dolt diff --stat` text and compact `-r json` output for `wp_posts`, `wp_import_audit`, and a keyless `wp_import_log`, while showing that a requested `wp_posts` stat is not hidden by an earlier changed table and that schema-only `wp_options` changes report Dolt's no-data message or empty JSON `stats` object.
 - `fixtures/wp-keyless-import-log.php` models a keyless WordPress import log where duplicate scan/post rows change cardinality during a migration review.
 - `examples/wordpress-keyless-import-log-diff.php` renders that keyless import log as Dolt-shaped rows, `dolt diff -r sql`, and tabular `dolt diff` output, so duplicate audit events can be reviewed without inventing a synthetic primary key.
+- `fixtures/wp-patch-review.php` models a WordPress patch review where `wp_posts.post_status` is renamed, `import_batch` is added, post rows are updated/inserted, and a keyless import log gains a duplicate audit event.
+- `examples/wordpress-patch-review.php` returns native `dolt_patch()`-style rows split into all/schema/data queues, so a migration UI can preview DDL and data SQL patches without shelling out to Dolt.
 - `fixtures/wp-ignore-summary.php` models a migration workspace with generated scratch/cache tables that should be hidden by `dolt_ignore`, while `dolt_ignore`, review tables, and explicit false-pattern exceptions remain visible.
 - `examples/wordpress-ignore-summary.php` returns ignore-aware `dolt_diff_summary()` rows for that workspace, so a WordPress migration UI can focus on reviewable data changes instead of generated scratch tables.
 - `fixtures/wp-ignore-conflict.php` models a migration workspace where generated-table rules conflict: `wp_tmp_*` says ignore while `*_cache` says keep.
@@ -87,4 +90,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map `dolt_patch()` schema/data patch statement boundaries for WordPress migration review, including how keyless data statements and schema DDL are ordered.
+Next best slice: map broader `dolt_patch()` revision argument, dot-range, privilege, and error boundaries, including non-literal argument validation and table-not-found behavior.
