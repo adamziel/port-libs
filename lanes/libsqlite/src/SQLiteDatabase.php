@@ -233,6 +233,13 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForLengthPointLookup(string $tableName, string $columnName, int $length): ?int
+    {
+        $lookup = $this->indexLookupForLengthExpressionColumn($tableName, $columnName, $length);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForSubstringPointLookup(
         string $tableName,
         string $columnName,
@@ -498,6 +505,51 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForLengthExpressionColumn(
+        string $tableName,
+        string $columnName,
+        int $pointLookupValue,
+    ): ?array {
+        if ($pointLookupValue < 0) {
+            throw new \InvalidArgumentException('SQLite length expression index lookup length cannot be negative');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstLengthExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @return null|array{rootPage:int,collation:string,descending:bool,expression:SQLiteSubstringIndexExpression}
      */
     private function indexLookupForSubstringExpressionColumn(
@@ -506,8 +558,8 @@ final class SQLiteDatabase
         int $start,
         ?int $length,
     ): ?array {
-        if ($start < 1) {
-            throw new \InvalidArgumentException('SQLite substr expression index lookup start must be positive');
+        if ($start === 0) {
+            throw new \InvalidArgumentException('SQLite substr expression index lookup start cannot be zero');
         }
         if ($length !== null && $length < 0) {
             throw new \InvalidArgumentException('SQLite substr expression index lookup length cannot be negative');
@@ -868,6 +920,122 @@ final class SQLiteDatabase
                     $indexLookup['collation'],
                 ) === 0
             ) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameSuffix(string $suffix, ?int $limit = null): array
+    {
+        if ($suffix === '') {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix lookup requires a non-empty suffix');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $start = -self::sqliteLength($suffix);
+        $indexLookup = $this->indexLookupForSubstringExpressionColumn(
+            'wp_options',
+            'option_name',
+            $start,
+            null,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix expression index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $suffix,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (
+                self::compareSQLiteScalar(
+                    self::sqliteSubstring($option->optionName, $start, null),
+                    $suffix,
+                    $indexLookup['collation'],
+                ) === 0
+            ) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameLength(int $length, ?int $limit = null): array
+    {
+        if ($length < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options length(option_name) lookup length cannot be negative');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options length(option_name) lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForLengthExpressionColumn('wp_options', 'option_name', $length);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options length(option_name) expression index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $length,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::sqliteLength($option->optionName) === $length) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
                     break;
@@ -2597,19 +2765,43 @@ final class SQLiteDatabase
 
     private static function sqliteSubstring(string $value, int $start, ?int $length): string
     {
-        if ($start < 1) {
-            throw new \InvalidArgumentException('SQLite substr helper in this slice requires a positive start offset');
+        if ($start === 0) {
+            throw new \InvalidArgumentException('SQLite substr helper in this slice does not support zero start offsets');
         }
         if ($length !== null && $length < 0) {
             throw new \InvalidArgumentException('SQLite substr helper in this slice requires a non-negative length');
         }
 
-        $offset = $start - 1;
+        if (function_exists('mb_check_encoding') && function_exists('mb_substr') && mb_check_encoding($value, 'UTF-8')) {
+            $offset = $start > 0 ? $start - 1 : $start;
+            if ($length === null) {
+                return mb_substr($value, $offset, null, 'UTF-8');
+            }
+
+            return mb_substr($value, $offset, $length, 'UTF-8');
+        }
+
+        $offset = $start > 0 ? $start - 1 : $start;
         if ($length === null) {
             return substr($value, $offset);
         }
 
         return substr($value, $offset, $length);
+    }
+
+    private static function sqliteLength(string $value): int
+    {
+        if (function_exists('mb_check_encoding') && function_exists('mb_strlen') && mb_check_encoding($value, 'UTF-8')) {
+            return mb_strlen($value, 'UTF-8');
+        }
+        if (preg_match('//u', $value) === 1) {
+            $count = preg_match_all('/./us', $value);
+            if (is_int($count)) {
+                return $count;
+            }
+        }
+
+        return strlen($value);
     }
 
     private static function sqliteScalarRank(mixed $value): int

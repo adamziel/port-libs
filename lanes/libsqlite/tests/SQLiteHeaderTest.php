@@ -614,11 +614,28 @@ return [
         $t->same(null, $otherExpression);
         $t->same(null, $ordinaryColumn);
     },
+    'parses sqlite length expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
+        $lengthIndex = SQLiteCreateIndex::firstLengthExpression('CREATE INDEX idx_name_length ON wp_options(length(main.wp_options."option_name") DESC) WHERE option_name IS NOT NULL');
+        $constantExpression = SQLiteCreateIndex::firstLengthExpression("CREATE INDEX idx_constant ON wp_options(length('option_name'))");
+        $otherExpression = SQLiteCreateIndex::firstLengthExpression('CREATE INDEX idx_lower ON wp_options(lower(option_name))');
+        $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_name_length ON wp_options(length(option_name))');
+
+        $t->same('option_name', $lengthIndex?->columnName);
+        $t->same('BINARY', $lengthIndex?->collation);
+        $t->same(true, $lengthIndex?->descending);
+        $t->same(true, $lengthIndex?->partial);
+        $t->same('option_name', $lengthIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $lengthIndex?->partialPredicate?->operator);
+        $t->same(null, $constantExpression);
+        $t->same(null, $otherExpression);
+        $t->same(null, $ordinaryColumn);
+    },
     'parses sqlite substr expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $prefixIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_prefix ON wp_options(substr(main.wp_options."option_name", 1, 11) COLLATE nocase DESC) WHERE option_name IS NOT NULL');
         $tailIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_tail ON wp_options(substring(option_name, 2))');
+        $suffixIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_suffix ON wp_options(Substr(option_name, -9) COLLATE nocase DESC) WHERE option_name IS NOT NULL');
         $variableStart = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_variable ON wp_options(substr(option_name, option_id, 3))');
-        $negativeStart = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_negative ON wp_options(substr(option_name, -1, 3))');
+        $zeroStart = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_zero ON wp_options(substr(option_name, 0, 3))');
         $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_name_prefix ON wp_options(substr(option_name,1,11))');
 
         $t->same('option_name', $prefixIndex?->columnName);
@@ -632,8 +649,13 @@ return [
         $t->same('option_name', $tailIndex?->columnName);
         $t->same(2, $tailIndex?->start);
         $t->same(null, $tailIndex?->length);
+        $t->same('option_name', $suffixIndex?->columnName);
+        $t->same(-9, $suffixIndex?->start);
+        $t->same(null, $suffixIndex?->length);
+        $t->same('NOCASE', $suffixIndex?->collation);
+        $t->same(true, $suffixIndex?->descending);
         $t->same(null, $variableStart);
-        $t->same(null, $negativeStart);
+        $t->same(null, $zeroStart);
         $t->same(null, $ordinaryColumn);
     },
     'parses explicit sqlite composite index column metadata' => static function (TestRunner $t): void {
@@ -800,6 +822,38 @@ return [
         $t->same(null, $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('SITEURL'));
     },
+    'uses length expression index for wordpress option_name length buckets' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name_length', 'wp_options', 3, 'CREATE INDEX wp_options_option_name_length ON wp_options(length(option_name) DESC) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'cron', '1', 'no'], 3),
+            $schemaCell([null, null, 'draft option without name', 'no'], 4),
+            $schemaCell([null, 'café', 'unicode-name', 'no'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([7, 1]),
+            $indexCell([4, 2]),
+            $indexCell([4, 3]),
+            $indexCell([4, 5]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $shortNames = $database->wordpressOptionsByIndexedNameLength(4);
+        $limited = $database->wordpressOptionsByIndexedNameLength(4, 1);
+        $missing = $database->wordpressOptionsByIndexedNameLength(5);
+
+        $t->same(3, $database->indexRootPageForLengthPointLookup('wp_options', 'option_name', 4));
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $shortNames));
+        $t->same(['https://example.test/blog', '1', 'unicode-name'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $shortNames));
+        $t->same(['home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $missing);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLength(-1));
+    },
     'uses substr expression index for wordpress option_name prefix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
@@ -830,6 +884,37 @@ return [
         $t->same(['_Transient_Feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
         $t->same([], $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNamePrefix(''));
+    },
+    'uses negative-start substr expression index for wordpress option_name suffix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_name_suffix', 'wp_options', 3, 'CREATE INDEX wp_options_name_suffix ON wp_options(substr(option_name,-9) COLLATE NOCASE DESC) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'theme_settings', 'theme-payload', 'yes'], 1),
+            $schemaCell([null, 'plugin_SETTINGS', 'plugin-payload', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+            $schemaCell([null, null, 'draft option without name', 'no'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['siteurl', 3]),
+            $indexCell(['_settings', 1]),
+            $indexCell(['_SETTINGS', 2]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $settings = $database->wordpressOptionsByIndexedNameSuffix('_SETTINGS');
+        $limited = $database->wordpressOptionsByIndexedNameSuffix('_settings', 1);
+        $missing = $database->wordpressOptionsByIndexedNameSuffix('_controls');
+
+        $t->same(3, $database->indexRootPageForSubstringPointLookup('wp_options', 'option_name', -9, null, '_SETTINGS'));
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(['theme_settings', 'plugin_SETTINGS'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $settings));
+        $t->same(['theme-payload', 'plugin-payload'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $settings));
+        $t->same(['theme_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $missing);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameSuffix(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->indexRootPageForSubstringPointLookup('wp_options', 'option_name', 0, null, ''));
     },
     'uses lower expression index range for case folded wordpress option_name scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

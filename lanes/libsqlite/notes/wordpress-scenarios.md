@@ -71,13 +71,24 @@ ordinary `option_name` index assumptions. Only safe `option_name IS NOT NULL`
 partial predicates are accepted for expression ranges; raw comparison
 predicates are left unsupported because they are not implied by folded bounds.
 First-term `substr(option_name,start,length)` expression indexes are now
-parsed for positive integer start and length literals. A WordPress recovery
-tool can use a `substr(option_name,1,N)` expression index to read prefix
+parsed for non-zero integer start and optional non-negative length literals. A
+WordPress recovery tool can use a `substr(option_name,1,N)` expression index to read prefix
 buckets such as `_transient_` through native index traversal, including
 `COLLATE NOCASE` comparison and safe `option_name IS NOT NULL` partial
 predicate checks. This remains intentionally narrower than SQLite's full
-expression engine: variable-start substrings, negative offsets, expression
-`IN` lookups, and arbitrary functions are still future slices.
+expression engine: variable-start substrings, expression `IN` lookups, and
+arbitrary functions are still future slices. Negative literal starts are now
+accepted for suffix buckets such as `substr(option_name,-9)`: native recovery
+tools can inspect `*_settings` option groups through stored suffix keys,
+including `COLLATE NOCASE`/`DESC` metadata, without treating that expression
+index as a normal `option_name` column index.
+First-term `length(option_name)` expression indexes are now parsed for exact
+integer length bucket lookups. A WordPress audit or recovery tool can use a
+`length(option_name)` index to find suspiciously short, policy-sensitive, or
+known-length option-name groups without scanning the whole `wp_options` table.
+This slice accepts only safe `option_name IS NOT NULL` partial predicates and
+uses UTF-8 character length when text is decodable, matching SQLite's text
+length semantics for the current WordPress-oriented fixture boundary.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -196,6 +207,20 @@ whose name prefix equals the caller-supplied prefix. By default it targets the
 `_transient_` bucket, mapping cache/transient inspection from SQLite database
 images without requiring the PHP SQLite extension or a full table scan.
 
+`examples/wordpress-option-name-suffix.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term
+`wp_options(substr(option_name,-N))` expression index, and returns options
+whose name suffix equals the caller-supplied suffix. By default it targets
+`_settings`, mapping plugin/theme settings bucket inspection from database
+images without requiring the PHP SQLite extension or a full table scan.
+
+`examples/wordpress-option-name-length.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term `wp_options(length(option_name))`
+expression index, and returns options whose names have the requested length.
+By default it targets length `4`, mapping quick recovery checks for compact
+core options such as `home` or other policy-sensitive option-name buckets
+without requiring a full table scan.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
@@ -203,6 +228,7 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: expression indexes beyond `lower(column)` and positive-start
-`substr(column,...)`, custom collations, and composite-key ranges beyond one
+slice: expression indexes beyond `lower(column)`, literal-start
+`substr(column,...)`, and `length(column)` point buckets; expression
+`IN (...)` lookups; custom collations; and composite-key ranges beyond one
 equality prefix plus one range column.

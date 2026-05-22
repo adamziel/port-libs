@@ -53,6 +53,38 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstLengthExpression(string $sql): ?SQLiteIndexColumn
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $column = self::parseLengthExpressionColumn($term);
+        if ($column === null) {
+            return null;
+        }
+
+        return new SQLiteIndexColumn(
+            $column['name'],
+            $column['collation'],
+            $column['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     public static function firstSubstringExpression(string $sql): ?SQLiteSubstringIndexExpression
     {
         $index = self::indexedTermsAndTail($sql);
@@ -274,7 +306,7 @@ final class SQLiteCreateIndex
 
         $start = self::readIntegerOnlyLiteral($arguments[1]);
         $length = count($arguments) === 3 ? self::readIntegerOnlyLiteral($arguments[2]) : null;
-        if ($start === null || $start <= 0 || (count($arguments) === 3 && ($length === null || $length < 0))) {
+        if ($start === null || $start === 0 || (count($arguments) === 3 && ($length === null || $length < 0))) {
             return null;
         }
 
@@ -287,6 +319,49 @@ final class SQLiteCreateIndex
             'name' => $column[0],
             'start' => $start,
             'length' => $length,
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
+    /**
+     * @return null|array{name:string,collation:string,descending:bool}
+     */
+    private static function parseLengthExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $function = self::readIdentifier($term, 0);
+        if ($function === null || strcasecmp($function[0], 'length') !== 0) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $function[1]);
+        if (!isset($term[$offset]) || $term[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($term, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $argument = trim(substr($term, $offset + 1, $close - $offset - 1));
+        if ($argument === '' || $argument[0] === "'") {
+            return null;
+        }
+
+        $column = self::readPossiblyQualifiedIdentifier($argument, 0);
+        if ($column === null || trim(substr($argument, $column[1])) !== '') {
+            return null;
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $close + 1);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $column[0],
             'collation' => $modifiers['collation'],
             'descending' => $modifiers['descending'],
         ];

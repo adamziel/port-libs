@@ -831,12 +831,85 @@ Focused upstream fixture boundary:
 - `test/indexexpr2.test` covers `substr(a, 2) COLLATE NOCASE` expression
   index ordering and lookup behavior.
 
-The native PHP tests now cover parser rejection for variable/negative
-`substr()` starts, expression metadata for qualified and quoted column names,
-and a WordPress-shaped `wp_options(substr(option_name,1,11) COLLATE NOCASE)`
-index that returns `_transient_` option buckets without using the SQLite
-extension. The new `examples/wordpress-option-name-prefix.php` script maps
-transient/cache bucket inspection on hosts where only a database image is
-available. Remaining expression-index work includes variable-start
-`substr(a,b,3)`, expression `IN` lookups, `abs()`, `json_extract()`,
-arbitrary deterministic expressions, and custom collations.
+The native PHP tests now cover parser rejection for variable `substr()` starts,
+expression metadata for qualified and quoted column names, and a
+WordPress-shaped `wp_options(substr(option_name,1,11) COLLATE NOCASE)` index
+that returns `_transient_` option buckets without using the SQLite extension.
+The `examples/wordpress-option-name-prefix.php` script maps transient/cache
+bucket inspection on hosts where only a database image is available. Remaining
+expression-index work includes variable-start `substr(a,b,3)`, expression
+`IN` lookups, `abs()`, `json_extract()`, arbitrary deterministic expressions,
+and custom collations.
+
+## Focused Native Mapping: Negative-Start Substr Expression Index Suffix Buckets
+
+This slice extends the bounded `substr(column,...)` parser from positive
+literal starts to SQLite's negative-start expression-index shape. A first-term
+`substr(option_name,-N)` index stores the last `N` characters of each option
+name. The native PHP reader now preserves the negative start, rejects the
+unsupported zero start, and can use the stored suffix key with built-in
+collations before resolving the rowid tail through `wp_options`.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr2.test
+```
+
+Result: 1 Tcl script, 0 errors out of 127 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr2.test` creates `CREATE INDEX i4 ON t4( Substr(a,-2) COLLATE
+  nocase )` and verifies the planner can scan that expression index for
+  negative-start suffix ordering.
+- The same script covers nearby expression-index collation boundaries for
+  `substr(a, 2) COLLATE NOCASE`.
+
+The native PHP tests now cover parsing `Substr(option_name,-9) COLLATE NOCASE
+DESC`, rejecting start `0`, using a WordPress-shaped
+`wp_options(substr(option_name,-9) COLLATE NOCASE DESC)` index to find
+`*_settings` options case-insensitively, limit handling, and continuing to
+reject expression indexes as ordinary column indexes. The new
+`examples/wordpress-option-name-suffix.php` script maps plugin/theme settings
+bucket inspection when only a SQLite database image is available.
+
+## Focused Native Mapping: Length Expression Index Buckets
+
+This slice adds a second bounded scalar expression family beyond
+`lower(column)` and positive-start `substr(column,...)`: first-term
+`length(column)` expression indexes. The native PHP reader parses
+`CREATE INDEX ... ON wp_options(length(option_name))`, preserves `DESC`
+metadata, rejects the expression as an ordinary column index, and searches the
+stored integer expression key before resolving the rowid tail through the
+`wp_options` table b-tree. Partial expression indexes remain limited to the
+safe `option_name IS NOT NULL` predicate family for this slice.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test
+```
+
+Result: 1 Tcl script, 0 errors out of 107 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` creates `CREATE INDEX t1alen ON t1(length(a))` and
+  verifies the expression index can provide covering order for `length(a)`.
+- The same file covers expression-index matching boundaries and deterministic
+  function restrictions for nearby expression-index cases.
+
+The native PHP tests now cover parsing `length(option_name)` metadata with
+qualified/quoted column names, `DESC`, and safe `WHERE option_name IS NOT NULL`
+predicates; rejecting constant and unrelated expression terms; and a
+WordPress-shaped exact-length option-name bucket lookup that returns options
+such as `home`, `cron`, and UTF-8 text names using SQLite-style character
+length without scanning the whole table. The new
+`examples/wordpress-option-name-length.php` script maps recovery or audit tools
+that bucket suspicious, short, or policy-sensitive WordPress option names on
+hosts where the PHP SQLite extension is unavailable.
