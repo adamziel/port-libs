@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "rclone",
+    "estimatedProgress": 2,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 2,
+    "phpFail": 0,
+    "wordpressScenarios": "Portable backup/import/export sync for shared hosts and cloud storage providers.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native in-memory provider contract with object metadata, copy, list, and checksum sync plan.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "pending first repository commit",
+    "nextTask": "Map filter/checksum tests and add filesystem provider contract tests."
+}

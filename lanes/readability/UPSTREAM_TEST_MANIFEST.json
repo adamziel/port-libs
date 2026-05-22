@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "readability",
+    "priority": 5,
+    "upstream": {
+        "name": "mozilla/readability",
+        "url": "https://github.com/mozilla/readability",
+        "commit": "08be6b4bdb204dd333c9b7a0cfbc0e730b257252",
+        "license": "pending verification from upstream checkout",
+        "architecture": "DOM scoring/extraction with content cleanup and WordPress block-oriented rewriting."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 2,
+        "source": "Mozilla Readability fixture corpus; denominator pending upstream inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native DOM extractor removes chrome, scores content containers, and emits simple WordPress blocks."
+    },
+    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with link/media/page-builder cleanup.",
+    "nextTask": "Compare against Mozilla Readability fixture corpus and improve scoring/error behavior."
+}

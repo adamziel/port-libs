@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "LightningCSS",
+    "estimatedProgress": 3,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 3,
+    "phpFail": 0,
+    "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native CSS comment/whitespace minifier and declaration block parser.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "pending first repository commit",
+    "nextTask": "Broaden tokenizer fixtures and map Lightning CSS parser/minifier tests."
+}

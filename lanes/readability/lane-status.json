@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "Readability/content rewrite engine",
+    "estimatedProgress": 3,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 2,
+    "phpFail": 0,
+    "wordpressScenarios": "Migration-aware article cleanup into clean WordPress blocks with link/media/page-builder cleanup.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native DOM extractor removes chrome, scores content containers, and emits simple WordPress blocks.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "pending first repository commit",
+    "nextTask": "Compare against Mozilla Readability fixture corpus and improve scoring/error behavior."
+}

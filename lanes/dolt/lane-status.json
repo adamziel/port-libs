@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "dolt",
+    "estimatedProgress": 2,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 1,
+    "phpFail": 0,
+    "wordpressScenarios": "Versioned content/data migrations and inspectable database change sets.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native table diff classification by primary key.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "pending first repository commit",
+    "nextTask": "Map table-diff tests and add row schema/key encoding."
+}

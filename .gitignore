@@ -1,0 +1,6 @@
+.tmux-team/logs/
+.tmux-team/tmp/
+.upstream-cache/
+vendor/
+composer.lock
+

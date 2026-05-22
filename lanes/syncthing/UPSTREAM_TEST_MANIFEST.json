@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "syncthing",
+    "priority": 8,
+    "upstream": {
+        "name": "syncthing/syncthing",
+        "url": "https://github.com/syncthing/syncthing",
+        "commit": "3962a237232473c20a44945a6c8ce8c930375360",
+        "license": "pending verification from upstream checkout",
+        "architecture": "Go device/folder model, block exchange, conflict handling, protocol messages, and resumable sync."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 2,
+        "source": "Go package tests and integration tests; denominator pending upstream inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native content block hashing and verification primitives."
+    },
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders.",
+    "nextTask": "Map protocol tests and add block vector/update conflict fixtures."
+}
