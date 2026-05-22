@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Quadrable\DiffEntry;
 use PortLibs\Quadrable\Key;
+use PortLibs\Quadrable\Mt19937;
 use PortLibs\Quadrable\Proof;
 use PortLibs\Quadrable\SparseTree;
 use PortLibs\Quadrable\SyncCodec;
@@ -276,6 +277,81 @@ return [
             $t->same($remote->rootHash(), $reconstructed->rootHash(), 'reconstructed root mismatch on trial ' . $trial);
             $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs), 'scan diff mismatch on trial ' . $trial);
             $t->same(quadrableSyncNodeIdSignature($finalDiffs), quadrableSyncNodeIdSignature($scanDiffs), 'scan diff node id mismatch on trial ' . $trial);
+        }
+    },
+    'bounded upstream mt19937 sync fuzz converges with authenticated diff parity' => static function (TestRunner $t): void {
+        $vector = new Mt19937(0);
+        $t->same(2357136044, $vector->nextUint32());
+        $t->same(2546248239, $vector->nextUint32());
+        $t->same(3071714933, $vector->nextUint32());
+        $t->same(3626093760, $vector->nextUint32());
+        $t->same(2588848963, $vector->nextUint32());
+
+        $dimensions = new Mt19937(0);
+        $t->same(44, $dimensions->nextModulo(800));
+        $t->same(39, $dimensions->nextModulo(200));
+
+        $rng = new Mt19937(0);
+        for ($trial = 0; $trial < 2; $trial++) {
+            $seed = new SparseTree();
+            $changes = $seed->change();
+            $numElems = $rng->nextModulo(800);
+            $maxElem = 1000;
+            $numAlterations = $rng->nextModulo(200);
+
+            for ($i = 0; $i < $numElems; $i++) {
+                $number = $rng->nextModulo($maxElem);
+                $changes->putKey(
+                    Key::fromInteger($number),
+                    (string) $number . str_repeat('A', $rng->nextModulo(60))
+                );
+            }
+            $changes->apply();
+
+            $local = clone $seed;
+            $remote = clone $seed;
+            $remoteChanges = $remote->change();
+
+            for ($i = 0; $i < $numAlterations; $i++) {
+                $number = $rng->nextModulo($maxElem);
+                if ($rng->nextModulo(2) === 0) {
+                    $remoteChanges->putKey(Key::fromInteger($number), (string) $number . ' new');
+                } else {
+                    $remoteChanges->deleteKey(Key::fromInteger($number));
+                }
+            }
+            $remoteChanges->apply();
+
+            $session = new SyncSession($local);
+            $scanDiffs = [];
+            $converged = false;
+
+            for ($roundTrips = 0; $roundTrips < 200; $roundTrips++) {
+                $requests = SyncCodec::decodeRequests(SyncCodec::encodeRequests($session->getRequests(
+                    $rng->nextModulo(1000) + 100,
+                    static function (DiffEntry $diff) use (&$scanDiffs): void {
+                        $scanDiffs[] = $diff;
+                    }
+                )));
+                if ($requests === []) {
+                    $converged = true;
+                    break;
+                }
+
+                $responses = SyncCodec::decodeResponses(SyncCodec::encodeResponses($remote->handleSyncRequests($requests, $rng->nextModulo(10000) + 2000)));
+                $session->addResponses($requests, $responses);
+            }
+
+            $t->true($converged, 'upstream-shaped sync fuzz trial did not converge: ' . $trial);
+            $shadow = $session->shadow();
+            $finalDiffs = $local->diffTo($shadow);
+            $reconstructed = clone $local;
+            $reconstructed->applyDiffs($finalDiffs);
+
+            $t->same($remote->rootHash(), $shadow->rootHash(), 'shadow root mismatch on upstream-shaped trial ' . $trial);
+            $t->same($remote->rootHash(), $reconstructed->rootHash(), 'reconstructed root mismatch on upstream-shaped trial ' . $trial);
+            $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs), 'scan diff mismatch on upstream-shaped trial ' . $trial);
+            $t->same(quadrableSyncNodeIdSignature($finalDiffs), quadrableSyncNodeIdSignature($scanDiffs), 'scan diff node id mismatch on upstream-shaped trial ' . $trial);
         }
     },
 ];

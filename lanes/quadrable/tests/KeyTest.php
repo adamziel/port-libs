@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use PortLibs\Quadrable\Blake2s;
 use PortLibs\Quadrable\Key;
+use PortLibs\Quadrable\SparseTree;
 
 return [
     'integer keys round-trip across upstream boundary examples' => static function (TestRunner $t): void {
@@ -12,6 +14,53 @@ return [
     },
     'integer key zero encodes as the null key' => static function (TestRunner $t): void {
         $t->same(str_repeat('0', 64), Key::fromInteger(0)->hex());
+    },
+    'integer keys support upstream truncated hash suffixes for wordpress meta rows' => static function (TestRunner $t): void {
+        $base = Key::fromInteger(42);
+        $suffix23 = substr(Blake2s::hash('wp_postmeta:_thumbnail_id'), -23);
+        $key = Key::fromIntegerAndHash(42, $suffix23);
+
+        $t->same(substr($base->bytes(), 0, 9) . $suffix23, $key->bytes());
+        $t->same($key->hex(), Key::fromIntegerAndHash(42, $suffix23)->hex());
+
+        $suffix31 = str_repeat("\x7a", 31);
+        $wide = Key::fromIntegerAndHash(42, $suffix31);
+        $t->same(substr($base->bytes(), 0, 1) . $suffix31, $wide->bytes());
+
+        $t->throws(InvalidArgumentException::class, static fn () => Key::fromIntegerAndHash(42, str_repeat('a', 22)));
+        $t->throws(InvalidArgumentException::class, static fn () => Key::fromIntegerAndHash(42, str_repeat('a', 32)));
+
+        $metaKey = static fn (int $postId, string $metaKey): Key => Key::fromIntegerAndHash(
+            $postId,
+            substr(Blake2s::hash($metaKey), -23)
+        );
+
+        $tree = new SparseTree();
+        $tree->change()
+            ->putKey($metaKey(42, '_thumbnail_id'), 'wp_postmeta:42:_thumbnail_id=7')
+            ->putKey($metaKey(42, '_edit_lock'), 'wp_postmeta:42:_edit_lock=1716400000')
+            ->putKey($metaKey(42, '_wp_page_template'), 'wp_postmeta:42:_wp_page_template=templates/full-width.html')
+            ->putKey($metaKey(43, '_thumbnail_id'), 'wp_postmeta:43:_thumbnail_id=8')
+            ->apply();
+
+        $prefix42 = substr(Key::fromInteger(42)->bytes(), 0, 9);
+        $values = [];
+        for ($iterator = $tree->iterate(Key::fromIntegerAndHash(42, str_repeat("\0", 23))); !$iterator->atEnd(); $iterator->next()) {
+            $entry = $iterator->get();
+            $t->true($entry !== null);
+            if (substr($entry->key()->bytes(), 0, 9) !== $prefix42) {
+                break;
+            }
+
+            $values[] = $entry->value();
+        }
+
+        sort($values, SORT_STRING);
+        $t->same([
+            'wp_postmeta:42:_edit_lock=1716400000',
+            'wp_postmeta:42:_thumbnail_id=7',
+            'wp_postmeta:42:_wp_page_template=templates/full-width.html',
+        ], $values);
     },
     'key bit access follows most significant bit order' => static function (TestRunner $t): void {
         $key = Key::null();
@@ -32,4 +81,3 @@ return [
         $t->throws(RuntimeException::class, static fn () => $key->toInteger());
     },
 ];
-

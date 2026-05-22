@@ -59,6 +59,19 @@ final class Key
         return $key;
     }
 
+    public static function fromIntegerAndHash(int $number, string $hash): self
+    {
+        $hashLength = strlen($hash);
+        if ($hashLength < 23 || $hashLength > 31) {
+            throw new \InvalidArgumentException('truncated hash should be 23-31 bytes');
+        }
+
+        $key = self::fromInteger($number);
+        $key->bytes = substr($key->bytes, 0, self::BYTE_LENGTH - $hashLength) . $hash;
+
+        return $key;
+    }
+
     public function toInteger(): int
     {
         for ($i = 16; $i < self::BYTE_LENGTH; $i++) {

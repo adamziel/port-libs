@@ -1399,6 +1399,46 @@ final class SparseTree
             return;
         }
 
+        if ($ours['type'] === 'branch' && $this->isPartialLeaf($theirs)) {
+            $empty = $this->emptyPartialNode($ours['depth'] + 1);
+            if ($this->hashTree->bitAt($theirs['keyHash'], $ours['depth']) === 0) {
+                $this->diffNodeToPartial($ours['left'], $theirs, $diffs);
+                $this->diffNodeToPartial($ours['right'], $empty, $diffs);
+            } else {
+                $this->diffNodeToPartial($ours['left'], $empty, $diffs);
+                $this->diffNodeToPartial($ours['right'], $theirs, $diffs);
+            }
+
+            return;
+        }
+
+        if ($this->isPartialLeaf($ours) && $theirs['type'] === 'branch') {
+            $empty = $this->emptyPartialNode($theirs['depth'] + 1);
+            if ($this->hashTree->bitAt($ours['keyHash'], $theirs['depth']) === 0) {
+                $this->diffNodeToPartial($ours, $theirs['left'], $diffs);
+                $this->diffNodeToPartial($empty, $theirs['right'], $diffs);
+            } else {
+                $this->diffNodeToPartial($empty, $theirs['left'], $diffs);
+                $this->diffNodeToPartial($ours, $theirs['right'], $diffs);
+            }
+
+            return;
+        }
+
+        if ($ours['type'] === 'branch' && $theirs['type'] === 'empty') {
+            $empty = $this->emptyPartialNode($ours['depth'] + 1);
+            $this->diffNodeToPartial($ours['left'], $empty, $diffs);
+            $this->diffNodeToPartial($ours['right'], $empty, $diffs);
+            return;
+        }
+
+        if ($ours['type'] === 'empty' && $theirs['type'] === 'branch') {
+            $empty = $this->emptyPartialNode($theirs['depth'] + 1);
+            $this->diffNodeToPartial($empty, $theirs['left'], $diffs);
+            $this->diffNodeToPartial($empty, $theirs['right'], $diffs);
+            return;
+        }
+
         $this->appendLeafRecordDiffs(
             $this->leafRecordMapFromNode($ours),
             $this->leafRecordMapFromNode($theirs),
