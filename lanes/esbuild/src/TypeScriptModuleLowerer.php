@@ -85,6 +85,7 @@ final class TypeScriptModuleLowerer
 
             $end = $this->findStatementEndForLowering($i);
             $effectiveEnd = $this->withoutTrailingSemicolon($end);
+            $this->validateForUsingStatement($i, $effectiveEnd);
 
             $functionUsingStatement = $this->lowerFunctionBodyUsingStatementAt($i, $effectiveEnd);
             if ($functionUsingStatement !== null) {
@@ -3430,6 +3431,7 @@ final class TypeScriptModuleLowerer
             }
 
             $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
+            $this->validateForUsingStatement($cursor, $this->withoutTrailingSemicolon($statementEnd));
             if ($this->isUsingDeclarationStart($cursor)) {
                 $using = $this->parseUsingDeclaration($cursor, $this->withoutTrailingSemicolon($statementEnd));
                 if ($using['await'] && !$isAsyncFunction) {
@@ -3476,6 +3478,107 @@ final class TypeScriptModuleLowerer
         }
 
         return max($start, $bodyClose - 1);
+    }
+
+    private function validateForUsingStatement(int $start, int $end): void
+    {
+        if (($this->tokens[$start] ?? null)?->text !== 'for') {
+            return;
+        }
+
+        $open = null;
+        if (($this->tokens[$start + 1] ?? null)?->text === '(') {
+            $open = $start + 1;
+        } elseif (($this->tokens[$start + 1] ?? null)?->text === 'await'
+            && ($this->tokens[$start + 2] ?? null)?->text === '('
+        ) {
+            $open = $start + 2;
+        }
+        if ($open === null || $open > $end) {
+            return;
+        }
+
+        $close = $this->findMatchingPunctuator($open, '(', ')');
+        if ($close > $end || $open + 1 >= $close) {
+            return;
+        }
+
+        $isAwaitUsing = false;
+        $using = $open + 1;
+        if (($this->tokens[$using] ?? null)?->text === 'await'
+            && ($this->tokens[$using + 1] ?? null)?->text === 'using'
+            && !$this->hasLineBreakBetween($using, $using + 1)
+        ) {
+            $isAwaitUsing = true;
+            $using++;
+        }
+
+        if (($this->tokens[$using] ?? null)?->text !== 'using') {
+            return;
+        }
+
+        $name = $this->tokens[$using + 1] ?? null;
+        if ($name?->kind !== 'identifier' || $name->text === 'of' || $name->text === 'in') {
+            return;
+        }
+        if ($this->hasLineBreakBetween($using, $using + 1)) {
+            throw new \InvalidArgumentException('Expected loop variable after TypeScript using declaration');
+        }
+
+        $depth = 0;
+        $of = null;
+        $in = null;
+        $semicolon = null;
+        $initializer = null;
+        for ($i = $using + 2; $i < $close; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if ($text === 'of') {
+                $of = $i;
+                break;
+            }
+            if ($text === 'in') {
+                $in = $i;
+                break;
+            }
+            if ($text === ';') {
+                $semicolon = $i;
+                break;
+            }
+            if ($text === '=' && $initializer === null) {
+                $initializer = $i;
+            }
+        }
+
+        if ($in !== null) {
+            throw new \InvalidArgumentException(($isAwaitUsing ? '"await using"' : '"using"') . ' declarations are not allowed here');
+        }
+
+        if ($of !== null) {
+            if ($initializer !== null && $initializer < $of) {
+                throw new \InvalidArgumentException('for-of loop variables cannot have an initializer');
+            }
+
+            return;
+        }
+
+        if ($isAwaitUsing) {
+            throw new \InvalidArgumentException('"await using" declarations are not allowed here');
+        }
+
+        if ($semicolon !== null && $initializer === null) {
+            throw new \InvalidArgumentException('The declaration "' . $name->text . '" must be initialized');
+        }
     }
 
     private function containsInlineableEnumReference(int $start, int $end): bool
@@ -3539,10 +3642,41 @@ final class TypeScriptModuleLowerer
     private function typeAnnotationStopTokens(int $colonIndex, int $statementStart): array
     {
         $previous = $this->previousSignificantTokenIndex($colonIndex - 1);
+        if ($this->isForHeaderTypeAnnotationColon($colonIndex, $statementStart)) {
+            return ['=', ',', ')', ';', 'of', 'in'];
+        }
 
         return $previous !== null && ($this->tokens[$previous] ?? null)?->text === ')'
             ? ['=', ',', ')', '{', '=>', ';']
             : ['=', ',', ')', ';'];
+    }
+
+    private function isForHeaderTypeAnnotationColon(int $colonIndex, int $statementStart): bool
+    {
+        $open = $this->enclosingOpenPunctuator($colonIndex, '(', ')', $statementStart);
+        if ($open === null) {
+            return false;
+        }
+
+        $before = $this->previousSignificantTokenIndex($open - 1);
+        if ($before === null) {
+            return false;
+        }
+        if (($this->tokens[$before] ?? null)?->text === 'await') {
+            $before = $this->previousSignificantTokenIndex($before - 1);
+        }
+        if ($before === null || ($this->tokens[$before] ?? null)?->text !== 'for') {
+            return false;
+        }
+
+        for ($i = $open + 1; $i < $colonIndex; $i++) {
+            $text = ($this->tokens[$i] ?? null)?->text;
+            if ($text === 'using') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

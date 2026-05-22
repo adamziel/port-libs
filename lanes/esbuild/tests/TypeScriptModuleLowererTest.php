@@ -245,6 +245,19 @@ JS . "\n", $lowerer->lower('foo = async () => { await using x: Disposable = y }'
 
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('function foo() { await using x: Disposable = y }'));
     },
+    'lowers upstream for using declarations with erased types' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same("for(using x of y)body(x);\n", $lowerer->lower('for (using x: Disposable of y) body(x)'));
+        $t->same("for await(using asset of assets)register(asset);\n", $lowerer->lower('for await (using asset: Disposable of assets) register(asset)'));
+        $t->same("for(await using x of y)body(x);\n", $lowerer->lower('for (await using x: AsyncDisposable of y) body(x)'));
+        $t->same("for await(await using x of y)body(x);\n", $lowerer->lower('for await (await using x: AsyncDisposable of y) body(x)'));
+        $t->same("for(using x = y;;)body(x);\n", $lowerer->lower('for (using x: Disposable = y;;) body(x)'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('for (using x: Disposable in y) body(x)'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('for (await using x: AsyncDisposable = y;;) body(x)'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('for (using x: Disposable = y of z) body(x)'));
+    },
     'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1096,5 +1109,17 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));
+    },
+    'lowers wordpress for using asset loops without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-for-using-assets.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('for(using asset of collectBlockAssets(metadata))', $lowered);
+        $t->contains('registerAsset(asset.handle, asset.url);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'satisfies'));
     },
 ];
