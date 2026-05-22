@@ -1,17 +1,17 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, the dirty worktree, bridge/shell-out usage, and recent Git history through `186a19a` (`Advance difftastic structural diff slices`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, the dirty worktree, bridge/shell-out usage, and recent Git history through `3317fd3` (`Stamp quadrable lane status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
 ## Findings
 
 1. **Critical - `porting.html` and `porting-summary.json` are stale enough to be misleading.**
    - Paths: `porting.html:30`, `porting.html:32`, `porting.html:40`, `porting.html:43`, `porting.html:53-64`, `porting-summary.json`.
-   - Evidence: the dashboard was generated at `2026-05-22 15:40:20 UTC` and still reports average progress `14.3%`. Current manifests/status files report newer mapped counts than the dashboard for every lane: difftastic `29` vs `15`, Dolt `26` vs `5`, esbuild `31` vs `16`, Gitoxide `787` vs `737`, libsqlite `33` vs `18`, LightningCSS `108` vs `78`, markerPDF `30` vs `11`, Pandoc `40 / 2028` vs `19 / 1979`, Quadrable `38` vs `24`, rclone `36` vs `20`, Readability `155` vs `89`, and Syncthing `45` vs `27`.
+   - Evidence: the dashboard was generated at `2026-05-22 15:40:20 UTC` and still reports average progress `14.3%`. Current manifests/status files report newer mapped counts than the dashboard for every lane: difftastic `29` vs `15`, Dolt `26` vs `5`, esbuild `33` vs `16`, Gitoxide `787` vs `737`, libsqlite `33` vs `18`, LightningCSS `117` vs `78`, markerPDF `30` vs `11`, Pandoc `40 / 2028` vs `19 / 1979`, Quadrable `40` vs `24`, rclone `38` vs `20`, Readability `155` vs `89`, and Syncthing `45` vs `27`.
    - Goal requirement at risk: `goal.md` requires `porting.html` to show accurate per-lane suite progress, benchmark source, upstream denominator, mapped tests, PHP pass/fail, WordPress scenarios, phase, audit, current work, blocker, and commit.
    - Audit judgment: regenerate the dashboard only after the dirty lane batches are integrated or rejected from one committed state. Also split `mapped`, PHP behavior tests, and assertions instead of compressing them into one `Mapped` column.
 
 2. **Critical - the repository is still a moving, dirty integration target.**
-   - Paths: current `git status --short`, `progress.md:31-42`, `progress.md:229-231`, recent commits `5124ea3`, `d49dd22`, `ad9cf96`, `ceac8c1`, `5615e1a`, `4f4ddba`, `7fed5a7`, `44b675b`, `fff053f`, `373c77f`, `2d36c65`, and `186a19a`.
+   - Paths: current `git status --short`, `progress.md:31-42`, `progress.md:229-231`, recent commits `5124ea3`, `d49dd22`, `ad9cf96`, `ceac8c1`, `5615e1a`, `4f4ddba`, `7fed5a7`, `44b675b`, `fff053f`, `373c77f`, `2d36c65`, `186a19a`, `b603470`, `ad041d3`, `1742935`, `8a8fe79`, `022f23b`, and `3317fd3`.
    - Evidence: recent history advanced during the audit window beyond the prior `0b5b6a6` audit snapshot, while the worktree still contains dirty implementation/status/dashboard changes across difftastic, esbuild, Gitoxide, libsqlite, Readability, Syncthing, `porting.html`, `porting-summary.json`, and untracked audit/lane files. The Active Lanes table still shows all lanes as `stopped` with older phases and estimates.
    - Goal requirement at risk: `goal.md` requires the supervisor to verify finished agent work, commit small passing slices, update progress, clean accidental unrelated changes, and keep the roadmap honest.
    - Audit judgment: no additional feature slice should be treated as progress until the current dirty batches are reviewed, either committed or rejected, and represented by regenerated coordination outputs.
@@ -24,7 +24,7 @@ Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`
 
 4. **High - PHP pass/fail units remain mixed and are not dashboard-safe.**
    - Paths: `porting.html:43`, `porting.html:56`, `porting.html:58`, `lanes/gitoxide/lane-status.json:6`, `lanes/lightningcss/lane-status.json:6`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:92`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:137`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:194`.
-   - Evidence: Gitoxide reports `phpPass: 1342`, which is an assertion count, not a behavior-test count. LightningCSS reports `174` similarly. Other lanes record behavior-test counts such as rclone `36`, Dolt `26`, and Readability `21`, while Readability separately maps `146` checks. The dashboard labels all of these as `pass / fail`.
+   - Evidence: Gitoxide reports `phpPass: 1342`, which is an assertion count, not a behavior-test count. LightningCSS reports `174` similarly. Other lanes record behavior-test counts such as rclone `36`, Dolt `26`, and Readability `22`, while Readability separately maps `155` checks. The dashboard labels all of these as `pass / fail`.
    - Goal requirement at risk: `goal.md` requires per-lane PHP pass/fail counts that can be compared honestly.
    - Audit judgment: add separate schema fields for PHP test files, behavior tests, assertions, and failures; do not label assertion totals as pass counts.
 
