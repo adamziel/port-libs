@@ -52,6 +52,7 @@ final class FileInfo
         public readonly ?string $unixGroupName = null,
         public readonly ?int $unixUid = null,
         public readonly ?int $unixGid = null,
+        public readonly int $modifiedBy = 0,
     ) {
         if (
             $this->modifiedS < 0
@@ -61,6 +62,7 @@ final class FileInfo
             || $this->permissions < 0
             || $this->rawBlockSize < 0
             || $this->sequence < 0
+            || $this->modifiedBy < 0
         ) {
             throw new \InvalidArgumentException('FileInfo numeric fields must not be negative');
         }
@@ -113,6 +115,7 @@ final class FileInfo
             unixGroupName: $this->unixGroupName,
             unixUid: $this->unixUid,
             unixGid: $this->unixGid,
+            modifiedBy: $this->modifiedBy,
         );
     }
 
@@ -257,6 +260,7 @@ final class FileInfo
             unixGroupName: $this->unixGroupName,
             unixUid: $this->unixUid,
             unixGid: $this->unixGid,
+            modifiedBy: $deviceId,
         );
     }
 

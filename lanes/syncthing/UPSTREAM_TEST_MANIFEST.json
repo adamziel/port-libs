@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 39,
+        "mapped": 42,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
@@ -54,6 +54,8 @@
             "targetCompressionDecisionMethods": 3,
             "targetClusterConfigStructs": 3,
             "targetClusterConfigWireConversionMethods": 6,
+            "targetIndexFileInfoWireMethods": 10,
+            "targetFileInfoProtoFieldsMapped": 18,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -93,6 +95,10 @@
                 {
                     "command": "targeted git show reads of 141 `_test.go` files plus lib/protocol/bep_clusterconfig.go and proto/bep/bep.proto",
                     "result": "counted 658 static Go test/benchmark entry points and inspected ClusterConfig/Folder/Device protobuf field mappings without hydrating the full checkout"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/bep_index_updates.go, lib/protocol/bep_fileinfo.go, lib/protocol/vector.go, and proto/bep/bep.proto",
+                    "result": "inspected Index/IndexUpdate toWire/fromWire conversion, FileInfo ToWire invalid/local_flags behavior, BlockInfo field mapping, Vector/Counter wire mapping, and Unix PlatformData field numbers without hydrating the full checkout"
                 }
             ]
         },
@@ -134,15 +140,20 @@
             "Raw LZ4 BEP payload blocks use the upstream big-endian uncompressed-length prefix and decode the Syncthing 1.18.6 compatibility fixture from `TestLZ4CompressionUpdate`.",
             "Native LZ4 compression emits the same literal-only compatibility fixture for short data and round-trips compressed post-auth message payloads without shelling out.",
             "Compressed post-auth BEP frames decode header compression `MESSAGE_COMPRESSION_LZ4`, decompress the message payload, and then reuse the existing Request/Response/ClusterConfig protobuf decoders.",
-            "Compression mode decisions follow upstream thresholds: messages below 128 bytes remain uncompressed, metadata mode does not compress responses, and compression falls back to uncompressed output when the LZ4 block cannot save at least one thirty-second of the payload."
+            "Compression mode decisions follow upstream thresholds: messages below 128 bytes remain uncompressed, metadata mode does not compress responses, and compression falls back to uncompressed output when the LZ4 block cannot save at least one thirty-second of the payload.",
+            "Index protobuf payloads preserve folder, repeated FileInfo entries, and last_sequence, and use upstream `MESSAGE_TYPE_INDEX` post-auth frames.",
+            "IndexUpdate protobuf payloads preserve folder, repeated FileInfo entries, last_sequence, prev_sequence, and upstream `MESSAGE_TYPE_INDEX_UPDATE` post-auth frames.",
+            "FileInfo protobuf payloads preserve name, type, size, permissions, modified time, modified_by, version, sequence, raw block size, symlink target, deleted, no_permissions, blocks_hash, and previous_blocks_hash fields.",
+            "FileInfo wire invalidity follows upstream ToWire/FromWire behavior: outgoing local invalid flags become the protocol invalid bool, internal local_flags are not sent, and incoming invalid files become remote-invalid local entries.",
+            "BlockInfo, Vector, Counter, and Unix PlatformData payloads preserve upstream field numbers for block offsets/sizes/hashes, sorted version counters, and owner/group UID/GID metadata."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 39 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 42 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, and uncompressed plus LZ4-compressed post-auth frame handling."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, and Index/IndexUpdate FileInfo protobuf payloads with blocks, version counters, invalid/no-permission flags, hashes, modified_by, and Unix platform ownership."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, and compressing repeated WordPress folder/device metadata with native LZ4 frames.",
-    "nextTask": "Port native Index/IndexUpdate FileInfo protobuf payloads, including block info, version vector counters, deleted/invalid/no-permission flags, and blocks_hash fields from focused upstream `bep_index_updates.go`, `bep_fileinfo.go`, and `proto/bep/bep.proto` behavior."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, and sending a WordPress media IndexUpdate frame with FileInfo block hashes, version counters, and sequence metadata.",
+    "nextTask": "Port native DownloadProgress append/forget payloads and frames from focused upstream `proto/bep/bep.proto` and protocol inbox handling, including version vectors, block indexes, and block size fields for resumable WordPress media transfers."
 }

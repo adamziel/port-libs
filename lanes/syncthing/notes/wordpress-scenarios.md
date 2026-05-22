@@ -31,7 +31,14 @@ protobuf decoding, compression is skipped below the 128-byte threshold, metadata
 mode leaves responses uncompressed, and incompressible payloads fall back to
 uncompressed frames. The upstream denominator is still a static inventory rather
 than runner parity, but this slice also counted 658 static Go test/benchmark
-entry points across 141 upstream `_test.go` files.
+entry points across 141 upstream `_test.go` files. The Index/IndexUpdate slice
+now maps focused upstream `bep_index_updates.go`, `bep_fileinfo.go`,
+`vector.go`, and `proto/bep/bep.proto` behavior: Index and IndexUpdate frame
+types, repeated FileInfo payloads, last/previous sequence fields, block
+offset/size/hash payloads, sorted version vector counters, invalid flag
+projection from local flags, no-permission and deleted bits, modified_by, raw
+block size, symlink targets, blocks_hash and previous_blocks_hash, and Unix
+owner/group UID/GID platform data.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -57,10 +64,14 @@ sequence, and frame type survive the wire boundary.
 media ClusterConfig through metadata compression and decodes it back, showing
 native LZ4 reduces repeated folder/device metadata while preserving the same
 BEP message type and protobuf payload semantics.
+`examples/wordpress-index-update-frame.php` sends a native BEP IndexUpdate for
+a WordPress media upload, preserving normalized wire paths, FileInfo sequence
+metadata, version counters, block hashes, and aggregate blocks_hash values
+across the protobuf and post-auth frame boundary.
 
 ## Next Task
 
-Port native Index/IndexUpdate FileInfo protobuf payloads, including block info,
-version vector counters, deleted/invalid/no-permission flags, and blocks_hash
-fields from focused upstream `bep_index_updates.go`, `bep_fileinfo.go`, and
-`proto/bep/bep.proto` behavior.
+Port native DownloadProgress append/forget payloads and frames from focused
+upstream `proto/bep/bep.proto` and protocol inbox handling, including version
+vectors, block indexes, and block size fields for resumable WordPress media
+transfers.

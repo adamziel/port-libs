@@ -114,6 +114,44 @@ final class BepWire
         return self::decodeClusterConfigPayload($message['payload']);
     }
 
+    public static function encodeIndexMessage(Index $index, int $compressionMode = Device::COMPRESSION_NEVER): string
+    {
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_INDEX,
+            self::encodeIndexPayload($index),
+            $compressionMode,
+        );
+    }
+
+    public static function decodeIndexMessage(string $frame): Index
+    {
+        $message = self::decodeMessageFrame($frame);
+        if ($message['type'] !== self::MESSAGE_TYPE_INDEX) {
+            throw new \UnexpectedValueException('expected index message');
+        }
+
+        return self::decodeIndexPayload($message['payload']);
+    }
+
+    public static function encodeIndexUpdateMessage(IndexUpdate $indexUpdate, int $compressionMode = Device::COMPRESSION_NEVER): string
+    {
+        return self::encodeMessageFrameWithCompressionMode(
+            self::MESSAGE_TYPE_INDEX_UPDATE,
+            self::encodeIndexUpdatePayload($indexUpdate),
+            $compressionMode,
+        );
+    }
+
+    public static function decodeIndexUpdateMessage(string $frame): IndexUpdate
+    {
+        $message = self::decodeMessageFrame($frame);
+        if ($message['type'] !== self::MESSAGE_TYPE_INDEX_UPDATE) {
+            throw new \UnexpectedValueException('expected index update message');
+        }
+
+        return self::decodeIndexUpdatePayload($message['payload']);
+    }
+
     public static function encodeMessageFrame(int $messageType, string $payload, int $compression = self::MESSAGE_COMPRESSION_NONE): string
     {
         if ($messageType < self::MESSAGE_TYPE_CLUSTER_CONFIG || $messageType > self::MESSAGE_TYPE_CLOSE) {
@@ -486,6 +524,258 @@ final class BepWire
         );
     }
 
+    public static function encodeIndexPayload(Index $index): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $index->folder);
+        foreach ($index->files as $file) {
+            $payload .= self::fieldBytes(2, self::encodeFileInfoPayload($file));
+        }
+        $payload .= self::fieldVarint(3, $index->lastSequence);
+
+        return $payload;
+    }
+
+    public static function decodeIndexPayload(string $payload): Index
+    {
+        $fields = self::decodeFields($payload);
+        $files = [];
+        foreach (self::allBytes($fields, 2) as $filePayload) {
+            $files[] = self::decodeFileInfoPayload($filePayload);
+        }
+
+        return new Index(
+            folder: self::lastBytes($fields, 1),
+            files: $files,
+            lastSequence: self::lastInt($fields, 3),
+        );
+    }
+
+    public static function encodeIndexUpdatePayload(IndexUpdate $indexUpdate): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $indexUpdate->folder);
+        foreach ($indexUpdate->files as $file) {
+            $payload .= self::fieldBytes(2, self::encodeFileInfoPayload($file));
+        }
+        $payload .= self::fieldVarint(3, $indexUpdate->lastSequence);
+        $payload .= self::fieldVarint(4, $indexUpdate->prevSequence);
+
+        return $payload;
+    }
+
+    public static function decodeIndexUpdatePayload(string $payload): IndexUpdate
+    {
+        $fields = self::decodeFields($payload);
+        $files = [];
+        foreach (self::allBytes($fields, 2) as $filePayload) {
+            $files[] = self::decodeFileInfoPayload($filePayload);
+        }
+
+        return new IndexUpdate(
+            folder: self::lastBytes($fields, 1),
+            files: $files,
+            lastSequence: self::lastInt($fields, 3),
+            prevSequence: self::lastInt($fields, 4),
+        );
+    }
+
+    public static function encodeFileInfoPayload(FileInfo $file): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $file->name);
+        $payload .= self::fieldVarint(2, $file->type);
+        $payload .= self::fieldVarint(3, $file->size);
+        $payload .= self::fieldVarint(4, $file->permissions);
+        $payload .= self::fieldVarint(5, $file->modifiedS);
+        $payload .= self::fieldVarint(6, $file->deleted ? 1 : 0);
+        $payload .= self::fieldVarint(7, $file->isInvalid() ? 1 : 0);
+        $payload .= self::fieldVarint(8, $file->noPermissions ? 1 : 0);
+        $payload .= self::fieldBytes(9, self::encodeVersionPayload($file->version));
+        $payload .= self::fieldVarint(10, $file->sequence);
+        $payload .= self::fieldVarint(11, $file->modifiedNs);
+        $payload .= self::fieldVarint(12, $file->modifiedBy);
+        $payload .= self::fieldVarint(13, $file->rawBlockSize);
+        $payload .= self::fieldBytes(14, self::encodePlatformDataPayload($file));
+        foreach ($file->blocks as $block) {
+            $payload .= self::fieldBytes(16, self::encodeBlockInfoPayload($block));
+        }
+        $payload .= self::fieldBytes(17, $file->symlinkTarget);
+        $payload .= self::fieldBytes(18, self::hexToBytes($file->blocksHash, 'blocks hash'));
+        $payload .= self::fieldBytes(20, self::hexToBytes($file->previousBlocksHash, 'previous blocks hash'));
+
+        return $payload;
+    }
+
+    public static function decodeFileInfoPayload(string $payload): FileInfo
+    {
+        $fields = self::decodeFields($payload);
+        $blocks = [];
+        foreach (self::allBytes($fields, 16) as $blockPayload) {
+            $blocks[] = self::decodeBlockInfoPayload($blockPayload);
+        }
+
+        $platform = self::decodePlatformDataPayload(self::lastBytes($fields, 14));
+        $blocksHash = self::lastBytes($fields, 18);
+        $previousBlocksHash = self::lastBytes($fields, 20);
+
+        return new FileInfo(
+            name: self::lastBytes($fields, 1),
+            modifiedS: self::lastInt($fields, 5),
+            modifiedNs: self::lastInt($fields, 11),
+            version: self::decodeVersionPayload(self::lastBytes($fields, 9)),
+            deleted: self::lastInt($fields, 6) !== 0,
+            localFlags: self::lastInt($fields, 7) !== 0 ? FileInfo::FLAG_LOCAL_REMOTE_INVALID : 0,
+            size: self::lastInt($fields, 3),
+            blocksHash: $blocksHash === '' ? '' : bin2hex($blocksHash),
+            previousBlocksHash: $previousBlocksHash === '' ? '' : bin2hex($previousBlocksHash),
+            type: self::lastInt($fields, 2),
+            permissions: self::lastInt($fields, 4),
+            noPermissions: self::lastInt($fields, 8) !== 0,
+            rawBlockSize: self::lastInt($fields, 13),
+            sequence: self::lastInt($fields, 10),
+            symlinkTarget: self::lastBytes($fields, 17),
+            blocks: $blocks,
+            unixOwnerName: $platform['unixOwnerName'],
+            unixGroupName: $platform['unixGroupName'],
+            unixUid: $platform['unixUid'],
+            unixGid: $platform['unixGid'],
+            modifiedBy: self::lastInt($fields, 12),
+        );
+    }
+
+    private static function encodeBlockInfoPayload(Block $block): string
+    {
+        $payload = '';
+        $payload .= self::fieldVarint(1, $block->offset);
+        $payload .= self::fieldVarint(2, $block->size);
+        $payload .= self::fieldBytes(3, self::hexToBytes($block->hashHex, 'block hash'));
+
+        return $payload;
+    }
+
+    private static function decodeBlockInfoPayload(string $payload): Block
+    {
+        $fields = self::decodeFields($payload);
+
+        return new Block(
+            offset: self::lastInt($fields, 1),
+            size: self::lastInt($fields, 2),
+            hashHex: bin2hex(self::lastBytes($fields, 3)),
+        );
+    }
+
+    private static function encodeVersionPayload(VersionVector $version): string
+    {
+        $payload = '';
+        foreach ($version->toArray() as $id => $value) {
+            $payload .= self::fieldBytes(1, self::encodeCounterPayload($id, $value));
+        }
+
+        return $payload;
+    }
+
+    private static function decodeVersionPayload(string $payload): VersionVector
+    {
+        if ($payload === '') {
+            return new VersionVector();
+        }
+
+        $fields = self::decodeFields($payload);
+        $counters = [];
+        foreach (self::allBytes($fields, 1) as $counterPayload) {
+            $counters[] = self::decodeCounterPayload($counterPayload);
+        }
+
+        return VersionVector::fromCounters($counters);
+    }
+
+    private static function encodeCounterPayload(int $id, int $value): string
+    {
+        return self::fieldVarint(1, $id) . self::fieldVarint(2, $value);
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private static function decodeCounterPayload(string $payload): array
+    {
+        $fields = self::decodeFields($payload);
+
+        return [self::lastInt($fields, 1), self::lastInt($fields, 2)];
+    }
+
+    private static function encodePlatformDataPayload(FileInfo $file): string
+    {
+        if ($file->unixUid === null || $file->unixGid === null) {
+            return '';
+        }
+
+        return self::fieldBytes(1, self::encodeUnixDataPayload($file));
+    }
+
+    private static function encodeUnixDataPayload(FileInfo $file): string
+    {
+        $payload = '';
+        $payload .= self::fieldBytes(1, $file->unixOwnerName ?? '');
+        $payload .= self::fieldBytes(2, $file->unixGroupName ?? '');
+        $payload .= self::fieldVarint(3, $file->unixUid ?? 0);
+        $payload .= self::fieldVarint(4, $file->unixGid ?? 0);
+
+        return $payload;
+    }
+
+    /**
+     * @return array{unixOwnerName:?string, unixGroupName:?string, unixUid:?int, unixGid:?int}
+     */
+    private static function decodePlatformDataPayload(string $payload): array
+    {
+        if ($payload === '') {
+            return [
+                'unixOwnerName' => null,
+                'unixGroupName' => null,
+                'unixUid' => null,
+                'unixGid' => null,
+            ];
+        }
+
+        $fields = self::decodeFields($payload);
+        if (!isset($fields[1])) {
+            return [
+                'unixOwnerName' => null,
+                'unixGroupName' => null,
+                'unixUid' => null,
+                'unixGid' => null,
+            ];
+        }
+
+        $unix = self::decodeUnixDataPayload(self::lastBytes($fields, 1));
+
+        return [
+            'unixOwnerName' => $unix['ownerName'],
+            'unixGroupName' => $unix['groupName'],
+            'unixUid' => $unix['uid'],
+            'unixGid' => $unix['gid'],
+        ];
+    }
+
+    /**
+     * @return array{ownerName:?string, groupName:?string, uid:int, gid:int}
+     */
+    private static function decodeUnixDataPayload(string $payload): array
+    {
+        $fields = self::decodeFields($payload);
+        $ownerName = self::lastBytes($fields, 1);
+        $groupName = self::lastBytes($fields, 2);
+
+        return [
+            'ownerName' => $ownerName === '' ? null : $ownerName,
+            'groupName' => $groupName === '' ? null : $groupName,
+            'uid' => self::lastInt($fields, 3),
+            'gid' => self::lastInt($fields, 4),
+        ];
+    }
+
     private static function encodeFolderPayload(Folder $folder): string
     {
         $payload = '';
@@ -616,6 +906,20 @@ final class BepWire
         }
 
         return self::encodeVarint(($field << 3) | 2) . self::encodeVarint(strlen($value)) . $value;
+    }
+
+    private static function hexToBytes(string $hex, string $label): string
+    {
+        if ($hex === '') {
+            return '';
+        }
+
+        $bytes = hex2bin($hex);
+        if ($bytes === false) {
+            throw new \InvalidArgumentException('Expected hexadecimal bytes for ' . $label);
+        }
+
+        return $bytes;
     }
 
     private static function encodeVarint(int $value): string

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\Syncthing;
 
-final class IndexUpdate
+final class Index
 {
     /**
      * @param list<FileInfo> $files
@@ -13,9 +13,8 @@ final class IndexUpdate
         public readonly string $folder,
         public readonly array $files = [],
         public readonly int $lastSequence = 0,
-        public readonly int $prevSequence = 0,
     ) {
-        if ($this->lastSequence < 0 || $this->prevSequence < 0) {
+        if ($this->lastSequence < 0) {
             throw new \InvalidArgumentException('Index sequence numbers must not be negative');
         }
         foreach ($this->files as $file) {
@@ -41,7 +40,6 @@ final class IndexUpdate
             folder: $this->folder,
             files: $files,
             lastSequence: $this->lastSequence,
-            prevSequence: $this->prevSequence,
         );
     }
 }

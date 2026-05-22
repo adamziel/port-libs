@@ -3,13 +3,19 @@
 declare(strict_types=1);
 
 use PortLibs\Syncthing\BepWire;
+use PortLibs\Syncthing\Block;
+use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\ClusterConfig;
 use PortLibs\Syncthing\Device;
+use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\Folder;
 use PortLibs\Syncthing\Hello;
+use PortLibs\Syncthing\Index;
+use PortLibs\Syncthing\IndexUpdate;
 use PortLibs\Syncthing\ProtocolValidation;
 use PortLibs\Syncthing\Request;
 use PortLibs\Syncthing\Response;
+use PortLibs\Syncthing\VersionVector;
 
 return [
     'maps upstream v14 hello protobuf frame fixture' => static function (TestRunner $t): void {
@@ -226,12 +232,132 @@ return [
         $t->true($device->skipIntroductionRemovals);
         $t->same('746f6b656e', $device->encryptionPasswordTokenHex);
     },
+    'maps file info protobuf blocks version flags hashes and platform fields' => static function (TestRunner $t): void {
+        $blockList = new BlockList();
+        $blocks = $blockList->fromBytes(str_repeat('wordpress-block-', 4), 16);
+        $blocksHash = $blockList->hashBlocks($blocks);
+        $previousBlocksHash = hash('sha256', 'previous wordpress media bytes');
+        $file = new FileInfo(
+            name: 'wp-content/uploads/2026/hero.jpg',
+            modifiedS: 1700000400,
+            modifiedNs: 123456789,
+            version: VersionVector::fromCounters([11 => 5, 7 => 9]),
+            localFlags: FileInfo::FLAG_LOCAL_IGNORED,
+            size: 64,
+            blocksHash: $blocksHash,
+            previousBlocksHash: $previousBlocksHash,
+            permissions: 0644,
+            noPermissions: true,
+            rawBlockSize: 16,
+            sequence: 33,
+            blocks: $blocks,
+            unixOwnerName: 'www-data',
+            unixGroupName: 'www-data',
+            unixUid: 33,
+            unixGid: 33,
+            modifiedBy: 11,
+        );
+
+        $payload = BepWire::encodeFileInfoPayload($file);
+        $decoded = BepWire::decodeFileInfoPayload($payload);
+
+        $t->same($file->name, $decoded->name);
+        $t->same($file->size, $decoded->size);
+        $t->same($file->modifiedS, $decoded->modifiedS);
+        $t->same($file->modifiedNs, $decoded->modifiedNs);
+        $t->same([7 => 9, 11 => 5], $decoded->version->toArray());
+        $t->same(33, $decoded->sequence);
+        $t->same(11, $decoded->modifiedBy);
+        $t->same(FileInfo::FLAG_LOCAL_REMOTE_INVALID, $decoded->localFlags);
+        $t->true($decoded->isInvalid());
+        $t->true($decoded->noPermissions);
+        $t->same(0644, $decoded->permissions);
+        $t->same(16, $decoded->rawBlockSize);
+        $t->same($blocksHash, $decoded->blocksHash);
+        $t->same($previousBlocksHash, $decoded->previousBlocksHash);
+        $t->same(count($blocks), count($decoded->blocks));
+        $t->same($blocks[1]->offset, $decoded->blocks[1]->offset);
+        $t->same($blocks[1]->size, $decoded->blocks[1]->size);
+        $t->same($blocks[1]->hashHex, $decoded->blocks[1]->hashHex);
+        $t->same('www-data', $decoded->unixOwnerName);
+        $t->same('www-data', $decoded->unixGroupName);
+        $t->same(33, $decoded->unixUid);
+        $t->same(33, $decoded->unixGid);
+    },
+    'maps index and index update protobuf payloads and frame types' => static function (TestRunner $t): void {
+        $blockList = new BlockList();
+        $blocks = $blockList->fromBytes('wordpress media bytes', 64);
+        $file = new FileInfo(
+            name: 'wp-content\\uploads\\2026\\hero.jpg',
+            modifiedS: 1700000500,
+            version: VersionVector::fromCounters([101 => 1700000500]),
+            size: strlen('wordpress media bytes'),
+            blocksHash: $blockList->hashBlocks($blocks),
+            permissions: 0644,
+            rawBlockSize: 64,
+            sequence: 44,
+            blocks: [new Block($blocks[0]->offset, $blocks[0]->size, $blocks[0]->hashHex)],
+            modifiedBy: 101,
+        );
+
+        $index = (new Index('wordpress-media', [$file], lastSequence: 44))->normalizedForWire('\\');
+        $indexFrame = BepWire::encodeIndexMessage($index);
+        $t->same('00020801', bin2hex(substr($indexFrame, 0, 4)));
+        $decodedIndex = BepWire::decodeIndexMessage($indexFrame);
+        $t->same('wordpress-media', $decodedIndex->folder);
+        $t->same(44, $decodedIndex->lastSequence);
+        $t->same('wp-content/uploads/2026/hero.jpg', $decodedIndex->files[0]->name);
+        $t->same($file->blocks[0]->hashHex, $decodedIndex->files[0]->blocks[0]->hashHex);
+
+        $update = new IndexUpdate($index->folder, $index->files, lastSequence: 47, prevSequence: 44);
+        $updateFrame = BepWire::encodeIndexUpdateMessage($update);
+        $t->same('00020802', bin2hex(substr($updateFrame, 0, 4)));
+        $decodedUpdate = BepWire::decodeIndexUpdateMessage($updateFrame);
+        $t->same('wordpress-media', $decodedUpdate->folder);
+        $t->same(47, $decodedUpdate->lastSequence);
+        $t->same(44, $decodedUpdate->prevSequence);
+        $t->same([101 => 1700000500], $decodedUpdate->files[0]->version->toArray());
+        $t->same($file->blocksHash, $decodedUpdate->files[0]->blocksHash);
+    },
+    'maps deleted and symlink file info wire fields' => static function (TestRunner $t): void {
+        $deleted = (new FileInfo(
+            name: 'wp-content/uploads/2025/old-hero.jpg',
+            modifiedS: 1700000000,
+            version: VersionVector::fromCounters([101 => 3]),
+            size: 12,
+            blocksHash: hash('sha256', 'old hero'),
+            blocks: [new Block(0, 12, hash('sha256', 'old hero'))],
+        ))->withDeleted(101, 1700000600);
+        $decodedDeleted = BepWire::decodeFileInfoPayload(BepWire::encodeFileInfoPayload($deleted));
+
+        $t->true($decodedDeleted->deleted);
+        $t->same(0, $decodedDeleted->size);
+        $t->same([], $decodedDeleted->blocks);
+        $t->same('', $decodedDeleted->blocksHash);
+        $t->same(101, $decodedDeleted->modifiedBy);
+
+        $symlink = new FileInfo(
+            name: 'wp-content/uploads/current',
+            modifiedS: 1700000610,
+            version: VersionVector::fromCounters([101 => 4]),
+            type: FileInfo::TYPE_SYMLINK,
+            symlinkTarget: '2026',
+            sequence: 51,
+        );
+        $decodedSymlink = BepWire::decodeFileInfoPayload(BepWire::encodeFileInfoPayload($symlink));
+        $t->same(FileInfo::TYPE_SYMLINK, $decodedSymlink->type);
+        $t->same('2026', $decodedSymlink->symlinkTarget);
+        $t->same(51, $decodedSymlink->sequence);
+    },
     'rejects malformed cluster config values' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => new Device(idHex: '0'));
         $t->throws(InvalidArgumentException::class, static fn () => new Device(idHex: 'GG'));
         $t->throws(InvalidArgumentException::class, static fn () => new Device(idHex: '01', compression: 99));
         $t->throws(InvalidArgumentException::class, static fn () => new Folder(id: 'default', type: 99));
         $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodeRequestMessage(BepWire::encodeClusterConfigMessage(new ClusterConfig())));
+        $t->throws(UnexpectedValueException::class, static fn () => BepWire::decodeIndexUpdateMessage(BepWire::encodeIndexMessage(new Index('default'))));
+        $t->throws(InvalidArgumentException::class, static fn () => new Index('default', lastSequence: -1));
+        $t->throws(InvalidArgumentException::class, static fn () => new IndexUpdate('default', prevSequence: -1));
     },
     'rejects malformed compressed and post-auth frames' => static function (TestRunner $t): void {
         $unknownCompressionHeader = "\x00\x04\x08\x03\x10\x02" . pack('N', 0);
