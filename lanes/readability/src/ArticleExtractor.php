@@ -6,7 +6,7 @@ namespace PortLibs\Readability;
 
 final class ArticleExtractor
 {
-    private const UNLIKELY_CANDIDATE_PATTERN = '/-ad-|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|disqus|extra|footer|gdpr|header|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i';
+    private const UNLIKELY_CANDIDATE_PATTERN = '/-ad-|ad-container|ad-mobile|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|dfp-slot|disqus|extra|footer|gdpr|header|js_ad|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i';
     private const OK_MAYBE_CANDIDATE_PATTERN = '/and|article|body|column|content|main|mathjax|shadow/i';
     private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
     private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
@@ -246,13 +246,18 @@ final class ArticleExtractor
                 continue;
             }
 
-            $value = trim($xpath->query($query)?->item(0)?->nodeValue ?? '');
+            $value = $this->cleanMetadataString($xpath->query($query)?->item(0)?->nodeValue ?? '');
             if ($value !== '') {
                 return $value;
             }
         }
 
         return null;
+    }
+
+    private function cleanMetadataString(string $value): string
+    {
+        return trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     /**

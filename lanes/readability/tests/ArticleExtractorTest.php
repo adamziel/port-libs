@@ -43,7 +43,7 @@ $imageAttributeRows = static function (string $html): array {
         }
 
         $row = [];
-        foreach (['data-src', 'alt', 'src', 'srcset'] as $attribute) {
+        foreach (['data-src', 'data-srcset', 'alt', 'src', 'srcset'] as $attribute) {
             $value = trim($image->getAttribute($attribute));
             if ($value !== '') {
                 $row[$attribute] = $value;
@@ -64,6 +64,11 @@ return [
         $t->contains('main migration paragraph', $article->text);
         $t->true(!str_contains($article->text, 'Menu'), 'navigation text should be removed');
         $t->true(!str_contains($article->text, 'Ad text'), 'aside text should be removed');
+    },
+    'decodes entity escaped metadata descriptions' => static function (TestRunner $t): void {
+        $article = (new ArticleExtractor())->extract('<html><head><meta name="description" content="That&amp;#039;s clean metadata for a migration excerpt."></head><body><article><p>' . str_repeat('Readable article text for the imported post. ', 8) . '</p></article></body></html>');
+
+        $t->same("That's clean metadata for a migration excerpt.", $article->excerpt);
     },
     'converts extracted content to block comments' => static function (TestRunner $t): void {
         $extractor = new ArticleExtractor();
@@ -116,6 +121,7 @@ return [
         $t->contains('canonical article paragraph', $article->text);
         $t->true(!str_contains($article->text, 'Related sponsor links'), 'builder navigation should be removed');
         $t->true(!str_contains($article->text, 'Legacy comment thread'), 'comment widgets should be removed');
+        $t->true(!str_contains($article->text, 'Advertisement'), 'in-article ad placeholders should be removed');
     },
     'turns the WordPress migration fixture into core blocks' => static function (TestRunner $t): void {
         $extractor = new ArticleExtractor();
@@ -313,6 +319,28 @@ return [
         $t->true(!str_contains($article->text, 'Discover Medium'), 'platform signup footer should be removed');
         $t->true(!str_contains($article->text, 'Written by Vincent Vallet'), 'author footer should be removed');
         $t->true(!str_contains($article->contentHtml, 'fit/c/160/160'), 'recommended-author avatars should be removed with the footer');
+    },
+    'maps Mozilla lazy-image-2 responsive image fixture' => static function (TestRunner $t) use ($fixtureText, $imageAttributeRows, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-2';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
+        $t->same(56, count($imageAttributeRows($article->contentHtml)));
+        $t->true(!str_contains($article->text, 'Advertisement'), 'Kinja in-article ad placeholders should be removed');
     },
     'maps Mozilla lazy-image-3 full data-src fixture' => static function (TestRunner $t) use ($fixtureText, $imageAttributeRows): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-3';

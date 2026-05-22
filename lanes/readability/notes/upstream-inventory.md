@@ -45,11 +45,11 @@ npm test
 1984 passing (30s)
 ```
 
-It was rerun on 2026-05-22 after the lazy-image slice and still passed:
+It was rerun on 2026-05-22 after the lazy-image-2 slice and still passed:
 
 ```text
 npm test
-1984 passing (44s)
+1984 passing (35s)
 ```
 
 ## PHP Mapping
@@ -61,18 +61,22 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Visibility callback rejection.
 - Hidden, `aria-hidden`, `li p`, and unlikely class/id candidate rejection.
 - Unlikely candidate, role, and share-widget cleanup during extraction.
+- Kinja/WordPress migration ad wrapper cleanup for `ad-container`, `ad-mobile`, `dfp-slot`, and `js_ad` wrappers.
 - Semantic article/main/section scoring preference.
 - WordPress block serialization for extracted heading/paragraph content.
+- Entity-decoded metadata descriptions for excerpt parity with upstream metadata behavior.
 - Mozilla `test-pages/normalize-spaces` source/expected/metadata fixture copied into the lane and mapped for document-title precedence, readerable classification, null byline/site/published/dir metadata, whitespace-normalized excerpt, and extracted article text parity against `expected.html`.
 - Mozilla `test-pages/parsely-metadata` copied into the lane and mapped for Parse.ly title, author, publication date, readerable classification, excerpt normalization, and text parity.
 - Mozilla `test-pages/mozilla-2` copied into the lane and mapped for OpenGraph site name/description metadata, lang/dir extraction, false readerable classification, and preserved in-main header markers.
 - Mozilla `test-pages/embedded-videos` copied into the lane and mapped for readerable classification, excerpt normalization, and preservation of the five expected YouTube, YouTube-nocookie, and Vimeo iframe sources.
 - Mozilla `test-pages/videos-2` copied into the lane and mapped for UTF-8 DOM parsing, JSON-LD author/publisher/datePublished metadata, readerable classification, excerpt normalization, article-body selection, exact whitespace-normalized article text parity, and preservation of seven expected YouTube/Dailymotion iframe sources.
+- Mozilla `test-pages/lazy-image-1` copied into the lane and mapped for metadata description precedence over shorter OpenGraph/Twitter snippets, readerable classification, lazy image `data-old-src` promotion, expected article image source retention, and Medium-style post-article recommendation/signup chrome removal.
+- Mozilla `test-pages/lazy-image-2` copied into the lane and mapped for HTML entity-decoded excerpt metadata, readerable classification, Kinja in-article ad wrapper removal, exact whitespace-normalized article text parity, and 56 responsive image rows with `data-srcset`/`srcset` parity.
 - Mozilla `test-pages/lazy-image-3` copied into the lane and mapped for full-fixture `data-src` jpg/png image promotion, expected title/null metadata, and false readerable classification.
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
-- Focused Mozilla `lazy-image-2` shape: short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
+- Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 
 ## Next Slice
 
-Copy Mozilla `lazy-image-1` or `lazy-image-2` locally for broader exact expected-HTML parity, then broaden metadata/media cleanup toward full fixture parity.
+Tighten `lazy-image-1` exact expected-HTML parity by removing duplicate title/byline header and extra no-caption Medium images, then broaden exact structural HTML parity for the copied lazy-image fixtures.
