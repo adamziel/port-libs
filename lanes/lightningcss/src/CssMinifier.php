@@ -59,6 +59,8 @@ final class CssMinifier
         }
 
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
+        $css = $this->minifyImportRules($css);
+        $css = $this->minifySupportsRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
@@ -106,6 +108,360 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function minifyImportRules(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                $output .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output .= $char;
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@charset')) {
+                $end = $this->findNextTopLevel($css, ';', $i + strlen('@charset'));
+                if ($end === null) {
+                    break;
+                }
+                $i = $end;
+                continue;
+            }
+
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@import')) {
+                $end = $this->findNextTopLevel($css, ';', $i + strlen('@import'));
+                if ($end === null) {
+                    $output .= substr($css, $i);
+                    break;
+                }
+                $output .= $this->minifyImportStatement(substr($css, $i, $end - $i)) . ';';
+                $i = $end;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifyImportStatement(string $statement): string
+    {
+        $rest = trim(substr($statement, strlen('@import')));
+        if ($rest === '') {
+            return '@import';
+        }
+
+        $source = null;
+        $offset = 0;
+        if ($this->startsUrlFunction($rest, 0)) {
+            [$url, $urlEnd] = $this->readFunctionRaw($rest, 0);
+            $value = $this->cssUrlTokenValue($url);
+            if ($value === null) {
+                return '@import ' . $rest;
+            }
+            $source = '"' . str_replace('"', '\\"', $value) . '"';
+            $offset = $urlEnd + 1;
+        } elseif (($rest[0] ?? '') === '"' || ($rest[0] ?? '') === "'") {
+            [$string, $stringEnd] = $this->readQuotedStringRaw($rest, 0);
+            $source = $this->normalizeCssStringToken($string);
+            $offset = $stringEnd + 1;
+        }
+
+        if ($source === null) {
+            return '@import ' . $rest;
+        }
+
+        $tail = trim(substr($rest, $offset));
+        $parts = [$source];
+        while ($tail !== '') {
+            if ($this->startsAtKeyword($tail, 0, 'supports') && ($tail[strlen('supports')] ?? '') === '(') {
+                [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
+                $parts[] = 'supports(' . $this->minifySupportsCondition(substr($function, strlen('supports('), -1), false) . ')';
+                $tail = trim(substr($tail, $functionEnd + 1));
+                continue;
+            }
+
+            $parts[] = (new MediaQueryParser())->minifyList($tail);
+            break;
+        }
+
+        return '@import ' . implode(' ', $parts);
+    }
+
+    private function minifySupportsCondition(string $condition, bool $wrapDeclaration): string
+    {
+        $condition = trim($condition);
+        if ($condition === '') {
+            return '';
+        }
+
+        $inner = $this->unwrapSingleParenthesizedValue($condition);
+        if ($inner !== null) {
+            return $this->minifySupportsCondition($inner, $wrapDeclaration);
+        }
+
+        $logical = $this->splitContainerConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $parts = [];
+            foreach ($logical as $item) {
+                $parts[] = $item['type'] === 'operator'
+                    ? strtolower($item['value'])
+                    : $this->minifySupportsCondition($item['value'], true);
+            }
+
+            return implode(' ', $parts);
+        }
+
+        if (preg_match('/^not(?:\s+|\()(.*)$/is', $condition, $matches) === 1) {
+            $rest = trim($matches[1]);
+            if (($condition[3] ?? '') === '(' && str_ends_with($rest, ')')) {
+                $rest = substr($rest, 0, -1);
+            }
+
+            return 'not ' . $this->minifySupportsCondition($rest, true);
+        }
+
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\(/', $condition) === 1) {
+            return trim($condition);
+        }
+
+        $colon = $this->findTopLevelColon($condition);
+        if ($colon !== null) {
+            $property = strtolower(trim(substr($condition, 0, $colon)));
+            $value = trim(substr($condition, $colon + 1));
+            $declaration = $property . ':' . $this->normalizeMathFunctionOperators($value);
+
+            return $wrapDeclaration ? '(' . $declaration . ')' : $declaration;
+        }
+
+        return trim($condition);
+    }
+
+    private function minifySupportsRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $position = stripos($css, '@supports', $cursor);
+            if ($position === false) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+            $before = $position === 0 ? '' : $css[$position - 1];
+            $after = $css[$position + 9] ?? '';
+            if (($before !== '' && preg_match('/[-_a-zA-Z0-9]/', $before) === 1)
+                || ($after !== '' && preg_match('/[-_a-zA-Z0-9]/', $after) === 1)
+            ) {
+                $output .= substr($css, $cursor, $position + 9 - $cursor);
+                $cursor = $position + 9;
+                continue;
+            }
+
+            $open = $this->findNextTopLevel($css, '{', $position + 9);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $prelude = $this->minifySupportsRuleCondition(substr($css, $position + 9, $open - ($position + 9)));
+            $output .= substr($css, $cursor, $position - $cursor) . '@supports';
+            if ($prelude !== '') {
+                $output .= ' ' . $prelude;
+            }
+            $output .= '{';
+            $cursor = $open + 1;
+        }
+
+        return $output;
+    }
+
+    private function minifySupportsRuleCondition(string $condition): string
+    {
+        $node = $this->normalizeSupportsConditionNode($condition);
+
+        return $node['css'];
+    }
+
+    /**
+     * @return array{css:string,type:string}
+     */
+    private function normalizeSupportsConditionNode(string $condition): array
+    {
+        $condition = trim($condition);
+        if ($condition === '') {
+            return ['css' => '', 'type' => 'unknown'];
+        }
+
+        $inner = $this->unwrapSingleParenthesizedValue($condition);
+        if ($inner !== null) {
+            $node = $this->normalizeSupportsConditionNode($inner);
+            if ($node['type'] === 'bare-unknown') {
+                return ['css' => '(' . $node['css'] . ')', 'type' => 'unknown'];
+            }
+
+            return $node;
+        }
+
+        $logical = $this->splitContainerConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            $operator = null;
+            $parts = [];
+            foreach ($logical as $item) {
+                if ($item['type'] === 'operator') {
+                    $operator = $operator ?? strtolower($item['value']);
+                    $parts[] = strtolower($item['value']);
+                    continue;
+                }
+
+                $node = $this->normalizeSupportsConditionNode($item['value']);
+                $css = $node['css'];
+                if ($operator !== null && $this->supportsConditionNeedsParens($node, $operator)) {
+                    $css = '(' . $css . ')';
+                }
+                $parts[] = $css;
+            }
+
+            return ['css' => implode(' ', $parts), 'type' => $operator ?? 'unknown'];
+        }
+
+        if (preg_match('/^not(?:\s+|\()(.*)$/is', $condition, $matches) === 1) {
+            $hasFunctionParens = ($condition[3] ?? '') === '(';
+            $rest = trim($matches[1]);
+            if ($hasFunctionParens && str_ends_with($rest, ')')) {
+                $rest = substr($rest, 0, -1);
+            }
+
+            $node = $this->normalizeSupportsConditionNode($rest);
+            $operand = $node['css'];
+            if ($this->supportsConditionNeedsParens($node, 'not')) {
+                $operand = '(' . $operand . ')';
+            }
+
+            return ['css' => 'not ' . $operand, 'type' => 'not'];
+        }
+
+        $function = $this->normalizeSupportsConditionFunction($condition);
+        if ($function !== null) {
+            return ['css' => $function, 'type' => 'function'];
+        }
+
+        $colon = $this->findTopLevelColon($condition);
+        if ($colon !== null) {
+            $property = strtolower(trim(substr($condition, 0, $colon)));
+            $value = $this->normalizeSupportsDeclarationValue(substr($condition, $colon + 1));
+
+            return ['css' => '(' . $property . ':' . $value . ')', 'type' => 'declaration'];
+        }
+
+        return ['css' => trim($condition), 'type' => 'bare-unknown'];
+    }
+
+    /**
+     * @param array{css:string,type:string} $node
+     */
+    private function supportsConditionNeedsParens(array $node, string $parentType): bool
+    {
+        return match ($node['type']) {
+            'not' => true,
+            'and' => $parentType !== 'and',
+            'or' => $parentType !== 'or',
+            default => false,
+        };
+    }
+
+    private function normalizeSupportsConditionFunction(string $condition): ?string
+    {
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\(/', $condition, $matches) !== 1) {
+            return null;
+        }
+
+        [$function, $offset] = $this->readFunctionRaw($condition, 0);
+        if ($offset !== strlen($condition) - 1) {
+            return null;
+        }
+
+        $name = strtolower($matches[1]);
+        $inner = substr($function, strlen($matches[1]) + 1, -1);
+        if ($name === 'selector') {
+            $inner = preg_replace('/\s*([>+~])\s*/', ' $1 ', trim($inner)) ?? trim($inner);
+            $inner = preg_replace('/\s+/', ' ', $inner) ?? $inner;
+
+            return 'selector(' . $inner . ')';
+        }
+
+        return $name . '(' . trim($inner) . ')';
+    }
+
+    private function normalizeSupportsDeclarationValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^calc\((.*)\)$/i', $value, $matches) === 1) {
+            $inner = preg_replace('/\s*([*\/])\s*/', ' $1 ', trim($matches[1])) ?? trim($matches[1]);
+            $inner = preg_replace('/\s+/', ' ', $inner) ?? $inner;
+
+            return 'calc(' . $inner . ')';
+        }
+        if (preg_match('/^(hsl|hsla|rgb|rgba)\((.*)\)$/i', $value, $matches) === 1) {
+            $inner = preg_replace('/\s*,\s*/', ', ', trim($matches[2])) ?? trim($matches[2]);
+
+            return strtolower($matches[1]) . '(' . $inner . ')';
+        }
+
+        return $this->normalizeMathFunctionOperators($value);
     }
 
     private function needsSpaceBefore(string $output, string $next): bool
@@ -277,9 +633,10 @@ final class CssMinifier
     {
         $prelude = trim($prelude);
         if ($prelude === '') {
-            return '';
+            throw new \InvalidArgumentException('@container rule is missing a name or condition');
         }
 
+        $this->validateContainerPrelude($prelude);
         [$name, $condition] = $this->splitContainerNameAndCondition($prelude);
         if ($condition === null) {
             return $name ?? $prelude;
@@ -304,12 +661,155 @@ final class CssMinifier
             return [null, $prelude];
         }
 
+        if (($matches[2] ?? '') !== '' && !ctype_space($matches[2][0]) && $head === 'unknown') {
+            return [null, $prelude];
+        }
+
         $tail = trim($matches[2]);
         if ($tail === '') {
             return [$matches[1], null];
         }
 
         return [$matches[1], $tail];
+    }
+
+    private function validateContainerPrelude(string $prelude): void
+    {
+        if ($this->isInvalidContainerName($prelude)) {
+            throw new \InvalidArgumentException("Invalid @container name: {$prelude}");
+        }
+
+        [$name, $condition] = $this->splitContainerNameAndCondition($prelude);
+        if ($name !== null && $this->isInvalidContainerName($name)) {
+            throw new \InvalidArgumentException("Invalid @container name: {$name}");
+        }
+
+        if ($condition === null) {
+            return;
+        }
+
+        if ($name !== null && !$this->isNamedContainerConditionStart($condition)) {
+            $token = $this->splitWhitespaceTopLevel($condition)[0] ?? $condition;
+            throw new \InvalidArgumentException("Invalid @container condition after {$name}: {$token}");
+        }
+
+        $this->validateContainerCondition($condition, false);
+    }
+
+    private function isInvalidContainerName(string $name): bool
+    {
+        return in_array(strtolower(trim($name)), [
+            'and',
+            'initial',
+            'inherit',
+            'none',
+            'not',
+            'or',
+            'revert',
+            'revert-layer',
+            'unset',
+        ], true);
+    }
+
+    private function isNamedContainerConditionStart(string $condition): bool
+    {
+        $condition = strtolower(ltrim($condition));
+
+        return str_starts_with($condition, '(')
+            || str_starts_with($condition, 'not ')
+            || str_starts_with($condition, 'not(')
+            || str_starts_with($condition, 'style(')
+            || str_starts_with($condition, 'scroll-state(');
+    }
+
+    private function validateContainerCondition(string $condition, bool $styleMode): void
+    {
+        $condition = trim($condition);
+        if ($condition === '') {
+            throw new \InvalidArgumentException('Invalid empty @container condition');
+        }
+
+        $inner = $this->unwrapSingleParenthesizedValue($condition);
+        if ($inner !== null) {
+            if (trim($inner) === '') {
+                throw new \InvalidArgumentException('Invalid empty @container condition');
+            }
+            $this->validateContainerCondition($inner, $styleMode);
+
+            return;
+        }
+
+        $logical = $this->splitContainerConditionByLogicalOperator($condition);
+        if ($logical !== null) {
+            foreach ($logical as $item) {
+                if ($item['type'] === 'condition') {
+                    $this->validateContainerCondition($item['value'], $styleMode);
+                }
+            }
+
+            return;
+        }
+
+        if (preg_match('/^not(?:\s+|\()(.*)$/is', $condition, $matches) === 1) {
+            $rest = trim($matches[1]);
+            if (($condition[3] ?? '') === '(' && str_ends_with($rest, ')')) {
+                $rest = substr($rest, 0, -1);
+            }
+            $this->validateContainerCondition($rest, $styleMode);
+
+            return;
+        }
+
+        $functionName = $this->wholeContainerConditionFunctionName($condition);
+        if ($functionName !== null) {
+            if (!in_array($functionName, ['style', 'scroll-state'], true)) {
+                throw new \InvalidArgumentException("Unknown @container condition function: {$functionName}");
+            }
+
+            $function = $this->readNamedFunctionIfWhole($condition, $functionName);
+            if ($function !== null && $this->wholeContainerConditionFunctionName($function) === $functionName) {
+                throw new \InvalidArgumentException("Nested @container {$functionName}() conditions are invalid");
+            }
+            if ($function !== null) {
+                $this->validateContainerCondition($function, $styleMode || $functionName === 'style');
+            }
+
+            return;
+        }
+
+        $this->validateContainerFeature($condition, $styleMode);
+    }
+
+    private function wholeContainerConditionFunctionName(string $condition): ?string
+    {
+        $condition = trim($condition);
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\(/', $condition, $matches) !== 1) {
+            return null;
+        }
+
+        [, $offset] = $this->readFunctionRaw($condition, 0);
+
+        return $offset === strlen($condition) - 1 ? strtolower($matches[1]) : null;
+    }
+
+    private function validateContainerFeature(string $feature, bool $styleMode): void
+    {
+        $feature = trim($feature);
+        if ($feature === '') {
+            throw new \InvalidArgumentException('Invalid empty @container condition');
+        }
+
+        if ($styleMode) {
+            return;
+        }
+
+        if (preg_match('/^(?:inline-size|block-size|width|height)\s*(?:<=|>=|<|>|=)\s*[-_a-zA-Z][-_a-zA-Z0-9]*$/i', $feature) === 1) {
+            throw new \InvalidArgumentException("Invalid @container range comparison: {$feature}");
+        }
+
+        if (preg_match('/^orientation\s*(?:<=|>=|<|>|=)\s*/i', $feature) === 1) {
+            throw new \InvalidArgumentException("Invalid @container range feature: {$feature}");
+        }
     }
 
     private function minifyContainerCondition(string $condition, bool $topLevel = false, bool $styleMode = false): string
@@ -4523,7 +5023,7 @@ final class CssMinifier
 
     private function isExponentSign(string $value, int $offset): bool
     {
-        $previous = $value[$offset - 1] ?? '';
+        $previous = $offset > 0 ? $value[$offset - 1] : '';
         if ($previous !== 'e' && $previous !== 'E') {
             return false;
         }
@@ -4631,9 +5131,48 @@ final class CssMinifier
             return false;
         }
 
-        $previous = $value[$offset - 1] ?? '';
+        $previous = $offset > 0 ? $value[$offset - 1] : '';
 
         return $previous === '' || !$this->isIdentifierChar($previous);
+    }
+
+    private function startsAtKeyword(string $value, int $offset, string $keyword): bool
+    {
+        if (strtolower(substr($value, $offset, strlen($keyword))) !== strtolower($keyword)) {
+            return false;
+        }
+
+        $previous = $value[$offset - 1] ?? '';
+        $next = $value[$offset + strlen($keyword)] ?? '';
+
+        return ($previous === '' || !$this->isIdentifierChar($previous))
+            && ($next === '' || !$this->isIdentifierChar($next));
+    }
+
+    /**
+     * @return array{0: string, 1: int}
+     */
+    private function readQuotedStringRaw(string $value, int $start): array
+    {
+        $quote = $value[$start] ?? '';
+        if ($quote !== '"' && $quote !== "'") {
+            return ['', $start];
+        }
+
+        $output = $quote;
+        $length = strlen($value);
+        for ($i = $start + 1; $i < $length; $i++) {
+            $output .= $value[$i];
+            if ($value[$i] === '\\' && $i + 1 < $length) {
+                $output .= $value[++$i];
+                continue;
+            }
+            if ($value[$i] === $quote) {
+                return [$output, $i];
+            }
+        }
+
+        return [$output, $length - 1];
     }
 
     /**

@@ -163,7 +163,7 @@ return [
             $prefixer->prefixLegacySafari('.foo { background: lab(51.5117% 43.3777 -29.0443) url(foo.png); }')
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}}',
+            '@supports (color:lab(0% 0 0)){.foo{background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}}',
             $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) } }')
         );
     },
@@ -196,7 +196,7 @@ CSS;
             (new TransitionPrefixer())->prefixLegacySafari('.foo { --foo: color(display-p3 0 1 0); }')
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{--foo:oklab(59.686% 0.1009 0.1192)}}',
+            '@supports (color:lab(0% 0 0)){.foo{--foo:oklab(59.686% 0.1009 0.1192)}}',
             (new TransitionPrefixer())->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
         );
     },
@@ -311,7 +311,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { text-shadow: var(--foo) 12px lab(40% 56.6 39) }', ['chrome' => 4])
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{text-shadow:var(--foo) 12px lab(40% 56.6 39)}}',
+            '@supports (color:lab(0% 0 0)){.foo{text-shadow:var(--foo) 12px lab(40% 56.6 39)}}',
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-shadow: var(--foo) 12px lab(40% 56.6 39); } }', ['chrome' => 4])
         );
     },
@@ -363,7 +363,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { text-decoration: lch(50.998% 135.363 338) var(--style); }', ['chrome' => 90])
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{text-decoration:lab(50.998% 125.506 -50.7078) var(--style)}}',
+            '@supports (color:lab(0% 0 0)){.foo{text-decoration:lab(50.998% 125.506 -50.7078) var(--style)}}',
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-decoration: lab(50.998% 125.506 -50.7078) var(--style); } }', ['chrome' => 90])
         );
     },
@@ -403,7 +403,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { text-emphasis: lch(50.998% 135.363 338) var(--style); }', ['safari' => 8])
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{text-emphasis:lab(50.998% 125.506 -50.7078) var(--style)}}',
+            '@supports (color:lab(0% 0 0)){.foo{text-emphasis:lab(50.998% 125.506 -50.7078) var(--style)}}',
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-emphasis: lab(50.998% 125.506 -50.7078) var(--style); } }', ['safari' => 8])
         );
     },
@@ -423,7 +423,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { caret: lch(50.998% 135.363 338) var(--foo) }', ['chrome' => 90])
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{caret:lab(50.998% 125.506 -50.7078) var(--foo)}}',
+            '@supports (color:lab(0% 0 0)){.foo{caret:lab(50.998% 125.506 -50.7078) var(--foo)}}',
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { caret: lab(50.998% 125.506 -50.7078) var(--foo); } }', ['chrome' => 90])
         );
     },
@@ -444,7 +444,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { list-style: var(--foo) linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) }', ['chrome' => 90])
         );
         $t->same(
-            '@supports(color:lab(0% 0 0)){.foo{list-style:var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))}}',
+            '@supports (color:lab(0% 0 0)){.foo{list-style:var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))}}',
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { list-style: var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928), lab(51% 70.4544 -115.586)); } }', ['chrome' => 90])
         );
     },

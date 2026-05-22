@@ -18,6 +18,102 @@ return [
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@import "foo.css";', $minifier->minify('@import url(foo.css);'));
+        $t->same('@import "foo.css";', $minifier->minify('@import "foo.css";'));
+        $t->same('@import "foo.css" print;', $minifier->minify('@import url(foo.css) print;'));
+        $t->same('@import "foo.css" print;', $minifier->minify('@import "foo.css" print;'));
+        $t->same(
+            '@import "foo.css" screen and (orientation:landscape);',
+            $minifier->minify('@import "foo.css" screen and (orientation: landscape);')
+        );
+        $t->same(
+            '@import "foo.css" supports(display:flex);',
+            $minifier->minify('@import url(foo.css) supports(display: flex);')
+        );
+        $t->same(
+            '@import "foo.css" supports(display:flex) print;',
+            $minifier->minify('@import url(foo.css) supports(display: flex) print;')
+        );
+        $t->same(
+            '@import "foo.css" supports(not (display:flex));',
+            $minifier->minify('@import url(foo.css) supports(not (display: flex));')
+        );
+        $t->same(
+            '@import "foo.css" supports(display:flex);',
+            $minifier->minify('@import url(foo.css) supports((display: flex));')
+        );
+        $t->same('@import "foo.css";', $minifier->minify('@charset "UTF-8"; @import url(foo.css);'));
+        $t->same('@layer foo;@import "foo.css";', $minifier->minify('@layer foo; @import url(foo.css);'));
+    },
+    'css minifier maps upstream supports rule condition normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@supports (foo:bar){.test{foo:bar}}',
+            $minifier->minify('@supports (foo: bar) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports not (foo:bar){.test{foo:bar}}',
+            $minifier->minify('@supports not (foo: bar) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (foo:bar) or (bar:baz){.test{foo:bar}}',
+            $minifier->minify('@supports (((foo: bar) or (bar: baz))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (foo:bar) and (bar:baz){.test{foo:bar}}',
+            $minifier->minify('@supports (((foo: bar) and (bar: baz))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (foo:bar) and ((bar:baz) or (test:foo)){.test{foo:bar}}',
+            $minifier->minify('@supports (foo: bar) and (((bar: baz) or (test: foo))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports not ((foo:bar) and (bar:baz)){.test{foo:bar}}',
+            $minifier->minify('@supports not (((foo: bar) and (bar: baz))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports selector(a > b){.test{foo:bar}}',
+            $minifier->minify('@supports selector(a > b) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports unknown(test){.test{foo:bar}}',
+            $minifier->minify('@supports unknown(test) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (unknown){.test{foo:bar}}',
+            $minifier->minify('@supports (unknown) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (display:grid) and (not (display:inline-grid)){.test{foo:bar}}',
+            $minifier->minify('@supports (display: grid) and (not (display: inline-grid)) { .test { foo: bar; } }')
+        );
+    },
+    'css minifier maps upstream adjacent supports rule merging' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@supports (flex: 1) {
+  .foo {
+    color: red;
+  }
+}
+@supports (flex: 1) {
+  .foo {
+    background: #fff;
+  }
+  .baz {
+    color: #fff;
+  }
+}
+CSS;
+
+        $t->same(
+            '@supports (flex:1){.foo{color:red;background:#fff}.baz{color:#fff}}',
+            (new CssMinifier())->minify($css)
+        );
+    },
     'css minifier maps upstream image-set string url type and gradient normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -343,6 +439,30 @@ CSS;
             '.foo{background:url(calc(1cqw + 2cqw));width:calc(1rem + 2px)}',
             $minifier->minify('.foo { background: url(calc(1cqw + 2cqw)); width: calc(1rem + 2px); }')
         );
+    },
+    'css minifier maps upstream container query validation errors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $invalid = [
+            '@container none (width < 100vw) {}',
+            '@container and (width < 100vw) {}',
+            '@container or (width < 100vw) {}',
+            '@container revert-layer (width < 100vw) {}',
+            '@container initial (width < 100vw) {}',
+            '@container foo bar (width < 100vw) {}',
+            '@container (inline-size <= foo) {}',
+            '@container (orientation <= 10px) {}',
+            '@container style(style(--foo: bar)) {}',
+            '@container scroll-state(scroll-state(scrollable: top)) {}',
+            '@container unknown(foo) {}',
+            '@container {}',
+            '@container () {}',
+            '@container foo () {}',
+            '@container foo bar {}',
+        ];
+
+        foreach ($invalid as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
+        }
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -783,6 +903,48 @@ CSS;
 
         $t->same(
             '@container wp-query-card (inline-size>45em){.wp-block-post-template{gap:3cqw;color:#ff0}}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress invalid block container queries fail before shipping css' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@container none (width < 100vw) {
+  .wp-block-query {
+    gap: 1rem;
+  }
+}
+CSS;
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CssMinifier())->minify($css));
+    },
+    'wordpress conditional block stylesheet imports minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@charset "UTF-8";
+@layer blocks;
+@import url(./blocks/query-card.css) supports((display: grid)) screen and (min-width: 600px);
+
+.wp-block-query {
+  color: yellow;
+}
+CSS;
+
+        $t->same(
+            '@layer blocks;@import "./blocks/query-card.css" supports(display:grid) screen and (width>=600px);.wp-block-query{color:#ff0}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress supports-gated block layouts minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@supports (((display: grid) and (not (display: subgrid)))) {
+  .wp-block-query > .wp-block-post-template {
+    display: grid;
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '@supports (display:grid) and (not (display:subgrid)){.wp-block-query>.wp-block-post-template{display:grid;color:#ff0}}',
             (new CssMinifier())->minify($css)
         );
     },
