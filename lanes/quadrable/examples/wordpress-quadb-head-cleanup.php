@@ -38,6 +38,12 @@ $lines = static function (string $output): array {
     return explode("\n", $trimmed);
 };
 
+$storedNodeCount = static function (QuadbStore $repo): int {
+    $snapshot = $repo->nodeStore()->exportSnapshot();
+
+    return count($snapshot['leaves']) + count($snapshot['branches']);
+};
+
 try {
     $repo = QuadbStore::init($dir);
     $repo->importLines(
@@ -55,14 +61,22 @@ try {
 
     $headsBeforeCleanup = $lines($repo->headText());
     $repo->removeHead('preview-a');
+    $storedNodesBeforeGc = $storedNodeCount($repo);
+    $gcOutput = rtrim($repo->garbageCollectText(), "\r\n");
+    $storedNodesAfterGc = $storedNodeCount($repo);
     $headsAfterCleanup = $lines($repo->headText());
 
     echo json_encode([
-        'scenario' => 'prune a discarded quadb WordPress preview head while preserving the approved preview root',
+        'scenario' => 'garbage collect a discarded quadb WordPress preview head while preserving the approved preview root',
         'currentStatus' => rtrim($repo->statusText(), "\r\n"),
         'approvedPreviewRoot' => $approvedRoot,
+        'approvedPreviewRootAfterGc' => $repo->tree()->rootHash(),
         'headsBeforeCleanup' => $headsBeforeCleanup,
         'headsAfterCleanup' => $headsAfterCleanup,
+        'gcOutput' => $gcOutput,
+        'storedNodesBeforeGc' => $storedNodesBeforeGc,
+        'storedNodesAfterGc' => $storedNodesAfterGc,
+        'discardedNodesCollected' => $storedNodesAfterGc < $storedNodesBeforeGc,
         'discardedHeadRemoved' => !str_contains($repo->headText(), 'preview-a :'),
         'approvedPreviewStillCurrent' => $repo->currentHeadName() === 'preview-b',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

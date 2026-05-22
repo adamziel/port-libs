@@ -678,6 +678,73 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store garbage collects discarded full heads like quadb gc' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $detachedDir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $masterRoot = $repo->tree()->rootHash();
+
+            $repo->fork('preview-discard');
+            $repo->put('wp_posts:1', 'Discarded preview edit');
+
+            $repo->fork('preview-approved', 'master');
+            $repo->put('wp_posts:2', 'Approved page');
+            $approvedRoot = $repo->tree()->rootHash();
+
+            $repo->removeHead('preview-discard');
+            $storedBeforeGc = quadrableQuadbStoredNodeCount($repo);
+            $gc = quadrableQuadbParseGcText($repo->garbageCollectText());
+            $storedAfterGc = quadrableQuadbStoredNodeCount($repo);
+
+            $t->same($storedBeforeGc, $gc['total']);
+            $t->true($gc['garbage'] > 0);
+            $t->same($storedBeforeGc - $gc['garbage'], $storedAfterGc);
+            $t->same('preview-approved', $repo->currentHeadName());
+            $t->same($approvedRoot, $repo->tree()->rootHash());
+            $t->same('Approved page', $repo->get('wp_posts:2'));
+            $t->same($masterRoot, $repo->checkout('master')->rootHash());
+            $t->same('Published post', $repo->get('wp_posts:1'));
+
+            $reopened = QuadbStore::open($dir);
+            $t->same("Collected 0/{$storedAfterGc} nodes\n", $reopened->garbageCollectText());
+            $t->same($storedAfterGc, quadrableQuadbStoredNodeCount($reopened));
+
+            $detachedRepo = QuadbStore::init($detachedDir);
+            $detachedRepo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $detached = $detachedRepo->fork();
+            $detached->put('wp_posts:1', 'Detached preview edit');
+            $detached->put('wp_posts:2', 'Detached only page');
+            $detachedRepo->save($detached);
+            $detachedRepo->removeHead('master');
+
+            $detachedBeforeGc = quadrableQuadbStoredNodeCount($detachedRepo);
+            $detachedGc = quadrableQuadbParseGcText($detachedRepo->garbageCollectText());
+            $detachedAfterGc = quadrableQuadbStoredNodeCount($detachedRepo);
+
+            $t->same($detachedBeforeGc, $detachedGc['total']);
+            $t->true($detachedGc['garbage'] > 0);
+            $t->same($detachedBeforeGc - $detachedGc['garbage'], $detachedAfterGc);
+            $t->true($detachedRepo->isDetachedHead());
+            $t->same('Detached preview edit', $detachedRepo->get('wp_posts:1'));
+            $t->same('Detached only page', $detachedRepo->get('wp_posts:2'));
+            $t->contains('D> [detached] : ', $detachedRepo->headText());
+            $t->same("Collected 0/{$detachedAfterGc} nodes\n", QuadbStore::open($detachedDir)->garbageCollectText());
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($detachedDir);
+        }
+    },
 ];
 
 function quadrableQuadbTempDir(): string
@@ -749,4 +816,26 @@ function quadrableQuadbDecodeHexProof(string $proofHex): string
     }
 
     return $decoded;
+}
+
+function quadrableQuadbStoredNodeCount(QuadbStore $repo): int
+{
+    $snapshot = $repo->nodeStore()->exportSnapshot();
+
+    return count($snapshot['leaves']) + count($snapshot['branches']);
+}
+
+/**
+ * @return array{garbage: int, total: int}
+ */
+function quadrableQuadbParseGcText(string $text): array
+{
+    if (!preg_match('/^Collected ([0-9]+)\/([0-9]+) nodes\n$/', $text, $matches)) {
+        throw new RuntimeException('unexpected garbage collection output: ' . $text);
+    }
+
+    return [
+        'garbage' => (int) $matches[1],
+        'total' => (int) $matches[2],
+    ];
 }

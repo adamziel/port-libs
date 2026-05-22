@@ -225,6 +225,53 @@ final class TrackedNodeStore
     }
 
     /**
+     * @param list<int> $extraRootNodeIds
+     *
+     * @return array{total: int, garbage: int}
+     */
+    public function garbageCollect(array $extraRootNodeIds = []): array
+    {
+        $marked = [];
+        foreach ($this->heads as $nodeId) {
+            $this->markReachableNode($nodeId, $marked);
+        }
+
+        foreach ($extraRootNodeIds as $nodeId) {
+            if (!is_int($nodeId) || $nodeId < 0) {
+                throw new \InvalidArgumentException('garbage collection root node id must be non-negative');
+            }
+
+            $this->markReachableNode($nodeId, $marked);
+        }
+
+        $total = count($this->leaves) + count($this->branches);
+        $garbage = 0;
+
+        foreach (array_keys($this->leaves) as $nodeId) {
+            if (!isset($marked[$nodeId])) {
+                unset($this->leaves[$nodeId]);
+                $garbage++;
+            }
+        }
+
+        foreach (array_keys($this->branches) as $nodeId) {
+            if (!isset($marked[$nodeId])) {
+                unset($this->branches[$nodeId]);
+                $garbage++;
+            }
+        }
+
+        if ($garbage > 0) {
+            $this->resetNextNodeIds();
+        }
+
+        return [
+            'total' => $total,
+            'garbage' => $garbage,
+        ];
+    }
+
+    /**
      * @return array{keyHash: string, value: string, hash: string}
      */
     public function leaf(int $nodeId): array
@@ -271,6 +318,57 @@ final class TrackedNodeStore
         }
 
         throw new \InvalidArgumentException('unknown tracked node id');
+    }
+
+    /**
+     * @param array<int, true> $marked
+     */
+    private function markReachableNode(int $nodeId, array &$marked): void
+    {
+        if ($nodeId === 0 || isset($marked[$nodeId])) {
+            return;
+        }
+
+        if (isset($this->leaves[$nodeId])) {
+            $marked[$nodeId] = true;
+
+            return;
+        }
+
+        if (!isset($this->branches[$nodeId])) {
+            throw new \InvalidArgumentException('garbage collection root references an unknown node');
+        }
+
+        $marked[$nodeId] = true;
+        $this->markReachableNode($this->branches[$nodeId]['leftNodeId'], $marked);
+        $this->markReachableNode($this->branches[$nodeId]['rightNodeId'], $marked);
+    }
+
+    private function resetNextNodeIds(): void
+    {
+        $maxRegularLeafNodeId = 0;
+        $maxRegularBranchNodeId = self::FIRST_INTERIOR_NODE_ID - 1;
+        $maxMemStoreNodeId = self::FIRST_MEMSTORE_NODE_ID - 1;
+
+        foreach (array_keys($this->leaves) as $nodeId) {
+            if ($nodeId >= self::FIRST_MEMSTORE_NODE_ID) {
+                $maxMemStoreNodeId = max($maxMemStoreNodeId, $nodeId);
+            } elseif ($nodeId < self::FIRST_INTERIOR_NODE_ID) {
+                $maxRegularLeafNodeId = max($maxRegularLeafNodeId, $nodeId);
+            }
+        }
+
+        foreach (array_keys($this->branches) as $nodeId) {
+            if ($nodeId >= self::FIRST_MEMSTORE_NODE_ID) {
+                $maxMemStoreNodeId = max($maxMemStoreNodeId, $nodeId);
+            } elseif ($nodeId >= self::FIRST_INTERIOR_NODE_ID) {
+                $maxRegularBranchNodeId = max($maxRegularBranchNodeId, $nodeId);
+            }
+        }
+
+        $this->nextLeafNodeId = $maxRegularLeafNodeId + 1;
+        $this->nextBranchNodeId = $maxRegularBranchNodeId + 1;
+        $this->nextMemStoreNodeId = $maxMemStoreNodeId + 1;
     }
 
     private static function assertHeadName(string $head): void

@@ -419,6 +419,30 @@ final class QuadbStore
         $this->persist();
     }
 
+    /**
+     * @return array{total: int, garbage: int}
+     */
+    public function garbageCollect(): array
+    {
+        $extraRoots = [];
+        if ($this->currentHead === null && $this->partialDetachedHead === null && $this->detachedHeadNodeId !== 0) {
+            $extraRoots[] = $this->detachedHeadNodeId;
+        }
+
+        $stats = $this->nodeStore->garbageCollect($extraRoots);
+        $this->pruneTrackedKeysToStoredLeaves();
+        $this->persist();
+
+        return $stats;
+    }
+
+    public function garbageCollectText(): string
+    {
+        $stats = $this->garbageCollect();
+
+        return 'Collected ' . $stats['garbage'] . '/' . $stats['total'] . " nodes\n";
+    }
+
     public function save(?TrackedSparseTree $tree = null): void
     {
         if ($this->currentHead === null && $tree !== null) {
@@ -870,6 +894,21 @@ final class QuadbStore
     {
         if ($this->currentPartialProofState() !== null) {
             throw new \RuntimeException('current head is a proof-backed partial tree');
+        }
+    }
+
+    private function pruneTrackedKeysToStoredLeaves(): void
+    {
+        $snapshot = $this->nodeStore->exportSnapshot();
+        $liveKeyHashes = [];
+        foreach ($snapshot['leaves'] as $leaf) {
+            $liveKeyHashes[$leaf['keyHash']] = true;
+        }
+
+        foreach (array_keys($this->trackedKeys) as $keyHash) {
+            if (!isset($liveKeyHashes[$keyHash])) {
+                unset($this->trackedKeys[$keyHash]);
+            }
         }
     }
 
