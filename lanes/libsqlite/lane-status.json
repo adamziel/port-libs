@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 7,
+    "estimatedProgress": 8,
     "suiteProgress": "cloned static upstream inventory; runner not executed",
-    "phpPass": 7,
+    "phpPass": 12,
     "phpFail": 0,
     "wordpressScenarios": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable.",
-    "phase": "upstream inventory plus first b-tree page-header slice",
+    "phase": "upstream inventory plus schema record decoding slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native database header, varint, and schema/root b-tree page header parsing.",
+    "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf cell parsing, SQLite record serial decoding, and sqlite_schema extraction for WordPress table discovery.",
     "blocker": "Full upstream runner was not executed because SQLite testing requires configure/build of testfixture/sqlite3 with Tcl development libraries and large testrunner.tcl suites/permutations; current denominator is a cloned static inventory of 1454 upstream test-related files/scripts.",
-    "latestCommit": "c4a52fe1d8a2",
-    "nextTask": "Parse table leaf cells on the schema root page and decode sqlite_schema records needed to locate WordPress tables such as wp_options."
+    "latestCommit": "d036095",
+    "nextTask": "Walk schema b-tree pages beyond the first leaf page and resolve root pages for WordPress tables such as wp_options from real database files."
 }

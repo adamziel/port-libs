@@ -13,7 +13,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 1454,
-        "mapped": 7,
+        "mapped": 12,
         "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; counted with git ls-tree without hydrating broad blobs.",
         "inventory": {
             "allRepositoryFiles": 2208,
@@ -36,8 +36,8 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, and b-tree page header parser for schema/root pages."
+        "currentSlice": "Native SQLite database header parser, SQLite varint decoder, b-tree page header parser, table leaf cell parser, SQLite record serial decoder, and sqlite_schema record extraction for WordPress table discovery."
     },
     "wordpressScenario": "SQLite fallback/read-write inspection tooling for WordPress hosts where the SQLite extension is unavailable.",
-    "nextTask": "Parse table leaf cells on the schema root page and decode sqlite_schema records needed to locate WordPress tables such as wp_options."
+    "nextTask": "Walk schema b-tree pages beyond the first leaf page and resolve root pages for WordPress tables such as wp_options from real database files."
 }
