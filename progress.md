@@ -29,17 +29,17 @@
 | Priority | Lane | Session | Phase | Estimate | Next Task |
 | --- | --- | --- | --- | ---: | --- |
 | 1 | gitoxide | stopped | upstream tree inventory plus commit primitive slice | 5% | Target the gitoxide object/ref crates with a controlled non-filtered checkout, then add tree object parsing and ref storage tests. |
-| 2 | lightningcss | `port-lightningcss` | static upstream inventory + native value minifier slice | 4% | Port a small selector/tokenizer parser slice so PHP can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics. |
-| 3 | markerPDF | `port-markerpdf` | cloned inventory + native text-line slice | 5% | Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture. |
+| 2 | lightningcss | stopped | static upstream inventory + native value minifier slice | 4% | Port a small selector/tokenizer parser slice so PHP can distinguish selectors, declarations, at-rules, and nested rules before adding more transformer semantics. |
+| 3 | markerPDF | stopped | cloned inventory + native text-line slice | 5% | Acquire or sample one upstream benchmark PDF/reference pair and map it to a native PHP parity fixture. |
 | 4 | libsqlite | `port-libsqlite` | seed implementation | 4% | Parse first b-tree page headers and map SQLite file-format tests. |
 | 5 | readability | `port-readability` | seed implementation | 3% | Compare against Mozilla Readability fixture corpus and improve scoring. |
-| 6 | pandoc | `port-pandoc` | seed implementation | 3% | Add inline marks/list handling and map Pandoc native AST tests. |
-| 7 | quadrable | `port-quadrable` | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
-| 8 | syncthing | `port-syncthing` | seed implementation | 2% | Map protocol tests and add block hash/vector tests. |
-| 9 | difftastic | `port-difftastic` | seed implementation | 2% | Map parser fixtures and replace line-only diff with syntax token anchors. |
-| 10 | rclone | `port-rclone` | seed implementation | 2% | Map filter/checksum tests and add filesystem provider contract tests. |
+| 6 | pandoc | stopped | seed implementation | 3% | Add inline marks/list handling and map Pandoc native AST tests. |
+| 7 | quadrable | stopped | upstream inventory plus key primitive slice | 4% | Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios. |
+| 8 | syncthing | stopped | seed implementation | 2% | Map protocol tests and add block hash/vector tests. |
+| 9 | difftastic | stopped | seed implementation | 2% | Map parser fixtures and replace line-only diff with syntax token anchors. |
+| 10 | rclone | stopped | seed implementation | 2% | Map filter/checksum tests and add filesystem provider contract tests. |
 | 11 | dolt | none | deferred | 2% | Sidetracked by user direction; ignore until the other lanes have reached baseline. |
-| 12 | esbuild | `port-esbuild` | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
+| 12 | esbuild | stopped | seed implementation | 2% | Map parser tests and add JS lexer token coverage. |
 
 ## Completed Milestones
 
@@ -57,12 +57,13 @@
 
 ## Open Blockers
 
-- Most upstream benchmark denominators are still static seed inventories until upstream repos are cloned or queried and their test suites counted; Quadrable, markerPDF, and LightningCSS now have stronger static inventories but not upstream runner parity.
+- Eight upstream benchmark manifests are still static seed inventories until upstream repos are cloned or queried and their test suites counted; Quadrable, markerPDF, Gitoxide, and LightningCSS now have stronger static inventories but not upstream runner parity.
 - Gitoxide now has a safe tree inventory, but the full workspace test runner was not executed under the VM cap and the broad filtered-clone blob scan was stopped.
 - Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
 - markerPDF now has a cloned static upstream inventory, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
 - LightningCSS full upstream runners were not executed: `npm test` fails before tests because `node_modules`/`uvu` is absent, and an offline Cargo no-run probe cannot resolve `napi-derive` for the Node workspace member.
-- Independent audit on 2026-05-22 found zero lanes with committed real upstream denominators; current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
+- Readability has a local upstream cache with 130 fixture pages at the manifest commit, but its manifest/dashboard still report a static seed denominator.
+- Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped to avoid saturating the 6-core VM.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
@@ -71,8 +72,8 @@
 
 - Supervisor: main Codex session.
 - Auditor: `port-auditor` session is present; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: `port-gitoxide`, `port-lightningcss`, and `port-markerpdf` sessions are present under the current cap; lower-priority lane sessions are not active yet.
+- Worker sessions observed during latest audit: `port-libsqlite` and `port-readability`; `port-gitoxide`, `port-lightningcss`, and `port-markerpdf` were not present.
 
 ## Next Best Step
 
-Integrate the active LightningCSS and markerPDF worker slices, then map one markerPDF benchmark PDF/reference pair and target Gitoxide object/ref crates with a controlled non-filtered checkout.
+Redirect the active libsqlite and Readability work toward upstream denominator inventory before new implementation breadth: count SQLite upstream test sources/fixture categories, replace the Readability seed manifest with the 130-page fixture denominator already present in `.upstream-cache/readability`, then regenerate dashboard/status so PHP pass/fail remains labeled seed-local until upstream cases are mapped.
