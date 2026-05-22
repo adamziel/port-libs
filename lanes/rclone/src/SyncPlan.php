@@ -234,6 +234,146 @@ final class SyncPlan
     }
 
     /**
+     * @return array{renamed: list<ObjectInfo>, copied: list<ObjectInfo>, deleted: list<ObjectInfo>, trackRenamesEnabled: bool, disabledReason: ?string}
+     */
+    public function syncWithTrackRenames(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        string $trackRenamesStrategy = 'hash',
+        ?MemoryProvider $backup = null,
+        string $backupPrefix = '',
+        string $suffix = '',
+        bool $suffixKeepExtension = false,
+        ?int $maxDelete = null,
+        ?int $maxDeleteSize = null,
+        int $modifyWindowSeconds = 1,
+        bool $ignoreCaseSync = false,
+    ): array {
+        $strategy = TrackRenamesStrategy::parse($trackRenamesStrategy);
+        $disabledReason = $this->trackRenamesDisabledReason($source, $target, $strategy);
+        if ($disabledReason !== null) {
+            $copied = $this->copyChanged(
+                $source,
+                $target,
+                $filter,
+                backup: $backup,
+                backupPrefix: $backupPrefix,
+                suffix: $suffix,
+                suffixKeepExtension: $suffixKeepExtension,
+                ignoreCaseSync: $ignoreCaseSync,
+            );
+            $deleted = $this->deleteDestinationOnly(
+                $source,
+                $target,
+                $filter,
+                DeleteMode::AFTER,
+                maxDelete: $maxDelete,
+                maxDeleteSize: $maxDeleteSize,
+                backup: $backup,
+                backupPrefix: $backupPrefix,
+                suffix: $suffix,
+                suffixKeepExtension: $suffixKeepExtension,
+                ignoreCaseSync: $ignoreCaseSync,
+            );
+
+            return [
+                'renamed' => [],
+                'copied' => $copied,
+                'deleted' => $deleted,
+                'trackRenamesEnabled' => false,
+                'disabledReason' => $disabledReason,
+            ];
+        }
+
+        $sourcePaths = $this->listedPaths($source, $filter, $ignoreCaseSync);
+        $targetPaths = $this->listedPaths($target, $filter, $ignoreCaseSync);
+        $commonHash = $this->commonHashType($source, $target);
+
+        $sourceOnly = [];
+        $targetOnly = [];
+        $copied = [];
+        $renamed = [];
+        foreach ($sourcePaths as $sourceKey => $sourceInfo) {
+            $targetInfo = $targetPaths[$sourceKey] ?? null;
+            if ($targetInfo === null) {
+                $sourceOnly[] = $sourceInfo;
+                continue;
+            }
+
+            if (!$this->needsTransfer(
+                $source,
+                $target,
+                $sourceInfo,
+                $targetInfo,
+                false,
+                false,
+                false,
+                $modifyWindowSeconds,
+                false,
+                false,
+                false,
+            )) {
+                continue;
+            }
+
+            if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $this->moveToBackup($target, $targetInfo->path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+                $targetInfo = null;
+            }
+            $copied[] = $source->copyTo($sourceInfo->path, $target, $targetInfo?->path ?? $sourceInfo->path);
+        }
+
+        foreach ($targetPaths as $targetKey => $targetInfo) {
+            if (isset($sourcePaths[$targetKey])) {
+                continue;
+            }
+            if ($backupPrefix !== '' && self::pathUnderPrefix($targetInfo->path, $backupPrefix)) {
+                continue;
+            }
+            $targetOnly[$targetInfo->path] = $targetInfo;
+        }
+
+        $renameMap = $this->buildRenameMap($sourceOnly, array_values($targetOnly), $target, $strategy, $commonHash);
+        foreach ($sourceOnly as $sourceInfo) {
+            $renameId = $this->trackRenameId($source, $sourceInfo, $strategy, $commonHash);
+            $renameSource = $this->popRenameCandidate($renameMap, $renameId, $sourceInfo, $strategy, $modifyWindowSeconds);
+            if ($renameSource !== null) {
+                $renamed[] = $target->moveTo($renameSource->path, $target, $sourceInfo->path);
+                unset($targetOnly[$renameSource->path]);
+                continue;
+            }
+
+            $copied[] = $source->copyTo($sourceInfo->path, $target, $sourceInfo->path);
+        }
+
+        ksort($targetOnly, SORT_STRING);
+        $deleteCount = 0;
+        $deleteBytes = 0;
+        $deleted = [];
+        foreach (array_keys($targetOnly) as $path) {
+            $targetInfo = $target->info($path);
+            $deleteSize = max(0, $targetInfo->size);
+            $this->assertDeleteWithinLimits($deleteCount, $deleteBytes, $deleteSize, $maxDelete, $maxDeleteSize);
+            $deleteCount++;
+            $deleteBytes += $deleteSize;
+            if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $deleted[] = $this->moveToBackup($target, $path, $backup, $backupPrefix, $suffix, $suffixKeepExtension);
+            } else {
+                $deleted[] = $target->delete($path);
+            }
+        }
+
+        return [
+            'renamed' => $renamed,
+            'copied' => $copied,
+            'deleted' => $deleted,
+            'trackRenamesEnabled' => true,
+            'disabledReason' => null,
+        ];
+    }
+
+    /**
      * @return list<ObjectInfo>
      */
     public function fixCase(
@@ -920,6 +1060,127 @@ final class SyncPlan
         return null;
     }
 
+    private function trackRenamesDisabledReason(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        TrackRenamesStrategy $strategy,
+    ): ?string {
+        if (!$target->supportsServerSideMove()) {
+            return 'destination does not support server-side move or copy';
+        }
+        if ($strategy->usesHash() && $this->commonHashType($source, $target) === null) {
+            return 'source and destination do not have a common hash';
+        }
+
+        return null;
+    }
+
+    private function commonHashType(MemoryProvider $source, MemoryProvider $target): ?string
+    {
+        $commonHashes = $source->supportedHashes()->overlap($target->supportedHashes());
+        if ($commonHashes->count() === 0) {
+            return null;
+        }
+
+        return $commonHashes->getOne();
+    }
+
+    /**
+     * @param list<ObjectInfo> $sourceOnly
+     * @param list<ObjectInfo> $targetOnly
+     * @return array<string, list<ObjectInfo>>
+     */
+    private function buildRenameMap(
+        array $sourceOnly,
+        array $targetOnly,
+        MemoryProvider $target,
+        TrackRenamesStrategy $strategy,
+        ?string $hashType,
+    ): array {
+        $possibleSizes = [];
+        foreach ($sourceOnly as $sourceInfo) {
+            $possibleSizes[$sourceInfo->size] = true;
+        }
+
+        $renameMap = [];
+        foreach ($targetOnly as $targetInfo) {
+            if (!isset($possibleSizes[$targetInfo->size])) {
+                continue;
+            }
+
+            $renameId = $this->trackRenameId($target, $targetInfo, $strategy, $hashType);
+            if ($renameId === '') {
+                continue;
+            }
+
+            $renameMap[$renameId][] = $targetInfo;
+        }
+
+        return $renameMap;
+    }
+
+    private function trackRenameId(
+        MemoryProvider $provider,
+        ObjectInfo $info,
+        TrackRenamesStrategy $strategy,
+        ?string $hashType,
+    ): string {
+        $id = (string) $info->size;
+        if ($strategy->usesHash()) {
+            if ($hashType === null) {
+                return '';
+            }
+            $hash = $provider->hashes($info->path, new HashSet($hashType))[$hashType] ?? '';
+            if ($hash === '') {
+                return '';
+            }
+            $id .= ',' . $hash;
+        }
+        if ($strategy->usesLeaf()) {
+            $id .= ',' . self::pathBase($info->path);
+        }
+
+        return $id;
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $renameMap
+     */
+    private function popRenameCandidate(
+        array &$renameMap,
+        string $renameId,
+        ObjectInfo $sourceInfo,
+        TrackRenamesStrategy $strategy,
+        int $modifyWindowSeconds,
+    ): ?ObjectInfo {
+        if ($renameId === '' || !isset($renameMap[$renameId]) || $renameMap[$renameId] === []) {
+            return null;
+        }
+
+        $index = 0;
+        if ($strategy->usesModTime()) {
+            $index = null;
+            foreach ($renameMap[$renameId] as $candidateIndex => $targetInfo) {
+                $dt = $this->modTimeDeltaSeconds($sourceInfo, $targetInfo);
+                if ($dt !== null && $this->modTimesWithinWindow($dt, $modifyWindowSeconds)) {
+                    $index = $candidateIndex;
+                    break;
+                }
+            }
+            if ($index === null) {
+                return null;
+            }
+        }
+
+        $candidate = $renameMap[$renameId][$index];
+        array_splice($renameMap[$renameId], $index, 1);
+        if ($renameMap[$renameId] === []) {
+            unset($renameMap[$renameId]);
+        }
+
+        return $candidate;
+    }
+
     private function assertDeleteWithinLimits(
         int $deleteCount,
         int $deleteBytes,
@@ -1052,6 +1313,16 @@ final class SyncPlan
         }
 
         return substr($path, 0, strrpos($path, '/')) ?: '';
+    }
+
+    private static function pathBase(string $path): string
+    {
+        $path = self::normalizePath($path);
+        if (!str_contains($path, '/')) {
+            return $path;
+        }
+
+        return substr($path, strrpos($path, '/') + 1);
     }
 
     private static function pathLevel(string $path): int

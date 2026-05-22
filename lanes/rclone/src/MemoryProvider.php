@@ -33,7 +33,11 @@ final class MemoryProvider
 
     private readonly HashSet $supportedHashes;
 
-    public function __construct(private readonly bool $caseInsensitive = false, ?HashSet $supportedHashes = null)
+    public function __construct(
+        private readonly bool $caseInsensitive = false,
+        ?HashSet $supportedHashes = null,
+        private readonly bool $serverSideMove = true,
+    )
     {
         $this->supportedHashes = $supportedHashes === null
             ? HashSet::supported()
@@ -118,6 +122,11 @@ final class MemoryProvider
     public function isCaseInsensitive(): bool
     {
         return $this->caseInsensitive;
+    }
+
+    public function supportsServerSideMove(): bool
+    {
+        return $this->serverSideMove;
     }
 
     public function get(string $path): string
