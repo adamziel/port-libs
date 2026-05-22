@@ -6,21 +6,38 @@
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
-        "license": "pending verification from upstream checkout",
-        "architecture": "Shared document AST with readers/writers for Markdown, HTML, WXR, EPUB/PDF intermediates, and WordPress blocks."
+        "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
+        "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 2,
-        "source": "Pandoc golden tests/readers/writers; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": "1979 upstream test files/artifacts inspected from a blob-filtered shallow clone: 1974 under test/ plus 5 pandoc-lua-engine test modules",
+        "mapped": 5,
+        "source": ".upstream-cache/pandoc at 0640c4c9859aa5a3ede082c190fcd5883c24ac83 using git ls-tree path inventory and targeted reads of pandoc.cabal, COPYRIGHT, test/test-pandoc.hs, Tests.Command, Tests.Readers.Markdown, and Tests.Writers.Native",
+        "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because ghc, cabal, and stack are not installed in this environment; upstream test-pandoc must be built as a Haskell Tasty executable and run from a full checkout."
+    },
+    "inventory": {
+        "mainTestSuite": "pandoc.cabal test-suite test-pandoc",
+        "mainTestFilesUnderTestDirectory": 1974,
+        "haskellTestModulesUnderTestTests": 62,
+        "readerTestModules": 34,
+        "writerTestModules": 22,
+        "sharedSupportTestModules": 6,
+        "commandDirectoryArtifacts": 1155,
+        "commandMarkdownFixtureFiles": 1064,
+        "nativeExpectedArtifacts": 252,
+        "markdownFixtureFiles": 1096,
+        "officeArchiveFixtures": 309,
+        "htmlXmlJatsFixtures": 29,
+        "pandocLuaEngineTestModules": 5,
+        "benchmarkFiles": 1,
+        "dataFiles": 247
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native Markdown block reader and WordPress block writer for headings, paragraphs, and lists."
+        "currentSlice": "Native Markdown reader and WordPress block writer for headings, paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists, and ordered lists."
     },
-    "wordpressScenario": "Document conversion kernel for Data Liberation imports and block-oriented output.",
-    "nextTask": "Add inline marks/list nesting and map Pandoc native AST tests."
+    "wordpressScenario": "Data Liberation Markdown import path that preserves editorial emphasis, source links, code spans, and ordered conversion steps as WordPress blocks.",
+    "nextTask": "Map a small subset of Pandoc Tests.Readers.Markdown golden cases into PHP fixtures, then add nested list item blocks."
 }

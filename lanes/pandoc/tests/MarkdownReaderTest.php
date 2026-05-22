@@ -11,14 +11,45 @@ return [
         $t->same('document', $document->type);
         $t->same('heading', $document->children[0]->type);
         $t->same('paragraph', $document->children[1]->type);
-        $t->same('list_item', $document->children[2]->type);
+        $t->same('bullet_list', $document->children[2]->type);
+        $t->same('list_item', $document->children[2]->children[0]->type);
+    },
+    'maps pandoc markdown inline mark semantics into ast nodes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('A *migrated* **post** with [`source`](https://example.test/source) and `code`.');
+        $paragraph = $document->children[0];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('emph', $paragraph->children[1]->type);
+        $t->same('migrated', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('strong', $paragraph->children[3]->type);
+        $t->same('post', $paragraph->children[3]->children[0]->attr('text'));
+        $t->same('link', $paragraph->children[5]->type);
+        $t->same('https://example.test/source', $paragraph->children[5]->attr('url'));
+        $t->same('code', $paragraph->children[7]->type);
+    },
+    'groups ordered lists as a list block' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("3. Export WXR\n4. Convert Markdown\n5. Publish blocks");
+        $list = $document->children[0];
+
+        $t->same('ordered_list', $list->type);
+        $t->same(3, $list->attr('start'));
+        $t->same('Convert Markdown', $list->children[1]->attr('text'));
     },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
-        $document = (new MarkdownReader())->read("# Title\n\nParagraph\n\n- One\n- Two");
+        $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
-        $t->contains('<p>Paragraph</p>', $blocks);
+        $t->contains('<p>Paragraph with <strong>strong</strong> text and <a href="https://example.test">source</a>.</p>', $blocks);
         $t->contains('<!-- wp:list -->', $blocks);
+        $t->contains('<ul><li>One</li><li>Two</li></ul>', $blocks);
+        $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
+        $t->contains('<ol start="3"><li>First</li><li>Second</li></ol>', $blocks);
+    },
+    'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<strong>&lt;unsafe&gt;</strong>', $blocks);
+        $t->contains('<code>x &lt; y</code>', $blocks);
     },
 ];
-

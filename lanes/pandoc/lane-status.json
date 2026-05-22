@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "pandoc",
-    "estimatedProgress": 3,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 2,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static upstream inventory; full Haskell runner not executed",
+    "phpPass": 5,
     "phpFail": 0,
-    "wordpressScenarios": "Document conversion kernel for Data Liberation imports and block-oriented output.",
-    "phase": "seed implementation",
+    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, and ordered conversion steps as WordPress blocks.",
+    "phase": "cloned inventory plus inline/list slice",
     "audit": "needs independent auditor review",
-    "currentWork": "Native Markdown block reader and WordPress block writer for headings, paragraphs, and lists.",
-    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
-    "latestCommit": "079f990fce6d",
-    "nextTask": "Add inline marks/list nesting and map Pandoc native AST tests."
+    "currentWork": "Native Markdown reader groups bullet/ordered lists and parses emphasis, strong, links, and code spans; WordPress writer renders escaped block output.",
+    "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable; upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout.",
+    "latestCommit": "650ace0",
+    "nextTask": "Map a small subset of Pandoc Tests.Readers.Markdown golden cases into PHP fixtures, then add nested list item blocks."
 }

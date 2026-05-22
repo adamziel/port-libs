@@ -20,11 +20,19 @@ final class WordPressBlockWriter
             }
             if ($node->type === 'heading') {
                 $level = (int) $node->attr('level', 2);
-                $blocks[] = '<!-- wp:heading {"level":' . $level . '} -->' . "\n" . '<h' . $level . '>' . $this->esc((string) $node->attr('text', '')) . '</h' . $level . '>' . "\n" . '<!-- /wp:heading -->';
+                $blocks[] = '<!-- wp:heading {"level":' . $level . '} -->'
+                    . "\n" . '<h' . $level . '>' . $this->renderInlines($node) . '</h' . $level . '>'
+                    . "\n" . '<!-- /wp:heading -->';
             } elseif ($node->type === 'paragraph') {
-                $blocks[] = '<!-- wp:paragraph -->' . "\n" . '<p>' . $this->esc((string) $node->attr('text', '')) . '</p>' . "\n" . '<!-- /wp:paragraph -->';
+                $blocks[] = '<!-- wp:paragraph -->'
+                    . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+                    . "\n" . '<!-- /wp:paragraph -->';
+            } elseif ($node->type === 'bullet_list') {
+                $blocks[] = $this->renderList($node, false);
+            } elseif ($node->type === 'ordered_list') {
+                $blocks[] = $this->renderList($node, true);
             } elseif ($node->type === 'list_item') {
-                $pendingList[] = '<li>' . $this->esc((string) $node->attr('text', '')) . '</li>';
+                $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
         }
         $this->flushList($pendingList, $blocks);
@@ -45,9 +53,62 @@ final class WordPressBlockWriter
         $items = [];
     }
 
+    private function renderList(AstNode $node, bool $ordered): string
+    {
+        $tag = $ordered ? 'ol' : 'ul';
+        $start = (int) $node->attr('start', 1);
+        $comment = '<!-- wp:list -->';
+        $tagAttrs = '';
+        if ($ordered) {
+            $attrs = ['ordered' => true];
+            if ($start > 1) {
+                $attrs['start'] = $start;
+                $tagAttrs = ' start="' . $start . '"';
+            }
+            $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
+        }
+        $items = [];
+
+        foreach ($node->children as $item) {
+            if ($item->type !== 'list_item') {
+                continue;
+            }
+            $items[] = '<li>' . $this->renderInlines($item) . '</li>';
+        }
+
+        return $comment
+            . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
+            . "\n" . '<!-- /wp:list -->';
+    }
+
+    private function renderInlines(AstNode $node): string
+    {
+        if ($node->children === []) {
+            return $this->esc((string) $node->attr('text', ''));
+        }
+
+        $html = '';
+        foreach ($node->children as $child) {
+            $html .= $this->renderInlineNode($child);
+        }
+
+        return $html;
+    }
+
+    private function renderInlineNode(AstNode $node): string
+    {
+        return match ($node->type) {
+            'text' => $this->esc((string) $node->attr('text', '')),
+            'emph' => '<em>' . $this->renderInlines($node) . '</em>',
+            'strong' => '<strong>' . $this->renderInlines($node) . '</strong>',
+            'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
+            'link' => '<a href="' . $this->esc((string) $node->attr('url', '')) . '">' . $this->renderInlines($node) . '</a>',
+            default => $this->renderInlines($node),
+        };
+    }
+
     private function esc(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
-
