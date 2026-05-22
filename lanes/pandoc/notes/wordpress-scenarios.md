@@ -5,8 +5,8 @@ Document conversion kernel for Data Liberation imports and block-oriented output
 ## Current Native Slice
 
 Native Markdown block reader and WordPress block writer for headings, paragraphs,
-Pandoc-style inline emphasis/strong/link/code spans, bullet lists, and ordered
-lists.
+Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered
+lists, nested lists, and definition lists.
 
 ## Scenario Fixture
 
@@ -15,8 +15,11 @@ lists.
   code spans, and conversion steps.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
+- Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
+  cases into `<dl>` output inside a WordPress HTML block, which is useful for
+  imported FAQs, term lists, release-note metadata, and migration checklists.
 
 ## Next Task
 
-Add nested list blocks and begin mapping Pandoc reader golden cases into PHP
-fixtures.
+Map inline code across list markers, block quotes, fenced code blocks, or loose
+definition-list paragraphs from `Tests.Readers.Markdown`.

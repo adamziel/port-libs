@@ -12,9 +12,9 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "1979 upstream test files/artifacts inspected from a blob-filtered shallow clone: 1974 under test/ plus 5 pandoc-lua-engine test modules",
-        "mapped": 7,
+        "mapped": 11,
         "source": ".upstream-cache/pandoc at 0640c4c9859aa5a3ede082c190fcd5883c24ac83 using git ls-tree path inventory and targeted reads of pandoc.cabal, COPYRIGHT, test/test-pandoc.hs, Tests.Command, Tests.Readers.Markdown, and Tests.Writers.Native",
-        "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because ghc, cabal, and stack are not installed in this environment; upstream test-pandoc must be built as a Haskell Tasty executable and run from a full checkout. Native PHP progress maps 7 focused Markdown/WordPress writer checks, including the Tests.Readers.Markdown nested list case with an indented bullet under a preceding item."
+        "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because ghc, cabal, and stack are not installed in this environment; upstream test-pandoc must be built as a Haskell Tasty executable and run from a full checkout. Native PHP progress maps 11 focused Markdown/WordPress writer checks, including the Tests.Readers.Markdown nested list case and three definition-list cases."
     },
     "inventory": {
         "mainTestSuite": "pandoc.cabal test-suite test-pandoc",
@@ -36,8 +36,8 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native Markdown reader and WordPress block writer for headings, paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered lists, and the Tests.Readers.Markdown nested indented bullet-list shape."
+        "currentSlice": "Native Markdown reader and WordPress block writer for headings, paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists, ordered lists, the Tests.Readers.Markdown nested indented bullet-list shape, and definition-list cases for no-blank definitions, column-zero definition markers, and lists inside definitions."
     },
-    "wordpressScenario": "Data Liberation Markdown import path that preserves editorial emphasis, source links, code spans, ordered conversion steps, and nested editorial checklists as WordPress blocks.",
-    "nextTask": "Map more Pandoc Tests.Readers.Markdown cases such as inline code across list markers, block quotes, fenced code blocks, or definition lists."
+    "wordpressScenario": "Data Liberation Markdown import path that preserves editorial emphasis, source links, code spans, ordered conversion steps, nested editorial checklists, and glossary-style definition lists as WordPress blocks or HTML.",
+    "nextTask": "Map more Pandoc Tests.Readers.Markdown cases such as inline code across list markers, block quotes, fenced code blocks, or loose definition-list paragraphs."
 }
