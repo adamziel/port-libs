@@ -404,7 +404,7 @@ final class TypeScriptModuleLowerer
         }
 
         $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
-        [$members, $hasTypeScriptMemberSyntax] = $this->lowerClassMembers(
+        [$members, $hasTypeScriptMemberSyntax, $fieldKeyTemps, $fieldKeyPrelude] = $this->lowerClassMembers(
             $bodyOpen + 1,
             $bodyClose,
             $this->classHeaderHasExtends($cursor, $bodyOpen),
@@ -422,7 +422,14 @@ final class TypeScriptModuleLowerer
         }
         $lines[] = '}';
 
-        return [implode("\n", $lines), $bodyClose];
+        $classOutput = implode("\n", $lines);
+        if ($this->useDefineForClassFields === false && $fieldKeyPrelude !== []) {
+            $classOutput = 'var ' . implode(', ', $fieldKeyTemps) . ";\n"
+                . implode("\n", $fieldKeyPrelude) . "\n"
+                . $classOutput;
+        }
+
+        return [$classOutput, $bodyClose];
     }
 
     private function classHeaderContainsTypeScriptSyntax(int $classIndex, int $bodyOpen): bool
@@ -452,13 +459,15 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @return array{0:list<string>, 1:bool}
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}
      */
     private function lowerClassMembers(int $start, int $end, bool $hasExtends): array
     {
         $members = [];
         $instanceAssignments = [];
         $staticAssignments = [];
+        $fieldKeyTemps = [];
+        $fieldKeyPrelude = [];
         $hasTypeScriptMemberSyntax = false;
         for ($cursor = $start; $cursor < $end; $cursor++) {
             if (($this->tokens[$cursor] ?? null)?->text === ';') {
@@ -466,7 +475,12 @@ final class TypeScriptModuleLowerer
             }
 
             $memberEnd = $this->classMemberEnd($cursor, $end);
-            [$loweredMembers, $transformed, $memberInstanceAssignments, $memberStaticAssignments] = $this->lowerClassMember($cursor, $memberEnd);
+            [$loweredMembers, $transformed, $memberInstanceAssignments, $memberStaticAssignments] = $this->lowerClassMember(
+                $cursor,
+                $memberEnd,
+                $fieldKeyTemps,
+                $fieldKeyPrelude
+            );
             if ($transformed) {
                 $hasTypeScriptMemberSyntax = true;
             }
@@ -492,13 +506,15 @@ final class TypeScriptModuleLowerer
             $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
         }
 
-        return [$members, $hasTypeScriptMemberSyntax];
+        return [$members, $hasTypeScriptMemberSyntax, $fieldKeyTemps, $fieldKeyPrelude];
     }
 
     /**
+     * @param list<string> $fieldKeyTemps
+     * @param list<string> $fieldKeyPrelude
      * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}
      */
-    private function lowerClassMember(int $start, int $end): array
+    private function lowerClassMember(int $start, int $end, array &$fieldKeyTemps, array &$fieldKeyPrelude): array
     {
         $cursor = $start;
         $decorated = false;
@@ -527,7 +543,7 @@ final class TypeScriptModuleLowerer
             }
 
             if ($this->useDefineForClassFields === false) {
-                $assignSemanticsField = $this->lowerAssignSemanticsClassField($start, $end, $cursor, $modifiers);
+                $assignSemanticsField = $this->lowerAssignSemanticsClassField($start, $end, $cursor, $modifiers, $fieldKeyTemps, $fieldKeyPrelude);
                 if ($assignSemanticsField !== null) {
                     return $assignSemanticsField;
                 }
@@ -578,9 +594,18 @@ final class TypeScriptModuleLowerer
 
     /**
      * @param list<string> $modifiers
+     * @param list<string> $fieldKeyTemps
+     * @param list<string> $fieldKeyPrelude
      * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}|null
      */
-    private function lowerAssignSemanticsClassField(int $start, int $end, int $memberNameIndex, array $modifiers): ?array
+    private function lowerAssignSemanticsClassField(
+        int $start,
+        int $end,
+        int $memberNameIndex,
+        array $modifiers,
+        array &$fieldKeyTemps,
+        array &$fieldKeyPrelude
+    ): ?array
     {
         if (in_array('accessor', $modifiers, true)) {
             return null;
@@ -591,7 +616,7 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
-        $field = $this->classFieldTarget($memberNameIndex, $effectiveEnd);
+        $field = $this->classFieldTarget($memberNameIndex, $effectiveEnd, $fieldKeyTemps, $fieldKeyPrelude);
         if ($field === null) {
             return null;
         }
@@ -650,9 +675,11 @@ final class TypeScriptModuleLowerer
     }
 
     /**
+     * @param list<string> $fieldKeyTemps
+     * @param list<string> $fieldKeyPrelude
      * @return array{0:?string, 1:int, 2:bool}|null
      */
-    private function classFieldTarget(int $start, int $end): ?array
+    private function classFieldTarget(int $start, int $end, array &$fieldKeyTemps, array &$fieldKeyPrelude): ?array
     {
         $name = $this->tokens[$start] ?? null;
         if ($name === null) {
@@ -702,7 +729,22 @@ final class TypeScriptModuleLowerer
             throw new \InvalidArgumentException('Expected TypeScript computed class field name');
         }
 
-        return ['this[' . $computed . ']', $close, false];
+        $temp = $this->nextClassFieldTempName(count($fieldKeyTemps));
+        $fieldKeyTemps[] = $temp;
+        $fieldKeyPrelude[] = $temp . ' = ' . $computed . ';';
+
+        return ['this[' . $temp . ']', $close, false];
+    }
+
+    private function nextClassFieldTempName(int $index): string
+    {
+        $name = '';
+        do {
+            $name = chr(ord('a') + ($index % 26)) . $name;
+            $index = intdiv($index, 26) - 1;
+        } while ($index >= 0);
+
+        return '_' . $name;
     }
 
     /**

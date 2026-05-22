@@ -1279,6 +1279,112 @@ LATEX;
         $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="short caption">', $blocks);
         $t->contains('<figcaption class="wp-element-caption">long caption</figcaption>', $blocks);
     },
+    'maps upstream command docbook table cell alignments' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<informaltable frame="all" rowsep="1" colsep="1">
+<tgroup cols="16">
+<tbody>
+<row>
+<entry align="center" valign="top"><simpara>1</simpara></entry>
+<entry align="left" valign="top"><simpara>2</simpara></entry>
+<entry align="right" valign="top"><simpara>3</simpara></entry>
+<entry align="justify" valign="top"><simpara>4</simpara></entry>
+</row>
+</tbody>
+</tgroup>
+</informaltable>
+XML;
+        $document = (new MarkdownReader())->read($docbook);
+        $table = $document->children[0];
+        $row = $table->children[1]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(['default', 'default', 'default', 'default'], $table->attr('alignments'));
+        $t->same([], $table->children[0]->children);
+        $t->same('center', $row->children[0]->attr('align'));
+        $t->same('left', $row->children[1]->attr('align'));
+        $t->same('right', $row->children[2]->attr('align'));
+        $t->same('default', $row->children[3]->attr('align', 'default'));
+        $t->same('1', $row->children[0]->attr('text'));
+        $t->same('4', $row->children[3]->attr('text'));
+        $t->contains('<td style="text-align:center">1</td><td style="text-align:left">2</td><td style="text-align:right">3</td><td>4</td>', $blocks);
+    },
+    'maps upstream command docbook table column spans and colspec widths' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<informaltable frame="all" rowsep="1" colsep="1">
+<tgroup cols="16">
+<colspec colname="col_1" colwidth="6.25*"/>
+<colspec colname="col_2" colwidth="6.25*"/>
+<colspec colname="col_3" colwidth="6.25*"/>
+<colspec colname="col_4" colwidth="6.25*"/>
+<colspec colname="col_5" colwidth="6.25*"/>
+<colspec colname="col_6" colwidth="6.25*"/>
+<colspec colname="col_7" colwidth="6.25*"/>
+<colspec colname="col_8" colwidth="6.25*"/>
+<colspec colname="col_9" colwidth="6.25*"/>
+<colspec colname="col_10" colwidth="6.25*"/>
+<colspec colname="col_11" colwidth="6.25*"/>
+<colspec colname="col_12" colwidth="6.25*"/>
+<colspec colname="col_13" colwidth="6.25*"/>
+<colspec colname="col_14" colwidth="6.25*"/>
+<colspec colname="col_15" colwidth="6.25*"/>
+<colspec colname="col_16" colwidth="6.25*"/>
+<tbody>
+<row>
+<entry align="center" valign="top" namest="col_1" nameend="col_8"><simpara><emphasis role="strong">Octet no. 1</emphasis></simpara></entry>
+<entry align="center" valign="top" namest="col_2" nameend="col_9"><simpara><emphasis role="strong">Octet no. 2</emphasis></simpara></entry>
+</row>
+<row>
+<entry align="center" valign="top"><simpara>16</simpara></entry>
+<entry align="center" valign="top"><simpara>15</simpara></entry>
+<entry align="center" valign="top"><simpara>14</simpara></entry>
+<entry align="center" valign="top"><simpara>13</simpara></entry>
+<entry align="center" valign="top"><simpara>12</simpara></entry>
+<entry align="center" valign="top"><simpara>11</simpara></entry>
+<entry align="center" valign="top"><simpara>10</simpara></entry>
+<entry align="center" valign="top"><simpara>9</simpara></entry>
+<entry align="center" valign="top"><simpara>8</simpara></entry>
+<entry align="center" valign="top"><simpara>7</simpara></entry>
+<entry align="center" valign="top"><simpara>6</simpara></entry>
+<entry align="center" valign="top"><simpara>5</simpara></entry>
+<entry align="center" valign="top"><simpara>4</simpara></entry>
+<entry align="center" valign="top"><simpara>3</simpara></entry>
+<entry align="center" valign="top"><simpara>2</simpara></entry>
+<entry align="center" valign="top"><simpara>1</simpara></entry>
+</row>
+<row>
+<entry align="center" valign="top" namest="col_1" nameend="col_8"><simpara>Code A</simpara></entry>
+<entry align="center" valign="top" namest="col_2" nameend="col_9"><simpara>Code B</simpara></entry>
+</row>
+</tbody>
+</tgroup>
+</informaltable>
+XML;
+        $document = (new MarkdownReader())->read($docbook);
+        $table = $document->children[0];
+        $widths = $table->attr('widths');
+        $firstRow = $table->children[1]->children[0];
+        $secondRow = $table->children[1]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(16, count($table->attr('alignments')));
+        $t->same(16, count($widths));
+        $t->same(0.0625, $widths[0]);
+        $t->same(8, $firstRow->children[0]->attr('colspan'));
+        $t->same(8, $firstRow->children[1]->attr('colspan'));
+        $t->same('center', $firstRow->children[0]->attr('align'));
+        $t->same('strong', $firstRow->children[0]->children[0]->type);
+        $t->same('Octet no. 1', $firstRow->children[0]->children[0]->children[0]->attr('text'));
+        $t->same(16, count($secondRow->children));
+        $t->same('16', $secondRow->children[0]->attr('text'));
+        $t->same('1', $secondRow->children[15]->attr('text'));
+        $t->same(8, $table->children[1]->children[2]->children[0]->attr('colspan'));
+        $t->contains('<col style="width:6.25%"/>', $blocks);
+        $t->contains('<td colspan="8" style="text-align:center"><strong>Octet no. 1</strong></td>', $blocks);
+        $t->contains('<td colspan="8" style="text-align:center">Code B</td>', $blocks);
+    },
     'maps upstream pipe table headerless and side-less forms' => static function (TestRunner $t): void {
         $headerless = (new MarkdownReader())->read(implode("\n", [
             'Headerless table without caption:',
@@ -1543,6 +1649,14 @@ LATEX;
         $t->contains('<th style="text-align:right">Field</th><th>Count</th><th style="text-align:right">Status</th>', $blocks);
         $t->contains('<td style="text-align:right">Posts</td><td>42</td><td style="text-align:right">Ready</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Legacy simple-table summary.</figcaption>', $blocks);
+    },
+    'writes wordpress docbook table spans for import audit exports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-table.xml');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<td colspan="4" style="text-align:center"><strong>Migration Batch 42</strong></td>', $blocks);
+        $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">ready</td><td>editorial</td>', $blocks);
+        $t->contains('<td colspan="2" style="text-align:center">Needs media review</td><td colspan="2" style="text-align:center">Ready for block publish</td>', $blocks);
     },
     'writes wordpress multiline simple table blocks for wrapped review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

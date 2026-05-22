@@ -317,26 +317,37 @@ final class WordPressBlockWriter
             if ($cell->type !== 'table_cell') {
                 continue;
             }
-            $attrs = $this->renderTableCellAttrs($table, $index);
+            $attrs = $this->renderTableCellAttrs($table, $index, $cell);
             $html .= '<' . $tag . $attrs . '>' . $this->renderInlines($cell) . '</' . $tag . '>';
         }
 
         return $html . '</tr>';
     }
 
-    private function renderTableCellAttrs(AstNode $table, int $index): string
+    private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
     {
+        $attrs = '';
+        $colspan = (int) $cell->attr('colspan', 1);
+        if ($colspan > 1) {
+            $attrs .= ' colspan="' . $colspan . '"';
+        }
+
+        $rowspan = (int) $cell->attr('rowspan', 1);
+        if ($rowspan > 1) {
+            $attrs .= ' rowspan="' . $rowspan . '"';
+        }
+
         $alignments = $table->attr('alignments', []);
-        if (!is_array($alignments)) {
-            return '';
+        $alignment = (string) $cell->attr('align', '');
+        if ($alignment === '' && is_array($alignments)) {
+            $alignment = (string) ($alignments[$index] ?? 'default');
         }
 
-        $alignment = (string) ($alignments[$index] ?? 'default');
-        if (!in_array($alignment, ['left', 'right', 'center'], true)) {
-            return '';
+        if (in_array($alignment, ['left', 'right', 'center'], true)) {
+            $attrs .= ' style="text-align:' . $alignment . '"';
         }
 
-        return ' style="text-align:' . $alignment . '"';
+        return $attrs;
     }
 
     private function renderCodeBlock(AstNode $node): string

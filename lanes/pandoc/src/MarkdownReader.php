@@ -45,6 +45,11 @@ final class MarkdownReader
                 $blocks[] = $divBlock;
                 continue;
             }
+            $docBookTable = $paragraph === [] && $listStack === [] ? $this->tryReadDocBookTableBlock($lines, $index) : null;
+            if ($docBookTable !== null) {
+                $blocks[] = $docBookTable;
+                continue;
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -712,6 +717,275 @@ final class MarkdownReader
         $text = preg_replace('/\s+/', ' ', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadDocBookTableBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<informaltable(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $content[] = trim($lines[$cursor]);
+            if (preg_match('/<\/informaltable\s*>/i', $lines[$cursor]) === 1) {
+                $table = $this->parseDocBookInformalTable(implode("\n", $content));
+                if ($table === null) {
+                    return null;
+                }
+
+                $index = $cursor;
+
+                return $table;
+            }
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    private function parseDocBookInformalTable(string $xml): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+            return null;
+        }
+
+        $root = $dom->documentElement;
+        if (strtolower($root->localName) !== 'informaltable') {
+            return null;
+        }
+
+        $tgroup = $this->firstDescendantElement($root, 'tgroup');
+        $tbody = $this->firstDescendantElement($root, 'tbody');
+        if (!$tbody instanceof \DOMElement) {
+            return null;
+        }
+
+        [$columnNames, $widths] = $tgroup instanceof \DOMElement
+            ? $this->readDocBookColumnSpecs($tgroup)
+            : [[], null];
+
+        $bodyRows = [];
+        $maxColumns = count($columnNames);
+        foreach ($this->childElements($tbody, 'row') as $rowElement) {
+            $cells = [];
+            $rowColumns = 0;
+            foreach ($this->childElements($rowElement, 'entry') as $entry) {
+                $cell = $this->buildDocBookTableCell($entry, $columnNames);
+                $cells[] = $cell;
+                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
+            }
+
+            if ($cells !== []) {
+                $bodyRows[] = new AstNode('table_row', ['header' => false], $cells);
+                $maxColumns = max($maxColumns, $rowColumns);
+            }
+        }
+
+        if ($bodyRows === []) {
+            return null;
+        }
+
+        if ($maxColumns === 0) {
+            foreach ($bodyRows as $row) {
+                $maxColumns = max($maxColumns, count($row->children));
+            }
+        }
+
+        $attrs = [
+            'caption' => '',
+            'alignments' => array_fill(0, $maxColumns, 'default'),
+        ];
+        if ($widths !== null) {
+            $attrs['widths'] = $widths;
+        }
+
+        return new AstNode('table', $attrs, [
+            new AstNode('table_head'),
+            new AstNode('table_body', [], $bodyRows),
+        ]);
+    }
+
+    /**
+     * @return array{0:list<string>, 1:list<float>|null}
+     */
+    private function readDocBookColumnSpecs(\DOMElement $tgroup): array
+    {
+        $names = [];
+        $widthParts = [];
+        foreach ($this->childElements($tgroup, 'colspec') as $index => $colspec) {
+            $name = trim($colspec->getAttribute('colname'));
+            $names[] = $name !== '' ? $name : 'col_' . ($index + 1);
+
+            $width = trim($colspec->getAttribute('colwidth'));
+            $widthParts[] = preg_match('/^([0-9]+(?:\.[0-9]+)?)\*$/', $width, $m) === 1
+                ? (float) $m[1]
+                : null;
+        }
+
+        $widths = null;
+        if ($widthParts !== [] && !in_array(null, $widthParts, true)) {
+            $total = array_sum($widthParts);
+            if ($total > 0.0) {
+                $widths = array_map(
+                    static fn (float $width): float => $width / $total,
+                    $widthParts
+                );
+            }
+        }
+
+        return [$names, $widths];
+    }
+
+    /**
+     * @param list<string> $columnNames
+     */
+    private function buildDocBookTableCell(\DOMElement $entry, array $columnNames): AstNode
+    {
+        $children = $this->parseDocBookInlineNodes($entry);
+        $attrs = [
+            'text' => $this->plainTextFromInlines($children),
+            'header' => false,
+        ];
+
+        $align = $this->normalizeDocBookAlignment($entry->getAttribute('align'));
+        if ($align !== 'default') {
+            $attrs['align'] = $align;
+        }
+
+        $colSpan = $this->docBookColumnSpan($entry, $columnNames);
+        if ($colSpan > 1) {
+            $attrs['colspan'] = $colSpan;
+        }
+
+        $moreRows = trim($entry->getAttribute('morerows'));
+        if (preg_match('/^\d+$/', $moreRows) === 1 && (int) $moreRows > 0) {
+            $attrs['rowspan'] = (int) $moreRows + 1;
+        }
+
+        return new AstNode('table_cell', $attrs, $children);
+    }
+
+    /**
+     * @param list<string> $columnNames
+     */
+    private function docBookColumnSpan(\DOMElement $entry, array $columnNames): int
+    {
+        $startName = trim($entry->getAttribute('namest'));
+        $endName = trim($entry->getAttribute('nameend'));
+        if ($startName === '' || $endName === '') {
+            return 1;
+        }
+
+        $start = array_search($startName, $columnNames, true);
+        $end = array_search($endName, $columnNames, true);
+        if (!is_int($start) || !is_int($end) || $end < $start) {
+            return 1;
+        }
+
+        return $end - $start + 1;
+    }
+
+    private function normalizeDocBookAlignment(string $alignment): string
+    {
+        return match (strtolower(trim($alignment))) {
+            'left' => 'left',
+            'right' => 'right',
+            'center' => 'center',
+            default => 'default',
+        };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseDocBookInlineNodes(\DOMNode $node): array
+    {
+        $nodes = [];
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $this->appendDocBookTextNode($nodes, $child->wholeText);
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            $children = $this->parseDocBookInlineNodes($child);
+            if ($name === 'emphasis') {
+                $role = strtolower(trim($child->getAttribute('role')));
+                $nodes[] = new AstNode($role === 'strong' || $role === 'bold' ? 'strong' : 'emph', [], $children);
+                continue;
+            }
+
+            if (in_array($name, ['code', 'command', 'filename', 'literal'], true)) {
+                $nodes[] = new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $child->textContent) ?? $child->textContent)]);
+                continue;
+            }
+
+            if ($name === 'ulink' || $name === 'link') {
+                $url = $child->getAttribute('url') ?: $child->getAttribute('href');
+                $nodes[] = new AstNode('link', ['url' => $url, 'title' => ''], $children);
+                continue;
+            }
+
+            array_push($nodes, ...$children);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function appendDocBookTextNode(array &$nodes, string $text): void
+    {
+        $text = preg_replace('/\s+/', ' ', $text) ?? $text;
+        $text = trim($text);
+        if ($text === '') {
+            return;
+        }
+
+        $nodes[] = new AstNode('text', ['text' => $text]);
+    }
+
+    private function firstDescendantElement(\DOMElement $root, string $name): ?\DOMElement
+    {
+        foreach ($root->getElementsByTagName($name) as $element) {
+            if ($element instanceof \DOMElement) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElements(\DOMElement $root, string $name): array
+    {
+        $children = [];
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === $name) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
     }
 
     /**

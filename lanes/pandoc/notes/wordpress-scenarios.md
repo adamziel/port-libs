@@ -112,6 +112,12 @@ narrow LaTeX table slice: optional short captions are kept separately from the
 visible long caption on the AST, and the WordPress table figure preserves the
 short label in `data-pandoc-short-caption` for reviewer handoff, search, or
 later export tooling.
+The upstream `test/command/table-with-cell-align.md` and
+`test/command/table-with-column-span.md` fixtures are now represented for a
+narrow DocBook table slice: `informaltable` fragments keep colspec widths,
+per-cell left/right/center/default alignment, strong emphasis inside cells, and
+colspan metadata. The WordPress table writer preserves those as core table
+markup with safe `style` and `colspan` attributes.
 
 ## Scenario Fixture
 
@@ -144,8 +150,14 @@ later export tooling.
 - The fixture now includes a short-caption LaTeX table import that keeps a
   compact reviewer label (`Batch 42`) while rendering the longer handoff
   caption in the WordPress table figcaption.
-- `examples/wordpress-import-markdown.php` converts that fixture to WordPress
-  block comments and HTML without shelling out to pandoc.
+- `fixtures/wordpress-docbook-table.xml` is a bounded DocBook import-audit
+  table with a spanned strong batch heading, aligned status cells, proportional
+  colspec widths, and spanned remediation summary cells.
+- `examples/wordpress-import-markdown.php` converts
+  `fixtures/wordpress-import-markdown.md` to WordPress block comments and HTML
+  without shelling out to pandoc.
+- `examples/wordpress-docbook-table-spans.php` converts the DocBook table
+  fixture into WordPress table block HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
   cases into `<dl>` output inside a WordPress HTML block, which is useful for
   imported FAQs, term lists, release-note metadata, and migration checklists.
@@ -211,10 +223,13 @@ later export tooling.
 - Short-caption LaTeX tables render as core WordPress table blocks with
   alignment styles, visible long captions, and preserved short-caption metadata
   without invoking Pandoc.
+- DocBook import-audit tables render as core WordPress table blocks with
+  colgroup widths, per-cell alignment, strong inline cell content, and preserved
+  `colspan` structural metadata without invoking Pandoc.
 
 ## Next Task
 
-Map another bounded Pandoc table fixture with structural cells, starting with
-`test/command/table-with-cell-align.md` or
-`test/command/table-with-column-span.md`, then decide how rowspan/colspan should
-survive in the PHP AST and WordPress-safe table HTML.
+Map another bounded Pandoc structural table fixture with row spans or nested
+tables, starting with `test/command/rst-writer-gridtable-if-rowspans.md` or
+`test/command/nested-table-to-asciidoc-6942.md`, then decide whether nested
+table cells need block-child AST support.

@@ -92,6 +92,15 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   LaTeX reader example whose native output is a `Table` with
   `Caption (Just [Str "short", Space, Str "caption"]) [Plain [...]]`, two
   left-aligned columns, no table head, and one body row.
+- `test/command/table-with-cell-align.md` command fixture inspected in this
+  run: 105 lines covering a DocBook `informaltable` reader example whose
+  native output keeps per-cell `AlignCenter`, `AlignLeft`, `AlignRight`, and
+  `AlignDefault` cell alignment while leaving table-level column alignments
+  default.
+- `test/command/table-with-column-span.md` command fixture inspected in this
+  run: 385 lines covering a DocBook `informaltable` reader example with 16
+  `colspec` entries, `ColWidth 6.25e-2`, strong emphasis inside spanned cells,
+  and `namest`/`nameend` entries that become `ColSpan 8` cells.
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -281,11 +290,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   content and stores the short caption separately on the table AST. The
   WordPress writer preserves that short label as `data-pandoc-short-caption`
   on the table figure while rendering the long caption in the figcaption.
+- The DocBook structural-cell shapes from `test/command/table-with-cell-align.md`
+  and `test/command/table-with-column-span.md` are now mapped for a narrow
+  `informaltable` slice: the native PHP reader uses DOM parsing for bounded
+  DocBook table fragments, keeps `colspec` widths, per-cell alignment,
+  `namest`/`nameend` column spans, and strong emphasis inside cells. The
+  WordPress writer emits core table HTML with escaped `style` and `colspan`
+  attributes, so structural cells survive import without shelling out to Pandoc.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-88 tests, 602 assertions, and 0 failures. The required repo-wide
+91 tests, 631 assertions, and 0 failures. The required repo-wide
 `php tools/run-tests.php` command passed in the current shared worktree with
-113 test files, 8,425 assertions, and 0 failures.
+115 test files, 8,713 assertions, and 0 failures.

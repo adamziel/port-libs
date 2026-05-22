@@ -337,6 +337,36 @@ class Foo {
 }
 JS . "\n", $lowerer->lower('class Foo { static foo: number = 0 }', false));
     },
+    'caches upstream computed class field keys in assign semantics mode' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _a;
+_a = foo;
+class Foo {
+  constructor() {
+    this[_a] = 0;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { [foo] = 0 }', false));
+
+        $t->same(<<<'JS'
+var _a;
+_a = sideEffect();
+class Foo {
+}
+JS . "\n", $lowerer->lower('class Foo { [sideEffect()] }', false));
+
+        $t->same(<<<'JS'
+var _a;
+_a = x();
+class Foo {
+  static {
+    this[_a] = 1;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { static [x()] = 1 }', false));
+    },
     'lowers upstream constructor parameter properties' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -487,6 +517,19 @@ JS . "\n", $lowerer->lower("class Foo { constructor(protected readonly x: string
         $t->contains('static {', $lowered);
         $t->contains('this.metadata = metadata;', $lowered);
         $t->contains('register(config = this.settings) {wp.blocks.registerBlockType(this.blockName, config);}', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress computed class field asset keys without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-computed-class-fields.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('var _a, _b;', $lowered);
+        $t->contains('_a = assetKey("viewScript");', $lowered);
+        $t->contains('_b = assetKey("worker");', $lowered);
+        $t->contains('this[_a] = "file:./view.js";', $lowered);
+        $t->contains('this[_b] = "file:./card-worker.js";', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
