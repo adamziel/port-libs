@@ -150,7 +150,21 @@ npm test
 1984 passing (42s)
 ```
 
-For the JSON-LD title disambiguation, clean-links footer parity, replace-font-tags, compact metadata, RTL direction, and schema-org context object/news chrome slices, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 40 Mozilla fixture pages, including `test-pages/schema-org-context-object`, `test-pages/003-metadata-preferred`, `test-pages/004-metadata-space-separated-properties`, `test-pages/title-and-h1-discrepancy`, `test-pages/replace-font-tags`, and `test-pages/rtl-1` through `test-pages/rtl-4`.
+It was rerun on 2026-05-22 after the native readability-page wrapper/author-wrapper slice and still passed:
+
+```text
+npm test
+1984 passing (37s)
+```
+
+It was rerun on 2026-05-22 after the native WordPress articleBody microdata slice and still passed:
+
+```text
+npm test
+1984 passing (41s)
+```
+
+For the JSON-LD title disambiguation, clean-links footer parity, replace-font-tags, compact metadata, RTL direction, schema-org context object/news chrome, and data URL image slices, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 42 Mozilla fixture pages, including `test-pages/data-url-image`, `test-pages/wordpress`, `test-pages/schema-org-context-object`, `test-pages/003-metadata-preferred`, `test-pages/004-metadata-space-separated-properties`, `test-pages/title-and-h1-discrepancy`, `test-pages/replace-font-tags`, and `test-pages/rtl-1` through `test-pages/rtl-4`.
 
 ## PHP Mapping
 
@@ -184,10 +198,13 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
+- Mozilla `test-pages/data-url-image` copied into the lane and mapped for data URL media boundaries: standalone tiny GIF payloads are preserved, short placeholder GIF `src` values are removed when `data-srcset` exists, `data-srcset` is promoted to `srcset`, inline SVG data URI literal spaces are preserved in serialized content, and base64 SVG/JPEG payloads plus editorial paragraph/image boundaries remain aligned with upstream expectations.
 - Mozilla `_fixRelativeUris` post-processing: `javascript:` links are replaced by inert text/span content, and `href`, `src`, `poster`, and `srcset` values are resolved against the document URL and first base element when a source URL is supplied.
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 - Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
 - Mozilla post-process semantics from `_simplifyNestedElements`, div-to-paragraph cleanup, and `_cleanClasses`: empty `div`/`section` containers are removed, single nested `div`/`section` wrappers are collapsed, transparent section wrappers whose only direct element children are containers are unwrapped after source class cleanup, `div` nodes without descendant block elements are converted to paragraphs, and source `class` attributes are stripped by default while the reserved `page` class remains eligible for preservation.
+- Mozilla parse paging semantics: the native extractor can opt into serializing cleaned content children inside `div#readability-page-1.page` for expected-HTML comparison, while default extraction remains rootless for WordPress block migration.
+- Mozilla post-process cleanup now reruns wrapper simplification after empty paragraph removal, so emptied Medium author/action wrapper stacks collapse toward the upstream `lazy-image-1` avatar shape.
 - Mozilla scoring cleanup semantics: `div` nodes that only wrap one paragraph and have link density below `0.25` are collapsed to the paragraph, matching the expected Medium blockquote shape.
 - Mozilla div preprocessing semantics: consecutive phrasing children inside `div` nodes are wrapped in `p` elements, including image and anchor-wrapped image payloads; media-bearing single-paragraph `div` wrappers are retained so copied Medium figure image wrappers move closer to expected HTML parity.
 - Mozilla `_prepArticle` extra paragraph cleanup: empty `p` nodes with no image/embed/object/iframe payload are removed before WordPress block serialization.
@@ -211,8 +228,11 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/title-en-dash` copied into the lane and mapped for `_getArticleTitle` separator cleanup where an en-dash site suffix is removed from the document title, while readerable classification, fallback excerpt, and expected article text remain aligned with upstream.
 - Mozilla `test-pages/title-and-h1-discrepancy` copied into the lane and mapped for JSON-LD `name`/`headline` disagreement where the JSON-LD field matching the cleaned document title remains the article title while the body h1 is demoted/cleaned in extracted content.
 - Mozilla `test-pages/schema-org-context-object` copied into the lane and mapped for object-valued JSON-LD `@context`, NewsArticle title/byline/site/date/lang/excerpt metadata, readerable classification, and leading timestamp/inline-byline chrome removal before the first editorial paragraph.
+- Mozilla `test-pages/wordpress` copied into the lane and mapped for WordPress Tavern BlogPosting metadata, articleBody paragraph parity, wp.com image/srcset parity, and Jetpack share/related/comment cleanup.
 - Mozilla `test-pages/ol` copied into the lane and mapped for preserving ordered-list content while keeping readerable preflight false because `li p` candidates are skipped.
 - Mozilla `test-pages/001` copied into the lane and mapped for metadata-free body byline extraction, nested `itemprop=name` preference, byline metadata parity, and removing the body byline node from extracted content.
+- Mozilla `_getClassWeight` semantics are now partially native: upstream positive/negative class/id patterns influence content candidate scoring alongside existing semantic article/main/section weights.
+- WordPress schema.org `itemprop=articleBody` candidate selection is now native for BlogPosting-style source pages that omit standard `entry-content` classes.
 - Mozilla `_getArticleTitle` separator semantics are now partially native: spaced `|`, hyphen, en dash, em dash, slash, backslash, `>`, and `»` separators remove the final hierarchy/site segment when the retained title remains substantial, with the upstream short-title fallback boundary.
 - Mozilla `_getJSONLD` title semantics are now partially native: when JSON-LD `name` and `headline` both exist and disagree, the native extractor compares each field to the cleaned document title and chooses the matching field, otherwise preserving upstream `name` before `headline` preference.
 - Mozilla `_getLinkDensity` hash URL semantics are now native: hash-only anchors use the upstream `0.3` coefficient, so local footnote/citation links do not over-inflate wrapper link density.
@@ -244,14 +264,14 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/title-h1-discrepancy/schema-org-context-object/out-of-band figure/post-process/leading-action-bar/heading-less-news-chrome/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim-footer-parity/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline/entity-unescape/replace-font-tags/rtl-direction/transparent-section-wrapper mappings.
-- Native PHP lane tests: 70 passing, 0 failing, 637 assertions.
-- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 70 tests, 637 assertions, and 0 failures.
-- Latest required root verification: `php tools/run-tests.php` passes 138 test files, 12199 assertions, and 0 failures.
-- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 transparent section-wrapper rerun in 42s.
-- Blocker: no readability-local or root harness blocker is active. Exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures, especially the `readability-page-1` root wrapper/id/class boundary and remaining author/avatar wrapper differences.
-- Current work: native extraction now unwraps transparent section wrappers after source class cleanup, which moves copied `lazy-image-1` closer to upstream expected structure and keeps page-builder `<section>` shells out of WordPress block output. It also maps copied `schema-org-context-object`, `rtl-1` through `rtl-4`, compact metadata fixtures, hidden/invisible/modal cleanup, fallback-image preservation, fallback excerpts, body byline extraction/removal, JSON-LD title disambiguation, title separator cleanup, duplicate heading cleanup, URI normalization, hash-only link-density weighting, metadata entity replacement, copied `replace-font-tags`, `title-and-h1-discrepancy`, `ol`, `001`, and `005-unescape-html-entities` fixtures, clean-links footer parity, platform chrome cleanup, and WordPress block output passing.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/data-url-image/ad wrapper/title-heading/title-h1-discrepancy/schema-org-context-object/wordpress-articleBody/out-of-band figure/post-process/leading-action-bar/heading-less-news-chrome/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim-footer-parity/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline/entity-unescape/replace-font-tags/rtl-direction/transparent-section-wrapper/readability-page-wrapper mappings.
+- Native PHP lane tests: 74 passing, 0 failing, 687 assertions.
+- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 74 tests, 687 assertions, and 0 failures.
+- Latest required root verification: `php tools/run-tests.php` currently reports 143 test files, 12887 assertions, and 1 failure in `lanes/difftastic/tests/TokenDifferTest.php` (`maps upstream utf16 sample bytes as text content`); readability tests pass in that root run.
+- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. This slice used static upstream fixture inspection for `test-pages/data-url-image`.
+- Blocker: no readability-local blocker is active. The required root suite is currently blocked by the unrelated difftastic UTF-16 tokenization failure, and exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures, especially remaining figure/image empty wrappers and default/root wrapper strategy.
+- Current work: native extraction now maps Mozilla's `data-url-image` fixture for data URI media retention, placeholder GIF removal before responsive `srcset` promotion, inline SVG data URI serialization parity, and retained base64 SVG/JPEG payloads. Existing coverage still includes partial upstream class/id candidate weighting, strong `itemprop=articleBody` selection for WordPress BlogPosting pages, optional `div#readability-page-1.page` fixture output, copied `schema-org-context-object`, `wordpress`, `rtl-1` through `rtl-4`, compact metadata fixtures, hidden/invisible/modal cleanup, fallback-image preservation, fallback excerpts, body byline extraction/removal, JSON-LD title disambiguation, title separator cleanup, duplicate heading cleanup, URI normalization, hash-only link-density weighting, metadata entity replacement, copied `replace-font-tags`, `title-and-h1-discrepancy`, `ol`, `001`, and `005-unescape-html-entities` fixtures, clean-links footer parity, platform chrome cleanup, and WordPress block output.
 
 ## Next Slice
 
-Return to remaining Medium lazy-image structural HTML parity around the `readability-page-1` root wrapper/id/class boundary and remaining author/avatar wrapper differences.
+Continue Medium `lazy-image-1` exact expected-HTML parity around remaining figure/image empty wrappers and default/root wrapper strategy, then map another media-heavy fixture such as `keep-images`.

@@ -8,6 +8,8 @@ final class ArticleExtractor
 {
     private const UNLIKELY_CANDIDATE_PATTERN = '/-ad-|ad-container|ad-mobile|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|dfp-slot|disqus|extra|footer|gdpr|header|js_ad|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i';
     private const OK_MAYBE_CANDIDATE_PATTERN = '/and|article|body|column|content|main|mathjax|shadow/i';
+    private const CLASS_WEIGHT_POSITIVE_PATTERN = '/article|body|content|entry|hentry|h-entry|main|page|pagination|post|text|blog|story/i';
+    private const CLASS_WEIGHT_NEGATIVE_PATTERN = '/-ad-|hidden|^hid$| hid$| hid |^hid |banner|combx|comment|com-|contact|footer|gdpr|masthead|media|meta|outbrain|promo|related|scroll|share|shoutbox|sidebar|skyscraper|sponsor|shopping|tags|widget/i';
     private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
     private const WORDPRESS_SOCIAL_CHROME_PATTERN = '/\b(?:like-post-wrapper|likes-widget-placeholder|post-likes-widget-placeholder|sd-like|sharedaddy)\b/i';
     private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
@@ -43,7 +45,7 @@ final class ArticleExtractor
         'dialog',
     ];
 
-    public function extract(string $html, ?string $url = null): Article
+    public function extract(string $html, ?string $url = null, bool $includeReadabilityPage = false): Article
     {
         $dom = $this->loadHtmlDocument($html);
         $this->replaceBreakChains($dom);
@@ -86,7 +88,10 @@ final class ArticleExtractor
             $this->demoteHeadingOnes($best);
             $best = $this->postProcessContent($best, $effectiveBaseUri, $url);
         }
-        $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
+        $contentHtml = $best instanceof \DOMElement && $includeReadabilityPage
+            ? $this->readabilityPageHtml($best)
+            : ($best instanceof \DOMNode ? $this->innerHtml($best) : '');
+        $contentHtml = $this->normalizeSerializedInlineSvgDataUris($contentHtml);
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
         $excerpt = $this->excerpt($xpath, $best, $text, $metaValues, $jsonLdMetadata);
 
@@ -1769,6 +1774,8 @@ final class ArticleExtractor
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->removeEmptyParagraphs($scope);
         $this->removeBreaksBeforeParagraphs($scope);
+        $scope = $this->simplifyNestedElements($scope);
+        $scope = $this->collapseSingleParagraphDivs($scope);
         $scope = $this->unwrapSingleCellTables($scope);
         $this->removeCommentNodes($scope);
         $this->cleanPresentationalAttributes($scope);
@@ -2842,15 +2849,28 @@ final class ArticleExtractor
         }
 
         $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id'));
+        $weight = 0;
         if (preg_match('/\b(article-body|article__body|entry-content|post-content|article-content)\b/', $matchString) === 1) {
-            return 10000;
+            $weight += 10000;
+        }
+
+        if (str_contains(strtolower($node->getAttribute('itemprop')), 'articlebody')) {
+            $weight += 3000;
         }
 
         if (preg_match('/\b(content|main-content)\b/', $matchString) === 1) {
-            return 1500;
+            $weight += 1500;
         }
 
-        return 0;
+        if (preg_match(self::CLASS_WEIGHT_NEGATIVE_PATTERN, $matchString) === 1) {
+            $weight -= 25;
+        }
+
+        if (preg_match(self::CLASS_WEIGHT_POSITIVE_PATTERN, $matchString) === 1) {
+            $weight += 25;
+        }
+
+        return $weight;
     }
 
     private function innerHtml(\DOMNode $node): string
@@ -2861,5 +2881,32 @@ final class ArticleExtractor
         }
 
         return trim($html);
+    }
+
+    private function normalizeSerializedInlineSvgDataUris(string $html): string
+    {
+        return preg_replace_callback(
+            '/\b(src|poster|data-src)="([^"]*data:image\/svg\+xml;utf8,[^"]*)"/i',
+            static fn (array $matches): string => $matches[1] . '="' . str_replace('%20', ' ', $matches[2]) . '"',
+            $html,
+        ) ?? $html;
+    }
+
+    private function readabilityPageHtml(\DOMElement $node): string
+    {
+        $document = $node->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return $this->innerHtml($node);
+        }
+
+        $wrapper = $document->createElement('div');
+        $wrapper->setAttribute('id', 'readability-page-1');
+        $wrapper->setAttribute('class', 'page');
+
+        foreach ($node->childNodes as $child) {
+            $wrapper->appendChild($child->cloneNode(true));
+        }
+
+        return trim($document->saveHTML($wrapper) ?: '');
     }
 }

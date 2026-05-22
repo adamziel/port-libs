@@ -457,6 +457,54 @@ return [
         $t->contains('<!-- wp:paragraph -->', $blocks);
         $t->contains('canonical article paragraph', $blocks);
     },
+    'maps Mozilla wordpress fixture articleBody images and Jetpack cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/wordpress';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//div[@itemprop="articleBody"]//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//img/@srcset'), $attributeValues($article->contentHtml, '//img/@srcset'));
+        $t->contains('Stack Overflow published its analysis', $blocks);
+        foreach (['Like this:', 'Related', 'There are 13 comments', 'Click to share'] as $fragment) {
+            $t->same(false, str_contains($article->text, $fragment), 'WordPress fixture chrome should not enter article text: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'WordPress fixture chrome should not enter block output: ' . $fragment);
+        }
+    },
+    'prefers WordPress articleBody microdata over trailing theme chrome' => static function (TestRunner $t): void {
+        $body = str_repeat('Portable WordPress articleBody copy should win over template chrome. ', 5);
+        $html = '<html><head><title>Microdata Import</title></head><body><article itemprop="blogPost">'
+            . '<h1>Microdata Import</h1>'
+            . '<div itemprop="articleBody"><p>' . $body . '</p><p>' . $body . '</p></div>'
+            . '<div id="terms"><p>Tagged migration import block editor review queue sidebar note should not be selected with the article body.</p></div>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Microdata Import', $article->title);
+        $t->contains('articleBody copy should win', $blocks);
+        $t->same(false, str_contains($article->text, 'Tagged migration import'), 'articleBody should beat sibling WordPress tag chrome during content selection');
+        $t->same(false, str_contains($article->contentHtml, 'id="terms"'), 'theme terms wrapper should not survive when articleBody is the best candidate');
+        $t->same(false, str_contains($blocks, 'sidebar note should not be selected'), 'theme terms text should not become a WordPress paragraph block');
+    },
     'removes duplicate post title headings and demotes body h1s for WordPress blocks' => static function (TestRunner $t): void {
         $extractor = new ArticleExtractor();
         $html = '<html><head><meta property="og:title" content="Migration Playbook"></head><body><article>'
@@ -1228,6 +1276,35 @@ return [
         $t->contains('srcset="https://cdn.example.test/photo-320.jpg 320w, https://cdn.example.test/photo-800.jpg 800w"', $article->contentHtml);
         $t->contains('alt="Migration screenshot"', $article->contentHtml);
     },
+    'maps Mozilla data-url-image fixture media retention boundaries' => static function (TestRunner $t) use ($attributeValues, $imageAttributeRows, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/data-url-image';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $rows = $imageAttributeRows($article->contentHtml);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(5, count($rows), 'upstream fixture retains five image payloads');
+        $t->true(str_starts_with($rows[0]['src'] ?? '', 'data:image/gif;base64,'), 'standalone tiny gif data URI should be preserved');
+        $t->true(!isset($rows[1]['src']), 'tiny placeholder src should be removed when responsive candidates exist');
+        $t->same($rows[1]['data-srcset'] ?? '', $rows[1]['srcset'] ?? '', 'responsive data-srcset should be promoted to srcset');
+        $t->true(str_starts_with($rows[1]['srcset'] ?? '', 'https://i.kinja-img.com/gawker-media/image/upload/'), 'promoted responsive candidates should remain external image URLs');
+        $t->true(str_starts_with($rows[2]['src'] ?? '', 'data:image/svg+xml;utf8,'), 'inline SVG data URI should remain an image source');
+        $t->true(str_contains($rows[2]['src'] ?? '', '<svg xmlns='), 'inline SVG data URI should retain upstream literal spaces after serialization');
+        $t->same(false, str_contains($rows[2]['src'] ?? '', '%20'), 'inline SVG data URI should not be space-encoded away from upstream fixture semantics');
+        $t->true(str_starts_with($rows[3]['src'] ?? '', 'data:image/svg+xml;base64,'), 'base64 SVG data URI should be preserved');
+        $t->true(str_starts_with($rows[4]['src'] ?? '', 'data:image/jpeg;base64,'), 'real JPEG data URI should be preserved');
+        $t->same(4, count($attributeValues($article->contentHtml, '//p')), 'expected editorial paragraphs should remain around data URI images');
+    },
     'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1251,7 +1328,7 @@ return [
         $t->same($expectedSources, $articleSources);
         $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
         $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
-        $t->same($elementChildTags($expected, '//div[@id="readability-page-1"]'), $elementChildTags($article->contentHtml, '//main/*[1]'));
+        $t->same($elementChildTags($expected, '//div[@id="readability-page-1"]/*[1]'), $elementChildTags($article->contentHtml, '//main/*[1]'));
         $t->same(['p'], $elementChildTags($article->contentHtml, '//blockquote'));
         $t->same([], $attributeValues($article->contentHtml, '//section'));
         foreach ($expectedSources as $sourceUrl) {
@@ -1271,6 +1348,29 @@ return [
         $t->true(!str_contains($article->contentHtml, 'fit/c/160/160'), 'recommended-author avatars should be removed with the footer');
         $t->true(!str_contains($article->contentHtml, 'CPU profiling before optimization'), 'out-of-band Medium full-width figure wrapper should be removed');
         $t->true(!str_contains($article->contentHtml, 'Zoom in the CPU profiling'), 'out-of-band Medium zoom figure wrapper should be removed');
+    },
+    'serializes upstream readability page wrapper and collapses emptied Medium author wrappers' => static function (TestRunner $t) use ($attributeValues, $elementChildTags): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+
+        $article = (new ArticleExtractor())->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same(['page'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/@class'));
+        $t->same(
+            $elementChildTags($expected, '//div[@id="readability-page-1"]'),
+            $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]'),
+        );
+        $t->same(
+            $elementChildTags($expected, '//div[@id="readability-page-1"]/*[1]'),
+            $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]/*[1]'),
+        );
+        $t->same(
+            $attributeValues($expected, '//div[@id="readability-page-1"]/*[1]/*[1]/p/a/img/@src'),
+            $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/*[1]/p/a/img/@src'),
+        );
+        $t->same(['p'], $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/*[1]'));
+        $t->same(false, str_contains($article->contentHtml, '<div><div><div><div><p><a rel="noopener" href="http://fakehost/@vincentvallet'), 'emptied Medium byline/action wrappers should collapse before serialized fixture output');
     },
     'unwraps transparent WordPress section wrappers before block output' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Section Wrapper Cleanup"></head><body><article>'
