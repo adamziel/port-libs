@@ -336,7 +336,7 @@ Runner status:
 - Bounded `gix-ref` runner evidence now includes `timeout 120 cargo test -p gix-ref --lib --features sha1,sha256`, which passed 17/17 upstream library unit tests. The focused full-name/namespace integration files were inspected statically because direct `--test refs` and `--test main` probes are not valid Cargo targets for this crate.
 - Bounded `gix-validate` runner evidence now includes `timeout 120 cargo test -p gix-validate --test validate reference::name:: -- --nocapture`, which passed 54/54 filtered upstream complete-name tests, `timeout 120 cargo test -p gix-validate --test validate reference::name_partial::invalid -- --nocapture`, which passed 22/22 filtered upstream partial-name validation/sanitization tests, plus `timeout 120 cargo test -p gix-validate --test validate reference::branch_name -- --nocapture`, which passed 4/4 filtered upstream branch-name tests.
 - Gitoxide-only PHP verification after this slice passes 26 test files, 1,820 assertions, and 0 failures.
-- Latest root PHP verification is green: `php tools/run-tests.php` passes 112 test files, 8,254 assertions, and 0 failures in the current dirty worktree.
+- Latest root PHP verification is green: `php tools/run-tests.php` passes 113 test files, 8,366 assertions, and 0 failures in the current dirty worktree.
 - The next inventory slice should either broaden commit trailer edge cases from more upstream fixtures, run another controlled `gix-object` integration-test subset, add broader directory rename conflict cases, broaden proxy credential persistence, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
