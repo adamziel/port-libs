@@ -133,14 +133,16 @@ Focused push/refspec inventory inspected on 2026-05-22:
 - 11 push parse `#[test]` attributes were counted in `gix-refspec/tests/refspec/parse/push.rs`.
 - `gix-refspec` push tests define the mapped update shapes: `src:dst` updates, `+src:dst` forced updates, `:` matching-branch updates, `:dst` deletions, and excluded refs.
 - `gix-transport/tests/fixtures/v1/push.request` defines the mapped receive-pack request envelope: first ref update line carries `old new ref\0` followed by requested capabilities such as `report-status-v2`, `side-band-64k`, `object-format=sha1`, and `agent=...`; subsequent update lines omit capabilities; a flush separates commands from optional push-options and pack bytes.
-- `gix-transport/tests/fixtures/v1/push.response` is reserved for the next slice: sideband progress plus `unpack ok` and per-ref status lines should be parsed before any push result is treated as complete.
+- `gix-transport/tests/fixtures/v1/push.response` and `gix-transport/tests/client/git.rs::push_v1_simulated` define the mapped receive-pack response envelope: sideband channel 2 carries progress/advisory text, while sideband channel 1 carries nested report-status packet lines such as `unpack ok`, `ok <ref>`, and an inner flush packet.
+- 1 simulated push response test was counted in `gix-transport/tests/client/git.rs`.
+- Local `gitprotocol-pack(5)` documentation was used to cross-check report-status and report-status-v2 grammar: `unpack <result>`, `ok <ref>`, `ng <ref> <error>`, and v2 `option refname`, `option old-oid`, `option new-oid`, and `option forced-update` lines.
 
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either map push status response parsing and sideband receive-pack status, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either map pack generation handoff for receive-pack requests, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -161,3 +163,4 @@ Current PHP mapping:
 - `SparseCheckoutTest.php` maps sparse checkout cone directory matching, cone pattern-file reconstruction, bounded non-cone include/exclude matching, case-insensitive matching, skip-worktree decisions, and WordPress tree-entry filtering for a plugin-focused sparse checkout.
 - `PartialCloneTest.php` also maps lazy promisor hydration: a promised-missing object can be resolved through a native resolver, verified against the requested object ID, persisted into loose storage, and then observed as present by a fresh object database.
 - `PushCommandTest.php` maps protocol v1 receive-pack update commands, create/update/delete ref lines, first-line capability negotiation, `atomic` and `push-options` guards, command packet-line framing before pack bytes, and a WordPress branch/tag deployment push request fixture.
+- `PushResponseTest.php` maps receive-pack report-status parsing, sideband progress/error extraction, nested sideband channel 1 report-status packet lines, accepted and rejected ref statuses, unpack failures, report-status-v2 rewritten-ref options, malformed response guards, and a WordPress branch/tag deployment push status fixture.

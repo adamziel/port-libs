@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
- Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, common partial-clone fetch filter specs, sparse checkout path matching, lazy promisor object hydration, protocol v2 fetch response section and sideband parsing, protocol v1 receive-pack push request building, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate+promisor object database lookup/prefix/iteration with replacement refs.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, protocol v2 capability and `ls-refs` parsing, protocol v2 fetch negotiation argument building, common partial-clone fetch filter specs, sparse checkout path matching, lazy promisor object hydration, protocol v2 fetch response section and sideband parsing, protocol v1 receive-pack push request building and status parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, multi-pack-index parsing/lookup, MIDX-backed object database pack selection/de-duplication, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate+promisor object database lookup/prefix/iteration with replacement refs.
 
 ## WordPress Deploy Tree Example
 
@@ -37,6 +37,10 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 ## WordPress Protocol V1 Push Example
 
 `examples/wordpress-protocol-v1-push.php` builds a deterministic receive-pack request for updating `refs/heads/main`, creating `refs/tags/wp-release`, requesting `report-status-v2`, `side-band-64k`, `object-format=sha1`, `atomic`, and `push-options`, then packet-lines the ref updates before placeholder pack bytes. This models a PHP deployment tool preparing a WordPress branch/tag push without invoking `git push`.
+
+## WordPress Protocol V1 Push Response Example
+
+`examples/wordpress-protocol-v1-push-response.php` parses a deterministic sidebanded receive-pack response for a WordPress deployment push. It extracts progress messages, `unpack ok`, and accepted branch/tag ref statuses from nested report-status packet lines, so a PHP deployment tool can determine whether the remote accepted the push without invoking `git push`.
 
 ## WordPress Partial Clone Example
 
@@ -72,4 +76,4 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Next Task
 
-Map push status response parsing and sideband receive-pack status, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear.
+Map pack generation handoff for receive-pack requests, or run a controlled gix-protocol/gix-transport crate no-run probe if the VM remains clear.
