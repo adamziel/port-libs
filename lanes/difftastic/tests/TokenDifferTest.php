@@ -461,6 +461,26 @@ return [
         $t->contains('rhs y:comment', $encoded);
         $t->true(!str_contains($encoded, 'rhs // Changing a single word here.:comment'), 'Changed comment atoms should be split into word-level spans when they share enough words.');
     },
+    'json display renderer maps upstream multiline string sample as word spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-multiline-string-1.ml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-multiline-string-2.ml');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff($before, $after, 'sample_files/multiline_string_1.ml', 'OCaml'), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' line ' . $line[$side]['line_number'] . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs line 4 bar:string', $encoded);
+        $t->contains('rhs line 4 novel:string', $encoded);
+        $t->true(!str_contains($encoded, 'bar:normal'), 'Words inside multiline strings should keep string highlighting instead of line-level identifier fallback.');
+    },
     'wordpress block json display emits machine readable review chunks' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
@@ -516,5 +536,30 @@ return [
         $t->contains('lhs legacy:string', $encoded);
         $t->contains('rhs modern:string', $encoded);
         $t->true(!str_contains($encoded, 'Render a card with a legacy call to action'), 'WordPress block descriptions should not be reported as whole-string replacements.');
+    },
+    'wordpress multiline render doc comment display keeps comment word spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-multiline-copy-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-multiline-copy-after.php');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-campaign/render.php',
+            'PHP',
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs legacy:comment', $encoded);
+        $t->contains('rhs modern:comment', $encoded);
+        $t->true(!str_contains($encoded, 'legacy:normal'), 'Changed WordPress doc-comment copy should not lose comment highlighting.');
     },
 ];

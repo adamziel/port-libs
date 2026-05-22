@@ -60,7 +60,7 @@ final class JsonDiffRenderer
             return $this->statusFile($language, $path, 'deleted');
         }
 
-        [$alignedLines, $chunks] = $this->changedSections(explode("\n", $old), explode("\n", $new), $options);
+        [$alignedLines, $chunks] = $this->changedSections($old, $new, $options);
 
         $file = [];
         if ($alignedLines !== []) {
@@ -89,19 +89,20 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param list<string> $oldLines
-     * @param list<string> $newLines
      * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @return array{0:list<array{0:?int, 1:?int}>, 1:list<list<array<string, mixed>>>}
      */
-    private function changedSections(array $oldLines, array $newLines, array $options): array
+    private function changedSections(string $old, string $new, array $options): array
     {
+        $oldLines = explode("\n", $old);
+        $newLines = explode("\n", $new);
+        $multilineAtomChanges = $this->pairedMultilineAtomLineChanges($old, $new, $options);
         $alignedLines = [];
         $chunks = [];
         $pending = [];
         foreach ($this->diffLines($oldLines, $newLines) as $op) {
             if ($op['op'] === '=') {
-                $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $alignedLines, $chunks);
+                $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $multilineAtomChanges, $alignedLines, $chunks);
                 $alignedLines[] = [$op['old'], $op['new']];
                 continue;
             }
@@ -109,7 +110,7 @@ final class JsonDiffRenderer
             $pending[] = $op;
         }
 
-        $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $alignedLines, $chunks);
+        $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $multilineAtomChanges, $alignedLines, $chunks);
 
         return [$alignedLines, $chunks];
     }
@@ -119,10 +120,11 @@ final class JsonDiffRenderer
      * @param list<string> $oldLines
      * @param list<string> $newLines
      * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{lhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>, rhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>} $multilineAtomChanges
      * @param list<array{0:?int, 1:?int}> $alignedLines
      * @param list<list<array<string, mixed>>> $chunks
      */
-    private function flushChangedLineOps(array &$pending, array $oldLines, array $newLines, array $options, array &$alignedLines, array &$chunks): void
+    private function flushChangedLineOps(array &$pending, array $oldLines, array $newLines, array $options, array $multilineAtomChanges, array &$alignedLines, array &$chunks): void
     {
         if ($pending === []) {
             return;
@@ -146,6 +148,7 @@ final class JsonDiffRenderer
                     $newLineNumber === null ? null : $newLines[$newLineNumber],
                     'lhs',
                     $options,
+                    $multilineAtomChanges['lhs'],
                 );
             }
             if ($newLineNumber !== null) {
@@ -155,6 +158,7 @@ final class JsonDiffRenderer
                     $oldLineNumber === null ? null : $oldLines[$oldLineNumber],
                     'rhs',
                     $options,
+                    $multilineAtomChanges['rhs'],
                 );
             }
 
@@ -169,13 +173,17 @@ final class JsonDiffRenderer
 
     /**
      * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array<int, list<array{start:int, end:int, content:string, highlight:string}>> $multilineAtomChanges
      * @return array{line_number:int, changes:list<array{start:int, end:int, content:string, highlight:string}>}
      */
-    private function side(int $lineNumber, string $line, ?string $otherLine, string $side, array $options): array
+    private function side(int $lineNumber, string $line, ?string $otherLine, string $side, array $options, array $multilineAtomChanges = []): array
     {
-        $changes = $otherLine === null
-            ? $this->fullLineChanges($line, $options)
-            : $this->pairedLineChanges($line, $otherLine, $side, $options);
+        $changes = $multilineAtomChanges[$lineNumber] ?? null;
+        if ($changes === null) {
+            $changes = $otherLine === null
+                ? $this->fullLineChanges($line, $options)
+                : $this->pairedLineChanges($line, $otherLine, $side, $options);
+        }
 
         if ($changes === [] && $line !== '') {
             $changes[] = [
@@ -190,6 +198,154 @@ final class JsonDiffRenderer
             'line_number' => $lineNumber,
             'changes' => $changes,
         ];
+    }
+
+    /**
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @return array{lhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>, rhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>}
+     */
+    private function pairedMultilineAtomLineChanges(string $old, string $new, array $options): array
+    {
+        $result = ['lhs' => [], 'rhs' => []];
+        $oldAtoms = $this->multilineAtoms($old, $options);
+        $newAtoms = $this->multilineAtoms($new, $options);
+        $pairCount = min(count($oldAtoms), count($newAtoms));
+
+        for ($index = 0; $index < $pairCount; $index++) {
+            $oldAtom = $oldAtoms[$index];
+            $newAtom = $newAtoms[$index];
+            if ($oldAtom->kind !== $newAtom->kind) {
+                continue;
+            }
+
+            $this->appendLineChanges(
+                $result['lhs'],
+                $this->multilineAtomWordChanges($old, $oldAtom, $newAtom->text),
+            );
+            $this->appendLineChanges(
+                $result['rhs'],
+                $this->multilineAtomWordChanges($new, $newAtom, $oldAtom->text),
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array{ignoreComments?: bool, language?: string} $options
+     * @return list<Token>
+     */
+    private function multilineAtoms(string $source, array $options): array
+    {
+        $tokens = [];
+        foreach ($this->differ->tokenize($source, $options) as $token) {
+            if (($options['ignoreComments'] ?? false) === true && $token->kind === 'comment') {
+                continue;
+            }
+
+            if (!in_array($token->kind, ['comment', 'string'], true) || !str_contains($token->text, "\n")) {
+                continue;
+            }
+
+            $tokens[] = $token;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return array<int, list<array{start:int, end:int, content:string, highlight:string}>>
+     */
+    private function multilineAtomWordChanges(string $source, Token $target, string $oppositeText): array
+    {
+        $wordOps = $this->differ->diffWords($target->text, $oppositeText, ['splitNumbers' => true]);
+        if (!$this->atomWordDiffHasCommonWords($wordOps)) {
+            return [];
+        }
+
+        $lineStarts = $this->lineStartOffsets($source);
+        $changes = [];
+        $cursor = 0;
+        $highlight = $target->kind === 'comment' ? 'comment' : 'string';
+
+        foreach ($wordOps as $op) {
+            if ($op['op'] === '+') {
+                continue;
+            }
+
+            $relativePosition = strpos($target->text, $op['text'], $cursor);
+            if ($relativePosition === false) {
+                continue;
+            }
+
+            $cursor = $relativePosition + strlen($op['text']);
+            if ($this->isAllWhitespace($op['text'])) {
+                continue;
+            }
+
+            $start = $target->start + $relativePosition;
+            $end = $start + strlen($op['text']);
+            $lineNumber = $this->lineNumberForOffset($lineStarts, $start);
+            $lineStart = $lineStarts[$lineNumber];
+            $changes[$lineNumber][] = [
+                'start' => $start - $lineStart,
+                'end' => $end - $lineStart,
+                'content' => $op['text'],
+                'highlight' => $highlight,
+            ];
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function lineStartOffsets(string $source): array
+    {
+        $starts = [0];
+        $offset = 0;
+        while (($newline = strpos($source, "\n", $offset)) !== false) {
+            $starts[] = $newline + 1;
+            $offset = $newline + 1;
+        }
+
+        return $starts;
+    }
+
+    /**
+     * @param list<int> $lineStarts
+     */
+    private function lineNumberForOffset(array $lineStarts, int $offset): int
+    {
+        $lineNumber = 0;
+        foreach ($lineStarts as $index => $lineStart) {
+            if ($lineStart > $offset) {
+                break;
+            }
+
+            $lineNumber = $index;
+        }
+
+        return $lineNumber;
+    }
+
+    /**
+     * @param array<int, list<array{start:int, end:int, content:string, highlight:string}>> $target
+     * @param array<int, list<array{start:int, end:int, content:string, highlight:string}>> $source
+     */
+    private function appendLineChanges(array &$target, array $source): void
+    {
+        foreach ($source as $lineNumber => $changes) {
+            foreach ($changes as $change) {
+                $target[$lineNumber][] = $change;
+            }
+
+            usort(
+                $target[$lineNumber],
+                static fn (array $a, array $b): int => [$a['start'], $a['end']] <=> [$b['start'], $b['end']],
+            );
+        }
     }
 
     /**

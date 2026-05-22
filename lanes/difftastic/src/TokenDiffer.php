@@ -14,13 +14,19 @@ final class TokenDiffer
      */
     public function tokenize(string $source, array $options = []): array
     {
-        preg_match_all('/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u', $source, $matches);
+        preg_match_all(
+            '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u',
+            $source,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        );
 
         $delimiterPairs = $this->delimiterPairs($options);
         $closeDelimiters = array_flip(array_values($delimiterPairs));
         $tokens = [];
         $depth = 0;
-        foreach ($matches[0] ?? [] as $text) {
+        foreach ($matches[0] ?? [] as $match) {
+            [$text, $start] = $match;
             $delimiterRole = null;
             if (isset($closeDelimiters[$text])) {
                 $depth = max(0, $depth - 1);
@@ -29,7 +35,14 @@ final class TokenDiffer
                 $delimiterRole = 'open';
             }
 
-            $tokens[] = new Token($this->classify($text, $delimiterPairs), $text, $delimiterRole, $depth);
+            $tokens[] = new Token(
+                $this->classify($text, $delimiterPairs),
+                $text,
+                $delimiterRole,
+                $depth,
+                $start,
+                $start + strlen($text),
+            );
 
             if ($delimiterRole === 'open') {
                 $depth++;

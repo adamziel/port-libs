@@ -30,6 +30,8 @@ The JSON display fixture emits compact machine-readable review data for that sam
 
 The block-copy JSON display fixture compares a block description string where only `legacy` changes to `modern`. It applies upstream `ReplacedString` word splitting from `src/parse/syntax.rs`, so machine-readable review data reports the changed words inside the string rather than replacing the whole description.
 
+The multiline render doc-comment fixture compares PHP block comments beside a WordPress render callback where `legacy` changes to `modern`. Token byte spans let the JSON renderer project paired multiline comment word diffs back onto line/column spans, so browser review data keeps those words comment-highlighted instead of treating them as normal line text.
+
 The theme-variation fixture applies the upstream `slider_at_end` JSON list-deletion shape to `theme.json`. Deprecated button variations are reported as focused deletions while retained variations stay out of the rendered change stream.
 
 The template-wrapper fixture applies upstream `nested_slider` wrapper correction to a WordPress block template helper call. When `coreParagraph('Hero introduction')` is wrapped in `coreGroup(...)`, the retained paragraph call stays out of the deletion stream and the diff reports the wrapper as a focused syntactic insertion.
@@ -48,6 +50,7 @@ php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-block-copy-display.php
+php lanes/difftastic/examples/wordpress-multiline-comment-display.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
 php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
@@ -56,4 +59,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map multiline string/comment atom positions from upstream `strings_*.el` or doc-comment sections so word spans survive multiline atoms instead of line-pair fallback.
+Map YAML block-scalar multiline strings from upstream `multiline_string_eof_*.yml` or the larger `strings_*.el` fixture so multiline atom handling covers parser-specific string forms beyond quoted/block-comment tokens.

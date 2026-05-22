@@ -57,6 +57,7 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/change_outer_1.el` / `sample_files/change_outer_2.el`: copied locally and mapped through changed-outer-delimiter handling. When the flattened child atoms are retained, the PHP differ now reports the delimiter pair change separately from newly introduced inner wrappers instead of replacing the whole list body.
 - `sample_files/string_subwords_1.el` / `sample_files/string_subwords_2.el`: copied locally and mapped through changed string atom word splitting from `src/parse/syntax.rs`. The JSON renderer now reports word spans inside paired changed string atoms when enough words are shared.
 - `sample_files/comments_1.rs` / `sample_files/comments_2.rs`: copied locally and mapped through changed comment atom word splitting from `src/parse/syntax.rs`. Inserted comment words and changed quoted subwords inside comments are emitted as comment-highlighted word spans.
+- `sample_files/multiline_string_1.ml` / `sample_files/multiline_string_2.ml`: copied locally and mapped through multiline atom byte spans. The JSON renderer now keeps changed words inside a multiline string highlighted as `string` instead of falling back to per-line identifier highlighting.
 
 ## JSON Display Slice
 
@@ -71,8 +72,9 @@ Mapped native behavior:
 - Token changes carry `start`, `end`, `content`, and `highlight` fields; native highlights currently map delimiter/string/comment tokens and default other atom kinds to `normal`.
 - Directory JSON output is represented as an array of file objects and can skip unchanged files, matching upstream `print_directory`.
 - Paired changed string/comment atoms now use upstream-style `split_words_and_numbers` plus the `has_common_words` threshold from `src/parse/syntax.rs`. When enough words are shared, JSON changes are emitted as word-level spans instead of whole string/comment replacements.
+- Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` sample and a WordPress PHP render doc-comment copy change.
 
-The focused PHP lane test now passes 37 tests and 160 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, targeted slider Rust excerpt, and WordPress template-wrapper, WXR XML, block allow-list array syntax, and block-copy JSON display scenarios.
+The focused PHP lane test now passes 39 tests and 166 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, targeted slider Rust excerpt, and WordPress template-wrapper, WXR XML, block allow-list array syntax, block-copy JSON display, and multiline render doc-comment display scenarios.
 
 The required root test runner was attempted after this slice:
 
@@ -81,3 +83,5 @@ php tools/run-tests.php
 ```
 
 It passed in the current shared worktree with 81 test files, 5599 assertions, and 0 failures. The difftastic-focused test file remains green with 37 tests, 160 assertions, and 0 failures.
+
+The latest required root run after the multiline atom slice passed with 86 test files, 5,790 assertions, and 0 failures. The difftastic-focused test file remains green with 39 tests, 166 assertions, and 0 failures.
