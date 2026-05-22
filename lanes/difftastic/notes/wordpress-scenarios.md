@@ -70,6 +70,8 @@ Standalone JavaScript mode now also maps the larger upstream `sample_files/javas
 
 TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
 
+TypeScript mode now also maps module import/export declaration lists using the upstream TypeScript parser configuration's delimiter-list semantics. The WordPress block module fixture applies this to `index.ts` registration code where `BlockConfiguration`, `sprintf`, and `deprecatedSave` are inserted into existing import/export lists. Retained imports such as `__` and retained exports such as `save` stay aligned under `$ts.import[...]` and `$ts.export.local[...]` paths instead of being shown as deleted and re-added whole module statements.
+
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
 
 TSX mode now maps the upstream `sample_files/whitespace_*.tsx` formatting shape. The WordPress block editor whitespace fixture applies this to editor controls where Prettier or manual formatting moves `{" "}` spacer expressions around retained text. The renderer reports no syntactic changes, keeping retained `ToolbarButton` markup and screen-reader copy out of the review stream.
@@ -87,6 +89,7 @@ php lanes/difftastic/examples/wordpress-multi-asset-html-diff.php
 php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
+php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-jsx-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-whitespace-tsx-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
@@ -107,4 +110,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Broaden TypeScript module import/export declaration alignment.
+Broaden TypeScript default imports, namespace imports, and re-export source-change matching.

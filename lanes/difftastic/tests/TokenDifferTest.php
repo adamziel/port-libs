@@ -248,6 +248,22 @@ return [
         $t->contains('+ $ts.type["Symbol"][1] name:string;', $encoded);
         $t->true(!str_contains($encoded, '- $ts.type["Symbol"][1] items:string[];'), 'Inserted TypeScript members should not delete retained following members.');
     },
+    'maps typescript module import and export lists as focused specifier changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/typescript-module-declarations-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/typescript-module-declarations-after.ts');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'typescript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $ts.import["@wordpress/i18n"][1] sprintf', $encoded);
+        $t->contains('+ $ts.import.type["@wordpress/blocks"] importtype{BlockConfiguration}from"@wordpress/blocks";', $encoded);
+        $t->contains('+ $ts.export.local[2] deprecatedSave', $encoded);
+        $t->contains('+ $ts.export.type["./types"][1] BlockContext', $encoded);
+        $t->true(!str_contains($encoded, '- $ts.import["@wordpress/i18n"][0] __'), 'Retained import specifiers should stay aligned after a new specifier is inserted.');
+        $t->true(!str_contains($encoded, '- $ts.export.local[1] save'), 'Retained local export specifiers should stay aligned after a new export is inserted.');
+    },
     'maps upstream jsx sample as tag list changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-1.jsx');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-jsx-2.jsx');
@@ -758,6 +774,24 @@ return [
         $t->contains('data-path="$ts.interface[&quot;BlockEditProps&quot;][1]/{0}[1]"', $html);
         $t->contains('mediaId:number;', $html);
         $t->true(!str_contains($html, 'data-op="-" data-path="$ts.interface[&quot;BlockEditProps&quot;][1]/{0}[1]">ctaText'), 'Retained nested ctaText prop should stay aligned after the mediaId insertion.');
+    },
+    'wordpress block module imports diff keeps retained imports and exports aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-module-imports-before.ts');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-module-imports-after.ts');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'typescript',
+            'title' => 'Block module import/export diff',
+        ]);
+
+        $t->contains('Block module import/export diff', $html);
+        $t->contains('data-path="$ts.import[&quot;@wordpress/blocks&quot;][1]"', $html);
+        $t->contains('typeBlockConfiguration', $html);
+        $t->contains('data-path="$ts.import[&quot;@wordpress/i18n&quot;][1]"', $html);
+        $t->contains('sprintf', $html);
+        $t->contains('data-path="$ts.export.local[2]"', $html);
+        $t->contains('deprecatedSave', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.import[&quot;@wordpress/i18n&quot;][0]">__'), 'Retained __ import should stay aligned after sprintf is inserted.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$ts.export.local[1]">save'), 'Retained save export should stay aligned after deprecatedSave is inserted.');
     },
     'wordpress block editor tsx diff reports jsx tag attribute changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-jsx-before.tsx');

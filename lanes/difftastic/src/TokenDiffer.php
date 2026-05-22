@@ -1253,6 +1253,7 @@ final class TokenDiffer
         $this->diffJavaScriptArrays($oldNodes, $newNodes, $options, $changes, $basePath);
         if ($this->isTypeScriptLanguage($options)) {
             $this->diffTypeScriptDeclarations($oldNodes, $newNodes, $options, $changes);
+            $this->diffTypeScriptModuleDeclarations($oldNodes, $newNodes, $options, $changes);
         }
     }
 
@@ -1397,6 +1398,303 @@ final class TokenDiffer
     private function typeScriptDeclarationPath(array $declaration): string
     {
         return '$ts.' . $declaration['kind'] . '[' . json_encode($declaration['name'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffTypeScriptModuleDeclarations(array $oldNodes, array $newNodes, array $options, array &$changes): void
+    {
+        $oldDeclarations = $this->typeScriptModuleDeclarations($oldNodes);
+        $newDeclarations = $this->typeScriptModuleDeclarations($newNodes);
+        $matchedNewKeys = [];
+
+        foreach ($oldDeclarations as $key => $oldDeclaration) {
+            $path = $this->typeScriptModuleDeclarationPath($oldDeclaration);
+            if (!isset($newDeclarations[$key])) {
+                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldDeclaration['text']];
+                continue;
+            }
+
+            $matchedNewKeys[$key] = true;
+            $newDeclaration = $newDeclarations[$key];
+            if (($oldDeclaration['list'] ?? null) !== null && ($newDeclaration['list'] ?? null) !== null) {
+                if ($this->nodeText($oldDeclaration['list']) !== $this->nodeText($newDeclaration['list'])) {
+                    $this->diffListNode($oldDeclaration['list'], $newDeclaration['list'], $path, $options, $changes);
+                }
+                continue;
+            }
+
+            if ($oldDeclaration['text'] !== $newDeclaration['text']) {
+                $changes[] = [
+                    'op' => '~',
+                    'path' => $path,
+                    'old' => $oldDeclaration['text'],
+                    'new' => $newDeclaration['text'],
+                ];
+            }
+        }
+
+        foreach ($newDeclarations as $key => $newDeclaration) {
+            if (($matchedNewKeys[$key] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = ['op' => '+', 'path' => $this->typeScriptModuleDeclarationPath($newDeclaration), 'text' => $newDeclaration['text']];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return array<string, array{kind:string, modifier:?string, source:?string, list:?array<string, mixed>, text:string}>
+     */
+    private function typeScriptModuleDeclarations(array $nodes): array
+    {
+        $declarations = [];
+        foreach ($this->topLevelStatements($nodes) as $statement) {
+            $declaration = $this->typeScriptModuleDeclaration($statement);
+            if ($declaration === null) {
+                continue;
+            }
+
+            $keyBase = implode("\0", [
+                $declaration['kind'],
+                $declaration['modifier'] ?? '',
+                $declaration['source'] ?? 'local',
+            ]);
+            $key = $keyBase;
+            $index = 1;
+            while (isset($declarations[$key])) {
+                $key = $keyBase . "\0" . $index;
+                $index++;
+            }
+
+            $declarations[$key] = $declaration;
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     * @return ?array{kind:string, modifier:?string, source:?string, list:?array<string, mixed>, text:string}
+     */
+    private function typeScriptModuleDeclaration(array $statement): ?array
+    {
+        $atoms = $this->statementAtomTexts($statement);
+        $first = $this->firstNonCommentAtom($statement);
+        if ($first === null || !in_array($first, ['import', 'export'], true)) {
+            return null;
+        }
+
+        $modifier = null;
+        $startIndex = array_search($first, $atoms, true);
+        if ($startIndex !== false && ($atoms[$startIndex + 1] ?? null) === 'type') {
+            $modifier = 'type';
+        }
+
+        $source = $this->typeScriptModuleSource($statement, $atoms, $first);
+        $list = $this->firstNamedModuleList($statement);
+        if ($first === 'export' && $source === null && $list !== null && !$this->startsWithNamedExportList($statement)) {
+            return null;
+        }
+        if ($source === null && $first === 'import' && $list === null) {
+            return null;
+        }
+        if ($source === null && $first === 'export' && $list === null) {
+            return null;
+        }
+
+        return [
+            'kind' => $first,
+            'modifier' => $modifier,
+            'source' => $source,
+            'list' => $list,
+            'text' => $this->statementText($statement),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<list<array<string, mixed>>>
+     */
+    private function topLevelStatements(array $nodes): array
+    {
+        $statements = [];
+        $current = [];
+        foreach ($nodes as $node) {
+            $current[] = $node;
+            if (
+                ($node['type'] ?? '') === 'atom'
+                && $node['token'] instanceof Token
+                && $node['token']->text === ';'
+            ) {
+                $statements[] = $current;
+                $current = [];
+            }
+        }
+
+        if ($current !== []) {
+            $statements[] = $current;
+        }
+
+        return $statements;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     * @return list<string>
+     */
+    private function statementAtomTexts(array $statement): array
+    {
+        $atoms = [];
+        foreach ($statement as $node) {
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                continue;
+            }
+            if ($node['token']->kind === 'comment') {
+                continue;
+            }
+
+            $atoms[] = $node['token']->text;
+        }
+
+        return $atoms;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     */
+    private function firstNonCommentAtom(array $statement): ?string
+    {
+        foreach ($statement as $node) {
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                continue;
+            }
+            if ($node['token']->kind === 'comment') {
+                continue;
+            }
+
+            return $node['token']->text;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     * @param list<string> $atoms
+     */
+    private function typeScriptModuleSource(array $statement, array $atoms, string $kind): ?string
+    {
+        foreach ($atoms as $index => $atom) {
+            if ($atom === 'from' && isset($atoms[$index + 1]) && $this->isQuotedAtom($atoms[$index + 1])) {
+                return $this->unquoteAtom($atoms[$index + 1]);
+            }
+        }
+
+        if ($kind === 'import') {
+            foreach ($statement as $node) {
+                if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token && $node['token']->kind === 'string') {
+                    return $this->unquoteAtom($node['token']->text);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     */
+    private function startsWithNamedExportList(array $statement): bool
+    {
+        $seenExport = false;
+        foreach ($statement as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                if ($node['token']->kind === 'comment') {
+                    continue;
+                }
+                if (!$seenExport) {
+                    if ($node['token']->text !== 'export') {
+                        return false;
+                    }
+                    $seenExport = true;
+                    continue;
+                }
+                if ($node['token']->text === 'type') {
+                    continue;
+                }
+
+                return false;
+            }
+
+            if (($node['type'] ?? '') === 'list') {
+                return $seenExport && ($node['open'] ?? '') === '{';
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     * @return ?array<string, mixed>
+     */
+    private function firstNamedModuleList(array $statement): ?array
+    {
+        foreach ($statement as $node) {
+            if (($node['type'] ?? '') === 'list' && ($node['open'] ?? '') === '{') {
+                return $node;
+            }
+        }
+
+        return null;
+    }
+
+    private function isQuotedAtom(string $text): bool
+    {
+        if (strlen($text) < 2) {
+            return false;
+        }
+
+        return ($text[0] === '"' || $text[0] === "'") && str_ends_with($text, $text[0]);
+    }
+
+    private function unquoteAtom(string $text): string
+    {
+        if (!$this->isQuotedAtom($text)) {
+            return $text;
+        }
+
+        return stripcslashes(substr($text, 1, -1));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statement
+     */
+    private function statementText(array $statement): string
+    {
+        return implode('', array_map(fn (array $node): string => $this->nodeText($node), $statement));
+    }
+
+    /**
+     * @param array{kind:string, modifier:?string, source:?string} $declaration
+     */
+    private function typeScriptModuleDeclarationPath(array $declaration): string
+    {
+        $path = '$ts.' . $declaration['kind'];
+        if ($declaration['modifier'] !== null) {
+            $path .= '.' . $declaration['modifier'];
+        }
+        if ($declaration['source'] === null) {
+            return $path . '.local';
+        }
+
+        return $path . '[' . json_encode($declaration['source'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
     }
 
     /**
