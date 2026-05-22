@@ -8,6 +8,7 @@ final class BlobMerge
 {
     public const STYLE_MERGE = 'merge';
     public const STYLE_DIFF3 = 'diff3';
+    public const STYLE_UNION = 'union';
     public const PICK_ANCESTOR = 'ancestor';
     public const PICK_OURS = 'ours';
     public const PICK_THEIRS = 'theirs';
@@ -22,7 +23,7 @@ final class BlobMerge
         string $theirsLabel = 'theirs',
         int $markerSize = 7,
     ): BlobMergeResult {
-        if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3], true)) {
+        if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3, self::STYLE_UNION], true)) {
             throw new \InvalidArgumentException("Unsupported text merge style: {$style}");
         }
         if ($markerSize < 1) {
@@ -84,6 +85,15 @@ final class BlobMerge
             $start = min($ourHunk['start'], $theirHunk['start']);
             $end = max($ourHunk['end'], $theirHunk['end']);
             self::appendBase($merged, $baseLines, $basePosition, $start);
+            if ($style === self::STYLE_UNION) {
+                array_push($merged, ...self::applyHunksInRange($baseLines, [$ourHunk], $start, $end));
+                array_push($merged, ...self::applyHunksInRange($baseLines, [$theirHunk], $start, $end));
+                $basePosition = $end;
+                $ourIndex++;
+                $theirIndex++;
+                continue;
+            }
+
             $merged[] = str_repeat('<', $markerSize) . ' ' . $oursLabel . $newline;
             array_push($merged, ...self::applyHunksInRange($baseLines, [$ourHunk], $start, $end));
             if ($style === self::STYLE_DIFF3) {

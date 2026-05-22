@@ -101,10 +101,12 @@ final class TreeMerge
         callable $writeObject,
         string $conflictStyle,
         string $pathPrefix,
+        array $unionMergePatterns = [],
     ): TreeMergeResult {
         $baseEntries = self::entriesByName($base);
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
+        $unionMergePatterns = self::unionMergeAttributePatterns($baseEntries, $ourEntries, $theirEntries, $readObject, $pathPrefix, $unionMergePatterns);
 
         [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject, $writeObject, $conflictStyle);
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
@@ -187,7 +189,7 @@ final class TreeMerge
                 continue;
             }
 
-            $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
+            $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle, $unionMergePatterns);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
                     $merged[] = $contentMerge['entry'];
@@ -227,6 +229,7 @@ final class TreeMerge
         callable $readObject,
         callable $writeObject,
         string $conflictStyle,
+        array $unionMergePatterns = [],
     ): ?array {
         if ($baseEntry === null || $ourEntry === null || $theirEntry === null) {
             return null;
@@ -241,6 +244,7 @@ final class TreeMerge
                 $writeObject,
                 $conflictStyle,
                 $fullPath,
+                $unionMergePatterns,
             );
 
             return [
@@ -274,7 +278,7 @@ final class TreeMerge
                 $baseBlob->body,
                 $ourBlob->body,
                 $theirBlob->body,
-                $conflictStyle,
+                self::usesUnionMerge($fullPath, $unionMergePatterns) ? BlobMerge::STYLE_UNION : $conflictStyle,
                 'base/' . $fullPath,
                 'ours/' . $fullPath,
                 'theirs/' . $fullPath,
@@ -704,6 +708,102 @@ final class TreeMerge
         }
 
         return $left->mode === $right->mode && $left->oid === $right->oid;
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $ourEntries
+     * @param array<string, TreeEntry> $theirEntries
+     * @param callable(string): GitObject $readObject
+     * @param list<string> $inherited
+     * @return list<string>
+     */
+    private static function unionMergeAttributePatterns(
+        array $baseEntries,
+        array $ourEntries,
+        array $theirEntries,
+        callable $readObject,
+        string $pathPrefix,
+        array $inherited,
+    ): array
+    {
+        $entry = $ourEntries['.gitattributes'] ?? $baseEntries['.gitattributes'] ?? $theirEntries['.gitattributes'] ?? null;
+        if ($entry === null || !$entry->isBlob()) {
+            return $inherited;
+        }
+
+        $object = self::readTypedObject($readObject, $entry->oid, 'blob');
+        foreach (self::parseUnionMergeAttributes($object->body) as $pattern) {
+            $inherited[] = self::joinPath($pathPrefix, ltrim($pattern, '/'));
+        }
+
+        return array_values(array_unique($inherited));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function parseUnionMergeAttributes(string $attributes): array
+    {
+        $patterns = [];
+        foreach (preg_split('/\r\n|\n|\r/', $attributes) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $line) ?: [];
+            $pattern = array_shift($parts);
+            if ($pattern === null || $pattern === '' || str_starts_with($pattern, '!')) {
+                continue;
+            }
+            if (in_array('merge=union', $parts, true)) {
+                $patterns[] = $pattern;
+            }
+        }
+
+        return $patterns;
+    }
+
+    /**
+     * @param list<string> $patterns
+     */
+    private static function usesUnionMerge(string $path, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            if (self::attributePatternMatches($pattern, $path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function attributePatternMatches(string $pattern, string $path): bool
+    {
+        $pattern = trim($pattern, '/');
+        if ($pattern === '') {
+            return false;
+        }
+
+        if (!str_contains($pattern, '/')) {
+            $path = basename($path);
+        }
+
+        $regex = '';
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $pattern[$i];
+            if ($char === '*') {
+                $regex .= '[^/]*';
+            } elseif ($char === '?') {
+                $regex .= '[^/]';
+            } else {
+                $regex .= preg_quote($char, '~');
+            }
+        }
+
+        return preg_match('~^' . $regex . '$~', $path) === 1;
     }
 
     /**

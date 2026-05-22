@@ -1551,6 +1551,31 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline both-modify-union-attr fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('.gitattributes', "a/* merge=union\n"),
+            $treeEntry('a', new Tree([$blobEntry('x.f', "original\n1\n2\n3\n4\n5\n")])),
+        ]);
+        $ours = new Tree([
+            $blobEntry('.gitattributes', "a/* merge=union\n"),
+            $treeEntry('a', new Tree([$blobEntry('x.f', "A\n1\n2\n3\n4\n5\n6\n")])),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('.gitattributes', "a/* merge=union\n"),
+            $treeEntry('a', new Tree([$blobEntry('x.f', "B\n1\n2\n3\n4\n5\n7\n")])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $a = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $x = $a->entryNamed('x.f');
+
+        $t->same(true, $result->isClean());
+        $t->same(['.gitattributes', 'a'], $names($result->tree));
+        $t->same("A\nB\n1\n2\n3\n4\n5\n6\n7\n", $read($x?->oid ?? '')->body);
+        $t->same([], $result->conflicts);
+        $t->same([], $result->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline both-modify-binary fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([$treeEntry('a', new Tree([$blobEntry('x.f', "\0 binary")]))]);

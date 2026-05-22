@@ -73,6 +73,17 @@ return [
 
         $t->same("<<<<<<< ours\ntheme: ours\n||||||| ancestor\ntheme: base\n=======\ntheme: theirs\n>>>>>>> theirs\n", $result->content);
     },
+    'text merge supports union driver resolution' => static function (TestRunner $t): void {
+        $result = BlobMerge::mergeText(
+            "original\n1\n2\n3\n4\n5\n",
+            "A\n1\n2\n3\n4\n5\n6\n",
+            "B\n1\n2\n3\n4\n5\n7\n",
+            BlobMerge::STYLE_UNION,
+        );
+
+        $t->true($result->isClean());
+        $t->same("A\nB\n1\n2\n3\n4\n5\n6\n7\n", $result->content);
+    },
     'binary merge defaults to ours as an unresolved conflict' => static function (TestRunner $t): void {
         $result = BlobMerge::mergeBinary("base\0", "ours\0", "theirs\0");
 
