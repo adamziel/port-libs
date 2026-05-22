@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, trailing-comma normalization, recursive bracketed-list diffs, upstream-style word/subword diffs, and escaped HTML rendering for token, subword, and syntax-list changes.",
     "blocker": "Full upstream runner parity is not available: the current shell has no `cargo` or `rustc`; the sparse blob-filtered clone would also need broad hydration plus online Cargo dependency downloads and many tree-sitter parser/native builds, and a prior offline no-run probe failed on missing `humansize` crate.",
-    "latestCommit": "pending",
+    "latestCommit": "eaf28e1",
     "nextTask": "Map another upstream sample_files display pair such as html_*.html, json_*.json, or trailing_commas_*.js, then tie it to HTML/JSON output expectations."
 }
