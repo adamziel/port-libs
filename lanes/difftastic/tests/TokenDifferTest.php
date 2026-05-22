@@ -202,6 +202,36 @@ return [
         $t->contains('~ $html.style.css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
         $t->contains('~ $html.script.js.call["alert"][0] \'welcome!\' "goodbye!"', $encoded);
     },
+    'maps upstream javascript simple sample with body and array statement alignment' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-javascript-simple-1.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-javascript-simple-2.js');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'javascript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $js.block["if"][0] if(true){foo();bar(2);baz();}', $encoded);
+        $t->contains('~ $js.call["bar"][0] 1 2', $encoded);
+        $t->contains('+ $js.array["people"][3] "yvonne"', $encoded);
+        $t->true(!str_contains($encoded, '- $js.array["people"][3] "eric"'), 'Inserted array elements should not delete retained following items.');
+    },
+    'maps upstream javascript sample with named callback contexts' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-javascript-1.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-javascript-2.js');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'javascript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $js.call["test"] test("Editing pages"', $encoded);
+        $t->contains('+ $js.call["test"] test("/new POST"', $encoded);
+        $t->contains('+ $js.call["describe"] describe("Viewing"', $encoded);
+        $t->true(!str_contains($encoded, '~ $js.call["test"][0] "Editing pages" "/edit GET"'), 'Renamed Jest tests should not be paired only by the repeated test(...) callee.');
+        $t->true(!str_contains($encoded, '+ $js.call["test"] test("/new GET",done=>{request(app).get("/new").auth("admin",ADMIN_PASSWORD)'), 'Stable Editing /new GET test should remain matched under its describe label.');
+        $t->true(!str_contains($encoded, '+ $js.call["test"] test("/new POST",done=>{request(app).post("/new").type("form").send({name:"FooBar",content:"hello world"}).auth("admin",ADMIN_PASSWORD)'), 'Stable Editing /new POST test should remain matched under its describe label.');
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -615,6 +645,37 @@ return [
         $t->contains('expanded:false', $html);
         $t->contains('expanded:true', $html);
         $t->same([], $rawScriptChanges, 'WordPress inline script raw body changes should only appear under the JavaScript sub-language path.');
+    },
+    'wordpress view script diff reports javascript block wrappers and array insertions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-view-script-before.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-view-script-after.js');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'javascript',
+            'title' => 'Block view script JavaScript diff',
+        ]);
+
+        $t->contains('Block view script JavaScript diff', $html);
+        $t->contains('data-path="$js.block[&quot;if&quot;][0]"', $html);
+        $t->contains('if(window.wp)', $html);
+        $t->contains('data-path="$js.array[&quot;actions&quot;][1]"', $html);
+        $t->contains('&#039;share&#039;', $html);
+        $t->contains('expanded:false', $html);
+        $t->contains('expanded:true', $html);
+        $t->true(!str_contains($html, 'data-path="$js.array[&quot;actions&quot;][2]">dismiss'), 'The retained dismiss action should stay aligned after the share insertion.');
+    },
+    'wordpress hook registration diff keeps named hook callbacks aligned' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-hook-registration-before.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-hook-registration-after.js');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'javascript',
+            'title' => 'WordPress hook registration JavaScript diff',
+        ]);
+
+        $t->contains('WordPress hook registration JavaScript diff', $html);
+        $t->contains('acme.card.analytics', $html);
+        $t->contains('bindCard', $html);
+        $t->true(!str_contains($html, '<del>&#039;acme.card.init&#039;</del><ins>&#039;acme.card.analytics&#039;</ins>'), 'A newly inserted hook callback should not be paired with the retained init hook by callee name alone.');
+        $t->true(!str_contains($html, 'data-op="-" data-path="$js.call[&quot;wp.hooks.addFilter&quot;]"'), 'The stable addFilter registration should remain matched.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');

@@ -62,6 +62,10 @@ HTML mode now also maps the upstream `script_element` sub-language rule from `sr
 
 HTML root-list comparison now strips `<style>` and `<script>` raw bodies before generic tag/list diffing. The same WordPress Interactivity-style fixture asserts changed state labels and booleans appear under the JavaScript sub-language path without duplicate root `$[...]` raw script churn in the rendered review data.
 
+Standalone JavaScript mode now maps the upstream `sample_files/javascript_simple_*.js` statement shape. The WordPress block view-script fixture applies this to a `view.js` change where existing calls are wrapped in an `if (window.wp)` guard, a block action array gains `share`, and hydration booleans change. The renderer reports the guard under `$js.block[...]`, the action under `$js.array[...]`, and retained following actions stay out of the deletion stream.
+
+Standalone JavaScript mode now also maps the larger upstream `sample_files/javascript_*.js` repeated callback shape. Named callback calls such as Jest `describe(...)` / `test(...)` and WordPress `wp.hooks.addAction(...)` / `addFilter(...)` use their first string label plus enclosing named callback labels when matching repeated calls. The WordPress hook-registration fixture applies this to a block plugin `view.js` change where a new analytics action is inserted before the retained `acme.card.init` callback; the diff reports the new hook and the added `bindCard()` call without pairing the retained init hook with the analytics hook by callee name alone.
+
 Run:
 
 ```sh
@@ -71,6 +75,8 @@ php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
+php lanes/difftastic/examples/wordpress-view-script-js-diff.php
+php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-scss-diff.php
 php lanes/difftastic/examples/wordpress-nested-at-rule-css-diff.php
@@ -89,4 +95,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map another JavaScript body/statement sample beyond call arguments, such as upstream `javascript_simple_*.js`, or broaden HTML raw-text handling to multiple style/script blocks with attributes.
+Broaden HTML raw-text handling to indexed multiple style/script blocks with attributes, or map TypeScript/JSX sample pairs with import/export-heavy syntax.

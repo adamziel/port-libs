@@ -313,6 +313,11 @@ final class TokenDiffer
 
             return $changes;
         }
+        if ($this->isJavaScriptLanguage($options)) {
+            $this->diffJavaScriptStatementSyntax($oldRoot['children'], $newRoot['children'], $options, $changes, '$js');
+
+            return $changes;
+        }
 
         $pairs = min(count($oldLists), count($newLists));
         for ($i = 0; $i < $pairs; $i++) {
@@ -1169,7 +1174,185 @@ final class TokenDiffer
         $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldScript, $jsOptions), $delimiterPairs);
         $newRoot = $this->parseTokenTree($this->tokensForDiff($newScript, $jsOptions), $delimiterPairs);
 
-        $this->diffJavaScriptCalls($oldRoot['children'], $newRoot['children'], $jsOptions, $changes, '$html.script.js');
+        $this->diffJavaScriptStatementSyntax($oldRoot['children'], $newRoot['children'], $jsOptions, $changes, '$html.script.js');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffJavaScriptStatementSyntax(array $oldNodes, array $newNodes, array $options, array &$changes, string $basePath): void
+    {
+        $this->diffJavaScriptBlockWrappers($oldNodes, $newNodes, $basePath, $changes);
+        $this->diffJavaScriptCalls($oldNodes, $newNodes, $options, $changes, $basePath);
+        $this->diffJavaScriptArrays($oldNodes, $newNodes, $options, $changes, $basePath);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffJavaScriptBlockWrappers(array $oldNodes, array $newNodes, string $basePath, array &$changes): void
+    {
+        $oldBlocks = $this->javaScriptControlBlocks($oldNodes);
+        $newBlocks = $this->javaScriptControlBlocks($newNodes);
+        $oldBlockSignatures = $this->countJavaScriptBlockSignatures($oldBlocks);
+        $newBlockSignatures = $this->countJavaScriptBlockSignatures($newBlocks);
+        $oldTopLevelCalls = $this->javaScriptDirectCallNames($oldNodes);
+        $newTopLevelCalls = $this->javaScriptDirectCallNames($newNodes);
+
+        foreach ($newBlocks as $block) {
+            $signature = $block['signature'];
+            if (($oldBlockSignatures[$signature] ?? 0) > 0) {
+                $oldBlockSignatures[$signature]--;
+                continue;
+            }
+
+            if ($block['callNames'] === [] || !$this->containsContiguousSubsequence($oldTopLevelCalls, $block['callNames'])) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '+',
+                'path' => $this->javaScriptBlockPath($block['keyword'], $basePath, $block['index']),
+                'text' => $block['text'],
+            ];
+        }
+
+        foreach ($oldBlocks as $block) {
+            $signature = $block['signature'];
+            if (($newBlockSignatures[$signature] ?? 0) > 0) {
+                $newBlockSignatures[$signature]--;
+                continue;
+            }
+
+            if ($block['callNames'] === [] || !$this->containsContiguousSubsequence($newTopLevelCalls, $block['callNames'])) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '-',
+                'path' => $this->javaScriptBlockPath($block['keyword'], $basePath, $block['index']),
+                'text' => $block['text'],
+            ];
+        }
+    }
+
+    /**
+     * @param list<array{signature:string}> $blocks
+     * @return array<string, int>
+     */
+    private function countJavaScriptBlockSignatures(array $blocks): array
+    {
+        $counts = [];
+        foreach ($blocks as $block) {
+            $signature = $block['signature'];
+            $counts[$signature] = ($counts[$signature] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<string> $haystack
+     * @param list<string> $needle
+     */
+    private function containsContiguousSubsequence(array $haystack, array $needle): bool
+    {
+        $needleCount = count($needle);
+        if ($needleCount === 0 || $needleCount > count($haystack)) {
+            return false;
+        }
+
+        for ($offset = 0; $offset <= count($haystack) - $needleCount; $offset++) {
+            if (array_slice($haystack, $offset, $needleCount) === $needle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array{keyword:string, index:int, signature:string, callNames:list<string>, text:string}>
+     */
+    private function javaScriptControlBlocks(array $nodes): array
+    {
+        $blocks = [];
+        $keywordIndexes = [];
+        foreach ($nodes as $index => $node) {
+            if (($node['type'] ?? '') === 'list') {
+                if (($node['open'] ?? '') === '{') {
+                    $context = $this->javaScriptControlBlockContext($nodes, $index);
+                    if ($context !== null) {
+                        $keyword = $context['keyword'];
+                        $blockIndex = $keywordIndexes[$keyword] ?? 0;
+                        $keywordIndexes[$keyword] = $blockIndex + 1;
+                        $callNames = $this->javaScriptDirectCallNames($node['children'] ?? []);
+                        $blocks[] = [
+                            'keyword' => $keyword,
+                            'index' => $blockIndex,
+                            'signature' => 'js-block:' . $keyword . ':' . implode("\0", $callNames),
+                            'callNames' => $callNames,
+                            'text' => $context['prefix'] . $this->nodeText($node),
+                        ];
+                    }
+                }
+
+                foreach ($this->javaScriptControlBlocks($node['children'] ?? []) as $nestedBlock) {
+                    $keyword = $nestedBlock['keyword'];
+                    $nestedBlock['index'] = $keywordIndexes[$keyword] ?? 0;
+                    $keywordIndexes[$keyword] = $nestedBlock['index'] + 1;
+                    $blocks[] = $nestedBlock;
+                }
+            }
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return ?array{keyword:string, prefix:string}
+     */
+    private function javaScriptControlBlockContext(array $nodes, int $blockIndex): ?array
+    {
+        $condition = '';
+        for ($index = $blockIndex - 1; $index >= 0; $index--) {
+            $node = $nodes[$index];
+            if (($node['type'] ?? '') === 'list') {
+                if (($node['open'] ?? '') === '(' && $condition === '') {
+                    $condition = $this->nodeText($node);
+                    continue;
+                }
+
+                continue;
+            }
+
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                continue;
+            }
+
+            $token = $node['token'];
+            if ($token->kind === 'comment') {
+                continue;
+            }
+            if (in_array($token->text, ['if', 'for', 'while', 'switch', 'catch', 'else', 'finally', 'try'], true)) {
+                return [
+                    'keyword' => $token->text,
+                    'prefix' => $token->text . $condition,
+                ];
+            }
+            if (in_array($token->text, [';', '='], true)) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1218,6 +1401,56 @@ final class TokenDiffer
                 'op' => '+',
                 'path' => $this->javaScriptCallPath($call['callee'], $basePath),
                 'text' => $call['text'],
+            ];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffJavaScriptArrays(array $oldNodes, array $newNodes, array $options, array &$changes, string $basePath): void
+    {
+        $newArrays = $this->javaScriptArrays($newNodes);
+        $newBySignature = [];
+        foreach ($newArrays as $index => $array) {
+            $newBySignature[$array['signature']][] = $index;
+        }
+
+        $matchedNewIndexes = [];
+        foreach ($this->javaScriptArrays($oldNodes) as $oldArray) {
+            $matchIndex = null;
+            foreach ($newBySignature[$oldArray['signature']] ?? [] as $candidateIndex) {
+                if (($matchedNewIndexes[$candidateIndex] ?? false) === false) {
+                    $matchIndex = $candidateIndex;
+                    break;
+                }
+            }
+
+            $path = $this->javaScriptArrayPath($oldArray['name'], $basePath);
+            if ($matchIndex === null) {
+                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldArray['text']];
+                continue;
+            }
+
+            $matchedNewIndexes[$matchIndex] = true;
+            $newArray = $newArrays[$matchIndex];
+            if ($this->nodeText($oldArray['list']) !== $this->nodeText($newArray['list'])) {
+                $this->diffListNode($oldArray['list'], $newArray['list'], $path, $options, $changes);
+            }
+        }
+
+        foreach ($newArrays as $index => $array) {
+            if (($matchedNewIndexes[$index] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '+',
+                'path' => $this->javaScriptArrayPath($array['name'], $basePath),
+                'text' => $array['text'],
             ];
         }
     }
@@ -1279,8 +1512,9 @@ final class TokenDiffer
     /**
      * @param list<array<string, mixed>> $nodes
      * @param list<array{callee:string, signature:string, list:array<string, mixed>, text:string}> $calls
+     * @param list<string> $contextLabels
      */
-    private function collectJavaScriptCalls(array $nodes, array &$calls): void
+    private function collectJavaScriptCalls(array $nodes, array &$calls, array $contextLabels = []): void
     {
         $calleeParts = [];
         foreach ($nodes as $node) {
@@ -1299,19 +1533,24 @@ final class TokenDiffer
                 continue;
             }
 
+            $nextContextLabels = $contextLabels;
             if (($node['open'] ?? '') === '(') {
                 $callee = $this->normalizeJavaScriptCallee($calleeParts);
                 if ($callee !== null) {
+                    $label = $this->firstJavaScriptStringArgument($node);
                     $calls[] = [
                         'callee' => $callee,
-                        'signature' => 'js-call:' . $callee,
+                        'signature' => $this->javaScriptCallSignature($callee, $node, $contextLabels),
                         'list' => $node,
                         'text' => $callee . $this->nodeText($node),
                     ];
+                    if ($label !== null && $this->isJavaScriptNamedCallbackCallee($callee)) {
+                        $nextContextLabels[] = $callee . ':' . $label;
+                    }
                 }
             }
 
-            $this->collectJavaScriptCalls($node['children'] ?? [], $calls);
+            $this->collectJavaScriptCalls($node['children'] ?? [], $calls, $nextContextLabels);
             $calleeParts = [];
         }
     }
@@ -1342,9 +1581,190 @@ final class TokenDiffer
         return $callee;
     }
 
+    /**
+     * @param array<string, mixed> $list
+     * @param list<string> $contextLabels
+     */
+    private function javaScriptCallSignature(string $callee, array $list, array $contextLabels): string
+    {
+        $signature = 'js-call:' . $callee;
+        if ($contextLabels !== []) {
+            $signature .= ':context:' . implode("\0", $contextLabels);
+        }
+
+        if (!$this->isJavaScriptNamedCallbackCallee($callee)) {
+            return $signature;
+        }
+
+        $label = $this->firstJavaScriptStringArgument($list);
+        if ($label === null) {
+            return $signature;
+        }
+
+        return $signature . ':label:' . $label;
+    }
+
+    private function isJavaScriptNamedCallbackCallee(string $callee): bool
+    {
+        return in_array($callee, [
+            'context',
+            'describe',
+            'it',
+            'suite',
+            'test',
+            'wp.hooks.addAction',
+            'wp.hooks.addFilter',
+        ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $list
+     */
+    private function firstJavaScriptStringArgument(array $list): ?string
+    {
+        $items = $this->listItems($list, ['language' => 'javascript']);
+        if ($items === []) {
+            return null;
+        }
+
+        $text = $this->itemText($items[0]);
+        if (strlen($text) < 2) {
+            return null;
+        }
+
+        $quote = $text[0];
+        if (($quote === '"' || $quote === "'") && str_ends_with($text, $quote)) {
+            return $text;
+        }
+
+        return null;
+    }
+
     private function javaScriptCallPath(string $callee, string $basePath): string
     {
         return $basePath . '.call[' . json_encode($callee, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
+    private function javaScriptBlockPath(string $keyword, string $basePath, int $index): string
+    {
+        return $basePath . '.block[' . json_encode($keyword, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . '][' . $index . ']';
+    }
+
+    private function javaScriptArrayPath(string $name, string $basePath): string
+    {
+        return $basePath . '.array[' . json_encode($name, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<string>
+     */
+    private function javaScriptDirectCallNames(array $nodes): array
+    {
+        $names = [];
+        $calleeParts = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                if ($this->isJavaScriptCalleeToken($node['token'])) {
+                    $calleeParts[] = $node['token']->text;
+                    continue;
+                }
+
+                $calleeParts = [];
+                continue;
+            }
+
+            if (($node['type'] ?? '') === 'list' && ($node['open'] ?? '') === '(') {
+                $callee = $this->normalizeJavaScriptCallee($calleeParts);
+                if ($callee !== null) {
+                    $names[] = $callee;
+                }
+            }
+
+            $calleeParts = [];
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array{name:string, signature:string, list:array<string, mixed>, text:string}>
+     */
+    private function javaScriptArrays(array $nodes): array
+    {
+        $arrays = [];
+        $this->collectJavaScriptArrays($nodes, $arrays);
+
+        return $arrays;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param list<array{name:string, signature:string, list:array<string, mixed>, text:string}> $arrays
+     */
+    private function collectJavaScriptArrays(array $nodes, array &$arrays): void
+    {
+        $contextAtoms = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                $token = $node['token'];
+                if ($token->kind === 'comment') {
+                    continue;
+                }
+
+                if ($token->text === ';') {
+                    $contextAtoms = [];
+                    continue;
+                }
+
+                $contextAtoms[] = $token->text;
+                continue;
+            }
+
+            if (($node['type'] ?? '') !== 'list') {
+                $contextAtoms = [];
+                continue;
+            }
+
+            if (($node['open'] ?? '') === '[') {
+                $name = $this->javaScriptArrayContextName($contextAtoms);
+                if ($name !== null) {
+                    $arrays[] = [
+                        'name' => $name,
+                        'signature' => 'js-array:' . $name,
+                        'list' => $node,
+                        'text' => $name . $this->nodeText($node),
+                    ];
+                }
+            }
+
+            $this->collectJavaScriptArrays($node['children'] ?? [], $arrays);
+            $contextAtoms = [];
+        }
+    }
+
+    /**
+     * @param list<string> $contextAtoms
+     */
+    private function javaScriptArrayContextName(array $contextAtoms): ?string
+    {
+        for ($index = count($contextAtoms) - 1; $index >= 0; $index--) {
+            if (!in_array($contextAtoms[$index], ['=', ':'], true)) {
+                continue;
+            }
+
+            for ($nameIndex = $index - 1; $nameIndex >= 0; $nameIndex--) {
+                $candidate = $contextAtoms[$nameIndex];
+                if (preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $candidate) === 1 && !in_array($candidate, ['const', 'let', 'var', 'return'], true)) {
+                    return $candidate;
+                }
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function htmlRawBlockContent(string $source, string $tagName): string

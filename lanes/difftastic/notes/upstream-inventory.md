@@ -47,6 +47,8 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 ## Newly Mapped Fixture Pairs
 
 - `sample_files/trailing_commas_1.js` / `sample_files/trailing_commas_2.js`: copied locally and mapped as a no-change formatting/trailing-comma diff under the token differ's default JavaScript-like trailing-comma normalization.
+- `sample_files/javascript_simple_1.js` / `sample_files/javascript_simple_2.js`: copied locally and mapped through standalone JavaScript statement syntax. The inserted `if (true)` body wrapper is reported separately from retained `foo`/`bar`/`baz` calls, `bar(1)` to `bar(2)` remains a focused call-argument update, and the `people` array reports only the inserted `"yvonne"` item while retaining following entries.
+- `sample_files/javascript_1.js` / `sample_files/javascript_2.js`: copied locally and mapped through named JavaScript callback-context matching. Repeated Jest-style `describe(...)` and `test(...)` calls now include their first string labels plus enclosing named callback labels in match signatures, so stable tests under `describe("Editing", ...)` are not paired with newly inserted tests under `describe("Authentication", ...)` by callee name alone.
 - `sample_files/html_simple_1.html` / `sample_files/html_simple_2.html`: copied locally and mapped through HTML-mode angle delimiters so tag attribute changes and inserted tags are reported as syntax-list changes.
 - `sample_files/xml_1.xml` / `sample_files/xml_2.xml`: copied locally and mapped through XML-mode angle delimiters so a newly inserted self-closing tag is reported without replacing the stable surrounding tags.
 - `sample_files/json_1.json` / `sample_files/json_2.json`: copied locally and mapped through JSON object-key item alignment. The retained `"foo"` property is diffed inside its array value (`1` deleted and `5` inserted), while renamed/new keys (`"bar"`, `"zab"`, `"woo"`) remain property-level changes.
@@ -88,18 +90,18 @@ Mapped native behavior:
 - YAML block scalar atoms that do not share enough words now fall back to per-line string spans instead of generic token highlighting, mapping upstream `trailling_newline_*.yaml`.
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 
-The focused PHP lane test now passes 61 tests and 274 assertions, including the mapped upstream XML sample, CSS sample, upstream tailwind CSS sample, upstream simple SCSS sample, upstream HTML style `@media` CSS extraction, full upstream HTML style sub-language sample, full upstream HTML script sub-language sample, full upstream HTML raw-text de-duplication sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, inline HTML style sub-language, inline HTML script sub-language, block allow-list array syntax, block-style CSS, block-editor SCSS, nested at-rule CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
+The focused PHP lane test now passes 65 tests and 297 assertions, including the mapped upstream XML sample, CSS sample, upstream tailwind CSS sample, upstream simple SCSS sample, upstream JavaScript simple sample, upstream larger JavaScript named-callback sample, upstream HTML style `@media` CSS extraction, full upstream HTML style sub-language sample, full upstream HTML script sub-language sample, full upstream HTML raw-text de-duplication sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, inline HTML style sub-language, inline HTML script sub-language, standalone block view-script JavaScript, hook-registration JavaScript, block allow-list array syntax, block-style CSS, block-editor SCSS, nested at-rule CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
 
-The required root test runner was run after this HTML raw-text de-duplication slice:
+The required root test runner was run after this JavaScript statement/body slice:
 
 ```text
 php tools/run-tests.php
 ```
 
-The exact required root test run after the HTML raw-text de-duplication slice is green:
+The exact required root test run after this named JavaScript callback-context slice is green:
 
 ```text
-112 test files, 8,231 assertions, 0 failures
+115 test files, 8,569 assertions, 0 failures
 ```
 
-The difftastic-focused test file remains green with 61 tests, 274 assertions, and 0 failures via a direct `TestRunner` invocation.
+The difftastic-focused test file remains green with 65 tests, 297 assertions, and 0 failures via a direct `TestRunner` invocation.
