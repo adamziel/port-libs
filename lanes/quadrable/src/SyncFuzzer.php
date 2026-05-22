@@ -54,6 +54,48 @@ final class SyncFuzzer
     }
 
     /**
+     * Runs the upstream-shaped sync fuzzer while also persisting named tracked
+     * node heads through a JSON snapshot on every trial.
+     *
+     * @return list<array{
+     *     trial: int,
+     *     numElems: int,
+     *     numAlterations: int,
+     *     roundTrips: int,
+     *     requests: int,
+     *     responses: int,
+     *     diffCount: int,
+     *     scanDiffCount: int,
+     *     rootHash: string,
+     *     shadowNodeId: int,
+     *     maxShadowNodeId: int,
+     *     snapshotBytes: int,
+     *     trackedLocalHeadNodeId: int,
+     *     trackedRemoteHeadNodeId: int,
+     *     restoredLocalHeadNodeId: int,
+     *     restoredRemoteHeadNodeId: int,
+     *     trackedDiffCount: int,
+     *     trackedScanDiffCount: int,
+     *     trackedSharedNodeCount: int
+     * }>
+     */
+    public function runWithPersistedTrackedSnapshots(int $trials = 500, int $seed = 0): array
+    {
+        if ($trials < 0) {
+            throw new \InvalidArgumentException('sync fuzzer trials must be non-negative');
+        }
+
+        $rng = new Mt19937($seed);
+        $results = [];
+
+        for ($trial = 0; $trial < $trials; $trial++) {
+            $results[] = $this->runPersistedTrackedTrial($trial, $rng);
+        }
+
+        return $results;
+    }
+
+    /**
      * @return array{
      *     trial: int,
      *     numElems: int,
@@ -161,6 +203,190 @@ final class SyncFuzzer
             'rootHash' => $remote->rootHash(),
             'shadowNodeId' => $session->shadowNodeId(),
             'maxShadowNodeId' => $shadowNodeIds === [] ? 0 : max($shadowNodeIds),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     trial: int,
+     *     numElems: int,
+     *     numAlterations: int,
+     *     roundTrips: int,
+     *     requests: int,
+     *     responses: int,
+     *     diffCount: int,
+     *     scanDiffCount: int,
+     *     rootHash: string,
+     *     shadowNodeId: int,
+     *     maxShadowNodeId: int,
+     *     snapshotBytes: int,
+     *     trackedLocalHeadNodeId: int,
+     *     trackedRemoteHeadNodeId: int,
+     *     restoredLocalHeadNodeId: int,
+     *     restoredRemoteHeadNodeId: int,
+     *     trackedDiffCount: int,
+     *     trackedScanDiffCount: int,
+     *     trackedSharedNodeCount: int
+     * }
+     */
+    private function runPersistedTrackedTrial(int $trial, Mt19937 $rng): array
+    {
+        $seedTree = new SparseTree();
+        $seedChanges = $seedTree->change();
+        $trackedStore = new TrackedNodeStore();
+        $trackedLocalHead = 'sync-fuzz-local-' . $trial;
+        $trackedRemoteHead = 'sync-fuzz-remote-' . $trial;
+        $trackedSeed = (new TrackedSparseTree($trackedStore))->checkout($trackedLocalHead);
+        $trackedSeedChanges = $trackedSeed->change();
+        $numElems = $rng->nextModulo(800);
+        $maxElem = 1000;
+        $numAlterations = $rng->nextModulo(200);
+
+        for ($i = 0; $i < $numElems; $i++) {
+            $number = $rng->nextModulo($maxElem);
+            $key = Key::fromInteger($number);
+            $value = (string) $number . str_repeat('A', $rng->nextModulo(60));
+            $seedChanges->putKey($key, $value);
+            $trackedSeedChanges->putKey($key, $value);
+        }
+        $seedChanges->apply();
+        $trackedSeedChanges->apply();
+
+        $local = clone $seedTree;
+        $remote = clone $seedTree;
+        $trackedRemote = $trackedSeed->fork($trackedRemoteHead);
+        $remoteChanges = $remote->change();
+        $trackedRemoteChanges = $trackedRemote->change();
+
+        for ($i = 0; $i < $numAlterations; $i++) {
+            $number = $rng->nextModulo($maxElem);
+            $key = Key::fromInteger($number);
+            if ($rng->nextModulo(2) === 0) {
+                $value = (string) $number . ' new';
+                $remoteChanges->putKey($key, $value);
+                $trackedRemoteChanges->putKey($key, $value);
+            } else {
+                $remoteChanges->deleteKey($key);
+                $trackedRemoteChanges->deleteKey($key);
+            }
+        }
+        $remoteChanges->apply();
+        $trackedRemoteChanges->apply();
+
+        $trackedLocalHeadNodeId = $trackedSeed->headNodeId();
+        $trackedRemoteHeadNodeId = $trackedRemote->headNodeId();
+        $snapshotJson = json_encode($trackedStore->exportSnapshot(), JSON_THROW_ON_ERROR);
+        $restoredStore = TrackedNodeStore::fromSnapshot(json_decode($snapshotJson, true, flags: JSON_THROW_ON_ERROR));
+        $restoredLocal = (new TrackedSparseTree($restoredStore))->checkout($trackedLocalHead);
+        $restoredRemote = (new TrackedSparseTree($restoredStore))->checkout($trackedRemoteHead);
+
+        if ($restoredLocal->headNodeId() !== $trackedLocalHeadNodeId) {
+            throw new \RuntimeException('persisted tracked local head node id mismatch on trial ' . $trial);
+        }
+        if ($restoredRemote->headNodeId() !== $trackedRemoteHeadNodeId) {
+            throw new \RuntimeException('persisted tracked remote head node id mismatch on trial ' . $trial);
+        }
+        if ($restoredLocal->rootHash() !== $local->rootHash()) {
+            throw new \RuntimeException('persisted tracked local root mismatch on trial ' . $trial);
+        }
+        if ($restoredRemote->rootHash() !== $remote->rootHash()) {
+            throw new \RuntimeException('persisted tracked remote root mismatch on trial ' . $trial);
+        }
+
+        $session = new SyncSession($local, $this->initialDepthLimit, $this->laterDepthLimit);
+        $scanDiffs = [];
+        $roundTrips = 0;
+        $requestCount = 0;
+        $responseCount = 0;
+        $converged = false;
+
+        for (; $roundTrips < $this->maxRoundTrips; $roundTrips++) {
+            $requests = SyncCodec::decodeRequests(SyncCodec::encodeRequests($session->getRequests(
+                $rng->nextModulo(1000) + 100,
+                static function (DiffEntry $diff) use (&$scanDiffs): void {
+                    $scanDiffs[] = $diff;
+                }
+            )));
+            if ($requests === []) {
+                $converged = true;
+                break;
+            }
+
+            $responses = SyncCodec::decodeResponses(SyncCodec::encodeResponses($remote->handleSyncRequests(
+                $requests,
+                $rng->nextModulo(10000) + 2000
+            )));
+
+            $requestCount += count($requests);
+            $responseCount += count($responses);
+            $session->addResponses($requests, $responses);
+        }
+
+        if (!$converged) {
+            throw new \RuntimeException('persisted tracked sync fuzz trial did not converge: ' . $trial);
+        }
+
+        $shadow = $session->shadow();
+        $finalDiffs = $local->diffTo($shadow);
+        $reconstructed = clone $local;
+        $reconstructed->applyDiffs($finalDiffs);
+        $trackedScanDiffs = [];
+        $trackedFinalDiffs = $restoredLocal->diffTo(
+            $restoredRemote,
+            static function (DiffEntry $diff) use (&$trackedScanDiffs): void {
+                $trackedScanDiffs[] = $diff;
+            }
+        );
+        $trackedReconstructed = $restoredLocal->checkout($restoredLocal->headNodeId());
+        $trackedReconstructed->applyDiffs($trackedFinalDiffs);
+
+        if ($remote->rootHash() !== $shadow->rootHash()) {
+            throw new \RuntimeException('shadow root mismatch on persisted tracked trial ' . $trial);
+        }
+        if ($remote->rootHash() !== $reconstructed->rootHash()) {
+            throw new \RuntimeException('reconstructed root mismatch on persisted tracked trial ' . $trial);
+        }
+        if ($restoredRemote->rootHash() !== $trackedReconstructed->rootHash()) {
+            throw new \RuntimeException('tracked reconstructed root mismatch on persisted tracked trial ' . $trial);
+        }
+        if (self::diffSignature($finalDiffs) !== self::diffSignature($scanDiffs)) {
+            throw new \RuntimeException('scan diff mismatch on persisted tracked trial ' . $trial);
+        }
+        if (self::nodeIdSignature($finalDiffs) !== self::nodeIdSignature($scanDiffs)) {
+            throw new \RuntimeException('scan diff node id mismatch on persisted tracked trial ' . $trial);
+        }
+        if (self::diffSignature($finalDiffs) !== self::diffSignature($trackedFinalDiffs)) {
+            throw new \RuntimeException('tracked diff mismatch on persisted tracked trial ' . $trial);
+        }
+        if (self::diffSignature($trackedFinalDiffs) !== self::diffSignature($trackedScanDiffs)) {
+            throw new \RuntimeException('tracked scan diff mismatch on persisted tracked trial ' . $trial);
+        }
+
+        $shadowNodeIds = $session->shadowNodeIds();
+
+        return [
+            'trial' => $trial,
+            'numElems' => $numElems,
+            'numAlterations' => $numAlterations,
+            'roundTrips' => $roundTrips,
+            'requests' => $requestCount,
+            'responses' => $responseCount,
+            'diffCount' => count($finalDiffs),
+            'scanDiffCount' => count($scanDiffs),
+            'rootHash' => $remote->rootHash(),
+            'shadowNodeId' => $session->shadowNodeId(),
+            'maxShadowNodeId' => $shadowNodeIds === [] ? 0 : max($shadowNodeIds),
+            'snapshotBytes' => strlen($snapshotJson),
+            'trackedLocalHeadNodeId' => $trackedLocalHeadNodeId,
+            'trackedRemoteHeadNodeId' => $trackedRemoteHeadNodeId,
+            'restoredLocalHeadNodeId' => $restoredLocal->headNodeId(),
+            'restoredRemoteHeadNodeId' => $restoredRemote->headNodeId(),
+            'trackedDiffCount' => count($trackedFinalDiffs),
+            'trackedScanDiffCount' => count($trackedScanDiffs),
+            'trackedSharedNodeCount' => count(array_intersect(
+                $restoredLocal->walkNodeIds(),
+                $restoredRemote->walkNodeIds()
+            )),
         ];
     }
 

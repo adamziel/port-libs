@@ -458,6 +458,27 @@ return [
             $t->same(64, strlen($result['rootHash']));
         }
     },
+    'native sync fuzzer round trips persisted tracked node snapshots' => static function (TestRunner $t): void {
+        $fuzzer = new SyncFuzzer(maxRoundTrips: 200);
+        $results = $fuzzer->runWithPersistedTrackedSnapshots(2, 0);
+
+        $t->same(2, count($results));
+        $t->same(44, $results[0]['numElems']);
+        $t->same(39, $results[0]['numAlterations']);
+
+        foreach ($results as $result) {
+            $t->true($result['snapshotBytes'] > 0, 'tracked node-store snapshot should not be empty');
+            $t->same($result['trackedLocalHeadNodeId'], $result['restoredLocalHeadNodeId']);
+            $t->same($result['trackedRemoteHeadNodeId'], $result['restoredRemoteHeadNodeId']);
+            $t->true($result['trackedRemoteHeadNodeId'] !== $result['trackedLocalHeadNodeId'], 'remote fork should get a new tracked branch head');
+            $t->same($result['diffCount'], $result['scanDiffCount']);
+            $t->same($result['diffCount'], $result['trackedDiffCount']);
+            $t->same($result['trackedDiffCount'], $result['trackedScanDiffCount']);
+            $t->true($result['trackedSharedNodeCount'] > 0, 'restored local and remote heads should keep unchanged shared node ids');
+            $t->true($result['shadowNodeId'] >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'shadow root should still be imported into memStore range');
+            $t->same(64, strlen($result['rootHash']));
+        }
+    },
 ];
 
 function quadrableSyncWordPressSnapshotTree(): SparseTree
