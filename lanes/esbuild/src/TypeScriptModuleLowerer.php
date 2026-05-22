@@ -82,6 +82,10 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === 'using') {
+                throw new \InvalidArgumentException('Unexpected "using"');
+            }
+
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === 'import') {
                 [$local, $target, $cursor] = $this->parseImportEqualsStatement($i + 1, $effectiveEnd);
                 $this->assertStatementConsumed($cursor, $effectiveEnd);
@@ -597,10 +601,21 @@ final class TypeScriptModuleLowerer
             $modifiers[] = $this->tokens[$cursor]->text;
             $cursor++;
         }
+        $accessorModifierIndex = array_search('accessor', $modifiers, true);
+        if ($accessorModifierIndex !== false && $accessorModifierIndex !== count($modifiers) - 1) {
+            throw new \InvalidArgumentException('Expected ";" but found "' . (($this->tokens[$cursor] ?? null)?->text ?? '') . '"');
+        }
 
         if (!in_array('declare', $modifiers, true)) {
             if ($cursor > $end) {
                 return [[$this->printClassMemberRange($start, $end)], false, [], [], []];
+            }
+
+            if ($accessorModifierIndex !== false) {
+                $autoAccessor = $this->lowerAutoAccessorMember($start, $end, $cursor, $modifiers);
+                if ($autoAccessor !== null) {
+                    return $autoAccessor;
+                }
             }
 
             $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor, $hasExtends);
@@ -656,6 +671,61 @@ final class TypeScriptModuleLowerer
         }
 
         return [[], true, [], [], []];
+    }
+
+    /**
+     * @param list<string> $modifiers
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>}|null
+     */
+    private function lowerAutoAccessorMember(int $start, int $end, int $memberNameIndex, array $modifiers): ?array
+    {
+        $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
+        if ($effectiveEnd < $memberNameIndex) {
+            return null;
+        }
+
+        $name = $this->tokens[$memberNameIndex] ?? null;
+        if ($name === null) {
+            return null;
+        }
+
+        if ($name->text === '[') {
+            $nameEnd = $this->findMatchingPunctuator($memberNameIndex, '[', ']');
+            if ($nameEnd > $effectiveEnd) {
+                return null;
+            }
+        } elseif ($name->kind === 'identifier' || $name->kind === 'private_identifier' || $name->kind === 'string') {
+            $nameEnd = $memberNameIndex;
+        } else {
+            return null;
+        }
+
+        $cursor = $nameEnd + 1;
+        $transformed = array_intersect($modifiers, ['abstract', 'override', 'private', 'protected', 'public', 'readonly']) !== [];
+        if (($this->tokens[$cursor] ?? null)?->text === '?' || ($this->tokens[$cursor] ?? null)?->text === '!') {
+            $transformed = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+            $transformed = true;
+            $cursor = $this->skipTypeExpression($cursor + 1, $effectiveEnd, ['=', ';']);
+        }
+
+        $next = $cursor <= $effectiveEnd ? ($this->tokens[$cursor] ?? null) : null;
+        if ($next?->text === '<') {
+            throw new \InvalidArgumentException('Expected ";" but found "<"');
+        }
+        if ($next?->text === '(') {
+            throw new \InvalidArgumentException('Expected ";" but found "("');
+        }
+        if ($next !== null && $next->text !== '=') {
+            throw new \InvalidArgumentException('Expected ";" but found "' . $next->text . '"');
+        }
+
+        return $transformed
+            ? [[$this->printClassMemberRuntimeRange($start, $end)], true, [], [], []]
+            : null;
     }
 
     /**
@@ -1009,7 +1079,7 @@ final class TypeScriptModuleLowerer
 
             if ($i === $keyOpen) {
                 $text = '[' . $replacement . ']';
-                if ($previous !== null && ($this->needsSpace($previous, $text) || $previous === 'static')) {
+                if ($previous !== null && ($this->needsSpace($previous, $text) || in_array($previous, ['accessor', 'static'], true))) {
                     $parts[] = ' ';
                 }
                 $parts[] = $text;
@@ -1067,7 +1137,8 @@ final class TypeScriptModuleLowerer
 
         $member = implode('', $parts);
         $last = $this->tokens[$effectiveEnd] ?? null;
-        if ($last?->text !== '}' && !str_ends_with($member, ';')) {
+        $hasTopLevelInitializer = $this->findTopLevelTokenInRange('=', $start, $effectiveEnd) !== null;
+        if (($hasTopLevelInitializer || $last?->text !== '}') && !str_ends_with($member, ';')) {
             $member .= ';';
         }
 
@@ -2417,7 +2488,8 @@ final class TypeScriptModuleLowerer
 
         $member = implode('', $parts);
         $last = $this->tokens[$effectiveEnd] ?? null;
-        if ($last?->text !== '}' && !str_ends_with($member, ';')) {
+        $hasTopLevelInitializer = $this->findTopLevelTokenInRange('=', $start, $effectiveEnd) !== null;
+        if (($hasTopLevelInitializer || $last?->text !== '}') && !str_ends_with($member, ';')) {
             $member .= ';';
         }
 
@@ -2441,6 +2513,7 @@ final class TypeScriptModuleLowerer
         }
 
         return $previousToken->kind === 'identifier'
+            || $previousToken->kind === 'private_identifier'
             || $previousToken->kind === 'string'
             || in_array($previousToken->text, [')', ']'], true);
     }
@@ -2505,12 +2578,12 @@ final class TypeScriptModuleLowerer
         $next = $this->tokens[$index + 1] ?? null;
 
         return $previous !== null
-            && $next !== null
             && (
                 ($this->tokens[$previous]->kind === 'identifier'
+                    || $this->tokens[$previous]->kind === 'private_identifier'
                     || $this->tokens[$previous]->kind === 'string'
                     || $this->tokens[$previous]->text === ']')
-                && in_array($next->text, [':', '=', ';', '(', '<'], true)
+                && ($index === $end || ($next !== null && in_array($next->text, [':', '=', ';', '(', '<'], true)))
             );
     }
 
@@ -3206,7 +3279,12 @@ final class TypeScriptModuleLowerer
 
         $statement = implode('', $parts);
         $last = $this->tokens[$end] ?? null;
-        if ($last?->text !== '}' && !str_ends_with($statement, ';')) {
+        $firstText = ($this->tokens[$start] ?? null)?->text;
+        $secondText = ($this->tokens[$start + 1] ?? null)?->text;
+        $isVariableDeclaration = in_array($firstText, ['let', 'const', 'var'], true)
+            || $firstText === 'using'
+            || ($firstText === 'export' && in_array($secondText, ['let', 'const', 'var'], true));
+        if (($isVariableDeclaration || $last?->text !== '}') && !str_ends_with($statement, ';')) {
             $statement .= ';';
         }
 
@@ -3457,7 +3535,7 @@ final class TypeScriptModuleLowerer
             if ($text === '=') {
                 return false;
             }
-            if ($text === ',' || in_array($text, ['let', 'const', 'var'], true)) {
+            if ($text === ',' || in_array($text, ['let', 'const', 'var', 'using'], true)) {
                 return true;
             }
         }
@@ -3635,6 +3713,9 @@ final class TypeScriptModuleLowerer
     private function needsSpace(string $previous, string $current): bool
     {
         if (in_array($previous, ['=', '=>', '&&=', '||=', '??='], true) || in_array($current, ['=', '=>', '&&=', '||=', '??='], true)) {
+            return true;
+        }
+        if (in_array($previous, ['accessor', 'static'], true) && ($current === '[' || str_starts_with($current, '#'))) {
             return true;
         }
         if ($previous === ')' && $current === '{') {

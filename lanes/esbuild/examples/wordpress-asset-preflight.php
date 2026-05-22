@@ -29,6 +29,8 @@ $commaSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fi
 $returnSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-return-super-controller.ts');
 $controlSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-control-super-controller.ts');
 $privateSettingsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-settings-controller.ts');
+$autoAccessorTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-auto-accessor-controller.ts');
+$usingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-disposable.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
@@ -56,6 +58,8 @@ $commaSuperLowered = (new TypeScriptModuleLowerer())->lower($commaSuperTypeScrip
 $returnSuperLowered = (new TypeScriptModuleLowerer())->lower($returnSuperTypeScriptSource, false);
 $controlSuperLowered = (new TypeScriptModuleLowerer())->lower($controlSuperTypeScriptSource, false);
 $privateSettingsLowered = (new TypeScriptModuleLowerer())->lower($privateSettingsTypeScriptSource, false);
+$autoAccessorLowered = (new TypeScriptModuleLowerer())->lower($autoAccessorTypeScriptSource);
+$usingDisposableLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -96,6 +100,8 @@ printf("WordPress TypeScript comma super controller bytes: %d\n", strlen($commaS
 printf("WordPress TypeScript return super controller bytes: %d\n", strlen($returnSuperLowered));
 printf("WordPress TypeScript control super controller bytes: %d\n", strlen($controlSuperLowered));
 printf("WordPress TypeScript private settings controller bytes: %d\n", strlen($privateSettingsLowered));
+printf("WordPress TypeScript auto accessor controller bytes: %d\n", strlen($autoAccessorLowered));
+printf("WordPress TypeScript using disposable asset bytes: %d\n", strlen($usingDisposableLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));

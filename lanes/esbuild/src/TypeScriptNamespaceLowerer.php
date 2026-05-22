@@ -243,6 +243,10 @@ final class TypeScriptNamespaceLowerer
                 continue;
             }
 
+            if ($first->text === 'export' && ($this->tokens[$start + 1] ?? null)?->text === 'using') {
+                throw new \InvalidArgumentException('Unexpected "using"');
+            }
+
             $nestedNamespace = $this->namespaceStatementAt($start);
             if ($nestedNamespace !== null) {
                 if (!$nestedNamespace['declared']) {

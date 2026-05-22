@@ -35,6 +35,11 @@ JS . "\n", $lowerer->lower('namespace ns { export import foo = bar.x; foo }'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower("namespace ns { export import foo from 'bar' }"));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('namespace ns { { import foo = bar } }'));
     },
+    'rejects upstream namespace exported using declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('namespace ns { export using x: any = y }'));
+    },
     'lowers upstream namespace exported variable declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptNamespaceLowerer();
 

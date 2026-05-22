@@ -170,6 +170,18 @@ TS);
             "const edit = (props: BlockEditProps<{ title: string }>): WPElement => wp.element.createElement('div', {}, props.attributes.title);"
         ));
     },
+    'lowers upstream typescript using declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same("using x = y;\n", $lowerer->lower('using x = y'));
+        $t->same("using x = y;\n", $lowerer->lower('using x: any = y'));
+        $t->same("using x = y, z = _;\n", $lowerer->lower('using x: any = y, z: any = _'));
+    },
+    'rejects upstream exported typescript using declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('export using x: any = y'));
+    },
     'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -275,6 +287,50 @@ class Foo {
   [foo]() {}
 }
 JS . "\n", $lowerer->lower('class Foo { [foo]?<T>() {} }'));
+    },
+    'lowers upstream typescript auto accessor markers and types' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor x;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor x? }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor x = y;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor x!: any = y }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor [x] = y;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor [x]?: any = y }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor #x;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor #x!: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor x;
+}
+JS . "\n", $lowerer->lower('class Foo { readonly accessor x }'));
+
+        $t->same("let x;\n", $lowerer->lower('let x: { accessor x }'));
+        $t->same("let x;\n", $lowerer->lower('let x: { static accessor x }'));
+    },
+    'rejects malformed upstream typescript auto accessors' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { accessor x<T> }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { accessor x<T>() {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { accessor declare x }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { accessor readonly x }'));
     },
     'rejects upstream definite assignment markers on class methods' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
@@ -933,5 +989,31 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(strpos($lowered, 'this.#settings =') < strpos($lowered, 'this.blockName = blockName;'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress auto accessor controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-auto-accessor-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('class CardBlockAccessorController {', $lowered);
+        $t->contains('accessor settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
+        $t->contains('accessor [assetKey("worker")] = "file:./card-worker.js";', $lowered);
+        $t->contains('accessor #blockName = metadata.name;', $lowered);
+        $t->contains('wp.blocks.registerBlockType(this.#blockName, this.settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, '?:'));
+        $t->true(!str_contains($lowered, '!:'));
+    },
+    'lowers wordpress using disposable asset handles without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-disposable.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('using previewAsset = acquirePreviewAsset(metadata.viewScript), workerAsset = acquireWorkerAsset("file:./card-worker.js");', $lowered);
+        $t->contains('const settings = {name:metadata.name, viewScript:previewAsset.url, worker:workerAsset.url,};', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'satisfies'));
     },
 ];
