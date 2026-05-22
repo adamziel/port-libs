@@ -303,9 +303,46 @@ Focused upstream fixture boundary:
 The native PHP tests cover parsing `lower(option_name)` metadata with
 `COLLATE`, `DESC`, and safe `WHERE option_name IS NOT NULL` predicates;
 rejecting constant and unrelated expression indexes; preserving plain
-`option_name` lookup rejection for expression indexes; and a WordPress-shaped
-case-folded option recovery lookup through
+`option_name` lookup rejection for expression indexes; and WordPress-shaped
+case-folded option recovery lookups through
 `CREATE INDEX ... ON wp_options(lower(option_name))`.
+
+## Focused Native Mapping: Lower Expression Range Seek Bounds
+
+This slice extends the bounded `lower(option_name)` expression-index reader
+from point lookup to range scans. Caller-supplied bounds are ASCII-folded before
+the index b-tree is searched, while returned rows are rechecked against the
+folded range before being exposed. Only `WHERE option_name IS NOT NULL`
+partial predicates are accepted for expression range scans; raw `option_name`
+comparison predicates are not treated as implied by `lower(option_name)` bounds.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test indexexpr2.test indexexpr3.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 248 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` verifies `lower(a)` expression-index use and
+  expression-index planner boundaries.
+- `test/indexexpr2.test` covers expression-index collation behavior and
+  expression terms in indexed searches.
+- `test/indexexpr3.test` covers expression terms in multi-column indexes.
+
+The native PHP tests now cover a case-folded transient-style
+`lower(option_name)` range scan, limit handling, rejection of ordinary
+`option_name` range lookup against expression-only indexes, and a bounded
+seek fixture where an out-of-range index branch is intentionally unreadable.
+`examples/wordpress-lowercase-option-name-range.php` maps case-folded transient
+recovery on hosts without the PHP SQLite extension. Remaining expression-index
+work includes arbitrary expressions beyond `lower(column)`, expression
+prefixes after ordinary indexed columns, custom collations, and expression
+`IN (...)` lookups.
 
 ## Focused Native Mapping: IS NOT NULL Partial Index Point Lookup
 
@@ -646,9 +683,9 @@ subtrees whose separator-key intervals cannot contain the requested
 decoded. A WordPress-shaped fixture keeps the matching transient rows in one
 index branch and makes the unrelated branch invalid, proving the native reader
 does not need healthy out-of-range index pages for constrained recovery.
-Remaining work includes expression indexes beyond `lower(column)`, optimized
-IN-list and expression-index seek bounds, custom collations, and composite
-ranges beyond one equality prefix plus one range column.
+Remaining work includes expression indexes beyond `lower(column)`, custom
+collations, expression `IN (...)` lookups, and composite ranges beyond one
+equality prefix plus one range column.
 
 ## Focused Native Mapping: Equality Partial Predicates
 
@@ -763,3 +800,43 @@ subtree and the left-hand child page is intentionally invalid. The lookup now
 returns `siteurl` without reading that out-of-range branch. Remaining seek work
 includes expression indexes beyond the first `lower(column)` slice and
 expression seek bounds.
+
+## Focused Native Mapping: Substr Expression Index Prefixes
+
+SQLite expression indexes can use deterministic scalar expressions such as
+`substr(column,start,length)` as the indexed key. The native PHP reader now
+parses first-term `substr()`/`substring()` expression-index metadata when the
+start and optional length are positive integer literals, preserves built-in
+collation and `DESC` metadata, and uses `substr(option_name,1,N)` expression
+indexes for WordPress option-name prefix scans. Partial expression indexes are
+accepted only for the safe `option_name IS NOT NULL` predicate family in this
+slice.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test indexexpr2.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 234 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` covers `CREATE INDEX ... ON t1(substr(a,1,12))`,
+  equality predicates with the expression on either side, composite
+  expression indexes such as `(b, substr(a,2,3), c)`, and expression
+  collations such as `substr(b,2,4) COLLATE nocase`.
+- `test/indexexpr2.test` covers `substr(a, 2) COLLATE NOCASE` expression
+  index ordering and lookup behavior.
+
+The native PHP tests now cover parser rejection for variable/negative
+`substr()` starts, expression metadata for qualified and quoted column names,
+and a WordPress-shaped `wp_options(substr(option_name,1,11) COLLATE NOCASE)`
+index that returns `_transient_` option buckets without using the SQLite
+extension. The new `examples/wordpress-option-name-prefix.php` script maps
+transient/cache bucket inspection on hosts where only a database image is
+available. Remaining expression-index work includes variable-start
+`substr(a,b,3)`, expression `IN` lookups, `abs()`, `json_extract()`,
+arbitrary deterministic expressions, and custom collations.

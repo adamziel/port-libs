@@ -64,7 +64,20 @@ indexes rather than plain column indexes. A case-folded recovery lookup can use
 the stored lowered key payload to find `wp_options` rows such as `SiteURL`
 without requiring the PHP SQLite extension, while generic `option_name` lookup
 continues to reject expression-only indexes unless the caller asks for the
-lowercase expression path.
+lowercase expression path. The same expression-index path can now serve
+case-folded option-name range scans, so transient or migration-prefix recovery
+can match mixed-case option rows through `lower(option_name)` while avoiding
+ordinary `option_name` index assumptions. Only safe `option_name IS NOT NULL`
+partial predicates are accepted for expression ranges; raw comparison
+predicates are left unsupported because they are not implied by folded bounds.
+First-term `substr(option_name,start,length)` expression indexes are now
+parsed for positive integer start and length literals. A WordPress recovery
+tool can use a `substr(option_name,1,N)` expression index to read prefix
+buckets such as `_transient_` through native index traversal, including
+`COLLATE NOCASE` comparison and safe `option_name IS NOT NULL` partial
+predicate checks. This remains intentionally narrower than SQLite's full
+expression engine: variable-start substrings, negative offsets, expression
+`IN` lookups, and arbitrary functions are still future slices.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -89,13 +102,14 @@ subtrees before page decoding, so a small preload list can still be recovered
 when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
-First-column range, first-column IN-list, and composite equality-prefix range
-scans now use bounded index b-tree traversal instead of decoding every index
-page. This matters for WordPress recovery and import tools that inspect a
-narrow option-name range or a small known option-name set from a large or
-partially damaged database image: an unrelated out-of-range index branch no
-longer has to be readable before constrained `wp_options(option_name)` or
-`wp_options(autoload, option_name)` lookups can return matching rows.
+First-column range, lower-expression range, first-column IN-list, and composite
+equality-prefix range scans now use bounded index b-tree traversal instead of
+decoding every index page. This matters for WordPress recovery and import tools
+that inspect a narrow option-name range or a small known option-name set from a
+large or partially damaged database image: an unrelated out-of-range index
+branch no longer has to be readable before constrained `wp_options(option_name)`,
+`wp_options(lower(option_name))`, or `wp_options(autoload, option_name)` lookups
+can return matching rows.
 
 ## Example
 
@@ -167,6 +181,21 @@ by case-folded name. This maps recovery workflows that need case-insensitive
 option inspection from a database image but must not treat expression indexes
 as ordinary column indexes.
 
+`examples/wordpress-lowercase-option-name-range.php` reads a
+WordPress-oriented SQLite database file, resolves a first-term
+`wp_options(lower(option_name))` expression index, and returns options whose
+folded names fall between caller-supplied bounds. By default it targets the
+`_transient_` prefix range, mapping case-folded transient cleanup and recovery
+without requiring the PHP SQLite extension or every out-of-range index branch
+to be readable.
+
+`examples/wordpress-option-name-prefix.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term
+`wp_options(substr(option_name,1,N))` expression index, and returns options
+whose name prefix equals the caller-supplied prefix. By default it targets the
+`_transient_` bucket, mapping cache/transient inspection from SQLite database
+images without requiring the PHP SQLite extension or a full table scan.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
@@ -174,6 +203,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: seek bounds for expression scans, expression indexes beyond
-`lower(column)`, custom collations, and composite-key ranges beyond one equality
-prefix plus one range column.
+slice: expression indexes beyond `lower(column)` and positive-start
+`substr(column,...)`, custom collations, and composite-key ranges beyond one
+equality prefix plus one range column.

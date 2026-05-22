@@ -53,6 +53,40 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstSubstringExpression(string $sql): ?SQLiteSubstringIndexExpression
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $expression = self::parseSubstringExpressionColumn($term);
+        if ($expression === null) {
+            return null;
+        }
+
+        return new SQLiteSubstringIndexExpression(
+            $expression['name'],
+            $expression['start'],
+            $expression['length'],
+            $expression['collation'],
+            $expression['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     /**
      * @return null|list<SQLiteIndexColumn>
      */
@@ -198,6 +232,74 @@ final class SQLiteCreateIndex
             'collation' => $modifiers['collation'],
             'descending' => $modifiers['descending'],
         ];
+    }
+
+    /**
+     * @return null|array{name:string,start:int,length:?int,collation:string,descending:bool}
+     */
+    private static function parseSubstringExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $function = self::readIdentifier($term, 0);
+        if (
+            $function === null
+            || (
+                strcasecmp($function[0], 'substr') !== 0
+                && strcasecmp($function[0], 'substring') !== 0
+            )
+        ) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $function[1]);
+        if (!isset($term[$offset]) || $term[$offset] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($term, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $arguments = self::topLevelTerms(substr($term, $offset + 1, $close - $offset - 1));
+        if (count($arguments) < 2 || count($arguments) > 3) {
+            return null;
+        }
+
+        $columnArgument = trim($arguments[0]);
+        $column = self::readPossiblyQualifiedIdentifier($columnArgument, 0);
+        if ($column === null || trim(substr($columnArgument, $column[1])) !== '') {
+            return null;
+        }
+
+        $start = self::readIntegerOnlyLiteral($arguments[1]);
+        $length = count($arguments) === 3 ? self::readIntegerOnlyLiteral($arguments[2]) : null;
+        if ($start === null || $start <= 0 || (count($arguments) === 3 && ($length === null || $length < 0))) {
+            return null;
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $close + 1);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $column[0],
+            'start' => $start,
+            'length' => $length,
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
+    private static function readIntegerOnlyLiteral(string $text): ?int
+    {
+        $literal = self::readLiteral($text, 0);
+        if ($literal === null || trim(substr($text, $literal[1])) !== '' || !is_int($literal[0])) {
+            return null;
+        }
+
+        return $literal[0];
     }
 
     /**

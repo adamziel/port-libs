@@ -233,6 +233,36 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForSubstringPointLookup(
+        string $tableName,
+        string $columnName,
+        int $start,
+        ?int $length,
+        string $value,
+    ): ?int {
+        $lookup = $this->indexLookupForSubstringExpressionColumn($tableName, $columnName, $start, $length);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    public function indexRootPageForLowercaseRangeLookup(
+        string $tableName,
+        string $columnName,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?int {
+        $lookup = $this->indexLookupForLowerExpressionColumnRange(
+            $tableName,
+            $columnName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForRangeLookup(
         string $tableName,
         string $columnName,
@@ -468,6 +498,108 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return null|array{rootPage:int,collation:string,descending:bool,expression:SQLiteSubstringIndexExpression}
+     */
+    private function indexLookupForSubstringExpressionColumn(
+        string $tableName,
+        string $columnName,
+        int $start,
+        ?int $length,
+    ): ?array {
+        if ($start < 1) {
+            throw new \InvalidArgumentException('SQLite substr expression index lookup start must be positive');
+        }
+        if ($length !== null && $length < 0) {
+            throw new \InvalidArgumentException('SQLite substr expression index lookup length cannot be negative');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $expression = SQLiteCreateIndex::firstSubstringExpression($record->sql);
+            if (
+                $expression === null
+                || strcasecmp($expression->columnName, $columnName) !== 0
+                || $expression->start !== $start
+                || $expression->length !== $length
+            ) {
+                continue;
+            }
+
+            if (
+                $expression->partial
+                && (
+                    $expression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $expression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $expression->collation,
+                'descending' => $expression->descending,
+                'expression' => $expression,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForLowerExpressionColumnRange(
+        string $tableName,
+        string $columnName,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?array {
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite lower expression index range lookup requires at least one bound');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstLowerExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
     private function indexLookupForColumnRange(
@@ -680,6 +812,146 @@ final class SQLiteDatabase
         }
 
         return null;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNamePrefix(string $prefix, ?int $limit = null): array
+    {
+        if ($prefix === '') {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix lookup requires a non-empty prefix');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $length = strlen($prefix);
+        $indexLookup = $this->indexLookupForSubstringExpressionColumn(
+            'wp_options',
+            'option_name',
+            1,
+            $length,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) expression index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValue(
+                $indexLookup['rootPage'],
+                $prefix,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (
+                self::compareSQLiteScalar(
+                    self::sqliteSubstring($option->optionName, 1, $length),
+                    $prefix,
+                    $indexLookup['collation'],
+                ) === 0
+            ) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedLowercaseNameRange(
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options lower expression indexed range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForLowerExpressionColumnRange(
+            'wp_options',
+            'option_name',
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options lower(option_name) expression range index is not present');
+        }
+
+        $lowerKey = $lowerInclusive === null ? null : self::asciiLower($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::asciiLower($upperBound);
+        if ($lowerKey !== null && $upperKey !== null) {
+            $boundaryComparison = self::compareSQLiteScalar($lowerKey, $upperKey, $indexLookup['collation']);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueRange(
+                $indexLookup['rootPage'],
+                $lowerKey,
+                $upperKey,
+                $indexLookup['collation'],
+                $upperInclusive,
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::firstValueIsInRange(
+                self::asciiLower($option->optionName),
+                $lowerKey,
+                $upperKey,
+                $upperInclusive,
+                $indexLookup['collation'],
+            )) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
     }
 
     /**
@@ -2194,6 +2466,48 @@ final class SQLiteDatabase
         return $predicate->isImpliedByInListLookup($columnName, $values);
     }
 
+    private static function lowerExpressionRangeImpliesPartialPredicate(
+        SQLiteIndexPredicate $predicate,
+        string $columnName,
+    ): bool {
+        if ($predicate->operator === SQLiteIndexPredicate::AND) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    !$subPredicate instanceof SQLiteIndexPredicate
+                    || !self::lowerExpressionRangeImpliesPartialPredicate($subPredicate, $columnName)
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    $subPredicate instanceof SQLiteIndexPredicate
+                    && self::lowerExpressionRangeImpliesPartialPredicate($subPredicate, $columnName)
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return strcasecmp($predicate->columnName, $columnName) === 0
+            && $predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL;
+    }
+
     private function automaticIndexFirstColumnsForTable(string $tableName): array
     {
         foreach ($this->schemaRecords() as $record) {
@@ -2279,6 +2593,23 @@ final class SQLiteDatabase
         }
 
         return $bytes;
+    }
+
+    private static function sqliteSubstring(string $value, int $start, ?int $length): string
+    {
+        if ($start < 1) {
+            throw new \InvalidArgumentException('SQLite substr helper in this slice requires a positive start offset');
+        }
+        if ($length !== null && $length < 0) {
+            throw new \InvalidArgumentException('SQLite substr helper in this slice requires a non-negative length');
+        }
+
+        $offset = $start - 1;
+        if ($length === null) {
+            return substr($value, $offset);
+        }
+
+        return substr($value, $offset, $length);
     }
 
     private static function sqliteScalarRank(mixed $value): int
