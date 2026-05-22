@@ -342,6 +342,55 @@ return [
             MergeIndexEntry::STAGE_THEIRS,
         ], array_map(static fn (MergeIndexEntry $entry): int => $entry->stage, $result->indexEntries()));
     },
+    'recursive tree merge cleanly merges same target similar renames' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "name: old-plugin\nversion: 1.0\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
+        $ourContent = "name: new-plugin\nversion: 1.0\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
+        $theirContent = "name: old-plugin\nversion: 1.0\nrequires: 6.5\nstatus: network-active\nentry: bootstrap.php\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old-plugin.php', $baseContent)]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('new-plugin.php', $ourContent)]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('new-plugin.php', $theirContent)]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $mergedPlugin = $read($contentTree->entryNamed('new-plugin.php')?->oid ?? '');
+
+        $t->true($result->isClean());
+        $t->same(['new-plugin.php'], $names($contentTree));
+        $t->same("name: new-plugin\nversion: 1.0\nrequires: 6.5\nstatus: network-active\nentry: bootstrap.php\n", $mergedPlugin->body);
+        $t->same([], $result->indexEntries());
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
+    'recursive tree merge conflicts same target similar rename edits at renamed path' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "name: old-plugin\nversion: 1.0\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
+        $ourContent = "name: new-plugin\nversion: 1.1\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
+        $theirContent = "name: new-plugin\nversion: 1.2\nrequires: 6.5\nstatus: active\nentry: bootstrap.php\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old-plugin.php', $baseContent)]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('new-plugin.php', $ourContent)]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('new-plugin.php', $theirContent)]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $mergedPlugin = $read($contentTree->entryNamed('new-plugin.php')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(['new-plugin.php'], $names($contentTree));
+        $t->same('content-conflict', $result->conflicts[0]->reason);
+        $t->same('wp-content/new-plugin.php', $result->conflicts[0]->path);
+        $t->contains('<<<<<<< ours/wp-content/new-plugin.php', $mergedPlugin->body);
+        $t->contains('||||||| base/wp-content/new-plugin.php', $mergedPlugin->body);
+        $t->contains('>>>>>>> theirs/wp-content/new-plugin.php', $mergedPlugin->body);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'path' => 'wp-content/new-plugin.php'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'path' => 'wp-content/new-plugin.php'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'path' => 'wp-content/new-plugin.php'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'path' => $entry->path],
+            $result->indexEntries(),
+        ));
+        $t->same(['wp-content/new-plugin.php'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+    },
     'recursive tree merge records nested directory file conflicts with stages' => static function (TestRunner $t) use ($objectStore): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([

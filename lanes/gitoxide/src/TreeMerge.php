@@ -106,7 +106,7 @@ final class TreeMerge
         $ourEntries = self::entriesByName($ours);
         $theirEntries = self::entriesByName($theirs);
 
-        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject);
+        [$renameConflicts, $consumedPaths, $renameMerged] = self::renameConflicts($baseEntries, $ourEntries, $theirEntries, $pathPrefix, $readObject, $writeObject, $conflictStyle);
         $paths = array_keys($baseEntries + $ourEntries + $theirEntries);
         sort($paths, SORT_STRING);
 
@@ -277,9 +277,18 @@ final class TreeMerge
      * @param array<string, TreeEntry> $ourEntries
      * @param array<string, TreeEntry> $theirEntries
      * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
      * @return array{0:list<TreeMergeConflict>,1:array<string,true>,2:list<TreeEntry>}
      */
-    private static function renameConflicts(array $baseEntries, array $ourEntries, array $theirEntries, string $pathPrefix, ?callable $readObject = null): array
+    private static function renameConflicts(
+        array $baseEntries,
+        array $ourEntries,
+        array $theirEntries,
+        string $pathPrefix,
+        ?callable $readObject = null,
+        ?callable $writeObject = null,
+        string $conflictStyle = BlobMerge::STYLE_MERGE,
+    ): array
     {
         $ourRenames = self::detectedRenames($baseEntries, $ourEntries, $readObject);
         $theirRenames = self::detectedRenames($baseEntries, $theirEntries, $readObject);
@@ -294,7 +303,25 @@ final class TreeMerge
             $ourRename = $ourRenames[$path] ?? null;
             $theirRename = $theirRenames[$path] ?? null;
             if ($ourRename !== null && $theirRename !== null) {
-                if ($ourRename['path'] !== $theirRename['path']) {
+                if ($ourRename['path'] === $theirRename['path']) {
+                    $sameTargetMerge = self::tryMergeSameTargetRename(
+                        $pathPrefix,
+                        $baseEntry,
+                        $ourRename,
+                        $theirRename,
+                        $readObject,
+                        $writeObject,
+                        $conflictStyle,
+                    );
+                    if ($sameTargetMerge !== null) {
+                        if ($sameTargetMerge['entry'] !== null) {
+                            $merged[] = $sameTargetMerge['entry'];
+                        }
+                        array_push($conflicts, ...$sameTargetMerge['conflicts']);
+                        $consumed[$path] = true;
+                        $consumed[$ourRename['path']] = true;
+                    }
+                } else {
                     $conflicts[] = new TreeMergeConflict(
                         self::joinPath($pathPrefix, $path),
                         'rename-rename',
@@ -345,6 +372,40 @@ final class TreeMerge
         }
 
         return [$conflicts, $consumed, $merged];
+    }
+
+    /**
+     * @param array{path:string,entry:TreeEntry} $ourRename
+     * @param array{path:string,entry:TreeEntry} $theirRename
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     * @return null|array{entry:?TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeSameTargetRename(
+        string $pathPrefix,
+        TreeEntry $baseEntry,
+        array $ourRename,
+        array $theirRename,
+        ?callable $readObject,
+        ?callable $writeObject,
+        string $conflictStyle,
+    ): ?array {
+        if ($readObject === null || $writeObject === null) {
+            return null;
+        }
+
+        $targetPath = $ourRename['path'];
+
+        return self::tryMergeChangedEntry(
+            $targetPath,
+            self::joinPath($pathPrefix, $targetPath),
+            $baseEntry,
+            $ourRename['entry'],
+            $theirRename['entry'],
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
     }
 
     /**
