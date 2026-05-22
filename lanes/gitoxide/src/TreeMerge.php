@@ -217,7 +217,9 @@ final class TreeMerge
         if (!$baseEntry->isBlob() || !$ourEntry->isBlob() || !$theirEntry->isBlob()) {
             return null;
         }
-        if ($baseEntry->mode !== $ourEntry->mode || $baseEntry->mode !== $theirEntry->mode) {
+
+        $mergedMode = self::mergeBlobMode($baseEntry, $ourEntry, $theirEntry);
+        if ($mergedMode === null) {
             return null;
         }
 
@@ -242,9 +244,24 @@ final class TreeMerge
         }
 
         return [
-            'entry' => new TreeEntry($ourEntry->mode, $path, $writeObject(new GitObject('blob', $merge->content))),
+            'entry' => new TreeEntry($mergedMode, $path, $writeObject(new GitObject('blob', $merge->content))),
             'conflicts' => $conflicts,
         ];
+    }
+
+    private static function mergeBlobMode(TreeEntry $baseEntry, TreeEntry $ourEntry, TreeEntry $theirEntry): ?string
+    {
+        if ($ourEntry->mode === $theirEntry->mode) {
+            return $ourEntry->mode;
+        }
+        if ($baseEntry->mode === $ourEntry->mode) {
+            return $theirEntry->mode;
+        }
+        if ($baseEntry->mode === $theirEntry->mode) {
+            return $ourEntry->mode;
+        }
+
+        return null;
     }
 
     /**

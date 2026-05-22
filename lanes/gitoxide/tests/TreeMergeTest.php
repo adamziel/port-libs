@@ -633,6 +633,23 @@ return [
         $t->same('', $read($a?->oid ?? '')->body);
         $t->same([], $result->indexEntries());
     },
+    'maps upstream gix-merge tree-baseline remove-executable-mode fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $base = new Tree([$blobEntry('w', '', '100755')]);
+        $ours = new Tree([$blobEntry('w', '', '100644')]);
+        $theirs = new Tree([$blobEntry('w', "1\n2\n3\n4\n5\n", '100755')]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $w = $result->tree->entryNamed('w');
+
+        $t->true($result->isClean());
+        $t->same(['w'], $names($result->tree));
+        $t->same('100644', $w?->mode);
+        $t->same('blob', $w?->kind());
+        $t->same("1\n2\n3\n4\n5\n", $read($w?->oid ?? '')->body);
+        $t->same([], $result->conflicts);
+        $t->same([], $result->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline rename-add-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
