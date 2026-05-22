@@ -724,7 +724,8 @@ return [
         $integerPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_first_integer ON wp_options(option_value ->> 0)');
         $reverseBracketPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_last ON wp_options(option_value ->> \'[#-1]\')');
         $negativeIntegerPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_last_integer ON wp_options(option_value ->> -1)');
-        $unsupportedLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_dotted ON wp_options(option_value ->> \'plugin.enabled\')');
+        $dottedLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_dotted ON wp_options(option_value ->> \'plugin.enabled\')');
+        $numericLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_numeric_label ON wp_options(option_value ->> \'2\')');
         $jsonExtractIndex = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(json_extract(option_value, \'$.enabled\'))');
         $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled ON wp_options(option_value ->> \'enabled\')');
 
@@ -741,8 +742,35 @@ return [
         $t->same('$[0]', $integerPath?->path);
         $t->same('$[#-1]', $reverseBracketPath?->path);
         $t->same('$[#-1]', $negativeIntegerPath?->path);
-        $t->same(null, $unsupportedLabel);
+        $t->same('$."plugin.enabled"', $dottedLabel?->path);
+        $t->same('$."2"', $numericLabel?->path);
         $t->same(null, $jsonExtractIndex);
+        $t->same(null, $ordinaryColumn);
+    },
+    'parses sqlite json value operator expression index metadata separately from text operator indexes' => static function (TestRunner $t): void {
+        $jsonIndex = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_enabled_fragment ON wp_options(main.wp_options."option_value" -> \'enabled\' COLLATE nocase DESC) WHERE option_value IS NOT NULL');
+        $pathIndex = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_fragment ON wp_options(option_value -> \'$."plugin.enabled"\')');
+        $bracketPath = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_first_fragment ON wp_options(option_value -> \'[0]\')');
+        $integerPath = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_first_integer_fragment ON wp_options(option_value -> 0)');
+        $dottedLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_dotted_fragment ON wp_options(option_value -> \'plugin.enabled\')');
+        $numericLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_numeric_fragment ON wp_options(option_value -> \'2\')');
+        $textOperatorIndex = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(option_value ->> \'enabled\')');
+        $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled_fragment ON wp_options(option_value -> \'enabled\')');
+
+        $t->true($jsonIndex instanceof SQLiteJsonExtractIndexExpression);
+        $t->same('option_value', $jsonIndex?->columnName);
+        $t->same('$.enabled', $jsonIndex?->path);
+        $t->same('NOCASE', $jsonIndex?->collation);
+        $t->same(true, $jsonIndex?->descending);
+        $t->same(true, $jsonIndex?->partial);
+        $t->same('option_value', $jsonIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $jsonIndex?->partialPredicate?->operator);
+        $t->same('$."plugin.enabled"', $pathIndex?->path);
+        $t->same('$[0]', $bracketPath?->path);
+        $t->same('$[0]', $integerPath?->path);
+        $t->same('$."plugin.enabled"', $dottedLabel?->path);
+        $t->same('$."2"', $numericLabel?->path);
+        $t->same(null, $textOperatorIndex);
         $t->same(null, $ordinaryColumn);
     },
     'parses sqlite substr expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
@@ -1483,6 +1511,43 @@ return [
         $t->same(['plugin_channels_alpha'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $beta));
         $t->same(['plugin_channels_beta'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $disabled));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$[#]', 'beta'));
+    },
+    'uses json value operator expression index for wordpress plugin setting fragments' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_fragment_arrow', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_fragment_arrow ON wp_options(option_value -> \'settings.v1\') WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_alpha_settings', '{"settings.v1":{"mode":"dark","flags":[1,2]}}', 'no'], 1),
+            $schemaCell([null, 'plugin_beta_settings', '{"settings.v1":"dark"}', 'no'], 2),
+            $schemaCell([null, 'plugin_null_settings', '{"settings.v1":null}', 'no'], 3),
+            $schemaCell([null, 'plugin_nested_settings', '{"settings":{"v1":{"mode":"dark","flags":[1,2]}}}', 'yes'], 4),
+            $schemaCell([null, 'plugin_missing_settings', '{"other":true}', 'yes'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([null, 4]),
+            $indexCell([null, 5]),
+            $indexCell(['"dark"', 2]),
+            $indexCell(['null', 3]),
+            $indexCell(['{"mode":"dark","flags":[1,2]}', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $fragment = $database->wordpressOptionsByIndexedJsonOptionFragment('$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]);
+        $string = $database->wordpressOptionsByIndexedJsonOptionFragment('$."settings.v1"', 'dark');
+        $jsonNull = $database->wordpressOptionsByIndexedJsonOptionFragment('$."settings.v1"', null);
+        $wrongPath = $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$.settings.v1', ['mode' => 'dark', 'flags' => [1, 2]]);
+
+        $t->same(3, $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]));
+        $t->same(null, $wrongPath);
+        $t->same(null, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]));
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $fragment));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $string));
+        $t->same(['plugin_null_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $jsonNull));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragment('$."settings.v1"', new stdClass()));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragment('$."settings.v1"', ['mode' => 'dark'], -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$."settings.v1"', ['mode' => 'dark']));
     },
     'uses json_extract expression index for wordpress plugin option value IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

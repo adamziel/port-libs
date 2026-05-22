@@ -249,6 +249,39 @@ final class SQLiteCreateIndex
         );
     }
 
+    public static function firstJsonValueOperatorExpression(string $sql): ?SQLiteJsonExtractIndexExpression
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null) {
+            return null;
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $term = $index['terms'][0] ?? null;
+        if ($term === null) {
+            return null;
+        }
+
+        $expression = self::parseJsonValueOperatorExpressionColumn($term);
+        if ($expression === null) {
+            return null;
+        }
+
+        return new SQLiteJsonExtractIndexExpression(
+            $expression['name'],
+            $expression['path'],
+            $expression['collation'],
+            $expression['descending'],
+            $partial,
+            $partialPredicate,
+        );
+    }
+
     public static function firstSubstringExpression(string $sql): ?SQLiteSubstringIndexExpression
     {
         $index = self::indexedTermsAndTail($sql);
@@ -754,15 +787,51 @@ final class SQLiteCreateIndex
         ];
     }
 
+    /**
+     * @return null|array{name:string,path:string,collation:string,descending:bool}
+     */
+    private static function parseJsonValueOperatorExpressionColumn(string $term): ?array
+    {
+        $term = trim($term);
+        $column = self::readPossiblyQualifiedIdentifier($term, 0);
+        if ($column === null) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($term, $column[1]);
+        if (substr($term, $offset, 2) !== '->' || substr($term, $offset, 3) === '->>') {
+            return null;
+        }
+
+        $path = self::readLiteral($term, $offset + 2);
+        if ($path === null) {
+            return null;
+        }
+
+        $normalizedPath = self::normalizeJsonTextOperatorPath($path[0]);
+        if ($normalizedPath === null) {
+            return null;
+        }
+
+        $modifiers = self::parseIndexTermModifiers($term, $path[1]);
+        if ($modifiers === null) {
+            return null;
+        }
+
+        return [
+            'name' => $column[0],
+            'path' => $normalizedPath,
+            'collation' => $modifiers['collation'],
+            'descending' => $modifiers['descending'],
+        ];
+    }
+
     private static function normalizeJsonTextOperatorPath(mixed $operand): ?string
     {
         if (is_int($operand)) {
             return $operand < 0 ? '$[#' . $operand . ']' : '$[' . $operand . ']';
         }
         if (!is_string($operand)) {
-            return null;
-        }
-        if ($operand === '') {
             return null;
         }
         if (str_starts_with($operand, '$')) {
@@ -775,7 +844,12 @@ final class SQLiteCreateIndex
             return '$.' . $operand;
         }
 
-        return null;
+        $quoted = json_encode($operand, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($quoted)) {
+            return null;
+        }
+
+        return '$.' . $quoted;
     }
 
     private static function readIntegerOnlyLiteral(string $text): ?int

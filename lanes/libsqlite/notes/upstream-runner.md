@@ -1388,8 +1388,10 @@ This slice extends the bounded JSON expression-index family to SQLite's
 object-member path `json_extract(column,'$.key')`, preserves collation and
 `DESC` metadata, and still rejects the expression as an ordinary column index.
 The lookup path compares parsed JSON path segments, so `$.enabled` and
-`$."enabled"` requests can resolve the same supported expression index. Dotted
-label operands remain unsupported unless written as an explicit JSON path.
+`$."enabled"` requests can resolve the same supported expression index. String
+RHS operands that are not full JSON paths are now treated as object labels, so
+numeric-looking or dotted labels such as `'2'` and `'plugin.enabled'` normalize
+to quoted JSON path members instead of array indexes or nested paths.
 
 Focused upstream runner:
 
@@ -1411,13 +1413,50 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover parsing `option_value ->> 'enabled'` metadata
 with a qualified/quoted column, `COLLATE NOCASE`, `DESC`, and a safe partial
-predicate; rejecting dotted shorthand labels outside this bounded path; path
-equivalence between `$.enabled` and `$."enabled"`; and a WordPress-shaped
-plugin settings lookup that reads boolean JSON keys through an arrow-operator
-expression index without scanning `wp_options`. The new
+predicate; dotted and numeric string RHS label normalization; path equivalence
+between `$.enabled` and `$."enabled"`; and a WordPress-shaped plugin settings
+lookup that reads boolean JSON keys through an arrow-operator expression index
+without scanning `wp_options`. The
 `examples/wordpress-json-option-arrow.php` script maps plugin/theme settings
 recovery where the available SQLite database uses `option_value ->> 'key'`
 instead of a `json_extract(...)` index.
+
+## Focused Native Mapping: JSON `->` Expression Indexes
+
+This slice extends JSON expression-index handling to SQLite's `->` value
+operator. Unlike `->>`, the `->` operator returns JSON text: JSON null becomes
+the text `null`, strings stay quoted, and object/array fragments remain JSON
+text. Missing paths still compare as SQL `NULL`. The native PHP reader now
+parses first-term `column -> 'key'` expression indexes separately from `->>`,
+normalizes PostgreSQL-style string RHS labels such as `'2'` and
+`'plugin.enabled'` to quoted JSON path members, preserves collation, `DESC`,
+and safe partial-predicate metadata, and exposes a bounded WordPress
+`wp_options` lookup for JSON fragments.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick json102.test
+```
+
+Result: 1 Tcl script, 0 errors out of 317 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json102.test` covers `->` and `->>` operator behavior for JSON null,
+  integers, reals, strings, arrays, objects, missing paths, array-index RHS
+  operands, and string RHS operands that look numeric but must address object
+  labels.
+
+The native PHP tests now cover parsing `option_value -> 'settings.v1'` as a
+JSON value-operator expression index rather than a normal column or `->>` text
+operator index; matching dotted and numeric string labels through quoted JSON
+path members; seeking a WordPress-shaped `wp_options` index by JSON object
+fragment, JSON string, and JSON null; and keeping missing paths distinct from
+JSON null. The new `examples/wordpress-json-option-fragment.php` script maps
+plugin/theme settings recovery where the available SQLite database indexes a
+JSON fragment through `option_value -> 'key'`.
 
 ## Focused Native Mapping: `trim()` Expression Indexes
 

@@ -167,6 +167,12 @@ databases that use the JSON text-operator shorthand instead of
 `json_extract(...)`: recovery tools can still request `$.enabled`, resolve the
 arrow expression index, and verify the strict JSON scalar before returning
 matching `wp_options` rows.
+SQLite `option_value -> 'key'` expression indexes are now accepted as a
+separate JSON-fragment lookup family. This maps plugin/theme settings
+databases that index a JSON object, array, quoted string, boolean, or JSON null
+fragment instead of the SQL scalar returned by `->>`: recovery tools can
+request a path such as `$."settings.v1"`, compare SQLite's JSON text result,
+and distinguish a stored JSON null from a missing path.
 JSON expression paths now also support non-negative array indexes such as
 `$.rules[0].enabled` and `$[0]`, plus reverse array indexes such as
 `$.rules[#-1].enabled` and `$[#-1]`. This maps plugin/theme settings that store
@@ -428,6 +434,13 @@ expression index, and returns options whose strict JSON scalar value matches
 the requested label/path and scalar. This maps plugin/theme settings recovery
 when the database uses SQLite's JSON text-operator shorthand.
 
+`examples/wordpress-json-option-fragment.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term `wp_options(option_value -> 'key')`
+expression index, and returns options whose JSON fragment matches a requested
+path and JSON value. This maps plugin/theme settings recovery when a database
+indexes a nested settings object, JSON string, boolean, or JSON null as JSON
+text rather than as a SQL scalar.
+
 `examples/wordpress-trimmed-option-name.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(trim(option_name))`/`ltrim`/`rtrim` expression index, and returns
@@ -456,8 +469,9 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `trim/ltrim/rtrim(column[, literal characters])` point lookups, literal-start
-`substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and simple
-`json_extract(column,path)`/`column ->> path` object-member plus non-negative
-and reverse array-index point/list/range buckets; broader JSON path/value
-semantics such as JSON mutation at `[#]`, JSONB, and JSON5; custom collations;
-and composite-key ranges beyond one equality prefix plus one range column.
+`substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and the
+named `json_extract(column,path)`, `column ->> path`, and `column -> path`
+JSON scalar/fragment buckets; JSON `->` IN-list/range lookups; broader JSON
+path/value semantics such as JSON mutation at `[#]`, JSONB, and JSON5; custom
+collations; and composite-key ranges beyond one equality prefix plus one range
+column.
