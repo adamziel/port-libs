@@ -231,6 +231,8 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - Native `dolt_log()` table filters now accept either per-commit `changedTables` metadata or root-value-style `tableHashes`, skip root and empty commits, preserve upstream merge-commit behavior against first and second parents, accept comma-list-equivalent multiple tables, and apply limits after table filtering.
 - Native `dolt_log()` parent-count filters now map upstream `--min-parents` and `--merges`, including `--merges` overriding a lower min-parent setting, excluding root commits with `--min-parents 1`, and leaving the `parents` column null unless explicitly requested.
 - Native `dolt_log()` `--all` traversal now maps upstream CLI branch selection by walking current HEAD plus local and remote branch refs, and table filters still exclude root/unrelated branch commits.
+- Native `dolt log --oneline` rendering now maps upstream compact output: one line per commit, no `commit`/`Author`/`Date` labels, newline-flattened messages, optional parent hashes, and decorated refs in parentheses.
+- Native `dolt log --stat` rendering now maps upstream diffstat boundaries for modified tables, added/deleted table lines, `--stat --oneline`, and the rule that merge commits do not print stats.
 - Native `dolt_commits` rows now project all supplied branch commits into upstream's metadata-only schema without `commit_order`, `parents`, `refs`, or `signature`.
 - Native `dolt_commit_ancestors` rows now project upstream's three-column parent-edge table, including one null-parent row for root commits and one row per merge parent with zero-based `parent_index`.
 - Native commit ancestor filtering by `commit_hash` preserves all parent rows for merge commits, matching the upstream guard against max1row optimization.
@@ -246,6 +248,7 @@ The current PHP slice maps focused row-diff semantics from upstream `DOLT_DIFF_*
 - WordPress commit-log fixtures now also expose `wp_posts` and `wp_postmeta` table-filtered histories so migration review UIs can focus on content or media metadata changes without post-filtering full commit logs.
 - WordPress commit-log fixtures now also expose merge-only and non-root checkpoint histories so migration review UIs can scope import merge reviews without post-filtering full commit logs.
 - WordPress commit-log fixtures now also expose all-branch review history and all-branch `wp_posts` history while excluding an abandoned scratch migration checkpoint.
+- WordPress commit-log fixtures now also expose `--oneline --stat`-style CLI text for an import-review timeline, including media metadata row additions, reviewed post modifications, initial imported tables, and skipped stats for the reviewed merge commit.
 - WordPress commit-ancestors fixtures now cover the same reviewed import merge as `dolt_commit_ancestors` parent edges joined to parent log messages.
 - WordPress has-ancestor fixtures now cover reviewed import branch and tag containment checks, including media-import branch ancestry, `HEAD`, `^2`, and `~2` commit specs.
 - WordPress branch-review fixtures now cover active migration branches, dirty media-import work, active reviewer sessions, and branch activity timestamps for migration review queues.

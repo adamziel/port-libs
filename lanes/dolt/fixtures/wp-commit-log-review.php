@@ -134,4 +134,34 @@ return [
         'Review public post statuses',
         'Import WXR posts and pages',
     ],
+    'diffStatsByCommit' => [
+        'wp-import-base' => [
+            ['table' => 'wp_options', 'operation' => 'added'],
+            ['table' => 'wp_postmeta', 'operation' => 'added'],
+            ['table' => 'wp_posts', 'operation' => 'added'],
+        ],
+        'wp-review-main' => [
+            ['table' => 'wp_posts', 'operation' => 'modified', 'adds' => 0, 'modifications' => 3, 'deletes' => 0],
+        ],
+        'wp-media-branch' => [
+            ['table' => 'wp_postmeta', 'operation' => 'modified', 'adds' => 18, 'modifications' => 0, 'deletes' => 0],
+        ],
+        'wp-merge-media' => [
+            ['table' => 'wp_posts', 'operation' => 'modified', 'adds' => 99, 'modifications' => 0, 'deletes' => 0],
+        ],
+    ],
+    'expectedCliOnelineStatLines' => [
+        'wp-merge-media (HEAD -> main, tag: import-reviewed) Merge media backfill into reviewed import',
+        'wp-media-branch (media-import) Prepare media backfill branch',
+        ' wp_postmeta | 18 ++++++++++++++++++',
+        ' 1 tables changed, 18 rows added(+), 0 rows modified(*), 0 rows deleted(-)',
+        'wp-review-main Review public post statuses',
+        ' wp_posts | 3 ***',
+        ' 1 tables changed, 0 rows added(+), 3 rows modified(*), 0 rows deleted(-)',
+        'wp-import-base (tag: import-base) Import WXR posts and pages',
+        ' wp_options added',
+        ' wp_postmeta added',
+        ' wp_posts added',
+        'wp-init Initialize data repository',
+    ],
 ];

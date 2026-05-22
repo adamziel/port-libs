@@ -368,6 +368,76 @@ return [
             'merges' => 'true',
         ]));
     },
+    'dolt log oneline rendering matches upstream compact boundaries' => static function (TestRunner $t) use ($commitLogGraph): void {
+        $table = new CommitLogTable();
+        $commits = $commitLogGraph();
+        $commits[4]['message'] = "merge feature\nwith reviewer note";
+
+        $output = $table->renderLog($commits, [
+            'headHash' => 'merge-1',
+            'oneline' => true,
+            'decorate' => 'full',
+        ]);
+        $lines = explode("\n", $output);
+        $withParents = $table->renderLog($commits, [
+            'headHash' => 'merge-1',
+            'oneline' => true,
+            'parents' => true,
+            'limit' => 1,
+        ]);
+
+        $t->same(5, count($lines));
+        $t->same('merge-1 (HEAD -> refs/heads/main, tag: refs/tags/v1) merge feature with reviewer note', $lines[0]);
+        $t->same('feature-1 (refs/heads/feature) feature row', $lines[1]);
+        $t->true(!str_contains($output, 'Author:'));
+        $t->true(!str_contains($output, 'Date:'));
+        $t->true(!str_contains($output, 'commit '));
+        $t->same('merge-1 main-2 feature-1 (HEAD -> main, tag: v1) merge feature with reviewer note', $withParents);
+    },
+    'dolt log stat rendering matches upstream modified add delete and merge boundaries' => static function (TestRunner $t) use ($commitLogGraph): void {
+        $table = new CommitLogTable();
+        $diffStats = [
+            'main-1' => [
+                ['table' => 'test', 'operation' => 'added'],
+            ],
+            'main-2' => [
+                ['table' => 'test', 'operation' => 'modified', 'adds' => 1, 'modifications' => 0, 'deletes' => 0],
+            ],
+            'merge-1' => [
+                ['table' => 'test', 'operation' => 'modified', 'adds' => 99],
+            ],
+        ];
+
+        $onelineStat = $table->renderLog($commitLogGraph(), [
+            'headHash' => 'main-2',
+            'oneline' => true,
+            'stat' => true,
+            'diffStatsByCommit' => $diffStats,
+        ]);
+        $lines = explode("\n", $onelineStat);
+        $mergeOutput = $table->renderLog($commitLogGraph(), [
+            'headHash' => 'merge-1',
+            'stat' => true,
+            'limit' => 1,
+            'diffStatsByCommit' => $diffStats,
+        ]);
+
+        $t->same(6, count($lines));
+        $t->same('main-2 inserting into t', $lines[0]);
+        $t->same(' test | 1 +', $lines[1]);
+        $t->same(' 1 tables changed, 1 rows added(+), 0 rows modified(*), 0 rows deleted(-)', $lines[2]);
+        $t->same('main-1 creating table t', $lines[3]);
+        $t->same(' test added', $lines[4]);
+        $t->same('init Initialize data repository', $lines[5]);
+        $t->contains('merge feature', $mergeOutput);
+        $t->true(!str_contains($mergeOutput, '99 rows added'));
+        $t->true(!str_contains($mergeOutput, 'test | 99'));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->renderLog($commitLogGraph(), [
+            'headHash' => 'main-2',
+            'stat' => true,
+            'diffStatsByCommit' => ['main-2' => [['table' => 'test', 'operation' => 'mystery']]],
+        ]));
+    },
     'dolt log revision ranges map two-dot caret and not exclusions' => static function (TestRunner $t) use ($revisionRangeGraph): void {
         $table = new CommitLogTable();
         $commits = $revisionRangeGraph();
@@ -741,5 +811,7 @@ return [
         $t->same($allBranchRows, $example['allBranchLog']);
         $t->same($allBranchPostRows, $example['allBranchPostTableLog']);
         $t->same(CommitLogTable::COMMITS_COLUMNS, array_keys($example['commits'][0]));
+        $t->same($fixture['expectedCliOnelineStatLines'], explode("\n", $example['cliOnelineStat']));
+        $t->true(!str_contains($example['cliOnelineStat'], '99 rows added'));
     },
 ];

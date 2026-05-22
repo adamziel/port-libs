@@ -60,4 +60,11 @@ return [
         'decorate' => 'short',
     ]),
     'commits' => $table->commitsRows($fixture['commits']),
+    'cliOnelineStat' => $table->renderLog($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'oneline' => true,
+        'stat' => true,
+        'decorate' => 'short',
+        'diffStatsByCommit' => $fixture['diffStatsByCommit'],
+    ]),
 ];

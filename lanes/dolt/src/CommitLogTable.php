@@ -159,6 +159,34 @@ final class CommitLogTable
     }
 
     /**
+     * Render upstream-shaped `dolt log` CLI text for bounded native scenarios.
+     *
+     * `logRows()` remains the semantic source for revision, table, and parent
+     * filtering. The renderer then applies CLI-only output choices such as
+     * `--oneline`, `--parents`, and `--stat`.
+     *
+     * @param list<array<string, mixed>> $commits
+     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool, oneline?:bool, parents?:bool, stat?:bool, diffStats?:array<string, list<array<string, mixed>>>, diffStatsByCommit?:array<string, list<array<string, mixed>>>} $options
+     */
+    public function renderLog(array $commits, array $options = []): string
+    {
+        $logOptions = $options;
+        unset(
+            $logOptions['oneline'],
+            $logOptions['parents'],
+            $logOptions['stat'],
+            $logOptions['diffStats'],
+            $logOptions['diffStatsByCommit']
+        );
+
+        if (($options['parents'] ?? false) || ($options['stat'] ?? false)) {
+            $logOptions['showParents'] = true;
+        }
+
+        return (new CommitLogRenderer())->render($this->logRows($commits, $logOptions), $options);
+    }
+
+    /**
      * @param array{commit_hash:non-empty-string, committer:non-empty-string, email:non-empty-string, date:non-empty-string, message:string, commit_order:int, parents:list<non-empty-string>, refs:list<non-empty-string>, signature:string|null, signatureVerification:string|null, author:non-empty-string, author_email:non-empty-string, author_date:non-empty-string} $commit
      * @return array<string, scalar|null>
      */
