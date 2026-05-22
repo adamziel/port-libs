@@ -11,6 +11,7 @@ use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\ReferenceName;
 use PortLibs\Gitoxide\ReferenceStore;
 use PortLibs\Gitoxide\ReferenceTarget;
+use PortLibs\Gitoxide\ReferenceTransactionEdit;
 
 $old = '134385f6d781b7e97062102c6a483440bfda2a03';
 $new = 'a98ad44f7f0d6eae901abe9c6f10b4d9be2a190f';
@@ -395,6 +396,148 @@ return [
         $t->contains("^{$commitId}\n", (string) file_get_contents($dir . '/packed-refs'));
         $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05'));
     },
+    'reference store deref update reports log-only symbolic split like upstream gix ref' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-deref-update-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+
+        $result = $store->updateWithReport(
+            'HEAD',
+            ReferenceTarget::object($new),
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+            true,
+            'sha1',
+            new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+            'deploy via symbolic head',
+            true,
+        );
+
+        $t->same('refs/heads/main', $result->reference->name);
+        $t->same($new, $result->reference->targetObjectId());
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(2, count($result->edits));
+        $t->same('HEAD', $result->edits[0]->name);
+        $t->same(ReferenceTransactionEdit::REFLOG_ONLY, $result->edits[0]->reflogMode);
+        $t->same(false, $result->edits[0]->updatesReference);
+        $t->same('symbolic', $result->edits[0]->previousTarget?->kind);
+        $t->same('refs/heads/main', $result->edits[0]->previousTarget?->value);
+        $t->same('refs/heads/main', $result->edits[1]->name);
+        $t->same(ReferenceTransactionEdit::REFLOG_AND_REFERENCE, $result->edits[1]->reflogMode);
+        $t->same(true, $result->edits[1]->updatesReference);
+        $t->same($old, $result->edits[1]->previousTarget?->value);
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tdeploy via symbolic head\n",
+            (string) $store->reflogContents('HEAD'),
+        );
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tdeploy via symbolic head\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
+    'reference store deref update creates missing referent while preserving symbolic head' => static function (TestRunner $t) use ($new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-deref-missing-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+
+        $result = $store->updateWithReport(
+            'HEAD',
+            ReferenceTarget::object($new),
+            ReferenceStore::PREVIOUS_ANY,
+            null,
+            true,
+            'sha1',
+            new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+            'hydrate production branch',
+            true,
+        );
+        $zeros = str_repeat('0', 40);
+
+        $t->same('refs/heads/main', $result->reference->name);
+        $t->same(null, $result->edits[1]->previousTarget);
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->contains(
+            "{$zeros} {$new} Deploy Bot <deploy@example.com> 1234 +0000\thydrate production branch\n",
+            (string) $store->reflogContents('HEAD'),
+        );
+        $t->contains(
+            "{$zeros} {$new} Deploy Bot <deploy@example.com> 1234 +0000\thydrate production branch\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
+    'reference store deref delete removes only reflogs through symbolic split like upstream gix ref' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-deref-delete-log-only-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+        $store->appendReflog('HEAD', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'head audit', true);
+        $store->appendReflog('refs/heads/main', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'branch audit', true);
+
+        $result = $store->deleteWithReport(
+            'HEAD',
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+            null,
+            true,
+            'sha1',
+            ReferenceTransactionEdit::REFLOG_ONLY,
+        );
+
+        $t->same('refs/heads/main', $result->reference?->name);
+        $t->same($old, $result->reference?->targetObjectId());
+        $t->same(2, count($result->edits));
+        $t->same(ReferenceTransactionEdit::CHANGE_DELETE, $result->edits[0]->change);
+        $t->same('HEAD', $result->edits[0]->name);
+        $t->same(ReferenceTransactionEdit::REFLOG_ONLY, $result->edits[0]->reflogMode);
+        $t->same(false, $result->edits[0]->updatesReference);
+        $t->same('symbolic', $result->edits[0]->previousTarget?->kind);
+        $t->same('refs/heads/main', $result->edits[0]->previousTarget?->value);
+        $t->same('refs/heads/main', $result->edits[1]->name);
+        $t->same(ReferenceTransactionEdit::REFLOG_ONLY, $result->edits[1]->reflogMode);
+        $t->same(false, $result->edits[1]->updatesReference);
+        $t->same($old, $result->edits[1]->previousTarget?->value);
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(false, $store->reflogExists('HEAD'));
+        $t->same(false, $store->reflogExists('refs/heads/main'));
+    },
+    'reference store deref delete keeps symbolic parent and deletes leaf reference' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-deref-delete-ref-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+        $store->appendReflog('HEAD', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'head audit', true);
+        $store->appendReflog('refs/heads/main', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'branch audit', true);
+
+        $result = $store->deleteWithReport(
+            'HEAD',
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+            null,
+            true,
+            'sha1',
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+        );
+
+        $t->same('refs/heads/main', $result->reference?->name);
+        $t->same($old, $result->reference?->targetObjectId());
+        $t->same(2, count($result->edits));
+        $t->same('HEAD', $result->edits[0]->name);
+        $t->same(ReferenceTransactionEdit::REFLOG_ONLY, $result->edits[0]->reflogMode);
+        $t->same(false, $result->edits[0]->updatesReference);
+        $t->same('refs/heads/main', $result->edits[1]->name);
+        $t->same(ReferenceTransactionEdit::REFLOG_AND_REFERENCE, $result->edits[1]->reflogMode);
+        $t->same(true, $result->edits[1]->updatesReference);
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same(false, is_file($dir . '/refs/heads/main'));
+        $t->same('symbolic', $store->find('HEAD')->kind());
+        $t->same(null, $store->tryFind('refs/heads/main'));
+        $t->same(false, $store->reflogExists('HEAD'));
+        $t->same(false, $store->reflogExists('refs/heads/main'));
+    },
     'reference store deletes packed refs file when all packed entries are removed' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-remove-all-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -446,6 +589,30 @@ return [
         $t->same($fixture['expectedVisibleRefs'], $summary['visibleRefs']);
         $t->same($fixture['expectedPhysicalHead'], $summary['physicalHead']);
         $t->same(false, $summary['reviewRefStillExists']);
+    },
+    'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-deref-reference-transaction.php';
+
+        $t->same($fixture['headRef'], $summary['editNames'][0]);
+        $t->same($fixture['productionRef'], $summary['editNames'][1]);
+        $t->same($fixture['expectedEditModes'], $summary['editModes']);
+        $t->same($fixture['oldProductionCommit'], $summary['oldProductionCommit']);
+        $t->same($fixture['newProductionCommit'], $summary['productionCommit']);
+        $t->same($fixture['expectedHeadContents'], $summary['headContents']);
+        $t->same($fixture['newProductionCommit'], $summary['productionFileCommit']);
+        $t->contains($fixture['message'], (string) $summary['headReflog']);
+        $t->contains($fixture['message'], (string) $summary['productionReflog']);
+        $t->same($fixture['headRef'], $summary['deleteEditNames'][0]);
+        $t->same($fixture['productionRef'], $summary['deleteEditNames'][1]);
+        $t->same($fixture['expectedDeleteEditModes'], $summary['deleteEditModes']);
+        $t->same($fixture['expectedDeleteUpdatesReference'], $summary['deleteUpdatesReference']);
+        $t->same($fixture['oldProductionCommit'], $summary['deletedProductionCommit']);
+        $t->same($fixture['expectedHeadContents'], $summary['deleteHeadContents']);
+        $t->same($fixture['oldProductionCommit'], $summary['deleteProductionFileCommit']);
+        $t->same(false, $summary['deleteHeadReflogExists']);
+        $t->same(false, $summary['deleteProductionReflogExists']);
+        $t->contains('symbolic HEAD', $summary['wordpressUse']);
     },
     'wordpress packed reference transaction example rewrites packed refs and records reflog' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-packed-reference-transaction.php';

@@ -61,13 +61,42 @@ final class ReferenceStore
         string $packedRefsMode = self::PACKED_DELETIONS_ONLY,
         ?ObjectDatabase $objectDatabase = null,
     ): ResolvedReference {
+        return $this->updateWithReport(
+            $name,
+            $target,
+            $previous,
+            $expectedTarget,
+            $deref,
+            $algorithm,
+            $committer,
+            $reflogMessage,
+            $forceCreateReflog,
+            $packedRefsMode,
+            $objectDatabase,
+        )->reference;
+    }
+
+    public function updateWithReport(
+        string $name,
+        ReferenceTarget $target,
+        string $previous = self::PREVIOUS_ANY,
+        ?ReferenceTarget $expectedTarget = null,
+        bool $deref = false,
+        string $algorithm = 'sha1',
+        ?CommitSignature $committer = null,
+        string $reflogMessage = '',
+        bool $forceCreateReflog = false,
+        string $packedRefsMode = self::PACKED_DELETIONS_ONLY,
+        ?ObjectDatabase $objectDatabase = null,
+    ): ReferenceUpdateResult {
         self::assertPackedRefsMode($packedRefsMode);
 
-        $physicalName = $this->dereferenceName($this->physicalName($name), $deref, $algorithm);
+        [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
         $physicalTarget = $this->physicalTarget($target);
         $existing = $this->tryFindPhysical($physicalName, $algorithm);
 
         $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
+        $edits = $this->updateReport($derefParents, $existing?->target, $physicalTarget, $physicalName);
 
         if ($existing !== null && self::targetsEqual($existing->target, $physicalTarget)) {
             if (
@@ -90,13 +119,25 @@ final class ReferenceStore
                 if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
                     $this->loose->delete($physicalName);
 
-                    return $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference));
+                    return new ReferenceUpdateResult(
+                        $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference)),
+                        $edits,
+                    );
                 }
             }
 
-            return $this->storeRelativeReference($existing);
+            return new ReferenceUpdateResult($this->storeRelativeReference($existing), $edits);
         }
 
+        $this->appendDereferenceParentReflogs(
+            $derefParents,
+            $existing?->target,
+            $physicalTarget,
+            $committer,
+            $reflogMessage,
+            $forceCreateReflog,
+            $algorithm,
+        );
         $this->maybeAppendReflog(
             $physicalName,
             $existing?->target,
@@ -123,14 +164,17 @@ final class ReferenceStore
             if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
                 $this->loose->delete($physicalName);
 
-                return $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference));
+                return new ReferenceUpdateResult(
+                    $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference)),
+                    $edits,
+                );
             }
         }
 
         $reference = new LooseReference($physicalName, $physicalTarget);
         $this->loose->write($reference);
 
-        return $this->storeRelativeReference(ResolvedReference::fromLoose($reference));
+        return new ReferenceUpdateResult($this->storeRelativeReference(ResolvedReference::fromLoose($reference)), $edits);
     }
 
     public function deleteReference(
@@ -145,17 +189,73 @@ final class ReferenceStore
             throw new \InvalidArgumentException('Must-not-exist constraints are invalid for reference deletion');
         }
 
-        $physicalName = $this->dereferenceName($this->physicalName($name), $deref, $algorithm);
+        if (!$deleteReflog) {
+            $physicalName = $this->dereferenceName($this->physicalName($name), $deref, $algorithm);
+            $existing = $this->tryFindPhysical($physicalName, $algorithm);
+
+            $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget);
+
+            if ($existing === null) {
+                return null;
+            }
+
+            if ($existing->source === 'loose') {
+                $this->loose->delete($physicalName);
+            }
+
+            if ($this->packedHasPhysical($physicalName, $algorithm)) {
+                $this->rewritePackedReferences([], [$physicalName], $algorithm);
+            }
+
+            return $this->storeRelativeReference($existing);
+        }
+
+        return $this->deleteWithReport(
+            $name,
+            $previous,
+            $expectedTarget,
+            $deref,
+            $algorithm,
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+        )->reference;
+    }
+
+    public function deleteWithReport(
+        string $name,
+        string $previous = self::PREVIOUS_ANY,
+        ?ReferenceTarget $expectedTarget = null,
+        bool $deref = false,
+        string $algorithm = 'sha1',
+        string $reflogMode = ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+    ): ReferenceDeleteResult {
+        if ($previous === self::PREVIOUS_MUST_NOT_EXIST) {
+            throw new \InvalidArgumentException('Must-not-exist constraints are invalid for reference deletion');
+        }
+        if (!in_array($reflogMode, [
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+            ReferenceTransactionEdit::REFLOG_ONLY,
+        ], true)) {
+            throw new \InvalidArgumentException("Unknown reference deletion reflog mode: {$reflogMode}");
+        }
+
+        [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
         $existing = $this->tryFindPhysical($physicalName, $algorithm);
 
         $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget);
+        $edits = $this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode);
 
-        if ($existing === null) {
-            return null;
+        foreach ($derefParents as $parent) {
+            $this->deleteReflog($parent['name']);
         }
 
-        if ($deleteReflog) {
-            $this->deleteReflog($physicalName);
+        $this->deleteReflog($physicalName);
+
+        if ($existing === null) {
+            return new ReferenceDeleteResult(null, $edits);
+        }
+
+        if ($reflogMode === ReferenceTransactionEdit::REFLOG_ONLY) {
+            return new ReferenceDeleteResult($this->storeRelativeReference($existing), $edits);
         }
 
         if ($existing->source === 'loose') {
@@ -166,7 +266,7 @@ final class ReferenceStore
             $this->rewritePackedReferences([], [$physicalName], $algorithm);
         }
 
-        return $this->storeRelativeReference($existing);
+        return new ReferenceDeleteResult($this->storeRelativeReference($existing), $edits);
     }
 
     public function tryFind(string $name, string $algorithm = 'sha1'): ?ResolvedReference
@@ -323,20 +423,33 @@ final class ReferenceStore
 
     private function storeRelativeReference(ResolvedReference $reference): ResolvedReference
     {
-        if ($this->namespacePrefix === null) {
-            return $reference;
+        return $reference->withNameAndTarget(
+            $this->storeRelativeName($reference->name),
+            $this->storeRelativeTarget($reference->target),
+        );
+    }
+
+    private function storeRelativeName(string $name): string
+    {
+        if ($this->namespacePrefix === null || !str_starts_with($name, $this->namespacePrefix)) {
+            return $name;
         }
 
-        if (!str_starts_with($reference->name, $this->namespacePrefix)) {
-            return $reference;
+        return substr($name, strlen($this->namespacePrefix));
+    }
+
+    private function storeRelativeTarget(?ReferenceTarget $target): ?ReferenceTarget
+    {
+        if (
+            $target === null
+            || $this->namespacePrefix === null
+            || !$target->isSymbolic()
+            || !str_starts_with($target->value, $this->namespacePrefix)
+        ) {
+            return $target;
         }
 
-        $target = $reference->target;
-        if ($target->isSymbolic() && str_starts_with($target->value, $this->namespacePrefix)) {
-            $target = ReferenceTarget::symbolic(substr($target->value, strlen($this->namespacePrefix)));
-        }
-
-        return $reference->withNameAndTarget(substr($reference->name, strlen($this->namespacePrefix)), $target);
+        return ReferenceTarget::symbolic(substr($target->value, strlen($this->namespacePrefix)));
     }
 
     private function physicalName(string $name): string
@@ -379,6 +492,129 @@ final class ReferenceStore
             }
 
             $name = $reference->target->value;
+        }
+    }
+
+    /**
+     * @return array{0:string,1:list<array{name:string,target:ReferenceTarget}>}
+     */
+    private function dereferenceUpdateSplit(string $physicalName, bool $deref, string $algorithm): array
+    {
+        if (!$deref) {
+            return [$physicalName, []];
+        }
+
+        $parents = [];
+        $seen = [];
+        $name = $physicalName;
+        while (true) {
+            if (isset($seen[$name])) {
+                throw new \RuntimeException("Symbolic reference cycle while resolving {$physicalName}");
+            }
+            $seen[$name] = true;
+
+            $reference = $this->loose->tryRead($name, $algorithm);
+            if ($reference === null || !$reference->target->isSymbolic()) {
+                return [$name, $parents];
+            }
+
+            $parents[] = [
+                'name' => $name,
+                'target' => $reference->target,
+            ];
+            $name = $reference->target->value;
+        }
+    }
+
+    /**
+     * @param list<array{name:string,target:ReferenceTarget}> $derefParents
+     * @return list<ReferenceTransactionEdit>
+     */
+    private function updateReport(
+        array $derefParents,
+        ?ReferenceTarget $previousTarget,
+        ReferenceTarget $newTarget,
+        string $leafName,
+    ): array {
+        $edits = [];
+        foreach ($derefParents as $parent) {
+            $edits[] = ReferenceTransactionEdit::update(
+                $this->storeRelativeName($parent['name']),
+                $this->storeRelativeTarget($parent['target']),
+                $this->storeRelativeTarget($newTarget),
+                ReferenceTransactionEdit::REFLOG_ONLY,
+                false,
+            );
+        }
+
+        $edits[] = ReferenceTransactionEdit::update(
+            $this->storeRelativeName($leafName),
+            $this->storeRelativeTarget($previousTarget),
+            $this->storeRelativeTarget($newTarget),
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+            true,
+        );
+
+        return $edits;
+    }
+
+    /**
+     * @param list<array{name:string,target:ReferenceTarget}> $derefParents
+     * @return list<ReferenceTransactionEdit>
+     */
+    private function deleteReport(
+        array $derefParents,
+        ?ReferenceTarget $previousTarget,
+        string $leafName,
+        string $leafReflogMode,
+    ): array {
+        $edits = [];
+        foreach ($derefParents as $parent) {
+            $edits[] = ReferenceTransactionEdit::delete(
+                $this->storeRelativeName($parent['name']),
+                $this->storeRelativeTarget($parent['target']),
+                ReferenceTransactionEdit::REFLOG_ONLY,
+                false,
+            );
+        }
+
+        $edits[] = ReferenceTransactionEdit::delete(
+            $this->storeRelativeName($leafName),
+            $this->storeRelativeTarget($previousTarget),
+            $leafReflogMode,
+            $leafReflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+        );
+
+        return $edits;
+    }
+
+    /**
+     * @param list<array{name:string,target:ReferenceTarget}> $derefParents
+     */
+    private function appendDereferenceParentReflogs(
+        array $derefParents,
+        ?ReferenceTarget $leafPreviousTarget,
+        ReferenceTarget $newTarget,
+        ?CommitSignature $committer,
+        string $message,
+        bool $forceCreate,
+        string $algorithm,
+    ): void {
+        if ($derefParents === [] || !$newTarget->isObject()) {
+            return;
+        }
+
+        $previous = $leafPreviousTarget !== null && $leafPreviousTarget->isObject() ? $leafPreviousTarget : null;
+        foreach ($derefParents as $parent) {
+            $this->maybeAppendReflog(
+                $parent['name'],
+                $previous,
+                $newTarget,
+                $committer,
+                $message,
+                $forceCreate,
+                $algorithm,
+            );
         }
     }
 
