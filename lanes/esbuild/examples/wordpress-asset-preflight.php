@@ -4,23 +4,39 @@ declare(strict_types=1);
 
 use PortLibs\Esbuild\JsLexer;
 use PortLibs\Esbuild\JsModuleAnalyzer;
+use PortLibs\Esbuild\TypeScriptModuleLowerer;
+use PortLibs\Esbuild\TypeScriptNamespaceLowerer;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-view.js');
 $typeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-view-types.ts');
+$commonJsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-commonjs-export.ts');
+$typedCallbackTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-typed-callback.ts');
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
+$commonJsLowered = (new TypeScriptModuleLowerer())->lower($commonJsTypeScriptSource);
+$typedCallbackLowered = (new TypeScriptModuleLowerer())->lower($typedCallbackTypeScriptSource);
+$namespaceLowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
+namespace CardBlockRuntime {
+  export import blocks = wp.blocks;
+  blocks.registerBlockType(metadata.name, metadata);
+}
+TS);
 
 printf("WordPress asset tokens: %d\n", count($tokens));
 printf("WordPress package imports: %d\n", count($analysis->wordpressPackageImports()));
 printf("WordPress TypeScript runtime imports: %d\n", count($typeScriptAnalysis->runtimeImports()));
 printf("WordPress TypeScript type-only imports: %d\n", count($typeScriptAnalysis->typeOnlyImports()));
+printf("WordPress TypeScript pruned runtime imports: %d\n", count($typeScriptAnalysis->prunedTypeScriptRuntimeImports()));
 printf("WordPress TypeScript namespaces: %d\n", count($typeScriptAnalysis->typeScriptNamespaces));
 printf("WordPress TypeScript namespace runtime exports: %d\n", count(
     $typeScriptAnalysis->typeScriptNamespace('CardBlock')?->runtimeExportedMembers() ?? []
 ));
+printf("WordPress TypeScript CommonJS export bytes: %d\n", strlen($commonJsLowered));
+printf("WordPress TypeScript typed callback bytes: %d\n", strlen($typedCallbackLowered));
+printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()

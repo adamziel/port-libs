@@ -142,6 +142,62 @@ JS);
         $t->same([], $d?->runtimeExportedMembers() ?? []);
         $t->same(['value'], array_map(static fn ($member): string => $member->name, $public?->runtimeExportedMembers() ?? []));
     },
+    'maps upstream typescript import pruning and side effect downgrades' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import {x} from 'drop-named';
+import {x as live, y as dead} from 'keep-named'; log(live);
+import defaultValue from 'keep-default'; log(defaultValue);
+import * as namespaceValue from 'keep-namespace'; log(namespaceValue);
+import {onlyDead} from 'dead-control'; if (false) log(onlyDead);
+import './side-effect.css';
+import type {OnlyType} from 'types';
+JS);
+
+        $runtimeImports = $analysis->prunedTypeScriptRuntimeImports();
+
+        $t->same([
+            'keep-named',
+            'keep-default',
+            'keep-namespace',
+            'dead-control',
+            './side-effect.css',
+        ], array_map(static fn ($import): string => $import->source, $runtimeImports));
+        $t->same([
+            'named',
+            'default',
+            'namespace',
+            'side-effect',
+            'side-effect',
+        ], array_map(static fn ($import): string => $import->kind, $runtimeImports));
+        $t->same([['imported' => 'x', 'local' => 'live']], $runtimeImports[0]->specifiers);
+        $t->same([['imported' => 'default', 'local' => 'defaultValue']], $runtimeImports[1]->specifiers);
+        $t->same([['imported' => '*', 'local' => 'namespaceValue']], $runtimeImports[2]->specifiers);
+        $t->same([], $runtimeImports[3]->specifiers);
+    },
+    'maps upstream typescript import equals fixed point pruning' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import always = require('always-run');
+import unused = foo.unused;
+import a = foo.a
+import b = a.b
+import c = b.c
+import x = foo.x
+import y = x.y
+import z = y.z
+export let bar = c;
+JS);
+
+        $runtimeImports = $analysis->prunedTypeScriptRuntimeImports();
+
+        $t->same([
+            'ts-import-equals-require',
+            'ts-import-equals-reference',
+            'ts-import-equals-reference',
+            'ts-import-equals-reference',
+        ], array_map(static fn ($import): string => $import->kind, $runtimeImports));
+        $t->same(['always-run', 'foo.a', 'a.b', 'b.c'], array_map(static fn ($import): string => $import->source, $runtimeImports));
+        $t->same(['always', 'a', 'b', 'c'], array_map(static fn ($import): string => $import->specifiers[0]['local'], $runtimeImports));
+    },
     'maps upstream namespace declare and import equals members' => static function (TestRunner $t): void {
         $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
 namespace ns {
@@ -261,11 +317,13 @@ JS);
             $analysis->imports,
             static fn ($import): bool => $import->kind === 'ts-import-equals-reference'
         ));
+        $prunedRuntime = $analysis->prunedTypeScriptRuntimeImports();
 
         $t->same(['@wordpress/dom-ready'], array_map(static fn ($import): string => $import->source, $runtimeWordPress));
         $t->same(['@wordpress/blocks', '@wordpress/element'], array_map(static fn ($import): string => $import->source, $typeWordPress));
         $t->same(['./block.json'], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
         $t->same(['wp.blocks'], array_map(static fn ($import): string => $import->source, $importEquals));
+        $t->same(['@wordpress/dom-ready', './block.json', 'wp.blocks'], array_map(static fn ($import): string => $import->source, $prunedRuntime));
         $t->same('type-only-re-export-named', $analysis->exports[0]->kind);
         $t->same(['CardBlock'], array_map(static fn ($namespace): string => $namespace->qualifiedName, $analysis->typeScriptNamespaces));
         $t->same(['name', 'register'], array_map(static fn ($member): string => $member->name, $analysis->typeScriptNamespace('CardBlock')?->runtimeExportedMembers() ?? []));

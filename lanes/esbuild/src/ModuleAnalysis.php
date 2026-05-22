@@ -13,6 +13,7 @@ final class ModuleAnalysis
      * @param list<array{property:string, offset:int}> $importMetaProperties
      * @param list<AssetReference> $assetReferences
      * @param list<TypeScriptNamespace> $typeScriptNamespaces
+     * @param list<ModuleImport> $typeScriptRuntimeImports
      */
     public function __construct(
         public readonly array $imports,
@@ -21,6 +22,7 @@ final class ModuleAnalysis
         public readonly array $importMetaProperties = [],
         public readonly array $assetReferences = [],
         public readonly array $typeScriptNamespaces = [],
+        public readonly array $typeScriptRuntimeImports = [],
     ) {
     }
 
@@ -54,6 +56,14 @@ final class ModuleAnalysis
     public function typeOnlyImports(): array
     {
         return array_values(array_filter($this->imports, static fn (ModuleImport $import): bool => $import->hasTypeOnlySpecifiers()));
+    }
+
+    /**
+     * @return list<ModuleImport>
+     */
+    public function prunedTypeScriptRuntimeImports(): array
+    {
+        return $this->typeScriptRuntimeImports;
     }
 
     /**

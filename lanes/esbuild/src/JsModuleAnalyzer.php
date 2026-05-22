@@ -58,6 +58,7 @@ final class JsModuleAnalyzer
             $importMetaProperties,
             $this->collectAssetReferences(),
             $this->collectTypeScriptNamespaces(),
+            $this->pruneTypeScriptRuntimeImports($imports),
         );
     }
 
@@ -732,6 +733,335 @@ final class JsModuleAnalyzer
     {
         return ($this->tokens[$index] ?? null)?->kind === 'identifier'
             && in_array($this->tokens[$index]->text, ['namespace', 'module'], true);
+    }
+
+    /**
+     * @param list<ModuleImport> $imports
+     * @return list<ModuleImport>
+     */
+    private function pruneTypeScriptRuntimeImports(array $imports): array
+    {
+        [$anyUses, $liveUses] = $this->collectTopLevelImportUses($imports);
+        $keptImportEquals = $this->keptTypeScriptImportEqualsLocals($imports, $liveUses);
+        $runtimeImports = [];
+
+        foreach ($imports as $import) {
+            if ($import->typeOnly) {
+                continue;
+            }
+
+            if ($import->kind === 'dynamic' || $import->kind === 'side-effect') {
+                $runtimeImports[] = $import;
+                continue;
+            }
+
+            if ($import->kind === 'ts-import-equals-require') {
+                $runtimeImports[] = $import;
+                continue;
+            }
+
+            if ($import->kind === 'ts-import-equals-reference') {
+                $local = $import->specifiers[0]['local'] ?? null;
+                if ($local !== null && isset($keptImportEquals[$local])) {
+                    $runtimeImports[] = $import;
+                }
+                continue;
+            }
+
+            $retained = [];
+            $hasAnyTypeScriptUse = false;
+            foreach ($import->specifiers as $specifier) {
+                $local = $specifier['local'];
+                if ($local === null) {
+                    continue;
+                }
+                if (isset($anyUses[$local])) {
+                    $hasAnyTypeScriptUse = true;
+                }
+                if (isset($liveUses[$local])) {
+                    $retained[] = $specifier;
+                }
+            }
+
+            if ($retained !== []) {
+                $runtimeImports[] = new ModuleImport(
+                    $this->kindForRetainedImportSpecifiers($retained),
+                    $import->source,
+                    $retained,
+                    $import->offset,
+                    $import->attributesKeyword,
+                    $import->attributes,
+                );
+            } elseif ($hasAnyTypeScriptUse) {
+                $runtimeImports[] = new ModuleImport(
+                    'side-effect',
+                    $import->source,
+                    [],
+                    $import->offset,
+                    $import->attributesKeyword,
+                    $import->attributes,
+                );
+            }
+        }
+
+        return $runtimeImports;
+    }
+
+    /**
+     * @param list<ModuleImport> $imports
+     * @param array<string, true> $liveUses
+     * @return array<string, true>
+     */
+    private function keptTypeScriptImportEqualsLocals(array $imports, array $liveUses): array
+    {
+        $byLocal = [];
+        foreach ($imports as $import) {
+            if ($import->typeOnly || $import->kind !== 'ts-import-equals-reference') {
+                continue;
+            }
+            $local = $import->specifiers[0]['local'] ?? null;
+            if ($local !== null) {
+                $byLocal[$local] = $import;
+            }
+        }
+
+        $needed = $liveUses;
+        $kept = [];
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            foreach ($byLocal as $local => $import) {
+                if (!isset($needed[$local]) || isset($kept[$local])) {
+                    continue;
+                }
+
+                $kept[$local] = true;
+                $sourceRoot = $this->firstQualifiedNamePart($import->source);
+                if (isset($byLocal[$sourceRoot]) && !isset($needed[$sourceRoot])) {
+                    $needed[$sourceRoot] = true;
+                    $changed = true;
+                }
+            }
+        }
+
+        return $kept;
+    }
+
+    /**
+     * @param list<array{imported:string, local:?string}> $specifiers
+     */
+    private function kindForRetainedImportSpecifiers(array $specifiers): string
+    {
+        $hasDefault = false;
+        $hasNamespace = false;
+        $namedCount = 0;
+
+        foreach ($specifiers as $specifier) {
+            if ($specifier['imported'] === 'default') {
+                $hasDefault = true;
+            } elseif ($specifier['imported'] === '*') {
+                $hasNamespace = true;
+            } else {
+                $namedCount++;
+            }
+        }
+
+        if ($hasDefault && $hasNamespace) {
+            return 'default-namespace';
+        }
+        if ($hasDefault && $namedCount > 0) {
+            return 'default-named';
+        }
+        if ($hasDefault) {
+            return 'default';
+        }
+        if ($hasNamespace) {
+            return 'namespace';
+        }
+
+        return 'named';
+    }
+
+    private function firstQualifiedNamePart(string $qualifiedName): string
+    {
+        $dot = strpos($qualifiedName, '.');
+
+        return $dot === false ? $qualifiedName : substr($qualifiedName, 0, $dot);
+    }
+
+    /**
+     * @param list<ModuleImport> $imports
+     * @return array{0:array<string, true>, 1:array<string, true>}
+     */
+    private function collectTopLevelImportUses(array $imports): array
+    {
+        $locals = [];
+        foreach ($imports as $import) {
+            if ($import->typeOnly) {
+                continue;
+            }
+            foreach ($import->specifiers as $specifier) {
+                $local = $specifier['local'];
+                if ($local !== null) {
+                    $locals[$local] = true;
+                }
+            }
+        }
+
+        if ($locals === []) {
+            return [[], []];
+        }
+
+        $ignoredRanges = $this->importDeclarationRanges($imports);
+        $ignoredRanges = array_merge($ignoredRanges, $this->typeOnlyExportRanges());
+        $deadRanges = $this->deadControlFlowRanges();
+        $anyUses = [];
+        $liveUses = [];
+
+        $count = count($this->tokens);
+        for ($i = 0; $i < $count; $i++) {
+            $token = $this->tokens[$i];
+            if ($token->kind !== 'identifier' || !isset($locals[$token->text])) {
+                continue;
+            }
+            if ($this->isIndexInRanges($i, $ignoredRanges)) {
+                continue;
+            }
+
+            $anyUses[$token->text] = true;
+            if (!$this->isIndexInRanges($i, $deadRanges)) {
+                $liveUses[$token->text] = true;
+            }
+        }
+
+        return [$anyUses, $liveUses];
+    }
+
+    /**
+     * @param list<ModuleImport> $imports
+     * @return list<array{0:int, 1:int}>
+     */
+    private function importDeclarationRanges(array $imports): array
+    {
+        $ranges = [];
+        foreach ($imports as $import) {
+            if ($import->kind === 'dynamic') {
+                continue;
+            }
+
+            $index = $this->tokenIndexAtOffset($import->offset);
+            if ($index === null) {
+                continue;
+            }
+
+            $ranges[] = [$index, $this->findStatementEndOrLineBreak($index)];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @return list<array{0:int, 1:int}>
+     */
+    private function typeOnlyExportRanges(): array
+    {
+        $ranges = [];
+        $count = count($this->tokens);
+        for ($i = 0; $i < $count; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== 'export'
+                || ($this->tokens[$i + 1] ?? null)?->text !== 'type'
+            ) {
+                continue;
+            }
+
+            $ranges[] = [$i, $this->findStatementEndOrLineBreak($i)];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @return list<array{0:int, 1:int}>
+     */
+    private function deadControlFlowRanges(): array
+    {
+        $ranges = [];
+        $count = count($this->tokens);
+        for ($i = 0; $i < $count; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== 'if'
+                || ($this->tokens[$i + 1] ?? null)?->text !== '('
+            ) {
+                continue;
+            }
+
+            $close = $this->findMatchingPunctuator($i + 1, '(', ')');
+            if ($close !== $i + 3
+                || ($this->tokens[$i + 2] ?? null)?->kind !== 'identifier'
+                || $this->tokens[$i + 2]->text !== 'false'
+            ) {
+                continue;
+            }
+
+            $bodyStart = $close + 1;
+            if ($bodyStart >= $count) {
+                continue;
+            }
+
+            if (($this->tokens[$bodyStart] ?? null)?->text === '{') {
+                $ranges[] = [$bodyStart, $this->findMatchingPunctuator($bodyStart, '{', '}')];
+            } else {
+                $ranges[] = [$bodyStart, $this->findStatementEndOrLineBreak($bodyStart)];
+            }
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{0:int, 1:int}> $ranges
+     */
+    private function isIndexInRanges(int $index, array $ranges): bool
+    {
+        foreach ($ranges as [$start, $end]) {
+            if ($index >= $start && $index <= $end) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tokenIndexAtOffset(int $offset): ?int
+    {
+        foreach ($this->tokens as $index => $token) {
+            if ($token->offset === $offset) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function findStatementEndOrLineBreak(int $start): int
+    {
+        $depth = 0;
+        $count = count($this->tokens);
+        for ($i = $start; $i < $count; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(' || $text === '{' || $text === '[') {
+                $depth++;
+            } elseif ($text === ')' || $text === '}' || $text === ']') {
+                $depth--;
+            } elseif ($text === ';' && $depth === 0) {
+                return $i;
+            }
+
+            if ($depth === 0 && $this->hasLineBreakBetween($i, $i + 1)) {
+                return $i;
+            }
+        }
+
+        return max($start, $count - 1);
     }
 
     private function adjustDepth(int $depth, Token $token): int
