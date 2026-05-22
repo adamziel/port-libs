@@ -1,0 +1,177 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Syncthing\FileInfo;
+use PortLibs\Syncthing\FolderIndexState;
+use PortLibs\Syncthing\VersionVector;
+
+return [
+    'maps upstream sqlite TestNeed local and remote need lists' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $base = VersionVector::fromCounters([1 => 1]);
+        $newer = VersionVector::fromCounters([1 => 1, 42 => 2]);
+
+        $state->update('local', [
+            syncthing_folder_index_state_file('test1', 1, 128, $base),
+            syncthing_folder_index_state_file('test2', 2, 256, $base),
+            syncthing_folder_index_state_file('test3', 3, 384, $newer),
+        ]);
+        $state->update('remote-42', [
+            syncthing_folder_index_state_file('test2', 100, 256, $newer),
+            syncthing_folder_index_state_file('test3', 101, 384, $base),
+            syncthing_folder_index_state_file('test4', 102, 512, $newer),
+        ]);
+
+        $t->same(['test2', 'test4'], syncthing_folder_index_state_names($state->neededFiles('local')));
+        $t->same(['test1', 'test3'], syncthing_folder_index_state_names($state->neededFiles('remote-42')));
+        $t->same(2, $state->countNeed('local')->files);
+        $t->same(768, $state->countNeed('local')->bytes);
+        $t->same(2, $state->countNeed('remote-42')->files);
+        $t->same(512, $state->countNeed('remote-42')->bytes);
+        $t->same(4, $state->countGlobal()->files);
+        $t->same(1280, $state->countGlobal()->bytes);
+    },
+    'maps upstream deleted and ignored need boundaries' => static function (TestRunner $t): void {
+        $base = VersionVector::fromCounters([1 => 1]);
+        $remoteDelete = VersionVector::fromCounters([1 => 1, 42 => 2]);
+
+        $deletedNeeded = new FolderIndexState();
+        $deletedNeeded->update('local', [
+            syncthing_folder_index_state_file('wp-content/uploads/hero.jpg', 1, 2048, $base),
+        ]);
+        $deletedNeeded->update('remote-42', [
+            syncthing_folder_index_state_file('wp-content/uploads/hero.jpg', 2, 0, $remoteDelete, deleted: true),
+        ]);
+
+        $t->same(['wp-content/uploads/hero.jpg'], syncthing_folder_index_state_names($deletedNeeded->neededFiles('local')));
+        $t->same(1, $deletedNeeded->countNeed('local')->deleted);
+        $t->same(0, $deletedNeeded->countNeed('local')->bytes);
+
+        $ignoredLocal = new FolderIndexState();
+        $ignoredLocal->update('remote-42', [
+            syncthing_folder_index_state_file('wp-content/uploads/ignored.jpg', 3, 1024, $base),
+        ]);
+        $ignoredLocal->update('local', [
+            syncthing_folder_index_state_file(
+                'wp-content/uploads/ignored.jpg',
+                4,
+                1024,
+                $base,
+                flags: FileInfo::FLAG_LOCAL_IGNORED,
+            ),
+        ]);
+
+        $t->same([], $ignoredLocal->neededFiles('local'));
+        $t->same(0, $ignoredLocal->countNeed('local')->files);
+
+        $missingLocalDelete = new FolderIndexState();
+        $missingLocalDelete->update('remote-42', [
+            syncthing_folder_index_state_file('wp-content/uploads/missing.jpg', 5, 0, $remoteDelete, deleted: true),
+        ]);
+        $t->same([], $missingLocalDelete->neededFiles('local'));
+        $t->same(0, $missingLocalDelete->countNeed('local')->deleted);
+
+        $missingRemoteDelete = new FolderIndexState();
+        $missingRemoteDelete->update('local', [
+            syncthing_folder_index_state_file('wp-content/uploads/local-delete.jpg', 6, 0, $remoteDelete, deleted: true),
+        ]);
+        $t->same([], $missingRemoteDelete->neededFiles('remote-42'));
+        $t->same(0, $missingRemoteDelete->countNeed('remote-42')->deleted);
+    },
+    'preserves remote need metadata across a full index reset' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $base = VersionVector::fromCounters([1 => 1]);
+        $deleted = VersionVector::fromCounters([1 => 1, 2 => 2]);
+        $readded = VersionVector::fromCounters([1 => 3, 2 => 2]);
+
+        $state->update('remote-1', [
+            syncthing_folder_index_state_file('wp-content/uploads/foo.jpg', 1, 10, $base),
+        ], reset: true);
+        $state->update('remote-2', [
+            syncthing_folder_index_state_file('wp-content/uploads/foo.jpg', 1, 10, $base),
+        ], reset: true);
+        $state->update('remote-1', [
+            syncthing_folder_index_state_file('wp-content/uploads/foo.jpg', 2, 0, $deleted, deleted: true),
+        ]);
+        $state->update('remote-2', [
+            syncthing_folder_index_state_file('wp-content/uploads/foo.jpg', 2, 0, $deleted, deleted: true),
+        ]);
+        $state->update('remote-1', [
+            syncthing_folder_index_state_file('wp-content/uploads/foo.jpg', 3, 20, $readded),
+        ]);
+
+        $t->same(['wp-content/uploads/foo.jpg'], syncthing_folder_index_state_names($state->neededFiles('remote-2')));
+        $t->same(1, $state->countNeed('remote-2')->files);
+        $t->same(20, $state->countNeed('remote-2')->bytes);
+
+        $state->update('remote-1', [
+            syncthing_folder_index_state_file('wp-content/uploads/foo.jpg', 3, 20, $readded),
+        ], reset: true);
+
+        $t->same(['wp-content/uploads/foo.jpg'], syncthing_folder_index_state_names($state->neededFiles('remote-2')));
+        $t->same(1, $state->countNeed('remote-2')->files);
+        $t->same(20, $state->globalFile('wp-content/uploads/foo.jpg')?->size);
+    },
+    'maps upstream remote directory symlink and alphabetic pagination need' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $version = VersionVector::fromCounters([42 => 1]);
+        $state->update('remote-42', [
+            syncthing_folder_index_state_file('wp-content/uploads/sym', 100, 12, $version, type: FileInfo::TYPE_SYMLINK),
+            syncthing_folder_index_state_file('wp-content/uploads/dir', 101, 128, $version, type: FileInfo::TYPE_DIRECTORY),
+            syncthing_folder_index_state_file('wp-content/uploads/a.jpg', 102, 1, $version),
+            syncthing_folder_index_state_file('wp-content/uploads/b.jpg', 103, 1, $version),
+            syncthing_folder_index_state_file('wp-content/uploads/c.jpg', 104, 1, $version),
+        ]);
+
+        $need = $state->countNeed('local');
+        $t->same(3, $need->files);
+        $t->same(1, $need->directories);
+        $t->same(1, $need->symlinks);
+        $t->same([
+            'wp-content/uploads/a.jpg',
+            'wp-content/uploads/b.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', limit: 2)));
+        $t->same([
+            'wp-content/uploads/c.jpg',
+            'wp-content/uploads/dir',
+            'wp-content/uploads/sym',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', limit: 3, offset: 2)));
+    },
+];
+
+function syncthing_folder_index_state_file(
+    string $name,
+    int $sequence,
+    int $size,
+    VersionVector $version,
+    bool $deleted = false,
+    int $flags = 0,
+    int $type = FileInfo::TYPE_FILE,
+): FileInfo {
+    return new FileInfo(
+        name: $name,
+        modifiedS: 1_700_004_000 + $sequence,
+        modifiedNs: $sequence,
+        version: $version,
+        deleted: $deleted,
+        localFlags: $flags,
+        size: $deleted ? 0 : $size,
+        type: $type,
+        permissions: 0644,
+        rawBlockSize: $type === FileInfo::TYPE_FILE && !$deleted ? max(1, $size) : 0,
+        sequence: $sequence,
+        symlinkTarget: $type === FileInfo::TYPE_SYMLINK ? 'target' : '',
+        modifiedBy: 42,
+    );
+}
+
+/**
+ * @param list<FileInfo> $files
+ *
+ * @return list<string>
+ */
+function syncthing_folder_index_state_names(array $files): array
+{
+    return array_map(static fn (FileInfo $file): string => $file->name, $files);
+}

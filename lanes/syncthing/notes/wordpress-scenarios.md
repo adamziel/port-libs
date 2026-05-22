@@ -510,10 +510,24 @@ stopped folder can be removed after maintenance.
 payload using upstream completion math: temporary downloaded bytes reduce the
 remaining need count, delete-only work is displayed as 95% complete, and an
 aggregate payload keeps the API-style completion fields stable for UI code.
+The folder index state slice maps focused upstream sqlite global/need behavior
+from `internal/db/sqlite/db_global_test.go`, `folderdb_global.go`,
+`folderdb_counts.go`, and `folderdb_update.go`: version-vector winners decide
+which FileInfo is global, local and remote needed-file lists follow the same
+deleted/ignored/remote-invalid boundaries as upstream, directories and symlinks
+contribute to need counts, alphabetic pagination is stable, and a full Index
+reset from one remote does not erase another remote's need for a re-added media
+file. A bounded upstream runner was executed for this focused slice only:
+`go test ./internal/db/sqlite -run
+'^(TestNeed|TestNeedDeleted|TestDontNeedIgnored|TestLocalDontNeedDeletedMissing|TestRemoteDontNeedDeletedMissing|TestNeedRemoteSymlinkAndDir|TestNeedPagination)$'
+-count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity. The WordPress example `wordpress-global-need-state.php` shows a
+Playground peer editing a media file while an ignored same-version local export
+does not trigger a false redownload.
 
 ## Next Task
 
-Map upstream ReceiveIndex database/global-state effects such as index resets,
-deleted FileInfo interactions, and remote sequence edge cases, or broaden
-folder/model completion toward aggregate multi-folder state once another
-focused upstream model package test is selected.
+Connect the in-memory FolderIndexState to receive-side IndexHandlerRegistry
+updates, or map upstream sqlite global availability/drop recalculation before
+broadening protocol/model behavior.
