@@ -1,5 +1,57 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T21:11:29Z
+
+No lane implementation batch, generated public status batch, dashboard update,
+push, or lane commit was accepted by this integration pass. The checkout and
+index moved repeatedly during inspection: a staged Syncthing batch disappeared
+and then appeared at `HEAD` as `44e7cf7` (`Port Syncthing block pull ordering`)
+plus `4ef72c8` (`Update Syncthing lane status`), and a staged LightningCSS batch
+later disappeared and appeared at `HEAD` as `8f04a78` (`Add LightningCSS text
+emphasis fallback slice`). This pass did not review, stage, unstage, commit, or
+accept those lane batches.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 8, behind 32]`.
+- Final observed `HEAD`: `8f04a78` (`Add LightningCSS text emphasis fallback
+  slice`).
+- Final staged paths: none (`git diff --cached --name-status` produced no
+  output).
+- Dirty tracked source/status scopes remain across Difftastic, Dolt, esbuild,
+  libsqlite, markerPDF, Pandoc, Quadrable, and Readability, plus
+  `audits/latest.md`, `progress.md`, `porting.html`, and
+  `porting-summary.json`.
+- Untracked audit/evidence files and lane examples/fixtures remain
+  worker-owned review artifacts.
+
+Active sessions/processes observed:
+
+- Earlier inspection found active root-style `php tools/run-tests.php`
+  processes (`3353246`, `3353827`) plus a focused markerPDF run (`3351996`), so
+  this pass did not start another root suite.
+- Final process polling still showed heavy runner activity, including Dolt
+  BATS, Pandoc Cabal/GHC, and ongoing lane tmux agents.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output.
+- `git diff --cached --check`: passed with no output while staged lane batches
+  were observed.
+- `git diff --cached --name-status`: final check produced no output.
+- `php tools/run-tests.php`: not started by this pass because root runs were
+  active during inspection and no stable lane batch remained for this pass to
+  accept.
+- Focused lane tests: not started by this pass because the only coherent staged
+  lane batches moved before review and were committed by other workers.
+
+Decision:
+
+- Hold integration for this pass. No additional lane batch was accepted.
+- Leave all worker-owned dirty lane files, public/generated files, and
+  untracked audit/evidence artifacts untouched.
+- Record this status-only hold in `audits/integration-status.md` only.
+
 ## Integration Worker Snapshot - 2026-05-22T21:06:42Z
 
 No lane implementation batch, generated public status batch, dashboard update,
