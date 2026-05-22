@@ -12,6 +12,8 @@ HTML and XML modes add upstream-style angle-bracket delimiters without changing 
 
 JSON mode aligns object items by their string property key before comparing values. This maps the upstream `sample_files/json_*.json` pair and keeps WordPress `block.json`/`theme.json` metadata reviews focused on changed values and nested arrays instead of whole-object churn.
 
+Emacs Lisp mode now keeps reader quotes and semicolon comments distinct from strings, and splits flat quoted string/comment lists as individual items. This maps a targeted upstream `strings_*.el` excerpt so large keyword-list changes stay item-focused while preserving the existing Lisp outer-wrapper behavior used to validate WordPress template-wrapper diffs.
+
 The current WordPress fixture compares a block render callback where a PHP comment changes at the same time as the escaping API changes from `esc_html` to `wp_kses_post`. With `ignoreComments`, the diff hides the comment-only churn but still reports the security-relevant API change.
 
 The recursive list fixture compares nested `register_block_type` arrays so block support changes such as `html => false` becoming `html => true` and new alignment support show up at the nested array path instead of as a single flattened line replacement.
@@ -62,4 +64,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map the larger upstream `strings_*.el` fixture or broader `yaml_*.yaml` sample so parser-specific string handling covers more than block-scalar command bodies.
+Map the broader upstream `yaml_*.yaml` sample or add more display parity for Lisp literal-list changes, including expected JSON/HTML output shape.

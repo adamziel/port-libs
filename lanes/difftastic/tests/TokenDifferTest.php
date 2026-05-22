@@ -159,6 +159,32 @@ return [
         $t->contains('+ $[0]/wrap0 (...)', $encoded);
         $t->true(!str_contains($encoded, '(lhscommarhs) [(lhs)commarhs]'), 'Changed outer delimiters should not replace the entire retained list body.');
     },
+    'tokenizes emacs lisp reader quotes and semicolon comments separately' => static function (TestRunner $t): void {
+        $tokens = (new TokenDiffer())->tokenize("'(;; upstream note\n  \"const\" \"return\")", ['language' => 'elisp']);
+        $encoded = implode("\n", array_map(
+            static fn ($token): string => $token->kind . ' ' . $token->text,
+            $tokens
+        ));
+
+        $t->contains('punctuation \'', $encoded);
+        $t->contains('comment ;; upstream note', $encoded);
+        $t->contains('string "const"', $encoded);
+        $t->contains('string "return"', $encoded);
+    },
+    'maps upstream strings elisp sample as focused quoted list changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-strings-keywords-1.el');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-strings-keywords-2.el');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'elisp']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $[0][0]/(0)[0]/(0)[0] ;; This is the list of keywords from full_fidelity_lexer.ml, but', $encoded);
+        $t->contains('+ $[0][0]/(0)[0]/(0)[19] "elseif"', $encoded);
+        $t->contains('- $[0][0]/(0)[0]/(0)[92] "__COMPILER_FRONTEND__"', $encoded);
+        $t->true(!str_contains($encoded, 'regexp-opt'), 'The upstream strings fixture should descend into the quoted keyword list instead of replacing the whole regexp-opt form.');
+    },
     'maps upstream slider rust sample excerpt with method and statement sliders' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-methods-1.rs');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-methods-2.rs');

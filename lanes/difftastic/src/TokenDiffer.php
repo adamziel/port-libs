@@ -29,8 +29,12 @@ final class TokenDiffer
      */
     private function tokenizeGeneric(string $source, array $options, int $baseOffset, int &$depth): array
     {
+        $lineCommentPattern = $this->isLispLanguage($options) ? ';[^\r\n]*|\/\/[^\r\n]*' : '\/\/[^\r\n]*';
+        $stringPattern = $this->isLispLanguage($options)
+            ? '"(?:\\\\.|[^"\\\\])*"'
+            : '"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'';
         preg_match_all(
-            '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u',
+            '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|' . $lineCommentPattern . '|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|' . $stringPattern . '|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u',
             $source,
             $matches,
             PREG_OFFSET_CAPTURE,
@@ -51,7 +55,7 @@ final class TokenDiffer
             }
 
             $tokens[] = new Token(
-                $this->classify($text, $delimiterPairs),
+                $this->classify($text, $delimiterPairs, $options),
                 $text,
                 $delimiterRole,
                 $depth,
@@ -338,17 +342,18 @@ final class TokenDiffer
     /**
      * @param array<string, string> $delimiterPairs
      */
-    private function classify(string $text, array $delimiterPairs): string
+    private function classify(string $text, array $delimiterPairs, array $options): string
     {
         $closeDelimiters = array_flip(array_values($delimiterPairs));
 
         return match (true) {
             str_starts_with($text, '/*'),
             str_starts_with($text, '//'),
-            str_starts_with($text, '<!--') => 'comment',
+            str_starts_with($text, '<!--'),
+            str_starts_with($text, ';') && $this->isLispLanguage($options) => 'comment',
             preg_match('/^[A-Za-z_]/', $text) === 1 => 'identifier',
             preg_match('/^\d/', $text) === 1 => 'number',
-            str_starts_with($text, '"') || str_starts_with($text, "'") => 'string',
+            str_starts_with($text, '"') || (str_starts_with($text, "'") && !$this->isLispReaderQuote($text, $options)) => 'string',
             isset($delimiterPairs[$text]) || isset($closeDelimiters[$text]) => 'delimiter',
             default => 'punctuation',
         };
@@ -1041,6 +1046,10 @@ final class TokenDiffer
      */
     private function listItems(array $list, array $options = []): array
     {
+        if ($this->isLispLanguage($options) && $this->isLispLiteralAtomList($list)) {
+            return $this->lispListItems($list['children'] ?? []);
+        }
+
         $items = [];
         $current = [];
         foreach ($list['children'] ?? [] as $child) {
@@ -1078,6 +1087,61 @@ final class TokenDiffer
         }
 
         return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return list<list<array<string, mixed>>>
+     */
+    private function lispListItems(array $children): array
+    {
+        $items = [];
+        $count = count($children);
+        for ($index = 0; $index < $count; $index++) {
+            $child = $children[$index];
+            if ($this->isReaderQuoteNode($child) && $index + 1 < $count) {
+                $items[] = [$child, $children[$index + 1]];
+                $index++;
+                continue;
+            }
+
+            $items[] = [$child];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $list
+     */
+    private function isLispLiteralAtomList(array $list): bool
+    {
+        $children = $list['children'] ?? [];
+        if ($children === []) {
+            return false;
+        }
+
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') !== 'atom' || !$child['token'] instanceof Token) {
+                return false;
+            }
+
+            if (!in_array($child['token']->kind, ['comment', 'string'], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isReaderQuoteNode(array $node): bool
+    {
+        return ($node['type'] ?? '') === 'atom'
+            && $node['token'] instanceof Token
+            && in_array($node['token']->text, ["'", '`'], true);
     }
 
     /**
@@ -1159,6 +1223,32 @@ final class TokenDiffer
     }
 
     /**
+     * @param array{language?: string} $options
+     */
+    private function isLispLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), [
+            'clojure',
+            'common-lisp',
+            'commonlisp',
+            'elisp',
+            'emacs-lisp',
+            'janet',
+            'lisp',
+            'racket',
+            'scheme',
+        ], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isLispReaderQuote(string $text, array $options): bool
+    {
+        return $this->isLispLanguage($options) && in_array($text, ["'", '`'], true);
+    }
+
+    /**
      * @param list<array<string, mixed>> $item
      */
     private function itemText(array $item): string
@@ -1172,6 +1262,13 @@ final class TokenDiffer
      */
     private function itemSignature(array $item, array $options): string
     {
+        if ($this->isLispLanguage($options)) {
+            $lispSignature = $this->lispItemSignature($item);
+            if ($lispSignature !== null) {
+                return $lispSignature;
+            }
+        }
+
         if (($options['language'] ?? '') === 'json') {
             $jsonPropertyKey = $this->jsonPropertyKeySignature($item);
             if ($jsonPropertyKey !== null) {
@@ -1189,6 +1286,31 @@ final class TokenDiffer
         }
 
         return $prefix;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $item
+     */
+    private function lispItemSignature(array $item): ?string
+    {
+        $prefix = '';
+        foreach ($item as $node) {
+            if (($node['type'] ?? '') === 'list') {
+                break;
+            }
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                return null;
+            }
+
+            $token = $node['token'];
+            if ($token->kind === 'comment' || in_array($token->text, ["'", '`'], true)) {
+                continue;
+            }
+
+            $prefix .= $token->text;
+        }
+
+        return $prefix === '' ? null : 'lisp:' . $prefix;
     }
 
     /**
