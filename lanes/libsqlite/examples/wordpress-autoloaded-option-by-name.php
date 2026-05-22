@@ -15,16 +15,33 @@ if ($databasePath === null || $autoload === null || $optionName === null) {
 }
 
 $database = SQLiteDatabase::fromFile($databasePath);
-$indexRootPage = $database->indexRootPageForPointLookupColumns('wp_options', [
+$compositeIndexRootPage = $database->indexRootPageForPointLookupColumns('wp_options', [
     'autoload' => $autoload,
     'option_name' => $optionName,
 ]);
-$option = $database->wordpressOptionByIndexedAutoloadAndName($autoload, $optionName);
+$partialOptionNameIndexRootPage = $database->indexRootPageForPointLookupWithConstraints(
+    'wp_options',
+    'option_name',
+    $optionName,
+    ['autoload' => $autoload],
+);
+
+if ($compositeIndexRootPage !== null) {
+    $lookupMode = 'composite-autoload-option_name';
+    $option = $database->wordpressOptionByIndexedAutoloadAndName($autoload, $optionName);
+} elseif ($partialOptionNameIndexRootPage !== null) {
+    $lookupMode = 'partial-option_name-autoload-equality';
+    $option = $database->wordpressOptionByIndexedNameForAutoload($optionName, $autoload);
+} else {
+    throw new InvalidArgumentException('SQLite wp_options autoload+option_name index is not present');
+}
 
 echo json_encode([
     'path' => $databasePath,
     'autoload' => $autoload,
     'optionName' => $optionName,
-    'wpOptionsAutoloadOptionNameIndexRootPage' => $indexRootPage,
+    'lookupMode' => $lookupMode,
+    'wpOptionsAutoloadOptionNameIndexRootPage' => $compositeIndexRootPage,
+    'wpOptionsPartialOptionNameAutoloadIndexRootPage' => $partialOptionNameIndexRootPage,
     'option' => $option?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

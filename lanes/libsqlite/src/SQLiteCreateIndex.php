@@ -183,25 +183,74 @@ final class SQLiteCreateIndex
 
         $offset = self::skipWhitespace($where, $identifier[1]);
         $is = self::readIdentifier($where, $offset);
-        if ($is === null || strcasecmp($is[0], 'IS') !== 0) {
+        if ($is !== null && strcasecmp($is[0], 'IS') === 0) {
+            $not = self::readIdentifier($where, $is[1]);
+            if ($not === null || strcasecmp($not[0], 'NOT') !== 0) {
+                return null;
+            }
+
+            $null = self::readIdentifier($where, $not[1]);
+            if ($null === null || strcasecmp($null[0], 'NULL') !== 0) {
+                return null;
+            }
+
+            if (trim(substr($where, $null[1])) !== '') {
+                return null;
+            }
+
+            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IS_NOT_NULL);
+        }
+
+        $equalsOffset = self::readEqualsOperator($where, $offset);
+        if ($equalsOffset === null) {
+            return null;
+        }
+        $literal = self::readLiteral($where, $equalsOffset);
+        if ($literal === null || trim(substr($where, $literal[1])) !== '') {
             return null;
         }
 
-        $not = self::readIdentifier($where, $is[1]);
-        if ($not === null || strcasecmp($not[0], 'NOT') !== 0) {
-            return null;
+        return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::EQUALS, $literal[0]);
+    }
+
+    private static function readEqualsOperator(string $text, int $offset): ?int
+    {
+        $offset = self::skipWhitespace($text, $offset);
+        if (substr($text, $offset, 2) === '==') {
+            return $offset + 2;
+        }
+        if (($text[$offset] ?? null) === '=') {
+            return $offset + 1;
         }
 
-        $null = self::readIdentifier($where, $not[1]);
-        if ($null === null || strcasecmp($null[0], 'NULL') !== 0) {
+        return null;
+    }
+
+    /**
+     * @return null|array{0:mixed,1:int}
+     */
+    private static function readLiteral(string $text, int $offset): ?array
+    {
+        $offset = self::skipWhitespace($text, $offset);
+        if ($offset >= strlen($text)) {
             return null;
         }
+        if ($text[$offset] === "'") {
+            $end = self::skipQuoted($text, $offset, "'");
+            if ($end <= $offset || $text[$end] !== "'") {
+                return null;
+            }
 
-        if (trim(substr($where, $null[1])) !== '') {
-            return null;
+            return [str_replace("''", "'", substr($text, $offset + 1, $end - $offset - 1)), $end + 1];
+        }
+        if (preg_match('/[+-]?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?/A', substr($text, $offset), $matches)) {
+            return [(float) $matches[0], $offset + strlen($matches[0])];
+        }
+        if (preg_match('/[+-]?\d+/A', substr($text, $offset), $matches)) {
+            return [(int) $matches[0], $offset + strlen($matches[0])];
         }
 
-        return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IS_NOT_NULL);
+        return null;
     }
 
     private static function stripOuterParens(string $text): string

@@ -201,6 +201,21 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    /**
+     * @param array<string, mixed> $equalityConstraints
+     */
+    public function indexRootPageForPointLookupWithConstraints(
+        string $tableName,
+        string $columnName,
+        mixed $value,
+        array $equalityConstraints,
+    ): ?int {
+        $equalityConstraints[$columnName] = $value;
+        $lookup = $this->indexLookupForColumn($tableName, $columnName, $value, true, $equalityConstraints);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForRangeLookup(
         string $tableName,
         string $columnName,
@@ -243,8 +258,13 @@ final class SQLiteDatabase
         string $columnName,
         mixed $pointLookupValue = null,
         bool $isPointLookup = false,
+        array $equalityConstraints = [],
+        bool $allowEqualityPartialPredicate = true,
     ): ?array
     {
+        if ($isPointLookup) {
+            $equalityConstraints[$columnName] = $pointLookupValue;
+        }
         $autoIndexFirstColumns = null;
         $autoIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable($tableName) as $record) {
@@ -256,7 +276,11 @@ final class SQLiteDatabase
                         if (
                             !$isPointLookup
                             || $partialPredicate === null
-                            || !$partialPredicate->isImpliedByPointLookup($columnName, $pointLookupValue)
+                            || !self::partialPredicateIsImpliedByEqualityConstraints(
+                                $partialPredicate,
+                                $equalityConstraints,
+                                $allowEqualityPartialPredicate,
+                            )
                         ) {
                             continue;
                         }
@@ -308,6 +332,8 @@ final class SQLiteDatabase
             $columnName,
             $predicateImplyingValue,
             $predicateImplyingValue !== null,
+            [],
+            false,
         );
     }
 
@@ -359,6 +385,39 @@ final class SQLiteDatabase
         }
 
         return SQLiteWordPressOption::fromTableRow($row);
+    }
+
+    public function wordpressOptionByIndexedNameForAutoload(string $optionName, string $autoload): ?SQLiteWordPressOption
+    {
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return null;
+        }
+
+        $indexLookup = $this->indexLookupForColumn('wp_options', 'option_name', $optionName, true, [
+            'autoload' => $autoload,
+        ]);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options option_name index matching the autoload constraint is not present');
+        }
+
+        foreach ($this->indexCellsByFirstValue($indexLookup['rootPage'], $optionName, $indexLookup['collation']) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (
+                $option->autoload === $autoload
+                && self::compareSQLiteScalar($option->optionName, $optionName, $indexLookup['collation']) === 0
+            ) {
+                return $option;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -893,10 +952,10 @@ final class SQLiteDatabase
                 $prefix[0]->partial
                 && (
                     $prefix[0]->partialPredicate === null
-                    || !self::partialPredicateIsImpliedByPointLookup(
+                    || !self::partialPredicateIsImpliedByEqualityConstraints(
                         $prefix[0]->partialPredicate,
-                        $columnNames,
-                        $pointLookupValues,
+                        array_combine($columnNames, $pointLookupValues),
+                        true,
                     )
                 )
             ) {
@@ -913,16 +972,19 @@ final class SQLiteDatabase
     }
 
     /**
-     * @param non-empty-list<string> $columnNames
-     * @param non-empty-list<mixed> $values
+     * @param array<string, mixed> $columnValues
      */
-    private static function partialPredicateIsImpliedByPointLookup(
+    private static function partialPredicateIsImpliedByEqualityConstraints(
         SQLiteIndexPredicate $predicate,
-        array $columnNames,
-        array $values,
+        array $columnValues,
+        bool $allowEqualityPredicate,
     ): bool {
-        foreach ($columnNames as $index => $columnName) {
-            if ($predicate->isImpliedByPointLookup($columnName, $values[$index])) {
+        if (!$allowEqualityPredicate && $predicate->operator === SQLiteIndexPredicate::EQUALS) {
+            return false;
+        }
+
+        foreach ($columnValues as $columnName => $value) {
+            if ($predicate->isImpliedByPointLookup((string) $columnName, $value)) {
                 return true;
             }
         }

@@ -38,7 +38,11 @@ bounded range scans, including open lower/upper bounds and inclusive upper
 bounds. Bounded range scans skip `NULL` option-name keys the same way SQL
 comparison predicates do, which lets recovery tooling inspect transient-style
 or migration-prefix option-name ranges without decoding every row in the
-options table.
+options table. Equality partial indexes such as
+`CREATE INDEX ... ON wp_options(option_name) WHERE autoload='yes'` are now
+usable when the recovery caller supplies the matching autoload constraint, so
+autoloaded single-option lookups can avoid both a whole-table scan and a wider
+composite index requirement.
 
 ## Example
 
@@ -68,11 +72,12 @@ recovery/import use case where a site needs to inspect autoloaded options on a
 host without the PHP SQLite extension.
 
 `examples/wordpress-autoloaded-option-by-name.php` reads a WordPress-oriented
-SQLite database file, resolves an explicit composite
-`wp_options(autoload, option_name)` index, and returns a single option when
-both the autoload value and option name are known. This is useful for recovery
-tools that need to inspect one autoloaded option while avoiding a whole-table
-scan on constrained hosts.
+SQLite database file, resolves either an explicit composite
+`wp_options(autoload, option_name)` index or an equality partial
+`wp_options(option_name) WHERE autoload='yes'` index, and returns a single
+option when both the autoload value and option name are known. This is useful
+for recovery tools that need to inspect one autoloaded option while avoiding a
+whole-table scan on constrained hosts.
 
 `examples/wordpress-option-name-range.php` reads a WordPress-oriented SQLite
 database file, resolves an explicit or safe partial `wp_options(option_name)`
@@ -89,6 +94,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: optimized b-tree seek bounds, expression indexes, broader
-predicate-aware partial indexes, custom collations, automatic-index collation
-metadata, and full composite-key range scans.
+slice: optimized b-tree seek bounds, expression indexes, OR/range/inequality
+partial-index predicate implication, custom collations, automatic-index
+collation metadata, and full composite-key range scans.

@@ -411,3 +411,38 @@ Remaining range work includes true b-tree lower/upper seek bounds instead of
 full native index traversal, composite-key ranges, expression indexes, custom
 collations, automatic-index collation metadata, and broader partial-predicate
 implication.
+
+## Focused Native Mapping: Equality Partial Predicates
+
+SQLite can use a partial index with an exact equality predicate when the query
+predicate implies the partial-index WHERE clause. This slice maps the bounded
+read-side form needed for WordPress recovery: parse simple partial-index
+predicates such as `autoload='yes'`, require callers to supply the matching
+equality constraint, and then use the `wp_options(option_name)` partial index
+only for constrained autoloaded option lookups.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index7.test
+```
+
+Result: 2 Tcl script/permutation runs, 0 errors out of 60 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index7.test` section `index7-6.*` creates `CREATE INDEX i4 ON t4(c)
+  WHERE d='xyz'` and verifies that `WHERE d='xyz' AND c='def'` searches the
+  partial index.
+- The same script continues to cover `IS NOT NULL` implication for point
+  lookups and range-compatible non-null predicates.
+
+The native PHP tests now cover parsing equality partial predicates, rejecting
+the partial index for unconstrained `option_name` lookups, accepting it only
+when `autoload='yes'` is supplied as an equality constraint, resolving matching
+rowids back through the table b-tree, and refusing to use the index for a
+non-implying autoload value. Remaining partial-index work includes OR
+predicates, inequality/range implication, richer expression handling, and
+planner-style combinations across more query terms.

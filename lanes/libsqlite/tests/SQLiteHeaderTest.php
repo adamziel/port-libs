@@ -554,6 +554,7 @@ return [
         $index = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_wp_options_name ON main.wp_options('option_name' COLLATE nocase DESC, autoload) WHERE autoload='yes'");
         $expressionIndex = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_expr ON wp_options(lower(option_name))');
         $isNotNullIndex = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_present_name ON wp_options(option_name) WHERE (main.wp_options."option_name" IS NOT NULL)');
+        $autoloadedIndex = SQLiteCreateIndex::firstColumn("CREATE INDEX idx_autoloaded_name ON wp_options(option_name) WHERE autoload='yes'");
 
         $t->same('option_name', $index?->columnName);
         $t->same('NOCASE', $index?->collation);
@@ -562,6 +563,9 @@ return [
         $t->same(null, $expressionIndex);
         $t->same('option_name', $isNotNullIndex?->partialPredicate?->columnName);
         $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $isNotNullIndex?->partialPredicate?->operator);
+        $t->same('autoload', $autoloadedIndex?->partialPredicate?->columnName);
+        $t->same(SQLiteIndexPredicate::EQUALS, $autoloadedIndex?->partialPredicate?->operator);
+        $t->same('yes', $autoloadedIndex?->partialPredicate?->value);
     },
     'parses explicit sqlite composite index column metadata' => static function (TestRunner $t): void {
         $columns = SQLiteCreateIndex::columns('CREATE INDEX idx_autoload_name ON wp_options(autoload, option_name COLLATE nocase DESC, option_value) WHERE autoload IS NOT NULL');
@@ -639,6 +643,40 @@ return [
         $t->same(2, $option->optionId);
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
+    },
+    'uses equality partial option_name index when wordpress autoload predicate is known' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoloaded_name', 'wp_options', 3, "CREATE INDEX wp_options_autoloaded_name ON wp_options(option_name) WHERE autoload='yes'"], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'no'], 2),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 3]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedNameForAutoload('siteurl', 'yes');
+        $missingAutoloadedName = $database->wordpressOptionByIndexedNameForAutoload('blogname', 'yes');
+
+        $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'siteurl'));
+        $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'siteurl', [
+            'autoload' => 'yes',
+        ]));
+        $t->same(null, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'siteurl', [
+            'autoload' => 'no',
+        ]));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->optionId);
+        $t->same('siteurl', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
+        $t->same('yes', $option->autoload);
+        $t->same(null, $missingAutoloadedName);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedNameForAutoload('siteurl', 'no'));
     },
     'uses nonunique composite autoload index to scan duplicate wordpress options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
