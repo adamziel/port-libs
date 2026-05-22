@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "esbuild",
-    "estimatedProgress": 4,
-    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; upstream suite not executed",
-    "phpPass": 6,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static inventory: 2,567 counted upstream test entry points; lexer and import/export analysis slices mapped; upstream suite not executed",
+    "phpPass": 10,
     "phpFail": 0,
-    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights a WordPress block view script importing @wordpress/dom-ready.",
-    "phase": "cloned static upstream inventory + lexer numeric/hashbang slice",
+    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights and classifies a WordPress block view script importing @wordpress/dom-ready.",
+    "phase": "cloned static upstream inventory plus lexer and import/export analysis slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native JavaScript lexer for identifiers, esbuild-style numeric literals, strings, hashbangs, comments, and punctuators.",
+    "currentWork": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, package/relative source classification, and WordPress package imports.",
     "blocker": "Full upstream runner not executed: no go or deno binary in this environment, and make test also requires hydrating checkout plus installing Node dependencies.",
-    "latestCommit": "e8f8ce0b9272",
-    "nextTask": "Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports."
+    "latestCommit": "45da607",
+    "nextTask": "Map additional parser/printer syntax such as import attributes, import.meta/new URL asset references, or TypeScript import/export forms."
 }

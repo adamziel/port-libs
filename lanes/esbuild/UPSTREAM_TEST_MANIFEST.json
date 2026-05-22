@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "2,567 counted upstream test entry points: 1,391 Go func Test* functions, 331 JS API async cases, 97 plugin async cases, and 748 end-to-end CLI cases",
-        "mapped": 6,
+        "mapped": 10,
         "source": "Shallow blob-filtered upstream clone in .upstream-cache/esbuild at 6a794dff68e6a43539f6da671e3080efdf11ca70; counted paths with git ls-tree and hydrated only targeted metadata/test files with git show.",
         "inventory": {
             "repositoryPaths": 349,
@@ -64,17 +64,21 @@
             "Binary, octal, hexadecimal-with-separators, leading-dot decimal, exponent, and trailing-dot number literals produce numeric tokens with PHP numeric values corresponding to a focused TestNumericLiteral subset.",
             "Malformed base-prefixed numeric literals such as 0b, 0b012, 0o018, and 0xGFEDCBA are rejected.",
             "Token offsets remain byte offsets into the original source.",
-            "A WordPress block view script fixture using @wordpress/dom-ready tokenizes natively without Node/npm."
+            "A WordPress block view script fixture using @wordpress/dom-ready tokenizes natively without Node/npm.",
+            "Selected `TestImport` static import forms are analyzed: side-effect imports, named imports with aliases/trailing commas, default+namespace imports, and dynamic import string sources.",
+            "Selected export/re-export forms are analyzed: empty/named exports, named re-exports, star-as re-exports, and export default declarations.",
+            "Invalid namespace imports without `as` are rejected, matching the upstream `import * from` parse error edge.",
+            "WordPress package imports are distinguished from relative asset imports and URL imports without invoking Node/npm."
         ],
         "inventoryPath": "lanes/esbuild/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 6 focused lane tests against a 2,567-entry upstream test inventory."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 10 focused lane tests against a 2,567-entry upstream test inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native JavaScript lexer for identifiers, esbuild-style numeric literals, strings, hashbangs, comments, and punctuators.",
-        "phpBehaviorTests": 6
+        "currentSlice": "Native JavaScript lexer plus module analyzer for static imports, dynamic imports, exports, re-exports, package/relative source classification, and WordPress package imports.",
+        "phpBehaviorTests": 10
     },
-    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights a WordPress block view script importing @wordpress/dom-ready.",
-    "nextTask": "Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports."
+    "wordpressScenario": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments; current fixture preflights and classifies a WordPress block view script importing @wordpress/dom-ready.",
+    "nextTask": "Map additional parser/printer syntax such as import attributes, import.meta/new URL asset references, or TypeScript import/export forms."
 }
