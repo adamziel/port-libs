@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "quadrable",
-    "estimatedProgress": 4,
-    "suiteProgress": "static upstream check.cpp inventory counted; 8 PHP tests mapped to hashing/key behavior",
-    "phpPass": 8,
+    "estimatedProgress": 5,
+    "suiteProgress": "static upstream check.cpp inventory counted; 15 PHP tests mapped to hashing/key plus in-memory sparse tree update behavior",
+    "phpPass": 15,
     "phpFail": 0,
-    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases.",
-    "phase": "upstream inventory plus key primitive slice",
+    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases; current fixture maps ordered WordPress option/post records through raw integer keys.",
+    "phase": "upstream inventory plus key primitive and in-memory sparse tree slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native hash/key primitives for empty branches, leaf domain separation, path-bit addressing, integer key encoding, and prefix retention.",
+    "currentWork": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, and delete bubbling equivalence.",
     "blocker": "C++ runner not executed yet; upstream build requires LMDB, BLAKE2, and initialized submodules. Most tree/proof/sync scenarios remain unported.",
-    "latestCommit": "312e7288a027",
-    "nextTask": "Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios."
+    "latestCommit": "1241807",
+    "nextTask": "Port iterator windows or compact proof export/import for selected check.cpp proof and range scenarios."
 }

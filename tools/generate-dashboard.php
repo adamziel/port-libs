@@ -9,6 +9,55 @@ sort($laneDirs);
 $rows = [];
 $total = 0.0;
 
+$stringValue = static function (mixed $value, string $fallback = 'pending'): string {
+    if ($value === null || $value === '') {
+        return $fallback;
+    }
+
+    if (is_scalar($value)) {
+        return (string) $value;
+    }
+
+    return $fallback;
+};
+
+$shorten = static function (string $value, int $maxLength = 96): string {
+    $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    if ($value === '') {
+        return 'none';
+    }
+
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        if (mb_strlen($value, 'UTF-8') <= $maxLength) {
+            return $value;
+        }
+
+        return rtrim(mb_substr($value, 0, $maxLength - 3, 'UTF-8')) . '...';
+    }
+
+    if (strlen($value) <= $maxLength) {
+        return $value;
+    }
+
+    return rtrim(substr($value, 0, $maxLength - 3)) . '...';
+};
+
+$metricSummary = static function (mixed $value): string {
+    if (is_int($value) || is_float($value)) {
+        return (string) $value;
+    }
+
+    if (!is_string($value)) {
+        return 'pending';
+    }
+
+    if (preg_match('/^\s*([\d,]+(?:\.\d+)?)\b/', $value, $matches) === 1) {
+        return $matches[0];
+    }
+
+    return 'inventory';
+};
+
 foreach ($laneDirs as $dir) {
     $manifestPath = $dir . '/UPSTREAM_TEST_MANIFEST.json';
     $statusPath = $dir . '/lane-status.json';
@@ -19,20 +68,25 @@ foreach ($laneDirs as $dir) {
     }
 
     $progress = (float) ($status['estimatedProgress'] ?? 0);
+    $lane = basename($dir);
+    $denominatorTotal = $manifest['benchmarkDenominator']['total'] ?? null;
+    $mapped = $manifest['benchmarkDenominator']['mapped'] ?? null;
     $total += $progress;
     $rows[] = [
-        'library' => $status['library'] ?? basename($dir),
-        'suite' => $status['suiteProgress'] ?? 'unmapped',
-        'source' => $manifest['upstream']['url'] ?? 'pending',
-        'denominator' => (string) ($manifest['benchmarkDenominator']['total'] ?? 'pending'),
-        'mapped' => (string) ($manifest['benchmarkDenominator']['mapped'] ?? 'pending'),
-        'php' => ($status['phpPass'] ?? 0) . ' / ' . ($status['phpFail'] ?? 0),
-        'wp' => (string) ($status['wordpressScenarios'] ?? 'pending'),
-        'phase' => (string) ($status['phase'] ?? 'planning'),
-        'audit' => (string) ($status['audit'] ?? 'not started'),
-        'work' => (string) ($status['currentWork'] ?? ''),
-        'blocker' => (string) ($status['blocker'] ?? ''),
-        'commit' => (string) ($status['latestCommit'] ?? 'none'),
+        'lane' => $lane,
+        'library' => $stringValue($status['library'] ?? null, $lane),
+        'suite' => $shorten($stringValue($status['suiteProgress'] ?? null, 'unmapped'), 88),
+        'manifestStatus' => $shorten($stringValue($manifest['benchmarkDenominator']['status'] ?? null, 'pending'), 72),
+        'source' => $stringValue($manifest['upstream']['url'] ?? null),
+        'denominator' => $metricSummary($denominatorTotal),
+        'mapped' => $metricSummary($mapped),
+        'php' => $stringValue($status['phpPass'] ?? 0, '0') . ' pass / ' . $stringValue($status['phpFail'] ?? 0, '0') . ' fail',
+        'wp' => $shorten($stringValue($status['wordpressScenarios'] ?? null), 88),
+        'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 72),
+        'audit' => $shorten($stringValue($status['audit'] ?? null, 'not started'), 72),
+        'work' => $shorten($stringValue($status['currentWork'] ?? null, 'none'), 110),
+        'blocker' => $shorten($stringValue($status['blocker'] ?? null, 'none'), 110),
+        'commit' => $stringValue($status['latestCommit'] ?? null, 'none'),
         'progress' => $progress,
     ];
 }
@@ -43,14 +97,19 @@ $generated = gmdate('Y-m-d H:i:s') . ' UTC';
 $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $htmlRows = '';
 foreach ($rows as $row) {
+    $lanePath = rawurlencode($row['lane']);
+    $manifestLink = 'lanes/' . $lanePath . '/UPSTREAM_TEST_MANIFEST.json';
+    $statusLink = 'lanes/' . $lanePath . '/lane-status.json';
+    $source = $row['source'] === 'pending'
+        ? $escape($row['source'])
+        : '<a href="' . $escape($row['source']) . '">upstream</a>';
+    $progress = number_format($row['progress'], 1);
     $htmlRows .= '<tr>'
-        . '<td>' . $escape($row['library']) . '</td>'
-        . '<td><meter min="0" max="100" value="' . $escape((string) $row['progress']) . '"></meter> ' . $escape((string) $row['progress']) . '%</td>'
-        . '<td>' . $escape($row['suite']) . '</td>'
-        . '<td>' . $escape($row['source']) . '</td>'
-        . '<td>' . $escape($row['denominator']) . '</td>'
-        . '<td>' . $escape($row['mapped']) . '</td>'
-        . '<td>' . $escape($row['php']) . '</td>'
+        . '<th scope="row">' . $escape($row['library']) . '<br><a href="' . $escape($statusLink) . '">status</a></th>'
+        . '<td><meter min="0" max="100" value="' . $escape((string) $row['progress']) . '"></meter> <strong>' . $escape($progress) . '%</strong><br>' . $escape($row['suite']) . '</td>'
+        . '<td>' . $escape($row['manifestStatus']) . '<br><a href="' . $escape($manifestLink) . '">manifest</a></td>'
+        . '<td>' . $escape($row['denominator']) . '<br>' . $source . '</td>'
+        . '<td>' . $escape($row['php']) . '<br>' . $escape($row['mapped']) . ' mapped</td>'
         . '<td>' . $escape($row['wp']) . '</td>'
         . '<td>' . $escape($row['phase']) . '</td>'
         . '<td>' . $escape($row['audit']) . '</td>'
@@ -70,14 +129,20 @@ $html = <<<HTML
   <style>
     :root { color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; padding: 24px; background: Canvas; color: CanvasText; }
-    header { display: flex; justify-content: space-between; gap: 24px; align-items: baseline; margin-bottom: 20px; }
+    a { color: LinkText; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: baseline; margin-bottom: 12px; }
     h1 { margin: 0; font-size: 24px; }
     .summary { display: flex; gap: 16px; flex-wrap: wrap; color: color-mix(in srgb, CanvasText 72%, Canvas); }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 8px; vertical-align: top; text-align: left; }
-    th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
-    meter { width: 84px; vertical-align: middle; }
-    td:nth-child(4), td:nth-child(11), td:nth-child(12) { max-width: 280px; overflow-wrap: anywhere; }
+    .note { margin: 0 0 16px; max-width: 960px; color: color-mix(in srgb, CanvasText 72%, Canvas); font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; min-width: 1180px; border-collapse: collapse; font-size: 12px; line-height: 1.35; }
+    th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 6px 8px; vertical-align: top; text-align: left; }
+    thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; z-index: 1; }
+    tbody th { font-weight: 650; background: color-mix(in srgb, CanvasText 3%, Canvas); }
+    meter { width: 72px; vertical-align: middle; }
+    td, th { overflow-wrap: anywhere; }
+    td:nth-child(2) { min-width: 160px; }
+    td:nth-child(9), td:nth-child(10) { max-width: 190px; }
   </style>
 </head>
 <body>
@@ -89,16 +154,16 @@ $html = <<<HTML
       <span>Generated: <strong>{$escape($generated)}</strong></span>
     </div>
   </header>
+  <p class="note">Rows are intentionally compact for low-context review. Full per-lane tracking detail remains in the linked status and manifest JSON files.</p>
+  <div class="table-wrap">
   <table>
     <thead>
       <tr>
         <th>Library</th>
-        <th>Progress</th>
         <th>Suite Progress</th>
-        <th>Benchmark Source</th>
-        <th>Upstream Denominator</th>
-        <th>Mapped Tests</th>
-        <th>Local PHP Pass / Fail</th>
+        <th>Benchmark Manifest</th>
+        <th>Upstream</th>
+        <th>Mapped</th>
         <th>WordPress Scenarios</th>
         <th>Phase</th>
         <th>Audit</th>
@@ -110,6 +175,7 @@ $html = <<<HTML
     <tbody>
 {$htmlRows}    </tbody>
   </table>
+  </div>
 </body>
 </html>
 HTML;

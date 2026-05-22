@@ -12,18 +12,18 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory",
         "total": "34 top-level check.cpp scenarios; 29 equivHeads subcases; 136 verify checks; 20 verifyThrow checks",
-        "mapped": 8,
+        "mapped": 15,
         "source": "Static inventory of upstream check.cpp and Makefile at commit 4f44437dc9b951a91986ad69e2856938387be614.",
         "runner": "make test",
         "runnerStatus": "not executed in this lane slice; upstream runner requires LMDB, BLAKE2, and initialized submodules",
         "inventoryPath": "lanes/quadrable/notes/upstream-inventory.md",
-        "warning": "The denominator is now counted from upstream sources, but parity is still partial. Native PHP tests only map a small subset of hashing/key behavior."
+        "warning": "The denominator is now counted from upstream sources, but parity is still partial. Native PHP tests map hashing/key behavior and focused in-memory sparse tree update/get/delete scenarios."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native hash/key primitives for empty branches, leaf domain separation, path-bit addressing, integer key encoding, and prefix retention."
+        "currentSlice": "Native hash/key primitives plus in-memory sparse tree get/put/delete, update batching, path-independent roots, getMulti, empty-head restoration, and delete bubbling equivalence."
     },
-    "wordpressScenario": "Authenticated local-first state sync for Playground snapshots and content databases.",
-    "nextTask": "Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios."
+    "wordpressScenario": "Authenticated local-first state sync for Playground snapshots and content databases; current fixture maps ordered WordPress option/post records through raw integer keys.",
+    "nextTask": "Port iterator windows or compact proof export/import for selected check.cpp proof and range scenarios."
 }
