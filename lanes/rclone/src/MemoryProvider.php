@@ -16,8 +16,23 @@ final class MemoryProvider
      */
     private array $caseIndex = [];
 
-    public function __construct(private readonly bool $caseInsensitive = false)
+    private readonly HashSet $supportedHashes;
+
+    public function __construct(private readonly bool $caseInsensitive = false, ?HashSet $supportedHashes = null)
     {
+        $this->supportedHashes = $supportedHashes === null
+            ? HashSet::supported()
+            : new HashSet(...$supportedHashes->toArray());
+    }
+
+    public function supportedHashes(): HashSet
+    {
+        return new HashSet(...$this->supportedHashes->toArray());
+    }
+
+    public function supportsHash(string $type): bool
+    {
+        return $this->supportedHashes->contains($type);
     }
 
     /**
@@ -101,6 +116,8 @@ final class MemoryProvider
      */
     public function hashes(string $path, ?HashSet $set = null): array
     {
+        $set = ($set ?? $this->supportedHashes)->overlap($this->supportedHashes);
+
         return MultiHasher::hashBytes($this->get($path), $set);
     }
 

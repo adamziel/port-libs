@@ -165,6 +165,26 @@ return [
         $t->same(['orange'], $result->missingOnTarget);
         $t->same(['+ orange', '= banana'], $result->combinedLines());
     },
+    'checksum download mode hashes bytes when provider does not advertise hashes' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(false, new HashSet());
+        $provider->put('banana', 'Hello, World!');
+        $provider->put('potato', 'I am the walrus');
+
+        $manifest = implode("\n", [
+            hash('md5', 'Hello, World!') . '  banana',
+            hash('md5', 'different bytes') . '  potato',
+            hash('md5', 'missing bytes') . '  orange',
+        ]);
+
+        $t->same([], $provider->hashes('banana', new HashSet(HashType::MD5)));
+        $t->throws(InvalidArgumentException::class, static fn () => ChecksumFile::check($provider, $manifest, HashType::MD5));
+
+        $result = ChecksumFile::checkDownload($provider, $manifest, HashType::MD5);
+        $t->same(['banana'], $result->matches);
+        $t->same(['potato'], $result->differ);
+        $t->same(['orange'], $result->missingOnTarget);
+        $t->same(['* potato', '+ orange', '= banana'], $result->combinedLines());
+    },
     'lists hashes in rclone hashsum format' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('potato2', str_repeat('-', 60));
@@ -295,6 +315,34 @@ return [
         $caseInsensitive = ChecksumFile::check($provider, $manifest, HashType::MD5, false, null, true);
         $t->same(['database/site.sql', 'wp-content/uploads/2026/05/Hero.JPG'], $caseInsensitive->matches);
         $t->same(0, $caseInsensitive->differences());
+    },
+    'download-mode verifies wordpress checksum manifests without provider hash support' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(false, new HashSet());
+        foreach (require __DIR__ . '/../fixtures/wordpress-backup-tree.php' as $path => $bytes) {
+            if (str_starts_with($path, 'wp-content/cache/') || str_ends_with($path, '.log') || str_ends_with($path, '.psd')) {
+                continue;
+            }
+
+            $provider->put($path, $bytes);
+        }
+
+        $manifest = implode("\n", [
+            hash('md5', 'new image bytes') . '  wp-content/uploads/2026/05/hero.jpg',
+            hash('md5', 'generated webp bytes') . '  wp-content/uploads/2026/05/hero.webp',
+            hash('md5', '<rss version="2.0"></rss>') . '  exports/site.wxr',
+            hash('md5', 'insert into wp_posts values (...)') . '  database/site.sql',
+        ]);
+
+        $t->throws(InvalidArgumentException::class, static fn () => ChecksumFile::check($provider, $manifest, HashType::MD5));
+
+        $result = ChecksumFile::checkDownload($provider, $manifest, HashType::MD5);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $result->matches);
+        $t->same(0, $result->differences());
     },
     'publishes a wordpress backup lsjson manifest with hashes and metadata' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();

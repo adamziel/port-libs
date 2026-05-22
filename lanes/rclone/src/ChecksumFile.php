@@ -48,6 +48,17 @@ final class ChecksumFile
         return self::verify($provider, self::parse($contents, $ignoreCase), $hashType, $oneWay, $filter, $ignoreCase);
     }
 
+    public static function checkDownload(
+        MemoryProvider $provider,
+        string $contents,
+        string $hashType,
+        bool $oneWay = false,
+        ?FilterRuleSet $filter = null,
+        bool $ignoreCase = false,
+    ): CheckResult {
+        return self::verify($provider, self::parse($contents, $ignoreCase), $hashType, $oneWay, $filter, $ignoreCase, true);
+    }
+
     /**
      * @param array<string, string> $sums
      */
@@ -58,10 +69,14 @@ final class ChecksumFile
         bool $oneWay = false,
         ?FilterRuleSet $filter = null,
         bool $ignoreCase = false,
+        bool $download = false,
     ): CheckResult {
         $type = HashType::fromString($hashType);
         if ($type === HashType::NONE) {
             throw new \InvalidArgumentException('checksum verification requires a concrete hash type');
+        }
+        if (!$download && !$provider->supportsHash($type)) {
+            throw new \InvalidArgumentException("hash type {$type} is not supported by provider");
         }
 
         $expected = [];
@@ -95,7 +110,7 @@ final class ChecksumFile
             }
 
             $consumed[$lookup] = true;
-            $actual = $provider->hashes($object->path, new HashSet($type))[$type] ?? '';
+            $actual = self::objectHash($provider, $object->path, $type, $download);
             if ($actual === '' || strtolower($actual) !== $expected[$lookup]) {
                 $differ[] = $object->path;
             } else {
@@ -126,5 +141,14 @@ final class ChecksumFile
     private static function lookupPath(string $path, bool $ignoreCase): string
     {
         return $ignoreCase ? strtolower($path) : $path;
+    }
+
+    private static function objectHash(MemoryProvider $provider, string $path, string $type, bool $download): string
+    {
+        if ($download) {
+            return MultiHasher::hashBytes($provider->get($path), new HashSet($type))[$type] ?? '';
+        }
+
+        return $provider->hashes($path, new HashSet($type))[$type] ?? '';
     }
 }

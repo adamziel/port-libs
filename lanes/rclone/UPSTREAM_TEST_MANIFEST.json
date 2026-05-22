@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-bounded-go-runner-evidence",
         "total": 327,
-        "mapped": 22,
-        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, fs/operations check/copy/lsjson tests, cmd/checksum, cmd/hashsum, and cmd/lsjson. The focused lsjson read includes StatJSON's case-insensitive provider directory matching branch. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
+        "mapped": 24,
+        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, fs/operations check/copy/lsjson tests, cmd/checksum, cmd/hashsum, and cmd/lsjson. The focused lsjson read includes StatJSON's case-insensitive provider directory matching branch. The focused checksum read includes CheckSum download mode, TestCheckDownload, and CheckEqualReaders byte-comparison fixtures. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
         "inventory": {
             "allRepositoryFiles": 2553,
             "goTestFiles": 327,
@@ -38,6 +38,9 @@
             "checkGoTestFunctions": 9,
             "parseSumFileSamples": 9,
             "checkSumNamedRuns": 14,
+            "checkSumDownloadNamedRuns": 7,
+            "checkDownloadNamedRuns": 7,
+            "checkEqualReadersFixtures": 12,
             "checkSumApplyTransformScenarios": 10,
             "checksumCommandFiles": 2,
             "testFileBreakdown": {
@@ -96,6 +99,8 @@
             "fs/operations copy-style changed path copying is idempotent and honors WordPress backup filter rules.",
             "fs/operations ParseSumFile accepts md5sum-style two-space and space-star separators, preserves path whitespace, lowercases sums, skips malformed lines, and ignores duplicate filenames.",
             "fs/operations CheckSum-style verification treats parsed SUM files as the source side, reports object-only paths as missing-on-source, sum-only paths as missing-on-destination, detects hash differences, accepts mixed-case checksum values, supports one-way mode, and filters checksum entries.",
+            "fs/operations CheckSum download mode hashes object bytes locally when a provider does not advertise the requested hash type, while ordinary checksum mode rejects unsupported provider hashes.",
+            "The in-memory provider advertises a concrete hash set so native checks can model remotes with MD5/SHA-1 support and remotes where checksums require byte downloads.",
             "fs/operations ApplyTransforms-style case-insensitive checksum matching maps differently cased WordPress backup paths without shelling out to rclone.",
             "fs/operations HashLister/HashSumStream output hash values in md5sum-compatible `hash  path` lines, including base64 stream output for stdin-style input.",
             "cmd/lsf path/size/hash formatting maps default `p`, `ps`, `hp`, files-only, dirs-only, separator, recurse, and directory slash behavior for local-style listings.",
@@ -106,14 +111,14 @@
             "cmd/lsjson-style recursive WordPress backup manifests include portable artifact paths, directory entries, selected MD5 hashes, and metadata while excluding cache/log/source artifacts."
         ],
         "inventoryPath": "lanes/rclone/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 22 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 24 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native in-memory provider contract with object metadata, copy, list, checksum sync planning, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, ParseSumFile-style checksum parsing, CheckSum-style checksum manifest verification, HashLister/HashSumStream-style output, lsf path/size/hash formatting, and lsjson list/stat JSON manifests including case-insensitive StatJSON lookups.",
-        "phpBehaviorTests": 22
+        "currentSlice": "Native in-memory provider contract with advertised hash support, object metadata, copy, list, checksum sync planning, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, ParseSumFile-style checksum parsing, CheckSum-style checksum manifest verification including download-mode byte hashing when provider hashes are unavailable, HashLister/HashSumStream-style output, lsf path/size/hash formatting, and lsjson list/stat JSON manifests including case-insensitive StatJSON lookups.",
+        "phpBehaviorTests": 24
     },
-    "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, checksum manifest verification, recursive lsjson catalogs, and excluded cache/log/source artifacts.",
-    "nextTask": "Map download-mode checksum verification/error behavior or deeper fs provider contract behavior beyond the in-memory case-insensitive lookup slice."
+    "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, checksum manifest verification, download-mode checksum verification for remotes without advertised hashes, recursive lsjson catalogs, and excluded cache/log/source artifacts.",
+    "nextTask": "Map CheckDownload equal-reader read-error classification or deeper fs provider contract behavior beyond the in-memory checksum/listing slices."
 }
