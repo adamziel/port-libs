@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "rclone",
-    "estimatedProgress": 6,
-    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; filter, hash-set, check, copy, checksum-file, hashsum, and lsf slices mapped; upstream runner not executed",
+    "estimatedProgress": 7,
+    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; bounded upstream Go runner passes 299 packages with provider TestIntegration skipped and mount/FUSE packages excluded; filter, hash-set, check, copy, checksum-file, hashsum, and lsf slices mapped",
     "phpPass": 14,
     "phpFail": 0,
     "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, checksum manifests, and shared-hosting cloud storage workflows.",
-    "phase": "cloned static inventory plus native filter/hash/check/copy/listing slices",
-    "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, hashsum output, and lsf path/size/hash formatting.",
-    "blocker": "No upstream runner parity yet: go test ./... and fstest/test_all were not run because they require Go module builds and may exercise backend integration remotes under a larger CPU/network budget.",
+    "phase": "cloned static inventory plus bounded upstream Go runner evidence and native filter/hash/check/copy/listing slices",
+    "audit": "audited 2026-05-22: bounded upstream Go runner passes 299 packages; native PHP smoke coverage still maps 14 tests, not full upstream parity",
+    "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, hashsum output, lsf path/size/hash formatting, and bounded upstream Go runner evidence.",
+    "blocker": "Resolved the prior missing Go/module/tooling blocker for a bounded upstream runner: local Go 1.25.0, rebuilt rclone, local rsync, and a temporary MIME database overlay support a clean 299-package Go run. Full provider/mount parity remains open because live provider TestIntegration cases, FUSE mount packages, and Docker-backed serve/docker coverage are intentionally excluded from this bounded pass.",
     "latestCommit": "cba3dd8",
     "nextTask": "Map deeper fs provider contract behavior, lsjson output, or checksum verification against parsed sum files."
 }

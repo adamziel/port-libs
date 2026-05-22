@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 14:17:12 UTC",
-    "averageProgressPercent": "12.0",
+    "generated": "2026-05-22 14:59:35 UTC",
+    "averageProgressPercent": "12.1",
     "lanes": [
         {
             "library": "difftastic",
@@ -148,18 +148,18 @@
         },
         {
             "library": "rclone",
-            "progressPercent": "6.0",
-            "suite": "cloned-static-inventory",
-            "benchmark": "cloned-static-inventory",
+            "progressPercent": "7.0",
+            "suite": "cloned-static-inventory-plus-bounded-go-runner-evidence",
+            "benchmark": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "denominator": "327",
             "mapped": "14",
             "coverage": "14 / 327",
             "php": "14 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "cloned static inventory plus native filter/hash/check/c...",
+            "phase": "cloned static inventory plus bounded upstream Go runner...",
             "audit": "audited 2026-05-22",
             "nextTarget": "Map deeper fs provider contract behavior, lsjson output, or checksum verification against...",
-            "blocker": "upstream runner parity unavailable",
+            "blocker": "Resolved the prior missing Go/module/tooling blocker for a bounded upstre...",
             "commit": "cba3dd8"
         },
         {

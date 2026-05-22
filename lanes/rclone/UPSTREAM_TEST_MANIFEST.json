@@ -10,10 +10,10 @@
         "architecture": "Go storage provider abstraction with backend remotes, copy/sync/check commands, fs provider contracts, filter rules, hash utilities, checksums, and fstest integration suites."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory",
+        "status": "cloned-static-inventory-plus-bounded-go-runner-evidence",
         "total": 327,
         "mapped": 14,
-        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, and fs/operations check/copy tests.",
+        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, and fs/operations check/copy tests. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
         "inventory": {
             "allRepositoryFiles": 2553,
             "goTestFiles": 327,
@@ -42,14 +42,35 @@
             }
         },
         "runnerStatus": {
-            "executed": false,
-            "reason": "The full upstream runner was not executed in this modest lane run. rclone's Makefile quick target runs RCLONE_CONFIG=\"/notfound\" go test ./..., while the full test target builds rclone and fstest/test_all before running provider integration remotes. That would require building/downloading the Go module graph and may exercise remote/backend integration fixtures, so this lane records a cloned static inventory rather than upstream pass parity.",
-            "probes": [
+            "executed": true,
+            "summary": "The prior Go/module/tooling blocker is resolved for a bounded upstream runner. The full provider/mount parity suite was not claimed: live-service provider tests were skipped with `-skip '^TestIntegration'`, and `cmd/mount`, `cmd/mount2`, and `cmd/serve/docker` were excluded because they require FUSE or container mount permissions. The bounded 299-package Go run completed successfully.",
+            "environment": {
+                "go": "go1.25.0 installed under /home/claude/.local/go-toolchains/go1.25.0",
+                "rclone": "rebuilt locally from 28d6b0b with `go build -trimpath -ldflags \"-s -X github.com/rclone/rclone/fs.Version=v1.75.0-beta.1.28d6b0b\" -o ./rclone .`",
+                "rsync": "rsync 3.4.1 from locally extracted Fedora RPMs, invoked through a wrapper that supplies its local library path",
+                "mimeTypes": "temporary mount-namespace overlay for /etc/mime.types so Go MIME extension lookups are available without writing to the host /etc",
+                "testUser": "UID 1001 after dropping namespace capabilities, preserving normal permission-denial behavior",
+                "runtime": "TZ=UTC, CI=true, RCLONE_CONFIG=/notfound, GOFLAGS=-p=1"
+            },
+            "commands": [
                 {
                     "command": "git ls-tree -r --name-only HEAD",
-                    "result": "counted 327 Go test files and 836 testdata paths without running the upstream Go suite"
+                    "result": "counted 327 Go test files and 836 testdata paths"
+                },
+                {
+                    "command": "go build -trimpath -ldflags \"-s -X github.com/rclone/rclone/fs.Version=v1.75.0-beta.1.28d6b0b\" -o ./rclone .",
+                    "result": "passed; produced a local static rclone binary reporting v1.75.0-beta.1.28d6b0b on Fedora 44 with go1.25.0"
+                },
+                {
+                    "command": "go test -skip '^TestIntegration' ./backend/huaweidrive ./cmd/gitannex ./cmd/serve/http ./fs/accounting ./fs/logger",
+                    "result": "passed with the local Go toolchain, rebuilt rclone binary, local rsync wrapper, UTC, RCLONE_CONFIG=/notfound, and mount-namespace MIME database overlay"
+                },
+                {
+                    "command": "GOFLAGS='-p=1' go test -timeout 20m -skip '^TestIntegration' $(go list ./... | grep -Ev '^github.com/rclone/rclone/cmd/(mount|mount2|serve/docker)$')",
+                    "result": "passed for 299 packages with UID 1001 and namespace capabilities dropped; live provider TestIntegration cases were intentionally skipped and mount/FUSE packages were intentionally excluded"
                 }
-            ]
+            ],
+            "notRun": "Full `make quicktest` / `go test ./...` parity and `make test` / `fstest/test_all` provider parity remain open because they would exercise FUSE/container mount paths and live-service or Docker-backed provider integration remotes. Earlier unbounded probes confirmed those boundaries: mount packages need FUSE permissions, and provider packages such as FTP/HDFS expect test servers or containers."
         },
         "mappedSemantics": [
             "fs/filter GlobPathToRegexp path semantics for leading slash anchoring, *, **, ?, brace alternation, and invalid glob errors.",
@@ -69,7 +90,7 @@
             "cmd/lsf path/size/hash formatting maps default `p`, `ps`, `hp`, files-only, dirs-only, separator, recurse, and directory slash behavior for local-style listings."
         ],
         "inventoryPath": "lanes/rclone/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 14 focused lane tests against a 327-Go-test-file upstream denominator."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 14 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
     },
     "nativeImplementation": {
         "language": "PHP",

@@ -26,7 +26,30 @@
 
 ## Runner Status
 
-The full upstream runner was not executed for this lane slice. The `Makefile` quick target runs `RCLONE_CONFIG="/notfound" go test ./...`, while the full `test` target first builds rclone and `fstest/test_all`, then runs provider integration remotes. Executing that would require building the Go module graph and potentially exercising remote/backend integration fixtures, which is outside the modest CPU/network budget for this worker run. The current denominator is therefore a cloned static path inventory, not upstream pass parity.
+The prior missing Go/module/tooling blocker is resolved for a bounded upstream runner. On 2026-05-22, this lane installed Go 1.25.0 under `/home/claude/.local/go-toolchains/go1.25.0`, rebuilt the upstream binary at `28d6b0b`, supplied `rsync` 3.4.1 through a local Fedora RPM extraction and wrapper, and used a temporary mount-namespace overlay for `/etc/mime.types`.
+
+The focused cleanup command passed for the packages that previously exposed local environment gaps:
+
+```text
+go test -skip '^TestIntegration' ./backend/huaweidrive ./cmd/gitannex ./cmd/serve/http ./fs/accounting ./fs/logger
+```
+
+The broad bounded command then passed for 299 upstream Go packages:
+
+```text
+GOFLAGS='-p=1' go test -timeout 20m -skip '^TestIntegration' $(go list ./... | grep -Ev '^github.com/rclone/rclone/cmd/(mount|mount2|serve/docker)$')
+```
+
+Environment notes for the passing run:
+
+- `go version go1.25.0 linux/amd64`
+- `rclone v1.75.0-beta.1.28d6b0b`, statically linked from the upstream checkout
+- `rsync 3.4.1`
+- `TZ=UTC`, `CI=true`, `RCLONE_CONFIG=/notfound`
+- UID 1001 after dropping namespace capabilities, so permission-denial tests still run as an ordinary user
+- temporary `/etc/mime.types` overlay inside the mount namespace only, without modifying the host `/etc`
+
+This is bounded upstream runner evidence, not full provider/mount parity. Live-service provider tests were skipped with `-skip '^TestIntegration'`. `cmd/mount`, `cmd/mount2`, and `cmd/serve/docker` were excluded because they require FUSE/container mount permissions. Full `make quicktest` / `go test ./...` parity and `make test` / `fstest/test_all` provider parity remain open for a later environment that can run the live-service and mount fixtures.
 
 ## Mapped Native Slice
 
