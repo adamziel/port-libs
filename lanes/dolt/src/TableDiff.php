@@ -6,12 +6,17 @@ namespace PortLibs\Dolt;
 
 final class TableDiff
 {
+    public const DIFF_ADDED = 'added';
+    public const DIFF_REMOVED = 'removed';
+    public const DIFF_MODIFIED = 'modified';
+
     /**
      * @param list<array<string, scalar|null>> $oldRows
      * @param list<array<string, scalar|null>> $newRows
+     * @param non-empty-string|list<non-empty-string> $primaryKey
      * @return array{added:list<array<string, scalar|null>>, removed:list<array<string, scalar|null>>, modified:list<array{old:array<string, scalar|null>, new:array<string, scalar|null>}>}
      */
-    public function diff(array $oldRows, array $newRows, string $primaryKey): array
+    public function diff(array $oldRows, array $newRows, string|array $primaryKey): array
     {
         $old = $this->index($oldRows, $primaryKey);
         $new = $this->index($newRows, $primaryKey);
@@ -19,16 +24,13 @@ final class TableDiff
         $removed = [];
         $modified = [];
 
-        foreach ($new as $key => $row) {
+        foreach ($this->orderedKeys($old, $new) as $key) {
             if (!array_key_exists($key, $old)) {
-                $added[] = $row;
-            } elseif ($old[$key] !== $row) {
-                $modified[] = ['old' => $old[$key], 'new' => $row];
-            }
-        }
-        foreach ($old as $key => $row) {
-            if (!array_key_exists($key, $new)) {
-                $removed[] = $row;
+                $added[] = $new[$key];
+            } elseif (!array_key_exists($key, $new)) {
+                $removed[] = $old[$key];
+            } elseif (!$this->rowsEqual($old[$key], $new[$key])) {
+                $modified[] = ['old' => $old[$key], 'new' => $new[$key]];
             }
         }
 
@@ -36,20 +38,237 @@ final class TableDiff
     }
 
     /**
+     * Project row changes into the shape used by Dolt's `DOLT_DIFF_*` tables and
+     * `dolt_diff()` table function.
+     *
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @param non-empty-string|list<non-empty-string> $primaryKey
+     * @param list<non-empty-string>|null $columns
+     * @return list<array<string, scalar|null>>
+     */
+    public function diffTableRows(
+        array $fromRows,
+        array $toRows,
+        string|array $primaryKey,
+        ?array $columns = null,
+        string $fromCommit = 'FROM',
+        ?string $fromCommitDate = null,
+        string $toCommit = 'TO',
+        ?string $toCommitDate = null,
+    ): array {
+        $from = $this->index($fromRows, $primaryKey);
+        $to = $this->index($toRows, $primaryKey);
+        $columns = $columns === null ? $this->inferColumns($fromRows, $toRows) : $this->validateColumns($columns);
+
+        $rows = [];
+        foreach ($this->orderedKeys($from, $to) as $key) {
+            $fromRow = $from[$key] ?? null;
+            $toRow = $to[$key] ?? null;
+            if ($fromRow === null) {
+                $rows[] = $this->formatDiffTableRow(
+                    self::DIFF_ADDED,
+                    null,
+                    $toRow,
+                    $columns,
+                    $fromCommit,
+                    $fromCommitDate,
+                    $toCommit,
+                    $toCommitDate
+                );
+            } elseif ($toRow === null) {
+                $rows[] = $this->formatDiffTableRow(
+                    self::DIFF_REMOVED,
+                    $fromRow,
+                    null,
+                    $columns,
+                    $fromCommit,
+                    $fromCommitDate,
+                    $toCommit,
+                    $toCommitDate
+                );
+            } elseif (!$this->rowsEqual($fromRow, $toRow)) {
+                $rows[] = $this->formatDiffTableRow(
+                    self::DIFF_MODIFIED,
+                    $fromRow,
+                    $toRow,
+                    $columns,
+                    $fromCommit,
+                    $fromCommitDate,
+                    $toCommit,
+                    $toCommitDate
+                );
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array<string, scalar|null>> $rows
+     * @param non-empty-string|list<non-empty-string> $primaryKey
      * @return array<string, array<string, scalar|null>>
      */
-    private function index(array $rows, string $primaryKey): array
+    private function index(array $rows, string|array $primaryKey): array
     {
+        $primaryKey = $this->normalizePrimaryKey($primaryKey);
         $indexed = [];
         foreach ($rows as $row) {
-            if (!array_key_exists($primaryKey, $row)) {
-                throw new \InvalidArgumentException("Row is missing primary key: {$primaryKey}");
+            $key = $this->rowKey($row, $primaryKey);
+            if (array_key_exists($key, $indexed)) {
+                throw new \InvalidArgumentException('Duplicate primary key in row set: ' . implode(', ', $primaryKey));
             }
-            $indexed[(string) $row[$primaryKey]] = $row;
+            $indexed[$key] = $row;
         }
 
         return $indexed;
     }
-}
 
+    /**
+     * @param non-empty-string|list<non-empty-string> $primaryKey
+     * @return list<non-empty-string>
+     */
+    private function normalizePrimaryKey(string|array $primaryKey): array
+    {
+        $columns = is_string($primaryKey) ? [$primaryKey] : $primaryKey;
+        if ($columns === []) {
+            throw new \InvalidArgumentException('At least one primary key column is required.');
+        }
+
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('Primary key columns must be non-empty strings.');
+            }
+        }
+
+        return array_values($columns);
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     * @param list<non-empty-string> $primaryKey
+     */
+    private function rowKey(array $row, array $primaryKey): string
+    {
+        $values = [];
+        foreach ($primaryKey as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("Row is missing primary key: {$column}");
+            }
+            if ($row[$column] === null) {
+                throw new \InvalidArgumentException("Primary key column cannot be null: {$column}");
+            }
+            $values[$column] = $row[$column];
+        }
+
+        return json_encode($values, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param array<string, array<string, scalar|null>> $left
+     * @param array<string, array<string, scalar|null>> $right
+     * @return list<string>
+     */
+    private function orderedKeys(array $left, array $right): array
+    {
+        $keys = array_keys($left + $right);
+        sort($keys, SORT_STRING);
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, scalar|null> $old
+     * @param array<string, scalar|null> $new
+     */
+    private function rowsEqual(array $old, array $new): bool
+    {
+        if (count($old) !== count($new)) {
+            return false;
+        }
+        foreach ($old as $column => $value) {
+            if (!array_key_exists($column, $new) || $new[$column] !== $value) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @return list<non-empty-string>
+     */
+    private function inferColumns(array $fromRows, array $toRows): array
+    {
+        $columns = [];
+        foreach ([$fromRows, $toRows] as $rows) {
+            foreach ($rows as $row) {
+                foreach (array_keys($row) as $column) {
+                    if ($column !== '' && !array_key_exists($column, $columns)) {
+                        $columns[$column] = true;
+                    }
+                }
+            }
+        }
+
+        return array_keys($columns);
+    }
+
+    /**
+     * @param list<non-empty-string> $columns
+     * @return list<non-empty-string>
+     */
+    private function validateColumns(array $columns): array
+    {
+        if ($columns === []) {
+            throw new \InvalidArgumentException('At least one diff column is required.');
+        }
+
+        $seen = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('Diff columns must be non-empty strings.');
+            }
+            if (isset($seen[$column])) {
+                throw new \InvalidArgumentException("Duplicate diff column: {$column}");
+            }
+            $seen[$column] = true;
+        }
+
+        return array_values($columns);
+    }
+
+    /**
+     * @param array<string, scalar|null>|null $fromRow
+     * @param array<string, scalar|null>|null $toRow
+     * @param list<non-empty-string> $columns
+     * @return array<string, scalar|null>
+     */
+    private function formatDiffTableRow(
+        string $diffType,
+        ?array $fromRow,
+        ?array $toRow,
+        array $columns,
+        string $fromCommit,
+        ?string $fromCommitDate,
+        string $toCommit,
+        ?string $toCommitDate,
+    ): array {
+        $row = [];
+        foreach ($columns as $column) {
+            $row['to_' . $column] = $toRow[$column] ?? null;
+        }
+        $row['to_commit'] = $toCommit;
+        $row['to_commit_date'] = $toCommitDate;
+        foreach ($columns as $column) {
+            $row['from_' . $column] = $fromRow[$column] ?? null;
+        }
+        $row['from_commit'] = $fromCommit;
+        $row['from_commit_date'] = $fromCommitDate;
+        $row['diff_type'] = $diffType;
+
+        return $row;
+    }
+}

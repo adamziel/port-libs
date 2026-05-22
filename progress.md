@@ -38,7 +38,7 @@
 | 8 | syncthing | stopped | cloned static upstream inventory + scanner block parity slice | 4% | Port protocol vector update/merge/compare semantics and add concurrent WordPress edit conflict fixtures. |
 | 9 | difftastic | stopped | cloned inventory plus comment/delimiter slice | 5% | Port a small recursive syntax-list diff for bracketed PHP/JS/CSS structures, then map one upstream `sample_files` pair into a fixture parity test. |
 | 10 | rclone | stopped | cloned static inventory plus native filter slice | 4% | Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics. |
-| 11 | dolt | port-dolt active; misaligned with deferral | deferred | 2% | Stop/retire the active Dolt worker or explicitly reauthorize it only after the non-Dolt baseline is reached. |
+| 11 | dolt | port-dolt | cloned static upstream inventory + Dolt diff table row slice | 5% | Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes. |
 | 12 | esbuild | stopped | cloned static upstream inventory + lexer numeric/hashbang slice | 4% | Map upstream parser/printer tests for import/export syntax and add enough AST structure to distinguish WordPress package imports from relative asset imports. |
 
 ## Completed Milestones
@@ -61,11 +61,12 @@
 - Rclone: replaced the seed denominator with a shallow blob-filtered upstream inventory at `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`: 327 Go test files counted, including 124 backend, 91 fs, 47 cmd, 43 lib, 19 vfs, 2 cmdtest, and 1 fstest test file, plus 836 testdata paths. Added native rclone-style path glob filters, first-match include/exclude rules, ignore-case matching, filtered sync planning, and a WordPress backup fixture/example. Lane PHP: 7 passing tests, 0 failing tests. Implementation commit: `8564ff9`.
 - Difftastic: replaced the seed denominator with a shallow sparse blob-filtered upstream inventory at `7ccfcb315f7e46fd015809416c7d7dffa5be7078`: 287 inspected behavior artifacts counted, including 144 Rust `#[test]` functions, 112 paired sample fixture bases, 30 vendored parser corpus files, and `sample_files/compare.expected`. Added native comment classification, delimiter anchors, `ignoreComments`, trailing-comma normalization, and a WordPress render-callback fixture/example. Lane PHP: 6 passing tests, 0 failing tests.
 - esbuild: replaced the seed denominator with a shallow blob-filtered upstream inventory at `6a794dff68e6a43539f6da671e3080efdf11ca70`: 2,567 counted upstream test entry points, including 1,391 Go `func Test*` functions, 331 JS API cases, 97 plugin cases, and 748 end-to-end CLI cases. Added native hashbang tokens, unterminated block comment errors, base-prefixed/decimal numeric literal values, and a WordPress block view asset fixture/example. Lane PHP: 6 passing tests, 0 failing tests. Implementation commit: `e8f8ce0b9272`.
-- Latest root suite: `php tools/run-tests.php` passes 14 test files, 220 assertions, 0 failures.
+- Dolt: replaced the seed denominator with a shallow blob-filtered upstream inventory at `b2274926e0dcd84aab000ee242df5b5e75689eef`: 613 executable upstream test files counted, including 399 Go `_test.go` files and 214 BATS files, plus 3,808 BATS `@test` cases and 256 fixture/data artifact paths. Added native Dolt-style `DOLT_DIFF_*` row projection, structural composite primary-key indexing, and a WordPress `wp_posts` migration fixture/example. Lane PHP: 5 passing tests, 0 failing tests.
+- Latest root suite: `php tools/run-tests.php` passes 14 test files, 235 assertions, 0 failures.
 
 ## Open Blockers
 
-- One upstream benchmark manifest is still a static seed inventory until the upstream repo is cloned or queried and its test suite counted: dolt. Quadrable, markerPDF, Gitoxide, LightningCSS, libsqlite, Readability, Syncthing, Pandoc, rclone, difftastic, and esbuild now have stronger static inventories but not upstream runner parity.
+- All lanes now have at least a stronger cloned or static upstream inventory replacing the original seed denominators. None of the large upstream runners should be treated as upstream pass parity until each lane runs or maps focused upstream fixtures.
 - Gitoxide now has a safe tree inventory, but the full workspace test runner was not executed under the VM cap and the broad filtered-clone blob scan was stopped.
 - Quadrable now has a counted static upstream denominator, but the C++ runner has not executed and most tree/proof/sync behavior remains unported.
 - markerPDF now has a cloned static upstream inventory, but its full benchmark runner was not executed because the upstream workflow downloads external Google Drive benchmark data and installs heavy Poetry/ML/PDF dependencies; no benchmark PDF/reference pair is mapped yet.
@@ -77,22 +78,23 @@
 - rclone full upstream runner was not executed: `go test ./...` and `fstest/test_all` require Go module builds and may exercise backend/provider integration remotes. The current denominator is a cloned static inventory of 327 Go test files plus 836 testdata paths, not upstream pass parity.
 - Difftastic full upstream runner was not executed: the sparse cache would need broad checkout hydration plus online Cargo dependency downloads and compilation of difftastic plus many tree-sitter parser/native parser crates. A limited `cargo test --no-run --locked --offline` probe failed before compilation because the local Cargo cache lacks `humansize`. The current denominator is a cloned static inventory of 287 inspected behavior artifacts, not upstream pass parity.
 - esbuild full upstream runner was not executed: `make test` requires Go unit tests/vet plus Node source-map, end-to-end, JS API, plugin, register, node-unref, and decorator tests; `make test-all` adds Deno, WASM, typecheck, and Yarn PnP coverage. This environment has no `go` binary and no `deno` binary, and a full run would also require hydrating the checkout and installing Node dependencies. The current denominator is a cloned static inventory of 2,567 counted upstream test entry points, not upstream pass parity.
+- Dolt full upstream runners were not executed: `go version` and `bats --version` are unavailable in this environment, and upstream BATS additionally requires building `dolt`, `noms`, and `remotesrv` plus Python/parquet dependencies. The current denominator is a cloned static inventory of 613 executable upstream test files plus counted BATS cases/artifacts, not upstream pass parity.
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remained static seeds; rclone and difftastic are now reconciled with cloned static inventories, but neither has upstream runner parity.
 - Independent audit on 2026-05-22 found `.upstream-cache/pandoc` and `.upstream-cache/syncthing` still report mass tracked deletions even though the lane manifests now use cloned static inventories; restore or reclone those caches before relying on cache-local targeted reads or runner attempts.
 - Independent audit on 2026-05-22 found `port-esbuild` and `port-auditor` sessions active while this file still reported no active sessions; `.upstream-cache/esbuild` was recloned as a no-checkout blob-filtered cache and the esbuild manifest is now reconciled with a counted static inventory.
-- Independent audit on 2026-05-22 found `port-dolt` and `port-auditor` tmux sessions active while the current-session section still reported stopped/none; `port-dolt` conflicts with the explicit Dolt deferral and should be stopped or reauthorized before any Dolt implementation work is accepted.
-- Independent audit on 2026-05-22 found `.upstream-cache/dolt`, `.upstream-cache/esbuild`, `.upstream-cache/pandoc`, and `.upstream-cache/syncthing` all report mass tracked deletions/no-checkout working-tree states. Inventories based on `git ls-tree` remain useful, but these caches are not runner-ready or safe for cache-local targeted reads until restored or recloned.
+- Independent audit on 2026-05-22 found `port-dolt` and `port-auditor` tmux sessions active while the current-session section still reported stopped/none; Dolt was later explicitly reauthorized for this lane run and now has a reconciled cloned inventory plus native PHP slice.
+- Independent audit on 2026-05-22 found `.upstream-cache/dolt`, `.upstream-cache/esbuild`, `.upstream-cache/pandoc`, and `.upstream-cache/syncthing` all report mass tracked deletions/no-checkout working-tree states. Inventories based on `git ls-tree` and targeted `git show` reads remain useful, but these caches are not runner-ready or safe for broad working-tree scans until restored or recloned.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
-- Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
+- `.upstream-cache/dolt` is a blob-filtered no-checkout cache. Its `git ls-tree` inventory and targeted `git show` reads are valid, but it is not runner-ready until checked out/restored and the missing Go/BATS dependencies are installed.
 
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
 - Auditor: `port-auditor` tmux session exists; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: `port-dolt` exists despite the Dolt deferral; no other worker sessions observed.
+- Worker sessions: `port-dolt` is the active Dolt lane worker for the current reauthorized slice; no other worker sessions observed.
 
 ## Next Best Step
 
-First resolve the active-session mismatch: stop/retire `port-dolt` or explicitly reauthorize it only after the non-Dolt baseline is reached. Then move implementation capacity back to the highest-priority gaps: a targeted Gitoxide object/ref denominator slice or one real markerPDF benchmark/reference mapping. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs.
+Continue Dolt with schema/tag-aware row conversion and table delta matching for renamed tables and primary key set changes. Keep dashboard PHP pass/fail values treated as local until tied to upstream fixture IDs or focused upstream fixture parity.

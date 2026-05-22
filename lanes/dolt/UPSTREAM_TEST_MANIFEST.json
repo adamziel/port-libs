@@ -6,25 +6,77 @@
         "name": "dolthub/dolt",
         "url": "https://github.com/dolthub/dolt",
         "commit": "b2274926e0dcd84aab000ee242df5b5e75689eef",
-        "license": "pending verification from upstream checkout",
-        "architecture": "Git-for-data database versioning, table storage, commits, branches, diffs, merges, and SQL behavior."
+        "license": "Apache-2.0",
+        "architecture": "Go Git-for-data database versioning system with SQL engine integration, Prolly table storage, commits, branches, diffs, merges, system tables, CLI workflows, MySQL-compatible server behavior, BATS integration tests, and Go package tests."
     },
     "benchmarkDenominator": {
-        "status": "static-seed",
-        "total": "pending full upstream inventory",
-        "mapped": 1,
-        "source": "Go tests/BATS integration tests; denominator pending upstream inventory.",
-        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+        "status": "cloned-static-inventory",
+        "total": "613 upstream executable test files counted: 399 Go _test.go files and 214 BATS files; 3,808 BATS @test cases were counted from targeted BATS hydration, plus 256 fixture/data artifact paths by static inventory",
+        "mapped": 5,
+        "source": "Shallow blob-filtered upstream clone in .upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef; counted with git ls-tree -r --name-only HEAD and targeted reads of LICENSE, integration-tests/bats/README.md, go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go, go/libraries/doltcore/sqle/dtables/diff_iter.go, and related diff files.",
+        "inventory": {
+            "repositoryPaths": 2387,
+            "testRelatedPaths": 701,
+            "executableTestFiles": 613,
+            "goTestFiles": 399,
+            "batsFiles": 214,
+            "batsAtTestCases": 3808,
+            "testdataPaths": 57,
+            "fixtureDataArtifactPaths": 256,
+            "goTestFileBreakdown": {
+                "go/store": 147,
+                "go/libraries/doltcore/sqle": 60,
+                "go/cmd": 23,
+                "integration-tests/go-sql-server-driver": 21,
+                "go/performance": 15,
+                "go/libraries/doltcore/table": 15,
+                "go/libraries/doltcore/schema": 12,
+                "go/libraries/doltcore/remotestorage": 12,
+                "other": 94
+            },
+            "batsFileBreakdown": {
+                "integration-tests/bats": 201,
+                "integration-tests/compatibility": 7,
+                "integration-tests/mysql-client-tests": 2,
+                "integration-tests/data-dump-loading-tests": 2,
+                "integration-tests/orm-tests": 1,
+                "go/libraries": 1
+            }
+        },
+        "runnerStatus": {
+            "executed": false,
+            "reason": "The full upstream runners were not executed. `go version` fails with `go: command not found`, so Go package tests and the Dolt CLI build cannot run. `bats --version` fails with `bats: command not found`. Upstream BATS documentation also requires building dolt, noms, and remotesrv with Go, plus Python packages such as mysql-connector-python, pyarrow, and pandas, and some parquet/hadoop tooling. The cache is blob-filtered and not fully checked out to keep this lane run modest.",
+            "probes": [
+                {
+                    "command": "git ls-tree -r --name-only HEAD",
+                    "result": "counted 2,387 repository paths, 399 Go test files, 214 BATS files, 701 test-related paths, and 256 fixture/data artifact paths"
+                },
+                {
+                    "command": "targeted BATS file hydration counting ^@test lines",
+                    "result": "counted 3,808 BATS @test cases before stopping broader Go entry-point hydration"
+                },
+                {
+                    "command": "go version; bats --version",
+                    "result": "go: command not found; bats: command not found"
+                }
+            ]
+        },
+        "mappedSemantics": [
+            "Table row changes classify added, removed, and modified rows by primary key.",
+            "Dolt-style diff table rows project `to_*` columns before `from_*` columns with commit metadata and `diff_type`.",
+            "Added rows have null `from_*` values, removed rows have null `to_*` values, and modified rows include both sides, matching the focused upstream `DOLT_DIFF_t` expectations.",
+            "Composite primary keys are encoded structurally instead of by lossy string concatenation.",
+            "WordPress `wp_posts` migration fixture renders inspectable Dolt-shaped content changes."
+        ],
+        "inventoryPath": "lanes/dolt/notes/upstream-inventory.md",
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 5 focused lane tests against a 613-test-file upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native table diff classification by primary key."
+        "currentSlice": "Native table diff classification plus Dolt-style `DOLT_DIFF_*` row projection for added, removed, and modified rows.",
+        "phpBehaviorTests": 5
     },
-    "wordpressScenario": "Versioned content/data migrations and inspectable database change sets.",
-    "deferred": {
-        "status": true,
-        "reason": "User requested Dolt be sidetracked and ignored until the other lanes are established."
-    },
-    "nextTask": "Do not schedule Dolt work until the other lanes have reached the required baseline."
+    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixture shows `wp_posts` publish/remove/import changes as Dolt-shaped diff rows.",
+    "nextTask": "Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes."
 }

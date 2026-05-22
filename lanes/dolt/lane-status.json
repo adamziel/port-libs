@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "dolt",
-    "estimatedProgress": 2,
-    "suiteProgress": "static manifest seed; upstream suite not yet executed",
-    "phpPass": 1,
+    "estimatedProgress": 5,
+    "suiteProgress": "cloned static inventory: 613 upstream executable test files counted; upstream runners not executed",
+    "phpPass": 5,
     "phpFail": 0,
-    "wordpressScenarios": "Versioned content/data migrations and inspectable database change sets.",
-    "phase": "deferred",
-    "audit": "deferred by user direction until non-dolt lanes reach baseline",
-    "currentWork": "Sidetracked by user direction; no active worker should be assigned until the other lanes reach the required baseline.",
-    "blocker": "User deferred Dolt until the rest of the portfolio has stronger baselines.",
-    "latestCommit": "312e7288a027",
-    "nextTask": "Do not schedule Dolt work until the other lanes have real upstream denominators, native slices, passing tests, WordPress scenarios, and dashboard status."
+    "wordpressScenarios": "Versioned WordPress content/data migrations and inspectable database change sets; current fixture shows wp_posts publish/remove/import changes as Dolt-shaped diff rows.",
+    "phase": "cloned static upstream inventory + Dolt diff table row slice",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native table diff classification plus Dolt-style DOLT_DIFF_* row projection with to/from columns, commit metadata, diff_type values, composite primary keys, and WordPress wp_posts fixture coverage.",
+    "blocker": "No upstream runner parity yet: go and bats are unavailable, and upstream BATS also requires building Dolt utilities plus Python/parquet dependencies.",
+    "latestCommit": "pending this slice",
+    "nextTask": "Map schema/tag-aware row conversion and begin porting Dolt table delta matching for renamed tables and primary key set changes."
 }
