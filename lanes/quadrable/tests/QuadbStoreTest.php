@@ -119,6 +119,61 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store emits and applies tracked string-key patch lines' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $t->same(3, $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Hello world\n",
+                '|'
+            ));
+
+            $masterRoot = $repo->tree()->rootHash();
+            $masterHeadNodeId = $repo->tree()->headNodeId();
+
+            $repo->fork('wp-preview');
+            $repo->put('wp_posts:1', 'Preview edit');
+            $repo->put('wp_posts:2', 'New page');
+            $repo->delete('wp_options:home');
+
+            $previewRoot = $repo->tree()->rootHash();
+            $patch = $repo->diffLines('master', '|');
+            $t->same([
+                '+wp_posts:1|Preview edit',
+                '+wp_posts:2|New page',
+                '-wp_options:home|https://example.test',
+                '-wp_posts:1|Hello world',
+            ], quadrableQuadbSortedLines($patch));
+
+            $reopened = QuadbStore::open($dir);
+            $t->same($patch, $reopened->diffLines('master', '|'));
+
+            $replica = $reopened->fork('wp-replica', 'master');
+            $t->same($masterRoot, $replica->rootHash());
+            $t->same($masterHeadNodeId, $replica->headNodeId());
+
+            $t->same(4, $reopened->applyPatchLines("# preview patch\n" . $patch, '|'));
+            $t->same($previewRoot, $reopened->tree()->rootHash());
+            $t->same('Preview edit', $reopened->get('wp_posts:1'));
+            $t->same('New page', $reopened->get('wp_posts:2'));
+            $t->throws(RuntimeException::class, static fn () => $reopened->get('wp_options:home'));
+
+            $t->same([
+                'wp_options:siteurl|https://example.test',
+                'wp_posts:1|Preview edit',
+                'wp_posts:2|New page',
+            ], quadrableQuadbSortedLines($reopened->exportLines('|')));
+
+            $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("\n", '|'));
+            $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("~wp_posts:1|bad\n", '|'));
+            $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("+wp_posts:1 missing separator\n", '|'));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
 ];
 
 function quadrableQuadbTempDir(): string

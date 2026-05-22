@@ -12,7 +12,9 @@ final class QuadbStore
         private readonly string $directory,
         private readonly TrackedNodeStore $nodeStore,
         private ?string $currentHead,
-        private int $detachedHeadNodeId
+        private int $detachedHeadNodeId,
+        /** @var array<string, string> */
+        private array $trackedKeys = []
     ) {
     }
 
@@ -73,11 +75,24 @@ final class QuadbStore
             $nodeStore->nodeHash($detachedHeadNodeId);
         }
 
+        $trackedKeys = [];
+        foreach (($quadbState['trackedKeys'] ?? []) as $keyHashHex => $key) {
+            if (!is_string($keyHashHex) || !preg_match('/^[0-9a-f]{64}$/', $keyHashHex)) {
+                throw new \InvalidArgumentException('tracked key hash must be lowercase 32-byte hex');
+            }
+            if (!is_string($key) || $key === '') {
+                throw new \InvalidArgumentException('tracked key must be a non-empty string');
+            }
+
+            $trackedKeys[$keyHashHex] = $key;
+        }
+
         return new self(
             $directory,
             $nodeStore,
             $currentHead,
-            $detachedHeadNodeId
+            $detachedHeadNodeId,
+            $trackedKeys
         );
     }
 
@@ -156,6 +171,37 @@ final class QuadbStore
         return $this->tree();
     }
 
+    public function put(string $key, string $value): void
+    {
+        SparseTree::assertNonEmptyKey($key);
+
+        $tree = $this->tree();
+        $tree->put($key, $value);
+        $this->trackedKeys[$this->keyHash($key)] = $key;
+        $this->save($tree);
+    }
+
+    public function delete(string $key): void
+    {
+        SparseTree::assertNonEmptyKey($key);
+
+        $tree = $this->tree();
+        $tree->delete($key);
+        $this->save($tree);
+    }
+
+    public function get(string $key): string
+    {
+        SparseTree::assertNonEmptyKey($key);
+
+        $value = $this->tree()->get($key);
+        if ($value === null) {
+            throw new \RuntimeException('key not found in db');
+        }
+
+        return $value;
+    }
+
     public function save(?TrackedSparseTree $tree = null): void
     {
         if ($this->currentHead === null && $tree !== null) {
@@ -163,6 +209,132 @@ final class QuadbStore
         }
 
         $this->persist();
+    }
+
+    public function importLines(string $input, string $separator = ','): int
+    {
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+
+        $tree = $this->tree();
+        $changes = $tree->change();
+        $trackedKeys = [];
+        $count = 0;
+
+        foreach ($this->splitInputLines($input) as $line) {
+            [$key, $value] = $this->splitSeparatedLine($line, $separator);
+            SparseTree::assertNonEmptyKey($key);
+            $changes->put($key, $value);
+            $trackedKeys[$this->keyHash($key)] = $key;
+            $count++;
+        }
+
+        if ($count > 0) {
+            $changes->apply();
+            $this->trackedKeys = array_replace($this->trackedKeys, $trackedKeys);
+            $this->save($tree);
+        }
+
+        return $count;
+    }
+
+    public function exportLines(string $separator = ','): string
+    {
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+
+        $output = '';
+        foreach ($this->tree()->orderedEntries() as $entry) {
+            $output .= $this->renderTrackedKey($entry->keyHex()) . $separator . $entry->value() . "\n";
+        }
+
+        return $output;
+    }
+
+    public function diffLines(string $head, string $separator = ','): string
+    {
+        $this->assertHeadName($head);
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+
+        $base = (new TrackedSparseTree($this->nodeStore))->checkout($head);
+        $current = $this->tree();
+        $baseEntries = $this->entriesByKeyHex($base);
+        $currentEntries = $this->entriesByKeyHex($current);
+        $keys = array_values(array_unique(array_merge(array_keys($baseEntries), array_keys($currentEntries))));
+        sort($keys, SORT_STRING);
+
+        $output = '';
+        foreach ($keys as $keyHex) {
+            $baseEntry = $baseEntries[$keyHex] ?? null;
+            $currentEntry = $currentEntries[$keyHex] ?? null;
+            $renderedKey = $this->renderTrackedKey($keyHex);
+
+            if ($baseEntry === null && $currentEntry !== null) {
+                $output .= '+' . $renderedKey . $separator . $currentEntry['value'] . "\n";
+                continue;
+            }
+
+            if ($baseEntry !== null && $currentEntry === null) {
+                $output .= '-' . $renderedKey . $separator . $baseEntry['value'] . "\n";
+                continue;
+            }
+
+            if ($baseEntry !== null && $currentEntry !== null && $baseEntry['value'] !== $currentEntry['value']) {
+                $output .= '-' . $renderedKey . $separator . $baseEntry['value'] . "\n";
+                $output .= '+' . $renderedKey . $separator . $currentEntry['value'] . "\n";
+            }
+        }
+
+        return $output;
+    }
+
+    public function applyPatchLines(string $input, string $separator = ','): int
+    {
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+
+        $tree = $this->tree();
+        $changes = $tree->change();
+        $trackedKeys = [];
+        $count = 0;
+
+        foreach ($this->splitInputLines($input) as $line) {
+            if ($line === '') {
+                throw new \RuntimeException('empty line in patch');
+            }
+            if ($line[0] === '#') {
+                continue;
+            }
+
+            $operation = $line[0];
+            [$key, $value] = $this->splitSeparatedLine(substr($line, 1), $separator);
+
+            if ($operation === '+') {
+                SparseTree::assertNonEmptyKey($key);
+                $changes->put($key, $value);
+                $trackedKeys[$this->keyHash($key)] = $key;
+            } elseif ($operation === '-') {
+                SparseTree::assertNonEmptyKey($key);
+                $changes->delete($key);
+            } else {
+                throw new \RuntimeException('unexpected line in patch');
+            }
+
+            $count++;
+        }
+
+        if ($count > 0) {
+            $changes->apply();
+            $this->trackedKeys = array_replace($this->trackedKeys, $trackedKeys);
+            $this->save($tree);
+        }
+
+        return $count;
     }
 
     public function importIntegerLines(string $input, string $separator = ','): int
@@ -240,12 +412,16 @@ final class QuadbStore
 
     private function persist(): void
     {
+        $trackedKeys = $this->trackedKeys;
+        ksort($trackedKeys, SORT_STRING);
+
         $encoded = json_encode([
             'schemaVersion' => 1,
             'trackedNodeStore' => $this->nodeStore->exportSnapshot(),
             'quadbState' => [
                 'currentHead' => $this->currentHead,
                 'detachedHeadNodeId' => $this->detachedHeadNodeId,
+                'trackedKeys' => $trackedKeys,
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 
@@ -292,5 +468,69 @@ final class QuadbStore
         }
 
         return $nodeId;
+    }
+
+    private function keyHash(string $key): string
+    {
+        return (new HashTree())->keyHash($key);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitInputLines(string $input): array
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $input);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $lines = explode("\n", $normalized);
+        if (str_ends_with($normalized, "\n")) {
+            array_pop($lines);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitSeparatedLine(string $line, string $separator): array
+    {
+        $separatorOffset = strpos($line, $separator);
+        if ($separatorOffset === false) {
+            throw new \RuntimeException("couldn't find separator in input line");
+        }
+
+        return [
+            substr($line, 0, $separatorOffset),
+            substr($line, $separatorOffset + strlen($separator)),
+        ];
+    }
+
+    /**
+     * @return array<string, array{value: string}>
+     */
+    private function entriesByKeyHex(TrackedSparseTree $tree): array
+    {
+        $entries = [];
+        foreach ($tree->orderedEntries() as $entry) {
+            $entries[$entry->keyHex()] = [
+                'value' => $entry->value(),
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function renderTrackedKey(string $keyHex): string
+    {
+        return $this->trackedKeys[$keyHex] ?? self::renderUnknownKey($keyHex);
+    }
+
+    private static function renderUnknownKey(string $keyHex): string
+    {
+        return 'H(?)=0x' . substr($keyHex, 0, 12) . '...';
     }
 }
