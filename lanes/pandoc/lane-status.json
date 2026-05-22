@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, seven Tests.Readers.Markdown definition-list cases including loose first definitions, lazy continuation lines, continuation paragraphs, blank-before-second definitions, column-zero markers, and lists inside definitions, inline code spans containing list-marker-looking text, indented fenced code blocks from test/command/indented-fences.md, and block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt; WordPress writer renders escaped block output, nested list markup, definition-list HTML with multi-paragraph dd content, code blocks, and quote blocks.",
     "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable in this shell, the upstream cache is blob-filtered/no-checkout, and upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout before command/golden/HUnit/QuickCheck tests can run.",
-    "latestCommit": "4d62119",
+    "latestCommit": "c99f10f",
     "nextTask": "Map the remaining Tests.Readers.Markdown in-div definition-list case or move to another bounded block family from test/testsuite.txt."
 }
