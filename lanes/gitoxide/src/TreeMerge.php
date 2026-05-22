@@ -340,6 +340,26 @@ final class TreeMerge
             if ($ourRename !== null) {
                 $theirEntry = $theirEntries[$path] ?? null;
                 if ($theirEntry === null || !self::sameEntry($baseEntry, $theirEntry)) {
+                    $renameModifyMerge = self::tryMergeDirectoryRenameModify(
+                        $pathPrefix,
+                        $ourRename['path'],
+                        $baseEntry,
+                        $ourRename['entry'],
+                        $theirEntry,
+                        $readObject,
+                        $writeObject,
+                        $conflictStyle,
+                    );
+                    if ($renameModifyMerge !== null) {
+                        if ($renameModifyMerge['entry'] !== null) {
+                            $merged[] = $renameModifyMerge['entry'];
+                        }
+                        array_push($conflicts, ...$renameModifyMerge['conflicts']);
+                        $consumed[$path] = true;
+                        $consumed[$ourRename['path']] = true;
+                        continue;
+                    }
+
                     $conflicts[] = new TreeMergeConflict(
                         self::joinPath($pathPrefix, $path),
                         $theirEntry === null ? 'rename-delete' : 'rename-modify',
@@ -357,6 +377,26 @@ final class TreeMerge
             if ($theirRename !== null) {
                 $ourEntry = $ourEntries[$path] ?? null;
                 if ($ourEntry === null || !self::sameEntry($baseEntry, $ourEntry)) {
+                    $renameModifyMerge = self::tryMergeDirectoryRenameModify(
+                        $pathPrefix,
+                        $theirRename['path'],
+                        $baseEntry,
+                        $ourEntry,
+                        $theirRename['entry'],
+                        $readObject,
+                        $writeObject,
+                        $conflictStyle,
+                    );
+                    if ($renameModifyMerge !== null) {
+                        if ($renameModifyMerge['entry'] !== null) {
+                            $merged[] = $renameModifyMerge['entry'];
+                        }
+                        array_push($conflicts, ...$renameModifyMerge['conflicts']);
+                        $consumed[$path] = true;
+                        $consumed[$theirRename['path']] = true;
+                        continue;
+                    }
+
                     $conflicts[] = new TreeMergeConflict(
                         self::joinPath($pathPrefix, $path),
                         $ourEntry === null ? 'rename-delete' : 'rename-modify',
@@ -409,6 +449,40 @@ final class TreeMerge
     }
 
     /**
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     * @return null|array{entry:?TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeDirectoryRenameModify(
+        string $pathPrefix,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        ?TreeEntry $ourEntry,
+        ?TreeEntry $theirEntry,
+        ?callable $readObject,
+        ?callable $writeObject,
+        string $conflictStyle,
+    ): ?array {
+        if ($ourEntry === null || $theirEntry === null || $readObject === null || $writeObject === null) {
+            return null;
+        }
+        if (!$baseEntry->isTree() || !$ourEntry->isTree() || !$theirEntry->isTree()) {
+            return null;
+        }
+
+        return self::tryMergeChangedEntry(
+            $targetPath,
+            self::joinPath($pathPrefix, $targetPath),
+            $baseEntry,
+            $ourEntry,
+            $theirEntry,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+        );
+    }
+
+    /**
      * @param array<string, TreeEntry> $baseEntries
      * @param array<string, TreeEntry> $sideEntries
      * @return array<string, array{path:string,entry:TreeEntry}>
@@ -420,7 +494,9 @@ final class TreeMerge
             return $renames;
         }
 
-        return $renames + self::similarBlobRenames($baseEntries, $sideEntries, $renames, $readObject);
+        $renames += self::similarBlobRenames($baseEntries, $sideEntries, $renames, $readObject);
+
+        return $renames + self::similarTreeRenames($baseEntries, $sideEntries, $renames, $readObject);
     }
 
     /**
@@ -517,6 +593,56 @@ final class TreeMerge
     }
 
     /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $sideEntries
+     * @param array<string, array{path:string,entry:TreeEntry}> $knownRenames
+     * @param callable(string): GitObject $readObject
+     * @return array<string, array{path:string,entry:TreeEntry}>
+     */
+    private static function similarTreeRenames(array $baseEntries, array $sideEntries, array $knownRenames, callable $readObject): array
+    {
+        $usedNewPaths = [];
+        foreach ($knownRenames as $rename) {
+            $usedNewPaths[$rename['path']] = true;
+        }
+
+        $candidatesByDeletedPath = [];
+        $candidateUseCounts = [];
+        foreach ($baseEntries as $deletedPath => $baseEntry) {
+            if (isset($sideEntries[$deletedPath]) || isset($knownRenames[$deletedPath]) || !$baseEntry->isTree()) {
+                continue;
+            }
+
+            foreach ($sideEntries as $addedPath => $sideEntry) {
+                if (isset($baseEntries[$addedPath]) || isset($usedNewPaths[$addedPath]) || !$sideEntry->isTree()) {
+                    continue;
+                }
+
+                $score = self::treeSimilarity($baseEntry, $sideEntry, $readObject);
+                if ($score < 60) {
+                    continue;
+                }
+                $candidatesByDeletedPath[$deletedPath][$addedPath] = ['score' => $score, 'entry' => $sideEntry];
+                $candidateUseCounts[$addedPath] = ($candidateUseCounts[$addedPath] ?? 0) + 1;
+            }
+        }
+
+        $renames = [];
+        foreach ($candidatesByDeletedPath as $deletedPath => $candidates) {
+            if (count($candidates) !== 1) {
+                continue;
+            }
+            $addedPath = array_key_first($candidates);
+            if (($candidateUseCounts[$addedPath] ?? 0) !== 1) {
+                continue;
+            }
+            $renames[$deletedPath] = ['path' => $addedPath, 'entry' => $candidates[$addedPath]['entry']];
+        }
+
+        return $renames;
+    }
+
+    /**
      * @param callable(string): GitObject $readObject
      */
     private static function blobSimilarity(TreeEntry $baseEntry, TreeEntry $sideEntry, callable $readObject): int
@@ -548,6 +674,75 @@ final class TreeMerge
         }
 
         return (int) floor(($overlap * 200) / $total);
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     */
+    private static function treeSimilarity(TreeEntry $baseEntry, TreeEntry $sideEntry, callable $readObject): int
+    {
+        $baseCount = 0;
+        $sideCount = 0;
+        $baseLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')), $readObject, '', 0, $baseCount);
+        $sideLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $sideEntry->oid, 'tree')), $readObject, '', 0, $sideCount);
+        if ($baseLeaves === null || $sideLeaves === null || $baseLeaves === [] || $sideLeaves === []) {
+            return 0;
+        }
+
+        $score = 0;
+        foreach ($baseLeaves as $path => $baseLeaf) {
+            $sideLeaf = $sideLeaves[$path] ?? null;
+            if ($sideLeaf === null || $baseLeaf->mode !== $sideLeaf->mode) {
+                continue;
+            }
+            if (self::sameEntry($baseLeaf, $sideLeaf)) {
+                $score += 100;
+                continue;
+            }
+            if ($baseLeaf->isBlob() && $sideLeaf->isBlob()) {
+                $score += self::blobSimilarity($baseLeaf, $sideLeaf, $readObject);
+            }
+        }
+
+        return (int) floor($score / max(count($baseLeaves), count($sideLeaves)));
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @return null|array<string, TreeEntry>
+     */
+    private static function flattenTreeLeaves(Tree $tree, callable $readObject, string $prefix, int $depth, int &$count): ?array
+    {
+        if ($depth > 16 || $count > 512) {
+            return null;
+        }
+
+        $leaves = [];
+        foreach ($tree->entries as $entry) {
+            $path = self::joinPath($prefix, $entry->filename);
+            if ($entry->isTree()) {
+                $nested = self::flattenTreeLeaves(
+                    Tree::fromObject(self::readTypedObject($readObject, $entry->oid, 'tree')),
+                    $readObject,
+                    $path,
+                    $depth + 1,
+                    $count,
+                );
+                if ($nested === null) {
+                    return null;
+                }
+                $leaves += $nested;
+                continue;
+            }
+
+            $leaves[$path] = $entry;
+            $count++;
+            if ($count > 512) {
+                return null;
+            }
+        }
+
+        return $leaves;
     }
 
     /**

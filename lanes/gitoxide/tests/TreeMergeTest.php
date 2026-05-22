@@ -391,6 +391,108 @@ return [
         ));
         $t->same(['wp-content/new-plugin.php'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
     },
+    'recursive tree merge applies directory rename to clean modified old directory' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
+        $ourPlugin = "Plugin: Acme Pro\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
+        $baseReadme = "Acme plugin\nStable tag: 1.0\n";
+        $theirReadme = "Acme plugin\nStable tag: 1.1\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $baseReadme),
+        ]))]))]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme-pro', new Tree([
+            $blobEntry('acme.php', $ourPlugin),
+            $blobEntry('readme.txt', $baseReadme),
+        ]))]))]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $theirReadme),
+        ]))]))]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $pluginsTree = Tree::fromObject($read($contentTree->entryNamed('plugins', true)?->oid ?? ''));
+        $pluginTree = Tree::fromObject($read($pluginsTree->entryNamed('acme-pro', true)?->oid ?? ''));
+
+        $t->true($result->isClean());
+        $t->same(['acme-pro'], $names($pluginsTree));
+        $t->same($ourPlugin, $read($pluginTree->entryNamed('acme.php')?->oid ?? '')->body);
+        $t->same($theirReadme, $read($pluginTree->entryNamed('readme.txt')?->oid ?? '')->body);
+        $t->same([], $result->indexEntries());
+    },
+    'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
+        $ourPlugin = "Plugin: Acme Pro\nVersion: 1.1\nRequires: 6.5\nStatus: active\n";
+        $theirPlugin = "Plugin: Acme\nVersion: 1.2\nRequires: 6.5\nStatus: active\n";
+        $readme = "Acme plugin\nStable tag: 1.0\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $readme),
+        ]))]))]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme-pro', new Tree([
+            $blobEntry('acme.php', $ourPlugin),
+            $blobEntry('readme.txt', $readme),
+        ]))]))]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $theirPlugin),
+            $blobEntry('readme.txt', $readme),
+        ]))]))]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $pluginsTree = Tree::fromObject($read($contentTree->entryNamed('plugins', true)?->oid ?? ''));
+        $pluginTree = Tree::fromObject($read($pluginsTree->entryNamed('acme-pro', true)?->oid ?? ''));
+        $mergedPlugin = $read($pluginTree->entryNamed('acme.php')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(['acme-pro'], $names($pluginsTree));
+        $t->same('content-conflict', $result->conflicts[0]->reason);
+        $t->same('wp-content/plugins/acme-pro/acme.php', $result->conflicts[0]->path);
+        $t->contains('<<<<<<< ours/wp-content/plugins/acme-pro/acme.php', $mergedPlugin->body);
+        $t->contains('Version: 1.1', $mergedPlugin->body);
+        $t->contains('Version: 1.2', $mergedPlugin->body);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'wp-content/plugins/acme-pro/acme.php'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'wp-content/plugins/acme-pro/acme.php'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'wp-content/plugins/acme-pro/acme.php'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'path' => $entry->path],
+            $result->indexEntries(),
+        ));
+        $t->same(['wp-content/plugins/acme-pro/acme.php'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+    },
+    'recursive tree merge preserves side labels when theirs renames a modified directory' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
+        $ourPlugin = "Plugin: Acme\nVersion: ours\nRequires: 6.5\nStatus: active\n";
+        $theirPlugin = "Plugin: Acme Pro\nVersion: theirs\nRequires: 6.5\nStatus: active\n";
+        $readme = "Acme plugin\nStable tag: 1.0\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $readme),
+        ]))]))]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $ourPlugin),
+            $blobEntry('readme.txt', $readme),
+        ]))]))]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme-pro', new Tree([
+            $blobEntry('acme.php', $theirPlugin),
+            $blobEntry('readme.txt', $readme),
+        ]))]))]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $pluginsTree = Tree::fromObject($read($contentTree->entryNamed('plugins', true)?->oid ?? ''));
+        $pluginTree = Tree::fromObject($read($pluginsTree->entryNamed('acme-pro', true)?->oid ?? ''));
+        $mergedPlugin = $read($pluginTree->entryNamed('acme.php')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same('wp-content/plugins/acme-pro/acme.php', $result->conflicts[0]->path);
+        $t->contains("<<<<<<< ours/wp-content/plugins/acme-pro/acme.php\nPlugin: Acme\nVersion: ours", $mergedPlugin->body);
+        $t->contains("=======\nPlugin: Acme Pro\nVersion: theirs", $mergedPlugin->body);
+    },
     'recursive tree merge records nested directory file conflicts with stages' => static function (TestRunner $t) use ($objectStore): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([
