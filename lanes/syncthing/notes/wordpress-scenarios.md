@@ -85,6 +85,17 @@ try the `.syncthing.<basename>.tmp` sibling first, the temporary bytes must
 match the requested SHA-256 block hash, stale or short temporary reads fall
 back to the finalized file, final-file hash mismatches return no-such-file, and
 internal/traversal/symlink paths are rejected before disk reads.
+The request-serving boundary now also maps upstream ignore and receive-encrypted
+guards from `model.Request` and `lib/ignore`: explicit ignored matches are
+rejected with invalid-file before any temporary or finalized bytes are served,
+basic `.stignore` prefixes such as `(?i)`, `(?d)`, and unrooted/rooted glob
+expansion produce explicit match results, included ignore snippets are loaded
+relative to the current ignore file, `#escape=` directives can switch the
+escape character before local patterns, escaped glob metacharacters/bracket
+ranges/brace alternatives follow focused upstream `gobwas/glob` behavior, and
+receive-encrypted folders skip finalized-file hash validation for encrypted
+hash tokens while still requiring temporary bytes to validate before they can
+be served.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -141,10 +152,18 @@ flow: a WordPress media restore request arrives with `fromTemporary` set, stale
 temporary bytes are rejected by the block hash, the finalized media file is
 served as a native BEP Response frame, and any restore error is surfaced as a
 response code rather than a shell command failure.
+`examples/wordpress-encrypted-media-request.php` adds the encrypted-folder
+variant: a private export path is blocked by a native ignore match, while a
+receive-encrypted media object can be restored from finalized encrypted bytes
+even when the request hash is an opaque encrypted token instead of a SHA-256
+digest.
+`examples/wordpress-ignore-include-escape.php` shows a WordPress media folder
+loading a shared private-export ignore snippet via `#include`, then using a
+custom `#escape=|` rule to block a literal filename containing `*` without
+blocking an ordinary public media request.
 
 ## Next Task
 
-Port ignored-pattern and receive-encrypted request-serving boundaries: wire the
-request server to explicit ignore match results, preserve upstream no-hash
-validation for receive-encrypted folders, and add a WordPress encrypted media
-restore scenario.
+Map the adjacent receive-encrypted trailer/puller boundaries from
+`folder_sendrecv.go`, including encrypted filename/hash token request handling
+beyond the finalized-file bypass already covered.

@@ -16,8 +16,8 @@ final class Request
         public readonly bool $fromTemporary = false,
         public readonly int $blockNo = 0,
     ) {
-        if ($this->hashHex !== '' && !preg_match('/^[0-9a-f]{64}$/', $this->hashHex)) {
-            throw new \InvalidArgumentException('Expected lowercase SHA-256 hex for request hash');
+        if ($this->hashHex !== '' && !preg_match('/^(?:[0-9a-f]{2})+$/', $this->hashHex)) {
+            throw new \InvalidArgumentException('Expected lowercase even-length hex for request hash bytes');
         }
     }
 

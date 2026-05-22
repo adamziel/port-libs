@@ -25,6 +25,7 @@ final class RequestServer
         string $rootPath,
         array $sharedDeviceIds = [],
         private readonly bool $receiveEncrypted = false,
+        private readonly ?IgnoreMatcher $ignoreMatcher = null,
     ) {
         if ($this->folder === '') {
             throw new \InvalidArgumentException('Folder ID must not be empty');
@@ -93,6 +94,10 @@ final class RequestServer
 
         if (self::isInternalName($request->name)) {
             return $this->error($request->id, Response::CODE_INVALID_FILE, 'internal filename');
+        }
+
+        if ($this->ignoreMatcher !== null && $this->ignoreMatcher->match($request->name)->isIgnored()) {
+            return $this->error($request->id, Response::CODE_INVALID_FILE, 'ignored filename');
         }
 
         if ($this->traversesSymlink($request->name)) {
