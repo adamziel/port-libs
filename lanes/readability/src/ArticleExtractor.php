@@ -38,6 +38,7 @@ final class ArticleExtractor
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
         if ($best instanceof \DOMElement) {
             $this->removePlatformArticleChrome($best);
+            $this->removeOutOfBandFigureWrappers($best);
             $this->removeDuplicateTitleHeader($best, $title);
             $this->demoteHeadingOnes($best);
         }
@@ -783,6 +784,104 @@ final class ArticleExtractor
         }
 
         return false;
+    }
+
+    private function removeOutOfBandFigureWrappers(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        $remove = [];
+        foreach ($xpath->query('.//div[not(ancestor::figure)]', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement || !$this->isOutOfBandFigureWrapper($xpath, $node)) {
+                continue;
+            }
+
+            $remove[] = $node;
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function isOutOfBandFigureWrapper(\DOMXPath $xpath, \DOMElement $node): bool
+    {
+        $figures = $xpath->query('.//figure', $node);
+        if (($figures?->length ?? 0) !== 1) {
+            return false;
+        }
+
+        $figure = $figures?->item(0);
+        if (!$figure instanceof \DOMElement) {
+            return false;
+        }
+
+        if (($xpath->query('.//img|.//picture', $node)?->length ?? 0) !== 1) {
+            return false;
+        }
+
+        if (($xpath->query('.//p|.//blockquote|.//ul|.//ol|.//pre|.//table|.//iframe', $node)?->length ?? 0) > 0) {
+            return false;
+        }
+
+        $captionText = $this->normalizeWhitespace($figure->textContent);
+        if ($captionText === '' || mb_strlen($captionText) > 80) {
+            return false;
+        }
+
+        if ($this->normalizeWhitespace($this->textOutsideDescendant($node, $figure)) !== '') {
+            return false;
+        }
+
+        return mb_strlen($this->siblingText($node)) >= 200;
+    }
+
+    private function textOutsideDescendant(\DOMNode $node, \DOMNode $excluded): string
+    {
+        $text = '';
+        foreach ($node->childNodes as $child) {
+            if ($child === $excluded) {
+                continue;
+            }
+
+            if ($this->nodeContains($child, $excluded)) {
+                $text .= ' ' . $this->textOutsideDescendant($child, $excluded);
+                continue;
+            }
+
+            $text .= ' ' . ($child->textContent ?? '');
+        }
+
+        return $text;
+    }
+
+    private function nodeContains(\DOMNode $node, \DOMNode $descendant): bool
+    {
+        for ($parent = $descendant->parentNode; $parent instanceof \DOMNode; $parent = $parent->parentNode) {
+            if ($parent === $node) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function siblingText(\DOMElement $node): string
+    {
+        $parent = $node->parentNode;
+        if (!$parent instanceof \DOMNode) {
+            return '';
+        }
+
+        $text = '';
+        foreach ($parent->childNodes as $sibling) {
+            if ($sibling === $node) {
+                continue;
+            }
+
+            $text .= ' ' . ($sibling->textContent ?? '');
+        }
+
+        return $this->normalizeWhitespace($text);
     }
 
     private function removeDuplicateTitleHeader(\DOMElement $scope, string $title): void

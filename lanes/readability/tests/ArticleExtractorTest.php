@@ -43,7 +43,7 @@ $imageAttributeRows = static function (string $html): array {
         }
 
         $row = [];
-        foreach (['data-src', 'data-srcset', 'alt', 'src', 'srcset'] as $attribute) {
+        foreach (['data-src', 'data-srcset', 'data-old-src', 'data-old-srcset', 'alt', 'src', 'srcset'] as $attribute) {
             $value = trim($image->getAttribute($attribute));
             if ($value !== '') {
                 $row[$attribute] = $value;
@@ -328,6 +328,8 @@ return [
         $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
         $t->same(9, count($expectedSources));
+        $t->same($expectedSources, $articleSources);
+        $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
         foreach ($expectedSources as $sourceUrl) {
             $t->true(in_array($sourceUrl, $articleSources, true), 'expected lazy-image-1 image source should be preserved: ' . $sourceUrl);
         }
@@ -337,6 +339,24 @@ return [
         $t->true(!str_contains($article->text, 'Discover Medium'), 'platform signup footer should be removed');
         $t->true(!str_contains($article->text, 'Written by Vincent Vallet'), 'author footer should be removed');
         $t->true(!str_contains($article->contentHtml, 'fit/c/160/160'), 'recommended-author avatars should be removed with the footer');
+        $t->true(!str_contains($article->contentHtml, 'CPU profiling before optimization'), 'out-of-band Medium full-width figure wrapper should be removed');
+        $t->true(!str_contains($article->contentHtml, 'Zoom in the CPU profiling'), 'out-of-band Medium zoom figure wrapper should be removed');
+    },
+    'drops out-of-band full-width figure wrappers during WordPress migration cleanup' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Block Media Cleanup"></head><body><article class="article-body">'
+            . '<div class="text-column"><p>' . str_repeat('Editorial migration copy keeps article context around media assets. ', 5) . '</p>'
+            . '<figure><img src="/uploads/editorial-chart.jpg" alt="Editorial chart"><figcaption>Editorial chart</figcaption></figure></div>'
+            . '<div class="full-bleed-layout"><figure><img src="/uploads/decorative-crop.jpg" alt="Decorative crop"><figcaption>Decorative crop</figcaption></figure></div>'
+            . '<div class="text-column"><p>' . str_repeat('The imported WordPress post should retain body copy and canonical media while dropping layout-only crops. ', 4) . '</p></div>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($source);
+
+        $t->same('Block Media Cleanup', $article->title);
+        $t->contains('/uploads/editorial-chart.jpg', $article->contentHtml);
+        $t->contains('Editorial chart', $article->text);
+        $t->true(!str_contains($article->contentHtml, '/uploads/decorative-crop.jpg'), 'layout-only full-width crop should be removed');
+        $t->true(!str_contains($article->text, 'Decorative crop'), 'decorative figure caption should be removed with the wrapper');
     },
     'maps Mozilla lazy-image-2 responsive image fixture' => static function (TestRunner $t) use ($fixtureText, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-2';

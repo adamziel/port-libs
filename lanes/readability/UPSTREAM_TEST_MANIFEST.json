@@ -10,9 +10,9 @@
         "architecture": "JavaScript DOM scoring/extraction engine, readerable preflight, JSDOM parser shim, metadata extraction, content cleanup, and fixture-driven expected HTML/metadata parity."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory-plus-runner-evidence-and-eight-fixtures-json-ld-video-lazy-media-ad-metadata-title-heading-semantics",
+        "status": "cloned-static-inventory-plus-runner-evidence-and-eight-fixtures-json-ld-video-lazy-media-ad-metadata-title-heading-out-of-band-figure-semantics",
         "total": 1984,
-        "mapped": 146,
+        "mapped": 155,
         "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories. The sparse checkout now also includes the upstream source files and package-lock.json needed by the canonical runner. `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies and `npm test` passed all 1984 upstream Mocha tests locally. The Mozilla normalize-spaces, parsely-metadata, mozilla-2, embedded-videos, videos-2, lazy-image-1, lazy-image-2, and lazy-image-3 source.html, expected.html, and expected-metadata.json fixtures are copied into the lane and mapped by native PHP tests.",
         "runner": "npm test",
         "inventory": {
@@ -37,7 +37,7 @@
         },
         "runnerStatus": {
             "executed": true,
-            "summary": "The old missing node_modules/mocha blocker is resolved. The sparse checkout was expanded to include index.js, Readability.js, Readability-readerable.js, JSDOMParser.js, package-lock.json, and LICENSE.md; upstream npm dependencies were installed from the lockfile; and the canonical upstream Mocha runner passes locally, including a 2026-05-22 rerun after the title-heading cleanup slice with 1984 passing tests in 35s.",
+            "summary": "The old missing node_modules/mocha blocker is resolved. The sparse checkout was expanded to include index.js, Readability.js, Readability-readerable.js, JSDOMParser.js, package-lock.json, and LICENSE.md; upstream npm dependencies were installed from the lockfile; and the canonical upstream Mocha runner passes locally, including a 2026-05-22 rerun after the out-of-band figure cleanup slice with 1984 passing tests in 37s.",
             "environment": {
                 "node": "22.20.0",
                 "npm": "10.9.3"
@@ -53,7 +53,7 @@
                 },
                 {
                     "command": "npm test",
-                    "result": "passed: 1984 Mocha tests, 0 failures; rerun on 2026-05-22 after the title-heading cleanup slice also passed with 1984 passing in 35s"
+                    "result": "passed: 1984 Mocha tests, 0 failures; rerun on 2026-05-22 after the out-of-band figure cleanup slice also passed with 1984 passing in 37s"
                 }
             ],
             "previousProbe": {
@@ -74,23 +74,24 @@
             "Mozilla test-pages/mozilla-2 source/expected/metadata fixture: OpenGraph site name and description metadata, document lang/dir extraction, readerable false classification, retained in-main header content markers, and exclusion of head comment text.",
             "Mozilla test-pages/embedded-videos source/expected/metadata fixture: readerable true classification, excerpt normalization, and preservation of the five expected allowed YouTube, YouTube-nocookie, and Vimeo iframe sources.",
             "Mozilla test-pages/videos-2 source/expected/metadata fixture: UTF-8 DOM parsing, JSON-LD author/publisher/datePublished metadata, article-body scoring, exact normalized text parity, and preservation of seven expected YouTube and Dailymotion iframe sources.",
-            "Mozilla test-pages/lazy-image-1 source/expected/metadata fixture: metadata description precedence over shorter OpenGraph/Twitter snippets, data-old-src lazy image promotion, expected article image sources retained, and Medium-style post-article recommendation/signup chrome removed.",
+            "Mozilla test-pages/lazy-image-1 source/expected/metadata fixture: metadata description precedence over shorter OpenGraph/Twitter snippets, data-old-src lazy image promotion, exact expected article image source rows retained, Medium-style out-of-band full-width figure wrappers removed, and post-article recommendation/signup chrome removed.",
             "Mozilla test-pages/lazy-image-2 source/expected/metadata fixture: HTML entity-decoded excerpt metadata, Kinja in-article ad wrapper removal, exact whitespace-normalized article text parity, and 56 expected responsive image rows with data-srcset/srcset parity.",
             "Mozilla test-pages/lazy-image-3 source/expected/metadata fixture: data-src jpg/png images are promoted to src, expected title/null metadata is preserved, and readerable remains false.",
             "Mozilla default video whitelist cleanup semantics: generic iframe/embed/object content is removed while allowed video hosts are retained for migration output.",
             "Mozilla lazy-image fixture semantics: single-image noscript fallbacks replace placeholder images while preserving the placeholder URL in data-old-src.",
             "Mozilla lazy media cleanup semantics: lazy data-srcset values are promoted to srcset so responsive images survive JavaScript-free extraction.",
             "WordPress/Kinja migration cleanup semantics: ad-container, ad-mobile, dfp-slot, and js_ad wrappers are removed before article scoring and block serialization.",
-            "Mozilla title/header cleanup semantics: the first h1/h2 whose text closely duplicates the extracted article title is removed from content, and remaining h1 nodes are demoted to h2 before WordPress block serialization."
+            "Mozilla title/header cleanup semantics: the first h1/h2 whose text closely duplicates the extracted article title is removed from content, and remaining h1 nodes are demoted to h2 before WordPress block serialization.",
+            "WordPress migration cleanup semantics: layout-only full-width figure wrappers with short captions are removed while editorial in-column figures remain available for block image output."
         ],
-        "warning": "The canonical upstream Mozilla Readability npm runner now passes locally against the upstream JavaScript implementation at this checkout. Native PHP progress still maps 21 local behavior tests and 146 local checks against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet."
+        "warning": "The canonical upstream Mozilla Readability npm runner now passes locally against the upstream JavaScript implementation at this checkout. Native PHP progress still maps 22 local behavior tests and 155 local checks against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and allowed video/lazy-loaded media, removes generic unsafe iframe/embed/object nodes, removes ad-container/ad-mobile/dfp-slot/js_ad wrappers, scores semantic content containers and article-body containers, parses UTF-8 HTML safely, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions with entity-decoded meta description precedence for excerpts, removes title-duplicate h1/h2 content headers and demotes remaining h1 nodes to h2, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors and JSON-LD author/publisher/datePublished selectors, maps the Mozilla normalize-spaces, parsely-metadata, mozilla-2, embedded-videos, videos-2, lazy-image-1, lazy-image-2, and lazy-image-3 fixtures, promotes lazy data-src/data-srcset media including short base64 placeholder cases, removes post-article recommendation/signup chrome after selected article wrappers, and emits simple WordPress blocks.",
-        "phpBehaviorTests": 21
+        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and allowed video/lazy-loaded media, removes generic unsafe iframe/embed/object nodes, removes ad-container/ad-mobile/dfp-slot/js_ad wrappers and layout-only full-width figure wrappers, scores semantic content containers and article-body containers, parses UTF-8 HTML safely, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions with entity-decoded meta description precedence for excerpts, removes title-duplicate h1/h2 content headers and demotes remaining h1 nodes to h2, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors and JSON-LD author/publisher/datePublished selectors, maps the Mozilla normalize-spaces, parsely-metadata, mozilla-2, embedded-videos, videos-2, lazy-image-1, lazy-image-2, and lazy-image-3 fixtures, promotes lazy data-src/data-srcset media including short base64 placeholder cases, removes post-article recommendation/signup chrome after selected article wrappers, and emits simple WordPress blocks.",
+        "phpBehaviorTests": 22
     },
-    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, in-article ad slots, duplicate post-title h1 cleanup, body h1-to-h2 demotion for block output, preserved allowed video embeds and lazy-loaded responsive images, JSON-LD publication metadata, post-article recommendation/signup chrome removal, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, OpenGraph site/lang/dir metadata, embedded-video source preservation, lazy-image-2 responsive image rows, and data-src image promotion.",
-    "nextTask": "Tighten lazy-image-1 exact expected-HTML parity by removing the remaining out-of-band Medium images and structural wrappers around the full-width figures, then broaden exact structural HTML parity for the copied lazy-image fixtures."
+    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, in-article ad slots, duplicate post-title h1 cleanup, body h1-to-h2 demotion for block output, layout-only full-width figure cleanup while retaining editorial in-column images, preserved allowed video embeds and lazy-loaded responsive images, JSON-LD publication metadata, post-article recommendation/signup chrome removal, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, OpenGraph site/lang/dir metadata, embedded-video source preservation, lazy-image-1 exact expected image rows, lazy-image-2 responsive image rows, and data-src image promotion.",
+    "nextTask": "Broaden exact structural HTML parity for the copied lazy-image fixtures, starting with wrapper/class cleanup around lazy-image-1 figures and then expanding to other image-heavy upstream pages."
 }

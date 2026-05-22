@@ -59,6 +59,13 @@ npm test
 1984 passing (35s)
 ```
 
+It was rerun on 2026-05-22 after the native out-of-band full-width figure cleanup slice and still passed:
+
+```text
+npm test
+1984 passing (37s)
+```
+
 ## PHP Mapping
 
 Current PHP tests map a narrow readerable/extraction slice:
@@ -77,23 +84,24 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/mozilla-2` copied into the lane and mapped for OpenGraph site name/description metadata, lang/dir extraction, false readerable classification, and preserved in-main header markers.
 - Mozilla `test-pages/embedded-videos` copied into the lane and mapped for readerable classification, excerpt normalization, and preservation of the five expected YouTube, YouTube-nocookie, and Vimeo iframe sources.
 - Mozilla `test-pages/videos-2` copied into the lane and mapped for UTF-8 DOM parsing, JSON-LD author/publisher/datePublished metadata, readerable classification, excerpt normalization, article-body selection, exact whitespace-normalized article text parity, and preservation of seven expected YouTube/Dailymotion iframe sources.
-- Mozilla `test-pages/lazy-image-1` copied into the lane and mapped for metadata description precedence over shorter OpenGraph/Twitter snippets, readerable classification, lazy image `data-old-src` promotion, expected article image source retention, and Medium-style post-article recommendation/signup chrome removal.
+- Mozilla `test-pages/lazy-image-1` copied into the lane and mapped for metadata description precedence over shorter OpenGraph/Twitter snippets, readerable classification, lazy image `data-old-src` promotion, exact expected article image source row retention, Medium-style out-of-band full-width figure wrapper removal, and post-article recommendation/signup chrome removal.
 - Mozilla `test-pages/lazy-image-2` copied into the lane and mapped for HTML entity-decoded excerpt metadata, readerable classification, Kinja in-article ad wrapper removal, exact whitespace-normalized article text parity, and 56 responsive image rows with `data-srcset`/`srcset` parity.
 - Mozilla `test-pages/lazy-image-3` copied into the lane and mapped for full-fixture `data-src` jpg/png image promotion, expected title/null metadata, and false readerable classification.
 - Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
+- Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading mappings.
-- Native PHP lane tests: 21 passing, 0 failing, 146 assertions.
-- Current root verification: `php tools/run-tests.php` passes 63 test files, 3526 assertions, 0 failures.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure mappings.
+- Native PHP lane tests: 22 passing, 0 failing, 155 assertions.
+- Current root verification: `php tools/run-tests.php` passes 69 test files, 3840 assertions, 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
-- Blocker: no readability-local execution blocker remains; exact expected-HTML parity is still incomplete for `lazy-image-1` out-of-band Medium images and full-width figure wrappers.
-- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, preserves lazy media/video fixtures, cleans platform chrome, and emits WordPress block output.
+- Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for `lazy-image-1` wrappers/classes and broader copied lazy-image fixtures.
+- Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, cleans platform chrome, and emits WordPress block output.
 
 ## Next Slice
 
-Tighten `lazy-image-1` exact expected-HTML parity by removing the remaining out-of-band Medium images and structural wrappers around full-width figures, then broaden exact structural HTML parity for the copied lazy-image fixtures.
+Broaden exact structural HTML parity for copied lazy-image fixtures, starting with wrapper/class cleanup around `lazy-image-1` figures and then expanding to other image-heavy upstream pages.
