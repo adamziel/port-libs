@@ -33,6 +33,90 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower("export import {foo} from 'bar'"));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower("export import foo from 'bar'"));
     },
+    'lowers upstream typescript runtime enum declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["A"] = 0] = "A";
+  Foo[Foo["B"] = 1] = "B";
+  return Foo;
+})(Foo || {});
+JS . "\n", $lowerer->lower('enum Foo { A, B }'));
+
+        $t->same(<<<'JS'
+export var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["A"] = 0] = "A";
+  Foo[Foo["B"] = 1] = "B";
+  return Foo;
+})(Foo || {});
+JS . "\n", $lowerer->lower('export enum Foo { A; B }'));
+
+        $t->same(<<<'JS'
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["A"] = 0] = "A";
+  Foo[Foo["B"] = 1] = "B";
+  Foo[Foo["C"] = 3.3] = "C";
+  Foo[Foo["D"] = 4.3] = "D";
+  Foo[Foo["E"] = 5.3] = "E";
+  return Foo;
+})(Foo || {});
+JS . "\n", $lowerer->lower('enum Foo { A, B, C = 3.3, D, E }'));
+
+        $t->same(<<<'JS'
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo["A"] = "x";
+  Foo[Foo["B"] = void 0] = "B";
+  return Foo;
+})(Foo || {});
+JS . "\n", $lowerer->lower("enum Foo { A = 'x', B }"));
+    },
+    'rejects malformed upstream typescript enum members' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('enum x { y z }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower("enum x { 'y' 'z' }"));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('enum x { y = 0 z }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower("enum x { 'y' = 0 'z' }"));
+    },
+    'inlines upstream same file enum member references' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+foo = 0 /* FOO */;
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["FOO"] = 0] = "FOO";
+  return Foo;
+})(Foo || {});
+bar = 0 /* FOO */;
+JS . "\n", $lowerer->lower('foo = Foo.FOO; enum Foo { FOO } bar = Foo.FOO'));
+
+        $lowered = $lowerer->lower(<<<'TS'
+enum a_num { x = 123 }
+enum b_num { x = 123 }
+enum a_str { x = 'abc' }
+inlined = [a_num.x, b_num['x'], a_str.x]
+not_inlined = [a_num?.x, b_num?.['x']]
+TS);
+
+        $t->contains('inlined = [123 /* x */, 123 /* x */, "abc" /* x */];', $lowered);
+        $t->contains("not_inlined = [a_num?.x, b_num?.['x']];", $lowered);
+    },
+    'erases non exported const enums while inlining same file accesses' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $lowered = $lowerer->lower(<<<'TS'
+const enum Mode {
+  Card,
+  Grid = 3,
+  List,
+}
+const config = { viewMode: Mode.Card, layout: Mode['Grid'] };
+TS);
+
+        $t->true(!str_contains($lowered, 'var Mode'));
+        $t->contains('const config = {viewMode:0 /* Card */, layout:3 /* Grid */}', $lowered);
+    },
     'lowers upstream typescript type annotation erasure subset' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -62,5 +146,27 @@ return [
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockEditProps'));
         $t->true(!str_contains($lowered, 'satisfies'));
+    },
+    'lowers wordpress runtime enum config without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-enum-config.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('var DisplayMode = /* @__PURE__ */ ((DisplayMode) => {', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Card"] = 0] = "Card";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Grid"] = 3] = "Grid";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["List"] = 4] = "List";', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress const enum config without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-const-enum-config.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->true(!str_contains($lowered, 'var DisplayMode'));
+        $t->contains('viewMode:0 /* Card */', $lowered);
+        $t->contains('layout:3 /* Grid */', $lowered);
+        $t->contains('fallback:4 /* List */', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
     },
 ];

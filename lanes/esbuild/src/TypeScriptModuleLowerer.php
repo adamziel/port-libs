@@ -11,11 +11,16 @@ final class TypeScriptModuleLowerer
      */
     private array $tokens = [];
     private string $source = '';
+    /**
+     * @var array<string, array<string, array{value:string, comment:string}>>
+     */
+    private array $enumConstants = [];
 
     public function lower(string $source): string
     {
         $this->source = $source;
         $this->tokens = (new JsLexer())->tokenize($source);
+        $this->enumConstants = $this->collectEnumConstants();
 
         $lines = [];
         $exportAssignments = [];
@@ -25,12 +30,24 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            $end = $this->findStatementEndOrLineBreak($i);
-            $effectiveEnd = $this->withoutTrailingSemicolon($end);
             $first = $this->tokens[$i] ?? null;
             if ($first === null) {
                 continue;
             }
+
+            $enumStatement = $this->enumStatementAt($i);
+            if ($enumStatement !== null) {
+                [$exported, $declared, $const, $enumIndex] = $enumStatement;
+                $end = $this->enumStatementEnd($enumIndex);
+                if (!$declared && (!$const || $exported)) {
+                    $lines[] = $this->lowerEnumStatement($enumIndex, $end, $exported);
+                }
+                $i = $end;
+                continue;
+            }
+
+            $end = $this->findStatementEndOrLineBreak($i);
+            $effectiveEnd = $this->withoutTrailingSemicolon($end);
 
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === '=') {
                 if ($i + 2 > $effectiveEnd) {
@@ -67,7 +84,7 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            $statement = $this->containsErasableTypeScriptSyntax($i, $effectiveEnd)
+            $statement = $this->containsErasableTypeScriptSyntax($i, $effectiveEnd) || $this->containsInlineableEnumReference($i, $effectiveEnd)
                 ? $this->printRuntimeStatement($i, $effectiveEnd)
                 : $this->originalStatementText($i, $end);
             if ($statement !== '') {
@@ -105,6 +122,313 @@ final class TypeScriptModuleLowerer
         $target = $this->printTokenRange($targetStart, $cursor - 1);
 
         return [$local->text, $target, $cursor];
+    }
+
+    /**
+     * @return array{0:bool, 1:bool, 2:bool, 3:int}|null
+     */
+    private function enumStatementAt(int $start): ?array
+    {
+        $cursor = $start;
+        $exported = false;
+        $declared = false;
+        $const = false;
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            $exported = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
+            $declared = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'const'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'enum'
+        ) {
+            $const = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'enum') {
+            return null;
+        }
+
+        return [$exported, $declared, $const, $cursor];
+    }
+
+    private function enumStatementEnd(int $enumIndex): int
+    {
+        if (($this->tokens[$enumIndex + 2] ?? null)?->text !== '{') {
+            throw new \InvalidArgumentException('Expected TypeScript enum block');
+        }
+
+        $close = $this->findMatchingPunctuator($enumIndex + 2, '{', '}');
+
+        return ($this->tokens[$close + 1] ?? null)?->text === ';' ? $close + 1 : $close;
+    }
+
+    private function lowerEnumStatement(int $enumIndex, int $effectiveEnd, bool $exported): string
+    {
+        $name = $this->tokens[$enumIndex + 1] ?? null;
+        if ($name?->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected TypeScript enum name');
+        }
+        if (($this->tokens[$enumIndex + 2] ?? null)?->text !== '{') {
+            throw new \InvalidArgumentException('Expected TypeScript enum block');
+        }
+
+        $open = $enumIndex + 2;
+        $close = $this->findMatchingPunctuator($open, '{', '}');
+        if ($close > $effectiveEnd) {
+            throw new \InvalidArgumentException('TypeScript enum block must end inside its statement');
+        }
+
+        $members = $this->parseEnumMembers($open + 1, $close, $name->text);
+        $parameter = $this->enumParameterName($name->text, $members);
+        $lines = [
+            ($exported ? 'export var ' : 'var ') . $name->text . ' = ' . ($this->enumMembersArePure($members) ? '/* @__PURE__ */ ' : '') . '((' . $parameter . ') => {',
+        ];
+
+        foreach ($members as $member) {
+            $memberName = $this->quoteJsString($member['name']);
+            if ($member['assignmentKind'] === 'string') {
+                $lines[] = '  ' . $parameter . '[' . $memberName . '] = ' . $member['assignment'] . ';';
+            } else {
+                $lines[] = '  ' . $parameter . '[' . $parameter . '[' . $memberName . '] = ' . $member['assignment'] . '] = ' . $memberName . ';';
+            }
+        }
+
+        $lines[] = '  return ' . $parameter . ';';
+        $lines[] = '})(' . $name->text . ' || {});';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @return array<string, array<string, array{value:string, comment:string}>>
+     */
+    private function collectEnumConstants(): array
+    {
+        $constants = [];
+        $count = count($this->tokens);
+        for ($i = 0; $i < $count; $i++) {
+            $statement = $this->enumStatementAt($i);
+            if ($statement === null) {
+                continue;
+            }
+
+            [, $declared, , $enumIndex] = $statement;
+            $name = $this->tokens[$enumIndex + 1] ?? null;
+            if ($declared || $name?->kind !== 'identifier' || ($this->tokens[$enumIndex + 2] ?? null)?->text !== '{') {
+                continue;
+            }
+
+            $open = $enumIndex + 2;
+            $close = $this->findMatchingPunctuator($open, '{', '}');
+            foreach ($this->parseEnumMembers($open + 1, $close, $name->text) as $member) {
+                if (!in_array($member['assignmentKind'], ['number', 'string'], true)) {
+                    continue;
+                }
+
+                $constants[$name->text][$member['name']] = [
+                    'value' => $member['assignment'],
+                    'comment' => $this->enumInlineComment($member['name']),
+                ];
+            }
+            $i = $close;
+        }
+
+        return $constants;
+    }
+
+    /**
+     * @return list<array{name:string, assignment:string, assignmentKind:string}>
+     */
+    private function parseEnumMembers(int $start, int $close, string $enumName): array
+    {
+        $members = [];
+        $cursor = $start;
+        $previousNumeric = -1.0;
+
+        while ($cursor < $close) {
+            $separator = $this->tokens[$cursor] ?? null;
+            if ($separator?->text === ',' || $separator?->text === ';') {
+                $cursor++;
+                continue;
+            }
+
+            $nameToken = $this->tokens[$cursor] ?? null;
+            if ($nameToken === null || ($nameToken->kind !== 'identifier' && $nameToken->kind !== 'string')) {
+                throw new \InvalidArgumentException('Expected TypeScript enum member name');
+            }
+
+            $memberName = $this->enumMemberName($nameToken);
+            $cursor++;
+            $assignmentKind = 'number';
+
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $expressionStart = $cursor + 1;
+                if ($expressionStart >= $close) {
+                    throw new \InvalidArgumentException('Expected TypeScript enum member value');
+                }
+
+                $expressionEnd = $this->enumExpressionEnd($expressionStart, $close);
+                [$assignment, $assignmentKind, $numericValue] = $this->enumMemberAssignment($expressionStart, $expressionEnd, $enumName);
+                $previousNumeric = $numericValue;
+                $cursor = $expressionEnd + 1;
+            } elseif ($previousNumeric !== null) {
+                $previousNumeric++;
+                $assignment = $this->formatEnumNumber($previousNumeric);
+            } else {
+                $assignment = 'void 0';
+                $assignmentKind = 'void';
+            }
+
+            $members[] = [
+                'name' => $memberName,
+                'assignment' => $assignment,
+                'assignmentKind' => $assignmentKind,
+            ];
+
+            $after = $this->tokens[$cursor] ?? null;
+            if ($cursor < $close && $after?->text !== ',' && $after?->text !== ';') {
+                throw new \InvalidArgumentException('Expected "," after TypeScript enum member');
+            }
+            if ($cursor < $close) {
+                $cursor++;
+            }
+        }
+
+        return $members;
+    }
+
+    private function enumExpressionEnd(int $start, int $close): int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $close; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && ($text === ',' || $text === ';')) {
+                return $i - 1;
+            }
+
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $close - 1;
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:?float}
+     */
+    private function enumMemberAssignment(int $start, int $end, string $enumName): array
+    {
+        if ($this->hasAdjacentEnumValueTokens($start, $end)) {
+            throw new \InvalidArgumentException('Expected "," after TypeScript enum member');
+        }
+
+        if ($start === $end) {
+            $token = $this->tokens[$start];
+            if ($token->kind === 'number') {
+                return [$this->formatEnumNumber($token->numberValue ?? (float) $token->text), 'number', $token->numberValue];
+            }
+            if ($token->kind === 'string') {
+                return [$this->quoteJsString($this->stringTokenValue($token)), 'string', null];
+            }
+            if ($token->kind === 'identifier' && $token->text !== $enumName) {
+                return [$token->text, 'unknown', null];
+            }
+        }
+
+        if ($end === $start + 1
+            && in_array(($this->tokens[$start] ?? null)?->text, ['+', '-'], true)
+            && ($this->tokens[$end] ?? null)?->kind === 'number'
+        ) {
+            $value = ($this->tokens[$end]->numberValue ?? (float) $this->tokens[$end]->text);
+            if ($this->tokens[$start]->text === '-') {
+                $value *= -1;
+            }
+
+            return [$this->formatEnumNumber($value), 'number', $value];
+        }
+
+        return [$this->printTokenRange($start, $end), 'unknown', null];
+    }
+
+    private function hasAdjacentEnumValueTokens(int $start, int $end): bool
+    {
+        for ($i = $start; $i < $end; $i++) {
+            $left = $this->tokens[$i] ?? null;
+            $right = $this->tokens[$i + 1] ?? null;
+            if ($left === null || $right === null) {
+                continue;
+            }
+
+            if (in_array($left->kind, ['identifier', 'number', 'string'], true)
+                && in_array($right->kind, ['identifier', 'number', 'string'], true)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{name:string, assignment:string, assignmentKind:string}> $members
+     */
+    private function enumParameterName(string $enumName, array $members): string
+    {
+        foreach ($members as $member) {
+            if ($member['name'] === $enumName) {
+                return '_' . $enumName;
+            }
+        }
+
+        return $enumName;
+    }
+
+    /**
+     * @param list<array{name:string, assignment:string, assignmentKind:string}> $members
+     */
+    private function enumMembersArePure(array $members): bool
+    {
+        foreach ($members as $member) {
+            if ($member['assignmentKind'] === 'unknown') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function enumMemberName(Token $token): string
+    {
+        return $token->kind === 'string' ? $this->stringTokenValue($token) : $token->text;
+    }
+
+    private function stringTokenValue(Token $token): string
+    {
+        return stripcslashes(substr($token->text, 1, -1));
+    }
+
+    private function quoteJsString(string $value): string
+    {
+        return '"' . addcslashes($value, "\\\"") . '"';
+    }
+
+    private function formatEnumNumber(float $value): string
+    {
+        if (floor($value) === $value) {
+            return (string) (int) $value;
+        }
+
+        return rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
     }
 
     private function importEqualsTargetEnd(int $start): int
@@ -203,6 +527,18 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $enumReference = $this->enumReferenceAt($i, $end);
+            if ($enumReference !== null) {
+                [$text, $lastIndex] = $enumReference;
+                if ($previous !== null && $this->needsSpace($previous, $text)) {
+                    $parts[] = ' ';
+                }
+                $parts[] = $text;
+                $previous = $text;
+                $i = $lastIndex;
+                continue;
+            }
+
             if ($token->text === '?' && ($this->tokens[$i + 1] ?? null)?->text === ':' && $this->isOptionalTypeMarker($i, $start)) {
                 continue;
             }
@@ -244,6 +580,61 @@ final class TypeScriptModuleLowerer
         }
 
         return $statement;
+    }
+
+    private function containsInlineableEnumReference(int $start, int $end): bool
+    {
+        for ($i = $start; $i <= $end; $i++) {
+            if ($this->enumReferenceAt($i, $end) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function enumReferenceAt(int $index, int $end): ?array
+    {
+        $enum = $this->tokens[$index] ?? null;
+        if ($enum?->kind !== 'identifier'
+            || ($this->tokens[$index - 1] ?? null)?->text === '.'
+            || !isset($this->enumConstants[$enum->text])
+        ) {
+            return null;
+        }
+
+        $member = null;
+        $lastIndex = null;
+        if ($index + 2 <= $end
+            && ($this->tokens[$index + 1] ?? null)?->text === '.'
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'identifier'
+        ) {
+            $member = $this->tokens[$index + 2]->text;
+            $lastIndex = $index + 2;
+        } elseif ($index + 3 <= $end
+            && ($this->tokens[$index + 1] ?? null)?->text === '['
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'string'
+            && ($this->tokens[$index + 3] ?? null)?->text === ']'
+        ) {
+            $member = $this->stringTokenValue($this->tokens[$index + 2]);
+            $lastIndex = $index + 3;
+        }
+
+        if ($member === null || $lastIndex === null || !isset($this->enumConstants[$enum->text][$member])) {
+            return null;
+        }
+
+        $constant = $this->enumConstants[$enum->text][$member];
+
+        return [$constant['value'] . ' /* ' . $constant['comment'] . ' */', $lastIndex];
+    }
+
+    private function enumInlineComment(string $name): string
+    {
+        return str_replace(['/*', '*/'], ['/ *', '* /'], $name);
     }
 
     /**
@@ -328,6 +719,10 @@ final class TypeScriptModuleLowerer
         }
 
         if ($previousToken->kind !== 'identifier') {
+            return false;
+        }
+
+        if ($this->enclosingOpenPunctuator($index, '{', '}', $statementStart) !== null) {
             return false;
         }
 
