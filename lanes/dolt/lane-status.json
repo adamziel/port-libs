@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "dolt",
-    "estimatedProgress": 8,
-    "suiteProgress": "cloned static inventory: 613 upstream executable test files counted; bounded upstream Go diff/table/schema/enginetest tests, including the focused skinny diff enginetest, and 13 focused BATS diff/rename/primary-key cases pass; full Go/BATS runners not executed",
-    "phpPass": 22,
+    "estimatedProgress": 9,
+    "suiteProgress": "cloned static inventory: 613 upstream executable test files counted; bounded upstream Go diff/table/schema/dtables/dtablefunctions/enginetest tests freshly reran and pass, including DiffTableFunction predicate coverage; complete local BATS diff.bats, rename-tables.bats, and primary-key-changes.bats slice freshly reran with 108 planned tests, 107 runnable passes, and 1 upstream skip after confirming expect; full Go/BATS runners not executed",
+    "phpPass": 26,
     "phpFail": 0,
-    "wordpressScenarios": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show wp_posts publish/remove/import row changes, wp_posts to wp_content_posts table rename summary, wp_plugin_events schema-drift projection, and skinny post-review diffs that keep requested status while hiding unchanged metadata noise.",
-    "phase": "cloned static upstream inventory + bounded diff/schema/table upstream runner + schema-aware and skinny diff projection slice",
-    "audit": "audited 2026-05-22: 22 Dolt PHP behavior tests pass with 93 assertions; bounded upstream Go and BATS diff/schema/table/rename/primary-key runner evidence passes, including a rerun of the focused skinny diff enginetest; no full upstream runner parity",
-    "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* row projection, tag-aware schema column diffs, primary-key set diffability, table delta matching/filtering, schema-aware target row projection, Dolt warning collection for coercion/primary-key changes, skinny diff schema projection with include-cols, and WordPress row/table/schema-drift/skinny fixtures.",
-    "blocker": "No full upstream runner parity: full Go/BATS suites still require hydrating and compiling the full Dolt workspace and running Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice. Root PHP suite is green for this Dolt batch.",
+    "wordpressScenarios": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show wp_posts publish/remove/import row changes, wp_posts to wp_content_posts table rename summary, wp_plugin_events schema-drift projection, skinny post-review diffs that keep requested status while hiding unchanged metadata noise, and filtered publish-impacting review rows.",
+    "phase": "cloned static upstream inventory + bounded diff/schema/table/dtablefunctions upstream runner + schema-aware, skinny, and where/limit diff projection slice",
+    "audit": "audited 2026-05-22: 26 Dolt PHP behavior tests pass with 118 assertions; root PHP harness passed with 67 files and 3,687 assertions; bounded upstream Go diff/schema/table/dtablefunction/enginetest evidence freshly reran and passes, including DiffTableFunction predicate coverage; local three-file BATS diff/rename/primary-key slice freshly reran after expect confirmation and passes; no full upstream runner parity",
+    "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* row projection, tag-aware schema column diffs, primary-key set diffability, table delta matching/filtering, schema-aware target row projection, Dolt warning collection for coercion/primary-key changes, skinny diff schema projection with include-cols, projected row where/limit filtering, and WordPress row/table/schema-drift/skinny/filtered-review fixtures.",
+    "blocker": "No full upstream runner parity: full go test ./... and the full upstream BATS directory still require hydrating/compiling the full Dolt workspace and running Python, parquet, Hadoop, server, compatibility, client integration, and benchmark-style dependencies beyond this modest lane slice. Root PHP suite is green for this Dolt runner batch.",
     "latestCommit": "bc06077",
-    "nextTask": "Map dolt diff / dolt_diff() row filtering such as --where, --limit, and table-function predicate pushdown from focused upstream diff tests."
+    "nextTask": "Map broader dolt diff output modes or dolt_diff_summary / dolt_diff_stat table-function behavior from focused upstream tests."
 }

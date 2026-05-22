@@ -206,6 +206,20 @@ final class TableDiff
     }
 
     /**
+     * Apply a Dolt-style row predicate and row limit to already-projected
+     * `DOLT_DIFF_*` / `dolt_diff()` rows. This intentionally works on the
+     * `to_*` and `from_*` projected column names that upstream exposes to
+     * `--where` and table-function predicates.
+     *
+     * @param list<array<string, scalar|null>> $rows
+     * @return list<array<string, scalar|null>>
+     */
+    public function filterDiffTableRows(array $rows, ?string $where = null, ?int $limit = null): array
+    {
+        return (new DiffRowFilter())->apply($rows, $where, $limit);
+    }
+
+    /**
      * @param list<array<string, scalar|null>> $rows
      * @param non-empty-string|list<non-empty-string> $primaryKey
      * @return array<string, array<string, scalar|null>>

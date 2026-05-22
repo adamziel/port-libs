@@ -9,6 +9,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native table-delta matching that distinguishes exact-name changes, tag-overlap renames, drops, and adds.
 - Native schema-aware row projection that maps historical rows into a target diff schema and reports Dolt-style warnings for coercion and primary-key-set changes.
 - Native skinny diff projection that hides unchanged same-type columns while preserving primary keys, changed columns, added columns, and reviewer-requested `--include-cols`.
+- Native projected row filtering that applies Dolt-style `--where` predicates and limits after diff rows are shaped.
 
 ## Scenario Fixtures
 
@@ -20,7 +21,9 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-plugin-schema-drift.php` returns schema-aware diff rows plus warnings so a migration review UI can explain schema drift without shelling out to Dolt.
 - `fixtures/wp-skinny-diff.php` models a Data Liberation import review where the post title and import batch changed while GUID/order/comment-count noise stayed constant.
 - `examples/wordpress-skinny-diff.php` returns skinny Dolt-shaped rows that keep `post_status` via include-cols so a reviewer can confirm publication state without seeing unchanged metadata.
+- `fixtures/wp-filtered-review-diff.php` models a publish-impacting review where draft/private churn is hidden and only public-content changes are paged into the reviewer queue.
+- `examples/wordpress-filtered-diff-review.php` returns the Dolt-shaped rows after applying the fixture's `to_post_status = 'publish' OR from_post_status = 'publish'` predicate and review limit.
 
 ## Next Task
 
-Map `dolt diff` / `dolt_diff()` row filtering such as `--where`, `--limit`, and table-function predicate pushdown from focused upstream diff tests.
+Map broader `dolt diff` output modes or `dolt_diff_summary` / `dolt_diff_stat` table-function behavior from focused upstream tests.

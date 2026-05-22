@@ -249,6 +249,92 @@ return [
         $t->same(TableDeltaMatcher::DIFF_MODIFIED, TableDeltaMatcher::changeTypeToDiffType('modified_new'));
         $t->same('', TableDeltaMatcher::changeTypeToDiffType('none'));
     },
+    'where clauses filter projected to and from primary key columns' => static function (TestRunner $t): void {
+        $differ = new TableDiff();
+        $rows = $differ->diffTableRows(
+            [['pk' => 4, 'c1' => 44]],
+            [['pk' => 5, 'c1' => 55]],
+            'pk',
+            ['pk', 'c1'],
+        );
+
+        $fromOnly = $differ->filterDiffTableRows($rows, 'from_pk=4');
+        $toOnly = $differ->filterDiffTableRows($rows, 'to_pk=5');
+        $both = $differ->filterDiffTableRows($rows, 'from_pk=4 OR to_pk=5');
+
+        $t->same([TableDiff::DIFF_REMOVED], array_column($fromOnly, 'diff_type'));
+        $t->same(44, $fromOnly[0]['from_c1']);
+        $t->same([TableDiff::DIFF_ADDED], array_column($toOnly, 'diff_type'));
+        $t->same(55, $toOnly[0]['to_c1']);
+        $t->same([TableDiff::DIFF_REMOVED, TableDiff::DIFF_ADDED], array_column($both, 'diff_type'));
+        $t->same([], $differ->filterDiffTableRows($rows, 'from_pk=5'));
+        $t->throws(InvalidArgumentException::class, static fn () => $differ->filterDiffTableRows($rows, 'pk=4'));
+        $t->throws(InvalidArgumentException::class, static fn () => $differ->filterDiffTableRows($rows, 'some nonsense'));
+    },
+    'where clauses support null checks and compound primary key predicates' => static function (TestRunner $t): void {
+        $differ = new TableDiff();
+        $rows = $differ->diffTableRows(
+            [
+                ['pk' => 1, 'c1' => 2, 'c2' => 3],
+                ['pk' => 7, 'c1' => 8, 'c2' => 9],
+            ],
+            [
+                ['pk' => 4, 'c1' => 5, 'c2' => 6],
+                ['pk' => 7, 'c1' => 0, 'c2' => 9],
+            ],
+            'pk',
+            ['pk', 'c1', 'c2'],
+        );
+
+        $removed = $differ->filterDiffTableRows($rows, 'to_pk IS NULL');
+        $added = $differ->filterDiffTableRows($rows, 'from_pk IS NULL');
+        $notAdded = $differ->filterDiffTableRows($rows, 'from_pk IS NOT NULL');
+        $greaterThan = $differ->filterDiffTableRows($rows, 'to_pk > 1');
+
+        $t->same([TableDiff::DIFF_REMOVED], array_column($removed, 'diff_type'));
+        $t->same(1, $removed[0]['from_pk']);
+        $t->same([TableDiff::DIFF_ADDED], array_column($added, 'diff_type'));
+        $t->same(4, $added[0]['to_pk']);
+        $t->same([TableDiff::DIFF_REMOVED, TableDiff::DIFF_MODIFIED], array_column($notAdded, 'diff_type'));
+        $t->same([TableDiff::DIFF_ADDED, TableDiff::DIFF_MODIFIED], array_column($greaterThan, 'diff_type'));
+
+        $compound = $differ->diffTableRows(
+            [],
+            [
+                ['pk1' => 1, 'pk2' => 2, 'c1' => 3],
+                ['pk1' => 4, 'pk2' => 5, 'c1' => 6],
+                ['pk1' => 7, 'pk2' => 8, 'c1' => 9],
+            ],
+            ['pk1', 'pk2'],
+            ['pk1', 'pk2', 'c1'],
+        );
+        $exact = $differ->filterDiffTableRows($compound, 'to_pk1 = 1 and to_pk2 = 2');
+        $range = $differ->filterDiffTableRows($compound, 'to_pk1 > 1 and to_pk2 < 10');
+
+        $t->same(1, count($exact));
+        $t->same(2, $exact[0]['to_pk2']);
+        $t->same([4, 7], array_column($range, 'to_pk1'));
+    },
+    'diff row limit is applied after where filtering' => static function (TestRunner $t): void {
+        $differ = new TableDiff();
+        $rows = $differ->diffTableRows(
+            [],
+            [
+                ['pk' => 0, 'c1' => 0],
+                ['pk' => 1, 'c1' => 1],
+                ['pk' => 2, 'c1' => 2],
+            ],
+            'pk',
+            ['pk', 'c1'],
+        );
+
+        $limited = $differ->filterDiffTableRows($rows, 'to_pk > 0', 1);
+
+        $t->same(1, count($limited));
+        $t->same(1, $limited[0]['to_pk']);
+        $t->same([], $differ->filterDiffTableRows($rows, null, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $differ->filterDiffTableRows($rows, null, -1));
+    },
     'wordpress table delta fixture detects renamed content table' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/wp-table-deltas.php';
         $summaries = (new TableDeltaMatcher())->summaries($fixture['fromTables'], $fixture['toTables']);
@@ -548,6 +634,29 @@ return [
         $t->same('Liberated launch page', $rows[0]['to_post_title']);
         $t->true(!array_key_exists('to_guid', $rows[0]));
         $t->same([], $warnings);
+    },
+    'wordpress filtered diff fixture limits publish-impacting review rows' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-filtered-review-diff.php';
+        $differ = new TableDiff();
+        $rows = $differ->diffTableRows(
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            'ID',
+            $fixture['columns'],
+            $fixture['fromCommit'],
+            null,
+            $fixture['toCommit'],
+            null,
+        );
+
+        $filtered = $differ->filterDiffTableRows($rows, $fixture['where'], $fixture['limit']);
+
+        $t->same($fixture['expectedChangedIds'], array_map(
+            static fn (array $row): int => (int) ($row['to_ID'] ?? $row['from_ID']),
+            $filtered,
+        ));
+        $t->same('Published resource refresh', $filtered[0]['to_post_title']);
+        $t->same(TableDiff::DIFF_MODIFIED, $filtered[0]['diff_type']);
     },
     'primary key set changes report dolt warning and stop non-fuzzy diffs' => static function (TestRunner $t): void {
         $fromSchema = TableSchema::fromColumns([
