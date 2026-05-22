@@ -6,6 +6,11 @@ namespace PortLibs\Rclone;
 
 final class MemoryProvider
 {
+    public const ERROR_CANT_MOVE = "can't move object - incompatible remotes";
+    public const ERROR_CANT_COPY = "can't copy object - incompatible remotes";
+    public const ERROR_CANT_DIR_MOVE = "can't move directory - incompatible remotes";
+    public const ERROR_DIR_EXISTS = "can't copy directory - destination already exists";
+
     /**
      * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
      */
@@ -32,16 +37,33 @@ final class MemoryProvider
     private array $openLog = [];
 
     private readonly HashSet $supportedHashes;
+    private readonly bool $serverSideMove;
+    private readonly bool $serverSideCopy;
+    private readonly bool $serverSideDirMove;
+    private readonly ?string $serverSideMoveError;
+    private readonly ?string $serverSideCopyError;
+    private readonly ?string $serverSideDirMoveError;
 
     public function __construct(
         private readonly bool $caseInsensitive = false,
         ?HashSet $supportedHashes = null,
-        private readonly bool $serverSideMove = true,
+        bool $serverSideMove = true,
+        ?bool $serverSideCopy = null,
+        ?bool $serverSideDirMove = null,
+        ?string $serverSideMoveError = null,
+        ?string $serverSideCopyError = null,
+        ?string $serverSideDirMoveError = null,
     )
     {
         $this->supportedHashes = $supportedHashes === null
             ? HashSet::supported()
             : new HashSet(...$supportedHashes->toArray());
+        $this->serverSideMove = $serverSideMove;
+        $this->serverSideCopy = $serverSideCopy ?? $serverSideMove;
+        $this->serverSideDirMove = $serverSideDirMove ?? $serverSideMove;
+        $this->serverSideMoveError = $serverSideMoveError;
+        $this->serverSideCopyError = $serverSideCopyError;
+        $this->serverSideDirMoveError = $serverSideDirMoveError;
     }
 
     public function supportedHashes(): HashSet
@@ -126,7 +148,22 @@ final class MemoryProvider
 
     public function supportsServerSideMove(): bool
     {
+        return $this->serverSideMove || $this->serverSideCopy;
+    }
+
+    public function supportsDirectServerSideMove(): bool
+    {
         return $this->serverSideMove;
+    }
+
+    public function supportsServerSideCopy(): bool
+    {
+        return $this->serverSideCopy;
+    }
+
+    public function supportsServerSideDirMove(): bool
+    {
+        return $this->serverSideDirMove;
     }
 
     public function get(string $path): string
@@ -154,6 +191,48 @@ final class MemoryProvider
         $targetInfo = $target->putEntry($targetPath, $entry);
         $targetPath = $target->canonicalPath($targetPath);
 
+        $this->forget($sourcePath);
+
+        return $targetInfo;
+    }
+
+    public function serverSideMoveTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
+    {
+        $sourcePath = $this->canonicalPath($sourcePath);
+        $targetPath = $target->normalize($targetPath);
+        if ($this === $target && $sourcePath === $targetPath) {
+            return $this->info($sourcePath);
+        }
+
+        $mayFallbackToCopy = false;
+        if ($this === $target && $target->serverSideMove) {
+            try {
+                $target->throwConfiguredError($target->serverSideMoveError);
+
+                return $this->renameObject($sourcePath, $targetPath);
+            } catch (\RuntimeException $throwable) {
+                if (!self::isCantMoveException($throwable)) {
+                    throw $throwable;
+                }
+                $mayFallbackToCopy = true;
+            }
+        }
+
+        if (!$mayFallbackToCopy && !$target->serverSideCopy) {
+            throw new \RuntimeException(self::ERROR_CANT_MOVE);
+        }
+
+        if ($target->serverSideCopy) {
+            try {
+                $target->throwConfiguredError($target->serverSideCopyError);
+            } catch (\RuntimeException $throwable) {
+                if (!self::isCantCopyException($throwable)) {
+                    throw $throwable;
+                }
+            }
+        }
+
+        $targetInfo = $this->copyTo($sourcePath, $target, $targetPath);
         $this->forget($sourcePath);
 
         return $targetInfo;
@@ -220,6 +299,42 @@ final class MemoryProvider
         }
 
         return $this->directoryInfo($targetPath);
+    }
+
+    public function serverSideDirMove(string $sourcePath, string $targetPath): ObjectInfo
+    {
+        if (!$this->serverSideDirMove) {
+            throw new \RuntimeException(self::ERROR_CANT_DIR_MOVE);
+        }
+
+        $this->throwConfiguredError($this->serverSideDirMoveError);
+
+        return $this->renameDirectory($sourcePath, $targetPath);
+    }
+
+    public function rmdir(string $path): ObjectInfo
+    {
+        $path = $this->canonicalDirectoryPath($path);
+        if (!$this->directoryExists($path)) {
+            throw new \RuntimeException("Directory not found: {$path}");
+        }
+        foreach (array_keys($this->objects) as $objectPath) {
+            if (self::pathIsOrUnder($objectPath, $path)) {
+                throw new \RuntimeException("Directory not empty: {$path}");
+            }
+        }
+        foreach (array_keys($this->directories) as $directoryPath) {
+            if ($directoryPath !== $path && self::pathIsOrUnder($directoryPath, $path)) {
+                throw new \RuntimeException("Directory not empty: {$path}");
+            }
+        }
+
+        $info = $this->directoryInfo($path);
+        if ($path !== '') {
+            $this->forgetDirectory($path);
+        }
+
+        return $info;
     }
 
     public function openReader(string $path, int $offset = 0, ?int $length = null): object
@@ -527,6 +642,33 @@ final class MemoryProvider
         }
 
         return max(0, (int) $options['readErrorAfterBytes']);
+    }
+
+    private function throwConfiguredError(?string $message): void
+    {
+        if ($message !== null && $message !== '') {
+            throw new \RuntimeException($message);
+        }
+    }
+
+    public static function isCantMoveException(\Throwable $throwable): bool
+    {
+        return $throwable->getMessage() === self::ERROR_CANT_MOVE;
+    }
+
+    public static function isCantCopyException(\Throwable $throwable): bool
+    {
+        return $throwable->getMessage() === self::ERROR_CANT_COPY;
+    }
+
+    public static function isCantDirMoveException(\Throwable $throwable): bool
+    {
+        return $throwable->getMessage() === self::ERROR_CANT_DIR_MOVE;
+    }
+
+    public static function isDirExistsException(\Throwable $throwable): bool
+    {
+        return $throwable->getMessage() === self::ERROR_DIR_EXISTS;
     }
 
     private function canonicalPath(string $path): string

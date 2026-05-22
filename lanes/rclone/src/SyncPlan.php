@@ -339,9 +339,14 @@ final class SyncPlan
             $renameId = $this->trackRenameId($source, $sourceInfo, $strategy, $commonHash);
             $renameSource = $this->popRenameCandidate($renameMap, $renameId, $sourceInfo, $strategy, $modifyWindowSeconds);
             if ($renameSource !== null) {
-                $renamed[] = $target->moveTo($renameSource->path, $target, $sourceInfo->path);
-                unset($targetOnly[$renameSource->path]);
-                continue;
+                try {
+                    $renamed[] = $target->serverSideMoveTo($renameSource->path, $target, $sourceInfo->path);
+                    unset($targetOnly[$renameSource->path]);
+                    continue;
+                } catch (\RuntimeException) {
+                    // Upstream tryRename logs the failed server-side rename and lets the
+                    // normal upload/delete-after path handle the source and stale target.
+                }
             }
 
             $copied[] = $source->copyTo($sourceInfo->path, $target, $sourceInfo->path);
@@ -370,6 +375,83 @@ final class SyncPlan
             'deleted' => $deleted,
             'trackRenamesEnabled' => true,
             'disabledReason' => null,
+        ];
+    }
+
+    /**
+     * @return array{usedDirMove: bool, fallbackReason: ?string, moved: list<ObjectInfo>}
+     */
+    public function moveDirectory(MemoryProvider $provider, string $sourceDir, string $targetDir): array
+    {
+        $sourceDir = self::normalizePath($sourceDir);
+        $targetDir = self::normalizePath($targetDir);
+
+        try {
+            $moved = $provider->serverSideDirMove($sourceDir, $targetDir);
+
+            return [
+                'usedDirMove' => true,
+                'fallbackReason' => null,
+                'moved' => [$moved],
+            ];
+        } catch (\RuntimeException $throwable) {
+            if (
+                !MemoryProvider::isCantDirMoveException($throwable)
+                && !MemoryProvider::isDirExistsException($throwable)
+            ) {
+                throw $throwable;
+            }
+            $fallbackReason = $throwable->getMessage();
+        }
+
+        $provider->directoryInfo($sourceDir);
+
+        $directories = array_values(array_filter(
+            $provider->directories($sourceDir),
+            static fn (ObjectInfo $info): bool => self::pathUnderPrefix($info->path, $sourceDir),
+        ));
+        usort(
+            $directories,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathLevel($a->path) <=> self::pathLevel($b->path),
+        );
+        foreach ($directories as $directory) {
+            $provider->mkdir(self::replacePathPrefix($directory->path, $sourceDir, $targetDir), [
+                'modTime' => $directory->modTime,
+                'mimeType' => $directory->mimeType,
+                'metadata' => $directory->metadata,
+                'id' => $directory->id,
+            ]);
+        }
+
+        $objects = array_values(array_filter(
+            $provider->list($sourceDir),
+            static fn (ObjectInfo $info): bool => self::pathUnderPrefix($info->path, $sourceDir),
+        ));
+
+        $moved = [];
+        foreach ($objects as $object) {
+            $moved[] = $provider->serverSideMoveTo(
+                $object->path,
+                $provider,
+                self::replacePathPrefix($object->path, $sourceDir, $targetDir),
+            );
+        }
+
+        usort(
+            $directories,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathLevel($b->path) <=> self::pathLevel($a->path),
+        );
+        foreach ($directories as $directory) {
+            try {
+                $provider->rmdir($directory->path);
+            } catch (\RuntimeException) {
+            }
+        }
+
+        return [
+            'usedDirMove' => false,
+            'fallbackReason' => $fallbackReason,
+            'moved' => $moved,
         ];
     }
 
@@ -1211,7 +1293,7 @@ final class SyncPlan
     ): ObjectInfo {
         $backup ??= $target;
 
-        return $target->moveTo(
+        return $target->serverSideMoveTo(
             $path,
             $backup,
             self::backupPath($path, $backupPrefix, $suffix, $suffixKeepExtension),
@@ -1323,6 +1405,18 @@ final class SyncPlan
         }
 
         return substr($path, strrpos($path, '/') + 1);
+    }
+
+    private static function replacePathPrefix(string $path, string $sourcePrefix, string $targetPrefix): string
+    {
+        $path = self::normalizePath($path);
+        $sourcePrefix = self::normalizePath($sourcePrefix);
+        $targetPrefix = self::normalizePath($targetPrefix);
+        if ($path === $sourcePrefix) {
+            return $targetPrefix;
+        }
+
+        return $targetPrefix . substr($path, strlen($sourcePrefix));
     }
 
     private static function pathLevel(string $path): int
