@@ -1,6 +1,6 @@
 {
-    "generated": "2026-05-22 15:11:50 UTC",
-    "averageProgressPercent": "13.0",
+    "generated": "2026-05-22 15:15:39 UTC",
+    "averageProgressPercent": "13.1",
     "lanes": [
         {
             "library": "difftastic",
@@ -17,7 +17,7 @@
             "currentWork": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments f...",
             "nextTarget": "Add HTML output for syntax-list and subword hunks around WordPress block/theme code, or m...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "88ee149"
+            "commit": "5a78b05"
         },
         {
             "library": "dolt",
@@ -68,7 +68,7 @@
             "currentWork": "Native loose Git object storage, commit/tree parsing, merge-base ancestry traversal, flat...",
             "nextTarget": "Implement actual SOCKS proxy handshakes in the default PHP stream requester, map more foc...",
             "blocker": "cargo runner not executed",
-            "commit": "bd44dc6"
+            "commit": "0a5804a"
         },
         {
             "library": "libsqlite",
@@ -85,7 +85,7 @@
             "currentWork": "Native database header, varint, schema/root b-tree page header parsing, table leaf and ta...",
             "nextTarget": "Read bounded wp_options table leaf rows from resolved root pages, including option_name/o...",
             "blocker": "upstream runner not executed",
-            "commit": "d036095"
+            "commit": "04962eb"
         },
         {
             "library": "LightningCSS",
@@ -119,7 +119,7 @@
             "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmar...",
             "nextTarget": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data...",
             "blocker": "benchmark runner not executed",
-            "commit": "263deac"
+            "commit": "ce9db47"
         },
         {
             "library": "pandoc",
@@ -136,7 +136,7 @@
             "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, de...",
             "nextTarget": "Map Pandoc block quote cases from test/testsuite.txt or loose definition-list paragraphs...",
             "blocker": "upstream runner not executed",
-            "commit": "afcb55a"
+            "commit": "9ad052a"
         },
         {
             "library": "quadrable",
@@ -170,7 +170,7 @@
             "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, mul...",
             "nextTarget": "Map deeper fs provider contract behavior, lsjson --stat edge cases against case-insensiti...",
             "blocker": "Resolved the prior missing Go/module/tooling blocker for a bounded upstre...",
-            "commit": "2ff799e"
+            "commit": "abf04fe"
         },
         {
             "library": "Readability/content rewrite engine",
@@ -187,24 +187,24 @@
             "currentWork": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers an...",
             "nextTarget": "Map Mozilla videos-2 or copy a full lazy-image fixture locally for closer expected-HTML p...",
             "blocker": "No readability-local execution blocker: the lane's focused PHP tests pass...",
-            "commit": "a2e9937"
+            "commit": "pending"
         },
         {
             "library": "syncthing",
-            "progressPercent": "6.0",
+            "progressPercent": "7.0",
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
-            "denominator": "211",
-            "mapped": "16",
-            "coverage": "16 / 211",
-            "php": "16 pass / 0 fail",
+            "denominator": "264",
+            "mapped": "22",
+            "coverage": "22 / 264",
+            "php": "22 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static upstream inventory plus scanner block, pr...",
             "audit": "audited 2026-05-22",
             "currentWork": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list has...",
-            "nextTarget": "Port protocol FileInfo equivalence, index update message fixtures, or block comparison be...",
+            "nextTarget": "Port index update message fixtures, wire-format path normalization, or request validation...",
             "blocker": "upstream runner not executed",
-            "commit": "da34b5a"
+            "commit": "11f1e27"
         }
     ]
 }
