@@ -610,6 +610,29 @@ return [
             $result->indexEntries(),
         ));
     },
+    'maps upstream gix-merge tree-baseline rename-add-exe-bit-conflict fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('a', '', '100755'),
+            $blobEntry('b', ''),
+        ]);
+        $ours = new Tree([
+            $blobEntry('a', ''),
+            $blobEntry('b', ''),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('a', '', '100755'),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $a = $result->tree->entryNamed('a');
+
+        $t->true($result->isClean());
+        $t->same(['a'], $names($result->tree));
+        $t->same('blob', $a?->kind());
+        $t->same('', $read($a?->oid ?? '')->body);
+        $t->same([], $result->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline rename-add-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
