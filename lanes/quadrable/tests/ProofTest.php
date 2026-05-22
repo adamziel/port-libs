@@ -88,6 +88,40 @@ return [
         $t->throws(RuntimeException::class, static fn () => $partial->get('0'));
         $t->throws(RuntimeException::class, static fn () => SparseTree::importProof($proof, str_repeat('f', 64)));
     },
+    'maps upstream big proof test over 1000 string queries' => static function (TestRunner $t): void {
+        $tree = new SparseTree();
+        $changes = $tree->change();
+        for ($i = 0; $i < 1000; $i++) {
+            $s = (string) $i;
+            $changes->put($s, $s . 'val');
+        }
+        $changes->apply();
+
+        $root = $tree->rootHash();
+        $keys = [];
+        for ($i = -500; $i < 500; $i++) {
+            $keys[] = (string) $i;
+        }
+
+        $encoded = $tree->exportProof($keys)->encode();
+        $proof = Proof::decode($encoded);
+        $partial = SparseTree::importProof($proof, $root);
+        $query = $partial->getMulti($keys);
+
+        $t->same($encoded, $proof->encode());
+        $t->same($root, $partial->rootHash());
+
+        for ($i = -500; $i < 500; $i++) {
+            $key = (string) $i;
+            if ($i < 0) {
+                $t->true(!$query[$key]['exists'], 'negative big-proof key should be proven absent: ' . $key);
+            } else {
+                $t->same($key . 'val', $query[$key]['value'], 'positive big-proof key should be present: ' . $key);
+            }
+        }
+
+        $t->throws(RuntimeException::class, static fn () => $partial->get('500'));
+    },
     'maps upstream shared empty witness proof for multiple absent keys' => static function (TestRunner $t): void {
         $tree = new SparseTree();
         $tree->change()
