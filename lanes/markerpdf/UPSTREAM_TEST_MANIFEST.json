@@ -12,10 +12,10 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "27 inspected upstream benchmark/test/cleanup artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, and 1 Markdown postprocessor",
-        "mapped": 14,
+        "mapped": 18,
         "mappedBenchmarkPairs": 0,
-        "mappedBenchmarkSurrogatePairs": 2,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf and switch_trans.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
+        "mappedBenchmarkSurrogatePairs": 3,
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf, switch_trans.pdf, and thinkpython.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
         "inventory": {
             "repositoryFiles": 78,
             "pythonFiles": 47,
@@ -29,7 +29,7 @@
             "scoreVerifierScripts": 1,
             "cleanerModules": 7,
             "cleanerFunctions": 16,
-            "mappedCleanerFunctions": 7,
+            "mappedCleanerFunctions": 11,
             "markdownPostprocessorFunctions": 8,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
@@ -69,15 +69,19 @@
             "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
             "README-linked switch_trans Marker/Nougat committed markdown outputs can be scored as a second upstream-derived surrogate pair and checked against the upstream switch_trans CI threshold boundary.",
             "marker.cleaners.headers filter_common_elements and filter_header_footer repeated edge-line detection remove common PDF page headers/footers after the upstream three-page minimum.",
-            "marker.cleaners.headers replace_leading_trailing_digits, find_overlap_elements, and filter_common_titles remove repeated numbered titles before WordPress block rendering."
+            "marker.cleaners.headers replace_leading_trailing_digits, find_overlap_elements, and filter_common_titles remove repeated numbered titles before WordPress block rendering.",
+            "README-linked thinkpython Marker/Nougat committed markdown outputs can be scored as a third upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
+            "marker.cleaners.code is_code_linelen and comment_count heuristics detect code-like PDF lines from short alphanumeric line ratios and upstream-supported comment prefixes.",
+            "marker.cleaners.code identify_code_blocks indentation/comment majority and optional small-font checks classify code blocks before WordPress block rendering.",
+            "marker.cleaners.code indent_blocks reconstructs indentation from PDF line geometry and suppresses repeated blank lines before code block output."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 14 focused upstream source semantics plus two committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 18 focused upstream source semantics plus three committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn and switch_trans committed-output surrogate scoring, Marker cleaner bullet/text normalization, and repeated header/footer/title cleanup for WordPress imports.",
-        "phpBehaviorTests": 29,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn, switch_trans, and thinkpython committed-output surrogate scoring, Marker cleaner bullet/text/code normalization, repeated header/footer/title cleanup, and code block classification/indent reconstruction for WordPress imports.",
+        "phpBehaviorTests": 35,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -92,9 +96,13 @@
             "README-linked data/examples/marker and data/examples/nougat multicolcnn outputs as a committed benchmark surrogate pair",
             "README-linked data/examples/marker and data/examples/nougat switch_trans outputs as a committed benchmark surrogate pair",
             "marker.cleaners.headers common edge-line filtering for repeated headers and footers",
-            "marker.cleaners.headers common title filtering with digit stripping and fuzzy overlap thresholding"
+            "marker.cleaners.headers common title filtering with digit stripping and fuzzy overlap thresholding",
+            "README-linked data/examples/marker and data/examples/nougat thinkpython outputs as a committed benchmark surrogate pair",
+            "marker.cleaners.code code line-length and comment-prefix heuristics",
+            "marker.cleaners.code code block classification from indentation/comment majority and small-font checks",
+            "marker.cleaners.code code indentation reconstruction from line geometry"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn and switch_trans surrogate score fixtures.",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate such as thinkpython/thinkos before broadening layout/OCR behavior."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, code-block classification before Gutenberg code output, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn, switch_trans, and thinkpython surrogate score fixtures.",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map the remaining README-linked committed example surrogate such as thinkos before broadening layout/OCR behavior."
 }

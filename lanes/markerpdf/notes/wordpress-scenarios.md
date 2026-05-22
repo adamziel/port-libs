@@ -26,8 +26,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-header-footer-import.php` maps Marker's upstream header/footer cleaner into a repeated-page cleanup path. It removes common first/last page lines after Marker's three-page minimum and emits only the imported body paragraphs as core paragraph blocks.
 
+`examples/wordpress-code-block-import.php` maps Marker's upstream code cleaner into a Gutenberg code-block import path. It uses the native line-length, comment-prefix, indentation-majority, and indentation-reconstruction heuristics from `marker/cleaners/code.py` to keep PDF code samples out of ordinary paragraph blocks.
+
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
 ## Next Task
 
-Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map another README-linked committed example surrogate such as `thinkpython` or `thinkos` before broadening layout/OCR behavior.
+Acquire an actual external upstream benchmark PDF/reference pair from the `benchmark_data` archive, or map the remaining README-linked committed example surrogate such as `thinkos` before broadening layout/OCR behavior.

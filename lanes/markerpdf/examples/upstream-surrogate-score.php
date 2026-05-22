@@ -9,6 +9,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $fixtures = [
     require dirname(__DIR__) . '/fixtures/upstream-multicolcnn-surrogate.php',
     require dirname(__DIR__) . '/fixtures/upstream-switch-transformers-surrogate.php',
+    require dirname(__DIR__) . '/fixtures/upstream-thinkpython-surrogate.php',
 ];
 
 $scorer = new BenchmarkScorer();

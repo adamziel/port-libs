@@ -11,7 +11,7 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 - Benchmark/scoring scripts inspected: `benchmarks/overall.py`, `marker/benchmark/scoring.py`, `marker/benchmark/table.py`, and `scripts/verify_benchmark_scores.py`.
 - Benchmark scoring functions inspected: 6 (`chunk_text`, `overlap_score`, `score_text`, `split_to_cells`, `align_rows`, and `score_table`).
 - Cleaner/postprocessor source inspected: 7 cleaner modules with 16 functions under `marker/cleaners/`, plus 8 functions in `marker/postprocessors/markdown.py`.
-- Cleaner functions mapped: `marker/cleaners/bullets.py::replace_bullets`, `marker/cleaners/text.py::cleanup_text`, and five focused functions from `marker/cleaners/headers.py` (`filter_common_elements`, `filter_header_footer`, `replace_leading_trailing_digits`, `find_overlap_elements`, and `filter_common_titles`).
+- Cleaner functions mapped: `marker/cleaners/bullets.py::replace_bullets`, `marker/cleaners/text.py::cleanup_text`, five focused functions from `marker/cleaners/headers.py` (`filter_common_elements`, `filter_header_footer`, `replace_leading_trailing_digits`, `find_overlap_elements`, and `filter_common_titles`), and four focused functions from `marker/cleaners/code.py` (`is_code_linelen`, `comment_count`, `identify_code_blocks`, and `indent_blocks`).
 - Published benchmark documents in the README accuracy table: 6 (`multicolcnn.pdf`, `switch_trans.pdf`, `thinkpython.pdf`, `thinkos.pdf`, `thinkdsp.pdf`, `crowd.pdf`).
 - CI score assertions: 3 thresholds in `scripts/verify_benchmark_scores.py` (`multicolcnn.pdf > 0.34`, `switch_trans.pdf > 0.40`, and average table report score `>= 0.7`).
 - Committed markdown examples: 4 marker outputs and 4 nougat outputs under `data/examples`.
@@ -22,8 +22,9 @@ The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashb
 
 - `fixtures/upstream-multicolcnn-surrogate.php` records a small excerpt pair from the README-linked committed outputs for `multicolcnn.pdf`: `data/examples/marker/multicolcnn.md` as Marker output and `data/examples/nougat/multicolcnn.md` as a reference-like surrogate.
 - `fixtures/upstream-switch-transformers-surrogate.php` records a small excerpt pair from the README-linked committed outputs for `switch_trans.pdf`: `data/examples/marker/switch_transformers.md` as Marker output and `data/examples/nougat/switch_transformers.md` as a reference-like surrogate.
-- `examples/upstream-surrogate-score.php` scores both pairs with the native `BenchmarkScorer`. Current scores are about `0.978` for `multicolcnn.pdf` against a `0.80` threshold and `0.954` for `switch_trans.pdf` against a `0.75` surrogate threshold while also clearing the upstream CI `switch_trans.pdf > 0.40` boundary.
-- These are intentionally labeled surrogates. They are not the external benchmark PDF/reference archive used by upstream CI, but they map two committed upstream document-output pairs through the native scoring path.
+- `fixtures/upstream-thinkpython-surrogate.php` records a small excerpt pair from the README-linked committed outputs for `thinkpython.pdf`: `data/examples/marker/thinkpython.md` as Marker output and `data/examples/nougat/thinkpython.md` as a reference-like surrogate.
+- `examples/upstream-surrogate-score.php` scores all three pairs with the native `BenchmarkScorer`. Current scores are about `0.978` for `multicolcnn.pdf` against a `0.80` threshold, `0.954` for `switch_trans.pdf` against a `0.75` surrogate threshold while also clearing the upstream CI `switch_trans.pdf > 0.40` boundary, and `0.845` for `thinkpython.pdf` against a `0.78` surrogate threshold.
+- These are intentionally labeled surrogates. They are not the external benchmark PDF/reference archive used by upstream CI, but they map three committed upstream document-output pairs through the native scoring path.
 
 ## Mapped Native Semantics
 
@@ -38,8 +39,11 @@ The lane manifest counts 27 inspected benchmark/test/cleanup artifacts for dashb
 - `marker/cleaners/text.py` excessive whitespace and non-breaking-space cleanup is mapped by `TextCleaner::cleanupText`.
 - `marker/cleaners/headers.py` repeated edge-line detection is mapped by `HeaderFooterCleaner::findCommonEdgeLines` and `HeaderFooterCleaner::removeCommonEdgeLines`, including the upstream minimum of three pages before common elements are filtered.
 - `marker/cleaners/headers.py` repeated title filtering is mapped by `HeaderFooterCleaner::replaceLeadingTrailingDigits`, `HeaderFooterCleaner::findOverlapElements`, and `HeaderFooterCleaner::filterCommonTitles`.
-- README-linked committed Marker/Nougat `multicolcnn` and `switch_transformers` markdown outputs are mapped as upstream-derived surrogate benchmark pairs.
+- `marker/cleaners/code.py` line-length and comment-prefix detection are mapped by `CodeBlockDetector::isCodeLineLength` and `CodeBlockDetector::commentCount`.
+- `marker/cleaners/code.py` code block classification is mapped by `CodeBlockDetector::isCodeBlock` and `CodeBlockDetector::identifyCodeBlocks`, including the upstream `> 3` line minimum, indentation/comment majority threshold, and optional small-font checks.
+- `marker/cleaners/code.py` indentation reconstruction is mapped by `CodeBlockDetector::indentBlock`, including line-geometry-derived prefixes and repeated blank-line suppression.
+- README-linked committed Marker/Nougat `multicolcnn`, `switch_transformers`, and `thinkpython` markdown outputs are mapped as upstream-derived surrogate benchmark pairs.
 
 ## Runner Status
 
-The full upstream runner was not executed. The workflow downloads `benchmark_data` from Google Drive and then installs Poetry dependencies including `torch`, `surya-ocr`, `pdftext`, `pypdfium2`, and `tabled-pdf`; the shallow clone contains no benchmark PDFs or references. Under the lane resource constraints, the defensible denominator for now is the cloned static inventory above, the natively ported benchmark scoring/cleaner functions, and the two committed README-linked surrogate pairs, not a local benchmark run.
+The full upstream runner was not executed. The workflow downloads `benchmark_data` from Google Drive and then installs Poetry dependencies including `torch`, `surya-ocr`, `pdftext`, `pypdfium2`, and `tabled-pdf`; the shallow clone contains no benchmark PDFs or references. Under the lane resource constraints, the defensible denominator for now is the cloned static inventory above, the natively ported benchmark scoring/cleaner functions, and the three committed README-linked surrogate pairs, not a local benchmark run.
