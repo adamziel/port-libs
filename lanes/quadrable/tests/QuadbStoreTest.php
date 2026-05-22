@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use PortLibs\Quadrable\HashTree;
 use PortLibs\Quadrable\Key;
+use PortLibs\Quadrable\Proof;
 use PortLibs\Quadrable\QuadbStore;
+use PortLibs\Quadrable\SparseTree;
 
 return [
     'native quadb store reopens the current named head and integer import export lines' => static function (TestRunner $t): void {
@@ -170,6 +172,84 @@ return [
             $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("\n", '|'));
             $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("~wp_posts:1|bad\n", '|'));
             $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("+wp_posts:1 missing separator\n", '|'));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store exports hex full-key proofs like quadb exportProof' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $root = $repo->tree()->rootHash();
+            $proofHex = $repo->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:1',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $proofBytes = quadrableQuadbDecodeHexProof($proofHex);
+            $proof = Proof::decode($proofBytes);
+            $partial = SparseTree::importProof($proof, $root);
+
+            $t->same(Proof::ENCODING_FULL_KEYS, ord($proofBytes[0]));
+            $t->true(str_starts_with($proofHex, '0x'));
+            $t->true(str_ends_with($proofHex, "\n"));
+            $t->same($root, $partial->rootHash());
+            $t->same('https://example.test', $partial->get('wp_options:siteurl'));
+            $t->same('Published post', $partial->get('wp_posts:1'));
+            $t->same(null, $partial->get('wp_posts:404'));
+            $t->throws(RuntimeException::class, static fn () => $partial->get('wp_options:home'));
+
+            $entries = [];
+            foreach ($partial->orderedEntries() as $entry) {
+                $entries[$entry->stringKey() ?? $entry->keyHex()] = $entry->value();
+            }
+            ksort($entries, SORT_STRING);
+
+            $t->same([
+                'wp_options:siteurl' => 'https://example.test',
+                'wp_posts:1' => 'Published post',
+            ], $entries);
+            $t->same($proofHex, QuadbStore::open($dir)->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:1',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store exports raw integer proofs like quadb exportProof int' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importIntegerLines(
+                "1,wp_options:siteurl=https://example.test\n"
+                . "2,wp_options:home=https://example.test\n"
+                . "4,wp_posts:1=Published post\n"
+            );
+
+            $root = $repo->tree()->rootHash();
+            $proofHex = $repo->exportIntegerProofHex([2, 4, 99]);
+            $proof = Proof::decode(quadrableQuadbDecodeHexProof($proofHex));
+            $partial = SparseTree::importProof($proof, $root);
+
+            $t->same($root, $partial->rootHash());
+            $t->same('wp_options:home=https://example.test', $partial->getKey(Key::fromInteger(2)));
+            $t->same('wp_posts:1=Published post', $partial->getKey(Key::fromInteger(4)));
+            $t->same(null, $partial->getKey(Key::fromInteger(99)));
+            $t->throws(RuntimeException::class, static fn () => $partial->getKey(Key::fromInteger(1)));
+            $t->throws(RuntimeException::class, static fn () => $repo->exportIntegerProofHex([2], Proof::ENCODING_FULL_KEYS));
+            $t->throws(InvalidArgumentException::class, static fn () => $repo->exportIntegerProof([2, '3']));
         } finally {
             quadrableQuadbRemoveDir($dir);
         }
@@ -347,4 +427,19 @@ function quadrableQuadbOutputLines(string $lines): array
     }
 
     return explode("\n", $trimmed);
+}
+
+function quadrableQuadbDecodeHexProof(string $proofHex): string
+{
+    $trimmed = trim($proofHex);
+    if (!str_starts_with($trimmed, '0x')) {
+        throw new InvalidArgumentException('expected 0x-prefixed proof');
+    }
+
+    $decoded = hex2bin(substr($trimmed, 2));
+    if ($decoded === false) {
+        throw new InvalidArgumentException('expected hexadecimal proof');
+    }
+
+    return $decoded;
 }

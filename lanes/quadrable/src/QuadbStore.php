@@ -463,6 +463,63 @@ final class QuadbStore
     }
 
     /**
+     * @param list<string> $keys
+     */
+    public function exportProof(array $keys): Proof
+    {
+        return $this->sparseTreeForProofs()->exportProof($keys);
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    public function exportProofBytes(array $keys, int $encodingType = Proof::ENCODING_HASHED_KEYS): string
+    {
+        return $this->exportProof($keys)->encode($encodingType);
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    public function exportProofHex(array $keys, int $encodingType = Proof::ENCODING_HASHED_KEYS): string
+    {
+        return '0x' . bin2hex($this->exportProofBytes($keys, $encodingType)) . "\n";
+    }
+
+    /**
+     * @param list<int> $integers
+     */
+    public function exportIntegerProof(array $integers): Proof
+    {
+        $keys = [];
+        foreach ($integers as $integer) {
+            if (!is_int($integer)) {
+                throw new \InvalidArgumentException('exportIntegerProof expects integer keys');
+            }
+
+            $keys[] = Key::fromInteger($integer);
+        }
+
+        return $this->sparseTreeForProofs()->exportRawProof($keys);
+    }
+
+    /**
+     * @param list<int> $integers
+     */
+    public function exportIntegerProofBytes(array $integers, int $encodingType = Proof::ENCODING_HASHED_KEYS): string
+    {
+        return $this->exportIntegerProof($integers)->encode($encodingType);
+    }
+
+    /**
+     * @param list<int> $integers
+     */
+    public function exportIntegerProofHex(array $integers, int $encodingType = Proof::ENCODING_HASHED_KEYS): string
+    {
+        return '0x' . bin2hex($this->exportIntegerProofBytes($integers, $encodingType)) . "\n";
+    }
+
+    /**
      * @return array{detached: bool, head: ?string, rootHash: string, headNodeId: int}
      */
     public function status(): array
@@ -475,6 +532,25 @@ final class QuadbStore
             'rootHash' => $tree->rootHash(),
             'headNodeId' => $tree->headNodeId(),
         ];
+    }
+
+    private function sparseTreeForProofs(): SparseTree
+    {
+        $sparse = new SparseTree();
+        $changes = $sparse->change();
+
+        foreach ($this->tree()->orderedEntries() as $entry) {
+            $trackedKey = $this->trackedKeys[$entry->keyHex()] ?? null;
+            if ($trackedKey !== null) {
+                $changes->put($trackedKey, $entry->value());
+            } else {
+                $changes->putKey($entry->key(), $entry->value());
+            }
+        }
+
+        $changes->apply();
+
+        return $sparse;
     }
 
     private function persist(): void
