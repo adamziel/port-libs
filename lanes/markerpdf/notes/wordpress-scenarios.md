@@ -52,6 +52,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-ocr-language-preflight.php` maps Marker's upstream OCR language normalization into multilingual import metadata. It converts human language names from a WordPress PDF metadata file to OCRmyPDF/Tesseract codes, applies Marker's default English fallback when languages are omitted, and rejects invalid engine-specific codes before the OCR handoff.
 
+`examples/wordpress-ocr-detection-preflight.php` maps Marker's upstream `surya_detection` boundary into a WordPress detection preflight. It accepts supplied Surya text-line predictions, attaches them to `page.text_lines` with upstream zip semantics, checks whether the detected text lines cover the extracted PDF line boxes, and preserves those boxes as review metadata before deciding whether a page needs OCR.
+
 `examples/wordpress-ocr-recognition-handoff.php` maps Marker's upstream `run_ocr` orchestration into a WordPress OCR handoff. It uses native page selection and `ocr_stats` accounting, accepts supplied recognized page content from a later OCR adapter, replaces only successful OCR pages, and renders the recovered text as a core paragraph without loading Surya, Tesseract, or OCRmyPDF.
 
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
@@ -76,4 +78,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Use the acquired `benchmark_data_short.zip` pairs to map a fuller document-level benchmark report slice, or map `marker/ocr/detection.py::surya_detection` with supplied detection boxes before attempting real model-backed OCR/layout detection.
+Use the acquired `benchmark_data_short.zip` pairs to map a fuller document-level benchmark report slice, or map another model boundary such as layout/table detection with supplied predictions before attempting real model-backed OCR/layout/table inference.
