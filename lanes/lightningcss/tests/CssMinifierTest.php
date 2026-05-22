@@ -25,10 +25,18 @@ return [
     'css minifier maps upstream animation longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
+        $t->same(
+            '.foo{animation-name:test,foo,"none","unset","revert","default"}',
+            $minifier->minify('.foo { animation-name: "test", foo, "none", "unset", "revert", "default" }')
+        );
         $t->same('.foo{animation-duration:.1s}', $minifier->minify('.foo { animation-duration: 100ms }'));
         $t->same(
             '.foo{animation-duration:.1s,2s;animation-delay:.1s,2s}',
             $minifier->minify('.foo { animation-duration: 100ms, 2000ms; animation-delay: 100ms, 2000ms }')
+        );
+        $t->same(
+            '.foo{animation-timing-function:ease,ease-in,steps(5,start)}',
+            $minifier->minify('.foo { animation-timing-function: ease, cubic-bezier(0.42, 0, 1, 1), steps(5, jump-start) }')
         );
         $t->same(
             '.foo{animation-iteration-count:2,infinite;animation-direction:alternate,reverse;animation-play-state:running,paused}',
@@ -38,6 +46,36 @@ return [
             '.foo{animation-fill-mode:backwards,forwards;animation-composition:add}',
             $minifier->minify('.foo { animation-fill-mode: Backwards,forwards; animation-composition: ADD }')
         );
+    },
+    'css minifier maps upstream animation shorthand value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{animation:none}', $minifier->minify('.foo { animation: none none }'));
+        $t->same('.foo{animation:"none"}', $minifier->minify('.foo { animation: "none" none }'));
+        $t->same('.foo{animation:2s both "none"}', $minifier->minify('.foo { animation: both "none" 2s }'));
+        $t->same('.foo{animation:2s "none"}', $minifier->minify('.foo { animation: none "none" 2s }'));
+        $t->same('.foo{animation:none,.5s "unset"}', $minifier->minify('.foo { animation: none, "unset" .5s }'));
+        $t->same('.foo{animation:2s 1 infinite}', $minifier->minify('.foo { animation: "infinite" 2s 1 }'));
+        $t->same('.foo{animation:2s running paused}', $minifier->minify('.foo { animation: "paused" 2s }'));
+        $t->same('.foo{animation:2s none forwards}', $minifier->minify('.foo { animation: "forwards" 2s }'));
+        $t->same('.foo{animation:2s normal reverse}', $minifier->minify('.foo { animation: "reverse" 2s }'));
+        $t->same(
+            '.foo{animation:3s ease-in 1s infinite reverse both slidein}',
+            $minifier->minify('.foo { animation: 3s ease-in 1s infinite reverse both running slidein }')
+        );
+        $t->same(
+            '.foo{animation:3s 1s reverse both paused slidein}',
+            $minifier->minify('.foo { animation: 3s slidein paused ease 1s 1 reverse both }')
+        );
+        $t->same('.foo{animation:3s ease ease}', $minifier->minify('.foo { animation: 3s ease ease }'));
+        $t->same(
+            '.foo{animation:3s foo}',
+            $minifier->minify('.foo { animation: 3s cubic-bezier(0.25, 0.1, 0.25, 1) foo }')
+        );
+        $t->same('.foo{animation:0s 3s infinite foo}', $minifier->minify('.foo { animation: foo 0s 3s infinite }'));
+        $t->same('.foo{animation:3s foo --test}', $minifier->minify('.foo { animation: foo 3s --test }'));
+        $t->same('.foo{animation:3s foo scroll()}', $minifier->minify('.foo { animation: foo 3s scroll(block) }'));
+        $t->same('.foo{animation:3s foo view(inline 10px)}', $minifier->minify('.foo { animation: foo 3s view(inline 10px 10px) }'));
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -206,6 +244,31 @@ CSS;
 
         $t->same(
             '.wp-block-group.is-style-reveal{transition:margin-top .2s,margin-bottom .2s}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block animation names and timing aliases minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-entrance {
+  animation-name: "wp-cover-entrance", "unset";
+  animation-timing-function: cubic-bezier(0.42, 0, 1, 1), steps(5, jump-start);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-entrance{animation-name:wp-cover-entrance,"unset";animation-timing-function:ease-in,steps(5,start)}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block animation shorthand presets minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-entrance {
+  animation: "wp-cover-entrance" 3s cubic-bezier(0.42, 0, 1, 1) 100ms 2.0 alternate Backwards running scroll(block);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-entrance{animation:3s ease-in .1s 2 alternate backwards wp-cover-entrance scroll()}',
             (new CssMinifier())->minify($css)
         );
     },

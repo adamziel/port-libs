@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
         "total": 382,
-        "mapped": 154,
+        "mapped": 188,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes outside tests/test_cssom.rs and the targeted src/lib.rs::test_transitions helper inventory, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, inspected 71 transition helper invocations in src/lib.rs::test_transitions, and counted Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 382,
@@ -78,10 +78,38 @@
                     "minify_test animation-duration: 100ms, 2000ms -> .1s,2s",
                     "minify_test animation-delay: 100ms -> .1s",
                     "minify_test animation-delay: 100ms, 2000ms -> .1s,2s",
+                    "minify_test animation-name: \"test\" -> test while preserving quoted reserved names like \"none\", \"unset\", \"revert\", and \"default\"",
+                    "minify_test animation-name mixed string identifiers and CSS-wide keyword strings -> unquoted safe identifiers plus quoted reserved strings",
+                    "minify_test animation-timing-function cubic-bezier(0.42, 0, 1, 1) -> ease-in",
+                    "minify_test animation-timing-function ease plus cubic-bezier list -> ease,ease-in",
+                    "minify_test animation-timing-function steps(5, jump-start) -> steps(5,start)",
                     "minify_test animation-iteration-count: 2.0 -> 2",
                     "minify_test animation-direction list values serialize lowercase",
                     "minify_test animation-play-state list values serialize lowercase",
                     "minify_test animation-fill-mode Backwards,forwards -> backwards,forwards"
+                ]
+            },
+            "focusedAnimationShorthandMinifierInventory": {
+                "path": "src/lib.rs",
+                "test": "test_animation",
+                "newlyMappedThisRun": [
+                    "minify_test animation: none none -> none",
+                    "minify_test animation: \"none\" none -> \"none\"",
+                    "minify_test animation: both \"none\" 2s -> 2s both \"none\"",
+                    "minify_test animation: none \"none\" 2s -> 2s \"none\"",
+                    "minify_test animation: none, \"unset\" .5s -> none,.5s \"unset\"",
+                    "minify_test animation: \"infinite\" 2s 1 -> 2s 1 infinite",
+                    "minify_test animation: \"paused\" 2s -> 2s running paused",
+                    "minify_test animation: \"forwards\" 2s -> 2s none forwards",
+                    "minify_test animation: \"reverse\" 2s -> 2s normal reverse",
+                    "minify_test animation: 3s ease-in 1s infinite reverse both running slidein -> 3s ease-in 1s infinite reverse both slidein",
+                    "minify_test animation: 3s slidein paused ease 1s 1 reverse both -> 3s 1s reverse both paused slidein",
+                    "minify_test animation: 3s ease ease preserves ease timing before an ease-named animation",
+                    "minify_test animation: 3s cubic-bezier(0.25, 0.1, 0.25, 1) foo -> 3s foo",
+                    "minify_test animation: foo 0s 3s infinite -> 0s 3s infinite foo",
+                    "minify_test animation: foo 3s --test -> 3s foo --test",
+                    "minify_test animation: foo 3s scroll(block) -> 3s foo scroll()",
+                    "minify_test animation: foo 3s view(inline 10px 10px) -> 3s foo view(inline 10px)"
                 ]
             },
             "focusedTransitionLonghandMinifierInventory": {
@@ -167,11 +195,29 @@
                 "test": "test_mask",
                 "newlyMappedThisRun": [
                     "prefix_test mask-border: url('border-mask.png') 25 / 35px / 12px space luminance emits -webkit-mask-box-image without luminance plus modern mask-border",
+                    "prefix_test mask-border: linear-gradient(lch(...), lch(...)) 25 / 35px / 12px space luminance emits sRGB fallback plus original advanced-color -webkit-mask-box-image and mask-border layers",
+                    "prefix_test mask-border-source: linear-gradient(lch(...), lch(...)) emits sRGB fallback plus original advanced-color -webkit-mask-box-image-source and mask-border-source layers",
                     "prefix_test mask-border-source/slice/width/outset/repeat/mode longhands compose to -webkit-mask-box-image plus modern mask-border",
                     "prefix_test -webkit-mask-box-image-source/slice/width/outset/repeat longhands compose to -webkit-mask-box-image",
                     "prefix_test mask-border-slice: 10 40 10 40 emits -webkit-mask-box-image-slice and normalizes both declarations to 10 40",
                     "prefix_test mask-border-slice: var(--foo) emits matching -webkit-mask-box-image-slice",
+                    "prefix_test mask-border: linear-gradient(lch(...), lch(...)) var(--foo) emits sRGB fallback declarations plus lab-preserving @supports declarations",
                     "prefix_test mask-composite and mask-mode standalone declarations emit -webkit-mask-composite and -webkit-mask-source-type fallbacks"
+                ]
+            },
+            "focusedMaskImagePrefixCompositionInventory": {
+                "path": "src/lib.rs",
+                "test": "test_mask",
+                "newlyMappedThisRun": [
+                    "prefix_test mask-image: linear-gradient(red, green) emits -webkit-mask-image plus modern mask-image",
+                    "prefix_test mask-image: url(masks.svg#star) emits quoted -webkit-mask-image plus modern mask-image",
+                    "prefix_test existing -webkit-mask-image plus mask-image url normalizes both declarations without duplicating the prefixed fallback",
+                    "prefix_test mask: url(masks.svg#star) luminance emits -webkit-mask plus -webkit-mask-source-type and modern mask",
+                    "prefix_test mask-image/position/size/repeat/clip/origin/composite/mode longhands compose to -webkit-mask, -webkit-mask-composite, -webkit-mask-source-type, and modern mask",
+                    "prefix_test mask-image linear-gradient(lch(...), lch(...)) emits sRGB fallback plus original advanced-color -webkit-mask-image and mask-image layers",
+                    "prefix_test mask linear-gradient(lch(...), lch(...)) 40px 20px emits sRGB fallback plus original advanced-color -webkit-mask and mask layers",
+                    "prefix_test mask linear-gradient(lch(...), lch(...)) 40px var(--foo) emits sRGB fallback declarations plus lab-preserving @supports declarations",
+                    "prefix_test mask-image/position/size/repeat/clip/origin/composite/mode longhands with an lch gradient emit fallback and original composed mask layers"
                 ]
             },
             "focusedCustomMediaInventory": {
@@ -284,7 +330,8 @@
             "Grid-template and grid CSSOM access maps upstream tests/test_cssom.rs cases where explicit grid-template rows/columns/areas compose to shorthands, repeat() tracks with areas are rejected, and grid shorthand is exposed only when grid-auto-* values are initial.",
             "Mask-border-source CSSOM access maps the upstream tests/test_cssom.rs shorthand case where mask-border exposes its image source longhand.",
             "Logical margin/padding CSSOM setting maps the upstream DeclarationBlock::set logical/physical category guard so logical fallbacks before later physical declarations are preserved by appending a new logical declaration.",
-            "Animation longhand value minification maps focused upstream src/lib.rs::test_animation cases for duration/delay time shortening, iteration-count numeric cleanup, and lowercase list serialization for direction, play-state, and fill-mode.",
+            "Animation longhand value minification maps focused upstream src/lib.rs::test_animation cases for quoted animation-name identifier serialization, animation-timing-function cubic-bezier and steps aliases, duration/delay time shortening, iteration-count numeric cleanup, and lowercase list serialization for direction, play-state, and fill-mode.",
+            "Animation shorthand value minification maps focused upstream src/lib.rs::test_animation cases for quoted name disambiguation, default component omission, canonical duration/timing/delay/count/direction/fill/play/name/timeline order, cubic-bezier alias omission, and scroll/view timeline normalization.",
             "Transition longhand value minification maps focused upstream src/lib.rs::test_transitions cases for duration/delay shortest-unit serialization, simple time calc folding, cubic-bezier keyword aliases, cubic-bezier numeric cleanup, and steps() alias cleanup.",
             "Transition shorthand value minification maps focused upstream src/lib.rs::test_transitions cases for shortest-unit times, default ease omission, canonical property/duration/timing/delay order, list layers, and vendor-prefixed transition shorthand time shortening.",
             "Transition declaration composition maps focused upstream src/lib.rs::test_transitions cases for transition-* longhands folding into shorthands, later shorthand reset behavior, unknown var() timing fallback preservation, list cycling, and independent prefixed transition groups.",
@@ -294,13 +341,13 @@
             "Mask-border prefixing and composition maps focused upstream src/lib.rs::test_mask cases for mask-border shorthands, mask-border-* longhand composition, prefixed -webkit-mask-box-image longhand composition, slice value compression, and direct mask-composite/mask-mode fallbacks.",
             "Custom media transformation maps focused upstream src/lib.rs::test_custom_media and CLI preserve cases for declaration collection, recursive/later references, list substitution, media type factoring, negation simplification, undefined/circular errors, unsupported media-type boolean-logic errors, and optional declaration preservation."
         ],
-        "warning": "Native PHP progress maps 154 focused upstream-aligned lane checks and 231 local PHP assertions against a 382-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs and targeted transition helper invocations in src/lib.rs::test_transitions instead of treating those files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
+        "warning": "Native PHP progress maps 188 focused upstream-aligned lane checks and 267 local PHP assertions against a 382-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs and targeted transition helper invocations in src/lib.rs::test_transitions instead of treating those files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, animation duration/delay/iteration/list longhand value minification, transition duration/delay/timing-function longhand value minification, transition shorthand value minification, transition longhand-to-shorthand declaration composition, transition logical block-axis property expansion, legacy Safari transition prefixing for direction-sensitive inline logical properties, transform transitions, mask/mask-border transition property names, direct mask-border shorthand prefixing, mask-border-* longhand composition, prefixed -webkit-mask-box-image longhand composition, and standalone mask-composite/mask-mode fallbacks, focused @custom-media declaration collection/substitution/error handling including unsupported media-type boolean-logic guards, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, animation name string serialization plus duration/delay/timing-function/iteration/list longhand value minification, focused animation shorthand value minification with keyword-name disambiguation and scroll/view timeline cleanup, transition duration/delay/timing-function longhand value minification, transition shorthand value minification, transition longhand-to-shorthand declaration composition, transition logical block-axis property expansion, legacy Safari transition prefixing for direction-sensitive inline logical properties, transform transitions, mask/mask-border transition property names, direct mask-border shorthand prefixing, mask-border-* longhand composition, prefixed -webkit-mask-box-image longhand composition, and standalone mask-composite/mask-mode fallbacks, focused @custom-media declaration collection/substitution/error handling including unsupported media-type boolean-logic guards, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, animation and transition longhand minification, transition shorthand minification, transition longhand composition, logical block-axis transition expansion, direction-sensitive inline transition prefixing, transform transition prefixing, mask/mask-border transition prefixing, and mask-border longhand prefix composition for block interactions, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, custom-media breakpoint/motion alias expansion and incompatible print/screen alias rejection, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
-    "nextTask": "Map mask-image and mask shorthand prefixing/composition from src/lib.rs::test_mask, especially gradient/color fallback layers, then improve custom-media diagnostic locations."
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, animation name/timing/duration longhand minification, animation shorthand minification, transition longhand minification, transition shorthand minification, transition longhand composition, logical block-axis transition expansion, direction-sensitive inline transition prefixing, transform transition prefixing, mask/mask-border transition prefixing, and mask-border longhand prefix composition for block interactions, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, custom-media breakpoint/motion alias expansion and incompatible print/screen alias rejection, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "nextTask": "Map animation longhand-to-shorthand declaration composition from src/lib.rs::test_animation, then improve custom-media diagnostic locations."
 }

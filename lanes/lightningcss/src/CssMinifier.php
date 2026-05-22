@@ -112,8 +112,14 @@ final class CssMinifier
         if ($previous === ')') {
             return ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#';
         }
+        if ($previous === '"' || $previous === "'") {
+            return ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#';
+        }
+        if ($next === '"' || $next === "'") {
+            return ctype_alnum($previous) || $previous === '_' || $previous === '-' || $previous === '%';
+        }
 
-        return (ctype_alnum($previous) || $previous === '_' || $previous === '-')
+        return (ctype_alnum($previous) || $previous === '_' || $previous === '-' || $previous === '%')
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.');
     }
 
@@ -334,8 +340,13 @@ final class CssMinifier
     private function minifyAnimationLonghandValue(string $property, string $value): string
     {
         return match ($property) {
+            'animation',
+            '-webkit-animation',
+            '-moz-animation' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationShorthandLayer($part)),
+            'animation-name' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationName($part)),
             'animation-duration',
             'animation-delay' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTimeToken($part)),
+            'animation-timing-function' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionTimingFunction($part)),
             'animation-iteration-count' => $this->mapCommaList($value, fn (string $part): string => $this->minifyAnimationIterationCount($part)),
             'animation-direction',
             'animation-play-state',
@@ -343,6 +354,276 @@ final class CssMinifier
             'animation-composition' => $this->mapCommaList($value, static fn (string $part): string => strtolower(trim($part))),
             default => $value,
         };
+    }
+
+    private function minifyAnimationName(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^([\'"])(.*)\1$/s', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        $name = $matches[2];
+        if (preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $name) !== 1) {
+            return $value;
+        }
+
+        return in_array(strtolower($name), [
+            'default',
+            'inherit',
+            'initial',
+            'none',
+            'revert',
+            'revert-layer',
+            'unset',
+        ], true) ? $value : $name;
+    }
+
+    private function minifyAnimationShorthandLayer(string $layer): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return trim($layer);
+        }
+
+        if (stripos($layer, 'var(') !== false) {
+            return implode(' ', array_map(
+                fn (string $token): string => $this->minifyAnimationTokenInPlace($token),
+                $tokens
+            ));
+        }
+
+        $components = [
+            'duration' => null,
+            'timing' => null,
+            'delay' => null,
+            'iteration' => null,
+            'direction' => null,
+            'fill' => null,
+            'play' => null,
+            'name' => null,
+            'timeline' => null,
+        ];
+
+        foreach ($tokens as $index => $token) {
+            $lower = strtolower($token);
+
+            if ($this->isQuotedStringToken($token)) {
+                if ($components['name'] !== null) {
+                    return trim($layer);
+                }
+                $components['name'] = $this->minifyAnimationName($token);
+                continue;
+            }
+
+            if ($this->isTimeValue($token)) {
+                if ($components['duration'] === null) {
+                    $components['duration'] = $this->minifyTimeValue($token);
+                    continue;
+                }
+                if ($components['delay'] === null) {
+                    $components['delay'] = $this->minifyTimeValue($token);
+                    continue;
+                }
+
+                return trim($layer);
+            }
+
+            if ($components['timing'] === null && $this->isTransitionTimingFunction($token)) {
+                $components['timing'] = $this->minifyTransitionTimingFunction($token);
+                continue;
+            }
+
+            if ($components['iteration'] === null && $this->isAnimationIterationToken($lower)) {
+                $components['iteration'] = $this->minifyAnimationIterationCount($lower);
+                continue;
+            }
+
+            if ($components['direction'] === null && in_array($lower, ['normal', 'reverse', 'alternate', 'alternate-reverse'], true)) {
+                $components['direction'] = $lower;
+                continue;
+            }
+
+            if ($components['fill'] === null && in_array($lower, ['none', 'forwards', 'backwards', 'both'], true)) {
+                if ($lower !== 'none' || $components['name'] !== null || $this->hasFutureAnimationNameToken($tokens, $index + 1)) {
+                    $components['fill'] = $lower;
+                    continue;
+                }
+            }
+
+            if ($components['play'] === null && in_array($lower, ['running', 'paused'], true)) {
+                $components['play'] = $lower;
+                continue;
+            }
+
+            if ($components['timeline'] === null && $this->isAnimationTimelineToken($token)) {
+                $components['timeline'] = $this->minifyAnimationTimelineToken($token);
+                continue;
+            }
+
+            if ($components['name'] !== null) {
+                return trim($layer);
+            }
+            $components['name'] = $this->minifyAnimationName($token);
+        }
+
+        return $this->serializeAnimationShorthandLayer($components);
+    }
+
+    private function minifyAnimationTokenInPlace(string $token): string
+    {
+        if ($this->isTimeValue($token)) {
+            return $this->minifyTimeValue($token);
+        }
+        if ($this->isTransitionTimingFunction($token)) {
+            return $this->minifyTransitionTimingFunction($token);
+        }
+        if ($this->isQuotedStringToken($token)) {
+            return $this->minifyAnimationName($token);
+        }
+
+        return strtolower($token) === 'auto' ? 'auto' : $token;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function hasFutureAnimationNameToken(array $tokens, int $offset): bool
+    {
+        for ($i = $offset; $i < count($tokens); $i++) {
+            $token = $tokens[$i];
+            if ($this->isQuotedStringToken($token)) {
+                return true;
+            }
+
+            $lower = strtolower($token);
+            if ($this->isTimeValue($token)
+                || $this->isTransitionTimingFunction($token)
+                || $this->isAnimationIterationToken($lower)
+                || in_array($lower, ['normal', 'reverse', 'alternate', 'alternate-reverse'], true)
+                || in_array($lower, ['none', 'forwards', 'backwards', 'both'], true)
+                || in_array($lower, ['running', 'paused'], true)
+                || $this->isAnimationTimelineToken($token)
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{duration:?string,timing:?string,delay:?string,iteration:?string,direction:?string,fill:?string,play:?string,name:?string,timeline:?string} $components
+     */
+    private function serializeAnimationShorthandLayer(array $components): string
+    {
+        $duration = $components['duration'] ?? '0s';
+        $timing = $components['timing'] ?? 'ease';
+        $delay = $components['delay'] ?? '0s';
+        $iteration = $components['iteration'] ?? '1';
+        $direction = $components['direction'] ?? 'normal';
+        $fill = $components['fill'] ?? 'none';
+        $play = $components['play'] ?? 'running';
+        $name = $components['name'] ?? 'none';
+        $timeline = $components['timeline'] ?? 'auto';
+
+        $parts = [];
+        if ($duration !== '0s' || $delay !== '0s') {
+            $parts[] = $duration;
+        }
+        if ($timing !== 'ease' || $this->animationNameConflictsWith($name, 'timing')) {
+            $parts[] = $timing;
+        }
+        if ($delay !== '0s') {
+            $parts[] = $delay;
+        }
+        if ($iteration !== '1' || $this->animationNameConflictsWith($name, 'iteration')) {
+            $parts[] = $iteration;
+        }
+        if ($direction !== 'normal' || $this->animationNameConflictsWith($name, 'direction')) {
+            $parts[] = $direction;
+        }
+        if ($fill !== 'none' || $this->animationNameConflictsWith($name, 'fill')) {
+            $parts[] = $fill;
+        }
+        if ($play !== 'running' || $this->animationNameConflictsWith($name, 'play')) {
+            $parts[] = $play;
+        }
+        if ($name !== 'none' || $parts === []) {
+            $parts[] = $name;
+        }
+        if ($timeline !== 'auto') {
+            $parts[] = $timeline;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function animationNameConflictsWith(string $name, string $component): bool
+    {
+        if ($this->isQuotedStringToken($name)) {
+            return false;
+        }
+
+        $lower = strtolower($name);
+
+        return match ($component) {
+            'timing' => $this->isTransitionTimingFunction($lower),
+            'iteration' => $this->isAnimationIterationToken($lower),
+            'direction' => in_array($lower, ['normal', 'reverse', 'alternate', 'alternate-reverse'], true),
+            'fill' => in_array($lower, ['forwards', 'backwards', 'both'], true),
+            'play' => in_array($lower, ['running', 'paused'], true),
+            default => false,
+        };
+    }
+
+    private function isQuotedStringToken(string $token): bool
+    {
+        return preg_match('/^([\'"]).*\1$/s', trim($token)) === 1;
+    }
+
+    private function isAnimationIterationToken(string $token): bool
+    {
+        return $token === 'infinite' || preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1;
+    }
+
+    private function isAnimationTimelineToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+
+        return $lower === 'auto'
+            || str_starts_with($lower, '--')
+            || preg_match('/^(?:scroll|view)\(/', $lower) === 1;
+    }
+
+    private function minifyAnimationTimelineToken(string $token): string
+    {
+        $lower = strtolower(trim($token));
+        if (preg_match('/^scroll\((.*)\)$/', $lower, $matches) === 1) {
+            $parts = $this->splitWhitespaceTopLevel($matches[1]);
+            sort($parts);
+            $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== 'block' && $part !== 'nearest'));
+
+            return 'scroll(' . implode(' ', $parts) . ')';
+        }
+        if (preg_match('/^view\((.*)\)$/', $lower, $matches) === 1) {
+            $parts = $this->splitWhitespaceTopLevel($matches[1]);
+            if (($parts[0] ?? null) === 'block') {
+                array_shift($parts);
+            }
+            if (count($parts) >= 3 && $parts[1] === 'auto' && $parts[2] === 'auto') {
+                array_splice($parts, 1);
+            }
+            if (count($parts) >= 3 && $parts[1] === $parts[2]) {
+                array_pop($parts);
+            }
+
+            return 'view(' . implode(' ', $parts) . ')';
+        }
+
+        return $lower;
     }
 
     private function minifyTransitionLonghandValue(string $property, string $value): string

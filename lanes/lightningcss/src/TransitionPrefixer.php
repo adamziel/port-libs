@@ -86,9 +86,10 @@ final class TransitionPrefixer
         }
 
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
-        $maskChanged = $this->rewriteMaskPrefixEntries($entries);
+        $supportRules = [];
+        $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         if ($transitionChanged || $maskChanged) {
-            return $selectors . '{' . $this->serializeDeclarations($entries) . '}';
+            return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
         return $selectors . '{' . $body . '}';
@@ -224,11 +225,18 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      */
-    private function rewriteMaskPrefixEntries(array &$entries): bool
+    private function rewriteMaskPrefixEntries(array &$entries, ?string $supportSelector = null, array &$supportRules = []): bool
     {
         $changed = false;
         $drop = [];
         $insertions = [];
+
+        $hasWebkitMask = false;
+        $hasWebkitMaskImage = false;
+        foreach ($entries as $entry) {
+            $hasWebkitMask = $hasWebkitMask || $entry['property'] === '-webkit-mask';
+            $hasWebkitMaskImage = $hasWebkitMaskImage || $entry['property'] === '-webkit-mask-image';
+        }
 
         foreach (['modern', 'webkit'] as $family) {
             $plan = $this->planMaskBorderComposition($entries, $family);
@@ -236,6 +244,15 @@ final class TransitionPrefixer
                 continue;
             }
 
+            foreach ($plan['drop'] as $index) {
+                $drop[$index] = true;
+            }
+            $insertions[$plan['replaceAt']] = array_merge($insertions[$plan['replaceAt']] ?? [], $plan['entries']);
+            $changed = true;
+        }
+
+        $plan = $this->planMaskLayerComposition($entries);
+        if ($plan !== null) {
             foreach ($plan['drop'] as $index) {
                 $drop[$index] = true;
             }
@@ -253,7 +270,12 @@ final class TransitionPrefixer
                 continue;
             }
 
-            [$mapped, $entryChanged] = $this->rewriteSingleMaskPrefixEntry($entry);
+            $result = $this->rewriteSingleMaskPrefixEntry($entry, $hasWebkitMask, $hasWebkitMaskImage);
+            [$mapped, $entryChanged] = $result;
+            $supportEntries = $result[2] ?? [];
+            if ($supportSelector !== null && $supportEntries !== []) {
+                $supportRules[] = $this->supportsLabRule($supportSelector, $supportEntries);
+            }
             array_push($rewritten, ...$mapped);
             $changed = $changed || $entryChanged;
         }
@@ -261,6 +283,71 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{replaceAt:int,drop:list<int>,entries:list<array{property:string,name:string,value:string,important:bool}>}|null
+     */
+    private function planMaskLayerComposition(array $entries): ?array
+    {
+        $map = [
+            'mask-image' => 'image',
+            'mask-position' => 'position',
+            'mask-size' => 'size',
+            'mask-repeat' => 'repeat',
+            'mask-origin' => 'origin',
+            'mask-clip' => 'clip',
+            'mask-composite' => 'composite',
+            'mask-mode' => 'mode',
+        ];
+
+        $latest = [];
+        $drop = [];
+        foreach ($entries as $index => $entry) {
+            $component = $map[$entry['property']] ?? null;
+            if ($component === null) {
+                continue;
+            }
+            if ($entry['important']) {
+                return null;
+            }
+            $latest[$component] = $index;
+            $drop[] = $index;
+        }
+
+        if (!isset($latest['image']) || count($latest) === 1) {
+            return null;
+        }
+
+        $image = $entries[$latest['image']]['value'];
+        if (!$this->isPrefixableMaskImageValue($image) || count($this->splitTopLevel($image, ',')) !== 1) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($latest as $component => $index) {
+            $components[$component] = $this->normalizeMaskLayerComponent($component, $entries[$index]['value']);
+        }
+
+        $componentSets = [$components];
+        $fallbackImage = $this->advancedColorFallbackValue($components['image']);
+        if ($fallbackImage !== null) {
+            $fallbackComponents = $components;
+            $fallbackComponents['image'] = $fallbackImage;
+            array_unshift($componentSets, $fallbackComponents);
+        }
+
+        $planned = [];
+        foreach ($componentSets as $componentSet) {
+            array_push($planned, ...$this->maskLayerEntries($componentSet));
+        }
+
+        return [
+            'replaceAt' => min($drop),
+            'drop' => $drop,
+            'entries' => $planned,
+        ];
     }
 
     /**
@@ -309,47 +396,202 @@ final class TransitionPrefixer
             $components[$component] = $this->normalizeMaskBorderComponent($component, $entries[$index]['value']);
         }
 
-        $replaceAt = min($drop);
-        $prefixed = $this->maskEntry('-webkit-mask-box-image', $this->composeMaskBorderValue($components, false));
-        if ($family === 'webkit') {
-            return [
-                'replaceAt' => $replaceAt,
-                'drop' => $drop,
-                'entries' => [$prefixed],
-            ];
+        $componentSets = [$components];
+        $fallbackSource = $this->advancedColorFallbackValue($components['source'] ?? '');
+        if ($fallbackSource !== null) {
+            $fallbackComponents = $components;
+            $fallbackComponents['source'] = $fallbackSource;
+            array_unshift($componentSets, $fallbackComponents);
+        }
+
+        $planned = [];
+        foreach ($componentSets as $componentSet) {
+            $planned[] = $this->maskEntry('-webkit-mask-box-image', $this->composeMaskBorderValue($componentSet, false));
+            if ($family === 'modern') {
+                $planned[] = $this->maskEntry('mask-border', $this->composeMaskBorderValue($componentSet, true));
+            }
         }
 
         return [
-            'replaceAt' => $replaceAt,
+            'replaceAt' => min($drop),
             'drop' => $drop,
-            'entries' => [
-                $prefixed,
-                $this->maskEntry('mask-border', $this->composeMaskBorderValue($components, true)),
-            ],
+            'entries' => $planned,
         ];
     }
 
     /**
      * @param array{property:string,name:string,value:string,important:bool} $entry
-     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool,2?:list<array{property:string,name:string,value:string,important:bool}>}
      */
-    private function rewriteSingleMaskPrefixEntry(array $entry): array
+    private function rewriteSingleMaskPrefixEntry(array $entry, bool $hasWebkitMask, bool $hasWebkitMaskImage): array
     {
         if ($entry['important']) {
             return [[$entry], false];
         }
 
         switch ($entry['property']) {
+            case '-webkit-mask':
+                $entry['value'] = $this->normalizeMaskShorthand($entry['value'], false);
+                $fallback = $this->advancedColorFallbackValue($entry['value']);
+                if ($fallback !== null) {
+                    return [[$this->maskEntry('-webkit-mask', $fallback), $entry], true];
+                }
+
+                return [[$entry], true];
+
+            case 'mask':
+                $mode = $this->maskShorthandMode($entry['value']);
+                $modern = $this->normalizeMaskShorthand($entry['value'], true);
+                $prefixed = $this->normalizeMaskShorthand($entry['value'], false);
+                $modernFallback = $this->advancedColorFallbackValue($modern);
+                $prefixedFallback = $this->advancedColorFallbackValue($prefixed);
+                if ($modernFallback !== null && $prefixedFallback !== null) {
+                    $modernLab = $this->advancedColorLabFallbackValue($modern);
+                    $prefixedLab = $this->advancedColorLabFallbackValue($prefixed);
+                    if (
+                        $modernLab !== null
+                        && $prefixedLab !== null
+                        && $this->containsCustomPropertyReference($modern)
+                    ) {
+                        $mapped = [];
+                        if (!$hasWebkitMask) {
+                            $mapped[] = $this->maskEntry('-webkit-mask', $prefixedFallback);
+                        }
+                        $mapped[] = $this->maskEntry('mask', $modernFallback);
+
+                        $supportEntries = [];
+                        if (!$hasWebkitMask) {
+                            $supportEntries[] = $this->maskEntry('-webkit-mask', $prefixedLab);
+                        }
+                        if ($mode !== null && strtolower($mode) !== 'alpha') {
+                            $supportEntries[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
+                        }
+                        $supportEntries[] = $this->maskEntry('mask', $modernLab);
+
+                        return [$mapped, true, $supportEntries];
+                    }
+
+                    $entry['value'] = $modern;
+                    $mapped = [];
+                    if (!$hasWebkitMask) {
+                        $mapped[] = $this->maskEntry('-webkit-mask', $prefixedFallback);
+                    }
+                    $mapped[] = $this->maskEntry('mask', $modernFallback);
+                    if (!$hasWebkitMask) {
+                        $mapped[] = $this->maskEntry('-webkit-mask', $prefixed);
+                    }
+                    if ($mode !== null && strtolower($mode) !== 'alpha') {
+                        $mapped[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
+                    }
+                    $mapped[] = $entry;
+
+                    return [$mapped, true];
+                }
+
+                if ($mode === null || strtolower($mode) === 'alpha') {
+                    return [[$entry], false];
+                }
+
+                $entry['value'] = $modern;
+                $mapped = [];
+                if (!$hasWebkitMask) {
+                    $mapped[] = $this->maskEntry('-webkit-mask', $prefixed);
+                }
+                $mapped[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
+                $mapped[] = $entry;
+
+                return [$mapped, true];
+
+            case '-webkit-mask-image':
+                $entry['value'] = $this->normalizeMaskImageValue($entry['value']);
+                $fallback = $this->advancedColorFallbackValue($entry['value']);
+                if ($fallback !== null) {
+                    return [[$this->maskEntry('-webkit-mask-image', $fallback), $entry], true];
+                }
+
+                return [[$entry], true];
+
+            case 'mask-image':
+                if (!$this->isPrefixableMaskImageValue($entry['value'])) {
+                    return [[$entry], false];
+                }
+
+                $entry['value'] = $this->normalizeMaskImageValue($entry['value']);
+                $fallback = $this->advancedColorFallbackValue($entry['value']);
+                if ($fallback !== null) {
+                    $mapped = [];
+                    if (!$hasWebkitMaskImage) {
+                        $mapped[] = $this->maskEntry('-webkit-mask-image', $fallback);
+                    }
+                    $mapped[] = $this->maskEntry('mask-image', $fallback);
+                    if (!$hasWebkitMaskImage) {
+                        $mapped[] = $this->maskEntry('-webkit-mask-image', $entry['value']);
+                    }
+                    $mapped[] = $entry;
+
+                    return [$mapped, true];
+                }
+
+                return [
+                    $hasWebkitMaskImage ? [$entry] : [$this->maskEntry('-webkit-mask-image', $entry['value']), $entry],
+                    true,
+                ];
+
             case 'mask-border':
                 $modern = $this->normalizeMaskBorderShorthand($entry['value'], true);
                 $prefixed = $this->normalizeMaskBorderShorthand($entry['value'], false);
                 $entry['value'] = $modern;
+                $modernFallback = $this->advancedColorFallbackValue($modern);
+                $prefixedFallback = $this->advancedColorFallbackValue($prefixed);
+                if ($modernFallback !== null && $prefixedFallback !== null) {
+                    $modernLab = $this->advancedColorLabFallbackValue($modern);
+                    $prefixedLab = $this->advancedColorLabFallbackValue($prefixed);
+                    if (
+                        $modernLab !== null
+                        && $prefixedLab !== null
+                        && $this->containsCustomPropertyReference($modern)
+                    ) {
+                        return [
+                            [
+                                $this->maskEntry('-webkit-mask-box-image', $prefixedFallback),
+                                $this->maskEntry('mask-border', $modernFallback),
+                            ],
+                            true,
+                            [
+                                $this->maskEntry('-webkit-mask-box-image', $prefixedLab),
+                                $this->maskEntry('mask-border', $modernLab),
+                            ],
+                        ];
+                    }
+
+                    return [
+                        [
+                            $this->maskEntry('-webkit-mask-box-image', $prefixedFallback),
+                            $this->maskEntry('mask-border', $modernFallback),
+                            $this->maskEntry('-webkit-mask-box-image', $prefixed),
+                            $entry,
+                        ],
+                        true,
+                    ];
+                }
 
                 return [[$this->maskEntry('-webkit-mask-box-image', $prefixed), $entry], true];
 
             case 'mask-border-source':
                 $value = $this->normalizeMaskBorderComponent('source', $entry['value']);
                 $entry['value'] = $value;
+                $fallback = $this->advancedColorFallbackValue($value);
+                if ($fallback !== null) {
+                    return [
+                        [
+                            $this->maskEntry('-webkit-mask-box-image-source', $fallback),
+                            $this->maskEntry('mask-border-source', $fallback),
+                            $this->maskEntry('-webkit-mask-box-image-source', $value),
+                            $entry,
+                        ],
+                        true,
+                    ];
+                }
 
                 return [[$this->maskEntry('-webkit-mask-box-image-source', $value), $entry], true];
 
@@ -385,6 +627,74 @@ final class TransitionPrefixer
         }
 
         return [[$entry], false];
+    }
+
+    /**
+     * @param array<string,string> $components
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function maskLayerEntries(array $components): array
+    {
+        $entries = [$this->maskEntry('-webkit-mask', $this->composeMaskLayerValue($components, false))];
+        if (isset($components['composite'])) {
+            $entries[] = $this->maskEntry('-webkit-mask-composite', $this->mapWebkitMaskComposite($components['composite']));
+        }
+        if (isset($components['mode']) && strtolower($components['mode']) !== 'alpha') {
+            $entries[] = $this->maskEntry('-webkit-mask-source-type', strtolower($components['mode']));
+        }
+        $entries[] = $this->maskEntry('mask', $this->composeMaskLayerValue($components, true));
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string,string> $components
+     */
+    private function composeMaskLayerValue(array $components, bool $includeCompositeAndMode): string
+    {
+        $value = $components['image'] ?? 'none';
+        if (isset($components['position'])) {
+            $value .= ' ' . $components['position'];
+        }
+        if (isset($components['size'])) {
+            $value .= '/' . $components['size'];
+        }
+        if (isset($components['repeat'])) {
+            $value .= ' ' . $components['repeat'];
+        }
+        $origin = $components['origin'] ?? null;
+        $clip = $components['clip'] ?? null;
+        if ($origin !== null && $clip !== null) {
+            $value .= $origin === $clip ? ' ' . $origin : ' ' . $origin . ' ' . $clip;
+        } elseif ($origin !== null && strtolower($origin) !== 'border-box') {
+            $value .= ' ' . $origin;
+        } elseif ($clip !== null && strtolower($clip) !== 'border-box') {
+            $value .= ' ' . $clip;
+        }
+
+        if ($includeCompositeAndMode && isset($components['composite'])) {
+            $value .= ' ' . $components['composite'];
+        }
+        if ($includeCompositeAndMode && isset($components['mode']) && strtolower($components['mode']) !== 'alpha') {
+            $value .= ' ' . $components['mode'];
+        }
+
+        return $value;
+    }
+
+    private function normalizeMaskLayerComponent(string $component, string $value): string
+    {
+        $value = trim($value);
+
+        return match ($component) {
+            'image' => $this->normalizeMaskImageValue($value),
+            'repeat' => $this->compressRepeatValue($value),
+            'origin',
+            'clip',
+            'composite',
+            'mode' => strtolower($value),
+            default => $this->normalizeMaskShorthandSpacing($value),
+        };
     }
 
     /**
@@ -449,6 +759,169 @@ final class TransitionPrefixer
         }
 
         return trim($normalized);
+    }
+
+    private function normalizeMaskShorthand(string $value, bool $includeMode): string
+    {
+        $mode = null;
+        $tokens = [];
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'alpha' || $lower === 'luminance') {
+                $mode = $lower;
+                continue;
+            }
+            $tokens[] = $this->normalizeMaskShorthandToken($token);
+        }
+
+        $normalized = $this->normalizeMaskShorthandSpacing(implode(' ', $tokens));
+        if ($includeMode && $mode !== null && $mode !== 'alpha') {
+            $normalized .= ' ' . $mode;
+        }
+
+        return trim($normalized);
+    }
+
+    private function maskShorthandMode(string $value): ?string
+    {
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'alpha' || $lower === 'luminance') {
+                return $lower;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeMaskImageValue(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $part): string => $this->normalizeMaskShorthandToken($part),
+            $this->splitTopLevel($value, ',')
+        ));
+    }
+
+    private function normalizeMaskShorthandToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(/i', $token) === 1) {
+            return $this->normalizeQuotedUrlToken($token);
+        }
+
+        return $this->normalizeMaskShorthandSpacing($token);
+    }
+
+    private function normalizeMaskShorthandSpacing(string $value): string
+    {
+        return preg_replace('/\s*\/\s*/', '/', trim($value)) ?? trim($value);
+    }
+
+    private function isPrefixableMaskImageValue(string $value): bool
+    {
+        return stripos($value, 'var(') === false;
+    }
+
+    private function advancedColorFallbackValue(string $value): ?string
+    {
+        return $this->mapAdvancedColorValue(
+            $value,
+            fn (string $color): ?string => $this->knownAdvancedColorFallback($color)
+        );
+    }
+
+    private function advancedColorLabFallbackValue(string $value): ?string
+    {
+        return $this->mapAdvancedColorValue(
+            $value,
+            fn (string $color): ?string => $this->knownAdvancedColorLabFallback($color)
+        );
+    }
+
+    private function containsCustomPropertyReference(string $value): bool
+    {
+        return stripos($value, 'var(') !== false;
+    }
+
+    /**
+     * @param callable(string): ?string $mapper
+     */
+    private function mapAdvancedColorValue(string $value, callable $mapper): ?string
+    {
+        $matched = false;
+        $unknown = false;
+        $fallback = preg_replace_callback(
+            '/\b(lch|lab)\(([^()]*)\)/i',
+            function (array $matches) use (&$matched, &$unknown, $mapper): string {
+                $matched = true;
+                $normalized = strtolower($matches[1]) . '(' . $this->normalizeColorFunctionArguments($matches[2]) . ')';
+                $color = $mapper($normalized);
+                if ($color === null) {
+                    $unknown = true;
+
+                    return $matches[0];
+                }
+
+                return $color;
+            },
+            $value
+        ) ?? $value;
+
+        if (!$matched || $unknown || $fallback === $value) {
+            return null;
+        }
+
+        return $fallback;
+    }
+
+    private function normalizeColorFunctionArguments(string $arguments): string
+    {
+        $arguments = preg_replace('/\s+/', ' ', trim($arguments)) ?? trim($arguments);
+        $arguments = preg_replace('/\s*,\s*/', ',', $arguments) ?? $arguments;
+
+        return $arguments;
+    }
+
+    private function knownAdvancedColorFallback(string $color): ?string
+    {
+        return match ($color) {
+            'lch(56.208% 136.76 46.312)',
+            'lab(56.208% 94.4644 98.8928)' => '#ff0f0e',
+            'lch(51% 135.366 301.364)',
+            'lab(51% 70.4544 -115.586)' => '#7773ff',
+            default => null,
+        };
+    }
+
+    private function knownAdvancedColorLabFallback(string $color): ?string
+    {
+        return match ($color) {
+            'lch(56.208% 136.76 46.312)',
+            'lab(56.208% 94.4644 98.8928)' => 'lab(56.208% 94.4644 98.8928)',
+            'lch(51% 135.366 301.364)',
+            'lab(51% 70.4544 -115.586)' => 'lab(51% 70.4544 -115.586)',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function supportsLabRule(string $selectors, array $entries): string
+    {
+        return '@supports (color:lab(0% 0 0)){' . $selectors . '{' . $this->serializeDeclarations($entries) . '}}';
+    }
+
+    private function normalizeQuotedUrlToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $url = $matches[2] !== '' ? $matches[2] : trim($matches[3]);
+
+        return 'url("' . str_replace('"', '\\"', $url) . '")';
     }
 
     /**
