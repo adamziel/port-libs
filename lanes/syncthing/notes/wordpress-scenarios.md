@@ -78,6 +78,13 @@ per-file block-count summaries, availability includes `fromTemporary`
 candidates from shared devices with matching advertised file versions, and a
 planned WordPress media block request sets `Request.fromTemporary` when the
 only source is a peer's temporary file.
+The inbound request-serving slice now maps focused upstream `model.Request`,
+`readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, and `fs.TempName`
+behavior: shared devices can read regular file ranges, `fromTemporary` requests
+try the `.syncthing.<basename>.tmp` sibling first, the temporary bytes must
+match the requested SHA-256 block hash, stale or short temporary reads fall
+back to the finalized file, final-file hash mismatches return no-such-file, and
+internal/traversal/symlink paths are rejected before disk reads.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -129,10 +136,15 @@ contains only the newly available block.
 temporary-block advertisement to a shared WordPress media folder, emits the
 same event summary the model would expose, and plans a native BEP Request frame
 with `fromTemporary` set for the advertised media block.
+`examples/wordpress-temporary-request-server.php` serves the other side of that
+flow: a WordPress media restore request arrives with `fromTemporary` set, stale
+temporary bytes are rejected by the block hash, the finalized media file is
+served as a native BEP Response frame, and any restore error is surfaced as a
+response code rather than a shell command failure.
 
 ## Next Task
 
-Port inbound `Request.fromTemporary` serving semantics: try the advertised
-temporary file first, validate the requested block hash, fall back to the final
-file when the temp data is unavailable or invalid, and surface WordPress media
-restore errors without shelling out.
+Port ignored-pattern and receive-encrypted request-serving boundaries: wire the
+request server to explicit ignore match results, preserve upstream no-hash
+validation for receive-encrypted folders, and add a WordPress encrypted media
+restore scenario.

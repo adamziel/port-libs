@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 62,
+        "mapped": 67,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
@@ -75,6 +75,11 @@
             "targetModelDownloadProgressMethods": 1,
             "targetModelBlockAvailabilityMethods": 4,
             "targetTemporaryRequestPlanningMethods": 2,
+            "targetInboundRequestServingMethods": 5,
+            "targetIncomingRequestModelTestCases": 7,
+            "targetRequestServingTestFunctions": 3,
+            "targetTempNameTestFunctions": 1,
+            "targetTempNameCases": 2,
             "goTestFileBreakdown": {
                 "lib": 105,
                 "test": 15,
@@ -138,6 +143,10 @@
                 {
                     "command": "targeted git show reads of lib/model/model.go, lib/model/folder_sendrecv.go, lib/model/devicedownloadstate.go, and lib/model/requests_test.go",
                     "result": "inspected model.DownloadProgress sharing guards and RemoteDownloadProgress event summaries, blockAvailabilityFromTemporaryRLocked candidate selection, RequestGlobal fromTemporary propagation, and puller RequestGlobal call sites without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/model/model.go, lib/model/model_test.go, lib/model/requests_test.go, lib/model/folder_sendrecv.go, lib/scanner/blocks.go, lib/fs/tempname.go, and lib/fs/filesystem.go",
+                    "result": "inspected inbound Request serving, readOffsetIntoBuf, scanner hash validation, request test cases, temporary filename generation, and internal-file rejection without hydrating broad blobs"
                 }
             ]
         },
@@ -209,15 +218,20 @@
             "Model-level inbound DownloadProgress ignores unknown folders and devices the folder is not shared with before mutating temporary-download state.",
             "Accepted remote DownloadProgress updates emit RemoteDownloadProgress-style summaries of per-file temporary block counts.",
             "Block availability includes fromTemporary candidates from shared devices whose advertised file version contains the requested block index.",
-            "Temporary block request planning preserves the selected peer and sets Request.fromTemporary when a WordPress media block is only available from a peer's temporary file."
+            "Temporary block request planning preserves the selected peer and sets Request.fromTemporary when a WordPress media block is only available from a peer's temporary file.",
+            "Inbound request serving rejects wrong folders, unshared devices, internal names, traversal names, symlink directory traversal, and negative byte ranges before disk reads.",
+            "Inbound Request.fromTemporary serving uses the upstream `.syncthing.<basename>.tmp` sibling naming convention, including SHA-256 basename hashing for very long filenames.",
+            "Temporary request serving returns temporary bytes only when the requested slice is regular, complete, and validates against the request hash.",
+            "Stale or short temporary reads fall back to the finalized file, and finalized bytes are returned only when their optional SHA-256 hash validates.",
+            "Final-file request serving maps hash mismatches to no-such-file while preserving upstream empty-hash short-read behavior for WordPress restore probes."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 62 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 67 focused lane tests against a 264-path upstream behavior/test inventory denominator plus 658 counted static Go test/benchmark entry points."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads, DownloadProgress append/forget protobuf frames plus remote temporary-download state, outgoing sent-download progress diff computation, connection-level ProgressEmitter subscription grouping/cleanup/event-summary behavior, timer-driven ProgressEmitter scheduling with BEP wire connection adapters, and inbound remote DownloadProgress tracking with temporary-block availability/request planning."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, FileInfo conflict/tombstone decisions, FileInfo equivalence/block comparison behavior, protocol filename/request/index update validation plus wire-path normalization, BEP Hello/Request/Response/ClusterConfig protobuf serialization, uncompressed plus LZ4-compressed post-auth frame handling, Index/IndexUpdate FileInfo protobuf payloads, DownloadProgress append/forget protobuf frames plus remote temporary-download state, outgoing sent-download progress diff computation, connection-level ProgressEmitter subscription grouping/cleanup/event-summary behavior, timer-driven ProgressEmitter scheduling with BEP wire connection adapters, inbound remote DownloadProgress tracking with temporary-block availability/request planning, and inbound Request.fromTemporary serving with temporary-file hash validation plus finalized-file fallback."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull, grouping those deltas per subscribed WordPress peer with event-style completed-byte summaries, scheduling real BEP DownloadProgress frames for a WordPress media peer only when the puller registry changes, and planning an inbound Request.fromTemporary for a WordPress media block advertised only from a peer's temporary file.",
-    "nextTask": "Port inbound Request.fromTemporary serving semantics: try the advertised temporary file first, validate the requested block hash, fall back to the final file when the temp data is unavailable or invalid, and surface WordPress media restore errors without shelling out."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, resolving media tombstone/conflict winner decisions, treating scanner-only metadata noise as equivalent while content changes still force sync, validating normalized WordPress media index updates while rejecting traversal requests, emitting a native BEP Request frame for a missing media block, advertising a WordPress media folder/device ClusterConfig frame, compressing repeated WordPress folder/device metadata with native LZ4 frames, sending a WordPress media IndexUpdate frame with FileInfo block hashes/version counters/sequence metadata, advertising temporary media blocks with native DownloadProgress append/forget frames, computing outgoing new-block-only DownloadProgress deltas for a WordPress media pull, grouping those deltas per subscribed WordPress peer with event-style completed-byte summaries, scheduling real BEP DownloadProgress frames for a WordPress media peer only when the puller registry changes, planning an inbound Request.fromTemporary for a WordPress media block advertised only from a peer's temporary file, and serving a WordPress media restore request by rejecting stale temporary bytes before returning a native BEP Response frame from the finalized file.",
+    "nextTask": "Port ignored-pattern and receive-encrypted request-serving boundaries: wire the request server to explicit ignore match results, preserve upstream no-hash validation for receive-encrypted folders, and add a WordPress encrypted media restore scenario."
 }
