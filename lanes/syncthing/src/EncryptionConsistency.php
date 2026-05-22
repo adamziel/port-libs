@@ -32,6 +32,7 @@ final class EncryptionConsistency
         bool $deviceUntrusted,
         string $remotePasswordTokenHex = '',
         string $storedFolderTokenHex = '',
+        ?string $remoteEncryptionPassword = null,
     ): EncryptionConsistencyDecision {
         self::assertHexBytes($remotePasswordTokenHex, 'remote password token');
         self::assertHexBytes($storedFolderTokenHex, 'stored folder token');
@@ -69,7 +70,10 @@ final class EncryptionConsistency
 
         if ($isEncryptedRemote) {
             if ($remotePasswordTokenHex === '') {
-                throw new \InvalidArgumentException('Remote encrypted devices require a password token for comparison');
+                if ($remoteEncryptionPassword === null) {
+                    throw new \InvalidArgumentException('Remote encrypted devices require a password token or password for comparison');
+                }
+                $remotePasswordTokenHex = EncryptionKey::passwordTokenHex($localFolder->id, $remoteEncryptionPassword);
             }
 
             $clusterTokenHex = $hasTokenLocal

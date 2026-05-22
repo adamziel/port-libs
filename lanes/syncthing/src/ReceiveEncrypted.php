@@ -13,6 +13,11 @@ final class ReceiveEncrypted
     public const MAX_PATH_COMPONENT = 200;
     public const ENCRYPTED_DIR_EXTENSION = '.syncthing-enc';
 
+    public static function passwordTokenHex(string $folderId, string $password): string
+    {
+        return EncryptionKey::passwordTokenHex($folderId, $password);
+    }
+
     public static function requestToEncryptedPeer(
         Request $request,
         string $encryptedName,

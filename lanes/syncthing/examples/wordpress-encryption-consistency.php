@@ -5,10 +5,11 @@ declare(strict_types=1);
 use PortLibs\Syncthing\Device;
 use PortLibs\Syncthing\EncryptionConsistency;
 use PortLibs\Syncthing\Folder;
+use PortLibs\Syncthing\ReceiveEncrypted;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$token = hash('sha256', 'wordpress media receive-encrypted token');
+$token = ReceiveEncrypted::passwordTokenHex('wordpress-media', 'foo');
 
 $plainPeer = EncryptionConsistency::checkClusterConfig(
     localFolder: new Folder('wordpress-media'),
@@ -32,7 +33,7 @@ $mismatch = EncryptionConsistency::checkClusterConfig(
     localClusterDevice: new Device('04'),
     remoteDeviceEncryptionConfigured: false,
     deviceUntrusted: true,
-    storedFolderTokenHex: hash('sha256', 'old local token'),
+    storedFolderTokenHex: '00' . substr($token, 2),
 );
 
 echo json_encode([

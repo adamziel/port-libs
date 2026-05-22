@@ -113,9 +113,17 @@ folders, both advertised encryption tokens are impossible, local
 receive-encrypted plus remote encrypted configuration is impossible, token/plain
 configuration mismatches return the upstream error boundaries, receive-encrypted
 folders adopt a cluster-advertised token before requesting a cluster-config
-resend, and stored-token mismatches surface the upstream different-password
-error. Exact `PasswordToken` scrypt/AES-SIV generation remains unported; this
-slice models token comparison once token bytes are already known.
+resend, stored-token mismatches surface the upstream different-password error,
+and remote encrypted peers can derive and compare exact `PasswordToken` bytes
+from configured passwords. The password-token slice maps
+`lib/protocol/encryption.go` and `TestKeyDerivation`: folder keys are derived
+with Syncthing's scrypt parameters (`N=32768`, `r=8`, `p=1`, `keyLen=32`) over
+`knownBytes(folderID)`, then encrypted with native AES-CMAC-SIV using the same
+zero-length AEAD nonce associated-data boundary as upstream. A temporary Go
+oracle produced fixed fixture bytes only; the PHP implementation does not call
+Go at runtime. During probing, `sudo -n dnf install -y php-sodium` installed
+`php-sodium`/`libsodium`, but this PHP build exposes only high-level scrypt, so
+the exact N/r/p KDF is implemented in lane PHP rather than delegated to sodium.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -188,13 +196,12 @@ token, while the encrypted file bytes carry a recoverable normalized FileInfo
 trailer for later metadata reconstruction.
 `examples/wordpress-encryption-consistency.php` shows the cluster-config
 boundary for that same WordPress media folder: a plain untrusted peer is
-rejected, a receive-encrypted peer's advertised token is accepted and marked for
-cluster-config resend, and a stale local token produces the upstream
-different-password error.
+rejected, a receive-encrypted peer's real Syncthing password token is accepted
+and marked for cluster-config resend, and a stale local token produces the
+upstream different-password error.
 
 ## Next Task
 
-Implement exact receive-encrypted password-token generation from
-`lib/protocol/encryption.go` (`PasswordToken`: scrypt plus AES-SIV), or
-document a safe standard-PHP crypto boundary if exact parity cannot be
-implemented without nonstandard extensions.
+Port deterministic encrypted name and block-hash token transforms from
+`lib/protocol/encryption.go` using the new AES-SIV primitive, then map
+encrypted FileInfo metadata wrapping/decryption boundaries.
