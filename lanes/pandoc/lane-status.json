@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native Markdown reader groups bullet/ordered lists and parses emphasis, strong, links, and code spans; WordPress writer renders escaped block output.",
     "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable; upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout.",
-    "latestCommit": "650ace0",
+    "latestCommit": "1c7f6cbccdff",
     "nextTask": "Map a small subset of Pandoc Tests.Readers.Markdown golden cases into PHP fixtures, then add nested list item blocks."
 }
