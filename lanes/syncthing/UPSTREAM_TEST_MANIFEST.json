@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 264,
-        "mapped": 102,
+        "mapped": 106,
         "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted Go test files, test/testdata fixtures, scripts, proto/XML/JSON/DB/cert artifacts, focused protocol/scanner paths with git ls-tree, and targeted `_test.go` entry points without hydrating the full checkout.",
         "inventory": {
             "upstreamTrackedPaths": 940,
@@ -48,6 +48,10 @@
             "targetHelloTestFunctions": 2,
             "targetHelloOldMagicCases": 3,
             "targetRequestResponseWireMethods": 4,
+            "targetRawConnectionRequestMethods": 3,
+            "targetProtocolErrorMappingMethods": 2,
+            "targetProtocolRequestValidationTestFunctions": 2,
+            "targetRawRequestExchangeMappedPhpTests": 4,
             "targetPostAuthFrameMethods": 5,
             "targetLz4CompressionTestFunctions": 3,
             "targetLz4HelperMethods": 2,
@@ -162,6 +166,10 @@
                 {
                     "command": "targeted git show reads of lib/protocol/bep_hello.go, bep_hello_test.go, bep_request_response.go, proto/bep/bep.proto, and protocol.go",
                     "result": "inspected hello magic/length/protobuf handling, old-magic error cases, Request/Response field mappings, Header message type values, and uncompressed post-auth frame layout without hydrating broad blobs"
+                },
+                {
+                    "command": "targeted git show reads of lib/protocol/protocol.go, lib/protocol/errors.go, lib/protocol/protocol_test.go, lib/model/model.go, and proto/bep/bep.proto",
+                    "result": "inspected rawConnection.Request ID allocation, awaiting response resolution, internalClose pending-request drain behavior, codeToError/errorToCode mappings, request max-size/invalid-filename dispatcher tests, and model request error boundaries without hydrating broad blobs"
                 },
                 {
                     "command": "targeted git show reads of lib/protocol/protocol.go and protocol_test.go",

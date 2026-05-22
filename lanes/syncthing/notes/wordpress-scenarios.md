@@ -38,7 +38,15 @@ decision path, and the static inventory counted eight upstream ping/close and
 close-race test functions without hydrating the full checkout. The upstream
 denominator is still a static inventory rather
 than runner parity, but this slice also counted 658 static Go test/benchmark
-entry points across 141 upstream `_test.go` files. The device identity slice
+entry points across 141 upstream `_test.go` files. The raw request/response
+exchange slice now maps focused upstream `protocol.go`, `errors.go`,
+`protocol_test.go`, `model.go`, and `proto/bep/bep.proto` behavior: outbound
+requests receive monotonically increasing IDs, matching responses resolve only
+pending requests, late unknown responses are ignored, no-error/generic/
+no-such-file/invalid-file codes map to the same error classes as upstream,
+connection close drains pending requests as closed, and dispatcher request
+size/filename validation rejects invalid messages before request handling. The
+device identity slice
 now maps focused upstream `deviceid.go`, `deviceid_test.go`, `luhn.go`, and
 `luhn_test.go` behavior: raw certificate bytes hash to a 32-byte device ID,
 canonical IDs use Syncthing's base32 plus four Luhn32 check digits and
@@ -220,6 +228,10 @@ traversal request for `wp-config.php` is rejected.
 the next missing WordPress media block, then decodes it back to prove the
 folder, wire path, block number, byte range, and SHA-256 block hash survive the
 wire boundary without shelling out.
+`examples/wordpress-request-response-exchange.php` tracks the next layer of
+that request lifecycle: a stale media block response maps to no-such-file for a
+retry, the retry response completes with restored bytes, and a disconnected
+peer drains an outstanding WordPress media request as connection-closed.
 `examples/wordpress-cluster-config.php` advertises a WordPress media folder and
 Playground importer device as a native BEP ClusterConfig frame, then decodes it
 back to prove the folder label, device addresses, compression preference, max
