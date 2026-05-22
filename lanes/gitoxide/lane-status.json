@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 11,
-    "suiteProgress": "targeted object/ref/ref-store/pack-index static inventory counted; full cargo runner not executed",
-    "phpPass": 40,
+    "estimatedProgress": 12,
+    "suiteProgress": "targeted object/ref/ref-store/pack-index/pack-data static inventory counted; full cargo runner not executed",
+    "phpPass": 45,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, loose+packed ref resolution, and pack-index object offset lookup without shelling out to git.",
-    "phase": "targeted object/ref inventory plus pack index slice",
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, server-side repo primitives, deploy-tree inspection, HEAD/deployment-branch refs, packed branch/tag refs, loose+packed ref resolution, pack-index offset lookup, and non-delta packed object reads without shelling out to git.",
+    "phase": "targeted object/ref inventory plus pack data slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, loose+packed ref resolution, and v2 pack-index parsing/lookup with fanout, CRC, large offsets, and checksums.",
+    "currentWork": "Native loose Git object storage, commit/tree parsing, loose and packed refs, loose+packed ref resolution, v2 pack-index parsing/lookup, and pack data header/non-delta entry decoding.",
     "blocker": "Full cargo workspace runner not executed: .upstream-cache/gitoxide is sparse/no-checkout and a Cargo run would require materializing crate source plus building Rust dependencies; full workspace cargo test would hydrate/build beyond the current VM cap.",
-    "latestCommit": "745aeff",
-    "nextTask": "Map pack data header and entry decoding enough to read non-delta blob/commit objects by pack-index offset."
+    "latestCommit": "21546dc",
+    "nextTask": "Map OFS_DELTA/REF_DELTA header resolution and delta application for packed blobs."
 }
