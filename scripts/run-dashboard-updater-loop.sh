@@ -6,6 +6,8 @@ cd "$ROOT"
 
 AGENT_BIN="${AGENT_BIN:-codex}"
 INTERVAL_SECONDS="${DASHBOARD_UPDATER_INTERVAL_SECONDS:-600}"
+STABILITY_SECONDS="${DASHBOARD_UPDATER_STABILITY_SECONDS:-90}"
+STABILITY_POLL_SECONDS="${DASHBOARD_UPDATER_STABILITY_POLL_SECONDS:-15}"
 SESSION_NAME="${SESSION_NAME:-port-dashboard-updater}"
 PROMPT_FILE="${PROMPT_FILE:-$ROOT/.tmux-team/prompts/dashboard-updater.md}"
 LOG_DIR="$ROOT/.tmux-team/logs"
@@ -26,6 +28,41 @@ fi
 iteration=0
 last_log="$STATE_DIR/${SESSION_NAME}-last.log"
 
+current_source_head() {
+  git rev-parse refs/heads/main 2>/dev/null || git rev-parse HEAD
+}
+
+wait_for_stable_source() {
+  local target="$1"
+  local poll="$2"
+  local candidate current stable_for
+
+  if ((target <= 0)); then
+    current_source_head
+    return
+  fi
+
+  candidate="$(current_source_head)"
+  stable_for=0
+  printf 'Waiting for source main to stay stable for %ss. Initial: %s\n' "$target" "$candidate" >&2
+
+  while ((stable_for < target)); do
+    sleep "$poll"
+    current="$(current_source_head)"
+    if [[ "$current" == "$candidate" ]]; then
+      stable_for=$((stable_for + poll))
+      printf 'Stable for %ss/%ss at %s\n' "$stable_for" "$target" "${current:0:12}" >&2
+    else
+      printf 'Source moved after %ss: %s -> %s; restarting stability window\n' \
+        "$stable_for" "${candidate:0:12}" "${current:0:12}" >&2
+      candidate="$current"
+      stable_for=0
+    fi
+  done
+
+  printf '%s\n' "$candidate"
+}
+
 while true; do
   iteration=$((iteration + 1))
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -37,6 +74,7 @@ while true; do
   printf 'Agent: %s (%s)\n' "$AGENT_BIN" "$(command -v "$AGENT_BIN")"
   printf 'Iteration: %s\n' "$iteration"
   printf 'Interval: %ss\n' "$INTERVAL_SECONDS"
+  printf 'Preflight stability window: %ss\n' "$STABILITY_SECONDS"
   printf 'Git: %s %s, dirty paths: %s\n' \
     "$(git branch --show-current 2>/dev/null || printf '?')" \
     "$(git rev-parse --short HEAD 2>/dev/null || printf '?')" \
@@ -49,6 +87,10 @@ while true; do
   else
     printf 'none yet\n'
   fi
+
+  printf '\n'
+  stable_head="$(wait_for_stable_source "$STABILITY_SECONDS" "$STABILITY_POLL_SECONDS")"
+  printf 'Stable source head selected for attempt: %s\n' "$stable_head"
 
   printf '\nStatus: starting dashboard updater; full output goes to %s\n' "$log"
 
