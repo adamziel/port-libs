@@ -99,6 +99,15 @@ Import field widths:
 | Posts | 42 | This long reviewer note should keep the wide column for migration summaries |
 | Media | 7 | Check `alt` text before publish |
 
+Legacy source totals:
+
+    Field Count    Status
+  ------- ----- ---------
+    Posts 42    Ready
+    Media 7     Needs alt text
+
+  : Legacy simple-table summary.
+
 <!-- Preserve migration audit marker -->
 
 <hr class="legacy-import-divider" />

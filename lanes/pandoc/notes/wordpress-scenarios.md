@@ -99,6 +99,12 @@ metadata stays on the AST, and cells containing escaped pipes or code-span pipes
 stay in the intended cell. The WordPress writer renders these as core table
 blocks with escaped inline emphasis, code spans, and optional `<colgroup>` width
 styles.
+The first four simple-table cases from `test/tables.markdown` are now mapped
+for older gridless Markdown exports: captioned and uncaptioned simple tables
+infer Pandoc-style alignment from header spacing, the two-space-indented table
+shape is recognized before indented-code parsing, and no-column-header simple
+tables use opening and closing delimiter rows while keeping body rows in a
+WordPress table block.
 
 ## Scenario Fixture
 
@@ -124,6 +130,9 @@ styles.
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption, and colgroup widths, exercising the native table AST and
   WordPress table block writer.
+- The fixture now also includes legacy simple-table source totals with a
+  caption, exercising gridless table imports from older Pandoc-compatible
+  exports that do not use pipe-table syntax.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -183,9 +192,12 @@ styles.
   core WordPress table blocks with `<thead>`, `<tbody>`, aligned cells,
   optional `<colgroup>` widths, a figcaption where present, escaped emphasis,
   and code spans without invoking Pandoc.
+- Legacy simple-table source totals render as core WordPress table blocks with
+  inferred alignment styles and captions without invoking Pandoc.
 
 ## Next Task
 
-Start simple and multiline table syntax from `test/tables.markdown` and
-`test/tables.native`, beginning with simple gridless tables with captions and
-multiline rows.
+Continue multiline table syntax from `test/tables.markdown` and
+`test/tables.native`, beginning with wrapped header/body rows, soft breaks
+inside cells, multiline captions, and the default-vs-left final-column
+alignment distinction.

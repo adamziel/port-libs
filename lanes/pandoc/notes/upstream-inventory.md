@@ -83,6 +83,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   run: 927 lines, including 11 `Table` nodes, 88 `Cell` nodes, two headerless
   `TableHead []` shapes, one `Code` node containing a literal pipe, and three
   relative-width `ColWidth` entries
+- `test/tables.markdown` simple/multiline table fixture inspected in this run:
+  76 Markdown lines covering seven gridless tables; the first four simple-table
+  cases are now mapped, while multiline wrapped-row tables remain the next
+  slice
+- `test/tables.native` rendered native AST inspected in this run: 964 lines,
+  including seven `Table` nodes and two headerless `TableHead []` shapes
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -248,11 +254,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   delimiter rows produce relative column-width metadata, and tricky cells keep
   escaped `\|` pipes as text while `foo` plus a code span containing `bar|baz`
   remains one cell.
+- The first four simple-table cases from `test/tables.markdown`, cross-checked
+  against `test/tables.native`: captioned and uncaptioned gridless simple
+  tables infer right/left/center/default alignment from header spacing, the
+  two-space-indented simple-table fixture still parses as a table rather than an
+  indented code block, and a no-column-header simple table uses opening and
+  closing delimiter rows with alignment inferred from the first body row.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-79 tests, 520 assertions, and 0 failures. The required repo-wide
+82 tests, 547 assertions, and 0 failures. The required repo-wide
 `php tools/run-tests.php` command passed in the current shared worktree with
-106 test files, 7,544 assertions, and 0 failures.
+108 test files, 7,836 assertions, and 0 failures.

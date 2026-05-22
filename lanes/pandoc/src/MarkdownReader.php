@@ -55,6 +55,13 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
+            $simpleTable = $this->tryReadSimpleTable($lines, $index);
+            if ($simpleTable !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = $simpleTable;
+                continue;
+            }
             $pipeTable = $this->tryReadPipeTable($lines, $index);
             if ($pipeTable !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -541,6 +548,226 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadSimpleTable(array $lines, int &$index): ?AstNode
+    {
+        if (!isset($lines[$index + 1])) {
+            return null;
+        }
+
+        $headerColumns = $this->parseSimpleTableDelimiter($lines[$index + 1]);
+        if ($headerColumns !== null) {
+            return $this->readSimpleTableWithHeader($lines, $index, $headerColumns);
+        }
+
+        $bodyColumns = $this->parseSimpleTableDelimiter($lines[$index]);
+        if ($bodyColumns !== null) {
+            return $this->readSimpleTableWithoutHeader($lines, $index, $bodyColumns);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<array{start:int, length:int}> $columns
+     */
+    private function readSimpleTableWithHeader(array $lines, int &$index, array $columns): ?AstNode
+    {
+        $headerLine = $lines[$index];
+        if (trim($headerLine) === '' || $this->parseSimpleTableDelimiter($headerLine) !== null) {
+            return null;
+        }
+
+        $cursor = $index + 2;
+        $bodyRows = [];
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) !== '') {
+            if ($this->parseSimpleTableDelimiter($lines[$cursor]) !== null) {
+                break;
+            }
+
+            $bodyRows[] = $this->splitSimpleTableLine($lines[$cursor], $columns);
+            $cursor++;
+        }
+
+        if ($bodyRows === []) {
+            return null;
+        }
+
+        [$caption, $next] = $this->readTableCaption($lines, $cursor);
+        $index = $next - 1;
+
+        return $this->buildSimpleTable(
+            $this->splitSimpleTableLine($headerLine, $columns),
+            $bodyRows,
+            $this->detectSimpleTableAlignments($headerLine, $columns),
+            $caption
+        );
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<array{start:int, length:int}> $columns
+     */
+    private function readSimpleTableWithoutHeader(array $lines, int &$index, array $columns): ?AstNode
+    {
+        $cursor = $index + 1;
+        $bodyRows = [];
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) !== '') {
+            $closingColumns = $this->parseSimpleTableDelimiter($lines[$cursor]);
+            if ($closingColumns !== null && count($closingColumns) === count($columns)) {
+                if ($bodyRows === []) {
+                    return null;
+                }
+
+                $alignments = $this->detectSimpleTableAlignments($lines[$index + 1], $columns);
+                [$caption, $next] = $this->readTableCaption($lines, $cursor + 1);
+                $index = $next - 1;
+
+                return $this->buildSimpleTable(
+                    null,
+                    $bodyRows,
+                    $alignments,
+                    $caption
+                );
+            }
+
+            $bodyRows[] = $this->splitSimpleTableLine($lines[$cursor], $columns);
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{start:int, length:int}>|null
+     */
+    private function parseSimpleTableDelimiter(string $line): ?array
+    {
+        if (preg_match('/^[ \t-]+$/', $line) !== 1) {
+            return null;
+        }
+
+        preg_match_all('/-+/', $line, $matches, PREG_OFFSET_CAPTURE);
+        $columns = [];
+        foreach ($matches[0] as $match) {
+            $marker = $match[0];
+            if (strlen($marker) < 3) {
+                return null;
+            }
+
+            $columns[] = [
+                'start' => (int) $match[1],
+                'length' => strlen($marker),
+            ];
+        }
+
+        return count($columns) >= 2 ? $columns : null;
+    }
+
+    /**
+     * @param list<array{start:int, length:int}> $columns
+     * @return list<string>
+     */
+    private function splitSimpleTableLine(string $line, array $columns): array
+    {
+        $cells = [];
+        $lineLength = strlen($line);
+        foreach ($columns as $column) {
+            $start = $column['start'];
+            $length = $column['length'];
+            $cell = $start < $lineLength ? substr($line, $start, $length) : '';
+            $cells[] = trim($cell);
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @param list<array{start:int, length:int}> $columns
+     * @return list<string>
+     */
+    private function detectSimpleTableAlignments(string $sampleLine, array $columns): array
+    {
+        $alignments = [];
+        $lineLength = strlen($sampleLine);
+        foreach ($columns as $column) {
+            $start = $column['start'];
+            if ($start >= $lineLength) {
+                $alignments[] = 'default';
+                continue;
+            }
+
+            $segment = substr($sampleLine, $start, $column['length']);
+            if (trim($segment) === '') {
+                $alignments[] = 'default';
+                continue;
+            }
+
+            $leftPad = strlen($segment) - strlen(ltrim($segment, ' '));
+            $rightPad = strlen($segment) - strlen(rtrim($segment, ' '));
+            $alignments[] = match (true) {
+                $leftPad > 0 && $rightPad === 0 => 'right',
+                $leftPad === 0 && $rightPad > 0 => 'left',
+                $leftPad > 0 && $rightPad > 0 => 'center',
+                default => 'default',
+            };
+        }
+
+        return $alignments;
+    }
+
+    /**
+     * @param list<string>|null $headerCells
+     * @param list<list<string>> $bodyRows
+     * @param list<string> $alignments
+     */
+    private function buildSimpleTable(?array $headerCells, array $bodyRows, array $alignments, string $caption): AstNode
+    {
+        $children = [];
+        if ($headerCells !== null) {
+            $children[] = new AstNode('table_head', [], [
+                $this->buildTableRow($headerCells, true),
+            ]);
+        } else {
+            $children[] = new AstNode('table_head');
+        }
+
+        $bodyChildren = [];
+        foreach ($bodyRows as $row) {
+            $bodyChildren[] = $this->buildTableRow($row, false);
+        }
+        $children[] = new AstNode('table_body', [], $bodyChildren);
+
+        return new AstNode('table', [
+            'caption' => $caption,
+            'alignments' => $alignments,
+        ], $children);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}
+     */
+    private function readTableCaption(array $lines, int $cursor): array
+    {
+        $count = count($lines);
+        $captionCursor = $cursor;
+        while ($captionCursor < $count && trim($lines[$captionCursor]) === '') {
+            $captionCursor++;
+        }
+
+        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
+            return [trim($m[1]), $captionCursor + 1];
+        }
+
+        return ['', $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function tryReadPipeTable(array $lines, int &$index): ?AstNode
     {
         if (!isset($lines[$index + 1])) {
@@ -576,15 +803,7 @@ final class MarkdownReader
             $cursor++;
         }
 
-        $caption = '';
-        $captionCursor = $cursor;
-        while ($captionCursor < $count && trim($lines[$captionCursor]) === '') {
-            $captionCursor++;
-        }
-        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
-            $caption = trim($m[1]);
-            $cursor = $captionCursor + 1;
-        }
+        [$caption, $cursor] = $this->readTableCaption($lines, $cursor);
 
         $headerIsEmpty = true;
         foreach ($headerCells as $cell) {

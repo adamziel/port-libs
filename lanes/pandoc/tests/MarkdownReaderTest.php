@@ -1045,6 +1045,78 @@ return [
         $t->same('<hr>', $document->children[6]->attr('html'));
         $t->same('<hr class="foo" id="bar" />', $document->children[7]->attr('html'));
     },
+    'maps upstream tables simple syntax with and without captions' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Simple table with caption:',
+            '',
+            '    Right Left    Center  Default',
+            '  ------- ------ -------- ---------',
+            '       12 12        12    12',
+            '      123 123      123    123',
+            '        1 1         1     1',
+            '',
+            '  : Demonstration of simple table syntax.',
+            '',
+            'Simple table without caption:',
+            '',
+            '    Right Left    Center  Default',
+            '  ------- ------ -------- ---------',
+            '       12 12        12    12',
+            '      123 123      123    123',
+            '        1 1         1     1',
+            '',
+            'Simple table indented two spaces:',
+            '',
+            '    Right Left    Center  Default',
+            '  ------- ------ -------- ---------',
+            '       12 12        12    12',
+            '      123 123      123    123',
+            '        1 1         1     1',
+            '',
+            '  : Demonstration of simple table syntax.',
+        ]));
+        $captioned = $document->children[1];
+        $withoutCaption = $document->children[3];
+        $indented = $document->children[5];
+
+        $t->same('table', $captioned->type);
+        $t->same('Demonstration of simple table syntax.', $captioned->attr('caption'));
+        $t->same(['right', 'left', 'center', 'default'], $captioned->attr('alignments'));
+        $t->same('Right', $captioned->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Default', $captioned->children[0]->children[0]->children[3]->attr('text'));
+        $t->same(3, count($captioned->children[1]->children));
+        $t->same('12', $captioned->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('123', $captioned->children[1]->children[1]->children[2]->attr('text'));
+        $t->same('1', $captioned->children[1]->children[2]->children[3]->attr('text'));
+        $t->same('', $withoutCaption->attr('caption'));
+        $t->same(['right', 'left', 'center', 'default'], $withoutCaption->attr('alignments'));
+        $t->same('Center', $withoutCaption->children[0]->children[0]->children[2]->attr('text'));
+        $t->same('123', $withoutCaption->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('table', $indented->type);
+        $t->same('Demonstration of simple table syntax.', $indented->attr('caption'));
+        $t->same('Left', $indented->children[0]->children[0]->children[1]->attr('text'));
+    },
+    'maps upstream tables simple syntax without column headers' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Table without column headers:',
+            '',
+            '  ----- ----- ----- -----',
+            '     12 12     12      12',
+            '    123 123    123    123',
+            '      1 1       1       1',
+            '  ----- ----- ----- -----',
+        ]));
+        $table = $document->children[1];
+
+        $t->same('table', $table->type);
+        $t->same([], $table->children[0]->children);
+        $t->same(['right', 'left', 'center', 'right'], $table->attr('alignments'));
+        $t->same(3, count($table->children[1]->children));
+        $t->same('12', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('12', $table->children[1]->children[0]->children[3]->attr('text'));
+        $t->same('123', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('1', $table->children[1]->children[2]->children[2]->attr('text'));
+    },
     'maps upstream pipe tables with captions alignments and body rows' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'Simple table with caption:',
@@ -1329,6 +1401,14 @@ return [
         $t->contains('<tr><th>Field</th><th>Count</th><th>Review Notes</th></tr>', $blocks);
         $t->contains('<tr><td>Posts</td><td>42</td><td>This long reviewer note should keep the wide column for migration summaries</td></tr>', $blocks);
         $t->contains('<tr><td>Media</td><td>7</td><td>Check <code>alt</code> text before publish</td></tr>', $blocks);
+    },
+    'writes wordpress simple table blocks for legacy import totals' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<th style="text-align:right">Field</th><th>Count</th><th style="text-align:right">Status</th>', $blocks);
+        $t->contains('<td style="text-align:right">Posts</td><td>42</td><td style="text-align:right">Ready</td>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Legacy simple-table summary.</figcaption>', $blocks);
     },
     'writes wordpress underscore and nested emphasis from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
