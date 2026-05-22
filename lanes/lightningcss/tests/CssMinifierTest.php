@@ -39,10 +39,64 @@ return [
             $minifier->minify('.foo { animation-fill-mode: Backwards,forwards; animation-composition: ADD }')
         );
     },
+    'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{transition-duration:.5s,50ms;transition-delay:.5s}',
+            $minifier->minify('.foo { transition-duration: 500ms, 50ms; transition-delay: 500ms }')
+        );
+        $t->same(
+            '.foo{transition-duration:99ms;transition-delay:99ms}',
+            $minifier->minify('.foo { transition-duration: .099s; transition-delay: 99ms }')
+        );
+        $t->same(
+            '.foo{transition-duration:.95s;transition-delay:2.95s}',
+            $minifier->minify('.foo { transition-duration: calc(1s - 50ms); transition-delay: calc(1s - 50ms + 2s) }')
+        );
+        $t->same(
+            '.foo{transition-duration:1.9s}',
+            $minifier->minify('.foo { transition-duration: calc((1s - 50ms) * 2) }')
+        );
+        $t->same(
+            '.foo{transition-duration:1.9s}',
+            $minifier->minify('.foo { transition-duration: calc(2 * (1s - 50ms)) }')
+        );
+        $t->same(
+            '.foo{transition-duration:1.1s}',
+            $minifier->minify('.foo { transition-duration: calc((2s + 50ms) - (1s - 50ms)) }')
+        );
+        $t->same(
+            '.foo{transition-timing-function:ease,ease-in,ease-out,ease-in-out}',
+            $minifier->minify('.foo { transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1), cubic-bezier(0.42, 0, 1, 1), cubic-bezier(0, 0, 0.58, 1), cubic-bezier(0.42, 0, 0.58, 1) }')
+        );
+        $t->same(
+            '.foo{transition-timing-function:step-start,step-end,steps(5,start),steps(5,end),steps(5,jump-both)}',
+            $minifier->minify('.foo { transition-timing-function: steps(1, jump-start), steps(1, end), steps(5, jump-start), steps(5, jump-end), steps(5, jump-both) }')
+        );
+        $t->same(
+            '.foo{transition-timing-function:cubic-bezier(.58,.2,.11,1.2)}',
+            $minifier->minify('.foo { transition-timing-function: cubic-bezier(0.58, 0.2, 0.11, 1.2) }')
+        );
+    },
     'wordpress block theme fixture minifies without breaking custom property math' => static function (TestRunner $t): void {
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
         $t->same(trim($expected), (new CssMinifier())->minify($css));
+    },
+    'wordpress block style transition presets minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-button.is-style-animated .wp-element-button {
+  transition-duration: calc((1s - 50ms) * 2);
+  transition-delay: 500ms;
+  transition-timing-function: cubic-bezier(0.42, 0, 1, 1), steps(5, jump-start);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-button.is-style-animated .wp-element-button{transition-duration:1.9s;transition-delay:.5s;transition-timing-function:ease-in,steps(5,start)}',
+            (new CssMinifier())->minify($css)
+        );
     },
     'declaration parser handles semicolons and colons inside functions' => static function (TestRunner $t): void {
         $parsed = (new DeclarationBlock())->parse('background: url("https://example.test/a;b"); color: red');

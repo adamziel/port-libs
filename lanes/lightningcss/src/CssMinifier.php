@@ -317,6 +317,7 @@ final class CssMinifier
     {
         $value = $this->normalizeMathFunctionOperators($value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
+        $value = $this->minifyTransitionLonghandValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
@@ -338,6 +339,24 @@ final class CssMinifier
         };
     }
 
+    private function minifyTransitionLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'transition-duration',
+            'transition-delay' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTimeValue($part)),
+            'transition-timing-function' => $this->mapCommaList($value, fn (string $part): string => $this->minifyTransitionTimingFunction($part)),
+            default => $value,
+        };
+    }
+
+    private function minifyTimeValue(string $value): string
+    {
+        $value = trim($value);
+        $time = $this->evaluateTimeCalc($value);
+
+        return $time === null ? $this->minifyTimeToken($value) : $this->shortestTime($time);
+    }
+
     private function minifyTimeToken(string $value): string
     {
         $value = trim($value);
@@ -347,12 +366,8 @@ final class CssMinifier
 
         $number = (float) $matches[1];
         $unit = strtolower($matches[2]);
-        $current = $this->minifyNumber($number) . $unit;
-        $alternate = $unit === 'ms'
-            ? $this->minifyNumber($number / 1000) . 's'
-            : $this->minifyNumber($number * 1000) . 'ms';
 
-        return strlen($alternate) < strlen($current) ? $alternate : $current;
+        return $this->shortestTime($unit === 'ms' ? $number / 1000 : $number);
     }
 
     private function minifyAnimationIterationCount(string $value): string
@@ -365,6 +380,210 @@ final class CssMinifier
         return preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1
             ? $this->minifyNumber((float) $value)
             : $value;
+    }
+
+    private function minifyTransitionTimingFunction(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/^cubic-bezier\((.*)\)$/', $value, $matches) === 1) {
+            $numbers = array_map('trim', explode(',', $matches[1]));
+            if (count($numbers) !== 4) {
+                return $value;
+            }
+
+            $canonical = implode(',', array_map(fn (string $number): string => $this->minifyNumber((float) $number), $numbers));
+
+            return match ($canonical) {
+                '.25,.1,.25,1' => 'ease',
+                '.42,0,1,1' => 'ease-in',
+                '0,0,.58,1' => 'ease-out',
+                '.42,0,.58,1' => 'ease-in-out',
+                default => 'cubic-bezier(' . $canonical . ')',
+            };
+        }
+
+        if (preg_match('/^steps\(\s*([+-]?(?:\d+|\d*\.\d+))\s*,\s*([^)]+)\)$/', $value, $matches) === 1) {
+            $count = $this->minifyNumber((float) $matches[1]);
+            $position = trim(strtolower($matches[2]));
+            $position = match ($position) {
+                'jump-start' => 'start',
+                'jump-end' => 'end',
+                default => $position,
+            };
+
+            if ($count === '1' && $position === 'start') {
+                return 'step-start';
+            }
+            if ($count === '1' && $position === 'end') {
+                return 'step-end';
+            }
+
+            return 'steps(' . $count . ',' . $position . ')';
+        }
+
+        return $value;
+    }
+
+    private function shortestTime(float $seconds): string
+    {
+        $secondsValue = $this->minifyNumber($seconds) . 's';
+        $millisecondsValue = $this->minifyNumber($seconds * 1000) . 'ms';
+
+        return strlen($millisecondsValue) <= strlen($secondsValue) ? $millisecondsValue : $secondsValue;
+    }
+
+    private function evaluateTimeCalc(string $value): ?float
+    {
+        if (preg_match('/^calc\((.*)\)$/i', trim($value), $matches) !== 1) {
+            return null;
+        }
+
+        $tokens = $this->tokenizeTimeExpression($matches[1]);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $offset = 0;
+        $result = $this->parseTimeExpression($tokens, $offset);
+        if ($result === null || $offset !== count($tokens) || $result['kind'] !== 'time') {
+            return null;
+        }
+
+        return $result['value'];
+    }
+
+    /**
+     * @return list<array{type:string,value:string}>
+     */
+    private function tokenizeTimeExpression(string $expression): array
+    {
+        $tokens = [];
+        $length = strlen($expression);
+        for ($i = 0; $i < $length;) {
+            $char = $expression[$i];
+            if (ctype_space($char)) {
+                $i++;
+                continue;
+            }
+            if (str_contains('()+-*', $char)) {
+                $tokens[] = ['type' => $char, 'value' => $char];
+                $i++;
+                continue;
+            }
+            if (preg_match('/\G(?:\d+|\d*\.\d+)(?:ms|s)?/Ai', $expression, $matches, 0, $i) === 1) {
+                $tokens[] = ['type' => 'number', 'value' => $matches[0]];
+                $i += strlen($matches[0]);
+                continue;
+            }
+
+            return [];
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string,value:string}> $tokens
+     * @return array{value:float,kind:string}|null
+     */
+    private function parseTimeExpression(array $tokens, int &$offset): ?array
+    {
+        $value = $this->parseTimeProduct($tokens, $offset);
+        if ($value === null) {
+            return null;
+        }
+
+        while ($offset < count($tokens) && in_array($tokens[$offset]['type'], ['+', '-'], true)) {
+            $operator = $tokens[$offset++]['type'];
+            $right = $this->parseTimeProduct($tokens, $offset);
+            if ($right === null) {
+                return null;
+            }
+            if ($value['kind'] !== 'time' || $right['kind'] !== 'time') {
+                return null;
+            }
+            $value = [
+                'value' => $operator === '+' ? $value['value'] + $right['value'] : $value['value'] - $right['value'],
+                'kind' => 'time',
+            ];
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{type:string,value:string}> $tokens
+     * @return array{value:float,kind:string}|null
+     */
+    private function parseTimeProduct(array $tokens, int &$offset): ?array
+    {
+        $value = $this->parseTimeFactor($tokens, $offset);
+        if ($value === null) {
+            return null;
+        }
+
+        while ($offset < count($tokens) && $tokens[$offset]['type'] === '*') {
+            $offset++;
+            $right = $this->parseTimeFactor($tokens, $offset);
+            if ($right === null) {
+                return null;
+            }
+            if ($value['kind'] === 'time' && $right['kind'] === 'time') {
+                return null;
+            }
+            $value = [
+                'value' => $value['value'] * $right['value'],
+                'kind' => $value['kind'] === 'time' || $right['kind'] === 'time' ? 'time' : 'number',
+            ];
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{type:string,value:string}> $tokens
+     * @return array{value:float,kind:string}|null
+     */
+    private function parseTimeFactor(array $tokens, int &$offset): ?array
+    {
+        if ($offset >= count($tokens)) {
+            return null;
+        }
+
+        $token = $tokens[$offset++];
+        if ($token['type'] === '+') {
+            return $this->parseTimeFactor($tokens, $offset);
+        }
+        if ($token['type'] === '-') {
+            $value = $this->parseTimeFactor($tokens, $offset);
+
+            return $value === null ? null : ['value' => -$value['value'], 'kind' => $value['kind']];
+        }
+        if ($token['type'] === '(') {
+            $value = $this->parseTimeExpression($tokens, $offset);
+            if ($value === null || ($tokens[$offset]['type'] ?? null) !== ')') {
+                return null;
+            }
+            $offset++;
+
+            return $value;
+        }
+        if ($token['type'] !== 'number') {
+            return null;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(ms|s)?$/i', $token['value'], $matches) !== 1) {
+            return null;
+        }
+
+        $number = (float) $matches[1];
+        $unit = strtolower($matches[2] ?? '');
+
+        if ($unit === '') {
+            return ['value' => $number, 'kind' => 'number'];
+        }
+
+        return ['value' => $unit === 'ms' ? $number / 1000 : $number, 'kind' => 'time'];
     }
 
     private function minifyNumber(float $number): string
