@@ -333,6 +333,69 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::appendEncryptionTrailer($bytes . 'extra', $file, '\\'));
         $t->throws(LengthException::class, static fn () => ReceiveEncrypted::extractEncryptionTrailer('abc'));
     },
+    'maps receive-encrypted finalization trailer and verification boundaries' => static function (TestRunner $t): void {
+        $plainBytes = str_repeat('wordpress-finalized-private-media-', 20);
+        $blockList = new BlockList();
+        $blocks = $blockList->fromBytes($plainBytes, strlen($plainBytes));
+        $plainFile = new FileInfo(
+            name: 'wp-content\\uploads\\2026\\private\\finalized-media.bin',
+            modifiedS: 1700002100,
+            version: VersionVector::fromCounters([77 => 14]),
+            size: strlen($plainBytes),
+            blocksHash: $blockList->hashBlocks($blocks),
+            rawBlockSize: strlen($plainBytes),
+            sequence: 141,
+            blocks: $blocks,
+            modifiedBy: 77,
+        );
+        $folderKey = EncryptionKey::folderKeyFromPassword('wordpress-private-media', 'wordpress media sync secret');
+        $fileKey = ReceiveEncrypted::fileKey('wp-content/uploads/2026/private/finalized-media.bin', $folderKey);
+        $encryptedFile = ReceiveEncrypted::encryptFileInfo(
+            $plainFile->withName('wp-content/uploads/2026/private/finalized-media.bin'),
+            $folderKey,
+            str_repeat("\10", ReceiveEncrypted::NONCE_SIZE),
+        );
+        $paddedPlainBytes = $plainBytes . str_repeat('P', ReceiveEncrypted::MIN_PADDED_SIZE - strlen($plainBytes));
+        $encryptedData = ReceiveEncrypted::encryptBytes(
+            $paddedPlainBytes,
+            $fileKey,
+            str_repeat("\11", ReceiveEncrypted::NONCE_SIZE),
+        );
+
+        $finalized = ReceiveEncrypted::finalizeEncryptedFile($encryptedData, $encryptedFile);
+        $remoteIndexFile = ReceiveEncrypted::prepareFinalizedFileInfoForIndex($finalized['file'], $finalized['trailerSize']);
+        $verified = ReceiveEncrypted::verifyFinalizedEncryptedFile($finalized['bytes'], $folderKey);
+
+        $t->same($encryptedFile->size, strlen($encryptedData));
+        $t->same($encryptedFile->size + $finalized['trailerSize'], strlen($finalized['bytes']));
+        $t->same($encryptedFile->size + $finalized['trailerSize'], $finalized['file']->size);
+        $t->same($encryptedFile->size, $remoteIndexFile->size);
+        $t->same($encryptedFile->name, $verified['encryptedFile']->name);
+        $t->same($encryptedData, $verified['encryptedData']);
+        $t->same($plainBytes, $verified['plaintext']);
+        $t->same('wp-content/uploads/2026/private/finalized-media.bin', $verified['plainFile']->name);
+        $t->same($plainFile->blocksHash, $verified['plainFile']->blocksHash);
+        $t->same(141, $verified['plainFile']->sequence);
+
+        $insertedGarbage = $encryptedData . 'x' . substr($finalized['bytes'], strlen($encryptedData));
+        $t->throws(LengthException::class, static fn () => ReceiveEncrypted::verifyFinalizedEncryptedFile($insertedGarbage, $folderKey));
+
+        $tampered = substr($finalized['bytes'], 0, 30)
+            . chr(ord($finalized['bytes'][30]) ^ 1)
+            . substr($finalized['bytes'], 31);
+        $t->throws(RuntimeException::class, static fn () => ReceiveEncrypted::verifyFinalizedEncryptedFile($tampered, $folderKey));
+
+        $missingMetadata = new FileInfo(
+            name: $encryptedFile->name,
+            size: strlen($encryptedData),
+            blocks: $encryptedFile->blocks,
+        );
+        $badTrailer = ReceiveEncrypted::appendEncryptionTrailer($encryptedData, $missingMetadata);
+        $t->throws(UnexpectedValueException::class, static fn () => ReceiveEncrypted::verifyFinalizedEncryptedFile($badTrailer, $folderKey));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::finalizeEncryptedFile($encryptedData, $missingMetadata));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceiveEncrypted::prepareFinalizedFileInfoForIndex($finalized['file'], -1));
+        $t->throws(LengthException::class, static fn () => ReceiveEncrypted::prepareFinalizedFileInfoForIndex($finalized['file'], $finalized['file']->size + 1));
+    },
     'maps upstream encrypted file info wrapper invariants' => static function (TestRunner $t): void {
         $folderKey = str_repeat("\0", EncryptionKey::KEY_SIZE);
         $file = new FileInfo(

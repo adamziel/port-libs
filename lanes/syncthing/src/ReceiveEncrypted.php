@@ -450,6 +450,40 @@ final class ReceiveEncrypted
     }
 
     /**
+     * @return array{bytes:string, file:FileInfo, trailerSize:int}
+     */
+    public static function finalizeEncryptedFile(
+        string $encryptedFileBytes,
+        FileInfo $encryptedFile,
+        string $directorySeparator = DIRECTORY_SEPARATOR,
+    ): array {
+        if ($encryptedFile->encryptedPayload === '') {
+            throw new \InvalidArgumentException('Encrypted FileInfo metadata is required before finalization');
+        }
+
+        $bytes = self::appendEncryptionTrailer($encryptedFileBytes, $encryptedFile, $directorySeparator);
+        $trailerSize = strlen($bytes) - strlen($encryptedFileBytes);
+
+        return [
+            'bytes' => $bytes,
+            'file' => $encryptedFile->withSize($encryptedFile->size + $trailerSize),
+            'trailerSize' => $trailerSize,
+        ];
+    }
+
+    public static function prepareFinalizedFileInfoForIndex(FileInfo $finalizedFile, int $trailerSize): FileInfo
+    {
+        if ($trailerSize < 0) {
+            throw new \InvalidArgumentException('Encrypted file trailer size must not be negative');
+        }
+        if ($trailerSize > $finalizedFile->size) {
+            throw new \LengthException('Encrypted file trailer size exceeds finalized file size');
+        }
+
+        return $finalizedFile->withSize($finalizedFile->size - $trailerSize);
+    }
+
+    /**
      * @return array{data:string, file:FileInfo, trailerSize:int}
      */
     public static function extractEncryptionTrailer(string $encryptedFileBytes): array
@@ -471,6 +505,88 @@ final class ReceiveEncrypted
             'file' => BepWire::decodeFileInfoPayload($payload),
             'trailerSize' => $trailerSize,
         ];
+    }
+
+    /**
+     * @return array{
+     *     plaintext:string,
+     *     encryptedData:string,
+     *     encryptedFile:FileInfo,
+     *     plainFile:FileInfo,
+     *     trailerSize:int
+     * }
+     */
+    public static function verifyFinalizedEncryptedFile(string $finalizedBytes, string $folderKey): array
+    {
+        $extracted = self::extractEncryptionTrailer($finalizedBytes);
+        $encryptedData = $extracted['data'];
+        $encryptedFile = $extracted['file'];
+        if ($encryptedFile->encryptedPayload === '') {
+            throw new \UnexpectedValueException('Encrypted FileInfo trailer lacks encrypted metadata');
+        }
+        if (strlen($encryptedData) !== $encryptedFile->size) {
+            throw new \LengthException('Encrypted data length does not match FileInfo size');
+        }
+
+        $plainFile = self::decryptFileInfo($encryptedFile, $folderKey);
+        $plaintext = self::decryptAndVerifyFileBlocks($encryptedData, $encryptedFile, $plainFile, $folderKey);
+
+        return [
+            'plaintext' => $plaintext,
+            'encryptedData' => $encryptedData,
+            'encryptedFile' => $encryptedFile,
+            'plainFile' => $plainFile,
+            'trailerSize' => $extracted['trailerSize'],
+        ];
+    }
+
+    private static function decryptAndVerifyFileBlocks(
+        string $encryptedData,
+        FileInfo $encryptedFile,
+        FileInfo $plainFile,
+        string $folderKey,
+    ): string {
+        if (count($encryptedFile->blocks) !== count($plainFile->blocks)) {
+            throw new \UnexpectedValueException('Encrypted and plaintext block counts differ');
+        }
+
+        $fileKey = self::fileKey($plainFile->name, $folderKey);
+        $plaintext = '';
+        $lastIndex = count($plainFile->blocks) - 1;
+        $blockList = new BlockList();
+
+        foreach ($encryptedFile->blocks as $index => $encryptedBlock) {
+            $plainBlock = $plainFile->blocks[$index];
+            if ($encryptedBlock->offset < 0 || $encryptedBlock->size < 0) {
+                throw new \UnexpectedValueException('Encrypted block geometry must not be negative');
+            }
+            if ($encryptedBlock->offset + $encryptedBlock->size > strlen($encryptedData)) {
+                throw new \LengthException('Encrypted block extends beyond finalized data');
+            }
+
+            $decrypted = self::decryptBytes(
+                substr($encryptedData, $encryptedBlock->offset, $encryptedBlock->size),
+                $fileKey,
+            );
+
+            if ($index === $lastIndex && strlen($decrypted) > $plainBlock->size) {
+                $decrypted = substr($decrypted, 0, $plainBlock->size);
+            } elseif (strlen($decrypted) !== $plainBlock->size) {
+                throw new \LengthException('Plaintext block size mismatch');
+            }
+
+            if (!$blockList->validateBytes($decrypted, $plainBlock->hashHex)) {
+                throw new \RuntimeException('Plaintext block hash validation failed');
+            }
+
+            $plaintext .= $decrypted;
+        }
+
+        if (strlen($plaintext) !== $plainFile->size) {
+            throw new \LengthException('Plaintext size does not match FileInfo size');
+        }
+
+        return $plaintext;
     }
 
     private static function assertBase32HexToken(string $token): void

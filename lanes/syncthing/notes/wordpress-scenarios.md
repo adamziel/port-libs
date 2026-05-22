@@ -154,6 +154,15 @@ upstream fixed modified time, sequence numbers, deterministic fake versions,
 padded encrypted block sizes, encrypted byte offsets, and offset-bound block
 hash tokens, and decryption restores the plaintext metadata while preserving
 the untrusted peer's sequence number.
+The receive-encrypted finalization slice now maps the adjacent upstream
+`sharedPullerState.finalizeEncrypted`, `writeEncryptionTrailer`,
+`prepareFileInfoForIndex`, and decrypt-tool trailer verification boundaries:
+completed encrypted file bytes get a FileInfo wire trailer written at the
+encrypted data size, the locally indexed size includes that trailer, outbound
+index metadata subtracts the host-local trailer size, and verification reloads
+the trailer, decrypts FileInfo metadata, decrypts every encrypted block, trims
+only the final padded block, and validates plaintext SHA-256 block hashes before
+recovering the WordPress media bytes.
 The encrypted index collection slice maps upstream `encryptedConnection.Index`,
 `encryptedConnection.IndexUpdate`, `encryptedModel.Index`,
 `encryptedModel.IndexUpdate`, `encryptFileInfos`, and `decryptFileInfos`:
@@ -243,6 +252,12 @@ encrypted size, block size, metadata byte count, decrypted plaintext name, and a
 full encrypted IndexUpdate collection round trip. The same example now includes
 an encrypted response block, showing 1024-byte padded plaintext, 40-byte
 nonce/tag overhead, and trusted-side trimming back to the requested media block.
+`examples/wordpress-receive-encrypted-finalization.php` shows the completed
+receive-encrypted file boundary for a private WordPress export: native encrypted
+block bytes are finalized with a metadata trailer, the local index keeps the
+trailer bytes while the remote index size strips them, and verification rejects
+extra bytes before the trailer before recovering the plaintext media payload and
+block hash.
 `examples/wordpress-encrypted-download-progress.php` shows why receive-encrypted
 private media folders do not advertise or accept temporary-block progress:
 encrypted-folder progress is suppressed before a BEP frame or remote progress
@@ -256,5 +271,6 @@ upstream different-password error.
 
 ## Next Task
 
-Map receive-encrypted folder finalization and trailer verification from
-`folder_recvenc.go` and `folder_sendrecv.go`.
+Map receive-encrypted folder scanning/index cleanup for synthetic encrypted
+parent directories from `folder.go`, then broaden encrypted request serving
+integration beyond the focused finalization and trailer verification path.
