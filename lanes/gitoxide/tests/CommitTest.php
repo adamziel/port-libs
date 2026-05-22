@@ -229,18 +229,23 @@ return [
     },
     'commit message parsing uses gitoxide ascii byte classes' => static function (TestRunner $t): void {
         $t->same("\0Import WordPress export\0", CommitMessage::summaryOf("\0Import WordPress export\0"));
-        $t->same("\vImport WordPress export\v", CommitMessage::summaryOf("\vImport WordPress export\v"));
+        $t->same('Import WordPress export', CommitMessage::summaryOf("\vImport WordPress export\v"));
         $t->same('Import WordPress export', CommitMessage::summaryOf(" \t\r\n\fImport WordPress export\f\r\n\t "));
+        $t->same("Import\v  WordPress export", CommitMessage::summaryOf("Import\v\n WordPress export"));
 
         $message = new CommitMessage('Subject', "Signed-off-by: Alice <alice@example.test>\n\vnot a continuation");
         $trailers = $message->trailers();
 
         $t->same('', $message->bodyWithoutTrailers());
         $t->same(1, count($trailers));
-        $t->same('Alice <alice@example.test>', $trailers[0]->value);
+        $t->same('Alice <alice@example.test> not a continuation', $trailers[0]->value);
 
         $valueBytes = new CommitMessage('Subject', "Tested-by: \0QA Runner\0\v");
-        $t->same("\0QA Runner\0\v", $valueBytes->trailers()[0]->value);
+        $t->same("\0QA Runner\0", $valueBytes->trailers()[0]->value);
+
+        $verticalBlankSeparator = new CommitMessage('Subject', "Body paragraph\n\v\nSigned-off-by: Alice <alice@example.test>");
+        $t->same('Body paragraph', $verticalBlankSeparator->bodyWithoutTrailers());
+        $t->same('Alice <alice@example.test>', $verticalBlankSeparator->signedOffByTrailers()[0]->value);
 
         $invalidToken = new CommitMessage('Subject', "🤗: 🎉");
         $t->same("🤗: 🎉", $invalidToken->bodyWithoutTrailers());

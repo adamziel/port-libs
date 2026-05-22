@@ -409,7 +409,7 @@ final class CommitMessage
 
     private static function trimGitoxideWhitespace(string $input): string
     {
-        return trim($input, " \t\n\f\r");
+        return trim($input, " \t\n\v\f\r");
     }
 
     private static function isGitoxideWhitespace(string $byte): bool
@@ -417,6 +417,7 @@ final class CommitMessage
         return $byte === ' '
             || $byte === "\t"
             || $byte === "\n"
+            || $byte === "\v"
             || $byte === "\f"
             || $byte === "\r";
     }

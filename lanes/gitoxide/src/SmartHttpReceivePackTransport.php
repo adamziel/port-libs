@@ -134,8 +134,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
         ]);
-        if ($this->authorizationHeader !== null) {
-            self::setHeader($headers, 'Authorization', $this->authorizationHeader);
+        $authorizationHeader = $this->authorizationHeaderForRequest();
+        if ($authorizationHeader !== null) {
+            self::setHeader($headers, 'Authorization', $authorizationHeader);
         }
         if ($this->extraParameters !== []) {
             self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
@@ -160,8 +161,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
         ]);
-        if ($this->authorizationHeader !== null) {
-            self::setHeader($headers, 'Authorization', $this->authorizationHeader);
+        $authorizationHeader = $this->authorizationHeaderForRequest();
+        if ($authorizationHeader !== null) {
+            self::setHeader($headers, 'Authorization', $authorizationHeader);
         }
         if ($this->extraParameters !== []) {
             self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
@@ -185,6 +187,18 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $headers;
+    }
+
+    private function authorizationHeaderForRequest(): ?string
+    {
+        if ($this->authorizationHeader === null) {
+            return null;
+        }
+        if (str_starts_with($this->repositoryUrl, 'http://')) {
+            throw new \RuntimeException('smart HTTP receive-pack will not send URL credentials over cleartext HTTP');
+        }
+
+        return $this->authorizationHeader;
     }
 
     /**

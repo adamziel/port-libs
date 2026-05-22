@@ -435,6 +435,18 @@ return [
         $t->same('version=1', $requests[0]['headers']['Git-Protocol']);
         $t->same(12.5, $requests[0]['timeout']);
 
+        $cleartextRequesterCalls = 0;
+        $cleartextCredentials = new SmartHttpReceivePackTransport(
+            'http://deploy:s3cret@example.test/repo.git',
+            static function () use (&$cleartextRequesterCalls): array {
+                $cleartextRequesterCalls++;
+
+                return ['status' => 500, 'headers' => [], 'body' => ''];
+            }
+        );
+        $t->throws(RuntimeException::class, static fn () => $cleartextCredentials->readAdvertisement());
+        $t->same(0, $cleartextRequesterCalls);
+
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('git://example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl("https://example.test/repo.git\n"));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/repo.git#refs'));
@@ -572,7 +584,7 @@ return [
 
         $client = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
-                'http://deploy:s3cret@git.example.test/wp-content.git',
+                'http://git.example.test/wp-content.git',
                 $requester,
                 ['version=1'],
                 7.0,
@@ -591,9 +603,9 @@ return [
         $t->same('http://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
         $t->same('https://git.example.test/redirected.git/info/refs?service=git-receive-pack', $requests[1]['url']);
         $t->same('https://git.example.test/redirected.git/git-receive-pack', $requests[2]['url']);
-        $t->same('Basic ' . base64_encode('deploy:s3cret'), $requests[0]['headers']['Authorization']);
-        $t->same('Basic ' . base64_encode('deploy:s3cret'), $requests[1]['headers']['Authorization']);
-        $t->same('Basic ' . base64_encode('deploy:s3cret'), $requests[2]['headers']['Authorization']);
+        $t->same(null, $requests[0]['headers']['Authorization'] ?? null);
+        $t->same(null, $requests[1]['headers']['Authorization'] ?? null);
+        $t->same(null, $requests[2]['headers']['Authorization'] ?? null);
         $t->same('redirected_session=ok', $requests[2]['headers']['Cookie']);
         $t->same('version=1', $requests[2]['headers']['Git-Protocol']);
         $t->same($request->requestBytes(), $requests[2]['body']);
@@ -1160,5 +1172,15 @@ return [
         $t->same(443, $fixture['connectPort']);
         $t->same('/wp-content.git/info/refs?service=git-receive-pack', $fixture['requestTarget']);
         $t->contains('WordPress deployment tool', $fixture['wordpressUse']);
+    },
+    'wordpress fixture refuses cleartext url credentials before smart http discovery' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-cleartext-credentials.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-smart-http-cleartext-credentials.php';
+
+        $t->same(0, $fixture['requesterCalls']);
+        $t->contains('will not send URL credentials over cleartext HTTP', $fixture['error']);
+        $t->same($fixture['error'], $summary['error']);
+        $t->same(false, $summary['requesterReached']);
+        $t->contains('not leak deployment credentials', $summary['wordpressUse']);
     },
 ];
