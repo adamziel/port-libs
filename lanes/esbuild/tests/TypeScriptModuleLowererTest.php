@@ -300,6 +300,37 @@ JS . "\n", $lowerer->lower('foo = async () => { await using x: Disposable = y }'
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('for (await using x: AsyncDisposable = y;;) body(x)'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('for (using x: Disposable = y of z) body(x)'));
     },
+    'lowers upstream for using loops through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+for (using a: Disposable of b) c(() => a)
+for (await using d: AsyncDisposable of e) f(() => d)
+for await (using g: Disposable of h) i(() => g)
+for await (await using j: AsyncDisposable of k) l(() => j)
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains("for (var _a of b) {\n  var _stack2 = [];\n  try {\n    const a = __using(_stack2, _a);\n    c(() => a);", $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains("for (var _d of e) {\n  var _stack3 = [];\n  try {\n    const d = __using(_stack3, _d, true);\n    f(() => d);", $lowered);
+        $t->contains('var _promise3 = __callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains('_promise3 && await _promise3;', $lowered);
+        $t->contains('for await (var _g of h) {', $lowered);
+        $t->contains('const g = __using(_stack4, _g);', $lowered);
+        $t->contains('for await (var _j of k) {', $lowered);
+        $t->contains('const j = __using(_stack5, _j, true);', $lowered);
+        $t->true(strpos($lowered, 'const a = __using') < strpos($lowered, 'c(() => a);'));
+        $t->true(strpos($lowered, 'c(() => a);') < strpos($lowered, '__callDispose(_stack2'));
+
+        $functionLowered = (new TypeScriptModuleLowerer())->lower(
+            'function foo() { for (using asset: Disposable of assets) { register(asset); } }',
+            lowerUsingDeclarations: true
+        );
+        $t->contains("function foo() {\n  for (var _asset of assets) {\n    var _stack2 = [];\n    try {\n      const asset = __using(_stack2, _asset);\n      register(asset);", $functionLowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $functionLowered);
+    },
     'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1190,6 +1221,22 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('for(using asset of collectBlockAssets(metadata))', $lowered);
         $t->contains('registerAsset(asset.handle, asset.url);', $lowered);
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'satisfies'));
+    },
+    'lowers wordpress for using asset cleanup without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-for-using-assets.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('for (var _asset of collectBlockAssets(metadata)) {', $lowered);
+        $t->contains('const asset = __using(_stack2, _asset);', $lowered);
+        $t->contains('registerAsset(asset.handle, asset.url);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(strpos($lowered, 'const asset = __using') < strpos($lowered, 'registerAsset(asset.handle, asset.url);'));
+        $t->true(strpos($lowered, 'registerAsset(asset.handle, asset.url);') < strpos($lowered, '__callDispose(_stack2'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));

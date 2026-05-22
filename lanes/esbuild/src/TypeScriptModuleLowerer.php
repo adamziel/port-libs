@@ -91,6 +91,14 @@ final class TypeScriptModuleLowerer
             $effectiveEnd = $this->withoutTrailingSemicolon($end);
             $this->validateForUsingStatement($i, $effectiveEnd);
 
+            $forUsingStatement = $this->lowerForUsingStatementAt($i, $effectiveEnd);
+            if ($forUsingStatement !== null) {
+                [$forOutput, $forEnd] = $forUsingStatement;
+                $lines[] = $forOutput;
+                $i = $forEnd;
+                continue;
+            }
+
             $functionUsingStatement = $this->lowerFunctionBodyUsingStatementAt($i, $effectiveEnd);
             if ($functionUsingStatement !== null) {
                 [$functionOutput, $functionEnd] = $functionUsingStatement;
@@ -3429,11 +3437,221 @@ final class TypeScriptModuleLowerer
 
         $lines = [$header === '' ? '{' : $header . ' {'];
         foreach ($bodyLines as $line) {
-            $lines[] = '  ' . $line;
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
         }
         $lines[] = '}';
 
         return [implode("\n", $lines), $bodyClose];
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function lowerForUsingStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        if (!$this->lowerUsingDeclarations) {
+            return null;
+        }
+
+        $loop = $this->parseForUsingOfLoop($start, $effectiveEnd);
+        if ($loop === null) {
+            return null;
+        }
+
+        $tempName = '_' . $loop['name'];
+        [$stackName] = $this->nextUsingScopeNames();
+        $iterable = $this->printTokenRange($loop['iterableStart'], $loop['iterableEnd']);
+        $bodyLines = [
+            'const ' . $loop['name'] . ' = __using(' . $stackName . ', ' . $tempName . ($loop['awaitUsing'] ? ', true' : '') . ');',
+        ];
+        $hasAwaitUsing = $loop['awaitUsing'];
+
+        if ($loop['bodyIsBlock']) {
+            [$nestedLines, $nestedHasAwaitUsing] = $this->lowerUsingLoopBodyLines(
+                $loop['bodyStart'] + 1,
+                $loop['bodyEnd'],
+                $stackName,
+            );
+            foreach ($nestedLines as $line) {
+                $bodyLines[] = $line;
+            }
+            $hasAwaitUsing = $hasAwaitUsing || $nestedHasAwaitUsing;
+        } elseif ($loop['bodyStart'] <= $loop['bodyEnd']) {
+            $line = $this->containsErasableTypeScriptSyntax($loop['bodyStart'], $loop['bodyEnd']) || $this->containsInlineableEnumReference($loop['bodyStart'], $loop['bodyEnd'])
+                ? $this->printRuntimeStatement($loop['bodyStart'], $loop['bodyEnd'])
+                : $this->originalStatementText($loop['bodyStart'], $loop['bodyEnd']);
+            if ($line !== '') {
+                $bodyLines[] = $line;
+            }
+        }
+
+        $lines = [
+            'for' . ($loop['forAwait'] ? ' await' : '') . ' (var ' . $tempName . ' of ' . $iterable . ') {',
+        ];
+        foreach ($this->usingHelperScopeLines($bodyLines, $hasAwaitUsing, $stackName) as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
+        }
+        $lines[] = '}';
+
+        return [implode("\n", $lines), $loop['bodyEnd']];
+    }
+
+    /**
+     * @return array{
+     *   forAwait:bool,
+     *   awaitUsing:bool,
+     *   name:string,
+     *   iterableStart:int,
+     *   iterableEnd:int,
+     *   bodyStart:int,
+     *   bodyEnd:int,
+     *   bodyIsBlock:bool
+     * }|null
+     */
+    private function parseForUsingOfLoop(int $start, int $effectiveEnd): ?array
+    {
+        if (($this->tokens[$start] ?? null)?->text !== 'for') {
+            return null;
+        }
+
+        $cursor = $start + 1;
+        $forAwait = false;
+        if (($this->tokens[$cursor] ?? null)?->text === 'await') {
+            $forAwait = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== '(') {
+            return null;
+        }
+
+        $open = $cursor;
+        $close = $this->findMatchingPunctuator($open, '(', ')');
+        if ($close > $effectiveEnd) {
+            return null;
+        }
+
+        $cursor = $open + 1;
+        $awaitUsing = false;
+        if (($this->tokens[$cursor] ?? null)?->text === 'await'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'using'
+            && !$this->hasLineBreakBetween($cursor, $cursor + 1)
+        ) {
+            $awaitUsing = true;
+            $cursor++;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'using') {
+            return null;
+        }
+
+        $name = $this->tokens[$cursor + 1] ?? null;
+        if ($name?->kind !== 'identifier' || in_array($name->text, ['of', 'in'], true)) {
+            return null;
+        }
+        if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
+            throw new \InvalidArgumentException('Expected loop variable after TypeScript using declaration');
+        }
+
+        $cursor += 2;
+        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+            $cursor = $this->skipTypeExpression($cursor + 1, $close - 1, ['of']);
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'of') {
+            return null;
+        }
+
+        $iterableStart = $cursor + 1;
+        $iterableEnd = $close - 1;
+        if ($iterableStart > $iterableEnd) {
+            throw new \InvalidArgumentException('Expected iterable after TypeScript using loop declaration');
+        }
+
+        $bodyStart = $close + 1;
+        $bodyIsBlock = false;
+        if (($this->tokens[$bodyStart] ?? null)?->text === '{') {
+            $bodyEnd = $this->findMatchingPunctuator($bodyStart, '{', '}');
+            if ($bodyEnd > $effectiveEnd) {
+                return null;
+            }
+            $bodyIsBlock = true;
+        } else {
+            $bodyEnd = $effectiveEnd;
+        }
+
+        return [
+            'forAwait' => $forAwait,
+            'awaitUsing' => $awaitUsing,
+            'name' => $name->text,
+            'iterableStart' => $iterableStart,
+            'iterableEnd' => $iterableEnd,
+            'bodyStart' => $bodyStart,
+            'bodyEnd' => $bodyEnd,
+            'bodyIsBlock' => $bodyIsBlock,
+        ];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:bool}
+     */
+    private function lowerUsingLoopBodyLines(int $start, int $bodyClose, string $stackName): array
+    {
+        $lines = [];
+        $hasAwaitUsing = false;
+        for ($cursor = $start; $cursor < $bodyClose; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                continue;
+            }
+
+            $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
+            $effectiveEnd = $this->withoutTrailingSemicolon($statementEnd);
+            $this->validateForUsingStatement($cursor, $effectiveEnd);
+
+            $forUsing = $this->lowerForUsingStatementAt($cursor, $effectiveEnd);
+            if ($forUsing !== null) {
+                [$forOutput, $forEnd] = $forUsing;
+                $lines[] = $forOutput;
+                $cursor = $forEnd;
+                continue;
+            }
+
+            $nested = $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd);
+            if ($nested !== null) {
+                [$nestedOutput, $nestedEnd] = $nested;
+                $lines[] = $nestedOutput;
+                $cursor = $nestedEnd;
+                continue;
+            }
+
+            if ($this->isUsingDeclarationStart($cursor)) {
+                $using = $this->parseUsingDeclaration($cursor, $effectiveEnd);
+                $lines[] = 'const ' . $this->printUsingDeclarators($using['declarations'], true, $using['await'], $stackName) . ';';
+                $hasAwaitUsing = $hasAwaitUsing || $using['await'];
+                $cursor = $statementEnd;
+                continue;
+            }
+
+            $line = $this->containsErasableTypeScriptSyntax($cursor, $statementEnd) || $this->containsInlineableEnumReference($cursor, $statementEnd)
+                ? $this->printRuntimeStatement($cursor, $statementEnd)
+                : $this->originalStatementText($cursor, $statementEnd);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+            $cursor = $statementEnd;
+        }
+
+        return [$lines, $hasAwaitUsing];
     }
 
     private function isFunctionLikeBodyHeader(int $start, int $bodyOpen): bool
@@ -3494,6 +3712,15 @@ final class TypeScriptModuleLowerer
             $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
             $effectiveEnd = $this->withoutTrailingSemicolon($statementEnd);
             $this->validateForUsingStatement($cursor, $effectiveEnd);
+
+            $forUsing = $this->lowerForUsingStatementAt($cursor, $effectiveEnd);
+            if ($forUsing !== null) {
+                [$forOutput, $forEnd] = $forUsing;
+                $lines[] = $forOutput;
+                $changed = true;
+                $cursor = $forEnd;
+                continue;
+            }
 
             $nested = $this->lowerUsingDeclarations ? $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd) : null;
             if ($nested !== null) {
@@ -3558,6 +3785,15 @@ final class TypeScriptModuleLowerer
             $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
             $effectiveEnd = $this->withoutTrailingSemicolon($statementEnd);
             $this->validateForUsingStatement($cursor, $effectiveEnd);
+
+            $forUsing = $this->lowerForUsingStatementAt($cursor, $effectiveEnd);
+            if ($forUsing !== null) {
+                [$forOutput, $forEnd] = $forUsing;
+                $lines[] = $forOutput;
+                $changed = true;
+                $cursor = $forEnd;
+                continue;
+            }
 
             $nested = $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd);
             if ($nested !== null) {

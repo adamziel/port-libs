@@ -68,6 +68,7 @@ $functionUsingDisposableLowered = (new TypeScriptModuleLowerer())->lower($functi
 $functionUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($functionUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $blockUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($blockUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $forUsingAssetsLowered = (new TypeScriptModuleLowerer())->lower($forUsingAssetsTypeScriptSource);
+$forUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -115,6 +116,7 @@ printf("WordPress TypeScript function scoped using bytes: %d\n", strlen($functio
 printf("WordPress TypeScript function scoped using helper bytes: %d\n", strlen($functionUsingDisposableLegacyLowered));
 printf("WordPress TypeScript block scoped using helper bytes: %d\n", strlen($blockUsingDisposableLegacyLowered));
 printf("WordPress TypeScript for using asset loop bytes: %d\n", strlen($forUsingAssetsLowered));
+printf("WordPress TypeScript for using asset helper bytes: %d\n", strlen($forUsingAssetsLegacyLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
