@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader initial Inline Markup section from test/html-reader.html/native. HTML paragraphs preserve ordinary emphasis and strong nodes, empty strong/emphasis nodes remain in the AST, and implicit paragraph closure before a following <p> no longer swallows the emphasized-link paragraph. WordPress output keeps the empty source markers and emphasized edit links without shelling out to Pandoc.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 128/0 with 1058 assertions. The required repo-wide php tools/run-tests.php command was run on 2026-05-22 after this lane slice and passes with 149 test files, 13500 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "pending in current lane batch",
+    "latestCommit": "9369753",
     "nextTask": "Map the remaining bounded HTML-reader Inline Markup slice from test/html-reader.html/native, starting with the nested strong-emphasis paragraphs and HTML code-span paragraph after the emphasized-link case."
 }
