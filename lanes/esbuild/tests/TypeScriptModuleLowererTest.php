@@ -422,6 +422,45 @@ JS . "\n", $lowerer->lower("class Foo { constructor(protected readonly x: string
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { constructor(private [x]) {} }'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { constructor(public) {} }'));
     },
+    'lowers upstream constructor parameter properties in assign semantics mode' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor(x) {
+    this.x = x;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { constructor(public x) {} }', false));
+
+        $t->same(<<<'JS'
+class Foo {
+  constructor(x) {
+    this.x = x;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { constructor(private readonly x) {} }', false));
+    },
+    'inserts upstream derived constructor parameter properties after super' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+  }
+}
+JS . "\n", $lowerer->lower(<<<'TS'
+class A extends B {
+  constructor(public x = 1) {
+    foo();
+    super(1);
+  }
+}
+TS, false));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -529,11 +568,25 @@ JS . "\n", $lowerer->lower("class Foo { constructor(protected readonly x: string
         $t->contains('constructor(blockName = metadata.name, blocks = wp.blocks) {', $lowered);
         $t->contains('this.blockName = blockName;', $lowered);
         $t->contains('this.blocks = blocks;', $lowered);
+        $t->true(strpos($lowered, 'super();') < strpos($lowered, 'this.blockName = blockName;'));
         $t->contains('blockName;', $lowered);
         $t->contains('blocks;', $lowered);
         $t->contains('register() {this.blocks.registerBlockType(this.blockName, {supports:{html:false}});}', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress constructor properties in assign semantics without field declarations' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-constructor-properties.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('class CardBlockController extends BaseController {', $lowered);
+        $t->contains('constructor(blockName = metadata.name, blocks = wp.blocks) {', $lowered);
+        $t->true(strpos($lowered, 'super();') < strpos($lowered, 'this.blockName = blockName;'));
+        $t->contains('this.blocks = blocks;', $lowered);
+        $t->true(!str_contains($lowered, "\n  blockName;\n"));
+        $t->true(!str_contains($lowered, "\n  blocks;\n"));
+        $t->contains('this.blocks.registerBlockType(this.blockName, {supports:{html:false}});', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
     },
     'lowers wordpress class field assign semantics without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-class-fields-assign.ts');

@@ -483,6 +483,7 @@ final class TypeScriptModuleLowerer
                 $cursor,
                 $memberEnd,
                 $fieldKeyTemps,
+                $hasExtends,
             );
             $computedMethod = $this->useDefineForClassFields === false
                 ? $this->computedClassMethodKey($cursor, $memberEnd)
@@ -571,7 +572,7 @@ final class TypeScriptModuleLowerer
      * @param list<string> $fieldKeyTemps
      * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>}
      */
-    private function lowerClassMember(int $start, int $end, array &$fieldKeyTemps): array
+    private function lowerClassMember(int $start, int $end, array &$fieldKeyTemps, bool $hasExtends): array
     {
         $cursor = $start;
         $decorated = false;
@@ -594,7 +595,7 @@ final class TypeScriptModuleLowerer
                 return [[$this->printClassMemberRange($start, $end)], false, [], [], []];
             }
 
-            $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor);
+            $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor, $hasExtends);
             if ($constructor !== null) {
                 return [$constructor[0], $constructor[1], [], [], []];
             }
@@ -1091,7 +1092,7 @@ final class TypeScriptModuleLowerer
     /**
      * @return array{0:list<string>, 1:bool}|null
      */
-    private function lowerConstructorParameterPropertyMember(int $start, int $end, int $memberNameIndex): ?array
+    private function lowerConstructorParameterPropertyMember(int $start, int $end, int $memberNameIndex, bool $hasExtends): ?array
     {
         if (($this->tokens[$memberNameIndex] ?? null)?->text !== 'constructor'
             || ($this->tokens[$memberNameIndex + 1] ?? null)?->text !== '('
@@ -1116,23 +1117,53 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
-        $lines = ['constructor(' . implode(', ', $parameters) . ') {'];
-        foreach ($propertyNames as $propertyName) {
-            $lines[] = '  this.' . $propertyName . ' = ' . $propertyName . ';';
-        }
-
+        $propertyAssignments = array_map(
+            static fn (string $propertyName): string => 'this.' . $propertyName . ' = ' . $propertyName . ';',
+            $propertyNames,
+        );
         $body = $this->constructorBodyLines($bodyOpen, $bodyClose);
+        $body = $this->injectParameterPropertyAssignmentsIntoBody($body, $propertyAssignments, $hasExtends);
+
+        $lines = ['constructor(' . implode(', ', $parameters) . ') {'];
         foreach ($body as $line) {
             $lines[] = '  ' . $line;
         }
         $lines[] = '}';
 
         $members = [implode("\n", $lines)];
-        foreach ($propertyNames as $propertyName) {
-            $members[] = $propertyName . ';';
+        if ($this->useDefineForClassFields) {
+            foreach ($propertyNames as $propertyName) {
+                $members[] = $propertyName . ';';
+            }
         }
 
         return [$members, true];
+    }
+
+    /**
+     * @param list<string> $body
+     * @param list<string> $assignments
+     * @return list<string>
+     */
+    private function injectParameterPropertyAssignmentsIntoBody(array $body, array $assignments, bool $hasExtends): array
+    {
+        if ($assignments === []) {
+            return $body;
+        }
+
+        $insertAt = 0;
+        if ($hasExtends) {
+            foreach ($body as $index => $line) {
+                if (preg_match('/(^|[^\w$])super\s*\(/', $line) === 1) {
+                    $insertAt = $index + 1;
+                    break;
+                }
+            }
+        }
+
+        array_splice($body, $insertAt, 0, $assignments);
+
+        return $body;
     }
 
     /**
