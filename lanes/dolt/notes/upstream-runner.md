@@ -390,6 +390,17 @@
   - Result: `1..1`, exit 0; the focused BATS case passed.
 - Native Dolt PHP lane rerun after this slice passed with 10 test files, 90 behavior tests, 465 assertions, and 0 failures.
 
+## Fresh Log All-Branches Runner Refresh
+
+- Focused upstream source reads for this slice:
+  - `go/cmd/dolt/commands/log.go`: `collectRevisions()` expands `--all` to every branch returned by `dolt_branches` / `dolt_remote_branches` before constructing `dolt_log(...)`.
+  - `go/cmd/dolt/cli/arg_parser_helpers.go`: `CreateLogArgParser(false)` supports `--all` for CLI log calls.
+  - `go/libraries/doltcore/doltdb/commit_itr.go`: `CommitItrForAllBranches` walks commits reachable from branch refs and de-duplicates shared ancestors.
+  - `integration-tests/bats/log.bats`: `log: --all correctly gets branches` and `log: --all works when specifying tables`.
+- `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 15m bats --filter 'log: --all (correctly gets branches|works when specifying tables)' log.bats`
+  - Result: `1..2`, exit 0; both focused `--all` BATS cases passed.
+- Native Dolt PHP lane rerun after this slice passed with 10 test files, 91 behavior tests, 475 assertions, and 0 failures.
+
 ## Repository Check
 
 - `php tools/run-tests.php`
@@ -413,6 +424,7 @@
   - Required rerun after the fresh branch/status/table-filter runner metadata initially failed outside Dolt with 116 test files, 8,862 assertions, and 2 failures in libsqlite/syncthing. A later required rerun after concurrent lane fixes passed with 116 test files, 8,875 assertions, and 0 failures. Final post-metadata rerun passed with 116 test files, 8,947 assertions, and 0 failures. Dolt tests reached by all three root runs passed.
   - Required rerun after native `dolt_log()` merge/min-parent filtering passed: 116 test files, 8,955 assertions, 0 failures.
   - Final current-HEAD rerun after intervening lane commits passed: 116 test files, 8,974 assertions, 0 failures.
+  - Required rerun after native `dolt_log()` `--all` branch traversal passed: 120 test files, 9,245 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
@@ -425,6 +437,7 @@
   - Prior result after native `dolt_log()` revision-range filtering: pass with 10 Dolt test files, 87 behavior tests, 438 assertions, and 0 failures.
   - Current result after native `dolt_log()` table filtering: pass with 10 Dolt test files, 89 behavior tests, 451 assertions, and 0 failures.
   - Current result after native `dolt_log()` merge/min-parent filtering: pass with 10 Dolt test files, 90 behavior tests, 465 assertions, and 0 failures.
+  - Current result after native `dolt_log()` `--all` branch traversal: pass with 10 Dolt test files, 91 behavior tests, 475 assertions, and 0 failures.
 
 ## Skipped Suites
 

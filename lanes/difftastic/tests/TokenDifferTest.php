@@ -264,6 +264,18 @@ return [
         $t->contains('+ $[1][0]/<0>[0] p', $encoded);
         $t->true(!str_contains($encoded, '$js.call["ReactDOM.render"]'), 'JSX tag changes should not collapse into one ReactDOM.render argument update.');
     },
+    'maps upstream tsx whitespace sample as formatting only' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-whitespace-1.tsx');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-whitespace-2.tsx');
+        $differ = new TokenDiffer();
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'tsx',
+            'title' => 'Upstream TSX whitespace sample',
+        ]);
+
+        $t->same([], $differ->diffSyntaxLists($before, $after, ['language' => 'tsx']));
+        $t->contains('No syntactic changes', $html);
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -760,6 +772,19 @@ return [
         $t->contains('PanelBodytitle=&quot;Card settings&quot;initialOpen={true}', $html);
         $t->true(!str_contains($html, 'TextControllabel=&quot;Title&quot;'), 'Retained block editor controls should stay out of the rendered TSX tag diff.');
         $t->true(!str_contains($html, '$js.call'), 'TSX JSX tag changes should render as tag-list changes rather than JavaScript call changes.');
+    },
+    'wordpress block editor tsx whitespace diff hides spacer expression churn' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-editor-whitespace-before.tsx');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-editor-whitespace-after.tsx');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'tsx',
+            'title' => 'Block editor TSX whitespace diff',
+        ]);
+
+        $t->contains('Block editor TSX whitespace diff', $html);
+        $t->contains('No syntactic changes', $html);
+        $t->true(!str_contains($html, 'ToolbarButton'), 'Retained editor controls should not render as changed for whitespace-only JSX text movement.');
+        $t->true(!str_contains($html, 'screen-reader-text'), 'Retained accessibility text should not render as changed for whitespace-only JSX text movement.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');

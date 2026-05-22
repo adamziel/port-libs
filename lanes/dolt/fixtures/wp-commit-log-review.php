@@ -49,6 +49,16 @@ return [
             'changedTables' => ['wp_postmeta'],
         ],
         [
+            'commit_hash' => 'wp-draft-review',
+            'committer' => 'Editorial Reviewer',
+            'email' => 'editor@example.test',
+            'date' => '2026-05-22 09:28:00',
+            'message' => 'Review imported draft posts',
+            'parents' => ['wp-import-base'],
+            'refs' => ['refs/heads/review-drafts'],
+            'changedTables' => ['wp_posts'],
+        ],
+        [
             'commit_hash' => 'wp-merge-media',
             'committer' => 'Migration Reviewer',
             'email' => 'reviewer@example.test',
@@ -57,6 +67,15 @@ return [
             'parents' => ['wp-review-main', 'wp-media-branch'],
             'refs' => ['refs/heads/main', 'refs/tags/import-reviewed'],
             'changedTables' => ['wp_posts', 'wp_postmeta'],
+        ],
+        [
+            'commit_hash' => 'wp-scratch-abandoned',
+            'committer' => 'WordPress Importer',
+            'email' => 'importer@example.test',
+            'date' => '2026-05-22 09:40:00',
+            'message' => 'Abandoned scratch migration checkpoint',
+            'parents' => ['wp-import-base'],
+            'changedTables' => ['wp_posts'],
         ],
     ],
     'expectedLogMessages' => [
@@ -98,6 +117,20 @@ return [
     'expectedCheckpointMessages' => [
         'Merge media backfill into reviewed import',
         'Prepare media backfill branch',
+        'Review public post statuses',
+        'Import WXR posts and pages',
+    ],
+    'expectedAllBranchMessages' => [
+        'Merge media backfill into reviewed import',
+        'Review imported draft posts',
+        'Prepare media backfill branch',
+        'Review public post statuses',
+        'Import WXR posts and pages',
+        'Initialize data repository',
+    ],
+    'expectedAllBranchPostMessages' => [
+        'Merge media backfill into reviewed import',
+        'Review imported draft posts',
         'Review public post statuses',
         'Import WXR posts and pages',
     ],

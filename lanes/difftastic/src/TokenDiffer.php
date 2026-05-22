@@ -459,6 +459,10 @@ final class TokenDiffer
             $tokens = $this->removeIgnoredTrailingCommas($tokens);
         }
 
+        if ($this->isJsxLanguage($options)) {
+            $tokens = $this->removeJsxWhitespaceStringExpressions($tokens);
+        }
+
         return $tokens;
     }
 
@@ -497,6 +501,51 @@ final class TokenDiffer
         }
 
         return false;
+    }
+
+    /**
+     * @param list<Token> $tokens
+     * @return list<Token>
+     */
+    private function removeJsxWhitespaceStringExpressions(array $tokens): array
+    {
+        $kept = [];
+        $count = count($tokens);
+        for ($i = 0; $i < $count; $i++) {
+            if (
+                $i + 2 < $count
+                && $tokens[$i]->text === '{'
+                && $tokens[$i + 1]->kind === 'string'
+                && $this->isWhitespaceOnlyStringLiteral($tokens[$i + 1]->text)
+                && $tokens[$i + 2]->text === '}'
+            ) {
+                $i += 2;
+                continue;
+            }
+
+            $kept[] = $tokens[$i];
+        }
+
+        return $kept;
+    }
+
+    private function isWhitespaceOnlyStringLiteral(string $text): bool
+    {
+        if (strlen($text) < 2) {
+            return false;
+        }
+
+        $quote = $text[0];
+        if (($quote !== '"' && $quote !== "'") || !str_ends_with($text, $quote)) {
+            return false;
+        }
+
+        $inner = substr($text, 1, -1);
+        if ($inner === '') {
+            return false;
+        }
+
+        return trim(stripcslashes($inner)) === '';
     }
 
     /**
@@ -2672,6 +2721,14 @@ final class TokenDiffer
     private function isTypeScriptLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['typescript', 'ts', 'tsx'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isJsxLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['jsx', 'tsx'], true);
     }
 
     /**

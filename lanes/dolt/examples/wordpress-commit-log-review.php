@@ -48,5 +48,16 @@ return [
         'minParents' => 1,
         'decorate' => 'short',
     ]),
+    'allBranchLog' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'includeAll' => true,
+        'decorate' => 'short',
+    ]),
+    'allBranchPostTableLog' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'includeAll' => true,
+        'tableNames' => ['wp_posts'],
+        'decorate' => 'short',
+    ]),
     'commits' => $table->commitsRows($fixture['commits']),
 ];

@@ -40,7 +40,7 @@ final class CommitLogTable
      * upstream's opt-in cost boundary.
      *
      * @param list<array<string, mixed>> $commits
-     * @param array{headHash?:string|null, includeAll?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool} $options
+     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool} $options
      * @return list<array<string, scalar|null>>
      */
     public function logRows(array $commits, array $options = []): array
@@ -51,6 +51,7 @@ final class CommitLogTable
             throw new \RuntimeException("Dolt log head commit not found: {$headHash}");
         }
 
+        $includeAll = $this->normalizeIncludeAll($options);
         $projected = $options['projectedColumns'] ?? null;
         if ($projected !== null) {
             $projected = $this->normalizeProjectedColumns($projected);
@@ -91,6 +92,11 @@ final class CommitLogTable
 
         $visible = null;
         $logHeadHash = $headHash;
+        if ($includeAll) {
+            $allBranchHeads = $this->allBranchHeadHashes($commits, $headHash);
+            $revisionSpecs = array_values(array_unique(array_merge($revisionSpecs ?? [], $allBranchHeads)));
+        }
+
         if ($revisionSpecs !== null || $notRevisionSpecs !== []) {
             [$visible, $logHeadHash] = $this->visibleHashesForRevisionSpecs(
                 $commits,
@@ -98,7 +104,7 @@ final class CommitLogTable
                 $notRevisionSpecs,
                 $headHash,
             );
-        } elseif ($headHash !== null && !($options['includeAll'] ?? false)) {
+        } elseif ($headHash !== null) {
             $visible = $this->reachableHashes($commits, $headHash);
         }
 
@@ -324,6 +330,36 @@ final class CommitLogTable
         }
 
         return $reachable;
+    }
+
+    /**
+     * @param array<string, array{refs:list<non-empty-string>}> $commits
+     * @return list<non-empty-string>
+     */
+    private function allBranchHeadHashes(array $commits, ?string $headHash): array
+    {
+        $heads = [];
+        if ($headHash !== null) {
+            $heads[$headHash] = true;
+        }
+
+        foreach ($commits as $hash => $commit) {
+            foreach ($commit['refs'] as $ref) {
+                if ($this->isBranchRef($ref)) {
+                    $heads[$hash] = true;
+                    break;
+                }
+            }
+        }
+
+        return array_keys($heads);
+    }
+
+    private function isBranchRef(string $ref): bool
+    {
+        return str_starts_with($ref, 'refs/heads/')
+            || str_starts_with($ref, 'refs/remotes/')
+            || str_starts_with($ref, 'remotes/');
     }
 
     /**
@@ -741,6 +777,23 @@ final class CommitLogTable
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function normalizeIncludeAll(array $options): bool
+    {
+        $includeAll = $options['includeAll'] ?? false;
+        $all = $options['all'] ?? false;
+        if (!is_bool($includeAll) || !is_bool($all)) {
+            throw new \InvalidArgumentException('Dolt log includeAll must be a boolean.');
+        }
+        if (array_key_exists('includeAll', $options) && array_key_exists('all', $options) && $includeAll !== $all) {
+            throw new \InvalidArgumentException('Dolt log includeAll and all options must agree.');
+        }
+
+        return $includeAll || $all;
     }
 
     /**

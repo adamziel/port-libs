@@ -19,7 +19,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_history_dolt_schemas` and `dolt_diff_dolt_schemas` row projection for versioned schema objects such as views, triggers, and events.
 - Native `dolt_history_dolt_procedures` and `dolt_diff_dolt_procedures` row projection for versioned stored procedures.
 - Native `DOLT_COMMIT_DIFF_<table>` row projection that requires exactly one `from_commit` and one `to_commit`, then applies `to_*` / `from_*` key predicates to commit snapshots.
-- Native `dolt_log` and `dolt_commits` commit metadata projection, including computed commit order, selected-head ancestry, refs decoration, opt-in parents/signature columns, `dolt_log()` revision-range filtering, table filtering over changed-table metadata, and `--merges` / `--min-parents` parent-count filtering.
+- Native `dolt_log` and `dolt_commits` commit metadata projection, including computed commit order, selected-head ancestry, refs decoration, opt-in parents/signature columns, `dolt_log()` revision-range filtering, all branch-head traversal, table filtering over changed-table metadata, and `--merges` / `--min-parents` parent-count filtering.
 - Native `dolt_commit_ancestors` row projection, including root null-parent rows, merge parent indexes, commit_hash filtering that preserves both merge parents, and parent-hash joins back to `dolt_log` messages.
 - Native `has_ancestor()` commit graph checks, including branch/tag/full-ref/HEAD/hash resolution plus Dolt ancestor suffixes (`^`, `^N`, and `~N`).
 - Native `dolt_branches`, `dolt_remote_branches`, `active_branch()`, and `dolt_branch_activity` projection rows for branch metadata, current branch context, dirty branches, active sessions, and read/write activity timestamps.
@@ -54,8 +54,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-procedure-history-review.php` returns `dolt_history_dolt_procedures` rows plus working `dolt_diff_dolt_procedures` rows, so a migration UI can audit stored-routine drift without shelling out to Dolt.
 - `fixtures/wp-commit-diff-review.php` models a WordPress import review between two named commits, with a bounded post-ID window over the changed `wp_posts` rows.
 - `examples/wordpress-commit-diff-review.php` returns `DOLT_COMMIT_DIFF`-style rows after applying the fixture's `to_ID > 900 AND to_ID < 950` predicate, so a migration UI can review a commit-to-commit window without shelling out to Dolt.
-- `fixtures/wp-commit-log-review.php` models a reviewed WordPress import merge with a main branch, media-import side branch, import tags, merge parents, and separate author/committer metadata.
-- `examples/wordpress-commit-log-review.php` returns `dolt_log` rows with parents and decorated refs, import-base and media-promotion revision ranges, `wp_posts` / `wp_postmeta` table-filtered histories, merge-only review rows, non-root checkpoint rows, plus `dolt_commits` rows, so a migration UI can audit which import branch produced each data checkpoint without shelling out to Dolt.
+- `fixtures/wp-commit-log-review.php` models a reviewed WordPress import merge with a main branch, media-import side branch, review-drafts side branch, import tags, merge parents, separate author/committer metadata, and an abandoned scratch checkpoint.
+- `examples/wordpress-commit-log-review.php` returns `dolt_log` rows with parents and decorated refs, import-base and media-promotion revision ranges, `wp_posts` / `wp_postmeta` table-filtered histories, all branch-head review history, all-branch `wp_posts` history that excludes the abandoned scratch checkpoint, merge-only review rows, non-root checkpoint rows, plus `dolt_commits` rows, so a migration UI can audit which import branch produced each data checkpoint without shelling out to Dolt.
 - `fixtures/wp-commit-ancestors-review.php` models the same reviewed import merge as parent-edge rows from `dolt_commit_ancestors`.
 - `examples/wordpress-commit-ancestors-review.php` returns merge parent hashes and parent-index-ordered log messages, so a migration UI can explain which branch each reviewed data checkpoint merged without shelling out to Dolt.
 - `fixtures/wp-has-ancestor-review.php` models branch/tag containment checks for the reviewed import merge, including whether `main` contains the media-import branch and whether `main^2` / `main~2` resolve to the expected review parents.
@@ -65,4 +65,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Map another focused `dolt_log` slice, starting with `--all` multi-branch traversal or CLI-style graph/oneline/stat rendering boundaries.
+Map another focused `dolt log` CLI rendering slice, starting with `--oneline` and `--stat` output boundaries.
