@@ -421,6 +421,99 @@ return [
         $t->same('paragraph', $paragraph->type);
         $t->same('This should not be a block quote: 2 > 1.', $paragraph->attr('text'));
     },
+    'maps upstream testsuite html blocks as div containers' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '<div>foo</div>',
+            '',
+            '<div>',
+            '<div>',
+            '<div>',
+            'foo',
+            '</div>',
+            '</div>',
+            '<div>bar</div>',
+            '</div>',
+            '',
+            '<div>',
+            'foo',
+            '</div>',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $oneLine = $document->children[0];
+        $nested = $document->children[1];
+        $multiLine = $document->children[2];
+
+        $t->same('div', $oneLine->type);
+        $t->same('plain', $oneLine->children[0]->type);
+        $t->same('foo', $oneLine->children[0]->attr('text'));
+        $t->same('div', $nested->children[0]->type);
+        $t->same('div', $nested->children[0]->children[0]->type);
+        $t->same('paragraph', $nested->children[0]->children[0]->children[0]->type);
+        $t->same('foo', $nested->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('plain', $nested->children[1]->children[0]->type);
+        $t->same('bar', $nested->children[1]->children[0]->attr('text'));
+        $t->same('paragraph', $multiLine->children[0]->type);
+    },
+    'maps upstream testsuite raw table and script html blocks' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '<table>',
+            '<tr>',
+            '<td>This is *emphasized*</td>',
+            '<td>And this is **strong**</td>',
+            '</tr>',
+            '</table>',
+            '',
+            "<script type=\"text/javascript\">document.write('This *should not* be interpreted as markdown');</script>",
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $table = $document->children[0];
+        $script = $document->children[1];
+
+        $t->same('raw_html', $table->type);
+        $t->contains('<td>This is <em>emphasized</em></td>', $table->attr('html'));
+        $t->contains('<td>And this is <strong>strong</strong></td>', $table->attr('html'));
+        $t->same('raw_html', $script->type);
+        $t->contains('*should not*', $script->attr('html'));
+        $t->same(false, str_contains($script->attr('html'), '<em>should not</em>'));
+    },
+    'maps upstream testsuite raw html comments hr blocks and indented html code' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '<!-- Comment -->',
+            '',
+            '<!--',
+            'Blah',
+            'Blah',
+            '-->',
+            '',
+            '<!--',
+            "\tThis is another comment.",
+            '-->',
+            '',
+            "\t<!-- Comment -->",
+            '',
+            '<!-- foo -->   ',
+            '',
+            "\t<hr />",
+            '',
+            '<hr>',
+            '',
+            '<hr class="foo" id="bar" />',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+
+        $t->same('raw_html', $document->children[0]->type);
+        $t->same('<!-- Comment -->', $document->children[0]->attr('html'));
+        $t->same("<!--\nBlah\nBlah\n-->", $document->children[1]->attr('html'));
+        $t->same("<!--\n    This is another comment.\n-->", $document->children[2]->attr('html'));
+        $t->same('code_block', $document->children[3]->type);
+        $t->same('<!-- Comment -->', $document->children[3]->attr('text'));
+        $t->same('<!-- foo -->', $document->children[4]->attr('html'));
+        $t->same('code_block', $document->children[5]->type);
+        $t->same('<hr />', $document->children[5]->attr('text'));
+        $t->same('raw_html', $document->children[6]->type);
+        $t->same('<hr>', $document->children[6]->attr('html'));
+        $t->same('<hr class="foo" id="bar" />', $document->children[7]->attr('html'));
+    },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -476,6 +569,14 @@ return [
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<dt>Source glossary</dt><dd><p>Preserve alternate marker notes from older Pandoc exports.</p></dd><dd><p>Verify nested review tasks</p><ol><li>Confirm block conversion</li><li>Attach media IDs</li></ol></dd>', $blocks);
+    },
+    'writes wordpress raw html blocks for imported tables comments and custom dividers' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<table>' . "\n" . '<tr>' . "\n" . '<td><em>Legacy caption</em></td>' . "\n" . '<td><strong>Reviewer flag</strong></td>' . "\n" . '</tr>' . "\n" . '</table>', $blocks);
+        $t->contains('<!-- Preserve migration audit marker -->', $blocks);
+        $t->contains('<hr class="legacy-import-divider" />', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

@@ -42,6 +42,19 @@ Source glossary
 :   - Preserve div-wrapped glossary notes from legacy imports
 </div>
 
+Raw import table:
+
+<table>
+<tr>
+<td>*Legacy caption*</td>
+<td>**Reviewer flag**</td>
+</tr>
+</table>
+
+<!-- Preserve migration audit marker -->
+
+<hr class="legacy-import-divider" />
+
 ```php
 do_shortcode('[legacy-gallery]');
 ```

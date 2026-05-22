@@ -30,6 +30,11 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Markdown lines through the start of `# HTML Blocks`
 - `test/testsuite.native` Definition Lists rendered native AST slice inspected
   in this run: 163 lines
+- `test/testsuite.txt` HTML Blocks section slice inspected in this run: 102
+  Markdown lines through the start of `# Inline Markup`
+- `test/testsuite.native` HTML Blocks rendered native AST slice inspected in
+  this run: 161 lines, including 22 `RawBlock` markers, 9 `Div` markers, and 4
+  `CodeBlock` markers
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
@@ -113,11 +118,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   block quotes remain block quotes inside the definition body, alternate `~`
   markers are accepted after a blank term line, and an indented ordered list
   stays nested inside the `orange` definition body.
+- HTML-block cases from the `# HTML Blocks` section of `test/testsuite.txt`,
+  cross-checked against `test/testsuite.native`: one-line and nested `<div>`
+  containers become `div` AST nodes, raw `<table>` blocks preserve their HTML
+  boundary while interpreting Markdown in cell text, `<script>` bodies are kept
+  raw without interpreting Markdown, HTML comments become raw HTML blocks with
+  tabs expanded as Pandoc does, trailing spaces are trimmed from raw comments and
+  `<hr>` tags, and tab-indented HTML remains an indented code block.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-43 tests, 202 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 71 test files, 3,951 assertions, and
+47 tests, 233 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 73 test files, 4,153 assertions, and
 0 failures after this lane batch in the shared dirty worktree.

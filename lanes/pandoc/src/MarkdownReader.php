@@ -32,6 +32,11 @@ final class MarkdownReader
                 $blocks[] = $divBlock;
                 continue;
             }
+            $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
+            if ($rawHtmlBlock !== null) {
+                $blocks[] = $rawHtmlBlock;
+                continue;
+            }
             if ($this->isHorizontalRule($line)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -160,26 +165,56 @@ final class MarkdownReader
     private function tryReadDivBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<div(?:\s+[^>]*)?>[ \t]*(.*)$/i', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}<div(?:\s+[^>]*)?>/i', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
 
         $content = [];
-        if ($this->appendDivContentUntilClose($content, $m[1])) {
-            $inner = $this->read(implode("\n", $content));
-
-            return new AstNode('div', [], $inner->children);
-        }
-
-        $cursor = $index + 1;
+        $depth = 1;
+        $openingIndex = $index;
+        $cursor = $index;
         $count = count($lines);
-        while ($cursor < $count) {
-            if ($this->appendDivContentUntilClose($content, $lines[$cursor])) {
-                $index = $cursor;
-                $inner = $this->read(implode("\n", $content));
+        $firstLineOffset = $m[0][1] + strlen($m[0][0]);
 
-                return new AstNode('div', [], $inner->children);
+        while ($cursor < $count) {
+            $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
+            $lineContent = '';
+            $offset = 0;
+            while (true) {
+                $nextOpen = $this->findHtmlTag($segment, 'div', $offset, false);
+                $nextClose = $this->findHtmlTag($segment, 'div', $offset, true);
+
+                if ($nextOpen === null && $nextClose === null) {
+                    $lineContent .= substr($segment, $offset);
+                    break;
+                }
+
+                if ($nextOpen !== null && ($nextClose === null || $nextOpen['offset'] < $nextClose['offset'])) {
+                    $depth++;
+                    $lineContent .= substr($segment, $offset, $nextOpen['offset'] + $nextOpen['length'] - $offset);
+                    $offset = $nextOpen['offset'] + $nextOpen['length'];
+                    continue;
+                }
+
+                if ($nextClose === null) {
+                    break;
+                }
+
+                $depth--;
+                if ($depth === 0) {
+                    $lineContent .= substr($segment, $offset, $nextClose['offset'] - $offset);
+                    $content[] = $lineContent;
+                    $closedOnOpeningLine = $cursor === $openingIndex;
+                    $index = $cursor;
+
+                    return $this->buildDivBlock($content, $closedOnOpeningLine);
+                }
+
+                $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
+                $offset = $nextClose['offset'] + $nextClose['length'];
             }
+
+            $content[] = $lineContent;
             $cursor++;
         }
 
@@ -187,23 +222,161 @@ final class MarkdownReader
     }
 
     /**
-     * @param list<string> $content
+     * @return array{offset:int, length:int}|null
      */
-    private function appendDivContentUntilClose(array &$content, string $line): bool
+    private function findHtmlTag(string $line, string $tag, int $offset, bool $closing): ?array
     {
-        $closing = stripos($line, '</div>');
-        if ($closing !== false) {
-            $beforeClose = substr($line, 0, $closing);
-            if ($beforeClose !== '') {
-                $content[] = $beforeClose;
-            }
+        $pattern = $closing
+            ? '/<\/' . preg_quote($tag, '/') . '\s*>/i'
+            : '/<' . preg_quote($tag, '/') . '(?:\s+[^>]*)?>/i';
 
-            return true;
+        if (preg_match($pattern, $line, $m, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+            return null;
         }
 
-        $content[] = $line;
+        return ['offset' => $m[0][1], 'length' => strlen($m[0][0])];
+    }
 
-        return false;
+    /**
+     * @param list<string> $content
+     */
+    private function buildDivBlock(array $content, bool $closedOnOpeningLine): AstNode
+    {
+        while ($content !== [] && trim($content[0]) === '') {
+            array_shift($content);
+        }
+        while ($content !== [] && trim($content[array_key_last($content)]) === '') {
+            array_pop($content);
+        }
+
+        if (
+            $closedOnOpeningLine
+            && count($content) === 1
+            && trim($content[0]) !== ''
+            && stripos($content[0], '<div') === false
+        ) {
+            $text = trim($content[0]);
+
+            return new AstNode('div', [], [
+                new AstNode('plain', ['text' => $text], $this->parseInlines($text)),
+            ]);
+        }
+
+        $inner = $this->read(implode("\n", $content));
+
+        return new AstNode('div', [], $inner->children);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadRawHtmlBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<!--/', $line) === 1) {
+            return $this->readHtmlCommentBlock($lines, $index);
+        }
+
+        if (preg_match('/^ {0,3}<(script|style)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+            return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
+        }
+
+        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) === 1) {
+            return $this->readRawHtmlUntilClosingTag($lines, $index, 'table', true);
+        }
+
+        if (preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+            return new AstNode('raw_html', ['html' => trim($line)]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function readHtmlCommentBlock(array $lines, int &$index): AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if (str_contains($lines[$cursor], '-->')) {
+                break;
+            }
+            $cursor++;
+        }
+
+        $index = min($cursor, $count - 1);
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function readRawHtmlUntilClosingTag(array $lines, int &$index, string $tag, bool $interpretTableCells = false): AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        $closingPattern = '/<\/' . preg_quote($tag, '/') . '\s*>/i';
+
+        while ($cursor < $count) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $content[] = $interpretTableCells ? $this->renderMarkdownInTableCells($line) : $line;
+            if (preg_match($closingPattern, $line) === 1) {
+                break;
+            }
+            $cursor++;
+        }
+
+        $index = min($cursor, $count - 1);
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    private function normalizeRawHtmlLine(string $line): string
+    {
+        return rtrim($this->expandTabsToSpaces($line));
+    }
+
+    private function renderMarkdownInTableCells(string $line): string
+    {
+        return preg_replace_callback(
+            '/(<t[dh](?:\s+[^>]*)?>)(.*?)(<\/t[dh]>)/i',
+            function (array $matches): string {
+                return $matches[1] . $this->renderInlineHtml($this->parseInlines($matches[2])) . $matches[3];
+            },
+            $line
+        ) ?? $line;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineHtml(array $nodes): string
+    {
+        $html = '';
+        foreach ($nodes as $node) {
+            $html .= match ($node->type) {
+                'text' => $this->escapeHtml((string) $node->attr('text', '')),
+                'emph' => '<em>' . $this->renderInlineHtml($node->children) . '</em>',
+                'strong' => '<strong>' . $this->renderInlineHtml($node->children) . '</strong>',
+                'code' => '<code>' . $this->escapeHtml((string) $node->attr('text', '')) . '</code>',
+                'link' => '<a href="' . $this->escapeHtml((string) $node->attr('url', '')) . '">'
+                    . $this->renderInlineHtml($node->children) . '</a>',
+                default => $this->renderInlineHtml($node->children),
+            };
+        }
+
+        return $html;
+    }
+
+    private function escapeHtml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     private function isBlockQuoteLine(string $line): bool

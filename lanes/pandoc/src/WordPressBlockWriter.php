@@ -27,12 +27,18 @@ final class WordPressBlockWriter
                 $blocks[] = '<!-- wp:paragraph -->'
                     . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
                     . "\n" . '<!-- /wp:paragraph -->';
+            } elseif ($node->type === 'plain') {
+                $blocks[] = '<!-- wp:paragraph -->'
+                    . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+                    . "\n" . '<!-- /wp:paragraph -->';
             } elseif ($node->type === 'bullet_list') {
                 $blocks[] = $this->renderList($node, false);
             } elseif ($node->type === 'ordered_list') {
                 $blocks[] = $this->renderList($node, true);
             } elseif ($node->type === 'definition_list') {
                 $blocks[] = $this->renderDefinitionList($node);
+            } elseif ($node->type === 'raw_html') {
+                $blocks[] = $this->renderRawHtmlBlock($node);
             } elseif ($node->type === 'code_block') {
                 $blocks[] = $this->renderCodeBlock($node);
             } elseif ($node->type === 'blockquote') {
@@ -143,6 +149,13 @@ final class WordPressBlockWriter
         return '<!-- wp:html -->' . "\n" . $this->renderDefinitionListHtml($node) . "\n" . '<!-- /wp:html -->';
     }
 
+    private function renderRawHtmlBlock(AstNode $node): string
+    {
+        return '<!-- wp:html -->'
+            . "\n" . (string) $node->attr('html', '')
+            . "\n" . '<!-- /wp:html -->';
+    }
+
     private function renderDefinitionListHtml(AstNode $node): string
     {
         $html = '<dl>';
@@ -237,6 +250,10 @@ final class WordPressBlockWriter
                 $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
                 continue;
             }
+            if ($child->type === 'raw_html') {
+                $html .= (string) $child->attr('html', '');
+                continue;
+            }
 
             $html .= $this->renderInlineNode($child);
         }
@@ -253,6 +270,10 @@ final class WordPressBlockWriter
         foreach ($blocks as $block) {
             if ($block->type === 'paragraph') {
                 $html .= '<p>' . $this->renderInlines($block) . '</p>';
+                continue;
+            }
+            if ($block->type === 'plain') {
+                $html .= $this->renderInlines($block);
                 continue;
             }
             if ($block->type === 'heading') {
@@ -282,6 +303,10 @@ final class WordPressBlockWriter
             }
             if ($block->type === 'horizontal_rule') {
                 $html .= '<hr/>';
+                continue;
+            }
+            if ($block->type === 'raw_html') {
+                $html .= (string) $block->attr('html', '');
                 continue;
             }
             if ($block->type === 'div') {

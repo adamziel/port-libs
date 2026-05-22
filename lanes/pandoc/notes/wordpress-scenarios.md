@@ -43,6 +43,12 @@ now map to `horizontal_rule` AST nodes and WordPress separator blocks. This
 keeps archive section breaks while avoiding the common import bug where a spaced
 asterisk divider such as `*   *   *   *   *` becomes an empty-looking bullet
 list.
+Raw HTML blocks from the `test/testsuite.txt` HTML Blocks section now preserve
+WordPress import boundaries: nested `<div>` wrappers stay structural, raw
+tables remain in a WordPress HTML block while Markdown inside table cells is
+interpreted, HTML comments can carry migration audit markers, custom `<hr>`
+tags stay raw instead of being normalized into core separators, and tab-indented
+HTML snippets remain code blocks.
 
 ## Scenario Fixture
 
@@ -53,6 +59,9 @@ list.
   reviewer checkpoints, definition-list import notes, an alternate-marker source
   glossary with nested ordered review tasks, a div-wrapped glossary audit note,
   and a fenced PHP migration snippet.
+- The fixture also includes a raw import table, an HTML migration audit comment,
+  and a custom legacy divider to exercise WordPress HTML block output for
+  imported raw HTML boundaries.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -78,8 +87,11 @@ list.
 - Spaced-asterisk and underscore section dividers render as WordPress separator
   blocks, preserving migration-era article breaks without turning them into list
   markup.
+- Raw HTML tables, comments, and custom dividers render inside WordPress HTML
+  blocks without shelling out to Pandoc, preserving legacy import annotations
+  and table markup that reviewers may need to inspect.
 
 ## Next Task
 
-Map raw HTML block boundaries from the `test/testsuite.txt` HTML Blocks section
-into safe WordPress HTML/div output.
+Map the `test/testsuite.txt` Inline Markup section for underscore
+emphasis/strong and nested strong-emphasis spans.
