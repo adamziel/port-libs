@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 use PortLibs\Rclone\FilterRuleSet;
+use PortLibs\Rclone\ChecksumFile;
+use PortLibs\Rclone\HashListing;
 use PortLibs\Rclone\HashSet;
 use PortLibs\Rclone\HashType;
+use PortLibs\Rclone\LsfListing;
 use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\MultiHasher;
 use PortLibs\Rclone\SyncPlan;
@@ -82,6 +85,55 @@ return [
         $oneWay = (new SyncPlan())->check($source, $target, true);
         $t->same([], $oneWay->missingOnSource);
         $t->same(['* changed.txt', '+ potato2', '= rutabaga'], $oneWay->combinedLines());
+    },
+    'parses upstream checksum file formats' => static function (TestRunner $t): void {
+        $sums = ChecksumFile::parse(implode("\r\n", [
+            '1  file1',
+            '2 *file2',
+            '3   file3 ',
+            "4  \tfile3\t",
+            '5 file5',
+            "6\tfile6",
+            '7   file3 ',
+            '65A8E27D8879283831B664BD8B7F0AD4  wp-content/uploads/hero.jpg',
+            '',
+        ]));
+
+        $t->same('1', $sums['file1']);
+        $t->same('2', $sums['file2']);
+        $t->same('3', $sums[' file3 ']);
+        $t->same('4', $sums["\tfile3\t"]);
+        $t->same('65a8e27d8879283831b664bd8b7f0ad4', $sums['wp-content/uploads/hero.jpg']);
+        $t->true(!isset($sums['file5']));
+        $t->true(!isset($sums['file6']));
+        $t->same(5, count($sums));
+    },
+    'lists hashes in rclone hashsum format' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('potato2', str_repeat('-', 60));
+        $provider->put('empty space', '-');
+
+        $t->same([
+            '336d5ebc5436534e61d16e63ddfca327  empty space',
+            'd6548b156ea68a4e003e786df99eee76  potato2',
+        ], HashListing::lines($provider, HashType::MD5));
+        $t->same('1B2M2Y8AsgTpgAmY7PhCfg==  -', HashListing::streamLine('', HashType::MD5, true));
+        $t->same('00hq6RNueFa8QiEjhep5cJRHWAI=  -', HashListing::streamLine('Hello world!', HashType::SHA1, true));
+    },
+    'formats lsf path size and hash fields like upstream' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('file1', '');
+        $provider->put('file2', str_repeat('x', 321));
+        $provider->put('file3', str_repeat('y', 1234));
+        $provider->put('subdir/file1', '');
+        $provider->put('subdir/file2', 'z');
+
+        $t->same(['file1', 'file2', 'file3', 'subdir/'], LsfListing::lines($provider));
+        $t->same(['file1;0', 'file2;321', 'file3;1234', 'subdir/;-1'], LsfListing::lines($provider, ['format' => 'ps']));
+        $t->same(['d41d8cd98f00b204e9800998ecf8427e;file1'], array_slice(LsfListing::lines($provider, ['format' => 'hp', 'filesOnly' => true]), 0, 1));
+        $t->same(['file1', 'file2', 'file3'], LsfListing::lines($provider, ['filesOnly' => true]));
+        $t->same(['subdir'], LsfListing::lines($provider, ['dirsOnly' => true, 'dirSlash' => false]));
+        $t->same(['file1_+_0', 'file2_+_321', 'file3_+_1234', 'subdir/_+_-1', 'subdir/file1_+_0', 'subdir/file2_+_1'], LsfListing::lines($provider, ['format' => 'ps', 'separator' => '_+_', 'recurse' => true]));
     },
     'copies filtered changed wordpress backup objects idempotently' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
