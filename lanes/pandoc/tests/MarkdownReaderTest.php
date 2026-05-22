@@ -45,6 +45,33 @@ return [
         $t->same('bullet_list', $nested->type);
         $t->same('d', $nested->children[0]->children[0]->attr('text'));
     },
+    'maps upstream markdown definition lists without blank space' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo1\n  :  bar\n\nfoo2\n  : bar2\n  : bar3\n");
+        $list = $document->children[0];
+
+        $t->same('definition_list', $list->type);
+        $t->same('foo1', $list->children[0]->attr('term'));
+        $t->same('bar', $list->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('foo2', $list->children[1]->attr('term'));
+        $t->same('bar2', $list->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('bar3', $list->children[1]->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream markdown definition marker at column zero' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo\n: bar\n");
+        $list = $document->children[0];
+
+        $t->same('definition_list', $list->type);
+        $t->same('foo', $list->children[0]->children[0]->attr('text'));
+        $t->same('bar', $list->children[0]->children[1]->children[0]->attr('text'));
+    },
+    'maps upstream markdown list inside definition' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("foo\n:   - bar\n");
+        $definition = $document->children[0]->children[0]->children[1];
+
+        $t->same('definition', $definition->type);
+        $t->same('bullet_list', $definition->children[0]->type);
+        $t->same('bar', $definition->children[0]->children[0]->children[0]->attr('text'));
+    },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -60,6 +87,13 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->contains('<ul><li>a</li><li>b</li><li>c<ul><li>d</li></ul></li></ul>', $blocks);
+    },
+    'writes wordpress definition list html from upstream-shaped ast' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("Plugin\n: Stable release\n\nChecklist\n:   - Verify imports");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:html -->', $blocks);
+        $t->contains('<dl><dt>Plugin</dt><dd>Stable release</dd><dt>Checklist</dt><dd><ul><li>Verify imports</li></ul></dd></dl>', $blocks);
     },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');

@@ -31,6 +31,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderList($node, false);
             } elseif ($node->type === 'ordered_list') {
                 $blocks[] = $this->renderList($node, true);
+            } elseif ($node->type === 'definition_list') {
+                $blocks[] = $this->renderDefinitionList($node);
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -113,6 +115,56 @@ final class WordPressBlockWriter
         }
 
         return '<li>' . $html . '</li>';
+    }
+
+    private function renderDefinitionList(AstNode $node): string
+    {
+        $html = '<dl>';
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            $children = $item->children;
+            $term = array_shift($children);
+            if (!$term instanceof AstNode || $term->type !== 'term') {
+                $term = new AstNode('term', ['text' => (string) $item->attr('term', '')]);
+            }
+            $html .= '<dt>' . $this->renderInlines($term) . '</dt>';
+
+            foreach ($children as $definition) {
+                if ($definition->type !== 'definition') {
+                    continue;
+                }
+                $html .= '<dd>' . $this->renderDefinitionBlocks($definition) . '</dd>';
+            }
+        }
+        $html .= '</dl>';
+
+        return '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderDefinitionBlocks(AstNode $definition): string
+    {
+        $html = '';
+        foreach ($definition->children as $child) {
+            if ($child->type === 'bullet_list') {
+                $html .= $this->renderListHtml($child, false);
+                continue;
+            }
+            if ($child->type === 'ordered_list') {
+                $html .= $this->renderListHtml($child, true);
+                continue;
+            }
+            if ($child->type === 'paragraph') {
+                $html .= $this->renderInlines($child);
+                continue;
+            }
+
+            $html .= $this->renderInlineNode($child);
+        }
+
+        return $html;
     }
 
     private function renderInlines(AstNode $node): string
