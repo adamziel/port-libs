@@ -1,6 +1,6 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, the dirty worktree, bridge/shell-out usage, and recent Git history observed through `796681e` (`Stamp LightningCSS transition status`). The tree continued moving while the audit was being committed. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, the dirty worktree, bridge/shell-out usage, and recent Git history observed during this run. The tree continued moving while the audit was being committed, so the exact HEAD is itself unstable audit evidence. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
 ## Findings
 
@@ -11,7 +11,7 @@ Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`
    - Audit judgment: regenerate the dashboard only after the dirty lane batches are integrated or rejected from one committed state. Also split `mapped`, PHP behavior tests, and assertions instead of compressing them into one `Mapped` column.
 
 2. **Critical - the repository is still a moving, dirty integration target.**
-   - Paths: current `git status --short`, `progress.md:31-42`, `progress.md:229-231`, recent commits `5124ea3`, `d49dd22`, `ad9cf96`, `ceac8c1`, `5615e1a`, `4f4ddba`, `7fed5a7`, `44b675b`, `fff053f`, `373c77f`, `2d36c65`, `186a19a`, `b603470`, `ad041d3`, `1742935`, `8a8fe79`, `022f23b`, `3317fd3`, and `796681e`.
+   - Paths: current `git status --short`, `progress.md:31-42`, `progress.md:229-231`, and recent commits observed during this run including `5124ea3`, `d49dd22`, `ad9cf96`, `ceac8c1`, `5615e1a`, `4f4ddba`, `7fed5a7`, `44b675b`, `fff053f`, `373c77f`, `2d36c65`, `186a19a`, `b603470`, `ad041d3`, `1742935`, `8a8fe79`, `022f23b`, `3317fd3`, and `796681e`.
    - Evidence: recent history advanced during the audit window beyond the prior `0b5b6a6` audit snapshot, while the worktree still contains dirty implementation/status/dashboard changes across difftastic, esbuild, Gitoxide, libsqlite, Readability, Syncthing, `porting.html`, `porting-summary.json`, and untracked audit/lane files. The Active Lanes table still shows all lanes as `stopped` with older phases and estimates.
    - Goal requirement at risk: `goal.md` requires the supervisor to verify finished agent work, commit small passing slices, update progress, clean accidental unrelated changes, and keep the roadmap honest.
    - Audit judgment: no additional feature slice should be treated as progress until the current dirty batches are reviewed, either committed or rejected, and represented by regenerated coordination outputs.
