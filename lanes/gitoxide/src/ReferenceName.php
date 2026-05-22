@@ -23,13 +23,18 @@ final class ReferenceName
     {
         self::assertCommonShape($name);
 
-        if (
-            !str_starts_with($name, 'refs/')
-            && !str_starts_with($name, 'worktrees/')
-            && !str_starts_with($name, 'main-worktree/')
-            && !self::isPseudoRef($name)
-        ) {
-            throw new \InvalidArgumentException('Reference name must be a full ref name or pseudo ref');
+        if (!str_contains($name, '/') && !self::isPseudoRef($name)) {
+            throw new \InvalidArgumentException('Standalone reference names must be all uppercase or underscores');
+        }
+    }
+
+    public static function isValid(string $name): bool
+    {
+        try {
+            self::assertValid($name);
+            return true;
+        } catch (\InvalidArgumentException) {
+            return false;
         }
     }
 

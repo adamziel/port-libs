@@ -41,6 +41,24 @@ return [
         $t->same(null, ReferenceName::category('hello/world'));
         $t->same('hello/world', ReferenceName::shorten('hello/world'));
     },
+    'complete reference validation follows upstream slash and standalone rules' => static function (TestRunner $t): void {
+        foreach ([
+            'refs/heads/main',
+            'etc/foo',
+            'this./totally./works',
+            'refs/heads/你好吗',
+            'MAIN',
+            'NEW_HEAD',
+        ] as $name) {
+            $t->same(true, ReferenceName::isValid($name), "valid complete {$name}");
+            ReferenceName::assertValid($name);
+        }
+
+        foreach (['main', 'Main', '(null)', 'refs//heads/main', '/etc/foo', 'refs/heads/main/'] as $name) {
+            $t->same(false, ReferenceName::isValid($name), "invalid complete {$name}");
+            $t->throws(InvalidArgumentException::class, static fn () => ReferenceName::assertValid($name));
+        }
+    },
     'reference categories construct full names like upstream Category to_full_name' => static function (TestRunner $t): void {
         $t->same(
             'refs/heads/full',
@@ -162,5 +180,7 @@ return [
         $t->same(true, $summary['sanitizedPluginReviewComponentValid']);
         $t->same(true, $summary['sanitizedPluginReviewBranchAllowed']);
         $t->same(false, $summary['reservedHeadBranchAllowed']);
+        $t->same(true, $summary['relativeDeploymentRefAllowed']);
+        $t->same(false, $summary['lowercaseStandaloneRefAllowed']);
     },
 ];

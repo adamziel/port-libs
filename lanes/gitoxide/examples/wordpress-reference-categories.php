@@ -50,4 +50,6 @@ return [
     'sanitizedPluginReviewBranch' => $sanitizedPluginReviewBranch,
     'sanitizedPluginReviewBranchAllowed' => ReferenceName::isValidBranchName($sanitizedPluginReviewBranch),
     'reservedHeadBranchAllowed' => ReferenceName::isValidBranchName('refs/heads/HEAD'),
+    'relativeDeploymentRefAllowed' => ReferenceName::isValid($fixture['relativeDeploymentRef']),
+    'lowercaseStandaloneRefAllowed' => ReferenceName::isValid('main'),
 ];

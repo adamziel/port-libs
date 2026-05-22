@@ -34,6 +34,8 @@ The example now uses an uppercase raw target ID in the fixture and reports both 
 
 The same example now uses `ReferenceName::joinPartial()` to compose plugin review branches such as `refs/heads/review/plugins/gutenberg` and `refs/remotes/origin/review/plugins/gutenberg` from partial ref components. It also uses `ReferenceName::sanitizePartial()` to turn an unsafe plugin-derived component such as `plugins/seo suite.lock` into `plugins/seo-suite` before joining it under `refs/heads/review`, and `ReferenceName::isValidBranchName()` to reject the reserved `refs/heads/HEAD` branch. This models deployment tools that build branch names from WordPress plugin paths while still rejecting or normalizing unsafe ref bytes, repeated slashes, empty components, leading-dot names, and `.lock` suffixes through upstream-shaped validation.
 
+The example now also checks complete reference-name validity with `ReferenceName::isValid()`: slash-containing relative deployment refs such as `review/plugins/gutenberg` are valid complete names, while lowercase standalone names such as `main` are rejected unless expanded under `refs/heads/`. This follows `gix_validate::reference::name()` and helps WordPress deployment tooling distinguish valid relative ref paths from invalid pseudo refs before fetch/push planning.
+
 ## WordPress Packed Reference Example
 
 `examples/wordpress-packed-refs.php` parses a compacted `packed-refs` buffer with a WordPress deployment branch, remote-tracking branch, and peeled release tag. This models a PHP deployment or package manager inspecting compacted repository state on shared hosting without invoking `git show-ref` or `git for-each-ref`.

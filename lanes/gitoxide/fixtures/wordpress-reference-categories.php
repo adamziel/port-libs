@@ -31,6 +31,7 @@ return [
     'remoteReviewBranchBase' => 'refs/remotes',
     'remoteReviewBranchComponent' => 'origin/review/plugins/gutenberg',
     'expectedJoinedRemoteReviewBranch' => 'refs/remotes/origin/review/plugins/gutenberg',
+    'relativeDeploymentRef' => 'review/plugins/gutenberg',
     'expectedCategories' => [
         $defaultBranch => ReferenceName::CATEGORY_LOCAL_BRANCH,
         $remoteBranch => ReferenceName::CATEGORY_REMOTE_BRANCH,

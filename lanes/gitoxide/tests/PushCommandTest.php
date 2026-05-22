@@ -40,7 +40,7 @@ return [
         $t->same(true, $delete->isDelete());
         $t->same('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 0000000000000000000000000000000000000000 refs/tags/wp-release', $delete->commandLine());
         $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create('bad', 'refs/heads/main'));
-        $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create($new, 'heads/main'));
+        $t->throws(InvalidArgumentException::class, static fn () => PushUpdate::create($new, 'main'));
     },
     'push command builds receive-pack update request with first-line capabilities' => static function (TestRunner $t) use ($packetPayloads): void {
         $capabilities = ProtocolCapabilities::fromV1Bytes("\0report-status report-status-v2 side-band side-band-64k object-format=sha1 atomic push-options")['capabilities'];

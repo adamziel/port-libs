@@ -61,7 +61,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet("bad refs/heads/main\0report-status\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/heads/main\0report-status\n") . $packet(str_repeat('b', 40) . " refs/heads/next\0atomic\n") . $flush));
-        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " heads/main\0report-status\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " main\0report-status\n") . $flush));
     },
     'send-pack session plans create update and no-op refs from advertisement' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
