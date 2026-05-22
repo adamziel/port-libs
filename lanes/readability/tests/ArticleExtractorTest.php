@@ -148,6 +148,53 @@ return [
         $t->same(false, $extractor->isProbablyReaderable($html));
         $t->same(false, $extractor->isProbablyReaderable('<p>' . $longText . '</p>', static fn (): bool => false));
     },
+    'maps Mozilla remove-aria-hidden fixture during extraction cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/remove-aria-hidden';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same([], $attributeValues($article->contentHtml, '//*[@aria-hidden="true" and not(contains(concat(" ", normalize-space(@class), " "), " fallback-image "))]'));
+        $t->true(!str_contains($article->text, '**WRONG**'), 'aria-hidden source text should be removed during extraction');
+    },
+    'removes hidden WordPress export duplicates while preserving fallback images' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Hidden Export Cleanup"></head><body><article>'
+            . '<h1>Hidden Export Cleanup</h1>'
+            . '<p>' . str_repeat('Visible migration copy should be imported without duplicate hidden source fragments. ', 4) . '</p>'
+            . '<p><span aria-hidden="true">Screen reader duplicate headline</span>Visible paragraph text remains available.</p>'
+            . '<div hidden>Hidden widget copy should not become a block.</div>'
+            . '<div style="display:none">Display none tracking content should not be imported.</div>'
+            . '<div style="visibility:hidden">Visibility hidden share counters should not be imported.</div>'
+            . '<div role="dialog" aria-modal="true">Cookie consent modal should not be imported.</div>'
+            . '<p><img class="fallback-image" aria-hidden="true" src="/uploads/math-fallback.png" alt="Formula fallback"></p>'
+            . '<p>' . str_repeat('Fallback images are retained because upstream Readability keeps aria-hidden fallback-image media. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $article = (new ArticleExtractor())->extract($html);
+
+        $t->contains('Visible paragraph text remains available.', $article->text);
+        $t->contains('/uploads/math-fallback.png', $article->contentHtml);
+        $t->contains('aria-hidden="true"', $article->contentHtml);
+        $t->true(!str_contains($article->text, 'Screen reader duplicate headline'), 'aria-hidden duplicate source text should be removed');
+        $t->true(!str_contains($article->text, 'Hidden widget copy'), 'hidden attribute content should be removed');
+        $t->true(!str_contains($article->text, 'Display none tracking'), 'display:none content should be removed');
+        $t->true(!str_contains($article->text, 'Visibility hidden share'), 'visibility:hidden content should be removed');
+        $t->true(!str_contains($article->text, 'Cookie consent modal'), 'aria-modal dialogs should be removed like upstream');
+    },
     'removes WordPress page-builder chrome with upstream unlikely candidate rules' => static function (TestRunner $t): void {
         $html = file_get_contents(__DIR__ . '/../fixtures/wordpress-page-builder.html');
         $article = (new ArticleExtractor())->extract((string) $html);
@@ -427,6 +474,68 @@ return [
         }
         $t->same([], $attributeValues($article->contentHtml, '//font|//@align|//@bgcolor|//@border|//@cellpadding|//@cellspacing|//@style|//table/@width|//td/@width'));
         $t->true(!str_contains($article->contentHtml, '<!--'), 'commented source tables and links should not be imported');
+    },
+    'maps Mozilla links-in-tables fixture with retained table links' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/links-in-tables';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($attributeValues($expected, '//table//a[@href]/@href'), $attributeValues($article->contentHtml, '//table//a[@href]/@href'));
+        $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
+        $t->same(count($attributeValues($expected, '//table//col')), count($attributeValues($article->contentHtml, '//table//col')));
+    },
+    'maps Mozilla keep-tabular-data fixture table rows and status images' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/keep-tabular-data';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(count($attributeValues($expected, '//table')), count($attributeValues($article->contentHtml, '//table')));
+        $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
+        $t->same($attributeValues($expected, '//table//img[@src]/@src'), $attributeValues($article->contentHtml, '//table//img[@src]/@src'));
+        $t->contains('Blueprint library', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, 'finished_gui_table'), 'source table classes should be stripped while data rows remain');
+        $t->true(!str_contains($article->contentHtml, 'style='), 'source table styles should be stripped while data rows remain');
+    },
+    'preserves upstream marked data tables while unwrapping presentational one cell tables' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Plugin Compatibility Matrix"></head><body><article>'
+            . '<h1>Plugin Compatibility Matrix</h1>'
+            . '<p>' . str_repeat('A WordPress migration should preserve real tabular compatibility data even when the source table has only one visible cell. ', 3) . '</p>'
+            . '<table id="summary-data" summary="Plugin compatibility matrix"><tbody><tr><td>Single compatibility row with a link to <a href="/plugins/import-helper">Import Helper</a>.</td></tr></tbody></table>'
+            . '<table id="layout-shell" role="presentation"><tbody><tr><td>Legacy layout copy with <a href="/layout-note">a recovered note</a>.</td></tr></tbody></table>'
+            . '<p>' . str_repeat('Layout tables should still collapse into normal article copy before block serialization. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html, 'https://example.com/import/post.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->contains('<table id="summary-data" summary="Plugin compatibility matrix">', $article->contentHtml);
+        $t->contains('href="https://example.com/plugins/import-helper"', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, '<table id="layout-shell"'), 'presentational one-cell tables should still unwrap as layout');
+        $t->contains('Legacy layout copy', $article->contentHtml);
+        $t->contains('href="https://example.com/layout-note"', $article->contentHtml);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="summary-data" summary="Plugin compatibility matrix">', $blocks);
     },
     'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';

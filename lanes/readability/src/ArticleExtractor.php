@@ -55,6 +55,7 @@ final class ArticleExtractor
             $node->parentNode?->removeChild($node);
         }
         $this->cleanUnsafeEmbeds($xpath);
+        $this->removeInvisibleNodes($xpath);
         $this->removeUnlikelyCandidates($xpath);
 
         $title = $this->title($xpath, $dom);
@@ -230,7 +231,16 @@ final class ArticleExtractor
         }
 
         if ($best instanceof \DOMNode) {
-            foreach ($xpath->query('.//p|.//div', $best) ?: [] as $node) {
+            if ($best instanceof \DOMElement) {
+                foreach ($best->getElementsByTagName('p') as $node) {
+                    $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            }
+
+            foreach ($xpath->query('.//div', $best) ?: [] as $node) {
                 $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
                 if ($text !== '') {
                     return $text;
@@ -705,10 +715,45 @@ final class ArticleExtractor
             && preg_match(self::ALLOWED_VIDEO_PATTERN, $this->innerHtml($node)) === 1;
     }
 
+    private function removeInvisibleNodes(\DOMXPath $xpath): void
+    {
+        $remove = [];
+        foreach ($xpath->query('//*') ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $tagName = strtoupper($node->tagName);
+            if ($tagName === 'HTML' || $tagName === 'BODY') {
+                continue;
+            }
+
+            if (!$this->isNodeVisible($node) || $this->isModalDialog($node)) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach (array_reverse($remove) as $node) {
+            if (!$this->hasRemovedAncestor($node, $remove)) {
+                $node->parentNode?->removeChild($node);
+            }
+        }
+    }
+
+    private function isModalDialog(\DOMElement $node): bool
+    {
+        return $node->getAttribute('aria-modal') === 'true'
+            && strtolower($node->getAttribute('role')) === 'dialog';
+    }
+
     private function isNodeVisible(\DOMElement $node): bool
     {
         $style = $node->getAttribute('style');
         if ($style !== '' && preg_match('/(?:^|;)\s*display\s*:\s*none\s*(?:;|$)/i', $style) === 1) {
+            return false;
+        }
+
+        if ($style !== '' && preg_match('/(?:^|;)\s*visibility\s*:\s*hidden\s*(?:;|$)/i', $style) === 1) {
             return false;
         }
 
@@ -1693,6 +1738,10 @@ final class ArticleExtractor
                 continue;
             }
 
+            if ($this->isReadabilityDataTable($table)) {
+                continue;
+            }
+
             $body = $this->hasSingleTagInsideElement($table, 'tbody')
                 ? $this->firstElementChild($table)
                 : $table;
@@ -1718,6 +1767,82 @@ final class ArticleExtractor
         }
 
         return $scope;
+    }
+
+    private function isReadabilityDataTable(\DOMElement $table): bool
+    {
+        if (strtolower($table->tagName) !== 'table') {
+            return false;
+        }
+
+        if (strtolower(trim($table->getAttribute('role'))) === 'presentation') {
+            return false;
+        }
+
+        if (trim($table->getAttribute('datatable')) === '0') {
+            return false;
+        }
+
+        if (trim($table->getAttribute('summary')) !== '') {
+            return true;
+        }
+
+        $caption = $table->getElementsByTagName('caption')->item(0);
+        if ($caption instanceof \DOMElement && $caption->childNodes->length > 0) {
+            return true;
+        }
+
+        foreach (['col', 'colgroup', 'tfoot', 'thead', 'th'] as $tagName) {
+            if ($table->getElementsByTagName($tagName)->length > 0) {
+                return true;
+            }
+        }
+
+        if ($table->getElementsByTagName('table')->length > 0) {
+            return false;
+        }
+
+        $size = $this->tableRowAndColumnCount($table);
+        if ($size['columns'] === 1 || $size['rows'] === 1) {
+            return false;
+        }
+
+        if ($size['rows'] >= 10 || $size['columns'] > 4) {
+            return true;
+        }
+
+        return $size['rows'] * $size['columns'] > 10;
+    }
+
+    /**
+     * @return array{rows: int, columns: int}
+     */
+    private function tableRowAndColumnCount(\DOMElement $table): array
+    {
+        $rows = 0;
+        $columns = 0;
+        foreach ($table->getElementsByTagName('tr') as $row) {
+            if (!$row instanceof \DOMElement) {
+                continue;
+            }
+
+            $rowspan = (int) $row->getAttribute('rowspan');
+            $rows += $rowspan > 0 ? $rowspan : 1;
+
+            $columnsInThisRow = 0;
+            foreach ($row->getElementsByTagName('td') as $cell) {
+                if (!$cell instanceof \DOMElement) {
+                    continue;
+                }
+
+                $colspan = (int) $cell->getAttribute('colspan');
+                $columnsInThisRow += $colspan > 0 ? $colspan : 1;
+            }
+
+            $columns = max($columns, $columnsInThisRow);
+        }
+
+        return ['rows' => $rows, 'columns' => $columns];
     }
 
     /**
