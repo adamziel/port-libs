@@ -126,6 +126,108 @@ return [
         $t->same(null, $reconstructed->getKey(Key::fromInteger(4)));
         $t->same('wp_posts:2=' . str_repeat('Imported block ', 4), $reconstructed->getKey(Key::fromInteger(6)));
     },
+    'wordpress sync scan callback matches final authenticated diff' => static function (TestRunner $t): void {
+        $local = quadrableSyncWordPressSnapshotTree();
+        $remote = quadrableSyncWordPressSnapshotTree();
+        $remote->change()
+            ->putKey(Key::fromInteger(2), 'wp_options:home=https://mirror.example.test')
+            ->deleteKey(Key::fromInteger(5))
+            ->putKey(Key::fromInteger(6), 'wp_posts:3=Scan callback import')
+            ->apply();
+
+        $session = new SyncSession($local, 1, 2);
+        $scanDiffs = [];
+        $converged = false;
+
+        for ($roundTrips = 0; $roundTrips < 20; $roundTrips++) {
+            $requests = SyncCodec::decodeRequests(SyncCodec::encodeRequests($session->getRequests(
+                512,
+                static function (DiffEntry $diff) use (&$scanDiffs): void {
+                    $scanDiffs[] = $diff;
+                }
+            )));
+            if ($requests === []) {
+                $converged = true;
+                break;
+            }
+
+            $responses = SyncCodec::decodeResponses(SyncCodec::encodeResponses($remote->handleSyncRequests($requests, 1024)));
+            $session->addResponses($requests, $responses);
+        }
+
+        $t->true($converged, 'sync should converge before the round-trip limit');
+        $shadow = $session->shadow();
+        $finalDiffs = $local->diffTo($shadow);
+
+        $t->same($remote->rootHash(), $shadow->rootHash());
+        $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs));
+
+        $session->getRequests(512, static function (DiffEntry $diff) use (&$scanDiffs): void {
+            $scanDiffs[] = $diff;
+        });
+        $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs));
+    },
+    'deterministic upstream shaped sync fuzz converges with scan diff equivalence' => static function (TestRunner $t): void {
+        $state = 0;
+
+        for ($trial = 0; $trial < 12; $trial++) {
+            $seed = new SparseTree();
+            $changes = $seed->change();
+            $numElems = 8 + quadrableSyncNext($state, 35);
+            $maxElem = 75;
+
+            for ($i = 0; $i < $numElems; $i++) {
+                $n = quadrableSyncNext($state, $maxElem);
+                $changes->putKey(Key::fromInteger($n), quadrableSyncValue($n, quadrableSyncNext($state, 20), quadrableSyncNext($state, 58)));
+            }
+            $changes->apply();
+
+            $local = clone $seed;
+            $remote = clone $seed;
+            $alterations = 4 + quadrableSyncNext($state, 28);
+            $remoteChanges = $remote->change();
+
+            for ($i = 0; $i < $alterations; $i++) {
+                $n = quadrableSyncNext($state, $maxElem);
+                if (quadrableSyncNext($state, 2) === 0) {
+                    $remoteChanges->putKey(Key::fromInteger($n), quadrableSyncValue($n, 100 + $trial, quadrableSyncNext($state, 64)));
+                } else {
+                    $remoteChanges->deleteKey(Key::fromInteger($n));
+                }
+            }
+            $remoteChanges->apply();
+
+            $session = new SyncSession($local, 1, 1);
+            $scanDiffs = [];
+            $converged = false;
+
+            for ($roundTrips = 0; $roundTrips < 80; $roundTrips++) {
+                $requests = SyncCodec::decodeRequests(SyncCodec::encodeRequests($session->getRequests(
+                    64,
+                    static function (DiffEntry $diff) use (&$scanDiffs): void {
+                        $scanDiffs[] = $diff;
+                    }
+                )));
+                if ($requests === []) {
+                    $converged = true;
+                    break;
+                }
+
+                $responses = SyncCodec::decodeResponses(SyncCodec::encodeResponses($remote->handleSyncRequests($requests, 192)));
+                $session->addResponses($requests, $responses);
+            }
+
+            $t->true($converged, 'sync fuzz trial did not converge: ' . $trial);
+            $shadow = $session->shadow();
+            $finalDiffs = $local->diffTo($shadow);
+            $reconstructed = clone $local;
+            $reconstructed->applyDiffs($finalDiffs);
+
+            $t->same($remote->rootHash(), $shadow->rootHash(), 'shadow root mismatch on trial ' . $trial);
+            $t->same($remote->rootHash(), $reconstructed->rootHash(), 'reconstructed root mismatch on trial ' . $trial);
+            $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs), 'scan diff mismatch on trial ' . $trial);
+        }
+    },
 ];
 
 function quadrableSyncWordPressSnapshotTree(): SparseTree
@@ -140,4 +242,32 @@ function quadrableSyncWordPressSnapshotTree(): SparseTree
     $changes->apply();
 
     return $tree;
+}
+
+/**
+ * @param list<DiffEntry> $diffs
+ *
+ * @return list<string>
+ */
+function quadrableSyncDiffSignature(array $diffs): array
+{
+    $signature = array_map(
+        static fn (DiffEntry $diff): string => $diff->type . ':' . $diff->keyHex() . ':' . $diff->value,
+        $diffs
+    );
+    sort($signature, SORT_STRING);
+
+    return $signature;
+}
+
+function quadrableSyncNext(int &$state, int $mod): int
+{
+    $state = ($state * 1103515245 + 12345) & 0x7fffffff;
+
+    return $state % $mod;
+}
+
+function quadrableSyncValue(int $number, int $variant, int $extraLength): string
+{
+    return $number . ':' . $variant . ':' . str_repeat(chr(65 + (($number + $variant) % 26)), $extraLength);
 }

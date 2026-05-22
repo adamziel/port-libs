@@ -313,7 +313,12 @@ final class SparseTree
     /**
      * @return list<SyncRequest>
      */
-    public function syncRequestsForShadow(SparseTree $shadow, int $laterDepthLimit = 4, int $bytesBudget = PHP_INT_MAX): array
+    public function syncRequestsForShadow(
+        SparseTree $shadow,
+        int $laterDepthLimit = 4,
+        int $bytesBudget = PHP_INT_MAX,
+        ?callable $onDiff = null
+    ): array
     {
         if ($laterDepthLimit < 0 || $laterDepthLimit > 255) {
             throw new \InvalidArgumentException('sync depth limit must be between 0 and 255');
@@ -328,8 +333,22 @@ final class SparseTree
         [$root] = $this->fullProofTree();
         $requests = [];
         $path = Key::null();
+        $seenDiffs = [];
+        $emitDiff = null;
 
-        $this->collectSyncRequests($root, $shadow->partialRoot, $path, $laterDepthLimit, $bytesBudget, $requests);
+        if ($onDiff !== null) {
+            $emitDiff = static function (DiffEntry $diff) use (&$seenDiffs, $onDiff): void {
+                $signature = $diff->type . "\0" . $diff->keyHex() . "\0" . $diff->value;
+                if (isset($seenDiffs[$signature])) {
+                    return;
+                }
+
+                $seenDiffs[$signature] = true;
+                $onDiff($diff);
+            };
+        }
+
+        $this->collectSyncRequests($root, $shadow->partialRoot, $path, $laterDepthLimit, $bytesBudget, $requests, $emitDiff);
 
         return $requests;
     }
@@ -1233,7 +1252,15 @@ final class SparseTree
      * @param array<string, mixed> $shadowNode
      * @param list<SyncRequest> $requests
      */
-    private function collectSyncRequests(array $localNode, array $shadowNode, Key $currentPath, int $laterDepthLimit, int &$bytesBudget, array &$requests): bool
+    private function collectSyncRequests(
+        array $localNode,
+        array $shadowNode,
+        Key $currentPath,
+        int $laterDepthLimit,
+        int &$bytesBudget,
+        array &$requests,
+        ?callable $onDiff
+    ): bool
     {
         if ($localNode['hash'] === $shadowNode['hash']) {
             return true;
@@ -1247,14 +1274,19 @@ final class SparseTree
             $rightLocal = $localNode['type'] === 'branch' ? $localNode['right'] : $localNode;
 
             $currentPath->setBit($shadowNode['depth'], 0);
-            $leftDone = $this->collectSyncRequests($leftLocal, $shadowNode['left'], $currentPath, $laterDepthLimit, $bytesBudget, $requests);
+            $leftDone = $this->collectSyncRequests($leftLocal, $shadowNode['left'], $currentPath, $laterDepthLimit, $bytesBudget, $requests, $onDiff);
 
             $currentPath->setBit($shadowNode['depth'], 1);
-            $rightDone = $this->collectSyncRequests($rightLocal, $shadowNode['right'], $currentPath, $laterDepthLimit, $bytesBudget, $requests);
+            $rightDone = $this->collectSyncRequests($rightLocal, $shadowNode['right'], $currentPath, $laterDepthLimit, $bytesBudget, $requests, $onDiff);
 
             $currentPath->setBit($shadowNode['depth'], 0);
 
-            return $leftDone && $rightDone;
+            $done = $leftDone && $rightDone;
+            if ($done && $onDiff !== null && (($localNode['type'] === 'branch' && $shadowNode['type'] === 'branch') || $shadowNode['depth'] === 0)) {
+                $this->emitSyncScanDiffs($localNode, $shadowNode, $onDiff);
+            }
+
+            return $done;
         }
 
         if ($shadowNode['type'] === 'witnessLeaf' || $shadowNode['type'] === 'witness') {
@@ -1273,7 +1305,25 @@ final class SparseTree
             return false;
         }
 
+        if ($onDiff !== null && $shadowNode['depth'] === 0) {
+            $this->emitSyncScanDiffs($localNode, $shadowNode, $onDiff);
+        }
+
         return true;
+    }
+
+    /**
+     * @param array<string, mixed> $localNode
+     * @param array<string, mixed> $shadowNode
+     */
+    private function emitSyncScanDiffs(array $localNode, array $shadowNode, callable $onDiff): void
+    {
+        $diffs = [];
+        $this->diffNodeToPartial($localNode, $shadowNode, $diffs);
+
+        foreach ($diffs as $diff) {
+            $onDiff($diff);
+        }
     }
 
     /**
