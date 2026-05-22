@@ -12,10 +12,10 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "27 inspected upstream benchmark/test/cleanup artifacts: 1 CI workflow, 1 benchmark runner, 2 benchmark scoring modules, 1 score verifier, 6 benchmark documents, 8 committed reference-like markdown outputs, 7 cleaner modules, and 1 Markdown postprocessor",
-        "mapped": 11,
+        "mapped": 14,
         "mappedBenchmarkPairs": 0,
-        "mappedBenchmarkSurrogatePairs": 1,
-        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixture samples the README-linked data/examples/marker/multicolcnn.md and data/examples/nougat/multicolcnn.md committed outputs for the same document.",
+        "mappedBenchmarkSurrogatePairs": 2,
+        "source": "Shallow upstream clone at .upstream-cache/markerpdf plus targeted reads of README.md, .github/workflows/tests.yml, benchmarks/overall.py, marker/benchmark/scoring.py, marker/benchmark/table.py, scripts/verify_benchmark_scores.py, marker/pdf/extract_text.py, marker/postprocessors/markdown.py, marker/cleaners/*.py, and data/examples/*/*.md paths. The mapped surrogate fixtures sample README-linked committed output pairs for multicolcnn.pdf and switch_trans.pdf from data/examples/marker/*.md and data/examples/nougat/*.md.",
         "inventory": {
             "repositoryFiles": 78,
             "pythonFiles": 47,
@@ -29,7 +29,7 @@
             "scoreVerifierScripts": 1,
             "cleanerModules": 7,
             "cleanerFunctions": 16,
-            "mappedCleanerFunctions": 2,
+            "mappedCleanerFunctions": 7,
             "markdownPostprocessorFunctions": 8,
             "readmeBenchmarkDocuments": 6,
             "committedMarkerMarkdownExamples": 4,
@@ -66,15 +66,18 @@
             "marker.benchmark.table score_table aggregate cell-alignment score with upstream verifier threshold applied to a WordPress table-import scenario.",
             "marker.cleaners.bullets replace_bullets converts upstream bullet glyphs to Markdown list markers.",
             "marker.cleaners.text cleanup_text collapses excessive blank space and normalizes non-breaking spaces.",
-            "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair while the external benchmark_data archive remains unavailable."
+            "README-linked multicolcnn Marker/Nougat committed markdown outputs can be scored as an upstream-derived surrogate pair while the external benchmark_data archive remains unavailable.",
+            "README-linked switch_trans Marker/Nougat committed markdown outputs can be scored as a second upstream-derived surrogate pair and checked against the upstream switch_trans CI threshold boundary.",
+            "marker.cleaners.headers filter_common_elements and filter_header_footer repeated edge-line detection remove common PDF page headers/footers after the upstream three-page minimum.",
+            "marker.cleaners.headers replace_leading_trailing_digits, find_overlap_elements, and filter_common_titles remove repeated numbered titles before WordPress block rendering."
         ],
-        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 11 focused upstream source semantics plus one committed upstream-derived benchmark surrogate pair; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
+        "warning": "This replaces the seed denominator with a cloned static inventory, not upstream runner parity. Native PHP progress maps 14 focused upstream source semantics plus two committed upstream-derived benchmark surrogate pairs; no external upstream benchmark PDF/reference archive pair is mapped yet because the external benchmark_data archive was not fetched."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn committed-output surrogate scoring, and Marker cleaner bullet/text normalization for WordPress list imports.",
-        "phpBehaviorTests": 23,
+        "currentSlice": "Native PDF content stream text-line extraction, Marker markdown post-processing, upstream-style benchmark text and table scoring, README-linked multicolcnn and switch_trans committed-output surrogate scoring, Marker cleaner bullet/text normalization, and repeated header/footer/title cleanup for WordPress imports.",
+        "phpBehaviorTests": 29,
         "mappedUpstreamSemantics": [
             "PDF embedded text extraction feeding Marker-style Markdown conversion",
             "Marker post-processing need for block-ready line boundaries before WordPress import",
@@ -86,9 +89,12 @@
             "marker.benchmark.table score_table aggregate table quality scoring",
             "marker.cleaners.bullets replace_bullets Markdown list marker normalization",
             "marker.cleaners.text cleanup_text whitespace and non-breaking-space normalization",
-            "README-linked data/examples/marker and data/examples/nougat multicolcnn outputs as a committed benchmark surrogate pair"
+            "README-linked data/examples/marker and data/examples/nougat multicolcnn outputs as a committed benchmark surrogate pair",
+            "README-linked data/examples/marker and data/examples/nougat switch_trans outputs as a committed benchmark surrogate pair",
+            "marker.cleaners.headers common edge-line filtering for repeated headers and footers",
+            "marker.cleaners.headers common title filtering with digit stripping and fuzzy overlap thresholding"
         ]
     },
-    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, CI-style text and table quality scores for expected imported content, and an upstream README-linked multicolcnn surrogate score fixture.",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate such as switch_transformers before broadening layout/OCR behavior."
+    "wordpressScenario": "PDF import into clean post content and Data Liberation document conversion workflows, with fixtures covering direct heading/paragraph output, wrapped-line dehyphenation before WordPress block rendering, list-marker cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, CI-style text and table quality scores for expected imported content, and upstream README-linked multicolcnn and switch_trans surrogate score fixtures.",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate such as thinkpython/thinkos before broadening layout/OCR behavior."
 }

@@ -50,4 +50,17 @@ return [
         $t->same('committed-nougat-output-surrogate', $fixture['referenceKind']);
         $t->true($score >= $fixture['scoreThreshold'], 'Upstream-derived surrogate score did not clear threshold: ' . $score);
     },
+    'scores committed upstream switch transformer surrogate pair above upstream threshold' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-switch-transformers-surrogate.php';
+        $score = (new BenchmarkScorer())->scoreText(
+            $fixture['markerExcerpt'],
+            $fixture['referenceExcerpt'],
+            $fixture['chunkLength'],
+        );
+
+        $t->same('switch_trans.pdf', $fixture['document']);
+        $t->same('committed-nougat-output-surrogate', $fixture['referenceKind']);
+        $t->true($score > 0.40, 'Switch surrogate should clear the upstream CI text threshold: ' . $score);
+        $t->true($score >= $fixture['scoreThreshold'], 'Upstream-derived switch surrogate score did not clear threshold: ' . $score);
+    },
 ];
