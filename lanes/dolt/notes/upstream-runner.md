@@ -103,7 +103,7 @@
 
 - `php tools/run-tests.php`
   - Result after this where/limit slice: pass.
-  - Summary: 67 test files, 3,687 assertions, 0 failures.
+  - Summary: 67 test files, 3,708 assertions, 0 failures.
   - Dolt lane tests reached by the root runner all passed, including the 26 current Dolt behavior tests and 118 Dolt assertions.
 
 ## Skipped Suites

@@ -145,7 +145,7 @@
                 },
                 {
                     "command": "php tools/run-tests.php",
-                    "result": "PASS after runner metadata update: 67 test files, 3,687 assertions, 0 failures; Dolt lane contributed 26 behavior tests and 118 assertions"
+                    "result": "PASS after runner metadata update: 67 test files, 3,708 assertions, 0 failures; Dolt lane contributed 26 behavior tests and 118 assertions"
                 },
                 {
                     "command": "targeted schema-aware diff inventory",
