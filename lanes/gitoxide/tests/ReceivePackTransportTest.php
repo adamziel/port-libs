@@ -47,6 +47,122 @@ $readPacketSequence = static function (string $bytes): array {
     return [$payloads, substr($bytes, $offset)];
 };
 
+$readExactFromStream = static function (mixed $stream, int $length): string {
+    $bytes = '';
+    while (strlen($bytes) < $length && !feof($stream)) {
+        $chunk = fread($stream, $length - strlen($bytes));
+        if ($chunk === false) {
+            throw new RuntimeException('Unable to read from test stream');
+        }
+        if ($chunk === '') {
+            $meta = stream_get_meta_data($stream);
+            if (!empty($meta['timed_out'])) {
+                throw new RuntimeException('Timed out reading from test stream');
+            }
+            continue;
+        }
+        $bytes .= $chunk;
+    }
+    if (strlen($bytes) !== $length) {
+        throw new RuntimeException("Expected {$length} bytes from test stream");
+    }
+
+    return $bytes;
+};
+
+$writeAllToStream = static function (mixed $stream, string $bytes): void {
+    $offset = 0;
+    while ($offset < strlen($bytes)) {
+        $written = fwrite($stream, substr($bytes, $offset));
+        if ($written === false || $written === 0) {
+            throw new RuntimeException('Unable to write to test stream');
+        }
+        $offset += $written;
+    }
+};
+
+$readHttpRequestHeader = static function (mixed $stream): string {
+    $bytes = '';
+    while (!str_contains($bytes, "\r\n\r\n") && !feof($stream)) {
+        $chunk = fread($stream, 512);
+        if ($chunk === false) {
+            throw new RuntimeException('Unable to read HTTP request header');
+        }
+        if ($chunk === '') {
+            $meta = stream_get_meta_data($stream);
+            if (!empty($meta['timed_out'])) {
+                throw new RuntimeException('Timed out reading HTTP request header');
+            }
+            continue;
+        }
+        $bytes .= $chunk;
+    }
+
+    return $bytes;
+};
+
+$runLocalTcpServer = static function (callable $serverHandler, callable $clientHandler): array {
+    if (!function_exists('pcntl_fork')) {
+        throw new RuntimeException('pcntl_fork is required for local SOCKS transport tests');
+    }
+
+    $server = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+    if ($server === false) {
+        throw new RuntimeException("Unable to start local TCP server: {$errstr}", $errno);
+    }
+
+    $address = stream_socket_get_name($server, false);
+    if (!is_string($address) || !str_contains($address, ':')) {
+        throw new RuntimeException('Unable to determine local TCP server address');
+    }
+    $port = (int) substr($address, strrpos($address, ':') + 1);
+    $logPath = tempnam(sys_get_temp_dir(), 'gitoxide-socks-');
+    if ($logPath === false) {
+        throw new RuntimeException('Unable to create SOCKS test log');
+    }
+
+    $pid = pcntl_fork();
+    if ($pid === -1) {
+        fclose($server);
+        @unlink($logPath);
+        throw new RuntimeException('Unable to fork local TCP server');
+    }
+
+    if ($pid === 0) {
+        try {
+            $connection = stream_socket_accept($server, 5);
+            if ($connection === false) {
+                throw new RuntimeException('Local TCP server did not receive a connection');
+            }
+            stream_set_timeout($connection, 5);
+            $log = $serverHandler($connection);
+            fclose($connection);
+            file_put_contents($logPath, json_encode(['ok' => true, 'log' => $log], JSON_THROW_ON_ERROR));
+            fclose($server);
+            exit(0);
+        } catch (Throwable $throwable) {
+            file_put_contents($logPath, json_encode(['ok' => false, 'error' => $throwable->getMessage()], JSON_THROW_ON_ERROR));
+            fclose($server);
+            exit(1);
+        }
+    }
+
+    fclose($server);
+    try {
+        $result = $clientHandler($port);
+    } finally {
+        pcntl_waitpid($pid, $status);
+    }
+
+    $payload = json_decode((string) file_get_contents($logPath), true);
+    @unlink($logPath);
+    if (!is_array($payload) || ($payload['ok'] ?? false) !== true) {
+        throw new RuntimeException((string) ($payload['error'] ?? 'Local TCP server failed'));
+    }
+
+    return ['result' => $result, 'log' => $payload['log']];
+};
+
 return [
     'stream receive-pack transport reads advertisement writes request and reads sideband response' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -620,6 +736,143 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
+    },
+    'smart http default requester performs socks5h handshake with proxy credentials' => static function (TestRunner $t) use ($packet, $flush, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $runLocalTcpServer): void {
+        $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status side-band-64k object-format=sha1\n")
+            . $flush;
+        $result = $runLocalTcpServer(
+            static function (mixed $connection) use ($packet, $flush, $advertisement, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader): array {
+                $greeting = $readExactFromStream($connection, 2);
+                $methods = $readExactFromStream($connection, ord($greeting[1]));
+                $writeAllToStream($connection, "\x05\x02");
+
+                $authHeader = $readExactFromStream($connection, 2);
+                $username = $readExactFromStream($connection, ord($authHeader[1]));
+                $passwordLength = ord($readExactFromStream($connection, 1));
+                $password = $readExactFromStream($connection, $passwordLength);
+                $writeAllToStream($connection, "\x01\x00");
+
+                $connectHeader = $readExactFromStream($connection, 4);
+                $hostLength = ord($readExactFromStream($connection, 1));
+                $host = $readExactFromStream($connection, $hostLength);
+                $portBytes = $readExactFromStream($connection, 2);
+                $port = unpack('n', $portBytes)[1];
+                $writeAllToStream($connection, "\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00");
+
+                $httpRequest = $readHttpRequestHeader($connection);
+                $body = $packet("# service=git-receive-pack\n") . $flush . $advertisement;
+                $writeAllToStream(
+                    $connection,
+                    "HTTP/1.1 200 OK\r\n"
+                    . "Content-Type: application/x-git-receive-pack-advertisement\r\n"
+                    . 'Content-Length: ' . strlen($body) . "\r\n"
+                    . "Connection: close\r\n\r\n"
+                    . $body,
+                );
+
+                return [
+                    'greeting' => bin2hex($greeting . $methods),
+                    'authVersion' => ord($authHeader[0]),
+                    'username' => $username,
+                    'password' => $password,
+                    'connectVersion' => ord($connectHeader[0]),
+                    'connectCommand' => ord($connectHeader[1]),
+                    'connectAddressType' => ord($connectHeader[3]),
+                    'connectHost' => $host,
+                    'connectPort' => $port,
+                    'httpRequest' => $httpRequest,
+                ];
+            },
+            static function (int $port): string {
+                $transport = new SmartHttpReceivePackTransport(
+                    'http://git.example.test/wp-content.git',
+                    null,
+                    [],
+                    5.0,
+                    ['User-Agent' => 'port-libs-socks-test/1'],
+                    ['proxy' => "socks5h://wp-proxy-user:wp-proxy-pass@127.0.0.1:{$port}"],
+                );
+
+                return $transport->readAdvertisement();
+            },
+        );
+
+        $t->same($advertisement, $result['result']);
+        $t->same('05020002', $result['log']['greeting']);
+        $t->same(1, $result['log']['authVersion']);
+        $t->same('wp-proxy-user', $result['log']['username']);
+        $t->same('wp-proxy-pass', $result['log']['password']);
+        $t->same(5, $result['log']['connectVersion']);
+        $t->same(1, $result['log']['connectCommand']);
+        $t->same(3, $result['log']['connectAddressType']);
+        $t->same('git.example.test', $result['log']['connectHost']);
+        $t->same(80, $result['log']['connectPort']);
+        $t->contains("GET /wp-content.git/info/refs?service=git-receive-pack HTTP/1.1\r\n", $result['log']['httpRequest']);
+        $t->contains("Host: git.example.test\r\n", $result['log']['httpRequest']);
+        $t->contains("User-Agent: port-libs-socks-test/1\r\n", $result['log']['httpRequest']);
+        $t->same(false, str_contains($result['log']['httpRequest'], 'Proxy-Authorization:'));
+    },
+    'smart http default requester performs socks4a remote host handshake' => static function (TestRunner $t) use ($packet, $flush, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader, $runLocalTcpServer): void {
+        $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status\n")
+            . $flush;
+        $result = $runLocalTcpServer(
+            static function (mixed $connection) use ($packet, $flush, $advertisement, $readExactFromStream, $writeAllToStream, $readHttpRequestHeader): array {
+                $header = $readExactFromStream($connection, 8);
+                $userId = '';
+                while (($byte = $readExactFromStream($connection, 1)) !== "\x00") {
+                    $userId .= $byte;
+                }
+                $remoteHost = '';
+                while (($byte = $readExactFromStream($connection, 1)) !== "\x00") {
+                    $remoteHost .= $byte;
+                }
+                $writeAllToStream($connection, "\x00\x5a\x00\x00\x00\x00\x00\x00");
+
+                $httpRequest = $readHttpRequestHeader($connection);
+                $body = $packet("# service=git-receive-pack\n") . $flush . $advertisement;
+                $writeAllToStream(
+                    $connection,
+                    "HTTP/1.1 200 OK\r\n"
+                    . "Content-Type: application/x-git-receive-pack-advertisement\r\n"
+                    . "Transfer-Encoding: chunked\r\n"
+                    . "Connection: close\r\n\r\n"
+                    . dechex(strlen($body)) . "\r\n"
+                    . $body . "\r\n0\r\n\r\n",
+                );
+
+                return [
+                    'version' => ord($header[0]),
+                    'command' => ord($header[1]),
+                    'port' => unpack('n', substr($header, 2, 2))[1],
+                    'address' => implode('.', array_map(ord(...), str_split(substr($header, 4, 4)))),
+                    'userId' => $userId,
+                    'remoteHost' => $remoteHost,
+                    'httpRequest' => $httpRequest,
+                ];
+            },
+            static function (int $port): string {
+                $transport = new SmartHttpReceivePackTransport(
+                    'http://git.example.test/wp-content.git',
+                    null,
+                    [],
+                    5.0,
+                    [],
+                    ['proxy' => "socks4a://wp-proxy-user@127.0.0.1:{$port}"],
+                );
+
+                return $transport->readAdvertisement();
+            },
+        );
+
+        $t->same($advertisement, $result['result']);
+        $t->same(4, $result['log']['version']);
+        $t->same(1, $result['log']['command']);
+        $t->same(80, $result['log']['port']);
+        $t->same('0.0.0.1', $result['log']['address']);
+        $t->same('wp-proxy-user', $result['log']['userId']);
+        $t->same('git.example.test', $result['log']['remoteHost']);
+        $t->contains("GET /wp-content.git/info/refs?service=git-receive-pack HTTP/1.1\r\n", $result['log']['httpRequest']);
+        $t->same(false, str_contains($result['log']['httpRequest'], 'Proxy-Authorization:'));
     },
     'ssh receive-pack transport connects through injected exec streams' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';

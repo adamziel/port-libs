@@ -1002,6 +1002,13 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private static function performHttpRequest(string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions = []): array
     {
+        if (isset($httpOptions['proxy'])) {
+            $proxyType = strtolower((string) ($httpOptions['proxyType'] ?? 'http'));
+            if ($proxyType !== 'http' && $proxyType !== 'https') {
+                return self::performSocksHttpRequest($method, $url, $headers, $body, $timeout, $httpOptions);
+            }
+        }
+
         $headerLines = [];
         foreach ($headers as $name => $value) {
             self::validateHeader($name, $value);
@@ -1026,10 +1033,6 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $options['http']['content'] = $body;
         }
         if (isset($httpOptions['proxy'])) {
-            $proxyType = strtolower((string) ($httpOptions['proxyType'] ?? 'http'));
-            if ($proxyType !== 'http' && $proxyType !== 'https') {
-                throw new \RuntimeException('smart HTTP receive-pack default stream requester does not implement SOCKS proxy handshakes; inject a requester that honors proxyType');
-            }
             $options['http']['proxy'] = (string) $httpOptions['proxy'];
             $options['http']['request_fulluri'] = !empty($httpOptions['requestFullUri']);
         }
@@ -1047,6 +1050,385 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'headers' => self::headersFromHeaderLines($responseHeaderLines),
             'body' => $responseBody,
         ];
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return array{status: int, headers: array<string, list<string>>, body: string}
+     */
+    private static function performSocksHttpRequest(string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions): array
+    {
+        $target = self::httpUrlParts($url, 'smart HTTP receive-pack SOCKS target URL');
+        $stream = self::openSocksTunnel($target, $timeout, $httpOptions);
+        try {
+            $requestBytes = self::httpRequestBytes($method, $url, $headers, $body);
+            self::writeAll($stream, $requestBytes, 'smart HTTP receive-pack SOCKS HTTP request');
+            $responseBytes = stream_get_contents($stream);
+            if ($responseBytes === false) {
+                throw new \RuntimeException("smart HTTP receive-pack {$method} SOCKS request failed for {$url}");
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        return self::parseHttpResponseBytes($responseBytes, "smart HTTP receive-pack {$method} SOCKS response");
+    }
+
+    /**
+     * @param array{scheme: string, host: string, port: ?int, path?: string, query?: string, user?: string, pass?: string, fragment?: string} $target
+     * @param array<string, mixed> $httpOptions
+     * @return resource
+     */
+    private static function openSocksTunnel(array $target, float $timeout, array $httpOptions): mixed
+    {
+        $proxy = (string) ($httpOptions['proxy'] ?? '');
+        $proxyType = strtolower((string) ($httpOptions['proxyType'] ?? ''));
+        if ($proxy === '' || !in_array($proxyType, ['socks4', 'socks4a', 'socks5', 'socks5h'], true)) {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS proxy options are incomplete');
+        }
+
+        $context = stream_context_create([
+            'ssl' => [
+                'peer_name' => trim($target['host'], '[]'),
+            ],
+        ]);
+        $stream = @stream_socket_client($proxy, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
+        if (!is_resource($stream)) {
+            throw new \RuntimeException("smart HTTP receive-pack SOCKS proxy connection failed for {$proxy}: {$errstr}", $errno);
+        }
+
+        stream_set_timeout($stream, max(1, (int) ceil($timeout)));
+        try {
+            $port = self::portOrDefault($target);
+            if ($proxyType === 'socks4' || $proxyType === 'socks4a') {
+                self::performSocks4Handshake($stream, $proxyType, $target['host'], $port, $httpOptions);
+            } else {
+                self::performSocks5Handshake($stream, $proxyType, $target['host'], $port, $httpOptions);
+            }
+
+            if ($target['scheme'] === 'https') {
+                $enabled = @stream_socket_enable_crypto($stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                if ($enabled !== true) {
+                    throw new \RuntimeException('smart HTTP receive-pack SOCKS TLS negotiation failed');
+                }
+            }
+        } catch (\Throwable $throwable) {
+            fclose($stream);
+
+            throw $throwable;
+        }
+
+        return $stream;
+    }
+
+    /**
+     * @param resource $stream
+     * @param array<string, mixed> $httpOptions
+     */
+    private static function performSocks4Handshake(mixed $stream, string $proxyType, string $host, int $port, array $httpOptions): void
+    {
+        $credentials = self::basicCredentialsFromAuthorization($httpOptions['proxyAuthorization'] ?? null);
+        $userId = $credentials['username'] ?? '';
+        if (str_contains($userId, "\0")) {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS4 username must not contain NUL bytes');
+        }
+
+        $host = trim($host, '[]');
+        $address = @inet_pton($host);
+        $remoteName = '';
+        if ($address === false || strlen($address) !== 4) {
+            if ($proxyType === 'socks4a') {
+                $address = "\x00\x00\x00\x01";
+                $remoteName = self::socksDomainName($host, 'smart HTTP receive-pack SOCKS4a host');
+            } else {
+                $resolved = gethostbyname($host);
+                $address = @inet_pton($resolved);
+                if ($address === false || strlen($address) !== 4) {
+                    throw new \RuntimeException("smart HTTP receive-pack SOCKS4 could not resolve {$host} to an IPv4 address");
+                }
+            }
+        }
+
+        self::writeAll(
+            $stream,
+            "\x04\x01" . pack('n', $port) . $address . $userId . "\x00" . ($remoteName === '' ? '' : $remoteName . "\x00"),
+            'smart HTTP receive-pack SOCKS4 handshake',
+        );
+        $reply = self::readExact($stream, 8, 'smart HTTP receive-pack SOCKS4 reply');
+        if (ord($reply[1]) !== 0x5a) {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS4 proxy rejected CONNECT request with status 0x' . bin2hex($reply[1]));
+        }
+    }
+
+    /**
+     * @param resource $stream
+     * @param array<string, mixed> $httpOptions
+     */
+    private static function performSocks5Handshake(mixed $stream, string $proxyType, string $host, int $port, array $httpOptions): void
+    {
+        $credentials = self::basicCredentialsFromAuthorization($httpOptions['proxyAuthorization'] ?? null);
+        $methods = $credentials === null ? "\x00" : "\x00\x02";
+        self::writeAll(
+            $stream,
+            "\x05" . chr(strlen($methods)) . $methods,
+            'smart HTTP receive-pack SOCKS5 greeting',
+        );
+
+        $selection = self::readExact($stream, 2, 'smart HTTP receive-pack SOCKS5 method selection');
+        if ($selection[0] !== "\x05") {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy returned an invalid method selection');
+        }
+        $method = ord($selection[1]);
+        if ($method === 0x02) {
+            if ($credentials === null) {
+                throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy requested credentials but none were available');
+            }
+            self::performSocks5UsernamePasswordAuth($stream, $credentials['username'], $credentials['password']);
+        } elseif ($method !== 0x00) {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy did not accept supported authentication methods');
+        }
+
+        $remoteDns = $proxyType === 'socks5h';
+        self::writeAll(
+            $stream,
+            "\x05\x01\x00" . self::socks5AddressBytes($host, $remoteDns) . pack('n', $port),
+            'smart HTTP receive-pack SOCKS5 CONNECT request',
+        );
+
+        $reply = self::readExact($stream, 4, 'smart HTTP receive-pack SOCKS5 CONNECT reply');
+        if ($reply[0] !== "\x05") {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy returned an invalid CONNECT reply');
+        }
+        $status = ord($reply[1]);
+        if ($status !== 0x00) {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy rejected CONNECT request with status 0x' . bin2hex($reply[1]));
+        }
+
+        $addressLength = match (ord($reply[3])) {
+            0x01 => 4,
+            0x03 => ord(self::readExact($stream, 1, 'smart HTTP receive-pack SOCKS5 bound host length')),
+            0x04 => 16,
+            default => throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy returned an invalid bound address type'),
+        };
+        self::readExact($stream, $addressLength + 2, 'smart HTTP receive-pack SOCKS5 bound address');
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private static function performSocks5UsernamePasswordAuth(mixed $stream, string $username, string $password): void
+    {
+        if (strlen($username) > 255 || strlen($password) > 255) {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS5 credentials must fit in one byte length fields');
+        }
+        self::writeAll(
+            $stream,
+            "\x01" . chr(strlen($username)) . $username . chr(strlen($password)) . $password,
+            'smart HTTP receive-pack SOCKS5 username/password authentication',
+        );
+        $reply = self::readExact($stream, 2, 'smart HTTP receive-pack SOCKS5 username/password authentication reply');
+        if ($reply !== "\x01\x00") {
+            throw new \RuntimeException('smart HTTP receive-pack SOCKS5 proxy rejected username/password credentials');
+        }
+    }
+
+    private static function socks5AddressBytes(string $host, bool $remoteDns): string
+    {
+        $host = trim($host, '[]');
+        $address = @inet_pton($host);
+        if ($address !== false) {
+            return strlen($address) === 4
+                ? "\x01" . $address
+                : "\x04" . $address;
+        }
+
+        if (!$remoteDns) {
+            $resolved = gethostbyname($host);
+            $address = @inet_pton($resolved);
+            if ($address !== false && strlen($address) === 4) {
+                return "\x01" . $address;
+            }
+
+            throw new \RuntimeException("smart HTTP receive-pack SOCKS5 could not resolve {$host} locally");
+        }
+
+        $domain = self::socksDomainName($host, 'smart HTTP receive-pack SOCKS5 host');
+
+        return "\x03" . chr(strlen($domain)) . $domain;
+    }
+
+    private static function socksDomainName(string $host, string $label): string
+    {
+        if ($host === '' || strlen($host) > 255 || str_contains($host, "\0") || str_contains($host, "\r") || str_contains($host, "\n")) {
+            throw new \RuntimeException("{$label} must be 1 to 255 bytes without control bytes");
+        }
+
+        return $host;
+    }
+
+    /**
+     * @return ?array{username: string, password: string}
+     */
+    private static function basicCredentialsFromAuthorization(mixed $authorization): ?array
+    {
+        if (!is_string($authorization) || stripos($authorization, 'Basic ') !== 0) {
+            return null;
+        }
+
+        $decoded = base64_decode(substr($authorization, 6), true);
+        if (!is_string($decoded) || !str_contains($decoded, ':')) {
+            return null;
+        }
+
+        [$username, $password] = explode(':', $decoded, 2);
+
+        return ['username' => $username, 'password' => $password];
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private static function writeAll(mixed $stream, string $bytes, string $label): void
+    {
+        $offset = 0;
+        $length = strlen($bytes);
+        while ($offset < $length) {
+            $written = fwrite($stream, substr($bytes, $offset));
+            if ($written === false || $written === 0) {
+                throw new \RuntimeException("{$label} could not be written");
+            }
+            $offset += $written;
+        }
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private static function readExact(mixed $stream, int $length, string $label): string
+    {
+        $bytes = '';
+        while (strlen($bytes) < $length && !feof($stream)) {
+            $chunk = fread($stream, $length - strlen($bytes));
+            if ($chunk === false) {
+                throw new \RuntimeException("{$label} could not be read");
+            }
+            if ($chunk === '') {
+                $meta = stream_get_meta_data($stream);
+                if (!empty($meta['timed_out'])) {
+                    throw new \RuntimeException("{$label} timed out");
+                }
+                continue;
+            }
+            $bytes .= $chunk;
+        }
+        if (strlen($bytes) !== $length) {
+            throw new \RuntimeException("{$label} ended before {$length} bytes were read");
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function httpRequestBytes(string $method, string $url, array $headers, ?string $body): string
+    {
+        if (preg_match('/^[A-Z]+$/', $method) !== 1) {
+            throw new \RuntimeException('smart HTTP receive-pack HTTP method is invalid');
+        }
+
+        $target = self::httpUrlParts($url, 'smart HTTP receive-pack HTTP request URL');
+        if (self::headerValue($headers, 'host') === null) {
+            self::setHeader($headers, 'Host', self::authority($target['host'], $target['port']));
+        }
+        if (self::headerValue($headers, 'connection') === null) {
+            self::setHeader($headers, 'Connection', 'close');
+        }
+
+        $path = $target['path'] ?? '/';
+        if ($path === '') {
+            $path = '/';
+        }
+        if (isset($target['query'])) {
+            $path .= '?' . $target['query'];
+        }
+
+        $headerLines = [];
+        foreach ($headers as $name => $value) {
+            self::validateHeader($name, $value);
+            $headerLines[] = $name . ': ' . $value;
+        }
+
+        return $method . ' ' . $path . " HTTP/1.1\r\n"
+            . implode("\r\n", $headerLines)
+            . "\r\n\r\n"
+            . ($body ?? '');
+    }
+
+    /**
+     * @return array{status: int, headers: array<string, list<string>>, body: string}
+     */
+    private static function parseHttpResponseBytes(string $responseBytes, string $label): array
+    {
+        $headerEnd = strpos($responseBytes, "\r\n\r\n");
+        $separatorLength = 4;
+        if ($headerEnd === false) {
+            $headerEnd = strpos($responseBytes, "\n\n");
+            $separatorLength = 2;
+        }
+        if ($headerEnd === false) {
+            throw new \RuntimeException("{$label} did not contain an HTTP header terminator");
+        }
+
+        $headerBlock = substr($responseBytes, 0, $headerEnd);
+        $body = substr($responseBytes, $headerEnd + $separatorLength);
+        $lines = preg_split('/\r\n|\n|\r/', $headerBlock) ?: [];
+        $status = self::statusFromHeaderLines($lines);
+        if ($status === 0) {
+            throw new \RuntimeException("{$label} did not contain an HTTP status line");
+        }
+        $headers = self::headersFromHeaderLines($lines);
+        $transferEncoding = self::headerValue($headers, 'transfer-encoding');
+        if ($transferEncoding !== null && strtolower(trim($transferEncoding)) === 'chunked') {
+            $body = self::decodeChunkedBody($body, $label);
+        }
+
+        return [
+            'status' => $status,
+            'headers' => $headers,
+            'body' => $body,
+        ];
+    }
+
+    private static function decodeChunkedBody(string $body, string $label): string
+    {
+        $decoded = '';
+        $offset = 0;
+        while (true) {
+            $lineEnd = strpos($body, "\r\n", $offset);
+            if ($lineEnd === false) {
+                throw new \RuntimeException("{$label} has a truncated chunked body");
+            }
+            $line = substr($body, $offset, $lineEnd - $offset);
+            $chunkSizeHex = trim(explode(';', $line, 2)[0]);
+            if ($chunkSizeHex === '' || preg_match('/^[0-9a-fA-F]+$/', $chunkSizeHex) !== 1) {
+                throw new \RuntimeException("{$label} has an invalid chunk size");
+            }
+            $chunkSize = hexdec($chunkSizeHex);
+            $offset = $lineEnd + 2;
+            if ($chunkSize === 0) {
+                return $decoded;
+            }
+            if (strlen($body) < $offset + $chunkSize + 2) {
+                throw new \RuntimeException("{$label} has a truncated chunk payload");
+            }
+            $decoded .= substr($body, $offset, $chunkSize);
+            $offset += $chunkSize;
+            if (substr($body, $offset, 2) !== "\r\n") {
+                throw new \RuntimeException("{$label} chunk payload is missing its terminator");
+            }
+            $offset += 2;
+        }
     }
 
     private static function validateHeader(string $name, string $value): void
