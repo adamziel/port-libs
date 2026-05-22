@@ -714,6 +714,75 @@ return [
             quadrableQuadbRemoveDir($targetDir);
         }
     },
+    'native quadb store dumps full and proof-backed trees like quadb dumpTree' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+        $integerDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $t->same(
+                "-----------------\n"
+                . '0x00000000... (0) empty' . "\n"
+                . "-----------------\n",
+                $source->dumpTreeText()
+            );
+
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $t->same(
+                "-----------------\n"
+                . "0x34dfb816... (288230376151711745) branch:\n"
+                . "  0x3025435e... (288230376151711744) branch:\n"
+                . "    0xa4da3a8b... (1) leaf: wp_posts:1 = Published post\n"
+                . "    0xa1e166a4... (2) leaf: wp_options:home = https://example.test\n"
+                . "  0x2c115121... (3) leaf: wp_options:siteurl = https://example.test\n"
+                . "-----------------\n",
+                $source->dumpTreeText()
+            );
+            $t->same($source->dumpTreeText(), QuadbStore::open($sourceDir)->dumpTreeText());
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated-dump');
+            $target->importProofHex($proofHex, $trustedRoot);
+            $partialDump = $target->dumpTreeText();
+
+            $t->contains("0x34dfb816... (576460752303423492) branch:\n", $partialDump);
+            $t->contains("witness\n", $partialDump);
+            $t->contains(
+                "witness leaf: 0x7b52fb0f1f4a77fb1dc7cb8188132a04f7b57e0b54f41cbdd20df89c098ef985 hash(val) = 0x0a62a7127118b2347eea44eb95cd06211ded305b934d459bf64f3ac9db5038d1\n",
+                $partialDump
+            );
+            $t->contains("leaf: wp_options:siteurl = https://example.test\n", $partialDump);
+            $t->same($partialDump, QuadbStore::open($targetDir)->dumpTreeText());
+
+            $integer = QuadbStore::init($integerDir);
+            $integer->importIntegerLines(
+                "1,wp_options:siteurl=https://example.test\n"
+                . "3,wp_posts:1=Hello\n"
+            );
+            $integerDump = $integer->dumpTreeText();
+
+            $t->contains('leaf: H(?)=0x020000000000... = wp_options:siteurl=https://example.test', $integerDump);
+            $t->contains('leaf: H(?)=0x050000000000... = wp_posts:1=Hello', $integerDump);
+            $t->contains("0x00000000... (0) empty\n", $integerDump);
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+            quadrableQuadbRemoveDir($integerDir);
+        }
+    },
     'native quadb store removes named and current heads like quadb head rm' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
 

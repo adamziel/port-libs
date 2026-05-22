@@ -390,6 +390,20 @@ final class QuadbStore
             . 'numBytes:        ' . $stats['numBytes'] . "\n";
     }
 
+    public function dumpTreeText(): string
+    {
+        $output = "-----------------\n";
+        $partial = $this->currentPartialTree();
+
+        if ($partial !== null) {
+            $output .= $partial->dumpText();
+        } else {
+            $output .= $this->dumpTrackedNodeText($this->tree()->headNodeId(), 0);
+        }
+
+        return $output . "-----------------\n";
+    }
+
     public function headText(): string
     {
         $heads = [];
@@ -1432,6 +1446,34 @@ final class QuadbStore
         return 'H(?)=0x' . substr($keyHex, 0, 12) . '...';
     }
 
+    private function dumpTrackedNodeText(int $nodeId, int $depth): string
+    {
+        $output = str_repeat(' ', $depth * 2)
+            . $this->renderAbbreviatedRootNode($this->nodeStore->nodeHash($nodeId), $nodeId)
+            . ' ';
+
+        if ($nodeId === 0) {
+            return $output . "empty\n";
+        }
+
+        if ($this->nodeStore->isLeaf($nodeId)) {
+            $leaf = $this->nodeStore->leaf($nodeId);
+
+            return $output . 'leaf: ' . $this->renderTrackedKey($leaf['keyHash'])
+                . ' = ' . $leaf['value'] . "\n";
+        }
+
+        if (!$this->nodeStore->isBranch($nodeId)) {
+            throw new \RuntimeException('dump tree traversal encountered an unknown node');
+        }
+
+        $branch = $this->nodeStore->branch($nodeId);
+
+        return $output . "branch:\n"
+            . $this->dumpTrackedNodeText($branch['leftNodeId'], $depth + 1)
+            . $this->dumpTrackedNodeText($branch['rightNodeId'], $depth + 1);
+    }
+
     private function renderNode(int $nodeId): string
     {
         return $this->renderRootNode($this->nodeStore->nodeHash($nodeId), $nodeId);
@@ -1440,5 +1482,10 @@ final class QuadbStore
     private function renderRootNode(string $rootHash, int $nodeId): string
     {
         return '0x' . $rootHash . ' (' . $nodeId . ')';
+    }
+
+    private function renderAbbreviatedRootNode(string $rootHash, int $nodeId): string
+    {
+        return '0x' . substr($rootHash, 0, 8) . '... (' . $nodeId . ')';
     }
 }

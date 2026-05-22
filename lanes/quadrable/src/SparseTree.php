@@ -488,6 +488,17 @@ final class SparseTree
         ];
     }
 
+    public function dumpText(): string
+    {
+        if ($this->partialRoot !== null) {
+            return $this->dumpNodeText($this->partialRoot, 0);
+        }
+
+        [$tree] = $this->fullProofTree();
+
+        return $this->dumpNodeText($tree, 0);
+    }
+
     /**
      * @return array<string, string>
      */
@@ -2054,6 +2065,59 @@ final class SparseTree
             'branches' => 1 + $leftTree['branches'] + $rightTree['branches'],
             'maxDepth' => max($depth, $leftTree['maxDepth'], $rightTree['maxDepth']),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function dumpNodeText(array $node, int $depth): string
+    {
+        $output = str_repeat(' ', $depth * 2)
+            . self::renderAbbreviatedNode((string) $node['hash'], $this->nodeIdFromPartialNode($node))
+            . ' ';
+
+        if ($node['type'] === 'empty') {
+            return $output . "empty\n";
+        }
+
+        if ($node['type'] === 'leaf') {
+            $renderedKey = ($node['key'] ?? '') !== ''
+                ? (string) $node['key']
+                : self::renderUnknownKey((string) $node['keyHash']);
+
+            return $output . 'leaf: ' . $renderedKey . ' = ' . $node['value'] . "\n";
+        }
+
+        if ($node['type'] === 'witnessLeaf') {
+            return $output . 'witness leaf: 0x' . $node['keyHash']
+                . ' hash(val) = 0x' . $node['valueHash'] . "\n";
+        }
+
+        if ($node['type'] === 'witness') {
+            return $output . "witness\n";
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('unrecognized sparse tree node type');
+        }
+
+        return $output . "branch:\n"
+            . $this->dumpNodeText($node['left'], $depth + 1)
+            . $this->dumpNodeText($node['right'], $depth + 1);
+    }
+
+    private static function renderUnknownKey(string $keyHex): string
+    {
+        self::assertHash($keyHex);
+
+        return 'H(?)=0x' . substr($keyHex, 0, 12) . '...';
+    }
+
+    private static function renderAbbreviatedNode(string $hashHex, int $nodeId): string
+    {
+        self::assertHash($hashHex);
+
+        return '0x' . substr($hashHex, 0, 8) . '... (' . $nodeId . ')';
     }
 
     private static function assertHash(string $hashHex): void
