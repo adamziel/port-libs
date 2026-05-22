@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory",
         "total": 241,
-        "mapped": 29,
+        "mapped": 33,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes and Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 241,
@@ -68,15 +68,16 @@
             "Margin and padding CSSOM access expands and compresses physical box shorthands for get/set/remove, including mixed !important guardrails and logical property append fallback.",
             "Selector specificity is packed with the upstream a<<20 | b<<10 | c layout for ID, class-like, and element-like counts.",
             "Selector specificity covers type, universal, namespace-qualified, class, ID, attribute, pseudo-class, and pseudo-element selectors.",
-            ":is(), :matches(), :not(), and :has() take the maximum specificity from their selector lists, :where() contributes zero specificity, and nth-child selector-list arguments add to the pseudo-class specificity."
+            ":is(), :matches(), :not(), and :has() take the maximum specificity from their selector lists, :where() contributes zero specificity, and nth-child selector-list arguments add to the pseudo-class specificity.",
+            "Media query prelude normalization maps upstream range syntax including min-/max- feature aliases, name-first and value-first comparisons, two-sided ranges, comma-separated lists, qualifiers, boolean/discrete features, ratios, and simple same-unit calc folding."
         ],
-        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 29 focused lane checks against a 241-behavior-check upstream denominator."
+        "warning": "This is a static inventory, not upstream runner parity. Native PHP progress maps 33 focused lane checks against a 241-behavior-check upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding box shorthand get/set/remove helpers with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, and selector specificity packing/comparison."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding box shorthand get/set/remove helpers with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, at-rule/nested-rule parsing, selector override specificity, color minification, and calc spacing.",
-    "nextTask": "Expand parser coverage toward media query value parsing, broader shorthand CSSOM families, background/flex CSSOM access, or prefixing and transformer semantics."
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture covers block theme custom properties, block selectors, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "nextTask": "Expand parser coverage toward broader shorthand CSSOM families, background/flex CSSOM access, prefixing, custom media, or transformer semantics."
 }
