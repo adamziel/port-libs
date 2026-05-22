@@ -4,7 +4,7 @@ Authenticated local-first state sync for Playground snapshots and content databa
 
 ## Current Native Slice
 
-Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/put/delete, update batching, path-independent roots, `getMulti`, empty-head restoration, delete bubbling equivalence, ordered raw integer keys for WordPress option/post records, an exact upstream-digest snapshot root, iterator windows for incremental sync chunks, compact authenticated range proofs for partial snapshot verification, proof-backed partial-tree updates for narrow content changes, merged partial proofs for independently requested records, bounded sync proof fragments with diff reconstruction, scan-time diff callbacks that match the final authenticated diff, tracked leaf node-id reuse for compact rebuilds of unchanged snapshot records, saved branch-head checkout for old/new snapshot forks, tracked scan/final diffs that report identical leaf node ids for changed/deleted/added records, and memStore-range detached overlays for volatile preview edits.
+Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/put/delete, update batching, path-independent roots, `getMulti`, empty-head restoration, delete bubbling equivalence, ordered raw integer keys for WordPress option/post records, an exact upstream-digest snapshot root, iterator windows for incremental sync chunks, compact authenticated range proofs for partial snapshot verification, proof-backed partial-tree updates for narrow content changes, merged partial proofs for independently requested records, bounded sync proof fragments with diff reconstruction, scan-time diff callbacks that match the final authenticated diff, tracked leaf node-id reuse for compact rebuilds of unchanged snapshot records, saved branch-head checkout for old/new snapshot forks, tracked scan/final diffs that report identical leaf node ids for changed/deleted/added records, memStore-range detached overlays for volatile preview edits, and named published heads that reject volatile memStore writes until a preview fork detaches the head.
 
 ## Fixture And Example
 
@@ -19,7 +19,8 @@ Pure-PHP BLAKE2s-256 hash/key primitives plus an in-memory sparse tree for get/p
 - `examples/wordpress-snapshot-fork.php` saves the branch head id for an ordered snapshot, applies a post update on a fork, then checks out both old and new branch heads to read the authenticated record versions.
 - `examples/wordpress-node-id-diff.php` compares a saved snapshot with a changed fork and reports matching scan-time and final diff leaf node ids for changed, deleted, and added records.
 - `examples/wordpress-memstore-overlay.php` starts from an authenticated ordered snapshot, writes preview-only post changes into upstream's memStore node-id range, and leaves the base snapshot root unchanged.
+- `examples/wordpress-named-memstore-fork.php` starts from a named published snapshot head, demonstrates the upstream memStore guard for direct volatile writes, then forks into a detached preview overlay that leaves the published head untouched.
 
 ## Next Task
 
-Broaden bounded tracked scan/diff node-id parity into full upstream 500-trial randomized sync fuzz with imported shadow node ids, then port the remaining named-head LMDB/MemStore guard from upstream `memStore forking from lmdb`.
+Broaden bounded tracked scan/diff node-id parity into full upstream 500-trial randomized sync fuzz with imported shadow node ids.
