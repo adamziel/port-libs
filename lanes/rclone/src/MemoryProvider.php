@@ -99,13 +99,7 @@ final class MemoryProvider
      */
     public function putUnchecked(string $path, string $bytes, array $options = []): ObjectInfo
     {
-        $key = 'unchecked:' . sprintf('%08d', ++$this->duplicateObjectSequence);
-        $this->duplicateObjects[$key] = [
-            'path' => $this->normalize($path),
-            'entry' => $this->objectEntry($bytes, $options),
-        ];
-
-        return $this->duplicateInfo($key);
+        return $this->putDuplicateEntry($path, $this->objectEntry($bytes, $options));
     }
 
     /**
@@ -373,6 +367,94 @@ final class MemoryProvider
         return $this->directoryInfo($targetPath);
     }
 
+    /**
+     * Merge directory contents into the first directory, matching the provider
+     * MergeDirs contract used by rclone dedupe before duplicate file handling.
+     *
+     * @param list<string|ObjectInfo> $directories
+     * @return array{target: ObjectInfo, moved: list<ObjectInfo>, removed: list<ObjectInfo>}
+     */
+    public function mergeDirectories(array $directories): array
+    {
+        if ($directories === []) {
+            throw new \InvalidArgumentException('merge directories requires at least one directory');
+        }
+
+        $targetPath = $this->canonicalDirectoryPath($this->directoryPath($directories[0]));
+        $target = $this->directoryInfo($targetPath);
+        $moved = [];
+        $removed = [];
+
+        for ($i = 1; $i < count($directories); $i++) {
+            $sourcePath = $this->canonicalDirectoryPath($this->directoryPath($directories[$i]));
+            if ($sourcePath === $targetPath) {
+                continue;
+            }
+            if (self::pathIsOrUnder($targetPath, $sourcePath)) {
+                throw new \InvalidArgumentException("can't merge parent directory {$sourcePath} into child {$targetPath}");
+            }
+
+            $source = $this->directoryInfo($sourcePath);
+            $childDirs = array_values(array_filter(
+                $this->directories($sourcePath),
+                static fn (ObjectInfo $info): bool => $info->path !== $sourcePath
+                    && self::pathIsOrUnder($info->path, $sourcePath),
+            ));
+            usort(
+                $childDirs,
+                static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathDepth($a->path) <=> self::pathDepth($b->path)
+                    ?: $a->path <=> $b->path,
+            );
+
+            foreach ($childDirs as $directory) {
+                $moved[] = $this->mkdir(
+                    self::replacePathPrefix($directory->path, $sourcePath, $targetPath),
+                    [
+                        'modTime' => $directory->modTime,
+                        'mimeType' => $directory->mimeType,
+                        'metadata' => $directory->metadata,
+                        'id' => $directory->id,
+                    ],
+                );
+            }
+
+            $objects = array_values(array_filter(
+                $this->list($sourcePath),
+                static fn (ObjectInfo $info): bool => self::pathIsOrUnder($info->path, $sourcePath),
+            ));
+            foreach ($objects as $object) {
+                $newPath = self::replacePathPrefix($object->path, $sourcePath, $targetPath);
+                $entry = $this->listedObjectEntry($object);
+                $this->forgetListedObject($object);
+                $moved[] = $this->pathExists($newPath)
+                    ? $this->putDuplicateEntry($newPath, $entry)
+                    : $this->putEntry($newPath, $entry);
+            }
+
+            usort(
+                $childDirs,
+                static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathDepth($b->path) <=> self::pathDepth($a->path)
+                    ?: $b->path <=> $a->path,
+            );
+            foreach ($childDirs as $directory) {
+                if ($this->directoryExists($directory->path)) {
+                    $removed[] = $this->directoryInfo($directory->path);
+                    $this->forgetDirectory($directory->path);
+                }
+            }
+            if ($this->directoryExists($sourcePath)) {
+                $removed[] = $source;
+                $this->forgetDirectory($sourcePath);
+            }
+        }
+
+        return [
+            'target' => $target,
+            'moved' => $moved,
+            'removed' => $removed,
+        ];
+    }
+
     public function serverSideDirMove(string $sourcePath, string $targetPath): ObjectInfo
     {
         if (!$this->serverSideDirMove) {
@@ -392,6 +474,11 @@ final class MemoryProvider
         }
         foreach (array_keys($this->objects) as $objectPath) {
             if (self::pathIsOrUnder($objectPath, $path)) {
+                throw new \RuntimeException("Directory not empty: {$path}");
+            }
+        }
+        foreach ($this->duplicateObjects as $duplicate) {
+            if (self::pathIsOrUnder($duplicate['path'], $path)) {
                 throw new \RuntimeException("Directory not empty: {$path}");
             }
         }
@@ -683,6 +770,25 @@ final class MemoryProvider
         return $hashes + MultiHasher::hashBytes($entry['bytes'], $set);
     }
 
+    public function directoryEntryCount(string|ObjectInfo $directory): int
+    {
+        $path = $this->canonicalDirectoryPath($this->directoryPath($directory));
+        $this->directoryInfo($path);
+        $count = 0;
+        foreach ($this->directories($path) as $info) {
+            if ($info->path !== $path && self::pathIsOrUnder($info->path, $path)) {
+                $count++;
+            }
+        }
+        foreach ($this->list($path) as $info) {
+            if (self::pathIsOrUnder($info->path, $path)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
     private function normalize(string $path): string
     {
         return trim(preg_replace('#/+#', '/', $path) ?? $path, '/');
@@ -757,6 +863,43 @@ final class MemoryProvider
     /**
      * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
      */
+    private function putDuplicateEntry(string $path, array $entry): ObjectInfo
+    {
+        $key = 'unchecked:' . sprintf('%08d', ++$this->duplicateObjectSequence);
+        $this->duplicateObjects[$key] = [
+            'path' => $this->normalize($path),
+            'entry' => $entry,
+        ];
+
+        return $this->duplicateInfo($key);
+    }
+
+    /**
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     */
+    private function listedObjectEntry(ObjectInfo $info): array
+    {
+        if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            return $this->duplicateObjects[$info->providerKey]['entry'];
+        }
+
+        return $this->entry($info->path);
+    }
+
+    private function forgetListedObject(ObjectInfo $info): void
+    {
+        if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            unset($this->duplicateObjects[$info->providerKey]);
+
+            return;
+        }
+
+        $this->forget($info->path);
+    }
+
+    /**
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     */
     private function putEntry(string $path, array $entry): ObjectInfo
     {
         $path = $this->normalize($path);
@@ -806,6 +949,11 @@ final class MemoryProvider
         if ($this->caseInsensitive) {
             unset($this->directoryCaseIndex[$this->lookupPath($path)]);
         }
+    }
+
+    private function directoryPath(string|ObjectInfo $directory): string
+    {
+        return $directory instanceof ObjectInfo ? $directory->path : $directory;
     }
 
     private function normalizeModTime(\DateTimeInterface|string|null $modTime): ?string
@@ -989,6 +1137,11 @@ final class MemoryProvider
     private static function pathIsOrUnder(string $path, string $prefix): bool
     {
         return $path === $prefix || str_starts_with($path, $prefix . '/');
+    }
+
+    private static function pathDepth(string $path): int
+    {
+        return $path === '' ? 0 : substr_count($path, '/') + 1;
     }
 
     private static function replacePathPrefix(string $path, string $sourcePrefix, string $targetPrefix): string

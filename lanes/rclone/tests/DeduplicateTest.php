@@ -150,4 +150,52 @@ return [
         $t->same([], $result['groups'][0]['remaining']);
         $t->same(2, count($remote->list('exports')));
     },
+    'merge dirs moves later directory contents into the first directory like upstream' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->put('dupe1/one.txt', 'This is one', ['modTime' => '2026-05-20T00:00:00Z']);
+        $remote->put('dupe2/two.txt', 'This is one too', ['modTime' => '2026-05-21T00:00:00Z']);
+        $remote->put('dupe3/three.txt', 'This is another one', ['modTime' => '2026-05-22T00:00:00Z']);
+
+        $result = $remote->mergeDirectories(['dupe1', 'dupe2', 'dupe3']);
+
+        $t->same('dupe1', $result['target']->path);
+        $t->same([
+            'dupe1/one.txt',
+            'dupe1/three.txt',
+            'dupe1/two.txt',
+        ], array_map(static fn ($info) => $info->path, $remote->list()));
+        $t->same('This is one too', $remote->get('dupe1/two.txt'));
+        $t->same('2026-05-22T00:00:00Z', $remote->info('dupe1/three.txt')->modTime);
+        $t->same(['dupe1'], array_map(static fn ($info) => $info->path, $remote->directories()));
+        $t->throws(RuntimeException::class, static fn () => $remote->directoryInfo('dupe2'));
+        $t->throws(RuntimeException::class, static fn () => $remote->directoryInfo('dupe3'));
+    },
+    'duplicate directory merge picks largest first and leaves file conflicts for dedupe' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider();
+        $remote->put('exports-primary/site.wxr', '<rss>primary export</rss>', ['modTime' => '2026-05-22T00:00:00Z']);
+        $remote->put('exports-primary/media/hero.jpg', 'hero image');
+        $remote->put('exports-duplicate/site.wxr', '<rss>recovered draft</rss>', ['modTime' => '2026-05-21T00:00:00Z']);
+
+        $merge = (new SyncPlan())->mergeDuplicateDirectories($remote, ['exports-duplicate', 'exports-primary']);
+
+        $t->same(false, $merge['listed']);
+        $t->same(['exports-primary', 'exports-duplicate'], $merge['ordered']);
+        $t->same('exports-primary', $merge['target']?->path);
+        $t->same([
+            'exports-primary/media/hero.jpg',
+            'exports-primary/site.wxr',
+            'exports-primary/site.wxr',
+        ], array_map(static fn ($info) => $info->path, $remote->list()));
+
+        $renamed = (new SyncPlan())->deduplicateByName($remote, DeduplicateMode::RENAME);
+        $t->same(['exports-primary/site-1.wxr', 'exports-primary/site-2.wxr'], array_map(
+            static fn ($info) => $info->path,
+            $renamed['groups'][0]['renamed'],
+        ));
+        $t->same([
+            'exports-primary/media/hero.jpg',
+            'exports-primary/site-1.wxr',
+            'exports-primary/site-2.wxr',
+        ], array_map(static fn ($info) => $info->path, $remote->list()));
+    },
 ];

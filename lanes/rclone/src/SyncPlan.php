@@ -602,6 +602,52 @@ final class SyncPlan
     }
 
     /**
+     * Model the dedupe duplicate-directory merge boundary: non-list modes put
+     * the largest recursive directory first before calling the provider
+     * MergeDirs feature, while list mode reports duplicates without mutation.
+     *
+     * @param list<string|ObjectInfo> $directories
+     * @return array{listed: bool, ordered: list<string>, target: ?ObjectInfo, merge: ?array{target: ObjectInfo, moved: list<ObjectInfo>, removed: list<ObjectInfo>}}
+     */
+    public function mergeDuplicateDirectories(MemoryProvider $provider, array $directories, bool $listOnly = false): array
+    {
+        $items = [];
+        foreach ($directories as $index => $directory) {
+            $info = $provider->directoryInfo($directory instanceof ObjectInfo ? $directory->path : $directory);
+            $items[] = [
+                'index' => $index,
+                'path' => $info->path,
+                'count' => $provider->directoryEntryCount($info),
+                'info' => $info,
+            ];
+        }
+
+        if ($listOnly || count($items) <= 1) {
+            return [
+                'listed' => true,
+                'ordered' => array_map(static fn (array $item): string => $item['path'], $items),
+                'target' => null,
+                'merge' => null,
+            ];
+        }
+
+        usort(
+            $items,
+            static fn (array $a, array $b): int => $b['count'] <=> $a['count']
+                ?: $a['index'] <=> $b['index'],
+        );
+        $ordered = array_map(static fn (array $item): ObjectInfo => $item['info'], $items);
+        $merge = $provider->mergeDirectories($ordered);
+
+        return [
+            'listed' => false,
+            'ordered' => array_map(static fn (ObjectInfo $info): string => $info->path, $ordered),
+            'target' => $merge['target'],
+            'merge' => $merge,
+        ];
+    }
+
+    /**
      * @return array{existed: bool, savedPath: ?string, cleanup: \Closure}
      */
     public function removeExisting(
