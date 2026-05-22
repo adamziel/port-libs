@@ -7,7 +7,7 @@ namespace PortLibs\Gitoxide;
 final class PackBuildResult
 {
     /**
-     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string}> $entries
+     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int}> $entries
      */
     public function __construct(
         private readonly string $packBytes,
@@ -33,13 +33,18 @@ final class PackBuildResult
                 || $entry['size'] < 0
                 || $entry['offset'] < 0
                 || $entry['crc32'] < 0
-                || (isset($entry['storage']) && !in_array($entry['storage'], ['whole', 'ref-delta'], true))
+                || (isset($entry['storage']) && !in_array($entry['storage'], ['whole', 'ref-delta', 'ofs-delta'], true))
                 || (isset($entry['baseOid']) && preg_match('/^[0-9a-f]{40}$/', $entry['baseOid']) !== 1)
+                || (isset($entry['baseOffset']) && $entry['baseOffset'] < 0)
+                || (isset($entry['baseDistance']) && $entry['baseDistance'] <= 0)
             ) {
                 throw new \InvalidArgumentException('Pack build entries must contain valid object metadata');
             }
             if (($entry['storage'] ?? 'whole') === 'ref-delta' && !isset($entry['baseOid'])) {
                 throw new \InvalidArgumentException('Pack delta entries must include a base object id');
+            }
+            if (($entry['storage'] ?? 'whole') === 'ofs-delta' && (!isset($entry['baseOffset'], $entry['baseDistance']))) {
+                throw new \InvalidArgumentException('Pack offset-delta entries must include base offset metadata');
             }
         }
     }
@@ -65,7 +70,7 @@ final class PackBuildResult
     }
 
     /**
-     * @return list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string}>
+     * @return list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int}>
      */
     public function entries(): array
     {
@@ -75,7 +80,7 @@ final class PackBuildResult
     public function hasDeltaEntries(): bool
     {
         foreach ($this->entries as $entry) {
-            if (($entry['storage'] ?? 'whole') === 'ref-delta') {
+            if (in_array($entry['storage'] ?? 'whole', ['ref-delta', 'ofs-delta'], true)) {
                 return true;
             }
         }

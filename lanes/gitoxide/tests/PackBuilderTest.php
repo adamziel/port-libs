@@ -118,6 +118,28 @@ return [
         $t->same($target->body, $read->body);
         $t->true(strlen($result->packBytes()) < strlen(PackBuilder::build([$base, $target])->packBytes()), 'delta pack should be smaller than the whole-object pack');
     },
+    'builds ofs-delta pack entries against already written bases' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $result = PackBuilder::buildWithOffsetDeltas([$base, $target]);
+        $entries = $result->entries();
+        $pack = PackData::fromBytes($result->packBytes());
+        $index = PackIndex::fromBytes($result->indexBytes());
+        $deltaEntry = $pack->entryAtOffset($entries[1]['offset']);
+        $read = $pack->readObject($index, $target->oid());
+
+        $t->same(false, $result->isThin());
+        $t->same(true, $result->hasDeltaEntries());
+        $t->same('whole', $entries[0]['storage']);
+        $t->same('ofs-delta', $entries[1]['storage']);
+        $t->same($base->oid(), $entries[1]['baseOid']);
+        $t->same($entries[0]['offset'], $entries[1]['baseOffset']);
+        $t->same($entries[1]['offset'] - $entries[0]['offset'], $entries[1]['baseDistance']);
+        $t->same('ofs-delta', $deltaEntry->kind);
+        $t->same($entries[1]['baseDistance'], $deltaEntry->baseDistance);
+        $t->same('blob', $read->type);
+        $t->same($target->body, $read->body);
+        $t->true(strlen($result->packBytes()) < strlen(PackBuilder::build([$base, $target])->packBytes()), 'ofs-delta pack should be smaller than the whole-object pack');
+    },
     'builds thin ref-delta packs against remote bases' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
         [$base, $target] = $buildSimilarBlobs();
         $result = PackBuilder::buildWithRefDeltas([$target], [$base]);
@@ -171,5 +193,24 @@ return [
         $t->same('commit', $commit->type);
         $t->contains('Deploy WordPress content', $commit->body);
         $t->contains('Pack bytes generated for a WordPress deployment push.', $blob->body);
+    },
+    'wordpress fixture builds compact in-pack offset deltas' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-send-pack-ofs-delta.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-send-pack-ofs-delta.php';
+        $pack = PackData::fromBytes($fixture['packBytes']);
+        $index = PackIndex::fromBytes($fixture['indexBytes']);
+        $read = $pack->readObject($index, $fixture['objects']['updatedBlob']);
+
+        $t->same(2, $pack->count());
+        $t->same(false, $fixture['thin']);
+        $t->same(1, count($fixture['offsetDeltaEntries']));
+        $t->same('ofs-delta', $fixture['offsetDeltaEntries'][0]['storage']);
+        $t->same($fixture['objects']['baseBlob'], $fixture['offsetDeltaEntries'][0]['baseOid']);
+        $t->same($fixture['offsetDeltaEntries'][0]['baseDistance'], $summary['offsetDeltaDistance']);
+        $t->same($fixture['packChecksum'], $pack->verifyChecksum());
+        $t->same('blob', $read->type);
+        $t->contains('post_status=publish', $read->body);
+        $t->same($fixture['packChecksum'], $summary['packChecksum']);
+        $t->same($fixture['updatedBlob'], $summary['updatedBlob']);
     },
 ];
