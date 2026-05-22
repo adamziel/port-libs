@@ -56,6 +56,91 @@ final class MarkdownPostProcessor
     }
 
     /**
+     * Native boundary for marker.postprocessors.markdown::merge_spans.
+     *
+     * @param list<array<string, mixed>> $pages
+     * @return list<list<array{lines: list<array{text: string, fonts: list<string>, bbox: list<float>}>, pnum: int, bbox: list<float>, block_type: string, heading_level: int|null}>>
+     */
+    public function mergeSpans(array $pages): array
+    {
+        $mergedPages = [];
+
+        foreach ($pages as $page) {
+            $pageBlocks = [];
+            $pnum = isset($page['pnum']) ? (int) $page['pnum'] : 0;
+
+            foreach (($page['blocks'] ?? []) as $block) {
+                if (!is_array($block)) {
+                    continue;
+                }
+
+                $blockLines = [];
+                foreach (($block['lines'] ?? []) as $line) {
+                    if (!is_array($line) || !isset($line['spans']) || !is_array($line['spans']) || $line['spans'] === []) {
+                        continue;
+                    }
+
+                    $spans = array_values(array_filter($line['spans'], static fn (mixed $span): bool => is_array($span)));
+                    if ($spans === []) {
+                        continue;
+                    }
+
+                    $lineText = '';
+                    $fonts = [];
+                    $spanCount = count($spans);
+                    foreach ($spans as $spanIndex => $span) {
+                        $fonts[] = strtolower((string) ($span['font'] ?? ''));
+                        $spanText = (string) ($span['text'] ?? '');
+
+                        if ($this->length($spanText) > 3 && $spanIndex > 0 && $spanIndex < $spanCount - 1) {
+                            $nextSpan = $this->nextSubstantialSpan($spans, $spanIndex);
+                            if (($span['italic'] ?? false) && !($nextSpan['italic'] ?? false)) {
+                                $spanText = $this->surroundText($spanText, '*');
+                            } elseif (($span['bold'] ?? false) && !($nextSpan['bold'] ?? false)) {
+                                $spanText = $this->surroundText($spanText, '**');
+                            }
+                        }
+
+                        $lineText .= $spanText;
+                    }
+
+                    $blockLines[] = [
+                        'text' => $lineText,
+                        'fonts' => $fonts,
+                        'bbox' => $this->lineBbox($line),
+                    ];
+                }
+
+                if ($blockLines === []) {
+                    continue;
+                }
+
+                $pageBlocks[] = [
+                    'lines' => $blockLines,
+                    'pnum' => $pnum,
+                    'bbox' => $this->bbox($block['bbox'] ?? null) ?? $this->bboxFromMergedLines($blockLines),
+                    'block_type' => $this->blockType($block, 'Text'),
+                    'heading_level' => $this->headingLevel($block),
+                ];
+            }
+
+            if ($pageBlocks === []) {
+                $pageBlocks[] = [
+                    'lines' => [],
+                    'pnum' => $pnum,
+                    'bbox' => $this->bbox($page['bbox'] ?? null) ?? [0.0, 0.0, 0.0, 0.0],
+                    'block_type' => 'Text',
+                    'heading_level' => null,
+                ];
+            }
+
+            $mergedPages[] = $pageBlocks;
+        }
+
+        return $mergedPages;
+    }
+
+    /**
      * @param list<array<string, mixed>|list<array<string, mixed>>> $pages
      * @return list<array{text: string, block_type: string, page_start: bool, pnum: int|null}>
      */
@@ -352,6 +437,84 @@ final class MarkdownPostProcessor
         }
 
         return $line1 . "\n" . $line2;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spans
+     * @return array<string, mixed>|null
+     */
+    private function nextSubstantialSpan(array $spans, int $index): ?array
+    {
+        $nextSpan = null;
+        $nextIndex = 1;
+        while (count($spans) > $index + $nextIndex) {
+            $nextSpan = $spans[$index + $nextIndex];
+            $nextIndex++;
+            if ($this->length(trim((string) ($nextSpan['text'] ?? ''))) > 2) {
+                break;
+            }
+        }
+
+        return $nextSpan;
+    }
+
+    private function surroundText(string $text, string $marker): string
+    {
+        preg_match('/^(\s*)/', $text, $leading);
+        preg_match('/(\s*)$/', $text, $trailing);
+
+        return ($leading[1] ?? '') . $marker . trim($text) . $marker . ($trailing[1] ?? '');
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>|null
+     */
+    private function bbox(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $values = array_values($value);
+        if (count($values) !== 4) {
+            return null;
+        }
+
+        foreach ($values as $item) {
+            if (!is_float($item) && !is_int($item)) {
+                return null;
+            }
+        }
+
+        return array_map(static fn (float|int $value): float => (float) $value, $values);
+    }
+
+    /**
+     * @param list<array{bbox: list<float>}> $lines
+     * @return list<float>
+     */
+    private function bboxFromMergedLines(array $lines): array
+    {
+        if ($lines === []) {
+            return [0.0, 0.0, 0.0, 0.0];
+        }
+
+        return [
+            min(array_map(static fn (array $line): float => $line['bbox'][0], $lines)),
+            min(array_map(static fn (array $line): float => $line['bbox'][1], $lines)),
+            max(array_map(static fn (array $line): float => $line['bbox'][2], $lines)),
+            max(array_map(static fn (array $line): float => $line['bbox'][3], $lines)),
+        ];
+    }
+
+    private function length(string $text): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($text, 'UTF-8');
+        }
+
+        return strlen($text);
     }
 
     private function titleCase(string $text): string
