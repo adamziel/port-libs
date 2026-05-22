@@ -106,6 +106,16 @@ overhead before dispatch, synthetic encrypted parent directories are detected
 with the upstream `.syncthing-enc` and 200-character component rules, and
 receive-encrypted file trailers append a FileInfo wire payload followed by a
 big-endian payload length.
+The cluster-config encryption consistency slice maps focused upstream
+`model.ccCheckEncryption`, `TestCcCheckEncryption`, and adjacent
+`TestClusterConfigEncrypted` behavior: untrusted devices cannot share plain
+folders, both advertised encryption tokens are impossible, local
+receive-encrypted plus remote encrypted configuration is impossible, token/plain
+configuration mismatches return the upstream error boundaries, receive-encrypted
+folders adopt a cluster-advertised token before requesting a cluster-config
+resend, and stored-token mismatches surface the upstream different-password
+error. Exact `PasswordToken` scrypt/AES-SIV generation remains unported; this
+slice models token comparison once token bytes are already known.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -176,11 +186,15 @@ untrusted-peer boundary: a WordPress media block request is reshaped into an
 encrypted-name request with padded size, per-block overhead, and an opaque hash
 token, while the encrypted file bytes carry a recoverable normalized FileInfo
 trailer for later metadata reconstruction.
+`examples/wordpress-encryption-consistency.php` shows the cluster-config
+boundary for that same WordPress media folder: a plain untrusted peer is
+rejected, a receive-encrypted peer's advertised token is accepted and marked for
+cluster-config resend, and a stale local token produces the upstream
+different-password error.
 
 ## Next Task
 
-Map more receive-encrypted encryption semantics from
-`lib/protocol/encryption.go`, especially exact AES-SIV name/hash token
-generation and ChaCha20-Poly1305 block encryption/decryption if standard-PHP
-crypto support is available or a small audited native implementation is
-justified.
+Implement exact receive-encrypted password-token generation from
+`lib/protocol/encryption.go` (`PasswordToken`: scrypt plus AES-SIV), or
+document a safe standard-PHP crypto boundary if exact parity cannot be
+implemented without nonstandard extensions.
