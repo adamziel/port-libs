@@ -108,6 +108,11 @@ The next HTML-reader inline style slice is now represented as well:
 `<del>` map to native inline nodes before WordPress output. This keeps
 source-glossary labels, underlined reviewer notes, inserted text, and deleted
 legacy-caption markers semantic instead of flattening them to plain text.
+The next HTML-reader code-block slice is now represented too: standalone
+`<pre><code>` blocks from legacy HTML exports become native `code_block` nodes
+instead of paragraphs or raw HTML. Blank lines, indentation, and literal
+backslash escapes remain intact, and `language-*` classes render as WordPress
+code block language classes for reviewer-friendly migration snippets.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -226,6 +231,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes an HTML reader quote import paragraph with a
   citation-bearing `<q>` and a hard `<br />` line break, exercising non-table
   HTML reader inline semantics for migration reviewer source notes.
+- The fixture now includes a legacy HTML `<pre><code class="language-php">`
+  snippet, exercising upstream HTML-reader code-block behavior and WordPress
+  code block language output without shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,

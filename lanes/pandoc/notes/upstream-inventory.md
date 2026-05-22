@@ -148,6 +148,14 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/html-reader.native` inline style rendered native AST slice inspected in
   this run: upstream lines 922-958 show one `SmallCaps`, two `Underline`, and
   three `Strikeout` nodes for those HTML inputs.
+- `test/html-reader.html` Code Blocks slice inspected in this run: upstream
+  lines 88-102 cover two standalone `<pre><code>` blocks, one with blank lines
+  and one with literal backslash escapes.
+- `test/html-reader.native` Code Blocks rendered native AST slice inspected in
+  this run: upstream lines 408-420 show those two inputs as `CodeBlock`
+  nodes whose text removes the final closing-tag newline while preserving
+  internal blank lines, four-space indentation, and literal `\$`, `\\`, `\>`,
+  `\[`, and `\{` escapes.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -417,12 +425,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `<strike>`, and `<del>` become `strikeout`. The WordPress writer renders
   those as safe inline small-caps, underline, and deletion markup without
   invoking Pandoc.
+- The standalone pre/code shape from the `test/html-reader.html` Code Blocks
+  section is now mapped for a narrow HTML reader slice: `<pre><code>` becomes a
+  native `code_block`, internal blank lines and indentation are preserved, the
+  closing-tag newline is stripped like Pandoc's native output, and literal
+  backslash escapes stay literal instead of being treated as Markdown escapes.
+  WordPress output renders the node as a core code block and normalizes
+  `language-*` classes for imported legacy snippets.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-117 tests, 910 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command was run after this slice and passed with 138
-test files, 12,219 assertions, and 0 failures. The final required rerun for
-this batch passed with 139 test files, 12,328 assertions, and 0 failures.
+119 tests, 921 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command was run after this slice and passed with
+140 test files, 12,431 assertions, and 0 failures.

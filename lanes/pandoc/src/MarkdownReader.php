@@ -63,6 +63,11 @@ final class MarkdownReader
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
+            $htmlCodeBlock = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlPreCodeBlock($lines, $index) : null;
+            if ($htmlCodeBlock !== null) {
+                $blocks[] = $htmlCodeBlock;
+                continue;
+            }
             $htmlParagraph = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
             if ($htmlParagraph !== null) {
                 $blocks[] = $htmlParagraph;
@@ -995,6 +1000,97 @@ final class MarkdownReader
             ['text' => $this->plainTextFromInlines($children)],
             $children
         );
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlPreCodeBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<pre(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'pre');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $codeBlock = $this->parseHtmlPreCodeBlock($html);
+        if ($codeBlock === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $codeBlock;
+    }
+
+    private function parseHtmlPreCodeBlock(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $pre = $this->firstChildElement($body, 'pre');
+        if (!$pre instanceof \DOMElement) {
+            return null;
+        }
+
+        $code = $this->firstChildElement($pre, 'code');
+        if (!$code instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = str_replace(["\r\n", "\r"], "\n", $code->textContent);
+        if (str_ends_with($text, "\n")) {
+            $text = substr($text, 0, -1);
+        }
+
+        return new AstNode('code_block', [
+            'classes' => $this->htmlCodeBlockClasses($code),
+            'attributes' => [],
+            'text' => $text,
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlCodeBlockClasses(\DOMElement $code): array
+    {
+        $classes = [];
+        foreach (preg_split('/\s+/', trim($code->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+            $class = trim($class);
+            if ($class === '') {
+                continue;
+            }
+
+            if (str_starts_with($class, 'language-')) {
+                $class = substr($class, strlen('language-'));
+            }
+
+            if ($class !== '') {
+                $classes[] = $class;
+            }
+        }
+
+        return $classes;
     }
 
     /**

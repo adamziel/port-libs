@@ -112,6 +112,12 @@ HTML reader editorial inline marks:
 
 <p><span style="font-variant: small-caps;">source glossary</span> flags <u>underlined source text</u>, <ins>inserted reviewer note</ins>, <s>stale caption</s>, <strike>old shortcode</strike>, and <del>deleted widget</del>.</p>
 
+HTML reader legacy code export:
+
+<pre><code class="language-php">do_shortcode('[legacy-carousel]');
+echo esc_html($title);
+</code></pre>
+
 Empty import audit table:
 
 <table>

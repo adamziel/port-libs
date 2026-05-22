@@ -1254,6 +1254,37 @@ HTML);
         $t->contains('<p>These are all underlined: <u>foo</u> and <u>bar</u>.</p>', $blocks);
         $t->contains('<p>These are all strikethrough: <del>foo</del>, <del>bar</del>, and <del>baz</del>.</p>', $blocks);
     },
+    'maps upstream html reader pre code blocks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<p>Code:</p>
+<pre><code>---- (should be four hyphens)
+
+sub status {
+    print "working";
+}
+
+this code block is indented by one tab
+</code></pre>
+<p>And:</p>
+<pre><code>    this code block is indented by two tabs
+
+These should not be escaped:  \$ \\ \> \[ \{
+</code></pre>
+HTML);
+        $firstCode = $document->children[1];
+        $secondCode = $document->children[3];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Code:', $document->children[0]->attr('text'));
+        $t->same('code_block', $firstCode->type);
+        $t->same("---- (should be four hyphens)\n\nsub status {\n    print \"working\";\n}\n\nthis code block is indented by one tab", $firstCode->attr('text'));
+        $t->same('code_block', $secondCode->type);
+        $t->same('    this code block is indented by two tabs' . "\n\n" . 'These should not be escaped:  \$ \\\\ \> \[ \{', $secondCode->attr('text'));
+        $t->contains('<pre class="wp-block-code"><code>---- (should be four hyphens)', $blocks);
+        $t->contains('These should not be escaped:  \$ \\\\ \&gt; \[ \{</code></pre>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -2720,6 +2751,13 @@ XML;
 
         $t->contains('<!-- wp:code -->', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-gallery]&#039;);</code></pre>', $blocks);
+    },
+    'writes wordpress html reader pre code imports from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>HTML reader legacy code export:</p>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-carousel]&#039;);' . "\n" . 'echo esc_html($title);</code></pre>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
