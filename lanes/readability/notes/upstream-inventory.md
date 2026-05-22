@@ -116,7 +116,7 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 - Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/ad wrapper/title-heading/out-of-band figure/post-process/leading-action-bar/single-paragraph-wrapper mappings.
 - Native PHP lane tests: 25 passing, 0 failing, 176 assertions.
-- Latest root verification: `php tools/run-tests.php` passes 78 test files, 5437 assertions, 0 failures.
+- Latest root verification: `php tools/run-tests.php` passes 79 test files, 5516 assertions, 0 failures.
 - Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures.
 - Blocker: no readability-local execution blocker remains. Exact structural HTML parity is still incomplete for copied Medium lazy-image fixtures, including root wrapper, relative URI, blockquote/id, and figure paragraph wrapper differences.
 - Current work: native extraction now removes duplicate title headers from content, demotes body `h1` headings to `h2`, removes interactive article controls and leading byline/action bars, preserves lazy media/video fixtures, removes layout-only full-width figure wrappers, simplifies nested `div`/`section` wrappers, collapses low-link-density `div` wrappers around a single paragraph, strips source classes, cleans platform chrome, and emits WordPress block output.
