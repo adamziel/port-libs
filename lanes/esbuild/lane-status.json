@@ -10,6 +10,6 @@
     "audit": "verified 2026-05-22: upstream make test previously passed locally; esbuild lane PHP verification passes 4 test files, 118 behavior tests, 659 assertion calls, and 0 failures. Required root `php tools/run-tests.php` passes with 149 test files, 13523 assertions, and 0 failures.",
     "currentWork": "Native TypeScript module lowerer now helper-lowers simple `for` and `for await` loops whose loop variable uses `using` or `await using` when `lowerUsingDeclarations` is enabled. It rewrites the loop value through a temporary, creates a per-iteration `__using` stack, preserves the loop body order, awaits `__callDispose` for async disposables, and adds a WordPress block asset loop helper-cleanup scenario.",
     "blocker": "No current esbuild implementation blocker. Esbuild lane verification passes with 4 test files, 118 behavior tests, 659 assertion calls, and 0 failures; `php lanes/esbuild/examples/wordpress-asset-preflight.php` runs. Required root `php tools/run-tests.php` passes with 149 test files, 13523 assertions, and 0 failures. Remaining esbuild upstream release-extra coverage is `make test-all` with Deno, WASM browser/node, typecheck, and Yarn PnP targets.",
-    "latestCommit": "pending",
+    "latestCommit": "ac303ed",
     "nextTask": "Cover explicit resource management helper symbol collision avoidance, broader async/control-flow `await using` lowering, target-version-specific static field lowering, and broader auto-accessor lowering."
 }
