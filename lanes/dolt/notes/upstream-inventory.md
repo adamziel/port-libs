@@ -93,6 +93,9 @@ Targeted upstream files inspected for the current native slice:
 - `go/libraries/doltcore/sqle/enginetest/dolt_queries.go`: focused `test has_ancestor` ScriptTest covering branch heads, current `HEAD`, commit hashes, tags, merge parents, and branch-scoped log visibility.
 - `go/libraries/doltcore/sqle/dtablefunctions/dolt_log.go`: `dolt_log()` revision range, `--not`, `--parents`, `--show-signature`, `--decorate`, table-filter behavior, `--merges`, and `--min-parents`, including root-commit skipping and first/second-parent table-hash checks.
 - `go/libraries/doltcore/sqle/dtablefunctions/dolt_log_test.go`: focused bind-variable, type-validation, fixed-schema, and `--parents` option tests.
+- `go/cmd/dolt/commands/log.go`: CLI `resolveDecorateAuto` boundary where `--decorate=auto` resolves to short only for a TTY and to no decoration for captured stdout.
+- `go/cmd/dolt/commands/log_graph.go`: text graph column, branch-path, merge-line, and oneline rendering algorithm for `dolt log --graph`.
+- `integration-tests/bats/log.bats`: focused `log: --decorate=auto suppresses decoration when stdout is not a tty` and `log: --graph: basic graph log` cases mapped to native rendering.
 - `integration-tests/bats/status.bats`: focused status coverage for conflict tables, renamed tables, and reset with a renamed table; pristine full file exposed one stale fixed-width commit-hash helper.
 - `.upstream-cache/dolt/integration-tests/bats/status-local-fixed.bats`: runner-local copy of `status.bats` with only `get_head_commit()` changed from fixed-width `cut -c 13-44` to full-hash `awk` extraction; used to prove the underlying status/reset behavior after documenting the pristine helper failure.
 - `go/libraries/doltcore/sqle/dtables/status_table.go`: `dolt_status` row shape (`table_name`, staged byte, status), staged/unstaged table-delta collection, merge/schema/data conflict rows, constraint violation rows, merged rows, and status strings.
@@ -124,6 +127,8 @@ The full upstream runners were not executed for this lane slice, but bounded ups
   - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/enginetest -run 'TestDoltScripts/test has_ancestor$' -count=1 -timeout 10m`: pass in `0.395s`.
 - Fresh branch table/activity runner refresh:
   - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(DoltBranchesSystemTable|DoltBranchesSystemTablePrepared|BranchActivity)$' -count=1 -timeout 20m`: pass in `10.400s`.
+- Fresh graph/decorate runner refresh:
+  - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'log: (--graph: basic graph log|--decorate=auto suppresses decoration when stdout is not a tty)' log.bats`: pass with plan `1..2`.
 - Bounded Go runner results:
   - `go test ./libraries/doltcore/diff -count=1 -timeout 5m`: pass.
   - `go test ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json -count=1 -timeout 5m`: pass.

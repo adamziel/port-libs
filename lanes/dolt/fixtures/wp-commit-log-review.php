@@ -164,4 +164,12 @@ return [
         ' wp_posts added',
         'wp-init Initialize data repository',
     ],
+    'expectedCliGraphOnelineLines' => [
+        '* commit wp-merge-media (HEAD -> main, tag: import-reviewed) Merge media backfill into reviewed import',
+        '|\\',
+        '| * commit wp-media-branch (media-import) Prepare media backfill branch',
+        '*/ commit wp-review-main Review public post statuses',
+        '* commit wp-import-base (tag: import-base) Import WXR posts and pages',
+        '* commit wp-init Initialize data repository',
+    ],
 ];

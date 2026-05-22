@@ -498,6 +498,8 @@
   - A later required rerun after concurrent LightningCSS fixes still failed outside Dolt: 123 test files, 10,582 assertions, 2 failures in `lanes/difftastic/tests/TokenDifferTest.php` (`maps typescript default namespace and re-export source changes`, `wordpress block module asset diff keeps default and namespace imports aligned`). Dolt tests reached by that root runner passed.
   - Final required rerun after this lane-status cleanup passed: 123 test files, 10,675 assertions, 0 failures.
   - Final current-HEAD rerun after concurrent Difftastic fixes passed: 123 test files, 10,689 assertions, 0 failures.
+  - Required rerun after the final runner-status metadata cleanup passed: 123 test files, 10,737 assertions, 0 failures.
+  - Required rerun after native `dolt log --graph` / `--decorate=auto` rendering passed: 124 test files, 10,849 assertions, 0 failures.
   - Dolt lane tests reached by the root runner passed throughout, including `DOLT_COMMIT_DIFF` required-filter/range-predicate behavior, `dolt_merge_status`, `dolt_conflicts`, `dolt_history_dolt_schemas`, `dolt_diff_dolt_schemas`, `dolt_history_dolt_procedures`, and `dolt_diff_dolt_procedures` projection tests.
   - The latest root runner additionally covers native `dolt_log`/`dolt_commits`, native `dolt_commit_ancestors`, native `has_ancestor`, native branch table/activity projection, and the WordPress commit-log, commit-ancestors, has-ancestor, and branch-review fixtures.
 - Lane-only Dolt PHP test command:
@@ -512,6 +514,7 @@
   - Current result after native `dolt_log()` merge/min-parent filtering: pass with 10 Dolt test files, 90 behavior tests, 465 assertions, and 0 failures.
   - Current result after native `dolt_log()` `--all` branch traversal: pass with 10 Dolt test files, 91 behavior tests, 475 assertions, and 0 failures.
   - Current result after native `dolt log --oneline` / `--stat` rendering: pass with 10 Dolt test files, 93 behavior tests, 495 assertions, and 0 failures.
+  - Current result after native `dolt log --graph` / `--decorate=auto` rendering: pass with 10 Dolt test files, 95 behavior tests, 515 assertions, and 0 failures.
 
 ## Skipped Suites
 

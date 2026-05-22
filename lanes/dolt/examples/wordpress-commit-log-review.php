@@ -67,4 +67,10 @@ return [
         'decorate' => 'short',
         'diffStatsByCommit' => $fixture['diffStatsByCommit'],
     ]),
+    'cliGraphOneline' => $table->renderLog($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'graph' => true,
+        'oneline' => true,
+        'decorate' => 'short',
+    ]),
 ];

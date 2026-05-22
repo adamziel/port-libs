@@ -438,6 +438,113 @@ return [
             'diffStatsByCommit' => ['main-2' => [['table' => 'test', 'operation' => 'mystery']]],
         ]));
     },
+    'dolt log graph rendering matches upstream linear and merge boundaries' => static function (TestRunner $t) use ($commitLogGraph): void {
+        $table = new CommitLogTable();
+        $linearOutput = $table->renderLog($commitLogGraph(), [
+            'headHash' => 'main-2',
+            'graph' => true,
+        ]);
+        $linearLines = explode("\n", $linearOutput);
+        $mergeGraph = [
+            [
+                'commit_hash' => 'init',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:00:00',
+                'message' => 'Initialize data repository',
+                'parents' => [],
+            ],
+            [
+                'commit_hash' => 'main-1',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:01:00',
+                'message' => 'commit 1 MAIN',
+                'parents' => ['init'],
+            ],
+            [
+                'commit_hash' => 'branchA-1',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:02:00',
+                'message' => 'commit 1 BRANCHA',
+                'parents' => ['main-1'],
+            ],
+            [
+                'commit_hash' => 'main-2',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:03:00',
+                'message' => 'commit 2 MAIN',
+                'parents' => ['main-1'],
+            ],
+            [
+                'commit_hash' => 'merge-1',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:04:00',
+                'message' => 'Merge branchA into main',
+                'parents' => ['main-2', 'branchA-1'],
+                'refs' => ['refs/heads/main'],
+            ],
+        ];
+        $mergeOutput = $table->renderLog($mergeGraph, [
+            'headHash' => 'merge-1',
+            'graph' => true,
+        ]);
+        $mergeLines = explode("\n", $mergeOutput);
+        $mergeOneline = $table->renderLog($mergeGraph, [
+            'headHash' => 'merge-1',
+            'graph' => true,
+            'oneline' => true,
+        ]);
+        $mergeOnelineLines = explode("\n", $mergeOneline);
+
+        $t->same('* commit main-2', $linearLines[0]);
+        $t->same('| Author: root <root@localhost>', $linearLines[1]);
+        $t->same('| Date: 2026-05-22 10:02:00', $linearLines[2]);
+        $t->same('|', $linearLines[3]);
+        $t->contains('inserting into t', $linearLines[4]);
+        $t->same('* commit main-1', $linearLines[6]);
+        $t->same('*   commit merge-1 (HEAD -> main)', $mergeLines[0]);
+        $t->same('|\\  Merge: main-2 branchA-1', $mergeLines[1]);
+        $t->same('* | commit main-2', $mergeLines[7]);
+        $t->same('| * commit branchA-1', $mergeLines[13]);
+        $t->same('|/', $mergeLines[18]);
+        $t->same('* commit merge-1 (HEAD -> main) Merge branchA into main', $mergeOnelineLines[0]);
+        $t->same('*\\ commit main-2 commit 2 MAIN', $mergeOnelineLines[1]);
+        $t->same('| * commit branchA-1 commit 1 BRANCHA', $mergeOnelineLines[2]);
+        $t->same('|/', $mergeOnelineLines[3]);
+        $t->throws(InvalidArgumentException::class, static fn () => $table->renderLog($mergeGraph, [
+            'headHash' => 'merge-1',
+            'graph' => 'true',
+        ]));
+    },
+    'dolt log decorate auto follows upstream tty boundary in CLI rendering' => static function (TestRunner $t) use ($commitLogGraph): void {
+        $table = new CommitLogTable();
+        $captured = $table->renderLog($commitLogGraph(), [
+            'headHash' => 'merge-1',
+            'oneline' => true,
+            'decorate' => 'auto',
+            'stdoutIsTty' => false,
+            'limit' => 1,
+        ]);
+        $tty = $table->renderLog($commitLogGraph(), [
+            'headHash' => 'merge-1',
+            'oneline' => true,
+            'decorate' => 'auto',
+            'stdoutIsTty' => true,
+            'limit' => 1,
+        ]);
+
+        $t->same('merge-1 merge feature', $captured);
+        $t->same('merge-1 (HEAD -> main, tag: v1) merge feature', $tty);
+        $t->throws(InvalidArgumentException::class, static fn () => $table->renderLog($commitLogGraph(), [
+            'headHash' => 'merge-1',
+            'decorate' => 'auto',
+            'stdoutIsTty' => 'yes',
+        ]));
+    },
     'dolt log revision ranges map two-dot caret and not exclusions' => static function (TestRunner $t) use ($revisionRangeGraph): void {
         $table = new CommitLogTable();
         $commits = $revisionRangeGraph();
@@ -812,6 +919,7 @@ return [
         $t->same($allBranchPostRows, $example['allBranchPostTableLog']);
         $t->same(CommitLogTable::COMMITS_COLUMNS, array_keys($example['commits'][0]));
         $t->same($fixture['expectedCliOnelineStatLines'], explode("\n", $example['cliOnelineStat']));
+        $t->same($fixture['expectedCliGraphOnelineLines'], explode("\n", $example['cliGraphOneline']));
         $t->true(!str_contains($example['cliOnelineStat'], '99 rows added'));
     },
 ];

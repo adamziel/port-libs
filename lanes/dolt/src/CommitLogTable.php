@@ -166,20 +166,33 @@ final class CommitLogTable
      * `--oneline`, `--parents`, and `--stat`.
      *
      * @param list<array<string, mixed>> $commits
-     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool, oneline?:bool, parents?:bool, stat?:bool, diffStats?:array<string, list<array<string, mixed>>>, diffStatsByCommit?:array<string, list<array<string, mixed>>>} $options
+     * @param array{headHash?:string|null, includeAll?:bool, all?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, stdoutIsTty?:bool, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool, graph?:bool, oneline?:bool, parents?:bool, stat?:bool, diffStats?:array<string, list<array<string, mixed>>>, diffStatsByCommit?:array<string, list<array<string, mixed>>>} $options
      */
     public function renderLog(array $commits, array $options = []): string
     {
         $logOptions = $options;
+        $graph = $options['graph'] ?? false;
+        if (!is_bool($graph)) {
+            throw new \InvalidArgumentException('Dolt log graph option must be a boolean.');
+        }
+        if (($options['decorate'] ?? null) === 'auto') {
+            $stdoutIsTty = $options['stdoutIsTty'] ?? false;
+            if (!is_bool($stdoutIsTty)) {
+                throw new \InvalidArgumentException('Dolt log stdoutIsTty option must be a boolean.');
+            }
+            $logOptions['decorate'] = $stdoutIsTty ? 'short' : 'no';
+        }
         unset(
+            $logOptions['graph'],
             $logOptions['oneline'],
             $logOptions['parents'],
             $logOptions['stat'],
+            $logOptions['stdoutIsTty'],
             $logOptions['diffStats'],
             $logOptions['diffStatsByCommit']
         );
 
-        if (($options['parents'] ?? false) || ($options['stat'] ?? false)) {
+        if (($options['parents'] ?? false) || ($options['stat'] ?? false) || $graph) {
             $logOptions['showParents'] = true;
         }
 
