@@ -10,10 +10,10 @@
         "architecture": "JavaScript DOM scoring/extraction engine, readerable preflight, JSDOM parser shim, metadata extraction, content cleanup, and fixture-driven expected HTML/metadata parity."
     },
     "benchmarkDenominator": {
-        "status": "cloned-static-inventory-plus-runner-evidence-and-three-fixtures-lazy-image-semantics",
+        "status": "cloned-static-inventory-plus-runner-evidence-and-four-fixtures-video-lazy-media-semantics",
         "total": 1984,
-        "mapped": 47,
-        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories. The sparse checkout now also includes the upstream source files and package-lock.json needed by the canonical runner. `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies and `npm test` passed all 1984 upstream Mocha tests locally. The Mozilla normalize-spaces, parsely-metadata, and mozilla-2 source.html, expected.html, and expected-metadata.json fixtures are copied into the lane and mapped by native PHP tests. Focused lazy-image media cleanup semantics are mapped from Mozilla lazy-image fixture shapes without copying the full large pages.",
+        "mapped": 78,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/readability at commit 08be6b4bdb204dd333c9b7a0cfbc0e730b257252; counted package.json test runner, test/test-*.js harnesses, and test/test-pages fixture directories. The sparse checkout now also includes the upstream source files and package-lock.json needed by the canonical runner. `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies and `npm test` passed all 1984 upstream Mocha tests locally. The Mozilla normalize-spaces, parsely-metadata, mozilla-2, and embedded-videos source.html, expected.html, and expected-metadata.json fixtures are copied into the lane and mapped by native PHP tests. Focused lazy-image media cleanup semantics are mapped from Mozilla lazy-image fixture shapes without copying the full large pages.",
         "runner": "npm test",
         "inventory": {
             "mochaTests": 1984,
@@ -72,17 +72,19 @@
             "Mozilla test-pages/normalize-spaces source/expected/metadata fixture: document-title precedence, readerable true classification, null byline/site/published/dir metadata, excerpt whitespace normalization, and extracted article text parity against expected.html.",
             "Mozilla test-pages/parsely-metadata source/expected/metadata fixture: Parse.ly title, byline, and published-time metadata extraction, readerable true classification, excerpt normalization, null site/dir/lang metadata, and extracted article text parity against expected.html.",
             "Mozilla test-pages/mozilla-2 source/expected/metadata fixture: OpenGraph site name and description metadata, document lang/dir extraction, readerable false classification, retained in-main header content markers, and exclusion of head comment text.",
+            "Mozilla test-pages/embedded-videos source/expected/metadata fixture: readerable true classification, excerpt normalization, and preservation of the five expected allowed YouTube, YouTube-nocookie, and Vimeo iframe sources.",
+            "Mozilla default video whitelist cleanup semantics: generic iframe/embed/object content is removed while allowed video hosts are retained for migration output.",
             "Mozilla lazy-image fixture semantics: single-image noscript fallbacks replace placeholder images while preserving the placeholder URL in data-old-src.",
             "Mozilla lazy media cleanup semantics: lazy data-srcset values are promoted to srcset so responsive images survive JavaScript-free extraction."
         ],
-        "warning": "The canonical upstream Mozilla Readability npm runner now passes locally against the upstream JavaScript implementation at this checkout. Native PHP progress still maps 12 local behavior tests and 47 local checks against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet."
+        "warning": "The canonical upstream Mozilla Readability npm runner now passes locally against the upstream JavaScript implementation at this checkout. Native PHP progress still maps 14 local behavior tests and 78 local checks against the 1984-test upstream Mocha denominator; this is not full native PHP parity yet."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and lazy-loaded images, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, and mozilla-2 fixtures plus lazy-image cleanup semantics, and emits simple WordPress blocks.",
-        "phpBehaviorTests": 12
+        "currentSlice": "Native DOM extractor removes chrome and unlikely candidates, preserves in-main headers and allowed video/lazy-loaded media, removes generic unsafe iframe/embed/object nodes, scores semantic content containers, implements Mozilla-style isProbablyReaderable thresholds, extracts document/Parse.ly/OpenGraph titles and descriptions, exposes byline/site/published/dir/lang metadata fields including Parse.ly author/date selectors, maps the Mozilla normalize-spaces, parsely-metadata, mozilla-2, and embedded-videos fixtures plus lazy-image cleanup semantics, and emits simple WordPress blocks.",
+        "phpBehaviorTests": 14
     },
-    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, preserved lazy-loaded images, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, and OpenGraph site/lang/dir metadata.",
-    "nextTask": "Map another Mozilla media fixture such as embedded-videos/videos-2 or copy a full lazy-image fixture locally for closer expected-HTML parity."
+    "wordpressScenario": "Migration-aware article cleanup into clean WordPress blocks with page-builder navigation, comment widgets, share UI, surrounding theme chrome, preserved allowed video embeds and lazy-loaded images, and copied Mozilla fixture coverage for whitespace-normalized extraction, Parse.ly metadata, OpenGraph site/lang/dir metadata, and embedded-video source preservation.",
+    "nextTask": "Map Mozilla videos-2 or copy a full lazy-image fixture locally for closer expected-HTML parity, then broaden video/embed cleanup toward exact expected-HTML parity."
 }

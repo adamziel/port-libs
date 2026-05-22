@@ -59,8 +59,10 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/normalize-spaces` source/expected/metadata fixture copied into the lane and mapped for document-title precedence, readerable classification, null byline/site/published/dir metadata, whitespace-normalized excerpt, and extracted article text parity against `expected.html`.
 - Mozilla `test-pages/parsely-metadata` copied into the lane and mapped for Parse.ly title, author, publication date, readerable classification, excerpt normalization, and text parity.
 - Mozilla `test-pages/mozilla-2` copied into the lane and mapped for OpenGraph site name/description metadata, lang/dir extraction, false readerable classification, and preserved in-main header markers.
+- Mozilla `test-pages/embedded-videos` copied into the lane and mapped for readerable classification, excerpt normalization, and preservation of the five expected YouTube, YouTube-nocookie, and Vimeo iframe sources.
+- Mozilla default video whitelist cleanup semantics: generic `iframe`, `embed`, and `object` nodes are removed while allowed video hosts are retained.
 - Focused Mozilla lazy-image semantics for noscript fallback promotion, `data-old-src` placeholder preservation, and `data-srcset` promotion.
 
 ## Next Slice
 
-Map another Mozilla fixture that exercises non-null byline, `siteName`, `publishedTime`, `lang`/`dir`, or media handling, then broaden metadata/media cleanup toward full fixture parity.
+Map Mozilla `videos-2` or copy a full lazy-image fixture locally for closer expected-HTML parity, then broaden metadata/media cleanup toward full fixture parity.

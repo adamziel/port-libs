@@ -9,6 +9,7 @@ final class ArticleExtractor
     private const UNLIKELY_CANDIDATE_PATTERN = '/-ad-|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|disqus|extra|footer|gdpr|header|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i';
     private const OK_MAYBE_CANDIDATE_PATTERN = '/and|article|body|column|content|main|mathjax|shadow/i';
     private const SHARE_ELEMENT_PATTERN = '/(\b|_)(share|sharedaddy)(\b|_)/i';
+    private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
     private const UNLIKELY_ROLES = [
         'menu',
         'menubar',
@@ -34,6 +35,7 @@ final class ArticleExtractor
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
         }
+        $this->cleanUnsafeEmbeds($xpath);
         $this->removeUnlikelyCandidates($xpath);
 
         $title = $this->title($xpath, $dom);
@@ -424,6 +426,34 @@ final class ArticleExtractor
         foreach ($remove as $node) {
             $node->parentNode?->removeChild($node);
         }
+    }
+
+    private function cleanUnsafeEmbeds(\DOMXPath $xpath): void
+    {
+        $remove = [];
+        foreach ($xpath->query('//object|//embed|//iframe') ?: [] as $node) {
+            if (!$node instanceof \DOMElement || $this->isAllowedVideoEmbed($node)) {
+                continue;
+            }
+
+            $remove[] = $node;
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function isAllowedVideoEmbed(\DOMElement $node): bool
+    {
+        foreach ($node->attributes ?: [] as $attribute) {
+            if (preg_match(self::ALLOWED_VIDEO_PATTERN, $attribute->value) === 1) {
+                return true;
+            }
+        }
+
+        return strtolower($node->tagName) === 'object'
+            && preg_match(self::ALLOWED_VIDEO_PATTERN, $this->innerHtml($node)) === 1;
     }
 
     private function isNodeVisible(\DOMElement $node): bool

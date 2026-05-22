@@ -13,6 +13,21 @@ $fixtureText = static function (string $html): string {
 
     return trim(preg_replace('/\s+/', ' ', $dom->textContent) ?? '');
 };
+$iframeSources = static function (string $html): array {
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    $dom->loadHTML('<main>' . $html . '</main>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+
+    $sources = [];
+    $xpath = new DOMXPath($dom);
+    foreach ($xpath->query('//iframe[@src]/@src') ?: [] as $attribute) {
+        $sources[] = $attribute->nodeValue;
+    }
+
+    return $sources;
+};
 $normalizedText = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
 
 return [
@@ -143,6 +158,43 @@ return [
         $t->contains('Get to know the features that make it the most complete browser for building the Web.', $contentText);
         $t->contains('Features and tools', $contentText);
         $t->true(!str_contains($contentText, 'Interested in having a direct impact'), 'head comment text should not enter content');
+    },
+    'maps Mozilla embedded-videos fixture allowed iframe preservation' => static function (TestRunner $t) use ($fixtureText, $iframeSources, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/embedded-videos';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($iframeSources($expected), $iframeSources($article->contentHtml));
+        $t->same(5, count($iframeSources($article->contentHtml)));
+        $t->contains('At root', $fixtureText($article->contentHtml));
+        $t->contains('In a paragraph', $fixtureText($article->contentHtml));
+        $t->contains('In a div', $fixtureText($article->contentHtml));
+    },
+    'removes non-video embeds while preserving Mozilla allowed video hosts' => static function (TestRunner $t): void {
+        $source = '<article>'
+            . '<h1>Migration Video Cleanup</h1>'
+            . '<p>' . str_repeat('A WordPress migration keeps editorial video embeds but removes tracking widgets. ', 4) . '</p>'
+            . '<iframe src="https://www.youtube.com/embed/LtOGa5M8AuU"></iframe>'
+            . '<object data="https://player.vimeo.com/video/32246206"></object>'
+            . '<p>' . str_repeat('The cleaned article remains ready for block serialization and archival imports. ', 4) . '</p>'
+            . '<iframe src="https://tracker.example.test/ad-frame"></iframe>'
+            . '<embed src="https://widgets.example.test/chart.swf"></embed>'
+            . '</article>';
+
+        $article = (new ArticleExtractor())->extract($source);
+
+        $t->contains('https://www.youtube.com/embed/LtOGa5M8AuU', $article->contentHtml);
+        $t->contains('https://player.vimeo.com/video/32246206', $article->contentHtml);
+        $t->true(!str_contains($article->contentHtml, 'tracker.example.test'), 'generic iframe should be removed');
+        $t->true(!str_contains($article->contentHtml, 'widgets.example.test'), 'generic embed should be removed');
+        $t->contains('ready for block serialization', $article->text);
     },
     'maps Mozilla lazy-image noscript replacement semantics' => static function (TestRunner $t): void {
         $source = '<html lang="en"><head>'
