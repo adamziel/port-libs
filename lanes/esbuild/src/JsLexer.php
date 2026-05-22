@@ -59,7 +59,7 @@ final class JsLexer
                 $offset += strlen($m[0]);
                 continue;
             }
-            if (preg_match('/\G=>|===|!==|==|!=|<=|>=|\+\+|--|\+=|-=|\*=|\/=|%=|&&|\|\||[{}()[\].,;:?+\-*\/%<>=!@]/A', $source, $m, 0, $offset)) {
+            if (preg_match('/\G=>|===|!==|==|!=|<=|>=|\+\+|--|\+=|-=|\*=|\/=|%=|&&=|\|\|=|\?\?=|&&|\|\||[{}()[\].,;:?+\-*\/%<>=!@]/A', $source, $m, 0, $offset)) {
                 $tokens[] = new Token('punctuator', $m[0], $offset);
                 $offset += strlen($m[0]);
                 continue;

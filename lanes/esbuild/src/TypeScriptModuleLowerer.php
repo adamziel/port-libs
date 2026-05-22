@@ -1187,10 +1187,9 @@ final class TypeScriptModuleLowerer
             ));
         }
 
+        $body = $this->rewriteDeadFalseSuperCalls($body);
         foreach ($body as $index => $line) {
-            if (preg_match('/^(\s*)super\s*\(/', $line, $match) === 1
-                || preg_match('/(^|[^\w$])super\s*\(/', $line) === 1
-            ) {
+            if (preg_match('/^(\s*)super\s*\(/', $line, $match) === 1) {
                 $indent = $match[1] ?? '';
                 $prefixedAssignments = array_map(static fn (string $assignment): string => $indent . $assignment, $assignments);
                 array_splice($body, $index + 1, 0, $prefixedAssignments);
@@ -1209,12 +1208,42 @@ final class TypeScriptModuleLowerer
      */
     private function constructorNeedsSuperHelper(array $body): bool
     {
-        $superCalls = 0;
+        $liveSuperCalls = 0;
         foreach ($body as $line) {
-            $superCalls += preg_match_all('/(^|[^\w$])super\s*\(/', $line);
+            $superCalls = preg_match_all('/(^|[^\w$])super\s*\(/', $line);
+            if ($superCalls === 0 || $this->isDeadFalseSuperLine($line)) {
+                continue;
+            }
+
+            $liveSuperCalls += $superCalls;
+            if ($superCalls > 1 || !$this->constructorLineHasDirectSuperCall($line)) {
+                return true;
+            }
         }
 
-        return $superCalls > 1;
+        return $liveSuperCalls > 1;
+    }
+
+    private function constructorLineHasDirectSuperCall(string $line): bool
+    {
+        return preg_match('/^\s*super\s*\(/', $line) === 1;
+    }
+
+    private function isDeadFalseSuperLine(string $line): bool
+    {
+        return preg_match('/^\s*if\s*\(\s*false\s*\)\s*super\s*\(/', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $body
+     * @return list<string>
+     */
+    private function rewriteDeadFalseSuperCalls(array $body): array
+    {
+        return array_map(
+            static fn (string $line): string => preg_replace('/^(\s*if\s*\(\s*false\s*\)\s*)super\s*\(/', '$1__super(', $line) ?? $line,
+            $body,
+        );
     }
 
     /**
@@ -2985,7 +3014,7 @@ final class TypeScriptModuleLowerer
 
     private function needsSpace(string $previous, string $current): bool
     {
-        if (in_array($previous, ['=', '=>'], true) || in_array($current, ['=', '=>'], true)) {
+        if (in_array($previous, ['=', '=>', '&&=', '||=', '??='], true) || in_array($current, ['=', '=>', '&&=', '||=', '??='], true)) {
             return true;
         }
         if ($previous === ')' && $current === '{') {

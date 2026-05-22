@@ -496,6 +496,40 @@ class A extends B {
 }
 JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { if (foo) super(1); else super(2); } }', false));
     },
+    'wraps upstream logical assignment derived super calls for assign semantics fields' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor() {
+    var __super = (...args) => {
+      super(...args);
+      this.x = 1;
+      return this;
+    };
+    foo();
+    y ||= __super(1);
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { x = 1; constructor() { foo(); y ||= super(1); } }', false));
+
+        $uninitialized = $lowerer->lower('class A extends B { x; constructor() { foo(); y ||= super(1); } }', false);
+        $t->contains('y ||= super(1);', $uninitialized);
+        $t->true(!str_contains($uninitialized, '__super'));
+    },
+    'keeps upstream dead false super branches outside the helper path' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    if (false) __super(1);
+    super(2);
+    this.x = x;
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { if (false) super(1); super(2); } }', false));
+    },
     'injects upstream assign semantics fields into one line derived constructors' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -672,6 +706,19 @@ JS . "\n", $lowerer->lower('class A extends B { x = 1; constructor() { foo(); su
         $t->contains('this.blockName = blockName;', $lowered);
         $t->contains('if (previewMode) __super(metadata);', $lowered);
         $t->contains('else __super({name:blockName});', $lowered);
+        $t->contains('this.blocks.registerBlockType(this.blockName, this.settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress lazy super controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-lazy-super-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('var __super = (...args) => {', $lowered);
+        $t->contains('super(...args);', $lowered);
+        $t->contains('this.blockName = metadata.name;', $lowered);
+        $t->contains('this.settings = {supports:{html:false}};', $lowered);
+        $t->contains('ready ||= __super(metadata);', $lowered);
         $t->contains('this.blocks.registerBlockType(this.blockName, this.settings);', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
