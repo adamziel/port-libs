@@ -7,6 +7,7 @@ namespace PortLibs\Difftastic;
 final class TokenDiffer
 {
     private const BASE_DELIMITER_PAIRS = ['(' => ')', '[' => ']', '{' => '}'];
+    private const DEFAULT_BYTE_LIMIT = 1_000_000;
 
     /**
      * @param array{language?: string} $options
@@ -285,11 +286,18 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int} $options
      * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
      */
     public function diffSyntaxLists(string $old, string $new, array $options = []): array
     {
+        if ($old !== $new) {
+            $fallbackReason = $this->textFallbackReason($old, $new, $options);
+            if ($fallbackReason !== null) {
+                return $this->diffTextFallback($old, $new, $fallbackReason);
+            }
+        }
+
         $delimiterPairs = $this->delimiterPairs($options);
         $oldForRoot = $this->isHtmlLanguage($options) ? $this->stripHtmlRawBlockBodies($old) : $old;
         $newForRoot = $this->isHtmlLanguage($options) ? $this->stripHtmlRawBlockBodies($new) : $new;
@@ -339,6 +347,266 @@ final class TokenDiffer
         }
 
         return $changes;
+    }
+
+    /**
+     * @param array{language?: string, byteLimit?: int, parseErrorLimit?: int} $options
+     */
+    public function textFallbackReason(string $old, string $new, array $options = [], ?string $languageName = null): ?string
+    {
+        return $this->byteLimitFallbackReason($old, $new, $options)
+            ?? $this->syntaxErrorFallbackReason($old, $new, $options, $languageName);
+    }
+
+    /**
+     * @param array{language?: string, byteLimit?: int} $options
+     */
+    public function byteLimitFallbackReason(string $old, string $new, array $options = []): ?string
+    {
+        if (!$this->usesTextFallback($options)) {
+            return null;
+        }
+
+        $limit = max(0, (int) ($options['byteLimit'] ?? self::DEFAULT_BYTE_LIMIT));
+        $oldBytes = strlen($old);
+        $newBytes = strlen($new);
+        if ($oldBytes <= $limit && $newBytes <= $limit) {
+            return null;
+        }
+
+        return $this->formatBinarySize(max($oldBytes, $newBytes)) . ' exceeded DFT_BYTE_LIMIT';
+    }
+
+    /**
+     * @param array{language?: string, parseErrorLimit?: int} $options
+     */
+    public function syntaxErrorFallbackReason(string $old, string $new, array $options = [], ?string $languageName = null): ?string
+    {
+        if (!$this->usesParseErrorFallback($options)) {
+            return null;
+        }
+
+        $limit = max(0, (int) ($options['parseErrorLimit'] ?? 0));
+        $errorCount = $this->syntaxErrorCount($old, $options) + $this->syntaxErrorCount($new, $options);
+        if ($errorCount <= $limit) {
+            return null;
+        }
+
+        $languageName ??= $this->displayLanguageName($options);
+
+        return $errorCount . ' ' . $languageName . ' parse error' . ($errorCount === 1 ? '' : 's') . ', exceeded DFT_PARSE_ERROR_LIMIT';
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    public function syntaxErrorCount(string $source, array $options = []): int
+    {
+        if (!$this->usesParseErrorFallback($options)) {
+            return 0;
+        }
+
+        $delimiterPairs = $this->delimiterPairs($options);
+        $closeToOpen = array_flip($delimiterPairs);
+        $stack = [];
+        $errors = 0;
+
+        foreach ($this->tokenize($source, $options) as $token) {
+            if ($token->kind === 'comment' || $token->kind === 'string') {
+                continue;
+            }
+
+            if (isset($delimiterPairs[$token->text])) {
+                $stack[] = $token->text;
+                continue;
+            }
+
+            if (isset($closeToOpen[$token->text])) {
+                $expectedOpen = $closeToOpen[$token->text];
+                if ($stack !== [] && $stack[array_key_last($stack)] === $expectedOpen) {
+                    array_pop($stack);
+                    continue;
+                }
+
+                $errors++;
+            }
+        }
+
+        return $errors + count($stack);
+    }
+
+    /**
+     * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
+     */
+    private function diffTextFallback(string $old, string $new, string $reason): array
+    {
+        $oldLines = $this->fallbackLines($old);
+        $newLines = $this->fallbackLines($new);
+        $table = $this->lcsTable($oldLines, $newLines);
+        $changes = [[
+            'op' => '~',
+            'path' => '$text.fallback',
+            'old' => 'Text (' . $reason . ')',
+            'new' => 'line-oriented diff',
+        ]];
+        $deleted = [];
+        $inserted = [];
+        $i = 0;
+        $j = 0;
+
+        while ($i < count($oldLines) && $j < count($newLines)) {
+            if ($oldLines[$i] === $newLines[$j]) {
+                $this->flushFallbackLineChanges($changes, $deleted, $inserted);
+                $i++;
+                $j++;
+                continue;
+            }
+
+            if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
+                $deleted[] = ['index' => $i, 'text' => $oldLines[$i]];
+                $i++;
+            } else {
+                $inserted[] = ['index' => $j, 'text' => $newLines[$j]];
+                $j++;
+            }
+        }
+
+        while ($i < count($oldLines)) {
+            $deleted[] = ['index' => $i, 'text' => $oldLines[$i]];
+            $i++;
+        }
+        while ($j < count($newLines)) {
+            $inserted[] = ['index' => $j, 'text' => $newLines[$j]];
+            $j++;
+        }
+
+        $this->flushFallbackLineChanges($changes, $deleted, $inserted);
+
+        return $changes;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fallbackLines(string $source): array
+    {
+        $lines = preg_split('/\r\n|\n|\r/', $source);
+        if ($lines === false) {
+            return [$source];
+        }
+        if ($source !== '' && preg_match('/(?:\r\n|\n|\r)$/', $source) === 1 && end($lines) === '') {
+            array_pop($lines);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     * @param list<array{index:int, text:string}> $deleted
+     * @param list<array{index:int, text:string}> $inserted
+     */
+    private function flushFallbackLineChanges(array &$changes, array &$deleted, array &$inserted): void
+    {
+        $pairs = min(count($deleted), count($inserted));
+        for ($index = 0; $index < $pairs; $index++) {
+            $changes[] = [
+                'op' => '~',
+                'path' => '$text.line[' . $deleted[$index]['index'] . ']',
+                'old' => $deleted[$index]['text'],
+                'new' => $inserted[$index]['text'],
+            ];
+        }
+
+        for ($index = $pairs; $index < count($deleted); $index++) {
+            $changes[] = [
+                'op' => '-',
+                'path' => '$text.line[' . $deleted[$index]['index'] . ']',
+                'text' => $deleted[$index]['text'],
+            ];
+        }
+        for ($index = $pairs; $index < count($inserted); $index++) {
+            $changes[] = [
+                'op' => '+',
+                'path' => '$text.line[' . $inserted[$index]['index'] . ']',
+                'text' => $inserted[$index]['text'],
+            ];
+        }
+
+        $deleted = [];
+        $inserted = [];
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function usesParseErrorFallback(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), [
+            'css',
+            'hack',
+            'javascript',
+            'js',
+            'json',
+            'php',
+            'rust',
+            'scss',
+            'ts',
+            'typescript',
+            'yaml',
+            'yml',
+        ], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function usesTextFallback(array $options): bool
+    {
+        $language = strtolower((string) ($options['language'] ?? ''));
+        if ($language === '') {
+            return false;
+        }
+
+        return !in_array($language, ['plain', 'plain-text', 'plaintext', 'text'], true);
+    }
+
+    private function formatBinarySize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+
+        $value = (float) $bytes;
+        foreach (['KiB', 'MiB', 'GiB', 'TiB'] as $unit) {
+            $value /= 1024;
+            if ($value < 1024 || $unit === 'TiB') {
+                return number_format($value, 1, '.', '') . ' ' . $unit;
+            }
+        }
+
+        return $bytes . ' B';
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function displayLanguageName(array $options): string
+    {
+        return match (strtolower((string) ($options['language'] ?? ''))) {
+            'css' => 'CSS',
+            'hack' => 'Hack',
+            'javascript', 'js' => 'JavaScript',
+            'json' => 'JSON',
+            'jsx' => 'JavaScript JSX',
+            'php' => 'PHP',
+            'rust' => 'Rust',
+            'scss' => 'SCSS',
+            'ts', 'typescript' => 'TypeScript',
+            'tsx' => 'TypeScript TSX',
+            'yaml', 'yml' => 'YAML',
+            default => 'Text',
+        };
     }
 
     /**

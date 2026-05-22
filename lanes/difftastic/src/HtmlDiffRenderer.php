@@ -38,7 +38,7 @@ final class HtmlDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, title?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int, title?: string} $options
      */
     public function renderSyntaxListDiff(string $old, string $new, array $options = []): string
     {

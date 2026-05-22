@@ -810,6 +810,30 @@ return [
         $t->true(!str_contains($html, '<del>&#039;acme.card.init&#039;</del><ins>&#039;acme.card.analytics&#039;</ins>'), 'A newly inserted hook callback should not be paired with the retained init hook by callee name alone.');
         $t->true(!str_contains($html, 'data-op="-" data-path="$js.call[&quot;wp.hooks.addFilter&quot;]"'), 'The stable addFilter registration should remain matched.');
     },
+    'wordpress block editor javascript syntax errors fall back to text diff' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-syntax-error-before.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-syntax-error-after.js');
+        $differ = new TokenDiffer();
+        $changes = $differ->diffSyntaxLists($before, $after, ['language' => 'javascript']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'javascript',
+            'title' => 'Block editor JavaScript parse fallback diff',
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->same('6 JavaScript parse errors, exceeded DFT_PARSE_ERROR_LIMIT', $differ->syntaxErrorFallbackReason($before, $after, ['language' => 'javascript']));
+        $t->contains('~ $text.fallback Text (6 JavaScript parse errors, exceeded DFT_PARSE_ERROR_LIMIT) line-oriented diff', $encoded);
+        $t->contains('~ $text.line[4]', $encoded);
+        $t->contains('Legacy panel', $encoded);
+        $t->contains('Modern panel', $encoded);
+        $t->contains('+ $text.line[6]     scope: \'edit\',', $encoded);
+        $t->true(!str_contains($encoded, '$js.call["registerPlugin"]'), 'Parse-error fallback should avoid misleading structured JavaScript call matching.');
+        $t->contains('data-path="$text.fallback"', $html);
+        $t->contains('Text (6 JavaScript parse errors, exceeded DFT_PARSE_ERROR_LIMIT)', $html);
+    },
     'wordpress block editor typescript props diff keeps retained props aligned' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-props-before.ts');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-props-after.ts');
@@ -1092,6 +1116,91 @@ return [
         $t->contains('lhs line 1 "javascript":string', $encoded);
         $t->contains('rhs line 1 "module":string', $encoded);
         $t->contains('rhs line 2 "./supports.json":string', $encoded);
+    },
+    'json display labels wordpress javascript parse fallback as text' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-syntax-error-before.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-syntax-error-after.js');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/sidebar.js',
+            'JavaScript',
+            ['language' => 'javascript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Text (6 JavaScript parse errors, exceeded DFT_PARSE_ERROR_LIMIT)', $decoded['language']);
+        $t->same('wp-content/plugins/acme-card/sidebar.js', $decoded['path']);
+        $t->same('changed', $decoded['status']);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs Legacy:string', $encoded);
+        $t->contains('rhs Modern:string', $encoded);
+        $t->contains('rhs scope:normal', $encoded);
+    },
+    'wordpress oversized php render metadata falls back to text diff' => static function (TestRunner $t): void {
+        $before = "<?php\nreturn [\n    'render_callback' => 'acme_render_legacy_card',\n    'supports' => ['html' => false],\n];\n";
+        $after = "<?php\nreturn [\n    'render_callback' => 'acme_render_modern_card',\n    'supports' => ['html' => true, 'align' => ['wide']],\n];\n";
+        $differ = new TokenDiffer();
+        $expectedReason = max(strlen($before), strlen($after)) . ' B exceeded DFT_BYTE_LIMIT';
+        $changes = $differ->diffSyntaxLists($before, $after, [
+            'language' => 'php',
+            'byteLimit' => 80,
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes,
+        ));
+
+        $t->same($expectedReason, $differ->byteLimitFallbackReason($before, $after, [
+            'language' => 'php',
+            'byteLimit' => 80,
+        ]));
+        $t->contains('~ $text.fallback Text (' . $expectedReason . ') line-oriented diff', $encoded);
+        $t->contains('~ $text.line[2]', $encoded);
+        $t->contains('acme_render_legacy_card', $encoded);
+        $t->contains('acme_render_modern_card', $encoded);
+        $t->true(!str_contains($encoded, '$php.function'), 'Byte-limit fallback should not pretend to have a complete PHP syntax tree.');
+    },
+    'json display labels wordpress byte limit fallback as text' => static function (TestRunner $t): void {
+        $before = "<?php\nreturn [\n    'render_callback' => 'acme_render_legacy_card',\n    'supports' => ['html' => false],\n];\n";
+        $after = "<?php\nreturn [\n    'render_callback' => 'acme_render_modern_card',\n    'supports' => ['html' => true, 'align' => ['wide']],\n];\n";
+        $expectedReason = max(strlen($before), strlen($after)) . ' B exceeded DFT_BYTE_LIMIT';
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/render-metadata.php',
+            'PHP',
+            ['language' => 'php', 'byteLimit' => 80],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Text (' . $expectedReason . ')', $decoded['language']);
+        $t->same('wp-content/plugins/acme-card/render-metadata.php', $decoded['path']);
+        $t->same('changed', $decoded['status']);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains("lhs 'acme_render_legacy_card':string", $encoded);
+        $t->contains("rhs 'acme_render_modern_card':string", $encoded);
+        $t->contains('rhs true:normal', $encoded);
     },
     'wordpress block copy display reports description string word changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-copy-before.json');

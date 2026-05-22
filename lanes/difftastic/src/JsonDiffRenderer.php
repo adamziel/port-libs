@@ -12,7 +12,7 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int} $options
      */
     public function renderFileDiff(string $old, string $new, string $path, string $language, array $options = []): string
     {
@@ -23,7 +23,7 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param list<array{old:string, new:string, path:string, language:string, options?:array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string}}> $files
+     * @param list<array{old:string, new:string, path:string, language:string, options?:array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int}}> $files
      */
     public function renderDirectoryDiff(array $files, bool $printUnchanged = false): string
     {
@@ -45,12 +45,12 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int} $options
      * @return array<string, mixed>
      */
     public function fileDiff(string $old, string $new, string $path, string $language, array $options = []): array
     {
-        if (!$this->differ->hasChanges($old, $new, $options)) {
+        if ($old === $new) {
             return $this->statusFile($language, $path, 'unchanged');
         }
         if ($old === '') {
@@ -60,6 +60,12 @@ final class JsonDiffRenderer
             return $this->statusFile($language, $path, 'deleted');
         }
 
+        $fallbackReason = $this->differ->textFallbackReason($old, $new, $options, $language);
+        if ($fallbackReason === null && !$this->differ->hasChanges($old, $new, $options)) {
+            return $this->statusFile($language, $path, 'unchanged');
+        }
+
+        $displayLanguage = $fallbackReason === null ? $language : 'Text (' . $fallbackReason . ')';
         [$alignedLines, $chunks] = $this->changedSections($old, $new, $options);
 
         $file = [];
@@ -69,7 +75,7 @@ final class JsonDiffRenderer
         if ($chunks !== []) {
             $file['chunks'] = $chunks;
         }
-        $file['language'] = $language;
+        $file['language'] = $displayLanguage;
         $file['path'] = $path;
         $file['status'] = 'changed';
 

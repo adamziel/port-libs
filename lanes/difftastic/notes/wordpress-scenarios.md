@@ -68,6 +68,10 @@ Standalone JavaScript mode now maps the upstream `sample_files/javascript_simple
 
 Standalone JavaScript mode now also maps the larger upstream `sample_files/javascript_*.js` repeated callback shape. Named callback calls such as Jest `describe(...)` / `test(...)` and WordPress `wp.hooks.addAction(...)` / `addFilter(...)` use their first string label plus enclosing named callback labels when matching repeated calls. The WordPress hook-registration fixture applies this to a block plugin `view.js` change where a new analytics action is inserted before the retained `acme.card.init` callback; the diff reports the new hook and the added `bindCard()` call without pairing the retained init hook with the analytics hook by callee name alone.
 
+JavaScript mode now also maps upstream parse-error fallback semantics from `DEFAULT_PARSE_ERROR_LIMIT=0`, `to_syntax_with_limit`, and the CLI `yaml_parse_errors` fallback test. The WordPress block editor syntax-error fixture compares a partial `registerPlugin(...)` edit with an unclosed object literal. Because the combined native delimiter parse-error count exceeds the limit, syntax-list output switches to escaped line-oriented `$text.line[...]` changes and compact JSON display labels the file as `Text (... exceeded DFT_PARSE_ERROR_LIMIT)` instead of showing misleading `$js.call[...]` structural matches.
+
+Supported-language byte-limit fallback now maps upstream `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, and `TextFallback` behavior. The WordPress render metadata example lowers the limit to exercise the path with a bounded PHP block metadata change: render callback and support changes are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (... exceeded DFT_BYTE_LIMIT)` instead of attempting an incomplete structural diff.
+
 TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
 
 TypeScript mode now also maps module import/export declaration lists using the upstream TypeScript parser configuration's delimiter-list semantics. The WordPress block module fixture applies this to `index.ts` registration code where `BlockConfiguration`, `sprintf`, and `deprecatedSave` are inserted into existing import/export lists. Retained imports such as `__` and retained exports such as `save` stay aligned under `$ts.import[...]` and `$ts.export.local[...]` paths instead of being shown as deleted and re-added whole module statements.
@@ -94,6 +98,8 @@ php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
 php lanes/difftastic/examples/wordpress-multi-asset-html-diff.php
 php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
+php lanes/difftastic/examples/wordpress-block-editor-syntax-error-js-diff.php
+php lanes/difftastic/examples/wordpress-byte-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-assets-ts-diff.php
@@ -119,4 +125,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map a small structured syntax-error fallback fixture for WordPress block/editor JavaScript diffs.
+Map graph-limit text fallback semantics against upstream Dijkstra behavior, or broaden parse-error fallback beyond delimiter-shaped JavaScript/TypeScript/CSS/JSON/PHP/Rust/YAML errors.
