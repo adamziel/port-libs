@@ -222,6 +222,29 @@ TS);
         $t->same("var x = null;\n", $optimized);
         $t->true(!str_contains($optimized, '__using'));
     },
+    'erases upstream function scoped typescript using declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+function foo() {
+  using x = y;
+}
+JS . "\n", $lowerer->lower('function foo() { using x: Disposable = y }'));
+
+        $t->same(<<<'JS'
+foo = function() {
+  using x = y;
+};
+JS . "\n", $lowerer->lower('foo = function() { using x: Disposable = y }'));
+
+        $t->same(<<<'JS'
+foo = async () => {
+  await using x = y;
+};
+JS . "\n", $lowerer->lower('foo = async () => { await using x: Disposable = y }'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('function foo() { await using x: Disposable = y }'));
+    },
     'erases upstream ambient typescript declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1061,5 +1084,17 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $legacyLowered);
         $t->true(strpos($legacyLowered, 'var __using') < strpos($legacyLowered, 'try {'));
         $t->true(!str_contains($legacyLowered, '@wordpress/blocks'));
+    },
+    'lowers wordpress function scoped disposable asset handles without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-function-using-disposable.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('export function registerPreviewAsset(metadata) {', $lowered);
+        $t->contains('using previewAsset = acquirePreviewAsset(metadata.viewScript);', $lowered);
+        $t->contains('const settings = { name: metadata.name, viewScript: previewAsset.url };', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
     },
 ];

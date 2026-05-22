@@ -86,6 +86,14 @@ final class TypeScriptModuleLowerer
             $end = $this->findStatementEndForLowering($i);
             $effectiveEnd = $this->withoutTrailingSemicolon($end);
 
+            $functionUsingStatement = $this->lowerFunctionBodyUsingStatementAt($i, $effectiveEnd);
+            if ($functionUsingStatement !== null) {
+                [$functionOutput, $functionEnd] = $functionUsingStatement;
+                $lines[] = $functionOutput;
+                $i = $functionEnd;
+                continue;
+            }
+
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === '=') {
                 if ($i + 2 > $effectiveEnd) {
                     throw new \InvalidArgumentException('Expected expression after TypeScript export equals');
@@ -3326,6 +3334,150 @@ final class TypeScriptModuleLowerer
         return $statement;
     }
 
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function lowerFunctionBodyUsingStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        $bodyOpen = $this->findTopLevelBlockOpenBeforeStatementEnd($start);
+        if ($bodyOpen === null || $bodyOpen > $effectiveEnd || !$this->isFunctionLikeBodyHeader($start, $bodyOpen)) {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd) {
+            return null;
+        }
+
+        [$bodyLines, $changed] = $this->lowerFunctionBodyUsingStatements(
+            $bodyOpen + 1,
+            $bodyClose,
+            $this->isAsyncFunctionLikeHeader($start, $bodyOpen),
+        );
+        if (!$changed) {
+            return null;
+        }
+
+        $header = rtrim(substr(
+            $this->source,
+            $this->tokens[$start]->offset,
+            $this->tokens[$bodyOpen]->offset - $this->tokens[$start]->offset,
+        ));
+        $lines = [$header . ' {'];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
+        }
+        $lines[] = '}' . ($this->functionLikeStatementNeedsSemicolon($start) ? ';' : '');
+
+        return [implode("\n", $lines), $bodyClose];
+    }
+
+    private function isFunctionLikeBodyHeader(int $start, int $bodyOpen): bool
+    {
+        for ($i = $start; $i < $bodyOpen; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null || !$this->isTopLevelInRange($start, $i)) {
+                continue;
+            }
+
+            if ($token->text === 'function' || $token->text === '=>') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isAsyncFunctionLikeHeader(int $start, int $bodyOpen): bool
+    {
+        $header = substr(
+            $this->source,
+            $this->tokens[$start]->offset,
+            $this->tokens[$bodyOpen]->offset - $this->tokens[$start]->offset,
+        );
+
+        return preg_match('/(?:^|[^A-Za-z0-9_$])async\s*(?:function\b|\()/u', $header) === 1;
+    }
+
+    private function functionLikeStatementNeedsSemicolon(int $start): bool
+    {
+        $first = ($this->tokens[$start] ?? null)?->text;
+        $second = ($this->tokens[$start + 1] ?? null)?->text;
+        $third = ($this->tokens[$start + 2] ?? null)?->text;
+        $fourth = ($this->tokens[$start + 3] ?? null)?->text;
+
+        return !($first === 'function'
+            || ($first === 'async' && $second === 'function')
+            || ($first === 'export' && ($second === 'function' || ($second === 'async' && $third === 'function')))
+            || ($first === 'export' && $second === 'default' && ($third === 'function' || ($third === 'async' && $fourth === 'function'))));
+    }
+
+    /**
+     * @return array{0:list<string>, 1:bool}
+     */
+    private function lowerFunctionBodyUsingStatements(int $start, int $bodyClose, bool $isAsyncFunction): array
+    {
+        $lines = [];
+        $changed = false;
+        for ($cursor = $start; $cursor < $bodyClose; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                continue;
+            }
+
+            $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
+            if ($this->isUsingDeclarationStart($cursor)) {
+                $using = $this->parseUsingDeclaration($cursor, $this->withoutTrailingSemicolon($statementEnd));
+                if ($using['await'] && !$isAsyncFunction) {
+                    throw new \InvalidArgumentException('Cannot use await using inside a non-async function');
+                }
+                $lines[] = $this->printUsingDeclaration($using, allowHelperLowering: false);
+                $changed = true;
+                $cursor = $statementEnd;
+                continue;
+            }
+
+            $line = $this->containsErasableTypeScriptSyntax($cursor, $statementEnd) || $this->containsInlineableEnumReference($cursor, $statementEnd)
+                ? $this->printRuntimeStatement($cursor, $statementEnd)
+                : $this->originalStatementText($cursor, $statementEnd);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+            $cursor = $statementEnd;
+        }
+
+        return [$lines, $changed];
+    }
+
+    private function functionBodyStatementEnd(int $start, int $bodyClose): int
+    {
+        if ($this->isUsingDeclarationStart($start)) {
+            return min($this->findUsingDeclarationEnd($start), $bodyClose - 1);
+        }
+
+        $depth = 0;
+        for ($i = $start; $i < $bodyClose; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($text === ';' && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return max($start, $bodyClose - 1);
+    }
+
     private function containsInlineableEnumReference(int $start, int $end): bool
     {
         for ($i = $start; $i <= $end; $i++) {
@@ -3788,16 +3940,16 @@ final class TypeScriptModuleLowerer
     /**
      * @param array{await:bool, declarations:list<array{name:string, valueStart:int, valueEnd:int}>} $using
      */
-    private function printUsingDeclaration(array $using): string
+    private function printUsingDeclaration(array $using, bool $allowHelperLowering = true): string
     {
         $canSkipUsingMachinery = !$using['await'] && $this->usingDeclarationsCanSkipUsingMachinery($using);
         if ($this->minifySyntax && $canSkipUsingMachinery) {
-            $kind = $this->lowerUsingDeclarations ? 'var' : 'const';
+            $kind = $this->lowerUsingDeclarations && $allowHelperLowering ? 'var' : 'const';
 
             return $kind . ' ' . $this->printUsingDeclarators($using['declarations'], false) . ';';
         }
 
-        if ($this->lowerUsingDeclarations) {
+        if ($this->lowerUsingDeclarations && $allowHelperLowering) {
             $this->hasLoweredUsingDeclarations = true;
             if ($using['await']) {
                 $this->hasLoweredAwaitUsingDeclarations = true;
