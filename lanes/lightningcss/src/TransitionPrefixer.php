@@ -33,7 +33,7 @@ final class TransitionPrefixer
         return $this->rewriteRuleList((new CssMinifier())->minify($css));
     }
 
-    private function rewriteRuleList(string $css): string
+    private function rewriteRuleList(string $css, bool $insideAdvancedColorSupports = false): string
     {
         $output = '';
         $cursor = 0;
@@ -50,9 +50,12 @@ final class TransitionPrefixer
             $prelude = trim(substr($css, $cursor, $open - $cursor));
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
-                $output .= $prelude . '{' . $this->rewriteRuleList($body) . '}';
+                $output .= $prelude . '{' . $this->rewriteRuleList(
+                    $body,
+                    $insideAdvancedColorSupports || $this->isAdvancedColorSupportsPrelude($prelude)
+                ) . '}';
             } else {
-                $output .= $this->rewriteStyleRule($prelude, $body);
+                $output .= $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports);
             }
             $cursor = $close + 1;
         }
@@ -60,7 +63,7 @@ final class TransitionPrefixer
         return $output;
     }
 
-    private function rewriteStyleRule(string $selectors, string $body): string
+    private function rewriteStyleRule(string $selectors, string $body, bool $insideAdvancedColorSupports): string
     {
         $entries = $this->parseDeclarations($body);
         if ($entries === null) {
@@ -88,11 +91,20 @@ final class TransitionPrefixer
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged) {
+        $colorChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
+        if ($transitionChanged || $maskChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
         return $selectors . '{' . $body . '}';
+    }
+
+    private function isAdvancedColorSupportsPrelude(string $prelude): bool
+    {
+        return preg_match('/^@supports\b/i', $prelude) === 1
+            && preg_match('/:\s*(?:lab|lch|oklab|oklch|color)\(/i', $prelude) === 1;
     }
 
     /**
@@ -278,6 +290,67 @@ final class TransitionPrefixer
             }
             array_push($rewritten, ...$mapped);
             $changed = $changed || $entryChanged;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     */
+    private function rewriteAdvancedColorFallbackEntries(array &$entries, string $selectors, array &$supportRules): bool
+    {
+        $changed = false;
+        $rewritten = [];
+        $p3SupportEntries = [];
+        $labSupportEntries = [];
+
+        foreach ($entries as $entry) {
+            if (!in_array($entry['property'], ['background', 'background-color', 'background-image'], true)) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $normalized = $this->normalizeBackgroundFallbackValue($entry['value']);
+            $srgbFallback = $this->advancedColorFallbackValue($normalized);
+            if ($srgbFallback === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $p3Fallback = $this->advancedColorP3FallbackValue($normalized);
+            $labFallback = $this->advancedColorLabFallbackValue($normalized);
+            $property = $entry['property'];
+            $important = $entry['important'];
+            $rewritten[] = $this->declarationEntry($property, $srgbFallback, $important);
+            $changed = true;
+
+            if ($this->containsCustomPropertyReference($normalized)) {
+                if ($p3Fallback !== null && $p3Fallback !== $srgbFallback) {
+                    $p3SupportEntries[] = $this->declarationEntry($property, $p3Fallback, $important);
+                }
+                if ($labFallback !== null && $labFallback !== $srgbFallback) {
+                    $labSupportEntries[] = $this->declarationEntry($property, $labFallback, $important);
+                }
+                continue;
+            }
+
+            if ($p3Fallback !== null && $p3Fallback !== $srgbFallback && $p3Fallback !== $normalized) {
+                $rewritten[] = $this->declarationEntry($property, $p3Fallback, $important);
+            }
+
+            $entry['value'] = $normalized;
+            $rewritten[] = $entry;
+        }
+
+        if ($p3SupportEntries !== []) {
+            $supportRules[] = $this->supportsP3Rule($selectors, $p3SupportEntries);
+        }
+        if ($labSupportEntries !== []) {
+            $supportRules[] = $this->supportsLabRule($selectors, $labSupportEntries);
         }
 
         $entries = $rewritten;
@@ -830,6 +903,14 @@ final class TransitionPrefixer
         );
     }
 
+    private function advancedColorP3FallbackValue(string $value): ?string
+    {
+        return $this->mapAdvancedColorValue(
+            $value,
+            fn (string $color): ?string => $this->knownAdvancedColorP3Fallback($color)
+        );
+    }
+
     private function advancedColorLabFallbackValue(string $value): ?string
     {
         return $this->mapAdvancedColorValue(
@@ -851,7 +932,7 @@ final class TransitionPrefixer
         $matched = false;
         $unknown = false;
         $fallback = preg_replace_callback(
-            '/\b(lch|lab)\(([^()]*)\)/i',
+            '/\b(lch|lab|oklab|oklch|color)\(([^()]*)\)/i',
             function (array $matches) use (&$matched, &$unknown, $mapper): string {
                 $matched = true;
                 $normalized = strtolower($matches[1]) . '(' . $this->normalizeColorFunctionArguments($matches[2]) . ')';
@@ -885,10 +966,34 @@ final class TransitionPrefixer
     private function knownAdvancedColorFallback(string $color): ?string
     {
         return match ($color) {
+            'lab(40% 56.6 39)' => '#b32323',
+            'lab(51.5117% 43.3777 -29.0443)' => '#af5cae',
+            'lab(52.2319% 40.1449 59.9171)',
+            'oklab(59.686% 0.1009 0.1192)' => '#c65d07',
+            'lab(47.7776% -34.2947 -7.65904)',
+            'oklab(54.0% -0.10 -0.02)' => '#00807c',
             'lch(56.208% 136.76 46.312)',
             'lab(56.208% 94.4644 98.8928)' => '#ff0f0e',
             'lch(51% 135.366 301.364)',
             'lab(51% 70.4544 -115.586)' => '#7773ff',
+            'color(display-p3 0 .5 1)' => '#4263eb',
+            'color(display-p3 0 1 0)' => '#00f942',
+            default => null,
+        };
+    }
+
+    private function knownAdvancedColorP3Fallback(string $color): ?string
+    {
+        return match ($color) {
+            'lab(40% 56.6 39)' => 'color(display-p3 .643308 .192455 .167712)',
+            'lab(52.2319% 40.1449 59.9171)',
+            'oklab(59.686% 0.1009 0.1192)' => 'color(display-p3 .724144 .386777 .148795)',
+            'lch(56.208% 136.76 46.312)',
+            'lab(56.208% 94.4644 98.8928)' => 'color(display-p3 1 .0000153435 -.00000303562)',
+            'lch(51% 135.366 301.364)',
+            'lab(51% 70.4544 -115.586)' => 'color(display-p3 .440289 .28452 1.23485)',
+            'lch(50.998% 135.363 338)',
+            'lab(50.998% 125.506 -50.7078)' => 'color(display-p3 .972962 -.362078 .804206)',
             default => null,
         };
     }
@@ -896,10 +1001,18 @@ final class TransitionPrefixer
     private function knownAdvancedColorLabFallback(string $color): ?string
     {
         return match ($color) {
+            'lab(40% 56.6 39)' => 'lab(40% 56.6 39)',
+            'lab(51.5117% 43.3777 -29.0443)' => 'lab(51.5117% 43.3777 -29.0443)',
+            'lab(52.2319% 40.1449 59.9171)',
+            'oklab(59.686% 0.1009 0.1192)' => 'lab(52.2319% 40.1449 59.9171)',
+            'lab(47.7776% -34.2947 -7.65904)',
+            'oklab(54.0% -0.10 -0.02)' => 'lab(47.7776% -34.2947 -7.65904)',
             'lch(56.208% 136.76 46.312)',
             'lab(56.208% 94.4644 98.8928)' => 'lab(56.208% 94.4644 98.8928)',
             'lch(51% 135.366 301.364)',
             'lab(51% 70.4544 -115.586)' => 'lab(51% 70.4544 -115.586)',
+            'lch(50.998% 135.363 338)',
+            'lab(50.998% 125.506 -50.7078)' => 'lab(50.998% 125.506 -50.7078)',
             default => null,
         };
     }
@@ -910,6 +1023,23 @@ final class TransitionPrefixer
     private function supportsLabRule(string $selectors, array $entries): string
     {
         return '@supports (color:lab(0% 0 0)){' . $selectors . '{' . $this->serializeDeclarations($entries) . '}}';
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function supportsP3Rule(string $selectors, array $entries): string
+    {
+        return '@supports (color:color(display-p3 0 0 0)){' . $selectors . '{' . $this->serializeDeclarations($entries) . '}}';
+    }
+
+    private function normalizeBackgroundFallbackValue(string $value): string
+    {
+        return preg_replace_callback(
+            '/url\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)/i',
+            fn (array $matches): string => $this->normalizeQuotedUrlToken($matches[0]),
+            $value
+        ) ?? $value;
     }
 
     private function normalizeQuotedUrlToken(string $token): string
@@ -929,11 +1059,19 @@ final class TransitionPrefixer
      */
     private function maskEntry(string $property, string $value): array
     {
+        return $this->declarationEntry($property, $value);
+    }
+
+    /**
+     * @return array{property:string,name:string,value:string,important:bool}
+     */
+    private function declarationEntry(string $property, string $value, bool $important = false): array
+    {
         return [
             'property' => $property,
             'name' => $property,
             'value' => $value,
-            'important' => false,
+            'important' => $important,
         ];
     }
 

@@ -147,6 +147,26 @@ return [
             $prefixer->prefixLegacySafari('.foo { mask: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) 40px var(--foo) }')
         );
     },
+    'transition prefixer maps upstream background advanced color fallback layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{background:linear-gradient(#ff0f0e,#7773ff);background:linear-gradient(color(display-p3 1 .0000153435 -.00000303562),color(display-p3 .440289 .28452 1.23485));background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}',
+            $prefixer->prefixLegacySafari('.foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) }')
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(#ff0f0e,#7773ff);background-image:linear-gradient(color(display-p3 1 .0000153435 -.00000303562),color(display-p3 .440289 .28452 1.23485));background-image:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}',
+            $prefixer->prefixLegacySafari('.foo { background-image: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) }')
+        );
+        $t->same(
+            '.foo{background:#af5cae url("foo.png");background:lab(51.5117% 43.3777 -29.0443) url("foo.png")}',
+            $prefixer->prefixLegacySafari('.foo { background: lab(51.5117% 43.3777 -29.0443) url(foo.png); }')
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}}',
+            $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) } }')
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -241,6 +261,18 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-soft-fade{-webkit-mask:linear-gradient(#ff0f0e,#7773ff) 50% 50%/cover no-repeat content-box padding-box;-webkit-mask-source-type:luminance;mask:linear-gradient(#ff0f0e,#7773ff) 50% 50%/cover no-repeat content-box padding-box luminance;-webkit-mask:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364)) 50% 50%/cover no-repeat content-box padding-box;-webkit-mask-source-type:luminance;mask:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364)) 50% 50%/cover no-repeat content-box padding-box luminance}',
+            (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+    },
+    'wordpress cover background gradients get advanced color fallback layers without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.has-brand-gradient {
+  background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364));
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.has-brand-gradient{background:linear-gradient(#ff0f0e,#7773ff);background:linear-gradient(color(display-p3 1 .0000153435 -.00000303562),color(display-p3 .440289 .28452 1.23485));background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}',
             (new TransitionPrefixer())->prefixLegacySafari($css)
         );
     },
