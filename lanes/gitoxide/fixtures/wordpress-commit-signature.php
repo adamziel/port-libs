@@ -46,11 +46,16 @@ $oddTimestampBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "\n"
     . "Import with legacy timestamp offsets\n";
 
+$standaloneTrailerBody = "Reviewed-by: Migration Reviewer <reviewer@example.test>\n"
+    . " dry-run approved\n"
+    . "(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)\n";
+
 return [
     'commitBody' => $body,
     'lateStandardHeaderCommitBody' => $lateStandardHeaderBody,
     'misorderedHeaderCommitBody' => $misorderedHeaderBody,
     'oddTimestampCommitBody' => $oddTimestampBody,
+    'standaloneTrailerBody' => $standaloneTrailerBody,
     'expectedTree' => '0123456789abcdef0123456789abcdef01234567',
     'expectedAuthorName' => 'WordPress Importer',
     'expectedAuthorEmail' => 'importer@example.test',
@@ -67,6 +72,10 @@ return [
     'expectedAckedBy' => ['Plugin Maintainer <plugin-maintainer@example.test>'],
     'expectedReviewedBy' => ['Deployment Reviewer <deploy-review@example.test>'],
     'expectedTestedBy' => ['QA Runner <qa@example.test> staged import dry-run'],
+    'expectedStandaloneBodyWithoutTrailers' => '',
+    'expectedStandaloneTrailerTokens' => [
+        ['Reviewed-by', 'Migration Reviewer <reviewer@example.test> dry-run approved'],
+    ],
     'expectedTokenTypes' => ['tree', 'parent', 'author', 'committer', 'encoding', 'extraHeader', 'extraHeader', 'message'],
     'expectedTokenExtraHeaders' => ['gpgsig', 'mergetag'],
     'expectedStorageSha1' => '0e4e540a8e8df5ad417aa01f23446ff1499375dc',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\Commit;
+use PortLibs\Gitoxide\CommitMessage;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-commit-signature.php';
 $commit = Commit::parse($fixture['commitBody']);
@@ -21,6 +22,8 @@ $lateStandardHeaderCommit = Commit::parse($fixture['lateStandardHeaderCommitBody
 $oddTimestampCommit = Commit::parse($fixture['oddTimestampCommitBody']);
 $oddTimestampAuthor = $oddTimestampCommit->authorSignature();
 $oddTimestampCommitter = $oddTimestampCommit->committerSignature();
+$standaloneTrailerMessage = CommitMessage::fromBytes("Review imported plugin metadata\n\n" . $fixture['standaloneTrailerBody']);
+$standaloneTrailerBody = $standaloneTrailerMessage->body ?? '';
 $misorderedHeaderRejected = false;
 try {
     Commit::parse($fixture['misorderedHeaderCommitBody']);
@@ -72,6 +75,11 @@ return [
     'reviewedBy' => array_map(static fn ($trailer): string => $trailer->value, $commit->reviewedByTrailers()),
     'testedBy' => array_map(static fn ($trailer): string => $trailer->value, $commit->testedByTrailers()),
     'attributions' => array_map(static fn ($trailer): string => "{$trailer->token}: {$trailer->value}", $commit->attributionTrailers()),
+    'standaloneBodyWithoutTrailers' => CommitMessage::bodyWithoutTrailer($standaloneTrailerBody),
+    'standaloneTrailerTokens' => array_map(
+        static fn ($trailer): array => [$trailer->token, $trailer->value],
+        CommitMessage::trailersFromBody($standaloneTrailerBody),
+    ),
     'signedDataSha1' => $signedData === null ? null : sha1($signedData),
     'signedDataHasSignatureHeader' => $signedData !== null && str_contains($signedData, 'gpgsig '),
     'storageSha1' => sha1($storageBytes),

@@ -373,6 +373,89 @@ return [
             . "not a trailer 1\nnot a trailer 2\nnot a trailer 3\nnot a trailer 4");
         $t->same([], $belowThreshold->messageTrailers());
     },
+    'commit message body helpers match focused gix-object message cases' => static function (TestRunner $t): void {
+        $titleOnly = CommitMessage::fromBytes("hello there\r\n");
+        $t->same("hello there\r\n", $titleOnly->title);
+        $t->same(null, $titleOnly->body);
+        $t->same('hello there', $titleOnly->summary());
+
+        $inconsistent = CommitMessage::fromBytes("hello\n\r\nthere");
+        $t->same('hello', $inconsistent->title);
+        $t->same('there', $inconsistent->body);
+
+        $emptyBody = CommitMessage::fromBytes("hello\r\n\r\n");
+        $t->same('hello', $emptyBody->title);
+        $t->same(null, $emptyBody->body);
+
+        $cases = [
+            [
+                "Signed-off-by: Alice <alice@example.com>\nCo-authored-by: Bob <bob@example.com>",
+                '',
+                [
+                    ['Signed-off-by', 'Alice <alice@example.com>'],
+                    ['Co-authored-by', 'Bob <bob@example.com>'],
+                ],
+            ],
+            [
+                "body paragraph\n\nAcked-by: Alice\n continuation line",
+                'body paragraph',
+                [['Acked-by', 'Alice continuation line']],
+            ],
+            [
+                "some body text\ntoken: value",
+                "some body text\ntoken: value",
+                [],
+            ],
+            [
+                "some body text\nSigned-off-by: Alice <alice@example.com>",
+                '',
+                [['Signed-off-by', 'Alice <alice@example.com>']],
+            ],
+            [
+                "Signed-off-by: Alice <alice@example.com>\nnot a trailer 1\nnot a trailer 2\nnot a trailer 3",
+                '',
+                [['Signed-off-by', 'Alice <alice@example.com>']],
+            ],
+            [
+                "Signed-off-by: Alice <alice@example.com>\nnot a trailer 1\nnot a trailer 2\nnot a trailer 3\nnot a trailer 4",
+                "Signed-off-by: Alice <alice@example.com>\nnot a trailer 1\nnot a trailer 2\nnot a trailer 3\nnot a trailer 4",
+                [],
+            ],
+            [
+                "Acked-by: Alice\r\n continuation line\r\n",
+                '',
+                [['Acked-by', 'Alice continuation line']],
+            ],
+            [
+                "a: b\nnot a trailer\nc: d",
+                "a: b\nnot a trailer\nc: d",
+                [],
+            ],
+            [
+                "not a trailer\nSigned-off-by: Alice <alice@example.com>\nanother note\nSigned-off-by: Bob <bob@example.com>",
+                '',
+                [
+                    ['Signed-off-by', 'Alice <alice@example.com>'],
+                    ['Signed-off-by', 'Bob <bob@example.com>'],
+                ],
+            ],
+            [
+                "(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)",
+                '',
+                [],
+            ],
+        ];
+
+        foreach ($cases as [$body, $expectedBody, $expectedTrailers]) {
+            $trailers = CommitMessage::trailersFromBody($body);
+            $t->same($expectedBody, CommitMessage::bodyWithoutTrailer($body), $body);
+            $t->same(
+                $expectedTrailers,
+                array_map(static fn ($trailer): array => [$trailer->token, $trailer->value], $trailers),
+                $body,
+            );
+        }
+    },
     'extracts commit pgp signature and signed data without signature header bytes' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author A <a@example.test> 1700000000 +0000\n"
@@ -436,6 +519,8 @@ return [
         $t->same($fixture['expectedAckedBy'], $summary['ackedBy']);
         $t->same($fixture['expectedReviewedBy'], $summary['reviewedBy']);
         $t->same($fixture['expectedTestedBy'], $summary['testedBy']);
+        $t->same($fixture['expectedStandaloneBodyWithoutTrailers'], $summary['standaloneBodyWithoutTrailers']);
+        $t->same($fixture['expectedStandaloneTrailerTokens'], $summary['standaloneTrailerTokens']);
         $t->same(false, $summary['signedDataHasSignatureHeader']);
         $t->same($fixture['expectedTokenTypes'], $summary['tokenTypes']);
         $t->same($fixture['expectedTokenExtraHeaders'], $summary['tokenExtraHeaderNames']);

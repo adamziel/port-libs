@@ -77,8 +77,7 @@ final class CommitMessage
             return null;
         }
 
-        [$body] = self::splitBodyAndTrailerCursor($this->body);
-        return $body;
+        return self::bodyWithoutTrailer($this->body);
     }
 
     /**
@@ -90,7 +89,23 @@ final class CommitMessage
             return [];
         }
 
-        [, $cursor] = self::splitBodyAndTrailerCursor($this->body);
+        return self::trailersFromBody($this->body);
+    }
+
+    public static function bodyWithoutTrailer(string $body): string
+    {
+        [$bodyWithoutTrailer] = self::splitBodyAndTrailerCursor($body);
+
+        return $bodyWithoutTrailer;
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public static function trailersFromBody(string $body): array
+    {
+        [, $cursor] = self::splitBodyAndTrailerCursor($body);
+
         return self::parseTrailers($cursor);
     }
 
