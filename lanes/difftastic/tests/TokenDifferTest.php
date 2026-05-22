@@ -623,6 +623,48 @@ return [
         $t->contains('lhs line 1 x:string', $encoded);
         $t->true(!str_contains($encoded, 'set:normal'), 'Words removed from YAML block scalars should keep string highlighting.');
     },
+    'maps upstream yaml sample as flow list block sequence and scalar changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-yaml-1.yaml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-yaml-2.yaml');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'yaml']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $[0][0] bar', $encoded);
+        $t->contains('+ $yaml.hello[1] \'item\'', $encoded);
+        $t->contains('- $yaml.stuff   a', $encoded);
+        $t->true(!str_contains($encoded, '- $yaml.hello[0] "world"'), 'Stable YAML block-sequence items should stay matched.');
+        $t->true(!str_contains($encoded, '- $yaml.hello[1] other'), 'Block sequence insertion should not delete the retained following item.');
+    },
+    'json display renderer maps upstream yaml trailling newline sample as string spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-trailling-newline-1.yaml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-trailling-newline-2.yaml');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/trailling_newline_1.yaml',
+            'YAML',
+            ['language' => 'yaml'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs ${{ BAR }}:string', $encoded);
+        $t->contains('rhs bar:string', $encoded);
+        $t->true(!str_contains($encoded, '${{ BAR }}:normal'), 'YAML block scalar bodies should not fall back to normal token highlighting.');
+        $t->true(!str_contains($encoded, '{:delimiter'), 'Expression braces inside a YAML block scalar should remain string content.');
+    },
     'wordpress plugin workflow yaml display keeps wp cli command changes string highlighted' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-before.yml');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-after.yml');
@@ -650,5 +692,21 @@ return [
         $t->contains('rhs pot:string', $encoded);
         $t->contains('rhs acme:string', $encoded);
         $t->true(!str_contains($encoded, 'json:normal'), 'WP-CLI command changes inside YAML run blocks should not fall back to normal highlighting.');
+    },
+    'wordpress plugin workflow step diff reports yaml block sequence changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-steps-before.yml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-steps-after.yml');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'yaml',
+            'title' => 'Plugin release workflow step diff',
+        ]);
+
+        $t->contains('Plugin release workflow step diff', $html);
+        $t->contains('data-path="$yaml.jobs.release.steps[1]"', $html);
+        $t->contains('name: Install WordPress test env', $html);
+        $t->contains('name: Make block metadata', $html);
+        $t->contains('name: Make translation template', $html);
+        $t->true(!str_contains($html, 'actions/checkout@v4'), 'Stable workflow steps should stay out of the rendered change stream.');
+        $t->true(!str_contains($html, 'Build block assets'), 'Stable middle steps should stay matched after an insertion.');
     },
 ];

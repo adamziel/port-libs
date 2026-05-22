@@ -263,6 +263,10 @@ final class JsonDiffRenderer
     {
         $wordOps = $this->differ->diffWords($target->text, $oppositeText, ['splitNumbers' => true]);
         if (!$this->atomWordDiffHasCommonWords($wordOps)) {
+            if ($target->delimiterRole === 'block-scalar') {
+                return $this->blockScalarLineChanges($source, $target);
+            }
+
             return [];
         }
 
@@ -296,6 +300,46 @@ final class JsonDiffRenderer
                 'content' => $op['text'],
                 'highlight' => $highlight,
             ];
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @return array<int, list<array{start:int, end:int, content:string, highlight:string}>>
+     */
+    private function blockScalarLineChanges(string $source, Token $target): array
+    {
+        $lineStarts = $this->lineStartOffsets($source);
+        $changes = [];
+        $offset = $target->start;
+
+        while ($offset < $target->end) {
+            $newline = strpos($source, "\n", $offset);
+            $lineEnd = $newline === false || $newline > $target->end ? $target->end : $newline;
+            if ($lineEnd > $offset && $source[$lineEnd - 1] === "\r") {
+                $lineEnd--;
+            }
+
+            $line = substr($source, $offset, $lineEnd - $offset);
+            $contentStart = $offset + strspn($line, " \t");
+            $contentEnd = $offset + strlen(rtrim($line, " \t"));
+            if ($contentStart < $contentEnd) {
+                $lineNumber = $this->lineNumberForOffset($lineStarts, $contentStart);
+                $lineStart = $lineStarts[$lineNumber];
+                $changes[$lineNumber][] = [
+                    'start' => $contentStart - $lineStart,
+                    'end' => $contentEnd - $lineStart,
+                    'content' => substr($source, $contentStart, $contentEnd - $contentStart),
+                    'highlight' => 'string',
+                ];
+            }
+
+            if ($newline === false || $newline + 1 >= $target->end) {
+                break;
+            }
+
+            $offset = $newline + 1;
         }
 
         return $changes;

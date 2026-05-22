@@ -1,0 +1,12 @@
+name: Release
+on: workflow_dispatch
+jobs:
+  release:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install WordPress test env
+        run: wp-env start
+      - name: Build block assets
+        run: npm run build
+      - name: Make translation template
+        run: wp i18n make-pot . languages/acme-card.pot

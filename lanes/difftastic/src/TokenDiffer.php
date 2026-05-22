@@ -314,6 +314,11 @@ final class TokenDiffer
             $changes[] = ['op' => '+', 'path' => '$[' . $i . ']', 'text' => $this->nodeText($newLists[$i])];
         }
 
+        if ($this->isYamlLanguage($options)) {
+            $this->diffYamlBlockSequences($old, $new, $changes);
+            $this->diffYamlBlockScalars($old, $new, $changes);
+        }
+
         return $changes;
     }
 
@@ -1038,6 +1043,208 @@ final class TokenDiffer
         }
 
         return $table;
+    }
+
+    /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffYamlBlockSequences(string $old, string $new, array &$changes): void
+    {
+        $oldSequences = $this->yamlBlockSequences($old);
+        $newSequences = $this->yamlBlockSequences($new);
+        $paths = array_values(array_unique(array_merge(array_keys($oldSequences), array_keys($newSequences))));
+        sort($paths);
+
+        foreach ($paths as $path) {
+            $oldItems = $oldSequences[$path] ?? [];
+            $newItems = $newSequences[$path] ?? [];
+            $table = $this->lcsTable($oldItems, $newItems);
+            $i = 0;
+            $j = 0;
+
+            while ($i < count($oldItems) && $j < count($newItems)) {
+                if ($oldItems[$i] === $newItems[$j]) {
+                    $i++;
+                    $j++;
+                    continue;
+                }
+
+                if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
+                    $changes[] = ['op' => '-', 'path' => $path . '[' . $i . ']', 'text' => $oldItems[$i]];
+                    $i++;
+                } else {
+                    $changes[] = ['op' => '+', 'path' => $path . '[' . $j . ']', 'text' => $newItems[$j]];
+                    $j++;
+                }
+            }
+
+            while ($i < count($oldItems)) {
+                $changes[] = ['op' => '-', 'path' => $path . '[' . $i . ']', 'text' => $oldItems[$i]];
+                $i++;
+            }
+            while ($j < count($newItems)) {
+                $changes[] = ['op' => '+', 'path' => $path . '[' . $j . ']', 'text' => $newItems[$j]];
+                $j++;
+            }
+        }
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function yamlBlockSequences(string $source): array
+    {
+        $sequences = [];
+        $stack = [];
+        $blockScalarIndent = null;
+
+        foreach (preg_split('/\r\n|\n|\r/', $source) ?: [] as $line) {
+            if (trim($line) === '' || trim($line) === '---') {
+                continue;
+            }
+
+            $indent = strspn($line, " \t");
+            if ($blockScalarIndent !== null) {
+                if ($indent > $blockScalarIndent || trim($line) === '') {
+                    continue;
+                }
+
+                $blockScalarIndent = null;
+            }
+
+            while ($stack !== [] && $stack[array_key_last($stack)]['indent'] >= $indent) {
+                array_pop($stack);
+            }
+
+            $trimmed = ltrim($line, " \t");
+            if (str_starts_with($trimmed, '- ')) {
+                if ($stack === []) {
+                    continue;
+                }
+
+                $path = $this->yamlPath($stack);
+                $sequences[$path] ??= [];
+                $sequences[$path][] = trim(substr($trimmed, 2));
+                continue;
+            }
+
+            if (preg_match('/^(?<key>[^#:\r\n][^:\r\n]*):(?<value>[^\r\n]*)$/', $trimmed, $match) !== 1) {
+                continue;
+            }
+
+            $stack[] = [
+                'indent' => $indent,
+                'key' => $this->yamlKey((string) $match['key']),
+            ];
+
+            if (preg_match('/^\s*[|>]/', (string) $match['value']) === 1) {
+                $blockScalarIndent = $indent;
+            }
+        }
+
+        return $sequences;
+    }
+
+    /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffYamlBlockScalars(string $old, string $new, array &$changes): void
+    {
+        $oldScalars = $this->yamlBlockScalars($old);
+        $newScalars = $this->yamlBlockScalars($new);
+        $paths = array_values(array_unique(array_merge(array_keys($oldScalars), array_keys($newScalars))));
+        sort($paths);
+
+        foreach ($paths as $path) {
+            if (!array_key_exists($path, $newScalars)) {
+                $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldScalars[$path]];
+                continue;
+            }
+            if (!array_key_exists($path, $oldScalars)) {
+                $changes[] = ['op' => '+', 'path' => $path, 'text' => $newScalars[$path]];
+                continue;
+            }
+            if ($oldScalars[$path] !== $newScalars[$path]) {
+                $changes[] = ['op' => '~', 'path' => $path, 'old' => $oldScalars[$path], 'new' => $newScalars[$path]];
+            }
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function yamlBlockScalars(string $source): array
+    {
+        $scalars = [];
+        $lines = preg_split('/\r\n|\n|\r/', $source) ?: [];
+        $stack = [];
+        $count = count($lines);
+
+        for ($index = 0; $index < $count; $index++) {
+            $line = $lines[$index];
+            if (trim($line) === '' || trim($line) === '---') {
+                continue;
+            }
+
+            $indent = strspn($line, " \t");
+            while ($stack !== [] && $stack[array_key_last($stack)]['indent'] >= $indent) {
+                array_pop($stack);
+            }
+
+            $trimmed = ltrim($line, " \t");
+            if (preg_match('/^(?<key>[^#:\r\n][^:\r\n]*):(?<value>[^\r\n]*)$/', $trimmed, $match) !== 1) {
+                continue;
+            }
+
+            $entry = [
+                'indent' => $indent,
+                'key' => $this->yamlKey((string) $match['key']),
+            ];
+            $stack[] = $entry;
+
+            if (preg_match('/^\s*[|>]/', (string) $match['value']) !== 1) {
+                continue;
+            }
+
+            $body = [];
+            for ($bodyIndex = $index + 1; $bodyIndex < $count; $bodyIndex++) {
+                $bodyLine = $lines[$bodyIndex];
+                if (trim($bodyLine) !== '' && strspn($bodyLine, " \t") <= $indent) {
+                    break;
+                }
+
+                $body[] = $bodyLine;
+                $index = $bodyIndex;
+            }
+
+            $scalars[$this->yamlPath($stack)] = rtrim(implode("\n", $body), "\r\n");
+        }
+
+        return $scalars;
+    }
+
+    private function yamlKey(string $key): string
+    {
+        return trim(trim($key), "\"'");
+    }
+
+    /**
+     * @param list<array{indent:int, key:string}> $stack
+     */
+    private function yamlPath(array $stack): string
+    {
+        $path = '$yaml';
+        foreach ($stack as $entry) {
+            $key = (string) $entry['key'];
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]*$/', $key) === 1) {
+                $path .= '.' . $key;
+                continue;
+            }
+
+            $path .= '[' . json_encode($key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+        }
+
+        return $path;
     }
 
     /**

@@ -60,6 +60,8 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/comments_1.rs` / `sample_files/comments_2.rs`: copied locally and mapped through changed comment atom word splitting from `src/parse/syntax.rs`. Inserted comment words and changed quoted subwords inside comments are emitted as comment-highlighted word spans.
 - `sample_files/multiline_string_1.ml` / `sample_files/multiline_string_2.ml`: copied locally and mapped through multiline atom byte spans. The JSON renderer now keeps changed words inside a multiline string highlighted as `string` instead of falling back to per-line identifier highlighting.
 - `sample_files/multiline_string_eof_1.yml` / `sample_files/multiline_string_eof_2.yml`: copied locally and mapped through YAML block-scalar string atom spans. The JSON renderer now keeps removed words such as `set -x` string-highlighted even when the opposite block scalar becomes a single content line.
+- `sample_files/trailling_newline_1.yaml` / `sample_files/trailling_newline_2.yaml`: copied locally and mapped through one-line YAML block-scalar fallback spans. When the old and new scalar bodies do not share enough words for subword pairing, the JSON renderer still keeps `${{ BAR }}` and `bar` highlighted as string content instead of splitting expression braces into delimiters.
+- `sample_files/yaml_1.yaml` / `sample_files/yaml_2.yaml`: copied locally and mapped through a narrow YAML structural slice. Flow lists still use delimiter-list alignment, while line-based YAML block sequences report the inserted `'item'` under `$yaml.hello[1]` and the deleted `stuff: |` body is reported as a block-scalar deletion without deleting the retained `"world"` or `other` sequence items.
 
 ## JSON Display Slice
 
@@ -74,9 +76,10 @@ Mapped native behavior:
 - Token changes carry `start`, `end`, `content`, and `highlight` fields; native highlights currently map delimiter/string/comment tokens and default other atom kinds to `normal`.
 - Directory JSON output is represented as an array of file objects and can skip unchanged files, matching upstream `print_directory`.
 - Paired changed string/comment atoms now use upstream-style `split_words_and_numbers` plus the `has_common_words` threshold from `src/parse/syntax.rs`. When enough words are shared, JSON changes are emitted as word-level spans instead of whole string/comment replacements.
+- YAML block scalar atoms that do not share enough words now fall back to per-line string spans instead of generic token highlighting, mapping upstream `trailling_newline_*.yaml`.
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 
-The focused PHP lane test now passes 44 tests and 186 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, WXR XML, block allow-list array syntax, block-copy JSON display, multiline render doc-comment display, and plugin workflow YAML display scenarios.
+The focused PHP lane test now passes 47 tests and 202 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, WXR XML, block allow-list array syntax, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
 
 The required root test runner was attempted after this slice:
 
@@ -84,4 +87,11 @@ The required root test runner was attempted after this slice:
 php tools/run-tests.php
 ```
 
-It passed in the current shared worktree with 94 test files, 6,277 assertions, and 0 failures. The difftastic-focused test file remains green with 44 tests, 186 assertions, and 0 failures.
+The latest required root test run after the YAML block-scalar display slice passed:
+
+```text
+php tools/run-tests.php
+98 test files, 6,539 assertions, 0 failures
+```
+
+The difftastic-focused test file remains green with 47 tests, 202 assertions, and 0 failures.

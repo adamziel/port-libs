@@ -36,6 +36,10 @@ The multiline render doc-comment fixture compares PHP block comments beside a Wo
 
 The plugin workflow YAML fixture compares a GitHub Actions release step for a block plugin. YAML mode treats `run: |` command bodies as block-scalar string atoms, so WP-CLI command changes such as `make-json` to `make-pot` stay string-highlighted in machine-readable JSON review data instead of falling back to normal per-line token highlighting.
 
+The upstream `trailling_newline_*.yaml` mapping covers the same GitHub Actions review surface when a YAML block scalar changes from an expression such as `${{ BAR }}` to literal command text. The JSON display keeps the expression braces string-highlighted instead of treating them as executable code delimiters.
+
+The plugin workflow step YAML fixture compares a release workflow where a WordPress test environment setup step is inserted and the translation generation step is renamed. The YAML syntax-list renderer aligns nested `jobs.release.steps` block-sequence items so stable checkout/build steps stay out of the change stream while inserted/deleted release steps are shown with `$yaml.jobs.release.steps[...]` paths.
+
 The theme-variation fixture applies the upstream `slider_at_end` JSON list-deletion shape to `theme.json`. Deprecated button variations are reported as focused deletions while retained variations stay out of the rendered change stream.
 
 The template-wrapper fixture applies upstream `nested_slider` wrapper correction to a WordPress block template helper call. When `coreParagraph('Hero introduction')` is wrapped in `coreGroup(...)`, the retained paragraph call stays out of the deletion stream and the diff reports the wrapper as a focused syntactic insertion.
@@ -56,6 +60,7 @@ php lanes/difftastic/examples/wordpress-block-json-display.php
 php lanes/difftastic/examples/wordpress-block-copy-display.php
 php lanes/difftastic/examples/wordpress-multiline-comment-display.php
 php lanes/difftastic/examples/wordpress-plugin-workflow-yaml-display.php
+php lanes/difftastic/examples/wordpress-plugin-workflow-steps-yaml-diff.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
 php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
@@ -64,4 +69,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map the broader upstream `yaml_*.yaml` sample or add more display parity for Lisp literal-list changes, including expected JSON/HTML output shape.
+Add more display parity for Lisp literal-list changes, including expected JSON/HTML output shape, or map another untouched upstream sample_files display pair.
