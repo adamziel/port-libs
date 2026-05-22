@@ -1,5 +1,5 @@
 {
-    "generated": "2026-05-22 14:16:49 UTC",
+    "generated": "2026-05-22 14:17:12 UTC",
     "averageProgressPercent": "12.0",
     "lanes": [
         {
@@ -48,7 +48,7 @@
             "audit": "audited 2026-05-22",
             "nextTarget": "Map additional parser/printer syntax such as import attributes, import.meta/new URL asset...",
             "blocker": "Resolved the prior missing Go/Node/OpenSSL checkout blocker for the core...",
-            "commit": "45da607"
+            "commit": "4ee0a91"
         },
         {
             "library": "gitoxide",
