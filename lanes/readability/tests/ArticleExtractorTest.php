@@ -74,4 +74,32 @@ return [
         $t->contains('<!-- wp:paragraph -->', $blocks);
         $t->contains('canonical article paragraph', $blocks);
     },
+    'maps Mozilla normalize-spaces fixture metadata and article text' => static function (TestRunner $t): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/normalize-spaces';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+        $textFromHtml = static function (string $html): string {
+            $dom = new DOMDocument();
+            $previous = libxml_use_internal_errors(true);
+            $dom->loadHTML('<main>' . $html . '</main>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            return trim(preg_replace('/\s+/', ' ', $dom->textContent) ?? '');
+        };
+        $normalized = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalized($metadata['excerpt']), $normalized($article->excerpt));
+        $t->same($textFromHtml($expected), $textFromHtml($article->contentHtml));
+    },
 ];

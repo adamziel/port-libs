@@ -37,9 +37,31 @@ final class ArticleExtractor
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
         $contentHtml = $best instanceof \DOMNode ? $this->innerHtml($best) : '';
         $text = trim(preg_replace('/\s+/', ' ', $best instanceof \DOMNode ? $best->textContent : '') ?? '');
-        $excerpt = mb_substr($text, 0, 180);
+        $excerpt = $this->excerpt($xpath, $best, $text);
 
-        return new Article($title, $contentHtml, $text, $excerpt);
+        return new Article(
+            $title,
+            $contentHtml,
+            $text,
+            $excerpt,
+            $this->metadataValue($xpath, [
+                '//meta[@name="author"]/@content',
+                '//meta[@property="article:author"]/@content',
+                '//*[contains(concat(" ", normalize-space(@class), " "), " byline ")]',
+                '//*[contains(concat(" ", normalize-space(@class), " "), " author ")]',
+            ]),
+            $this->metadataValue($xpath, [
+                '//meta[@property="og:site_name"]/@content',
+                '//meta[@name="application-name"]/@content',
+            ]),
+            $this->metadataValue($xpath, [
+                '//meta[@property="article:published_time"]/@content',
+                '//meta[@name="pubdate"]/@content',
+                '//time[@datetime]/@datetime',
+            ]),
+            $this->documentAttribute($dom, 'dir'),
+            $this->documentAttribute($dom, 'lang'),
+        );
     }
 
     /**
@@ -148,7 +170,12 @@ final class ArticleExtractor
 
     private function title(\DOMXPath $xpath, \DOMDocument $dom): string
     {
-        foreach (['//meta[@property="og:title"]/@content', '//h1', '//title'] as $query) {
+        foreach ([
+            '//meta[@property="og:title"]/@content',
+            '//meta[@name="twitter:title"]/@content',
+            '//title',
+            '//h1',
+        ] as $query) {
             $node = $xpath->query($query)?->item(0);
             $value = trim($node?->nodeValue ?? '');
             if ($value !== '') {
@@ -157,6 +184,47 @@ final class ArticleExtractor
         }
 
         return '';
+    }
+
+    private function excerpt(\DOMXPath $xpath, ?\DOMNode $best, string $fallbackText): string
+    {
+        if ($best instanceof \DOMNode) {
+            foreach ($xpath->query('.//p|.//div', $best) ?: [] as $node) {
+                $text = trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
+                if (mb_strlen($text) >= 80) {
+                    return $text;
+                }
+            }
+        }
+
+        return mb_substr($fallbackText, 0, 180);
+    }
+
+    /**
+     * @param list<string> $queries
+     */
+    private function metadataValue(\DOMXPath $xpath, array $queries): ?string
+    {
+        foreach ($queries as $query) {
+            $value = trim($xpath->query($query)?->item(0)?->nodeValue ?? '');
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function documentAttribute(\DOMDocument $dom, string $attribute): ?string
+    {
+        $element = $dom->documentElement;
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($element->getAttribute($attribute));
+
+        return $value === '' ? null : $value;
     }
 
     private function removeUnlikelyCandidates(\DOMXPath $xpath): void
