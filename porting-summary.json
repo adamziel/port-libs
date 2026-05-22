@@ -51,7 +51,7 @@
             "currentWork": "Native JavaScript lexer plus module analyzer for static imports, expression/direct-string...",
             "nextTarget": "Map TypeScript import/export forms such as import equals, type-only imports/exports, and...",
             "blocker": "Resolved the prior missing Go/Node/OpenSSL checkout blocker for the core...",
-            "commit": "6a1e69f"
+            "commit": "2e1fcb0"
         },
         {
             "library": "gitoxide",
