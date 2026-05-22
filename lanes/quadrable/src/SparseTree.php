@@ -74,6 +74,31 @@ final class SparseTree
         return $this->values[$key->hex()] ?? null;
     }
 
+    /**
+     * @param list<Key> $keys
+     *
+     * @return array<string, array{exists: bool, value: ?string}>
+     */
+    public function getMultiRaw(array $keys): array
+    {
+        $results = [];
+        foreach ($keys as $key) {
+            if (!$key instanceof Key) {
+                throw new \InvalidArgumentException('getMultiRaw expects Key instances');
+            }
+
+            $value = $this->getKey($key);
+            $results[$key->hex()] = [
+                'exists' => $value !== null,
+                'value' => $value,
+            ];
+        }
+
+        ksort($results, SORT_STRING);
+
+        return $results;
+    }
+
     public function iterate(Key $target, bool $reverse = false): SparseTreeIterator
     {
         $entries = $this->orderedEntries();

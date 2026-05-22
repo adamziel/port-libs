@@ -65,6 +65,30 @@ return [
         $t->true($query['c']['exists']);
         $t->true(!$query['missing']['exists']);
     },
+    'raw key multi get maps upstream getMultiRaw for integer keys' => static function (TestRunner $t): void {
+        $tree = new SparseTree();
+        $tree->change()
+            ->putKey(Key::fromInteger(1), 'one')
+            ->putKey(Key::fromInteger(3), 'three')
+            ->putKey(Key::fromInteger(5), 'five')
+            ->apply();
+
+        $query = $tree->getMultiRaw([
+            Key::fromInteger(5),
+            Key::fromInteger(2),
+            Key::fromInteger(1),
+        ]);
+
+        $t->same(3, count($query));
+        $t->true($query[Key::fromInteger(1)->hex()]['exists']);
+        $t->same('one', $query[Key::fromInteger(1)->hex()]['value']);
+        $t->true(!$query[Key::fromInteger(2)->hex()]['exists']);
+        $t->same(null, $query[Key::fromInteger(2)->hex()]['value']);
+        $t->true($query[Key::fromInteger(5)->hex()]['exists']);
+        $t->same('five', $query[Key::fromInteger(5)->hex()]['value']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $tree->getMultiRaw(['not-a-key']));
+    },
     'cached proof tree invalidates after later updates' => static function (TestRunner $t): void {
         $tree = new SparseTree();
         $tree->change()
