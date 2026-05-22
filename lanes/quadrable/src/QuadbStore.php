@@ -15,9 +15,9 @@ final class QuadbStore
         private int $detachedHeadNodeId,
         /** @var array<string, string> */
         private array $trackedKeys = [],
-        /** @var array<string, array{rootHash: string, proofRootHash: string, proofs: list<string>, updates: list<array{delete: bool, keyHash: string, value: string, key?: string}>}> */
+        /** @var array<string, array<string, mixed>> */
         private array $partialProofHeads = [],
-        /** @var array{rootHash: string, proofRootHash: string, proofs: list<string>, updates: list<array{delete: bool, keyHash: string, value: string, key?: string}>}|null */
+        /** @var array<string, mixed>|null */
         private ?array $partialDetachedHead = null
     ) {
     }
@@ -243,6 +243,29 @@ final class QuadbStore
         $this->save($tree);
     }
 
+    public function putKey(Key $key, string $value): void
+    {
+        if ($this->currentPartialProofState() !== null) {
+            $this->applyPartialRawUpdates([
+                $key->hex() => [
+                    'delete' => false,
+                    'value' => $value,
+                ],
+            ]);
+
+            return;
+        }
+
+        $tree = $this->tree();
+        $tree->putKey($key, $value);
+        $this->save($tree);
+    }
+
+    public function putInteger(int $key, string $value): void
+    {
+        $this->putKey(Key::fromInteger($key), $value);
+    }
+
     public function delete(string $key): void
     {
         SparseTree::assertNonEmptyKey($key);
@@ -256,6 +279,29 @@ final class QuadbStore
         $tree = $this->tree();
         $tree->delete($key);
         $this->save($tree);
+    }
+
+    public function deleteKey(Key $key): void
+    {
+        if ($this->currentPartialProofState() !== null) {
+            $this->applyPartialRawUpdates([
+                $key->hex() => [
+                    'delete' => true,
+                    'value' => '',
+                ],
+            ]);
+
+            return;
+        }
+
+        $tree = $this->tree();
+        $tree->deleteKey($key);
+        $this->save($tree);
+    }
+
+    public function deleteInteger(int $key): void
+    {
+        $this->deleteKey(Key::fromInteger($key));
     }
 
     public function get(string $key): string
@@ -273,6 +319,26 @@ final class QuadbStore
         }
 
         return $value;
+    }
+
+    public function getKey(Key $key): string
+    {
+        $partial = $this->currentPartialTree();
+        if ($partial !== null) {
+            $value = $partial->getKey($key);
+        } else {
+            $value = $this->tree()->getKey($key);
+        }
+        if ($value === null) {
+            throw new \RuntimeException('key not found in db');
+        }
+
+        return $value;
+    }
+
+    public function getInteger(int $key): string
+    {
+        return $this->getKey(Key::fromInteger($key));
     }
 
     public function rootText(): string
@@ -501,7 +567,6 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
-        $this->assertWritableFullHead();
 
         $normalized = str_replace(["\r\n", "\r"], "\n", $input);
         $lines = explode("\n", $normalized);
@@ -509,8 +574,7 @@ final class QuadbStore
             array_pop($lines);
         }
 
-        $tree = $this->tree();
-        $changes = $tree->change();
+        $updates = [];
         $count = 0;
 
         foreach ($lines as $line) {
@@ -529,13 +593,26 @@ final class QuadbStore
                 throw new \InvalidArgumentException('integer import key must be a non-negative integer');
             }
 
-            $changes->putKey(Key::fromInteger((int) $key), $value);
+            $updates[Key::fromInteger((int) $key)->hex()] = [
+                'delete' => false,
+                'value' => $value,
+            ];
             $count++;
         }
 
         if ($count > 0) {
-            $changes->apply();
-            $this->save($tree);
+            $partial = $this->currentPartialProofState();
+            if ($partial !== null) {
+                $this->applyPartialRawUpdates($updates);
+            } else {
+                $tree = $this->tree();
+                $changes = $tree->change();
+                foreach ($updates as $keyHex => $update) {
+                    $changes->putKey(Key::fromHex($keyHex), $update['value']);
+                }
+                $changes->apply();
+                $this->save($tree);
+            }
         }
 
         return $count;
@@ -634,6 +711,13 @@ final class QuadbStore
             'proofRootHash' => $partial->rootHash(),
             'proofs' => [bin2hex($encodedProof)],
             'updates' => [],
+            'events' => [
+                [
+                    'type' => 'proof',
+                    'rootHash' => $partial->rootHash(),
+                    'proof' => bin2hex($encodedProof),
+                ],
+            ],
         ];
 
         $this->storeCurrentPartialProofState($state);
@@ -653,14 +737,18 @@ final class QuadbStore
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
-        if ($state['updates'] !== []) {
-            throw new \RuntimeException('cannot merge proofs after proof-backed writes');
-        }
 
         $partial = $this->partialTreeFromState($state);
+        $rootBeforeMerge = $partial->rootHash();
         $partial->mergeProof(Proof::decode($encodedProof));
 
-        $state['proofs'][] = bin2hex($encodedProof);
+        $proofHex = bin2hex($encodedProof);
+        $state['proofs'][] = $proofHex;
+        $state['events'][] = [
+            'type' => 'proof',
+            'rootHash' => $rootBeforeMerge,
+            'proof' => $proofHex,
+        ];
         $this->storeCurrentPartialProofState($state);
         $this->persist();
 
@@ -786,7 +874,7 @@ final class QuadbStore
     }
 
     /**
-     * @return array{rootHash: string, proofRootHash: string, proofs: list<string>, updates: list<array{delete: bool, keyHash: string, value: string, key?: string}>}|null
+     * @return array<string, mixed>|null
      */
     private function currentPartialProofState(): ?array
     {
@@ -798,7 +886,7 @@ final class QuadbStore
     }
 
     /**
-     * @param array{rootHash: string, proofRootHash: string, proofs: list<string>, updates: list<array{delete: bool, keyHash: string, value: string, key?: string}>} $state
+     * @param array<string, mixed> $state
      */
     private function storeCurrentPartialProofState(array $state): void
     {
@@ -833,34 +921,47 @@ final class QuadbStore
     }
 
     /**
-     * @param array{rootHash: string, proofRootHash: string, proofs: list<string>, updates: list<array{delete: bool, keyHash: string, value: string, key?: string}>} $state
+     * @param array<string, mixed> $state
      */
     private function partialTreeFromState(array $state): SparseTree
     {
-        $proofs = $state['proofs'];
-        if ($proofs === []) {
-            throw new \RuntimeException('partial proof state has no proofs');
-        }
+        $partial = null;
 
-        $first = Proof::decode((string) hex2bin($proofs[0]));
-        $partial = SparseTree::importProof($first, $state['proofRootHash']);
+        foreach ($state['events'] as $event) {
+            if ($event['type'] === 'proof') {
+                $proof = Proof::decode((string) hex2bin($event['proof']));
+                if ($partial === null) {
+                    $partial = SparseTree::importProof($proof, $event['rootHash']);
+                    continue;
+                }
 
-        for ($i = 1; $i < count($proofs); $i++) {
-            $partial->mergeProof(Proof::decode((string) hex2bin($proofs[$i])));
-        }
+                if ($partial->rootHash() !== $event['rootHash']) {
+                    throw new \RuntimeException('partial proof event root mismatch');
+                }
 
-        foreach ($state['updates'] as $update) {
+                $partial->mergeProof($proof);
+                continue;
+            }
+
+            if ($partial === null) {
+                throw new \RuntimeException('partial proof update occurred before proof import');
+            }
+
             $rawUpdate = [
-                'delete' => $update['delete'],
-                'value' => $update['value'],
+                'delete' => $event['delete'],
+                'value' => $event['value'],
             ];
-            if (isset($update['key'])) {
-                $rawUpdate['key'] = $update['key'];
+            if (isset($event['key'])) {
+                $rawUpdate['key'] = $event['key'];
             }
 
             $partial->applyRawUpdates([
-                $update['keyHash'] => $rawUpdate,
+                $event['keyHash'] => $rawUpdate,
             ]);
+        }
+
+        if ($partial === null) {
+            throw new \RuntimeException('partial proof state has no proofs');
         }
         if ($partial->rootHash() !== $state['rootHash']) {
             throw new \RuntimeException('partial proof state root mismatch');
@@ -893,8 +994,45 @@ final class QuadbStore
             'value' => $value,
             'key' => $key,
         ];
+        $state['events'][] = [
+            'type' => 'update',
+            'delete' => $delete,
+            'keyHash' => $keyHash,
+            'value' => $value,
+            'key' => $key,
+        ];
         if (!$delete) {
             $this->trackedKeys[$keyHash] = $key;
+        }
+
+        $this->storeCurrentPartialProofState($state);
+        $this->persist();
+    }
+
+    /**
+     * @param array<string, array{delete: bool, value: string}> $updates
+     */
+    private function applyPartialRawUpdates(array $updates): void
+    {
+        $state = $this->currentPartialProofState();
+        if ($state === null) {
+            throw new \RuntimeException('current head is not a proof-backed partial tree');
+        }
+
+        ksort($updates, SORT_STRING);
+
+        $partial = $this->partialTreeFromState($state);
+        $partial->applyRawUpdates($updates);
+
+        $state['rootHash'] = $partial->rootHash();
+        foreach ($updates as $keyHash => $update) {
+            $record = [
+                'delete' => $update['delete'],
+                'keyHash' => $keyHash,
+                'value' => $update['value'],
+            ];
+            $state['updates'][] = $record;
+            $state['events'][] = ['type' => 'update'] + $record;
         }
 
         $this->storeCurrentPartialProofState($state);
@@ -966,7 +1104,7 @@ final class QuadbStore
     }
 
     /**
-     * @return array{rootHash: string, proofRootHash: string, proofs: list<string>, updates: list<array{delete: bool, keyHash: string, value: string, key?: string}>}
+     * @return array<string, mixed>
      */
     private static function parsePartialProofState(mixed $state, string $label): array
     {
@@ -986,15 +1124,7 @@ final class QuadbStore
 
         $proofs = [];
         foreach ($state['proofs'] as $proofHex) {
-            if (!is_string($proofHex)
-                || $proofHex === ''
-                || strlen($proofHex) % 2 !== 0
-                || !preg_match('/^[0-9a-f]+$/', $proofHex)
-            ) {
-                throw new \InvalidArgumentException($label . ' has malformed proof bytes');
-            }
-
-            $proofs[] = $proofHex;
+            $proofs[] = self::parsePartialProofHex($proofHex, $label . ' has malformed proof bytes');
         }
 
         $updatesRaw = $state['updates'] ?? [];
@@ -1003,35 +1133,61 @@ final class QuadbStore
         }
 
         $updates = [];
-        $hashTree = new HashTree();
         foreach ($updatesRaw as $update) {
-            if (!is_array($update)
-                || !isset($update['delete'], $update['keyHash'], $update['value'])
-                || !is_bool($update['delete'])
-                || !is_string($update['keyHash'])
-                || !preg_match('/^[0-9a-f]{64}$/', $update['keyHash'])
-                || !is_string($update['value'])
-            ) {
-                throw new \InvalidArgumentException($label . ' has malformed proof-backed update');
+            $updates[] = self::parsePartialProofUpdate($update, $label);
+        }
+
+        $events = [];
+        if (array_key_exists('events', $state)) {
+            if (!is_array($state['events']) || $state['events'] === []) {
+                throw new \InvalidArgumentException($label . ' has malformed proof-backed event history');
             }
 
-            $parsedUpdate = [
-                'delete' => $update['delete'],
-                'keyHash' => $update['keyHash'],
-                'value' => $update['value'],
-            ];
-            if (array_key_exists('key', $update)) {
-                if (!is_string($update['key']) || $update['key'] === '') {
-                    throw new \InvalidArgumentException($label . ' has malformed proof-backed update key');
-                }
-                if ($hashTree->keyHash($update['key']) !== $update['keyHash']) {
-                    throw new \InvalidArgumentException($label . ' has mismatched proof-backed update key');
+            $eventProofs = [];
+            $eventUpdates = [];
+            foreach ($state['events'] as $event) {
+                if (!is_array($event) || !isset($event['type']) || !is_string($event['type'])) {
+                    throw new \InvalidArgumentException($label . ' has malformed proof-backed event');
                 }
 
-                $parsedUpdate['key'] = $update['key'];
+                if ($event['type'] === 'proof') {
+                    if (!isset($event['rootHash']) || !is_string($event['rootHash']) || !preg_match('/^[0-9a-f]{64}$/', $event['rootHash'])) {
+                        throw new \InvalidArgumentException($label . ' has malformed proof event root');
+                    }
+                    $proofHex = self::parsePartialProofHex($event['proof'] ?? null, $label . ' has malformed proof event bytes');
+
+                    $events[] = [
+                        'type' => 'proof',
+                        'rootHash' => $event['rootHash'],
+                        'proof' => $proofHex,
+                    ];
+                    $eventProofs[] = $proofHex;
+                    continue;
+                }
+
+                if ($event['type'] !== 'update') {
+                    throw new \InvalidArgumentException($label . ' has unknown proof-backed event');
+                }
+
+                $parsedUpdate = self::parsePartialProofUpdate($event, $label);
+                $events[] = ['type' => 'update'] + $parsedUpdate;
+                $eventUpdates[] = $parsedUpdate;
             }
 
-            $updates[] = $parsedUpdate;
+            if ($events[0]['type'] !== 'proof' || $eventProofs !== $proofs || $eventUpdates !== $updates) {
+                throw new \InvalidArgumentException($label . ' has inconsistent proof-backed event history');
+            }
+        } else {
+            foreach ($proofs as $proofHex) {
+                $events[] = [
+                    'type' => 'proof',
+                    'rootHash' => $proofRootHash,
+                    'proof' => $proofHex,
+                ];
+            }
+            foreach ($updates as $update) {
+                $events[] = ['type' => 'update'] + $update;
+            }
         }
 
         return [
@@ -1039,7 +1195,55 @@ final class QuadbStore
             'proofRootHash' => $proofRootHash,
             'proofs' => $proofs,
             'updates' => $updates,
+            'events' => $events,
         ];
+    }
+
+    private static function parsePartialProofHex(mixed $proofHex, string $message): string
+    {
+        if (!is_string($proofHex)
+            || $proofHex === ''
+            || strlen($proofHex) % 2 !== 0
+            || !preg_match('/^[0-9a-f]+$/', $proofHex)
+        ) {
+            throw new \InvalidArgumentException($message);
+        }
+
+        return $proofHex;
+    }
+
+    /**
+     * @return array{delete: bool, keyHash: string, value: string, key?: string}
+     */
+    private static function parsePartialProofUpdate(mixed $update, string $label): array
+    {
+        if (!is_array($update)
+            || !isset($update['delete'], $update['keyHash'], $update['value'])
+            || !is_bool($update['delete'])
+            || !is_string($update['keyHash'])
+            || !preg_match('/^[0-9a-f]{64}$/', $update['keyHash'])
+            || !is_string($update['value'])
+        ) {
+            throw new \InvalidArgumentException($label . ' has malformed proof-backed update');
+        }
+
+        $parsedUpdate = [
+            'delete' => $update['delete'],
+            'keyHash' => $update['keyHash'],
+            'value' => $update['value'],
+        ];
+        if (array_key_exists('key', $update)) {
+            if (!is_string($update['key']) || $update['key'] === '') {
+                throw new \InvalidArgumentException($label . ' has malformed proof-backed update key');
+            }
+            if ((new HashTree())->keyHash($update['key']) !== $update['keyHash']) {
+                throw new \InvalidArgumentException($label . ' has mismatched proof-backed update key');
+            }
+
+            $parsedUpdate['key'] = $update['key'];
+        }
+
+        return $parsedUpdate;
     }
 
     /**
