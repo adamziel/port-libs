@@ -421,6 +421,37 @@ return [
         $t->same($theirReadme, $read($pluginTree->entryNamed('readme.txt')?->oid ?? '')->body);
         $t->same([], $result->indexEntries());
     },
+    'recursive tree merge detects directory rename when plugin entry file is renamed' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
+        $ourPlugin = "Plugin: Acme Pro\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";
+        $baseReadme = "Acme plugin\nStable tag: 1.0\n";
+        $theirReadme = "Acme plugin\nStable tag: 1.1\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $baseReadme),
+        ]))]))]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme-pro', new Tree([
+            $blobEntry('acme-pro.php', $ourPlugin),
+            $blobEntry('readme.txt', $baseReadme),
+        ]))]))]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$treeEntry('plugins', new Tree([$treeEntry('acme', new Tree([
+            $blobEntry('acme.php', $basePlugin),
+            $blobEntry('readme.txt', $theirReadme),
+        ]))]))]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $pluginsTree = Tree::fromObject($read($contentTree->entryNamed('plugins', true)?->oid ?? ''));
+        $pluginTree = Tree::fromObject($read($pluginsTree->entryNamed('acme-pro', true)?->oid ?? ''));
+
+        $t->true($result->isClean());
+        $t->same(['acme-pro'], $names($pluginsTree));
+        $t->same(['acme-pro.php', 'readme.txt'], $names($pluginTree));
+        $t->same($ourPlugin, $read($pluginTree->entryNamed('acme-pro.php')?->oid ?? '')->body);
+        $t->same($theirReadme, $read($pluginTree->entryNamed('readme.txt')?->oid ?? '')->body);
+        $t->same([], $result->indexEntries());
+    },
     'recursive tree merge reports directory rename content conflicts at new path' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $basePlugin = "Plugin: Acme\nVersion: 1.0\nRequires: 6.5\nStatus: active\n";

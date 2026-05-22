@@ -690,11 +690,15 @@ final class TreeMerge
         }
 
         $score = 0;
+        $matchedBasePaths = [];
+        $matchedSidePaths = [];
         foreach ($baseLeaves as $path => $baseLeaf) {
             $sideLeaf = $sideLeaves[$path] ?? null;
             if ($sideLeaf === null || $baseLeaf->mode !== $sideLeaf->mode) {
                 continue;
             }
+            $matchedBasePaths[$path] = true;
+            $matchedSidePaths[$path] = true;
             if (self::sameEntry($baseLeaf, $sideLeaf)) {
                 $score += 100;
                 continue;
@@ -702,6 +706,42 @@ final class TreeMerge
             if ($baseLeaf->isBlob() && $sideLeaf->isBlob()) {
                 $score += self::blobSimilarity($baseLeaf, $sideLeaf, $readObject);
             }
+        }
+
+        $candidateByBasePath = [];
+        $candidateUseCounts = [];
+        foreach ($baseLeaves as $basePath => $baseLeaf) {
+            if (isset($matchedBasePaths[$basePath])) {
+                continue;
+            }
+
+            foreach ($sideLeaves as $sidePath => $sideLeaf) {
+                if (isset($matchedSidePaths[$sidePath]) || $baseLeaf->mode !== $sideLeaf->mode || $baseLeaf->kind() !== $sideLeaf->kind()) {
+                    continue;
+                }
+
+                $leafScore = self::sameEntry($baseLeaf, $sideLeaf) ? 100 : 0;
+                if ($leafScore === 0 && $baseLeaf->isBlob() && $sideLeaf->isBlob()) {
+                    $leafScore = self::blobSimilarity($baseLeaf, $sideLeaf, $readObject);
+                }
+                if ($leafScore < 60) {
+                    continue;
+                }
+
+                $candidateByBasePath[$basePath][$sidePath] = $leafScore;
+                $candidateUseCounts[$sidePath] = ($candidateUseCounts[$sidePath] ?? 0) + 1;
+            }
+        }
+
+        foreach ($candidateByBasePath as $candidates) {
+            if (count($candidates) !== 1) {
+                continue;
+            }
+            $sidePath = array_key_first($candidates);
+            if (($candidateUseCounts[$sidePath] ?? 0) !== 1) {
+                continue;
+            }
+            $score += $candidates[$sidePath];
         }
 
         return (int) floor($score / max(count($baseLeaves), count($sideLeaves)));
