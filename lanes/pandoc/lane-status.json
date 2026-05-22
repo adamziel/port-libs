@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native MarkdownReader now maps the remaining bounded upstream HTML-reader Inline Markup nested/code slice from test/html-reader.html/native. HTML paragraphs preserve Strong containing Emph for four nested strong-emphasis cases, decode HTML entities inside code spans to literal code text for >, $, backslash, escaped-dollar, and <html>, and WordPress output preserves the nested review emphasis plus inline source tokens without shelling out to Pandoc.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 130/0 with 1111 assertions. The required repo-wide php tools/run-tests.php command was run on 2026-05-22 after this lane slice and passes with 150 test files, 13659 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "pending",
+    "latestCommit": "6c69ca7",
     "nextTask": "Map the next bounded HTML-reader Smart quotes, ellipses, dashes slice from test/html-reader.html/native, starting with straight quote/apostrophe text and the quoted HTML code/link paragraph after the Inline Markup section."
 }
