@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Syncthing\BepWire;
 use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
+use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\Request;
@@ -15,7 +16,6 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $bytes = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-media-upload.bin');
 $blockList = new BlockList();
 $blocks = $blockList->fromBytes($bytes, 32);
-$encryptedName = ReceiveEncrypted::slashifyBase32Hex('1' . str_repeat('A', 78));
 $plainRequest = new Request(
     id: 9401,
     folder: 'wordpress-media',
@@ -26,10 +26,14 @@ $plainRequest = new Request(
     fromTemporary: true,
     blockNo: 0,
 );
+$folderKey = EncryptionKey::folderKeyFromPassword($plainRequest->folder, 'wordpress media sync secret');
+$fileKey = ReceiveEncrypted::fileKey($plainRequest->name, $folderKey);
+$encryptedName = ReceiveEncrypted::encryptName($plainRequest->name, $folderKey);
+$hashToken = ReceiveEncrypted::encryptBlockHashHex($plainRequest->hashHex, $plainRequest->offset, $fileKey);
 $encryptedRequest = ReceiveEncrypted::requestToEncryptedPeer(
     $plainRequest,
     $encryptedName,
-    bin2hex('encrypted-hash-token'),
+    $hashToken,
 );
 $decodedRequest = BepWire::decodeRequestMessage(BepWire::encodeRequestMessage($encryptedRequest));
 
@@ -52,12 +56,14 @@ $trailer = ReceiveEncrypted::extractEncryptionTrailer($withTrailer);
 echo json_encode([
     'encryptedRequest' => [
         'name' => $decodedRequest->name,
+        'decryptedName' => ReceiveEncrypted::decryptName($decodedRequest->name, $folderKey),
         'isSyntheticParent' => ReceiveEncrypted::isEncryptedParent(dirname($decodedRequest->name)),
         'offset' => $decodedRequest->offset,
         'size' => $decodedRequest->size,
         'blockNo' => $decodedRequest->blockNo,
         'fromTemporary' => $decodedRequest->fromTemporary,
         'hashTokenHex' => $decodedRequest->hashHex,
+        'decryptedHashHex' => ReceiveEncrypted::decryptBlockHashHex($decodedRequest->hashHex, $plainRequest->offset, $fileKey),
     ],
     'trailer' => [
         'totalBytes' => strlen($withTrailer),

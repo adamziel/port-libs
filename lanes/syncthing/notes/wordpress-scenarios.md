@@ -124,6 +124,16 @@ oracle produced fixed fixture bytes only; the PHP implementation does not call
 Go at runtime. During probing, `sudo -n dnf install -y php-sodium` installed
 `php-sodium`/`libsodium`, but this PHP build exposes only high-level scrypt, so
 the exact N/r/p KDF is implemented in lane PHP rather than delegated to sodium.
+The deterministic receive-encrypted transform slice now maps the adjacent
+`encryptName`, `decryptName`, `KeyGenerator.FileKey`, `encryptBlockHash`, and
+legacy block-hash fallback boundaries from `lib/protocol/encryption.go` and
+`lib/protocol/encryption_test.go`: filenames are AES-SIV encrypted, encoded as
+unpadded base32-hex, and slashified with `.syncthing-enc` synthetic parent
+components; invalid encrypted-name paths and invalid base32 quanta fail before
+plaintext is exposed; per-file keys use HKDF-SHA256 over `folderKey ||
+filename` with salt `syncthing`; and encrypted block hash tokens are stable for
+the same hash at the same offset while differing for the same hash at a
+different offset because the big-endian offset is associated data.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -191,9 +201,10 @@ custom `#escape=|` rule to block a literal filename containing `*` without
 blocking an ordinary public media request.
 `examples/wordpress-receive-encrypted-envelope.php` shows the adjacent
 untrusted-peer boundary: a WordPress media block request is reshaped into an
-encrypted-name request with padded size, per-block overhead, and an opaque hash
-token, while the encrypted file bytes carry a recoverable normalized FileInfo
-trailer for later metadata reconstruction.
+encrypted-name request with padded size, per-block overhead, a deterministic
+encrypted filename, and an offset-bound block-hash token, while the encrypted
+file bytes carry a recoverable normalized FileInfo trailer for later metadata
+reconstruction.
 `examples/wordpress-encryption-consistency.php` shows the cluster-config
 boundary for that same WordPress media folder: a plain untrusted peer is
 rejected, a receive-encrypted peer's real Syncthing password token is accepted
@@ -202,6 +213,6 @@ upstream different-password error.
 
 ## Next Task
 
-Port deterministic encrypted name and block-hash token transforms from
-`lib/protocol/encryption.go` using the new AES-SIV primitive, then map
-encrypted FileInfo metadata wrapping/decryption boundaries.
+Port encrypted FileInfo metadata wrapping/decryption from `encryptFileInfo` and
+`DecryptFileInfo`, then map XChaCha20-Poly1305 data encryption/decryption
+boundaries.

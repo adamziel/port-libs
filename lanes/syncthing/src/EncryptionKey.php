@@ -66,6 +66,34 @@ final class EncryptionKey
         return $iv . $ciphertext;
     }
 
+    public static function decryptDeterministic(string $data, string $key, ?string $additionalData = null): string
+    {
+        self::assertAesSivKey($key);
+        if (strlen($data) < self::BLOCK_SIZE) {
+            throw new \LengthException('AES-SIV ciphertext must include a 16-byte SIV');
+        }
+
+        $iv = substr($data, 0, self::BLOCK_SIZE);
+        $ciphertext = substr($data, self::BLOCK_SIZE);
+        $macKey = substr($key, 0, intdiv(strlen($key), 2));
+        $plaintext = self::aesCtr(substr($key, intdiv(strlen($key), 2)), self::zeroIvBits($iv), $ciphertext);
+        $associatedData = $additionalData === null ? [''] : [$additionalData, ''];
+        $expectedIv = self::s2v($associatedData, $plaintext, $macKey);
+
+        if (!hash_equals($expectedIv, $iv)) {
+            throw new \RuntimeException('AES-SIV authentication failed');
+        }
+
+        return $plaintext;
+    }
+
+    public static function fileKey(string $filename, string $folderKey): string
+    {
+        self::assertFolderKey($folderKey);
+
+        return self::hkdfSha256($folderKey . $filename, 'syncthing', '', self::KEY_SIZE);
+    }
+
     /**
      * @param list<string> $associatedData
      */
@@ -202,6 +230,36 @@ final class EncryptionKey
         if (!in_array(strlen($key), [32, 64], true)) {
             throw new \LengthException('AES-SIV key must be 32 or 64 bytes');
         }
+    }
+
+    private static function assertFolderKey(string $key): void
+    {
+        if (strlen($key) !== self::KEY_SIZE) {
+            throw new \LengthException('Syncthing folder keys must be 32 bytes');
+        }
+    }
+
+    private static function hkdfSha256(string $inputKeyMaterial, string $salt, string $info, int $length): string
+    {
+        if ($length <= 0) {
+            throw new \InvalidArgumentException('HKDF output length must be positive');
+        }
+
+        $prk = hash_hmac('sha256', $inputKeyMaterial, $salt, true);
+        $okm = '';
+        $previous = '';
+        $counter = 1;
+
+        while (strlen($okm) < $length) {
+            if ($counter > 255) {
+                throw new \LengthException('HKDF output length is too large');
+            }
+            $previous = hash_hmac('sha256', $previous . $info . chr($counter), $prk, true);
+            $okm .= $previous;
+            $counter++;
+        }
+
+        return substr($okm, 0, $length);
     }
 
     private static function scrypt(string $password, string $salt, int $n, int $r, int $p, int $length): string

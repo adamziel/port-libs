@@ -18,6 +18,50 @@ final class ReceiveEncrypted
         return EncryptionKey::passwordTokenHex($folderId, $password);
     }
 
+    public static function fileKey(string $plainName, string $folderKey): string
+    {
+        return EncryptionKey::fileKey($plainName, $folderKey);
+    }
+
+    public static function encryptName(string $plainName, string $folderKey): string
+    {
+        return self::slashifyBase32Hex(self::base32HexEncode(EncryptionKey::encryptDeterministic($plainName, $folderKey)));
+    }
+
+    public static function decryptName(string $encryptedName, string $folderKey): string
+    {
+        return EncryptionKey::decryptDeterministic(
+            self::base32HexDecode(self::deslashifyBase32HexPath($encryptedName)),
+            $folderKey,
+        );
+    }
+
+    public static function encryptBlockHashHex(string $plainHashHex, int $offset, string $fileKey): string
+    {
+        self::assertHexBytes($plainHashHex, 'block hash');
+
+        return bin2hex(EncryptionKey::encryptDeterministic(
+            $plainHashHex === '' ? '' : hex2bin($plainHashHex),
+            $fileKey,
+            self::offsetAdditionalData($offset),
+        ));
+    }
+
+    public static function decryptBlockHashHex(string $encryptedHashTokenHex, int $offset, string $fileKey): string
+    {
+        self::assertHexBytes($encryptedHashTokenHex, 'encrypted block hash token');
+        if ($encryptedHashTokenHex === '') {
+            return '';
+        }
+
+        $token = hex2bin($encryptedHashTokenHex);
+        try {
+            return bin2hex(EncryptionKey::decryptDeterministic($token, $fileKey, self::offsetAdditionalData($offset)));
+        } catch (\RuntimeException) {
+            return bin2hex(EncryptionKey::decryptDeterministic($token, $fileKey));
+        }
+    }
+
     public static function requestToEncryptedPeer(
         Request $request,
         string $encryptedName,
@@ -184,5 +228,80 @@ final class ReceiveEncrypted
         if ($token === '' || !preg_match('/^[0-9A-V]+$/', $token)) {
             throw new \InvalidArgumentException('Encrypted name token must be unpadded base32-hex');
         }
+    }
+
+    private static function assertHexBytes(string $hex, string $label): void
+    {
+        if ($hex !== '' && !preg_match('/^(?:[0-9a-f]{2})+$/', $hex)) {
+            throw new \InvalidArgumentException('Expected lowercase even-length hex for ' . $label);
+        }
+    }
+
+    private static function offsetAdditionalData(int $offset): string
+    {
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('Block hash offsets must be non-negative');
+        }
+        if ($offset > PHP_INT_MAX) {
+            throw new \InvalidArgumentException('Block hash offset exceeds PHP integer range');
+        }
+
+        $high = intdiv($offset, 0x100000000);
+        $low = $offset % 0x100000000;
+
+        return pack('N2', $high, $low);
+    }
+
+    private static function base32HexEncode(string $bytes): string
+    {
+        $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUV';
+        $buffer = 0;
+        $bits = 0;
+        $out = '';
+
+        for ($i = 0, $length = strlen($bytes); $i < $length; $i++) {
+            $buffer = ($buffer << 8) | ord($bytes[$i]);
+            $bits += 8;
+            while ($bits >= 5) {
+                $out .= $alphabet[($buffer >> ($bits - 5)) & 0x1f];
+                $bits -= 5;
+                $buffer &= $bits === 0 ? 0 : (1 << $bits) - 1;
+            }
+        }
+
+        if ($bits > 0) {
+            $out .= $alphabet[($buffer << (5 - $bits)) & 0x1f];
+        }
+
+        return $out;
+    }
+
+    private static function base32HexDecode(string $token): string
+    {
+        self::assertBase32HexToken($token);
+        if (in_array(strlen($token) % 8, [1, 3, 6], true)) {
+            throw new \InvalidArgumentException('Invalid unpadded base32-hex length');
+        }
+
+        $alphabet = array_flip(str_split('0123456789ABCDEFGHIJKLMNOPQRSTUV'));
+        $buffer = 0;
+        $bits = 0;
+        $out = '';
+
+        for ($i = 0, $length = strlen($token); $i < $length; $i++) {
+            $buffer = ($buffer << 5) | $alphabet[$token[$i]];
+            $bits += 5;
+            if ($bits >= 8) {
+                $out .= chr(($buffer >> ($bits - 8)) & 0xff);
+                $bits -= 8;
+                $buffer &= $bits === 0 ? 0 : (1 << $bits) - 1;
+            }
+        }
+
+        if ($bits > 0 && $buffer !== 0) {
+            throw new \InvalidArgumentException('Invalid unpadded base32-hex trailing bits');
+        }
+
+        return $out;
     }
 }

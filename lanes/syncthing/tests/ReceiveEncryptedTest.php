@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Syncthing\BepWire;
 use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
+use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\Request;
@@ -12,8 +13,6 @@ use PortLibs\Syncthing\VersionVector;
 
 return [
     'maps encrypted request geometry and opaque hash token fields' => static function (TestRunner $t): void {
-        $encryptedName = ReceiveEncrypted::slashifyBase32Hex(str_repeat('A', 208));
-        $hashToken = bin2hex('encrypted-block-token');
         $request = new Request(
             id: 31,
             folder: 'wordpress-media',
@@ -24,6 +23,10 @@ return [
             fromTemporary: true,
             blockNo: 3,
         );
+        $folderKey = EncryptionKey::folderKeyFromPassword($request->folder, 'wordpress media sync secret');
+        $fileKey = ReceiveEncrypted::fileKey($request->name, $folderKey);
+        $encryptedName = ReceiveEncrypted::encryptName($request->name, $folderKey);
+        $hashToken = ReceiveEncrypted::encryptBlockHashHex($request->hashHex, $request->offset, $fileKey);
 
         $encrypted = ReceiveEncrypted::requestToEncryptedPeer($request, $encryptedName, $hashToken);
 
@@ -39,6 +42,71 @@ return [
         $t->same($encrypted->offset, $decoded->offset);
         $t->same($encrypted->size, $decoded->size);
         $t->same($hashToken, $decoded->hashHex);
+        $t->same($request->name, ReceiveEncrypted::decryptName($decoded->name, $folderKey));
+        $t->same($request->hashHex, ReceiveEncrypted::decryptBlockHashHex($decoded->hashHex, $request->offset, $fileKey));
+    },
+    'maps upstream deterministic encrypted name fixtures and invalid cases' => static function (TestRunner $t): void {
+        $key = str_repeat("\0", EncryptionKey::KEY_SIZE);
+        $pattern = '/^[0-9A-V]\.syncthing-enc\/[0-9A-V]{2}\/(?:[0-9A-V]{200}\/)*[0-9A-V]{1,199}$/';
+        $makeName = static function (int $length): string {
+            $name = '';
+            for ($i = 0; $i < $length; $i++) {
+                $name .= chr(ord('a') + ($i % 26));
+            }
+            return $name;
+        };
+
+        foreach ([
+            '',
+            'foo',
+            'a longer name/with/slashes and spaces',
+            $makeName(ReceiveEncrypted::MAX_PATH_COMPONENT),
+            $makeName(1 + ReceiveEncrypted::MAX_PATH_COMPONENT),
+            $makeName(2 * ReceiveEncrypted::MAX_PATH_COMPONENT),
+            $makeName(1 + (2 * ReceiveEncrypted::MAX_PATH_COMPONENT)),
+        ] as $plainName) {
+            $encrypted = ReceiveEncrypted::encryptName($plainName, $key);
+
+            $t->same($encrypted, ReceiveEncrypted::encryptName($plainName, $key), 'encrypted names must be deterministic');
+            $t->same(1, preg_match($pattern, $encrypted), $encrypted);
+            $t->same($plainName, ReceiveEncrypted::decryptName($encrypted, $key));
+            if ($plainName !== '') {
+                $t->true(!str_contains($encrypted, $plainName), 'encrypted name should not contain plaintext');
+            }
+        }
+
+        $folderKey = EncryptionKey::folderKeyFromPassword('my folder', 'my password');
+        $fixtureName = '3.syncthing-enc/T5/957I4IOA20VEIEER6JSQG0PEPIRV862II3K7LOF75Q';
+        $t->same($fixtureName, ReceiveEncrypted::encryptName('filename.txt', $folderKey));
+        $t->same('filename.txt', ReceiveEncrypted::decryptName($fixtureName, $folderKey));
+
+        foreach ([
+            'T.syncthing-enc/OD',
+            'T.syncthing-enc/OD/',
+            'T.wrong-extension/OD/PHVDD67S7FI2K5QQMPSOFSK',
+            'OD/PHVDD67S7FI2K5QQMPSOFSK',
+        ] as $invalidName) {
+            $t->throws(Throwable::class, static fn () => ReceiveEncrypted::decryptName($invalidName, $key));
+        }
+    },
+    'maps upstream deterministic block hash token invariants' => static function (TestRunner $t): void {
+        $folderKey = EncryptionKey::folderKeyFromPassword('my folder', 'my password');
+        $fileKey = ReceiveEncrypted::fileKey('filename.txt', $folderKey);
+        $hashHex = hash('sha256', 'wordpress encrypted block bytes');
+
+        $firstOffsetToken = ReceiveEncrypted::encryptBlockHashHex($hashHex, 0, $fileKey);
+        $sameOffsetToken = ReceiveEncrypted::encryptBlockHashHex($hashHex, 0, $fileKey);
+        $nextOffsetToken = ReceiveEncrypted::encryptBlockHashHex($hashHex, 45, $fileKey);
+
+        $t->same(96, strlen($firstOffsetToken));
+        $t->same($firstOffsetToken, $sameOffsetToken, 'same hash and offset should produce a stable token');
+        $t->true($firstOffsetToken !== $nextOffsetToken, 'same hash at different offsets should not reuse tokens');
+        $t->same($hashHex, ReceiveEncrypted::decryptBlockHashHex($firstOffsetToken, 0, $fileKey));
+        $t->same($hashHex, ReceiveEncrypted::decryptBlockHashHex($nextOffsetToken, 45, $fileKey));
+        $t->throws(RuntimeException::class, static fn () => ReceiveEncrypted::decryptBlockHashHex($firstOffsetToken, 45, $fileKey));
+
+        $legacyToken = bin2hex(EncryptionKey::encryptDeterministic(hex2bin($hashHex), $fileKey));
+        $t->same($hashHex, ReceiveEncrypted::decryptBlockHashHex($legacyToken, 45, $fileKey));
     },
     'maps encrypted inbound requests back to plaintext geometry' => static function (TestRunner $t): void {
         $realHash = hash('sha256', 'large plaintext block');
