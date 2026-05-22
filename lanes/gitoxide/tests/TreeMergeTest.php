@@ -965,6 +965,46 @@ return [
         $t->same([], $result->indexEntries());
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline no-merge-base fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $base = new Tree([]);
+        $ours = new Tree([$blobEntry('content', "A\n")]);
+        $theirs = new Tree([$blobEntry('content', "B\n")]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $content = $read($result->tree->entryNamed('content')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(['content'], $names($result->tree));
+        $t->contains('<<<<<<< ours/content', $content->body);
+        $t->contains("A\n", $content->body);
+        $t->contains("B\n", $content->body);
+        $t->same([
+            ['path' => 'content', 'reason' => 'add-add', 'base' => null, 'ours' => 'content', 'theirs' => 'content'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'content', 'body' => "A\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'content', 'body' => "B\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same(['content'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+    },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "1\n2\n3\n4\n5\n")]);

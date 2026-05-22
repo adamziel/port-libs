@@ -152,6 +152,13 @@ final class TreeMerge
                 continue;
             }
 
+            $addedBlobConflict = self::tryMergeAddedBlobConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
+            if ($addedBlobConflict !== null) {
+                $merged[] = $addedBlobConflict['entry'];
+                array_push($conflicts, ...$addedBlobConflict['conflicts']);
+                continue;
+            }
+
             $addedSymlinkConflict = self::tryMergeAddedSymlinkConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry);
             if ($addedSymlinkConflict !== null) {
                 $merged[] = $addedSymlinkConflict['entry'];
@@ -259,6 +266,53 @@ final class TreeMerge
 
         return [
             'entry' => new TreeEntry($mergedMode, $path, $writeObject(new GitObject('blob', $merge->content))),
+            'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return null|array{entry:TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeAddedBlobConflict(
+        string $path,
+        string $fullPath,
+        ?TreeEntry $baseEntry,
+        ?TreeEntry $ourEntry,
+        ?TreeEntry $theirEntry,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+    ): ?array {
+        if ($baseEntry !== null || $ourEntry === null || $theirEntry === null || !$ourEntry->isBlob() || !$theirEntry->isBlob()) {
+            return null;
+        }
+        if ($ourEntry->mode !== $theirEntry->mode) {
+            return null;
+        }
+
+        $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
+        $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
+        $merge = self::containsNul($ourBlob->body . $theirBlob->body)
+            ? BlobMerge::mergeBinary('', $ourBlob->body, $theirBlob->body)
+            : BlobMerge::mergeText(
+                '',
+                $ourBlob->body,
+                $theirBlob->body,
+                $conflictStyle,
+                'base/' . $fullPath,
+                'ours/' . $fullPath,
+                'theirs/' . $fullPath,
+            );
+
+        $conflicts = [];
+        if (!$merge->isClean()) {
+            $conflicts[] = new TreeMergeConflict($fullPath, 'add-add', null, $ourEntry, $theirEntry);
+        }
+
+        return [
+            'entry' => new TreeEntry($ourEntry->mode, $path, $writeObject(new GitObject('blob', $merge->content))),
             'conflicts' => $conflicts,
         ];
     }

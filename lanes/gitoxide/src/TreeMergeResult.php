@@ -56,7 +56,7 @@ final class TreeMergeResult
     {
         $files = [];
         foreach ($this->conflicts as $conflict) {
-            if ($conflict->reason !== 'content-conflict') {
+            if (!in_array($conflict->reason, ['content-conflict', 'add-add'], true)) {
                 continue;
             }
 
