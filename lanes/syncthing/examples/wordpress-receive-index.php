@@ -7,6 +7,7 @@ use PortLibs\Syncthing\DeviceDownloadState;
 use PortLibs\Syncthing\FileDownloadProgressUpdate;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\Folder;
+use PortLibs\Syncthing\FolderIndexState;
 use PortLibs\Syncthing\IndexHandlerRegistry;
 use PortLibs\Syncthing\IndexHandlerStartInfo;
 use PortLibs\Syncthing\VersionVector;
@@ -15,7 +16,18 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $remoteDevice = new Device(idHex: 'aa', name: 'Playground laptop', indexId: 900, maxSequence: 51);
 $localDevice = new Device(idHex: 'bb', name: 'WP media origin', indexId: 77, maxSequence: 20);
+$localVersion = VersionVector::fromCounters([202 => 20]);
 $version = VersionVector::fromCounters([202 => 52]);
+
+$indexState = new FolderIndexState(localDeviceId: $localDevice->idHex);
+$indexState->update($localDevice->idHex, [
+    new FileInfo(
+        name: 'wp-content/uploads/2026/hero.jpg',
+        version: $localVersion,
+        size: 1024 * 1024,
+        sequence: 20,
+    ),
+]);
 
 $downloads = new DeviceDownloadState();
 $downloads->update('wordpress-media', [
@@ -46,6 +58,7 @@ $registry = new IndexHandlerRegistry(
     eventLogger: static function (string $type, array $data) use (&$events): void {
         $events[] = [$type, $data];
     },
+    folderIndexStates: ['wordpress-media' => $indexState],
 );
 
 $registry->addIndexInfo(
@@ -75,6 +88,8 @@ $result = $registry->receiveIndex(
 
 echo json_encode([
     'remoteSequence' => $result->sequence,
+    'localNeedNames' => array_map(static fn (FileInfo $file): string => $file->name, $indexState->neededFiles($localDevice->idHex)),
+    'globalAvailability' => $indexState->globalAvailability('wp-content/uploads/2026/hero.jpg'),
     'temporaryBlocksAfterIndex' => $downloads->getBlockCounts('wordpress-media'),
     'events' => $events,
     'scheduledPulls' => $runner->scheduledPulls,

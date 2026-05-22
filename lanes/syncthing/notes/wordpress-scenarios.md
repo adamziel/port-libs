@@ -237,7 +237,12 @@ claims are recorded as failure-style anomalies without rejecting the batch, and
 duplicate remote sequence numbers are rejected before storing the batch. The
 WordPress example `wordpress-receive-index.php` shows a Playground peer's media
 index replacing temporary block availability with a scheduled pull against the
-remote FileInfo state.
+remote FileInfo state. That receive path can now update an attached
+`FolderIndexState` too: full Index messages reset the remote peer's folder
+state before recalculating global/need metadata, while IndexUpdate messages
+preserve existing remote files and add only the delta. The same example reports
+the local WordPress media files still needed after the peer index and the
+remote device availability for the current global file.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, `fs.TempName`,
 `fs.IsTemporary`, and `protocol.TestRequestMaxSize`
@@ -515,9 +520,12 @@ from `internal/db/sqlite/db_global_test.go`, `folderdb_global.go`,
 `folderdb_counts.go`, and `folderdb_update.go`: version-vector winners decide
 which FileInfo is global, local and remote needed-file lists follow the same
 deleted/ignored/remote-invalid boundaries as upstream, directories and symlinks
-contribute to need counts, alphabetic pagination is stable, and a full Index
-reset from one remote does not erase another remote's need for a re-added media
-file. A bounded upstream runner was executed for this focused slice only:
+contribute to need counts, alphabetic pagination is stable,
+`GetGlobalAvailability`-style device lists include remote peers with the same
+version as the current global file, and remote drop/reset recalculation can
+promote the local or another remote version. A full Index reset from one remote
+does not erase another remote's need for a re-added media file. A bounded
+upstream runner was executed for this focused slice only:
 `go test ./internal/db/sqlite -run
 '^(TestNeed|TestNeedDeleted|TestDontNeedIgnored|TestLocalDontNeedDeletedMissing|TestRemoteDontNeedDeletedMissing|TestNeedRemoteSymlinkAndDir|TestNeedPagination)$'
 -count=1` passed in a throwaway worktree at commit
@@ -528,6 +536,6 @@ does not trigger a false redownload.
 
 ## Next Task
 
-Connect the in-memory FolderIndexState to receive-side IndexHandlerRegistry
-updates, or map upstream sqlite global availability/drop recalculation before
-broadening protocol/model behavior.
+Map upstream sqlite global availability/drop recalculation more broadly across
+device drops and availability ordering, or connect the attached FolderIndexState
+to a higher-level pull planner before broadening protocol/model behavior.

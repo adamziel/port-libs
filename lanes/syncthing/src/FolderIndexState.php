@@ -93,6 +93,34 @@ final class FolderIndexState
     }
 
     /**
+     * @return list<string>
+     */
+    public function globalAvailability(string $name): array
+    {
+        if ($name === '') {
+            throw new \InvalidArgumentException('File name must not be empty');
+        }
+
+        $global = $this->globalFile($name);
+        if ($global === null) {
+            return [];
+        }
+
+        $devices = [];
+        foreach ($this->entriesForName($name) as $entry) {
+            if ($entry['device'] === $this->localDeviceId) {
+                continue;
+            }
+            if ($entry['file']->version->equal($global->version)) {
+                $devices[] = $entry['device'];
+            }
+        }
+        sort($devices, SORT_STRING);
+
+        return $devices;
+    }
+
+    /**
      * @return list<FileInfo>
      */
     public function globalFiles(): array

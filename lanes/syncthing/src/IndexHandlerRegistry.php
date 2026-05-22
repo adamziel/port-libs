@@ -19,6 +19,14 @@ final class IndexHandlerRegistry
      */
     private array $folderStates = [];
 
+    /**
+     * @var array<string, FolderIndexState>
+     */
+    private array $folderIndexStates = [];
+
+    /**
+     * @param array<string, FolderIndexState> $folderIndexStates
+     */
     public function __construct(
         private readonly string $remoteDeviceIdHex,
         private readonly int $localIndexId = 0,
@@ -27,6 +35,7 @@ final class IndexHandlerRegistry
         ?ServiceMap $indexHandlers = null,
         private readonly ?DeviceDownloadState $downloads = null,
         private readonly mixed $eventLogger = null,
+        array $folderIndexStates = [],
     ) {
         $this->assertDeviceId($remoteDeviceIdHex);
         if ($this->localIndexId < 0 || $this->localCurrentSequence < 0) {
@@ -38,6 +47,16 @@ final class IndexHandlerRegistry
 
         $this->indexHandlers = $indexHandlers ?? new ServiceMap();
         $this->handlerFactory = \Closure::fromCallable($handlerFactory ?? $this->defaultHandlerFactory(...));
+        foreach ($folderIndexStates as $folder => $state) {
+            if (!is_string($folder) && !is_int($folder)) {
+                throw new \InvalidArgumentException('Folder index state keys must be folder IDs');
+            }
+            if (!$state instanceof FolderIndexState) {
+                throw new \InvalidArgumentException('Expected only FolderIndexState instances');
+            }
+
+            $this->registerFolderIndexState((string) $folder, $state);
+        }
     }
 
     public function addIndexInfo(string $folder, IndexHandlerStartInfo $startInfo): ?IndexHandler
@@ -109,6 +128,19 @@ final class IndexHandlerRegistry
         return $handler instanceof IndexHandler ? $handler : null;
     }
 
+    public function registerFolderIndexState(string $folder, FolderIndexState $state): void
+    {
+        $this->assertFolderId($folder);
+        $this->folderIndexStates[$folder] = $state;
+    }
+
+    public function folderIndexState(string $folder): ?FolderIndexState
+    {
+        $this->assertFolderId($folder);
+
+        return $this->folderIndexStates[$folder] ?? null;
+    }
+
     public function pendingStartInfo(string $folder): ?IndexHandlerStartInfo
     {
         return $this->startInfos[$folder] ?? null;
@@ -171,7 +203,7 @@ final class IndexHandlerRegistry
             throw new \RuntimeException($folder . ': no such folder');
         }
 
-        return $handler->receiveIndex(
+        $result = $handler->receiveIndex(
             files: $files,
             update: $update,
             operation: $operation,
@@ -181,6 +213,10 @@ final class IndexHandlerRegistry
             remoteDeviceIdHex: $this->remoteDeviceIdHex,
             eventLogger: $this->eventLogger,
         );
+        $state = $this->folderIndexStates[$folder] ?? null;
+        $state?->update($this->remoteDeviceIdHex, $files, reset: !$update);
+
+        return $result;
     }
 
     private function folderPaused(string $folder): ?IndexHandler

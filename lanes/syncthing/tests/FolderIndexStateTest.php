@@ -138,6 +138,37 @@ return [
             'wp-content/uploads/sym',
         ], syncthing_folder_index_state_names($state->neededFiles('local', limit: 3, offset: 2)));
     },
+    'maps upstream global availability and drop recalculation' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $base = VersionVector::fromCounters([1 => 1]);
+        $remoteWin = VersionVector::fromCounters([1 => 1, 42 => 2]);
+
+        $state->update('local', [
+            syncthing_folder_index_state_file('wp-content/uploads/drop-recalc.jpg', 1, 128, $base),
+        ]);
+        $state->update('remote-b', [
+            syncthing_folder_index_state_file('wp-content/uploads/drop-recalc.jpg', 2, 256, $remoteWin),
+        ]);
+        $state->update('remote-a', [
+            syncthing_folder_index_state_file('wp-content/uploads/drop-recalc.jpg', 3, 256, $remoteWin),
+        ]);
+        $state->update('remote-old', [
+            syncthing_folder_index_state_file('wp-content/uploads/drop-recalc.jpg', 4, 128, $base),
+        ]);
+
+        $t->same(['remote-a', 'remote-b'], $state->globalAvailability('wp-content/uploads/drop-recalc.jpg'));
+        $t->same(256, $state->globalFile('wp-content/uploads/drop-recalc.jpg')?->size);
+
+        $state->dropFilesNamed('remote-b', ['wp-content/uploads/drop-recalc.jpg']);
+        $t->same(['remote-a'], $state->globalAvailability('wp-content/uploads/drop-recalc.jpg'));
+
+        $state->dropAllFiles('remote-a');
+        $t->same(128, $state->globalFile('wp-content/uploads/drop-recalc.jpg')?->size);
+        $t->same(['remote-old'], $state->globalAvailability('wp-content/uploads/drop-recalc.jpg'));
+
+        $state->dropAllFiles('remote-old');
+        $t->same([], $state->globalAvailability('wp-content/uploads/drop-recalc.jpg'));
+    },
 ];
 
 function syncthing_folder_index_state_file(

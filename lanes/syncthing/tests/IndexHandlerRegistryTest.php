@@ -7,6 +7,7 @@ use PortLibs\Syncthing\DeviceDownloadState;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\FileDownloadProgressUpdate;
 use PortLibs\Syncthing\Folder;
+use PortLibs\Syncthing\FolderIndexState;
 use PortLibs\Syncthing\IndexHandler;
 use PortLibs\Syncthing\IndexHandlerRegistry;
 use PortLibs\Syncthing\IndexHandlerStartInfo;
@@ -188,6 +189,70 @@ return [
         $t->same('aa', $events[0][1]['device']);
         $t->same('wordpress-media', $events[0][1]['folder']);
     },
+    'updates attached folder index state from received Index and IndexUpdate batches' => static function (TestRunner $t): void {
+        $runner = new SyncthingIndexHandlerRegistryRunner();
+        $state = new FolderIndexState(localDeviceId: 'bb');
+        $localBase = VersionVector::fromCounters([101 => 1]);
+        $remoteHero = VersionVector::fromCounters([101 => 1, 202 => 2]);
+        $remotePoster = VersionVector::fromCounters([202 => 3]);
+
+        $state->update('bb', [
+            syncthing_index_handler_registry_file('wp-content/uploads/2026/hero.jpg', 1, 1024, $localBase),
+        ]);
+
+        $registry = new IndexHandlerRegistry(
+            remoteDeviceIdHex: 'aa',
+            localIndexId: 77,
+            localCurrentSequence: 20,
+            folderIndexStates: ['wordpress-media' => $state],
+        );
+        $registry->addIndexInfo('wordpress-media', syncthing_index_handler_start_info(localMaxSequence: 10));
+        $registry->registerFolderState(syncthing_index_handler_registry_folder('wordpress-media'), $runner);
+
+        $registry->receiveIndex(
+            folder: 'wordpress-media',
+            files: [
+                syncthing_index_handler_registry_file('wp-content/uploads/2026/hero.jpg', 51, 2048, $remoteHero),
+            ],
+            update: false,
+            operation: 'Index',
+            lastSequence: 51,
+        );
+
+        $t->same(['aa'], $state->globalAvailability('wp-content/uploads/2026/hero.jpg'));
+        $t->same(['wp-content/uploads/2026/hero.jpg'], syncthing_index_handler_registry_names($state->neededFiles('bb')));
+
+        $registry->receiveIndex(
+            folder: 'wordpress-media',
+            files: [
+                syncthing_index_handler_registry_file('wp-content/uploads/2026/poster.jpg', 52, 4096, $remotePoster),
+            ],
+            update: true,
+            operation: 'Index update',
+            prevSequence: 51,
+            lastSequence: 52,
+        );
+
+        $t->same([
+            'wp-content/uploads/2026/hero.jpg',
+            'wp-content/uploads/2026/poster.jpg',
+        ], syncthing_index_handler_registry_names($state->neededFiles('bb')));
+
+        $registry->receiveIndex(
+            folder: 'wordpress-media',
+            files: [
+                syncthing_index_handler_registry_file('wp-content/uploads/2026/poster.jpg', 53, 4096, $remotePoster),
+            ],
+            update: false,
+            operation: 'Index',
+            lastSequence: 53,
+        );
+
+        $t->same([], $state->globalAvailability('wp-content/uploads/2026/hero.jpg'));
+        $t->same(['aa'], $state->globalAvailability('wp-content/uploads/2026/poster.jpg'));
+        $t->same(['wp-content/uploads/2026/poster.jpg'], syncthing_index_handler_registry_names($state->neededFiles('bb')));
+        $t->same(4, $runner->scheduledPulls);
+    },
 ];
 
 function syncthing_index_handler_start_info(int $localMaxSequence): IndexHandlerStartInfo
@@ -208,6 +273,33 @@ function syncthing_index_handler_registry_folder(
         stopReason: $stopReason,
         devices: [new Device(idHex: 'aa', name: 'remote-peer')],
     );
+}
+
+function syncthing_index_handler_registry_file(
+    string $name,
+    int $sequence,
+    int $size,
+    VersionVector $version,
+): FileInfo {
+    return new FileInfo(
+        name: $name,
+        modifiedS: 1_700_005_000 + $sequence,
+        modifiedNs: $sequence,
+        version: $version,
+        size: $size,
+        rawBlockSize: $size,
+        sequence: $sequence,
+    );
+}
+
+/**
+ * @param list<FileInfo> $files
+ *
+ * @return list<string>
+ */
+function syncthing_index_handler_registry_names(array $files): array
+{
+    return array_map(static fn (FileInfo $file): string => $file->name, $files);
 }
 
 final class SyncthingIndexHandlerRegistryRunner
