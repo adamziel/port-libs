@@ -197,6 +197,17 @@ final class TrackedNodeStore
         return $this->heads[$head] ?? 0;
     }
 
+    /**
+     * @return array<string, int>
+     */
+    public function heads(): array
+    {
+        $heads = $this->heads;
+        ksort($heads, SORT_STRING);
+
+        return $heads;
+    }
+
     public function setHeadNodeId(string $head, int $nodeId): void
     {
         self::assertHeadName($head);
@@ -205,6 +216,12 @@ final class TrackedNodeStore
         }
 
         $this->heads[$head] = $nodeId;
+    }
+
+    public function deleteHead(string $head): void
+    {
+        self::assertHeadName($head);
+        unset($this->heads[$head]);
     }
 
     /**

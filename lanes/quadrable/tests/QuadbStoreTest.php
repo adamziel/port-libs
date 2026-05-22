@@ -174,6 +174,123 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store formats root status and sorted head output' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", $repo->rootText());
+            $t->same("Head: master\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", $repo->statusText());
+            $t->same('', $repo->headText());
+
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $masterRoot = $repo->tree()->rootHash();
+            $masterHeadNodeId = $repo->tree()->headNodeId();
+
+            $repo->fork('wp-release');
+            $repo->put('wp_posts:2', 'Released page');
+            $releaseRoot = $repo->tree()->rootHash();
+            $releaseHeadNodeId = $repo->tree()->headNodeId();
+
+            $repo->fork('wp-preview', 'master');
+            $repo->put('wp_posts:1', 'Preview edit');
+            $previewRoot = $repo->tree()->rootHash();
+            $previewHeadNodeId = $repo->tree()->headNodeId();
+
+            $t->same('0x' . $previewRoot . "\n", $repo->rootText());
+            $t->same("Head: wp-preview\nRoot: 0x{$previewRoot} ({$previewHeadNodeId})\n", $repo->statusText());
+            $t->same([
+                "=> wp-preview : 0x{$previewRoot} ({$previewHeadNodeId})",
+                "   wp-release : 0x{$releaseRoot} ({$releaseHeadNodeId})",
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+            ], quadrableQuadbOutputLines($repo->headText()));
+
+            $reopened = QuadbStore::open($dir);
+            $t->same($repo->headText(), $reopened->headText());
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store removes named and current heads like quadb head rm' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $masterRoot = $repo->tree()->rootHash();
+            $masterHeadNodeId = $repo->tree()->headNodeId();
+
+            $repo->fork('wp-preview');
+            $repo->put('wp_posts:1', 'Preview edit');
+            $previewRoot = $repo->tree()->rootHash();
+            $previewHeadNodeId = $repo->tree()->headNodeId();
+
+            $repo->fork('wp-throwaway', 'master');
+            $repo->put('wp_posts:2', 'Throwaway preview');
+            $repo->removeHead('wp-throwaway');
+            $repo->checkout('wp-preview');
+
+            $t->same([
+                "=> wp-preview : 0x{$previewRoot} ({$previewHeadNodeId})",
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+            ], quadrableQuadbOutputLines($repo->headText()));
+
+            $repo->removeHead();
+            $t->same('wp-preview', $repo->currentHeadName());
+            $t->same(HashTree::EMPTY_HASH, $repo->tree()->rootHash());
+            $t->same("Head: wp-preview\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", $repo->statusText());
+            $t->same([
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+            ], quadrableQuadbOutputLines($repo->headText()));
+
+            $repo->put('wp_posts:3', 'Recreated preview head');
+            $recreatedRoot = $repo->tree()->rootHash();
+            $recreatedHeadNodeId = $repo->tree()->headNodeId();
+
+            $t->same([
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+                "=> wp-preview : 0x{$recreatedRoot} ({$recreatedHeadNodeId})",
+            ], quadrableQuadbOutputLines(QuadbStore::open($dir)->headText()));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store head rm resets detached head to an empty tree' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines("wp_posts:1|Published post\n", '|');
+            $masterRoot = $repo->tree()->rootHash();
+            $masterHeadNodeId = $repo->tree()->headNodeId();
+
+            $detached = $repo->fork();
+            $t->true($repo->isDetachedHead());
+            $t->same($masterRoot, $detached->rootHash());
+            $t->same([
+                "D> [detached] : 0x{$masterRoot} ({$masterHeadNodeId})",
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+            ], quadrableQuadbOutputLines($repo->headText()));
+
+            $repo->removeHead();
+            $t->true($repo->isDetachedHead());
+            $t->same(HashTree::EMPTY_HASH, $repo->tree()->rootHash());
+            $t->same([
+                'D> [detached] : 0x' . HashTree::EMPTY_HASH . ' (0)',
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+            ], quadrableQuadbOutputLines(QuadbStore::open($dir)->headText()));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
 ];
 
 function quadrableQuadbTempDir(): string
@@ -217,4 +334,17 @@ function quadrableQuadbSortedLines(string $lines): array
     sort($output, SORT_STRING);
 
     return $output;
+}
+
+/**
+ * @return list<string>
+ */
+function quadrableQuadbOutputLines(string $lines): array
+{
+    $trimmed = rtrim($lines, "\r\n");
+    if ($trimmed === '') {
+        return [];
+    }
+
+    return explode("\n", $trimmed);
 }

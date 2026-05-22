@@ -202,6 +202,73 @@ final class QuadbStore
         return $value;
     }
 
+    public function rootText(): string
+    {
+        return '0x' . $this->tree()->rootHash() . "\n";
+    }
+
+    public function statusText(): string
+    {
+        $tree = $this->tree();
+        $head = $this->isDetachedHead()
+            ? "Detached head\n"
+            : 'Head: ' . $this->currentHead . "\n";
+
+        return $head . 'Root: ' . $this->renderNode($tree->headNodeId()) . "\n";
+    }
+
+    public function headText(): string
+    {
+        $heads = [];
+        foreach ($this->nodeStore->heads() as $head => $nodeId) {
+            $heads[] = [
+                'head' => $head,
+                'nodeId' => $nodeId,
+            ];
+        }
+
+        usort($heads, static function (array $a, array $b): int {
+            if ($a['nodeId'] === $b['nodeId']) {
+                return $a['head'] <=> $b['head'];
+            }
+
+            return $b['nodeId'] <=> $a['nodeId'];
+        });
+
+        $output = '';
+        if ($this->isDetachedHead()) {
+            $output .= 'D> [detached] : ' . $this->renderNode($this->detachedHeadNodeId) . "\n";
+        }
+
+        foreach ($heads as $head) {
+            $prefix = !$this->isDetachedHead() && $this->currentHead === $head['head'] ? '=> ' : '   ';
+            $output .= $prefix . $head['head'] . ' : ' . $this->renderNode($head['nodeId']) . "\n";
+        }
+
+        return $output;
+    }
+
+    public function removeHead(?string $head = null): void
+    {
+        if ($head !== null) {
+            $this->assertHeadName($head);
+            $this->nodeStore->deleteHead($head);
+            $this->persist();
+
+            return;
+        }
+
+        if ($this->isDetachedHead()) {
+            $this->detachedHeadNodeId = 0;
+            $this->persist();
+
+            return;
+        }
+
+        $this->nodeStore->deleteHead((string) $this->currentHead);
+        $this->persist();
+    }
+
     public function save(?TrackedSparseTree $tree = null): void
     {
         if ($this->currentHead === null && $tree !== null) {
@@ -532,5 +599,10 @@ final class QuadbStore
     private static function renderUnknownKey(string $keyHex): string
     {
         return 'H(?)=0x' . substr($keyHex, 0, 12) . '...';
+    }
+
+    private function renderNode(int $nodeId): string
+    {
+        return '0x' . $this->nodeStore->nodeHash($nodeId) . ' (' . $nodeId . ')';
     }
 }
