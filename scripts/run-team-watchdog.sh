@@ -50,6 +50,14 @@ session_has_evaluator_loop() {
   [[ "$child_count" != "0" ]]
 }
 
+session_has_dashboard_updater_loop() {
+  local pane_pid child_count
+  pane_pid="$(tmux display-message -p -t port-dashboard-updater:0 '#{pane_pid}' 2>/dev/null || true)"
+  [[ -n "$pane_pid" ]] || return 1
+  child_count="$(descendants "$pane_pid" | wc -l | tr -d ' ')"
+  [[ "$child_count" != "0" ]]
+}
+
 start_worker() {
   local session="$1"
   local prompt="$2"
@@ -132,6 +140,18 @@ ensure_evaluator_session() {
   fi
 }
 
+ensure_dashboard_updater_session() {
+  if ! tmux has-session -t port-dashboard-updater 2>/dev/null; then
+    tmux new-session -d -s port-dashboard-updater "AGENT_BIN='$AGENT_BIN' DASHBOARD_UPDATER_INTERVAL_SECONDS='${DASHBOARD_UPDATER_INTERVAL_SECONDS:-600}' '$ROOT/scripts/run-dashboard-updater-loop.sh'"
+    printf '%s recreated port-dashboard-updater\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    return
+  fi
+  if ! session_has_dashboard_updater_loop; then
+    tmux send-keys -t port-dashboard-updater:0 "AGENT_BIN='$AGENT_BIN' DASHBOARD_UPDATER_INTERVAL_SECONDS='${DASHBOARD_UPDATER_INTERVAL_SECONDS:-600}' '$ROOT/scripts/run-dashboard-updater-loop.sh'" C-m
+    printf '%s restarted port-dashboard-updater loop\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  fi
+}
+
 printf 'port-watchdog started at %s, interval %ss\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$INTERVAL_SECONDS"
 while true; do
   for lane in "${LANES[@]}"; do
@@ -141,5 +161,6 @@ while true; do
   ensure_auditor_session
   ensure_integrator_session
   ensure_evaluator_session
+  ensure_dashboard_updater_session
   sleep "$INTERVAL_SECONDS"
 done
