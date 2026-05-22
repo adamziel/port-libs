@@ -238,18 +238,21 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   indented separators terminate a note before flush-left text, indented text
   after a separator remains in the note, and recursive `[^1]` references inside
   their own note body remain literal text.
-- Pipe-table cases from `test/pipe-tables.txt`, cross-checked against
-  `test/pipe-tables.native`: captioned aligned pipe tables keep caption text
-  and right/left/default/center alignment metadata, headerless tables omit the
-  table head, side-less rows split correctly without leading or trailing pipes,
-  one-column and no-body tables preserve their header/body shape, and tricky
-  cells keep escaped `\|` pipes as text while `foo` plus a code span containing
-  `bar|baz` remains one cell.
+- All 11 pipe-table cases from `test/pipe-tables.txt`, cross-checked against
+  `test/pipe-tables.native`: default and aligned caption/no-caption tables keep
+  caption text plus right/left/default/center alignment metadata, headerless
+  tables omit the table head, the one-dash `|:-:|` header-less one-column form
+  parses as centered, side-less rows split correctly without leading or
+  trailing pipes, indented left-column values trim to their intended cells,
+  one-column and no-body tables preserve their header/body shape, long
+  delimiter rows produce relative column-width metadata, and tricky cells keep
+  escaped `\|` pipes as text while `foo` plus a code span containing `bar|baz`
+  remains one cell.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-77 tests, 497 assertions, and 0 failures. The required repo-wide
+79 tests, 520 assertions, and 0 failures. The required repo-wide
 `php tools/run-tests.php` command passed in the current shared worktree with
-104 test files, 7,236 assertions, and 0 failures.
+106 test files, 7,544 assertions, and 0 failures.

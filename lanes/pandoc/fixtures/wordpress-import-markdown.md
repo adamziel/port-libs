@@ -92,6 +92,13 @@ Import metrics:
 
   : Migration batch summary.
 
+Import field widths:
+
+| Field | Count | Review Notes |
+ |---------|----------|---------------------------------------|
+| Posts | 42 | This long reviewer note should keep the wide column for migration summaries |
+| Media | 7 | Check `alt` text before publish |
+
 <!-- Preserve migration audit marker -->
 
 <hr class="legacy-import-divider" />

@@ -228,7 +228,7 @@ final class WordPressBlockWriter
             }
         }
 
-        $html = '<table>';
+        $html = '<table>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead>';
             foreach ($head->children as $row) {
@@ -251,6 +251,32 @@ final class WordPressBlockWriter
         }
 
         return $html;
+    }
+
+    private function renderTableColgroup(AstNode $node): string
+    {
+        $widths = $node->attr('widths', null);
+        if (!is_array($widths) || $widths === []) {
+            return '';
+        }
+
+        $cols = [];
+        foreach ($widths as $width) {
+            if (!is_numeric($width) || (float) $width <= 0.0) {
+                return '';
+            }
+
+            $cols[] = '<col style="width:' . $this->esc($this->formatTableWidth((float) $width)) . '"/>';
+        }
+
+        return '<colgroup>' . implode('', $cols) . '</colgroup>';
+    }
+
+    private function formatTableWidth(float $width): string
+    {
+        $formatted = rtrim(rtrim(number_format($width * 100, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
     private function renderTableRow(AstNode $row, AstNode $table, bool $header): string

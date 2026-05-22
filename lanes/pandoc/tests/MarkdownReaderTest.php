@@ -1152,6 +1152,76 @@ return [
         $t->same('and|escaped', $escapedCell->children[0]->attr('text'));
         $t->same('3.0000000', $trickyRow->children[2]->attr('text'));
     },
+    'maps remaining upstream pipe table default headerless one-column and width cases' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $simplest = $reader->read(implode("\n", [
+            'Simplest table without caption:',
+            '',
+            '| Default1 | Default2 | Default3 | ',
+            ' |----------|----------|----------|',
+            '|12|12|12|',
+            '|123|123|123|',
+            '|1|1|1|',
+        ]));
+        $simpleNoCaption = $reader->read(implode("\n", [
+            'Simple table without caption:',
+            '',
+            '| Right | Left | Center | ',
+            '|------:|:-----|:------:|',
+            '|12|12|12|',
+            '|123|123|123|',
+            '|1|1|1|',
+        ]));
+        $headerlessOneColumn = $reader->read(implode("\n", [
+            'Header-less one-column:',
+            '',
+            '|   |',
+            '|:-:|',
+            '|hi|',
+        ]));
+        $indentedLeft = $reader->read(implode("\n", [
+            'Indented left column:',
+            '',
+            'Number of siblings | Salary',
+            '------------------:|:------',
+            '                 3 | 33',
+            '                 4 | 44',
+        ]));
+        $relativeWidths = $reader->read(implode("\n", [
+            'Long pipe table with relative widths:',
+            '',
+            '| Default1 | Default2 | Default3 |',
+            ' |---------|----------|---------------------------------------|',
+            '|123|this is a table cell|and this is a really long table cell that will probably need wrapping|',
+            '|123|123|123|',
+        ]));
+
+        $simplestTable = $simplest->children[1];
+        $noCaptionTable = $simpleNoCaption->children[1];
+        $headerlessTable = $headerlessOneColumn->children[1];
+        $indentedTable = $indentedLeft->children[1];
+        $widthTable = $relativeWidths->children[1];
+
+        $t->same('table', $simplestTable->type);
+        $t->same('', $simplestTable->attr('caption'));
+        $t->same(['default', 'default', 'default'], $simplestTable->attr('alignments'));
+        $t->same('Default3', $simplestTable->children[0]->children[0]->children[2]->attr('text'));
+        $t->same('1', $simplestTable->children[1]->children[2]->children[2]->attr('text'));
+        $t->same(['right', 'left', 'center'], $noCaptionTable->attr('alignments'));
+        $t->same('Center', $noCaptionTable->children[0]->children[0]->children[2]->attr('text'));
+        $t->same('123', $noCaptionTable->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('table', $headerlessTable->type);
+        $t->same([], $headerlessTable->children[0]->children);
+        $t->same(['center'], $headerlessTable->attr('alignments'));
+        $t->same('hi', $headerlessTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same(['right', 'left'], $indentedTable->attr('alignments'));
+        $t->same('Number of siblings', $indentedTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('3', $indentedTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('44', $indentedTable->children[1]->children[1]->children[1]->attr('text'));
+        $t->same([9 / 58, 10 / 58, 39 / 58], $widthTable->attr('widths'));
+        $t->same('this is a table cell', $widthTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('and this is a really long table cell that will probably need wrapping', $widthTable->children[1]->children[0]->children[2]->attr('text'));
+    },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -1250,6 +1320,15 @@ return [
         $t->contains('<tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:left"><strong>ready</strong></td></tr>', $blocks);
         $t->contains('<tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:left">needs <code>alt</code></td></tr>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Migration batch summary.</figcaption>', $blocks);
+    },
+    'writes wordpress relative width pipe table colgroups from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<table><colgroup><col style="width:15.5172%"/><col style="width:17.2414%"/><col style="width:67.2414%"/></colgroup><thead>', $blocks);
+        $t->contains('<tr><th>Field</th><th>Count</th><th>Review Notes</th></tr>', $blocks);
+        $t->contains('<tr><td>Posts</td><td>42</td><td>This long reviewer note should keep the wide column for migration summaries</td></tr>', $blocks);
+        $t->contains('<tr><td>Media</td><td>7</td><td>Check <code>alt</code> text before publish</td></tr>', $blocks);
     },
     'writes wordpress underscore and nested emphasis from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

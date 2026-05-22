@@ -689,7 +689,7 @@ final class MarkdownReader
         $widthParts = [];
         foreach ($cells as $cell) {
             $marker = trim($cell);
-            if (preg_match('/^(:?)(-{2,})(:?)$/', $marker, $m) !== 1) {
+            if (preg_match('/^(:?)(-+)(:?)$/', $marker, $m) !== 1) {
                 return null;
             }
 
