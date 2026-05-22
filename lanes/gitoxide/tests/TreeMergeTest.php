@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\Gitoxide\BlobMerge;
+use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\TreeMerge;
@@ -9,6 +11,26 @@ use PortLibs\Gitoxide\TreeMerge;
 $oid = static fn (string $hex): string => str_repeat($hex, 40);
 $entry = static fn (string $filename, string $oid, string $mode = '100644'): TreeEntry => new TreeEntry($mode, $filename, $oid);
 $names = static fn (Tree $tree): array => array_map(static fn (TreeEntry $entry): string => $entry->filename, $tree->entries);
+$objectStore = static function (): array {
+    $objects = [];
+    $write = static function (GitObject $object) use (&$objects): string {
+        $oid = $object->oid();
+        $objects[$oid] = $object;
+
+        return $oid;
+    };
+    $read = static function (string $oid) use (&$objects): GitObject {
+        if (!isset($objects[$oid])) {
+            throw new RuntimeException("Fixture object not found: {$oid}");
+        }
+
+        return $objects[$oid];
+    };
+    $blobEntry = static fn (string $filename, string $content, string $mode = '100644'): TreeEntry => new TreeEntry($mode, $filename, $write(new GitObject('blob', $content)));
+    $treeEntry = static fn (string $filename, Tree $tree): TreeEntry => new TreeEntry('40000', $filename, $write($tree->toObject()));
+
+    return [$read, $write, $blobEntry, $treeEntry];
+};
 
 return [
     'merges independent flat WordPress tree changes' => static function (TestRunner $t) use ($oid, $entry, $names): void {
@@ -92,5 +114,65 @@ return [
         $tree = new Tree([$entry('wp-config.php', $oid('1')), $entry('wp-config.php', $oid('2'))]);
 
         $t->throws(InvalidArgumentException::class, static fn () => TreeMerge::mergeFlat(new Tree([]), $tree, new Tree([])));
+    },
+    'recursive tree merge combines independent nested blob edits' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "title: Demo\nslug: demo\nstatus: draft\n";
+        $ourContent = "title: Demo Import\nslug: demo\nstatus: draft\n";
+        $theirContent = "title: Demo\nslug: demo\nstatus: publish\n";
+        $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('post.meta', $baseContent)]))]);
+        $ours = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('post.meta', $ourContent)]))]);
+        $theirs = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('post.meta', $theirContent)]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $mergedContentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $mergedPost = $read($mergedContentTree->entryNamed('post.meta')?->oid ?? '');
+
+        $t->true($result->isClean());
+        $t->same("title: Demo Import\nslug: demo\nstatus: publish\n", $mergedPost->body);
+    },
+    'recursive tree merge records content conflicts with full paths and marker blobs' => static function (TestRunner $t) use ($objectStore): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $treeEntry('themes', new Tree([
+                    $treeEntry('acme', new Tree([
+                        $blobEntry('theme.json', "{\n  \"color\": \"base\"\n}\n"),
+                    ])),
+                ])),
+            ])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $treeEntry('themes', new Tree([
+                    $treeEntry('acme', new Tree([
+                        $blobEntry('theme.json', "{\n  \"color\": \"blue\"\n}\n"),
+                    ])),
+                ])),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('wp-content', new Tree([
+                $treeEntry('themes', new Tree([
+                    $treeEntry('acme', new Tree([
+                        $blobEntry('theme.json', "{\n  \"color\": \"green\"\n}\n"),
+                    ])),
+                ])),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
+        $themesTree = Tree::fromObject($read($contentTree->entryNamed('themes', true)?->oid ?? ''));
+        $themeTree = Tree::fromObject($read($themesTree->entryNamed('acme', true)?->oid ?? ''));
+        $mergedThemeJson = $read($themeTree->entryNamed('theme.json')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(1, count($result->conflicts));
+        $t->same('content-conflict', $result->conflicts[0]->reason);
+        $t->same('wp-content/themes/acme/theme.json', $result->conflicts[0]->path);
+        $t->contains('<<<<<<< ours/wp-content/themes/acme/theme.json', $mergedThemeJson->body);
+        $t->contains('||||||| base/wp-content/themes/acme/theme.json', $mergedThemeJson->body);
+        $t->contains('>>>>>>> theirs/wp-content/themes/acme/theme.json', $mergedThemeJson->body);
     },
 ];
