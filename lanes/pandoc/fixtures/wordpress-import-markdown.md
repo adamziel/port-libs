@@ -19,6 +19,10 @@ Cleanup pass
 
     Record manual remediation notes.
 
+<div>Migration audit
+:   - Preserve div-wrapped glossary notes from legacy imports
+</div>
+
 ```php
 do_shortcode('[legacy-gallery]');
 ```

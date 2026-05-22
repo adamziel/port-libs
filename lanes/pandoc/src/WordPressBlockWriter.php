@@ -37,6 +37,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderCodeBlock($node);
             } elseif ($node->type === 'blockquote') {
                 $blocks[] = $this->renderBlockQuote($node);
+            } elseif ($node->type === 'div') {
+                $blocks[] = $this->renderDivBlock($node);
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -176,6 +178,13 @@ final class WordPressBlockWriter
             . "\n" . '<!-- /wp:quote -->';
     }
 
+    private function renderDivBlock(AstNode $node): string
+    {
+        return '<!-- wp:html -->'
+            . "\n" . '<div>' . $this->renderBlocksAsHtml($node->children) . '</div>'
+            . "\n" . '<!-- /wp:html -->';
+    }
+
     private function sanitizeCodeClass(string $class): string
     {
         return preg_replace('/[^A-Za-z0-9_-]/', '', $class) ?? '';
@@ -247,6 +256,10 @@ final class WordPressBlockWriter
             }
             if ($block->type === 'blockquote') {
                 $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+                continue;
+            }
+            if ($block->type === 'div') {
+                $html .= '<div>' . $this->renderBlocksAsHtml($block->children) . '</div>';
             }
         }
 

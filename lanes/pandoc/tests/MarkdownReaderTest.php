@@ -55,6 +55,35 @@ return [
         $t->same(['haskell'], $code->attr('classes'));
         $t->same(" let x = y\nin y +\ny +\ny", $code->attr('text'));
     },
+    'maps upstream testsuite indented code blocks and tab expansion' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            'Code:',
+            '',
+            '    ---- (should be four hyphens)',
+            '',
+            '    sub status {',
+            '        print "working";',
+            '    }',
+            '',
+            "\tthis code block is indented by one tab",
+            '',
+            'And:',
+            '',
+            "\t\tthis code block is indented by two tabs",
+            '',
+            '    These should not be escaped:  \$ \\\\ \> \[ \{',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Code:', $document->children[0]->attr('text'));
+        $t->same('code_block', $document->children[1]->type);
+        $t->same("---- (should be four hyphens)\n\nsub status {\n    print \"working\";\n}\n\nthis code block is indented by one tab", $document->children[1]->attr('text'));
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same('And:', $document->children[2]->attr('text'));
+        $t->same('code_block', $document->children[3]->type);
+        $t->same('    this code block is indented by two tabs' . "\n\n" . 'These should not be escaped:  \$ \\\\ \> \[ \{', $document->children[3]->attr('text'));
+    },
     'groups ordered lists as a list block' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("3. Export WXR\n4. Convert Markdown\n5. Publish blocks");
         $list = $document->children[0];
@@ -140,6 +169,17 @@ return [
         $t->same('bullet_list', $definition->children[0]->type);
         $t->same('bar', $definition->children[0]->children[0]->children[0]->attr('text'));
     },
+    'maps upstream markdown definition list inside html div' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("<div>foo\n:   - bar\n</div>");
+        $div = $document->children[0];
+        $list = $div->children[0];
+
+        $t->same('div', $div->type);
+        $t->same('definition_list', $list->type);
+        $t->same('foo', $list->children[0]->attr('term'));
+        $t->same('bullet_list', $list->children[0]->children[1]->children[0]->type);
+        $t->same('bar', $list->children[0]->children[1]->children[0]->children[0]->children[0]->attr('text'));
+    },
     'maps upstream testsuite simple block quote paragraphs' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("> This is a block quote.\n> It is pretty short.");
         $quote = $document->children[0];
@@ -194,12 +234,20 @@ return [
         $t->contains('<!-- wp:html -->', $blocks);
         $t->contains('<dl><dt>Plugin</dt><dd>Stable release</dd><dt>Checklist</dt><dd><ul><li>Verify imports</li></ul></dd></dl>', $blocks);
     },
+    'writes wordpress html for div-wrapped upstream definition list' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("<div>Import audit\n:   - Preserve migration notes\n</div>");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:html -->', $blocks);
+        $t->contains('<div><dl><dt>Import audit</dt><dd><ul><li>Preserve migration notes</li></ul></dd></dl></div>', $blocks);
+    },
     'writes wordpress definition paragraphs from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<dt>Import note</dt><dd>Keep the archive URL attached and mention reviewer follow-up.</dd>', $blocks);
         $t->contains('<dt>Cleanup pass</dt><dd><p>Check legacy shortcodes after block conversion.</p><p>Record manual remediation notes.</p></dd>', $blocks);
+        $t->contains('<div><dl><dt>Migration audit</dt><dd><ul><li>Preserve div-wrapped glossary notes from legacy imports</li></ul></dd></dl></div>', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
@@ -207,6 +255,13 @@ return [
 
         $t->contains('<!-- wp:code -->', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-gallery]&#039;);</code></pre>', $blocks);
+    },
+    'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:code -->', $blocks);
+        $t->contains('<pre class="wp-block-code"><code>    echo esc_html($title);</code></pre>', $blocks);
     },
     'writes wordpress quote block markup for migration reviewer notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

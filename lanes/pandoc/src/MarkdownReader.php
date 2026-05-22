@@ -27,6 +27,11 @@ final class MarkdownReader
                 $blocks[] = $blockQuote;
                 continue;
             }
+            $divBlock = $paragraph === [] && $listStack === [] ? $this->tryReadDivBlock($lines, $index) : null;
+            if ($divBlock !== null) {
+                $blocks[] = $divBlock;
+                continue;
+            }
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -146,6 +151,58 @@ final class MarkdownReader
         return new AstNode('blockquote', [], $inner->children);
     }
 
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadDivBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<div(?:\s+[^>]*)?>[ \t]*(.*)$/i', $line, $m) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        if ($this->appendDivContentUntilClose($content, $m[1])) {
+            $inner = $this->read(implode("\n", $content));
+
+            return new AstNode('div', [], $inner->children);
+        }
+
+        $cursor = $index + 1;
+        $count = count($lines);
+        while ($cursor < $count) {
+            if ($this->appendDivContentUntilClose($content, $lines[$cursor])) {
+                $index = $cursor;
+                $inner = $this->read(implode("\n", $content));
+
+                return new AstNode('div', [], $inner->children);
+            }
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function appendDivContentUntilClose(array &$content, string $line): bool
+    {
+        $closing = stripos($line, '</div>');
+        if ($closing !== false) {
+            $beforeClose = substr($line, 0, $closing);
+            if ($beforeClose !== '') {
+                $content[] = $beforeClose;
+            }
+
+            return true;
+        }
+
+        $content[] = $line;
+
+        return false;
+    }
+
     private function isBlockQuoteLine(string $line): bool
     {
         return preg_match('/^ {0,3}>/', $line) === 1;
@@ -206,10 +263,15 @@ final class MarkdownReader
     private function stripCodeIndent(string $line): string
     {
         if (str_starts_with($line, "\t")) {
-            return substr($line, 1);
+            return $this->expandTabs(substr($line, 1));
         }
 
-        return substr($line, 4);
+        return $this->expandTabs(substr($line, 4));
+    }
+
+    private function expandTabs(string $line): string
+    {
+        return str_replace("\t", '    ', $line);
     }
 
     private function isClosingCodeFence(string $line, string $fenceChar, int $fenceLength): bool
@@ -350,6 +412,9 @@ final class MarkdownReader
     {
         $trimmed = trim($line);
         if ($trimmed === '') {
+            return false;
+        }
+        if (preg_match('/^ {0,3}<\/?[A-Za-z][^>]*>/', $line) === 1) {
             return false;
         }
 

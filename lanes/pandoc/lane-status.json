@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "pandoc",
-    "estimatedProgress": 11,
-    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list, seven definition-list cases, inline-code list-marker, test/command/indented-fences.md fenced-code, and test/testsuite.txt block quote slices mapped; full Haskell runner not executed",
-    "phpPass": 24,
+    "estimatedProgress": 13,
+    "suiteProgress": "cloned static upstream inventory; Tests.Readers.Markdown nested-list, all eight definition-list cases including in-div, inline-code list-marker, test/command/indented-fences.md fenced-code, test/testsuite.txt block quote slices, and test/testsuite.txt indented code-block tab-expansion cases mapped; full Haskell runner not executed",
+    "phpPass": 28,
     "phpFail": 0,
-    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, reviewer quotes, ordered conversion steps, nested editorial checklists, glossary-style definition lists with lazy and multi-paragraph import notes, and migration code snippets as WordPress blocks or HTML.",
-    "phase": "cloned inventory plus Markdown reader/list/definition-list-continuation/code-span/fenced-code/block-quote slices",
+    "wordpressScenarios": "Data Liberation Markdown import preserving emphasis, source links, code spans, reviewer quotes, ordered conversion steps, nested editorial checklists, glossary-style definition lists with lazy and multi-paragraph import notes, div-wrapped glossary notes from legacy imports, and fenced or tab-indented migration code snippets as WordPress blocks or HTML.",
+    "phase": "cloned inventory plus Markdown reader/list/definition-list-continuation/html-div/code-span/fenced-code/indented-code/block-quote slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, seven Tests.Readers.Markdown definition-list cases including loose first definitions, lazy continuation lines, continuation paragraphs, blank-before-second definitions, column-zero markers, and lists inside definitions, inline code spans containing list-marker-looking text, indented fenced code blocks from test/command/indented-fences.md, and block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt; WordPress writer renders escaped block output, nested list markup, definition-list HTML with multi-paragraph dd content, code blocks, and quote blocks.",
-    "blocker": "Full upstream runner blocked because ghc, cabal, and stack are unavailable in this shell, the upstream cache is blob-filtered/no-checkout, and upstream test-pandoc must be built as a Haskell Tasty executable from a full checkout before command/golden/HUnit/QuickCheck tests can run.",
+    "currentWork": "Native Markdown reader groups bullet/ordered lists, parses nested indented list items, all eight Tests.Readers.Markdown definition-list cases including loose first definitions, lazy continuation lines, continuation paragraphs, blank-before-second definitions, column-zero markers, lists inside definitions, and definition lists wrapped in HTML div blocks. It also maps inline code spans containing list-marker-looking text, indented fenced code blocks from test/command/indented-fences.md, test/testsuite.txt indented code blocks with blank lines, tab expansion, and literal backslashes, and block quote paragraphs/code/list/nested-quote cases from test/testsuite.txt; WordPress writer renders escaped block output, nested list markup, definition-list HTML with multi-paragraph dd content, div-wrapped glossary HTML, fenced or tab-indented code blocks, and quote blocks.",
+    "blocker": "No pandoc-local PHP blocker: focused pandoc tests pass 28/0 and the required repo-wide php tools/run-tests.php pass is 58 test files, 3187 assertions, 0 failures. Full upstream runner remains unexecuted because ghc, cabal, and stack are unavailable, the upstream cache is blob-filtered/no-checkout, and test-pandoc must be built as a Haskell Tasty executable from a full checkout before command/golden/HUnit/QuickCheck tests can run.",
     "latestCommit": "c99f10f",
-    "nextTask": "Map the remaining Tests.Readers.Markdown in-div definition-list case or move to another bounded block family from test/testsuite.txt."
+    "nextTask": "Move to another bounded block family from test/testsuite.txt, starting with the Lists section after the now-mapped code-block examples."
 }

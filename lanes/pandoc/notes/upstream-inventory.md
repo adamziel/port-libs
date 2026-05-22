@@ -21,8 +21,9 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.txt` top-level Markdown sections: 14
 - `test/testsuite.native` rendered native AST lines: 2,238
 - `test/testsuite.native` `BlockQuote` nodes in the full rendered suite: 7
-- `Tests.Readers.Markdown` definition-list cases: 8, of which 7 are now mapped
-  by focused PHP tests
+- `test/testsuite.native` `CodeBlock` nodes in the full rendered suite: 11
+- `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
+  mapped by focused PHP tests
 - Markdown fixture files under `test/`: 1,096
 - Office/archive fixtures (`docx`, `odt`, `epub`, `pptx`, `xlsx`, `rtf`): 309
 - HTML/XML/JATS fixtures: 29
@@ -36,10 +37,13 @@ The dashboard denominator is 1,979 inspected upstream test files/artifacts:
 ## Runner Blocker
 
 The full upstream suite was not executed in this run. This environment does not
-have `ghc`, `cabal`, or `stack`, and Pandoc's `test-pandoc` suite must be built
-as a Haskell Tasty executable before it can run command, golden, HUnit, and
-QuickCheck tests. The upstream cache is also intentionally blob-filtered and not
-checked out to keep network and disk use modest.
+have `ghc`, `cabal`, or `stack`, Pandoc's `test-pandoc` suite must be built as a
+Haskell Tasty executable before it can run command, golden, HUnit, and
+QuickCheck tests, and the upstream cache is intentionally blob-filtered and not
+checked out to keep network and disk use modest. The defensible denominator used
+for this lane is therefore the cloned static `git ls-tree` inventory plus
+targeted `git show` reads from the upstream object database, not upstream runner
+parity.
 
 ## Native PHP Mapping Added
 
@@ -55,6 +59,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
   Pandoc's opening-fence indentation stripping and both bare language and
   `{.class}` info strings
+- Indented code blocks from the `# Code Blocks` section of `test/testsuite.txt`,
+  cross-checked against `test/testsuite.native`: blank lines stay inside the
+  block, a one-tab indent starts a block with no remaining indent, two leading
+  tabs leave one expanded four-space indent in the code text, and literal
+  backslashes are preserved rather than unescaped.
 - Block quote cases from the `# Block Quotes` section of `test/testsuite.txt`,
   cross-checked against `test/testsuite.native`: simple quoted paragraphs,
   quote-contained indented code, ordered lists, nested block quotes, and the
@@ -63,8 +72,13 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 - Definition-list cases from `Tests.Readers.Markdown`: no blank space,
   blank space before the first definition, lazy continuation lines, indented
   continuation paragraphs, blank space before the second definition, first-line
-  marker at column zero, and a list inside a definition. The remaining focused
-  case is a definition list nested inside an HTML div.
+  marker at column zero, a list inside a definition, and the definition list
+  nested inside an HTML div.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
+
+Focused local verification on 2026-05-22: the pandoc-local test file passed with
+28 tests, 114 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` run passed with 58 test files, 3,187 assertions, and 0
+failures in the shared worktree.
