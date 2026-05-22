@@ -109,6 +109,10 @@ final class CssMinifier
             return false;
         }
         $previous = $output[strlen($output) - 1];
+        if ($previous === ')') {
+            return ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#';
+        }
+
         return (ctype_alnum($previous) || $previous === '_' || $previous === '-')
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.');
     }

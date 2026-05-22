@@ -47,6 +47,58 @@ return [
             (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: transform; }')
         );
     },
+    'transition prefixer maps upstream mask transition prefixing' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{transition:-webkit-mask .2s,mask .2s}',
+            $prefixer->prefixLegacySafari('.foo { transition: mask 200ms; }')
+        );
+        $t->same(
+            '.foo{transition:-webkit-mask-box-image .2s,mask-border .2s}',
+            $prefixer->prefixLegacySafari('.foo { transition: mask-border 200ms; }')
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-mask,mask}',
+            $prefixer->prefixLegacySafari('.foo { transition-property: mask; }')
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-mask-box-image,mask-border}',
+            $prefixer->prefixLegacySafari('.foo { transition-property: mask-border; }')
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-mask-composite,mask-composite,-webkit-mask-source-type,mask-mode}',
+            $prefixer->prefixLegacySafari('.foo { transition-property: mask-composite, mask-mode; }')
+        );
+    },
+    'transition prefixer maps upstream mask-border shorthand and longhand prefixing' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-mask-box-image:url(border-mask.png) 25/35px/12px space;mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+            $prefixer->prefixLegacySafari(".foo { mask-border: url('border-mask.png') 25 / 35px / 12px space luminance; }")
+        );
+        $t->same(
+            '.foo{-webkit-mask-box-image:url(foo.png) 10 40/10px round;mask-border:url(foo.png) 10 40/10px round luminance}',
+            $prefixer->prefixLegacySafari('.foo { mask-border-source: url(foo.png); mask-border-slice: 10 40 10 40; mask-border-width: 10px; mask-border-outset: 0; mask-border-repeat: round round; mask-border-mode: luminance; }')
+        );
+        $t->same(
+            '.foo{-webkit-mask-box-image:url(foo.png) 10 40/10px round}',
+            $prefixer->prefixLegacySafari('.foo { -webkit-mask-box-image-source: url(foo.png); -webkit-mask-box-image-slice: 10 40 10 40; -webkit-mask-box-image-width: 10px; -webkit-mask-box-image-outset: 0; -webkit-mask-box-image-repeat: round round; }')
+        );
+        $t->same(
+            '.foo{-webkit-mask-box-image-slice:10 40;mask-border-slice:10 40}',
+            $prefixer->prefixLegacySafari('.foo { mask-border-slice: 10 40 10 40; }')
+        );
+        $t->same(
+            '.foo{-webkit-mask-box-image-slice:var(--foo);mask-border-slice:var(--foo)}',
+            $prefixer->prefixLegacySafari('.foo { mask-border-slice: var(--foo); }')
+        );
+        $t->same(
+            '.foo{-webkit-mask-composite:source-out;mask-composite:subtract;-webkit-mask-source-type:luminance;mask-mode:luminance}',
+            $prefixer->prefixLegacySafari('.foo { mask-composite: subtract; mask-mode: luminance; }')
+        );
+    },
     'wordpress navigation transitions get logical and transform fallback prefixes without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-navigation .wp-block-navigation-item {
@@ -60,5 +112,33 @@ CSS;
         $t->contains('transition:margin-right .2s,-webkit-transform .2s,transform .2s', $prefixed);
         $t->contains('-webkit-transition:margin-left .2s,-webkit-transform .2s,transform .2s', $prefixed);
         $t->contains('-webkit-transition:margin-right .2s,-webkit-transform .2s,transform .2s', $prefixed);
+    },
+    'wordpress decorative mask transitions get legacy WebKit names without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-framed {
+  transition: mask-border 200ms, mask 400ms;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-framed{transition:-webkit-mask-box-image .2s,mask-border .2s,-webkit-mask .4s,mask .4s}',
+            (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+    },
+    'wordpress cover frame mask-border longhands compose and prefix without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-frame {
+  mask-border-source: url(frame.svg);
+  mask-border-slice: 12 24 12 24;
+  mask-border-width: 8px;
+  mask-border-repeat: round round;
+  mask-border-mode: luminance;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-frame{-webkit-mask-box-image:url(frame.svg) 12 24/8px round;mask-border:url(frame.svg) 12 24/8px round luminance}',
+            (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
     },
 ];

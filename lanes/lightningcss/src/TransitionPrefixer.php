@@ -74,8 +74,10 @@ final class TransitionPrefixer
         $hasInlineTransition = $hasLtrInlineTransition || $hasRtlInlineTransition;
 
         if ($hasInlineTransition) {
-            $this->rewriteTransformTransitionEntries($ltrEntries);
-            $this->rewriteTransformTransitionEntries($rtlEntries);
+            $this->rewritePrefixedTransitionEntries($ltrEntries);
+            $this->rewritePrefixedTransitionEntries($rtlEntries);
+            $this->rewriteMaskPrefixEntries($ltrEntries);
+            $this->rewriteMaskPrefixEntries($rtlEntries);
 
             return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
                 . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
@@ -83,7 +85,9 @@ final class TransitionPrefixer
                 . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
         }
 
-        if ($this->rewriteTransformTransitionEntries($entries)) {
+        $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
+        $maskChanged = $this->rewriteMaskPrefixEntries($entries);
+        if ($transitionChanged || $maskChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}';
         }
 
@@ -164,7 +168,7 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      */
-    private function rewriteTransformTransitionEntries(array &$entries): bool
+    private function rewritePrefixedTransitionEntries(array &$entries): bool
     {
         $changed = false;
         $rewritten = [];
@@ -176,14 +180,16 @@ final class TransitionPrefixer
             }
 
             if ($entry['property'] === 'transition') {
-                [$value, $entryChanged] = $this->rewriteTransformTransitionShorthand($entry['value']);
+                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionShorthand($entry['value']);
                 if ($entryChanged) {
-                    $rewritten[] = [
-                        'property' => '-webkit-transition',
-                        'name' => '-webkit-transition',
-                        'value' => $value,
-                        'important' => false,
-                    ];
+                    if ($needsPrefixedTransition) {
+                        $rewritten[] = [
+                            'property' => '-webkit-transition',
+                            'name' => '-webkit-transition',
+                            'value' => $value,
+                            'important' => false,
+                        ];
+                    }
                     $entry['value'] = $value;
                     $changed = true;
                 }
@@ -192,14 +198,16 @@ final class TransitionPrefixer
             }
 
             if ($entry['property'] === 'transition-property') {
-                [$value, $entryChanged] = $this->rewriteTransformTransitionPropertyList($entry['value']);
+                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionPropertyList($entry['value']);
                 if ($entryChanged) {
-                    $rewritten[] = [
-                        'property' => '-webkit-transition-property',
-                        'name' => '-webkit-transition-property',
-                        'value' => $value,
-                        'important' => false,
-                    ];
+                    if ($needsPrefixedTransition) {
+                        $rewritten[] = [
+                            'property' => '-webkit-transition-property',
+                            'name' => '-webkit-transition-property',
+                            'value' => $value,
+                            'important' => false,
+                        ];
+                    }
                     $entry['value'] = $value;
                     $changed = true;
                 }
@@ -211,6 +219,298 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function rewriteMaskPrefixEntries(array &$entries): bool
+    {
+        $changed = false;
+        $drop = [];
+        $insertions = [];
+
+        foreach (['modern', 'webkit'] as $family) {
+            $plan = $this->planMaskBorderComposition($entries, $family);
+            if ($plan === null) {
+                continue;
+            }
+
+            foreach ($plan['drop'] as $index) {
+                $drop[$index] = true;
+            }
+            $insertions[$plan['replaceAt']] = array_merge($insertions[$plan['replaceAt']] ?? [], $plan['entries']);
+            $changed = true;
+        }
+
+        $rewritten = [];
+        foreach ($entries as $index => $entry) {
+            foreach ($insertions[$index] ?? [] as $inserted) {
+                $rewritten[] = $inserted;
+            }
+
+            if (isset($drop[$index])) {
+                continue;
+            }
+
+            [$mapped, $entryChanged] = $this->rewriteSingleMaskPrefixEntry($entry);
+            array_push($rewritten, ...$mapped);
+            $changed = $changed || $entryChanged;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{replaceAt:int,drop:list<int>,entries:list<array{property:string,name:string,value:string,important:bool}>}|null
+     */
+    private function planMaskBorderComposition(array $entries, string $family): ?array
+    {
+        $map = $family === 'modern'
+            ? [
+                'mask-border-source' => 'source',
+                'mask-border-slice' => 'slice',
+                'mask-border-width' => 'width',
+                'mask-border-outset' => 'outset',
+                'mask-border-repeat' => 'repeat',
+                'mask-border-mode' => 'mode',
+            ]
+            : [
+                '-webkit-mask-box-image-source' => 'source',
+                '-webkit-mask-box-image-slice' => 'slice',
+                '-webkit-mask-box-image-width' => 'width',
+                '-webkit-mask-box-image-outset' => 'outset',
+                '-webkit-mask-box-image-repeat' => 'repeat',
+            ];
+
+        $latest = [];
+        $drop = [];
+        foreach ($entries as $index => $entry) {
+            $component = $map[$entry['property']] ?? null;
+            if ($component === null) {
+                continue;
+            }
+            if ($entry['important']) {
+                return null;
+            }
+            $latest[$component] = $index;
+            $drop[] = $index;
+        }
+
+        if (!isset($latest['source'], $latest['slice'])) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($latest as $component => $index) {
+            $components[$component] = $this->normalizeMaskBorderComponent($component, $entries[$index]['value']);
+        }
+
+        $replaceAt = min($drop);
+        $prefixed = $this->maskEntry('-webkit-mask-box-image', $this->composeMaskBorderValue($components, false));
+        if ($family === 'webkit') {
+            return [
+                'replaceAt' => $replaceAt,
+                'drop' => $drop,
+                'entries' => [$prefixed],
+            ];
+        }
+
+        return [
+            'replaceAt' => $replaceAt,
+            'drop' => $drop,
+            'entries' => [
+                $prefixed,
+                $this->maskEntry('mask-border', $this->composeMaskBorderValue($components, true)),
+            ],
+        ];
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     */
+    private function rewriteSingleMaskPrefixEntry(array $entry): array
+    {
+        if ($entry['important']) {
+            return [[$entry], false];
+        }
+
+        switch ($entry['property']) {
+            case 'mask-border':
+                $modern = $this->normalizeMaskBorderShorthand($entry['value'], true);
+                $prefixed = $this->normalizeMaskBorderShorthand($entry['value'], false);
+                $entry['value'] = $modern;
+
+                return [[$this->maskEntry('-webkit-mask-box-image', $prefixed), $entry], true];
+
+            case 'mask-border-source':
+                $value = $this->normalizeMaskBorderComponent('source', $entry['value']);
+                $entry['value'] = $value;
+
+                return [[$this->maskEntry('-webkit-mask-box-image-source', $value), $entry], true];
+
+            case 'mask-border-slice':
+                $value = $this->normalizeMaskBorderComponent('slice', $entry['value']);
+                $entry['value'] = $value;
+
+                return [[$this->maskEntry('-webkit-mask-box-image-slice', $value), $entry], true];
+
+            case 'mask-border-width':
+                $value = $this->normalizeMaskBorderComponent('width', $entry['value']);
+                $entry['value'] = $value;
+
+                return [[$this->maskEntry('-webkit-mask-box-image-width', $value), $entry], true];
+
+            case 'mask-border-outset':
+                $value = $this->normalizeMaskBorderComponent('outset', $entry['value']);
+                $entry['value'] = $value;
+
+                return [[$this->maskEntry('-webkit-mask-box-image-outset', $value), $entry], true];
+
+            case 'mask-border-repeat':
+                $value = $this->normalizeMaskBorderComponent('repeat', $entry['value']);
+                $entry['value'] = $value;
+
+                return [[$this->maskEntry('-webkit-mask-box-image-repeat', $value), $entry], true];
+
+            case 'mask-composite':
+                return [[$this->maskEntry('-webkit-mask-composite', $this->mapWebkitMaskComposite($entry['value'])), $entry], true];
+
+            case 'mask-mode':
+                return [[$this->maskEntry('-webkit-mask-source-type', strtolower(trim($entry['value']))), $entry], true];
+        }
+
+        return [[$entry], false];
+    }
+
+    /**
+     * @param array<string,string> $components
+     */
+    private function composeMaskBorderValue(array $components, bool $includeMode): string
+    {
+        $value = ($components['source'] ?? 'none') . ' ' . ($components['slice'] ?? '100%');
+        $width = $components['width'] ?? null;
+        $outset = $components['outset'] ?? null;
+        if ($width !== null || ($outset !== null && $outset !== '0')) {
+            $value .= '/' . ($width ?? '1');
+            if ($outset !== null && $outset !== '0') {
+                $value .= '/' . $outset;
+            }
+        }
+
+        $repeat = $components['repeat'] ?? null;
+        if ($repeat !== null && strtolower($repeat) !== 'stretch') {
+            $value .= ' ' . $repeat;
+        }
+
+        $mode = strtolower($components['mode'] ?? 'alpha');
+        if ($includeMode && $mode !== 'alpha') {
+            $value .= ' ' . $mode;
+        }
+
+        return $value;
+    }
+
+    private function normalizeMaskBorderComponent(string $component, string $value): string
+    {
+        $value = trim($value);
+
+        return match ($component) {
+            'source' => $this->normalizeUrlToken($value),
+            'slice',
+            'width',
+            'outset' => $this->compressBoxValue($value),
+            'repeat' => $this->compressRepeatValue($value),
+            'mode' => strtolower($value),
+            default => $value,
+        };
+    }
+
+    private function normalizeMaskBorderShorthand(string $value, bool $includeMode): string
+    {
+        $mode = null;
+        $tokens = [];
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'alpha' || $lower === 'luminance') {
+                $mode = $lower;
+                continue;
+            }
+            $tokens[] = $this->normalizeUrlToken($token);
+        }
+
+        $normalized = preg_replace('/\s*\/\s*/', '/', implode(' ', $tokens)) ?? implode(' ', $tokens);
+        if ($includeMode && $mode !== null && $mode !== 'alpha') {
+            $normalized .= ' ' . $mode;
+        }
+
+        return trim($normalized);
+    }
+
+    /**
+     * @return array{property:string,name:string,value:string,important:bool}
+     */
+    private function maskEntry(string $property, string $value): array
+    {
+        return [
+            'property' => $property,
+            'name' => $property,
+            'value' => $value,
+            'important' => false,
+        ];
+    }
+
+    private function normalizeUrlToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(\s*([\'"])(.*?)\1\s*\)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $url = $matches[2];
+        if (preg_match('/[\s\'"()\\\\]/', $url) === 1) {
+            return 'url("' . str_replace('"', '\\"', $url) . '")';
+        }
+
+        return 'url(' . $url . ')';
+    }
+
+    private function compressBoxValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 4 && $tokens[3] === $tokens[1]) {
+            array_pop($tokens);
+        }
+        if (count($tokens) === 3 && $tokens[2] === $tokens[0]) {
+            array_pop($tokens);
+        }
+        if (count($tokens) === 2 && $tokens[1] === $tokens[0]) {
+            array_pop($tokens);
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    private function compressRepeatValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+
+        return count($tokens) === 2 && $tokens[0] === $tokens[1] ? $tokens[0] : implode(' ', $tokens);
+    }
+
+    private function mapWebkitMaskComposite(string $value): string
+    {
+        return match (strtolower(trim($value))) {
+            'subtract' => 'source-out',
+            'intersect' => 'source-in',
+            'exclude' => 'xor',
+            'add' => 'source-over',
+            default => strtolower(trim($value)),
+        };
     }
 
     /**
@@ -249,46 +549,89 @@ final class TransitionPrefixer
     }
 
     /**
-     * @return array{0:string,1:bool}
+     * @return array{0:string,1:bool,2:bool}
      */
-    private function rewriteTransformTransitionPropertyList(string $value): array
+    private function rewritePrefixedTransitionPropertyList(string $value): array
     {
         $changed = false;
+        $needsPrefixedTransition = false;
         $parts = [];
         foreach ($this->splitTopLevel($value, ',') as $part) {
-            if (strtolower($part) === 'transform') {
-                $parts[] = '-webkit-transform';
-                $parts[] = 'transform';
-                $changed = true;
-            } else {
-                $parts[] = trim($part);
+            $part = trim($part);
+            $expansion = $this->prefixedTransitionPropertyExpansion($part);
+            foreach ($expansion['properties'] as $property) {
+                $parts[] = $property;
             }
+            $changed = $changed || $expansion['properties'] !== [$part];
+            $needsPrefixedTransition = $needsPrefixedTransition || $expansion['needsPrefixedTransition'];
         }
 
-        return [implode(',', $parts), $changed];
+        return [implode(',', $parts), $changed, $needsPrefixedTransition];
     }
 
     /**
-     * @return array{0:string,1:bool}
+     * @return array{0:string,1:bool,2:bool}
      */
-    private function rewriteTransformTransitionShorthand(string $value): array
+    private function rewritePrefixedTransitionShorthand(string $value): array
     {
         $changed = false;
+        $needsPrefixedTransition = false;
         $layers = [];
         foreach ($this->splitTopLevel($value, ',') as $layer) {
             $tokens = $this->splitWhitespaceTopLevel($layer);
             $propertyIndex = $this->transitionPropertyTokenIndex($tokens);
-            if ($propertyIndex !== null && strtolower($tokens[$propertyIndex]) === 'transform') {
-                $prefixed = $tokens;
-                $prefixed[$propertyIndex] = '-webkit-transform';
-                $layers[] = implode(' ', $prefixed);
-                $tokens[$propertyIndex] = 'transform';
-                $changed = true;
+            if ($propertyIndex !== null) {
+                $expansion = $this->prefixedTransitionPropertyExpansion($tokens[$propertyIndex]);
+                if ($expansion['properties'] !== [$tokens[$propertyIndex]]) {
+                    foreach ($expansion['properties'] as $property) {
+                        $expanded = $tokens;
+                        $expanded[$propertyIndex] = $property;
+                        $layers[] = implode(' ', $expanded);
+                    }
+                    $changed = true;
+                    $needsPrefixedTransition = $needsPrefixedTransition || $expansion['needsPrefixedTransition'];
+                    continue;
+                }
             }
             $layers[] = implode(' ', $tokens);
         }
 
-        return [implode(',', $layers), $changed];
+        return [implode(',', $layers), $changed, $needsPrefixedTransition];
+    }
+
+    /**
+     * @return array{properties:non-empty-list<string>,needsPrefixedTransition:bool}
+     */
+    private function prefixedTransitionPropertyExpansion(string $property): array
+    {
+        $trimmed = trim($property);
+
+        return match (strtolower($trimmed)) {
+            'transform' => [
+                'properties' => ['-webkit-transform', 'transform'],
+                'needsPrefixedTransition' => true,
+            ],
+            'mask' => [
+                'properties' => ['-webkit-mask', 'mask'],
+                'needsPrefixedTransition' => false,
+            ],
+            'mask-border' => [
+                'properties' => ['-webkit-mask-box-image', 'mask-border'],
+                'needsPrefixedTransition' => false,
+            ],
+            'mask-composite' => [
+                'properties' => ['-webkit-mask-composite', 'mask-composite'],
+                'needsPrefixedTransition' => false,
+            ],
+            'mask-mode' => [
+                'properties' => ['-webkit-mask-source-type', 'mask-mode'],
+                'needsPrefixedTransition' => false,
+            ],
+            default => [
+                'properties' => [$trimmed],
+                'needsPrefixedTransition' => false,
+            ],
+        };
     }
 
     /**
