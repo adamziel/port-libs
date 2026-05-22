@@ -19,11 +19,6 @@ final class SparseTree
     private ?array $partialRoot = null;
     private int $nextPartialNodeId = TrackedNodeStore::FIRST_MEMSTORE_NODE_ID;
 
-    /**
-     * @var array{0: array<string, mixed>, 1: array<int, array<string, mixed>>}|null
-     */
-    private ?array $fullProofTreeCache = null;
-
     public function __construct(?HashTree $hashTree = null)
     {
         $this->hashTree = $hashTree ?? new HashTree();
@@ -406,9 +401,7 @@ final class SparseTree
             return $this->partialRoot['hash'];
         }
 
-        [$root] = $this->fullProofTree();
-
-        return $root['hash'];
+        return $this->buildTree($this->leafRecords(), 0)['hash'];
     }
 
     public function partialRootNodeId(): int
@@ -442,7 +435,7 @@ final class SparseTree
      */
     public function stats(): array
     {
-        [$tree] = $this->fullProofTree();
+        $tree = $this->buildTree($this->leafRecords(), 0);
 
         return [
             'numNodes' => $tree['nodes'],
@@ -503,7 +496,6 @@ final class SparseTree
         }
 
         ksort($this->values, SORT_STRING);
-        $this->fullProofTreeCache = null;
 
         return $this;
     }
@@ -537,10 +529,6 @@ final class SparseTree
      */
     private function fullProofTree(): array
     {
-        if ($this->fullProofTreeCache !== null) {
-            return $this->fullProofTreeCache;
-        }
-
         $records = [];
         foreach ($this->values as $keyHashHex => $value) {
             $records[] = [
@@ -553,9 +541,7 @@ final class SparseTree
         $nodesById = [];
         $nextId = 1;
 
-        $this->fullProofTreeCache = [$this->buildFullNode($records, 0, $nextId, $nodesById), $nodesById];
-
-        return $this->fullProofTreeCache;
+        return [$this->buildFullNode($records, 0, $nextId, $nodesById), $nodesById];
     }
 
     /**
@@ -573,10 +559,6 @@ final class SparseTree
                 'type' => 'empty',
                 'depth' => $depth,
                 'hash' => HashTree::EMPTY_HASH,
-                'nodes' => 0,
-                'leaves' => 0,
-                'branches' => 0,
-                'maxDepth' => 0,
             ];
         }
 
@@ -589,10 +571,6 @@ final class SparseTree
                 'keyHash' => $records[0]['keyHash'],
                 'value' => $records[0]['value'],
                 'hash' => $this->hashTree->leafHashForKeyHash($records[0]['keyHash'], $records[0]['value']),
-                'nodes' => 1,
-                'leaves' => 1,
-                'branches' => 0,
-                'maxDepth' => $depth,
             ];
             $nodesById[$id] = $node;
 
@@ -623,10 +601,6 @@ final class SparseTree
             'left' => $left,
             'right' => $right,
             'hash' => $this->hashTree->branchHash($left['hash'], $right['hash']),
-            'nodes' => 1 + $left['nodes'] + $right['nodes'],
-            'leaves' => $left['leaves'] + $right['leaves'],
-            'branches' => 1 + $left['branches'] + $right['branches'],
-            'maxDepth' => max($depth, $left['maxDepth'], $right['maxDepth']),
         ];
         $nodesById[$id] = $node;
 
