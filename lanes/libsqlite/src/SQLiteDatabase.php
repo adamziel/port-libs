@@ -412,6 +412,47 @@ final class SQLiteDatabase
     /**
      * @param list<mixed> $values
      */
+    public function indexRootPageForJsonValueOperatorInLookup(
+        string $tableName,
+        string $columnName,
+        string $path,
+        array $values,
+    ): ?int {
+        if ($values === []) {
+            return null;
+        }
+
+        self::sqliteJsonTextValueList($values);
+        $lookup = $this->indexLookupForJsonValueOperatorExpressionColumn($tableName, $columnName, $path);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    public function indexRootPageForJsonValueOperatorRangeLookup(
+        string $tableName,
+        string $columnName,
+        string $path,
+        mixed $lowerInclusive = null,
+        mixed $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?int {
+        $lowerKey = $lowerInclusive === null ? null : self::sqliteJsonTextValue($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::sqliteJsonTextValue($upperBound);
+        $lookup = $this->indexLookupForJsonValueOperatorExpressionColumnRange(
+            $tableName,
+            $columnName,
+            $path,
+            $lowerKey,
+            $upperKey,
+            $upperInclusive,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
     public function indexRootPageForJsonExtractInLookup(
         string $tableName,
         string $columnName,
@@ -1330,6 +1371,24 @@ final class SQLiteDatabase
         }
 
         return $this->indexLookupForJsonExtractExpressionColumn($tableName, $columnName, $path);
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool,path:string}
+     */
+    private function indexLookupForJsonValueOperatorExpressionColumnRange(
+        string $tableName,
+        string $columnName,
+        string $path,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?array {
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite JSON -> expression index range lookup requires at least one bound');
+        }
+
+        return $this->indexLookupForJsonValueOperatorExpressionColumn($tableName, $columnName, $path);
     }
 
     /**
@@ -2656,6 +2715,150 @@ final class SQLiteDatabase
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
+            ) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedJsonOptionFragments(string $jsonPath, array $values, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options JSON -> IN-list lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $values === []) {
+            return [];
+        }
+
+        $lookupValues = self::sqliteJsonTextValueList($values);
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumn(
+            'wp_options',
+            'option_value',
+            $jsonPath,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options JSON -> expression IN-list index is not present');
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueList(
+                $indexLookup['rootPage'],
+                $lookupValues,
+                $indexLookup['collation'],
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath);
+            if (
+                $fragment !== null
+                && self::inListContainsSQLiteScalar($lookupValues, $fragment, $indexLookup['collation'])
+            ) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedJsonOptionFragmentRange(
+        string $jsonPath,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options JSON -> range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $lowerKey = $lowerInclusive === null ? null : self::sqliteJsonTextValue($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::sqliteJsonTextValue($upperBound);
+        if ($lowerKey === null && $upperKey === null) {
+            throw new \InvalidArgumentException('SQLite wp_options JSON -> range lookup requires at least one bound');
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumnRange(
+            'wp_options',
+            'option_value',
+            $jsonPath,
+            $lowerKey,
+            $upperKey,
+            $upperInclusive,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options JSON -> expression range index is not present');
+        }
+        if ($lowerKey !== null && $upperKey !== null) {
+            $boundaryComparison = self::compareSQLiteScalar($lowerKey, $upperKey, $indexLookup['collation']);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueRange(
+                $indexLookup['rootPage'],
+                $lowerKey,
+                $upperKey,
+                $indexLookup['collation'],
+                $upperInclusive,
+                $indexLookup['descending'],
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath);
+            if (
+                $fragment !== null
+                && self::firstValueIsInRange(
+                    $fragment,
+                    $lowerKey,
+                    $upperKey,
+                    $upperInclusive,
+                    $indexLookup['collation'],
+                )
             ) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -4917,6 +5120,20 @@ final class SQLiteDatabase
         }
 
         return $json;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<string>
+     */
+    private static function sqliteJsonTextValueList(array $values): array
+    {
+        $texts = [];
+        foreach ($values as $value) {
+            $texts[] = self::sqliteJsonTextValue($value);
+        }
+
+        return $texts;
     }
 
     /**

@@ -1549,6 +1549,86 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragment('$."settings.v1"', ['mode' => 'dark'], -1));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$."settings.v1"', ['mode' => 'dark']));
     },
+    'uses json value operator expression index for wordpress plugin setting fragment IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_fragment_arrow', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_fragment_arrow ON wp_options(option_value -> \'settings.v1\') WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_alpha_settings', '{"settings.v1":{"mode":"dark","flags":[1,2]}}', 'no'], 1),
+            $schemaCell([null, 'plugin_beta_settings', '{"settings.v1":"dark"}', 'no'], 2),
+            $schemaCell([null, 'plugin_null_settings', '{"settings.v1":null}', 'no'], 3),
+            $schemaCell([null, 'plugin_nested_settings', '{"settings":{"v1":{"mode":"dark","flags":[1,2]}}}', 'yes'], 4),
+            $schemaCell([null, 'plugin_missing_settings', '{"other":true}', 'yes'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([null, 4]),
+            $indexCell([null, 5]),
+            $indexCell(['"dark"', 2]),
+            $indexCell(['null', 3]),
+            $indexCell(['{"mode":"dark","flags":[1,2]}', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedJsonOptionFragments('$."settings.v1"', [
+            ['mode' => 'dark', 'flags' => [1, 2]],
+            'dark',
+            null,
+            'dark',
+        ]);
+        $limited = $database->wordpressOptionsByIndexedJsonOptionFragments('$."settings.v1"', [
+            ['mode' => 'dark', 'flags' => [1, 2]],
+            'dark',
+            null,
+        ], 2);
+        $jsonNull = $database->wordpressOptionsByIndexedJsonOptionFragments('$."settings.v1"', [null]);
+
+        $t->same(3, $database->indexRootPageForJsonValueOperatorInLookup('wp_options', 'option_value', '$."settings.v1"', [['mode' => 'dark'], null]));
+        $t->same(null, $database->indexRootPageForJsonValueOperatorInLookup('wp_options', 'option_value', '$."settings.v1"', []));
+        $t->same(null, $database->indexRootPageForJsonExtractInLookup('wp_options', 'option_value', '$."settings.v1"', [['mode' => 'dark']]));
+        $t->same(['plugin_beta_settings', 'plugin_null_settings', 'plugin_alpha_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['plugin_beta_settings', 'plugin_null_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same(['plugin_null_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $jsonNull));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragments('$."settings.v1"', [new stdClass()]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragments('$."settings.v1"', ['dark'], -1));
+    },
+    'uses json value operator expression index for wordpress plugin setting fragment ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_channel_arrow', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_channel_arrow ON wp_options(option_value -> \'channel\') WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_alpha_channel', '{"channel":"alpha"}', 'no'], 1),
+            $schemaCell([null, 'plugin_beta_channel', '{"channel":"beta"}', 'no'], 2),
+            $schemaCell([null, 'plugin_preview_channel', '{"channel":"preview"}', 'yes'], 3),
+            $schemaCell([null, 'plugin_stable_channel', '{"channel":"stable"}', 'yes'], 4),
+            $schemaCell([null, 'plugin_missing_channel', '{"other":true}', 'yes'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([null, 5]),
+            $indexCell(['"alpha"', 1]),
+            $indexCell(['"beta"', 2]),
+            $indexCell(['"preview"', 3]),
+            $indexCell(['"stable"', 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $exclusive = $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable');
+        $inclusive = $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable', null, true);
+        $limited = $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable', 1, true);
+        $beforePreview = $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', null, 'preview', null, true);
+        $reversed = $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', 'stable', 'beta');
+
+        $t->same(3, $database->indexRootPageForJsonValueOperatorRangeLookup('wp_options', 'option_value', '$.channel', 'beta', 'stable'));
+        $t->same(null, $database->indexRootPageForJsonExtractRangeLookup('wp_options', 'option_value', '$.channel', 'beta', 'stable'));
+        $t->same(['plugin_beta_channel', 'plugin_preview_channel'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $exclusive));
+        $t->same(['plugin_beta_channel', 'plugin_preview_channel', 'plugin_stable_channel'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusive));
+        $t->same(['plugin_beta_channel'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same(['plugin_alpha_channel', 'plugin_beta_channel', 'plugin_preview_channel'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $beforePreview));
+        $t->same([], $reversed);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable', -1));
+    },
     'uses json_extract expression index for wordpress plugin option value IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

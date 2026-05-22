@@ -1449,14 +1449,44 @@ Focused upstream fixture boundary:
   operands, and string RHS operands that look numeric but must address object
   labels.
 
-The native PHP tests now cover parsing `option_value -> 'settings.v1'` as a
-JSON value-operator expression index rather than a normal column or `->>` text
+The native PHP tests cover parsing `option_value -> 'settings.v1'` as a JSON
+value-operator expression index rather than a normal column or `->>` text
 operator index; matching dotted and numeric string labels through quoted JSON
 path members; seeking a WordPress-shaped `wp_options` index by JSON object
 fragment, JSON string, and JSON null; and keeping missing paths distinct from
-JSON null. The new `examples/wordpress-json-option-fragment.php` script maps
+JSON null. The `examples/wordpress-json-option-fragment.php` script maps
 plugin/theme settings recovery where the available SQLite database indexes a
 JSON fragment through `option_value -> 'key'`.
+
+This slice now also covers JSON `->` fragment IN-list and range lookups.
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json102.test where.test where2.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 727 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json102.test` anchors `->` JSON-text result semantics for JSON null,
+  strings, arrays, objects, missing paths, and PostgreSQL-style RHS labels.
+- `test/where2.test` covers IN-list duplicate RHS behavior used by the native
+  JSON fragment list lookup.
+- `test/where.test` covers lower/upper indexed range traversal used by the
+  native JSON fragment range lookup.
+
+The native PHP tests now cover JSON `->` expression-index IN-list lookups for
+object fragments, JSON strings, JSON null, duplicate RHS suppression, and
+missing-path exclusion. They also cover JSON-text range scans over stored
+fragment keys, inclusive upper bounds, open lower bounds, reversed empty
+ranges, wrong-expression rejection, and invalid limit/bound handling. The
+`examples/wordpress-json-option-fragment-list.php` and
+`examples/wordpress-json-option-fragment-range.php` scripts map plugin/theme
+settings recovery for multiple JSON fragment states or bounded JSON-text
+channel ranges.
 
 ## Focused Native Mapping: `trim()` Expression Indexes
 

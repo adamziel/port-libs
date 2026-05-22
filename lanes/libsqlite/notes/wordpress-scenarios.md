@@ -173,6 +173,11 @@ databases that index a JSON object, array, quoted string, boolean, or JSON null
 fragment instead of the SQL scalar returned by `->>`: recovery tools can
 request a path such as `$."settings.v1"`, compare SQLite's JSON text result,
 and distinguish a stored JSON null from a missing path.
+The same JSON-fragment path now supports bounded `IN (...)` and range reads.
+Recovery and audit tools can request several stored JSON fragments such as a
+settings object, a string state, and JSON null in one indexed pass, suppress
+duplicate RHS values, and scan JSON-text channel ranges while still excluding
+missing paths.
 JSON expression paths now also support non-negative array indexes such as
 `$.rules[0].enabled` and `$[0]`, plus reverse array indexes such as
 `$.rules[#-1].enabled` and `$[#-1]`. This maps plugin/theme settings that store
@@ -440,6 +445,19 @@ expression index, and returns options whose JSON fragment matches a requested
 path and JSON value. This maps plugin/theme settings recovery when a database
 indexes a nested settings object, JSON string, boolean, or JSON null as JSON
 text rather than as a SQL scalar.
+
+`examples/wordpress-json-option-fragment-list.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term `wp_options(option_value -> 'key')`
+expression index, and returns options whose JSON fragment is in a caller
+supplied JSON array. This maps multi-state plugin/theme settings recovery where
+object fragments, strings, booleans, and JSON null must be matched without a
+full table scan.
+
+`examples/wordpress-json-option-fragment-range.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term `wp_options(option_value -> 'key')`
+expression index, and returns options whose JSON-text fragment falls inside
+caller supplied bounds. This maps channel/stage audits where the database
+stores JSON fragments through SQLite's value-operator shorthand.
 
 `examples/wordpress-trimmed-option-name.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
