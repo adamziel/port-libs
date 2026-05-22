@@ -84,15 +84,18 @@ SQLite avoids duplicate result rows, and ignore `NULL` RHS values for `WHERE`
 matching. The same path can safely use `WHERE option_name IS NOT NULL` partial
 indexes and exact-order `WHERE option_name IN ('siteurl','home')` partial
 indexes, matching the bounded SQLite planner behavior instead of treating every
-logical subset as usable.
+logical subset as usable. IN-list reads now also prune out-of-range index
+subtrees before page decoding, so a small preload list can still be recovered
+when an unrelated branch of a large `wp_options(option_name)` index is damaged
+or expensive to hydrate.
 
-First-column and composite equality-prefix range scans now use bounded index
-b-tree traversal instead of decoding every index page. This matters for
-WordPress recovery and import tools that inspect a narrow option-name range
-from a large or partially damaged database image: an unrelated out-of-range
-index branch no longer has to be readable before constrained
-`wp_options(option_name)` or `wp_options(autoload, option_name)` range lookups
-can return matching rows.
+First-column range, first-column IN-list, and composite equality-prefix range
+scans now use bounded index b-tree traversal instead of decoding every index
+page. This matters for WordPress recovery and import tools that inspect a
+narrow option-name range or a small known option-name set from a large or
+partially damaged database image: an unrelated out-of-range index branch no
+longer has to be readable before constrained `wp_options(option_name)` or
+`wp_options(autoload, option_name)` lookups can return matching rows.
 
 ## Example
 
@@ -118,8 +121,9 @@ non-null option-name recovery.
 database file, resolves an indexed `wp_options(option_name)` IN-list lookup,
 and returns a bounded set of named options such as `siteurl,home,blogname`
 without scanning the full options table or using the PHP SQLite extension. This
-maps plugin/theme preload and recovery workflows that need a small known set of
-options from a database image.
+path now uses bounded index traversal, mapping plugin/theme preload and
+recovery workflows that need a small known set of options from a database image
+without requiring every unrelated index branch to be readable first.
 
 `examples/wordpress-autoloaded-options.php` reads a WordPress-oriented SQLite
 database file, resolves an explicit or safe partial first-column
@@ -170,6 +174,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: seek bounds for expression and IN-list scans, expression indexes beyond
-`lower(column)`, custom collations, and composite-key ranges beyond one
-equality prefix plus one range column.
+slice: seek bounds for expression scans, expression indexes beyond
+`lower(column)`, custom collations, and composite-key ranges beyond one equality
+prefix plus one range column.

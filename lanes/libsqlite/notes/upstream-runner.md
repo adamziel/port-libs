@@ -717,11 +717,15 @@ The native PHP tests now cover bulk WordPress option-name reads through an
 explicit `option_name` index, duplicate RHS suppression, `NULL` RHS
 non-matching semantics, safe use of `WHERE option_name IS NOT NULL` partial
 indexes, and exact-order `WHERE option_name IN ('siteurl','home')` partial
-indexes. The new `examples/wordpress-options-by-name-list.php` script maps
-bulk option preload/recovery workflows on hosts without the PHP SQLite
-extension. Remaining work includes optimized b-tree seek bounds for these
-scans, expression-index `IN` lookups, custom collations, and broader composite
-`IN` constraints.
+indexes. IN-list scans now also derive conservative first-key intervals for
+index interior children, so out-of-range subtrees are skipped before their
+pages are parsed. The focused regression fixture uses a WordPress-shaped
+`wp_options(option_name)` lookup for `siteurl` while the unrelated left-hand
+index branch is intentionally invalid. The new
+`examples/wordpress-options-by-name-list.php` script maps bulk option
+preload/recovery workflows on hosts without the PHP SQLite extension.
+Remaining work includes expression-index `IN` lookups, custom collations, and
+broader composite `IN` constraints.
 
 ## Focused Native Mapping: First-Column B-Tree Seek Bounds
 
@@ -757,5 +761,5 @@ The native PHP test adds a WordPress-shaped `wp_options(option_name)` range
 lookup where the requested lower bound is in the index root's right-hand
 subtree and the left-hand child page is intentionally invalid. The lookup now
 returns `siteurl` without reading that out-of-range branch. Remaining seek work
-includes expression indexes beyond the first `lower(column)` slice, expression
-seek bounds, and IN-list probes.
+includes expression indexes beyond the first `lower(column)` slice and
+expression seek bounds.

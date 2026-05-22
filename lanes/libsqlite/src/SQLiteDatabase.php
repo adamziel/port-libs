@@ -585,7 +585,12 @@ final class SQLiteDatabase
         }
 
         $options = [];
-        foreach ($this->indexCellsByFirstValueList($indexLookup['rootPage'], $optionNames, $indexLookup['collation']) as $indexCell) {
+        foreach ($this->indexCellsByFirstValueList(
+            $indexLookup['rootPage'],
+            $optionNames,
+            $indexLookup['collation'],
+            $indexLookup['descending'],
+        ) as $indexCell) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
@@ -1222,20 +1227,149 @@ final class SQLiteDatabase
      * @param list<mixed> $values
      * @return list<SQLiteIndexCell>
      */
-    private function indexCellsByFirstValueList(int $rootPageNumber, array $values, string $collation): array
+    private function indexCellsByFirstValueList(
+        int $rootPageNumber,
+        array $values,
+        string $collation,
+        bool $descending,
+    ): array
     {
         $matches = [];
-        foreach ($this->indexCells($rootPageNumber) as $cell) {
+        $visited = [];
+        $this->collectIndexCellsByFirstValueList(
+            $rootPageNumber,
+            $values,
+            $collation,
+            $descending,
+            $visited,
+            $matches,
+            false,
+            null,
+            false,
+            null,
+        );
+
+        return $matches;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @param array<int, true> $visited
+     * @param list<SQLiteIndexCell> $matches
+     */
+    private function collectIndexCellsByFirstValueList(
+        int $pageNumber,
+        array $values,
+        string $collation,
+        bool $descending,
+        array &$visited,
+        array &$matches,
+        bool $hasIntervalLower,
+        mixed $intervalLower,
+        bool $hasIntervalUpper,
+        mixed $intervalUpper,
+    ): void {
+        if (
+            !self::firstValueListIntersectsInterval(
+                $values,
+                $hasIntervalLower,
+                $intervalLower,
+                $hasIntervalUpper,
+                $intervalUpper,
+                $collation,
+            )
+        ) {
+            return;
+        }
+        if (isset($visited[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite index b-tree bounded IN-list lookup reached page {$pageNumber} more than once");
+        }
+        $visited[$pageNumber] = true;
+
+        $page = $this->page($pageNumber);
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $pageNumber === 1 ? 100 : 0,
+        );
+        if ($header->pageType !== 'index-leaf' && $header->pageType !== 'index-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not an index b-tree page");
+        }
+
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        $cells = SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader);
+        if ($header->pageType === 'index-leaf') {
+            foreach ($cells as $cell) {
+                $record = $cell->record($this->header->textEncoding);
+                if ($record->values === []) {
+                    throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+                }
+                if (self::inListContainsSQLiteScalar($values, $record->values[0], $collation)) {
+                    $matches[] = $cell;
+                }
+            }
+
+            return;
+        }
+
+        if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+            throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        $hasPrevious = false;
+        $previousValue = null;
+        foreach ($cells as $cell) {
+            if ($cell->leftChildPage === null || $cell->leftChildPage < 1) {
+                throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
+            }
+
             $record = $cell->record($this->header->textEncoding);
             if ($record->values === []) {
                 throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
             }
-            if (self::inListContainsSQLiteScalar($values, $record->values[0], $collation)) {
+            $currentValue = $record->values[0];
+
+            $childHasLower = $descending ? true : $hasPrevious;
+            $childLower = $descending ? $currentValue : $previousValue;
+            $childHasUpper = $descending ? $hasPrevious : true;
+            $childUpper = $descending ? $previousValue : $currentValue;
+            $this->collectIndexCellsByFirstValueList(
+                $cell->leftChildPage,
+                $values,
+                $collation,
+                $descending,
+                $visited,
+                $matches,
+                $childHasLower,
+                $childLower,
+                $childHasUpper,
+                $childUpper,
+            );
+
+            if (self::inListContainsSQLiteScalar($values, $currentValue, $collation)) {
                 $matches[] = $cell;
             }
+
+            $hasPrevious = true;
+            $previousValue = $currentValue;
         }
 
-        return $matches;
+        $rightHasLower = $descending ? false : $hasPrevious;
+        $rightLower = $descending ? null : $previousValue;
+        $rightHasUpper = $descending ? $hasPrevious : false;
+        $rightUpper = $descending ? $previousValue : null;
+        $this->collectIndexCellsByFirstValueList(
+            $header->rightMostPointer,
+            $values,
+            $collation,
+            $descending,
+            $visited,
+            $matches,
+            $rightHasLower,
+            $rightLower,
+            $rightHasUpper,
+            $rightUpper,
+        );
     }
 
     /**
@@ -1444,6 +1578,40 @@ final class SQLiteDatabase
         }
 
         return true;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function firstValueListIntersectsInterval(
+        array $values,
+        bool $hasIntervalLower,
+        mixed $intervalLower,
+        bool $hasIntervalUpper,
+        mixed $intervalUpper,
+        string $collation,
+    ): bool {
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (
+                $hasIntervalLower
+                && self::compareSQLiteScalar($value, $intervalLower, $collation) < 0
+            ) {
+                continue;
+            }
+            if (
+                $hasIntervalUpper
+                && self::compareSQLiteScalar($value, $intervalUpper, $collation) > 0
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
