@@ -139,6 +139,62 @@ final class SyncPlan
     }
 
     /**
+     * @return list<string>
+     */
+    public function deletePaths(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        string $deleteMode = DeleteMode::DEFAULT,
+        bool $deleteExcluded = false,
+    ): array {
+        $deleteMode = DeleteMode::normalize($deleteMode);
+        if ($deleteMode === DeleteMode::OFF) {
+            return [];
+        }
+
+        $sourcePaths = $this->listedPaths($source, $filter);
+        $targetPaths = $this->listedPaths($target, $deleteExcluded ? null : $filter);
+        $delete = [];
+        foreach ($targetPaths as $path => $targetInfo) {
+            if (!isset($sourcePaths[$path])) {
+                $delete[] = $targetInfo->path;
+            }
+        }
+
+        sort($delete, SORT_STRING);
+
+        return $delete;
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    public function deleteDestinationOnly(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        string $deleteMode = DeleteMode::DEFAULT,
+        bool $deleteExcluded = false,
+        ?int $maxDelete = null,
+        ?int $maxDeleteSize = null,
+    ): array {
+        $deleted = [];
+        $deleteCount = 0;
+        $deleteBytes = 0;
+        foreach ($this->deletePaths($source, $target, $filter, $deleteMode, $deleteExcluded) as $path) {
+            $targetInfo = $target->info($path);
+            $deleteSize = max(0, $targetInfo->size);
+            $this->assertDeleteWithinLimits($deleteCount, $deleteBytes, $deleteSize, $maxDelete, $maxDeleteSize);
+            $deleteCount++;
+            $deleteBytes += $deleteSize;
+            $deleted[] = $target->delete($path);
+        }
+
+        return $deleted;
+    }
+
+    /**
      * @return array<string, ObjectInfo>
      */
     private function listedPaths(MemoryProvider $provider, ?FilterRuleSet $filter): array
@@ -178,5 +234,20 @@ final class SyncPlan
         }
 
         return ReaderComparison::checkEqualReaders($targetReader, $sourceReader);
+    }
+
+    private function assertDeleteWithinLimits(
+        int $deleteCount,
+        int $deleteBytes,
+        int $nextSize,
+        ?int $maxDelete,
+        ?int $maxDeleteSize,
+    ): void {
+        if ($maxDelete !== null && $maxDelete >= 0 && $deleteCount + 1 > $maxDelete) {
+            throw new \RuntimeException('--max-delete threshold reached');
+        }
+        if ($maxDeleteSize !== null && $maxDeleteSize >= 0 && $deleteBytes + $nextSize > $maxDeleteSize) {
+            throw new \RuntimeException('--max-delete-size threshold reached');
+        }
     }
 }

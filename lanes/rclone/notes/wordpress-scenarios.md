@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, FakeSeeker/NoSeeker reader adapter behavior, PatternReader deterministic fixture bytes, LimitedReadCloser byte-limit and close-error behavior, NoCloseReader close-hiding behavior, GzipReader decompression and provider-close behavior, ContextReader cancellation-before-read behavior, CountingReader streamed-byte accounting, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, delete, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, FakeSeeker/NoSeeker reader adapter behavior, PatternReader deterministic fixture bytes, LimitedReadCloser byte-limit and close-error behavior, NoCloseReader close-hiding behavior, GzipReader decompression and provider-close behavior, ContextReader cancellation-before-read behavior, CountingReader streamed-byte accounting, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, filtered destination-only delete planning across rclone delete modes, delete-excluded handling, max-delete/max-delete-size safeguards, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -48,6 +48,10 @@ The `../examples/wordpress-cancelled-restore.php` example maps upstream `Context
 
 The `../examples/wordpress-counted-wxr-upload.php` example maps upstream `CountingReader` behavior for streamed WXR upload bodies. It probes the export header, streams the rest of the body, and reports the exact byte count that passed through the request body wrapper.
 
+The `../examples/wordpress-prune-stale-backups.php` example maps a bounded upstream sync/delete behavior. It copies changed included WordPress backup artifacts, deletes stale included destination artifacts such as obsolete uploads and old WXR exports, and leaves excluded cache artifacts untouched unless a future `deleteExcluded` pass explicitly opts into pruning excluded files.
+
+The `../examples/wordpress-prune-delete-limits.php` example maps rclone's destructive delete safeguards for backup cleanup. It plans two stale included artifacts, deletes only the first one with `maxDelete: 1`, surfaces the upstream threshold message, and leaves the next stale upload plus excluded cache artifact in place.
+
 ## Next Task
 
-Map a bounded `fs/operations` cleanup/delete planning slice for pruning stale WordPress backup artifacts.
+Map backup-dir move semantics for destructive WordPress cleanup after max-delete safeguards.

@@ -83,6 +83,18 @@ final class MemoryProvider
         return $this->entry($path)['bytes'];
     }
 
+    public function delete(string $path): ObjectInfo
+    {
+        $path = $this->canonicalPath($path);
+        $info = $this->info($path);
+        unset($this->objects[$path]);
+        if ($this->caseInsensitive) {
+            unset($this->caseIndex[$this->lookupPath($path)]);
+        }
+
+        return $info;
+    }
+
     public function openReader(string $path, int $offset = 0, ?int $length = null): object
     {
         $path = $this->canonicalPath($path);
