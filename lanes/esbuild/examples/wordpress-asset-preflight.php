@@ -22,10 +22,12 @@ $classDeclareTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/
 $constructorPropertiesTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-constructor-properties.ts');
 $classFieldsAssignTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-fields-assign.ts');
 $computedClassFieldsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-class-fields.ts');
+$computedSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-super-controller.ts');
 $conditionalSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-conditional-super-controller.ts');
 $lazySuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-lazy-super-controller.ts');
 $commaSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-comma-super-controller.ts');
 $returnSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-return-super-controller.ts');
+$controlSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-control-super-controller.ts');
 $privateSettingsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-settings-controller.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
@@ -47,10 +49,12 @@ $classDeclareLowered = (new TypeScriptModuleLowerer())->lower($classDeclareTypeS
 $constructorPropertiesLowered = (new TypeScriptModuleLowerer())->lower($constructorPropertiesTypeScriptSource);
 $classFieldsAssignLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false);
 $computedClassFieldsLowered = (new TypeScriptModuleLowerer())->lower($computedClassFieldsTypeScriptSource, false);
+$computedSuperLowered = (new TypeScriptModuleLowerer())->lower($computedSuperTypeScriptSource, false);
 $conditionalSuperLowered = (new TypeScriptModuleLowerer())->lower($conditionalSuperTypeScriptSource, false);
 $lazySuperLowered = (new TypeScriptModuleLowerer())->lower($lazySuperTypeScriptSource, false);
 $commaSuperLowered = (new TypeScriptModuleLowerer())->lower($commaSuperTypeScriptSource, false);
 $returnSuperLowered = (new TypeScriptModuleLowerer())->lower($returnSuperTypeScriptSource, false);
+$controlSuperLowered = (new TypeScriptModuleLowerer())->lower($controlSuperTypeScriptSource, false);
 $privateSettingsLowered = (new TypeScriptModuleLowerer())->lower($privateSettingsTypeScriptSource, false);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
@@ -85,10 +89,12 @@ printf("WordPress TypeScript declared class field bytes: %d\n", strlen($classDec
 printf("WordPress TypeScript constructor property bytes: %d\n", strlen($constructorPropertiesLowered));
 printf("WordPress TypeScript class field assign-semantics bytes: %d\n", strlen($classFieldsAssignLowered));
 printf("WordPress TypeScript computed class field bytes: %d\n", strlen($computedClassFieldsLowered));
+printf("WordPress TypeScript computed super controller bytes: %d\n", strlen($computedSuperLowered));
 printf("WordPress TypeScript conditional super controller bytes: %d\n", strlen($conditionalSuperLowered));
 printf("WordPress TypeScript lazy super controller bytes: %d\n", strlen($lazySuperLowered));
 printf("WordPress TypeScript comma super controller bytes: %d\n", strlen($commaSuperLowered));
 printf("WordPress TypeScript return super controller bytes: %d\n", strlen($returnSuperLowered));
+printf("WordPress TypeScript control super controller bytes: %d\n", strlen($controlSuperLowered));
 printf("WordPress TypeScript private settings controller bytes: %d\n", strlen($privateSettingsLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));

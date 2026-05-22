@@ -427,6 +427,27 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { caret: lab(50.998% 125.506 -50.7078) var(--foo); } }', ['chrome' => 90])
         );
     },
+    'transition prefixer maps upstream list-style advanced color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $star = "\u{2605}";
+
+        $t->same(
+            '.foo{list-style-image:-webkit-gradient(linear,0 0,0 100%,from(#ff0f0e),to(#7773ff));list-style-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff);list-style-image:linear-gradient(#ff0f0e,#7773ff);list-style-image:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}',
+            $prefixer->prefixForTargets('.foo { list-style-image: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) }', ['chrome' => 8])
+        );
+        $t->same(
+            '.foo{list-style:linear-gradient(#ff0f0e,#7773ff) "' . $star . '";list-style:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364)) "' . $star . '"}',
+            $prefixer->prefixForTargets('.foo { list-style: "' . $star . '" linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{list-style:var(--foo) linear-gradient(#ff0f0e,#7773ff)}@supports (color:lab(0% 0 0)){.foo{list-style:var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))}}',
+            $prefixer->prefixForTargets('.foo { list-style: var(--foo) linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) }', ['chrome' => 90])
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{list-style:var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { list-style: var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928), lab(51% 70.4544 -115.586)); } }', ['chrome' => 90])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -572,6 +593,18 @@ CSS;
 
         $t->same(
             '.wp-block-search .wp-block-search__input{caret:#ee00be var(--wp--custom--editor-caret-shape)}@supports (color:lab(0% 0 0)){.wp-block-search .wp-block-search__input{caret:lab(50.998% 125.506 -50.7078) var(--wp--custom--editor-caret-shape)}}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 90])
+        );
+    },
+    'wordpress list marker gradients get advanced color fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-list.is-style-gradient-markers {
+  list-style: var(--wp--custom--list-marker) linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364));
+}
+CSS;
+
+        $t->same(
+            '.wp-block-list.is-style-gradient-markers{list-style:var(--wp--custom--list-marker) linear-gradient(#ff0f0e,#7773ff)}@supports (color:lab(0% 0 0)){.wp-block-list.is-style-gradient-markers{list-style:var(--wp--custom--list-marker) linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))}}',
             (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 90])
         );
     },

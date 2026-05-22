@@ -367,6 +367,25 @@ class Foo {
 }
 JS . "\n", $lowerer->lower('class Foo { static [x()] = 1 }', false));
     },
+    'preserves upstream computed class field key order in derived assign semantics classes' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _a, _b;
+class A extends (_b = B, _a = x, _b) {
+  constructor() {
+    foo();
+    super(1);
+    this[_a] = 1;
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { [x] = 1; constructor() { foo(); super(1); } }', false));
+
+        $lowered = $lowerer->lower('class A extends resolveBase() { [assetKey("settings")] = metadata; constructor() { super(metadata); } }', false);
+        $t->contains('class A extends (_b = resolveBase(), _a = assetKey("settings"), _b) {', $lowered);
+        $t->true(strpos($lowered, '_b = resolveBase()') < strpos($lowered, '_a = assetKey("settings")'));
+        $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this[_a] = metadata;'));
+    },
     'preserves upstream computed class key side effect order in assign semantics mode' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -599,6 +618,45 @@ JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { thro
         $helper = $lowerer->lower('class A extends B { constructor(public x = 1) { return super(1); } }', false);
         $t->contains('return __super(1);', $helper);
     },
+    'splits upstream switch tests and for initializers around derived super calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+    switch(bar()) {case 1:baz();}
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { switch (foo(), super(1), bar()) { case 1: baz(); } } }', false));
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+    for(bar();test;update())body();
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { for (foo(), super(1), bar(); test; update()) body(); } }', false));
+
+        $t->same(<<<'JS'
+class A extends B {
+  constructor(x = 1) {
+    super(1);
+    this.x = x;
+    for(;test;update())body();
+  }
+}
+JS . "\n", $lowerer->lower('class A extends B { constructor(public x = 1) { for (super(1); test; update()) body(); } }', false));
+
+        $lowered = $lowerer->lower('class A extends B { constructor(public x = 1) { if (foo(), super(1), bar()) baz(); } }', false);
+        $t->contains("foo();\n    super(1);\n    this.x = x;\n    if (bar()) baz();", $lowered);
+        $t->true(!str_contains($lowered, '__super'));
+    },
     'lowers upstream private class fields in assign semantics super insertion' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -777,6 +835,20 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
+    'lowers wordpress computed super controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-computed-super-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('var _a, _b;', $lowered);
+        $t->contains('class CardBlockComputedController extends (_b = resolveBaseController(metadata), _a = assetKey("settings"), _b) {', $lowered);
+        $t->contains('super(metadata);', $lowered);
+        $t->contains('this[_a] = {supports:{html:false}, viewScript:"file:./view.js"};', $lowered);
+        $t->contains('this.blocks.registerBlockType(this.blockName, this[assetKey("settings")]);', $lowered);
+        $t->true(strpos($lowered, '_b = resolveBaseController(metadata)') < strpos($lowered, '_a = assetKey("settings")'));
+        $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this[_a] ='));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
     'lowers wordpress conditional super constructor controller without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-conditional-super-controller.ts');
         $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
@@ -827,6 +899,21 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('return this;', $lowered);
         $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this.settings ='));
         $t->true(strpos($lowered, 'this.blocks = blocks;') < strpos($lowered, 'return this;'));
+        $t->true(!str_contains($lowered, '__super'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress control statement super controllers without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-control-super-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('preparePreview();', $lowered);
+        $t->contains('switch(resolveMode()) {case "preview":preloadPreview();break;default:hydrateDefaults();}', $lowered);
+        $t->contains('queueAssets();', $lowered);
+        $t->contains('for(asset = nextAsset();asset;asset = nextAsset())hydrateAsset(asset);', $lowered);
+        $t->true(strpos($lowered, 'preparePreview();') < strpos($lowered, 'switch(resolveMode())'));
+        $t->true(strpos($lowered, 'queueAssets();') < strpos($lowered, 'for(asset = nextAsset()'));
+        $t->true(substr_count($lowered, 'super(metadata);') === 2);
         $t->true(!str_contains($lowered, '__super'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));

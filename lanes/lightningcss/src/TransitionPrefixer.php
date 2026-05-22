@@ -121,10 +121,13 @@ final class TransitionPrefixer
         $caretChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteCaretFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
+        $listStyleChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -173,6 +176,8 @@ final class TransitionPrefixer
             'textDecorationNeedsWebkit' => ($safari !== null && $safari <= 16.0) || ($chrome !== null && $chrome <= 4.0),
             'textDecorationNeedsMoz' => $firefox !== null && $firefox <= 36.0,
             'textEmphasisNeedsWebkit' => $chrome !== null && $chrome <= 99.0,
+            'gradientNeedsOldWebkit' => ($chrome !== null && $chrome <= 8.0)
+                || ($safari !== null && $safari < 5.1),
         ];
     }
 
@@ -1406,6 +1411,74 @@ final class TransitionPrefixer
             'white',
             'yellow',
         ], true);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteListStyleFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !in_array($entry['property'], ['list-style', 'list-style-image'], true)) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $fallback = ($targetOptions['boxShadowSupportsAdvancedColor'] ?? false)
+                ? null
+                : $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (($targetOptions['gradientNeedsOldWebkit'] ?? false) && $entry['property'] === 'list-style-image') {
+                foreach ($this->legacyWebkitGradientEntries($entry, $fallback) as $prefixedEntry) {
+                    $rewritten[] = $prefixedEntry;
+                }
+            }
+            $rewritten[] = $this->entryWithValue($entry, $fallback);
+
+            if ($this->containsCustomPropertyReference($entry['value'])) {
+                $labFallback = $this->advancedColorLabFallbackValue($entry['value'], true);
+                if ($labFallback !== null) {
+                    $supportRules[] = $this->supportsLabRule($selectors, [$this->entryWithValue($entry, $labFallback)]);
+                }
+                $changed = true;
+                continue;
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $this->advancedColorLabTargetValue($entry['value']) ?? $entry['value']);
+            $changed = true;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function legacyWebkitGradientEntries(array $entry, string $fallback): array
+    {
+        if (preg_match('/^linear-gradient\((#[0-9a-f]+),\s*(#[0-9a-f]+)\)$/i', trim($fallback), $matches) !== 1) {
+            return [];
+        }
+
+        $from = strtolower($matches[1]);
+        $to = strtolower($matches[2]);
+
+        return [
+            $this->entryWithValue($entry, '-webkit-gradient(linear,0 0,0 100%,from(' . $from . '),to(' . $to . '))'),
+            $this->entryWithValue($entry, '-webkit-linear-gradient(top,' . $from . ',' . $to . ')'),
+        ];
     }
 
     /**

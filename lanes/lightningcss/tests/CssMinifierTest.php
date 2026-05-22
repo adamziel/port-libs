@@ -264,6 +264,67 @@ return [
             $minifier->minify('.foo { -webkit-transition: background 200ms; -moz-transition: background 200ms; transition: background 230ms }')
         );
     },
+    'css minifier maps upstream list-style value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $star = "\u{2605}";
+        $openCircle = "\u{25CB}";
+        $filledCircle = "\u{25CF}";
+
+        $t->same('.foo{list-style-type:disc}', $minifier->minify('.foo { list-style-type: disc; }'));
+        $t->same('.foo{list-style-type:"' . $star . '"}', $minifier->minify('.foo { list-style-type: "' . $star . '"; }'));
+        $t->same(
+            '.foo{list-style-type:symbols(cyclic "' . $openCircle . '" "' . $filledCircle . '")}',
+            $minifier->minify(".foo { list-style-type: symbols(cyclic '" . $openCircle . "' '" . $filledCircle . "'); }")
+        );
+        $t->same(
+            '.foo{list-style-type:symbols("' . $openCircle . '" "' . $filledCircle . '")}',
+            $minifier->minify(".foo { list-style-type: symbols('" . $openCircle . "' '" . $filledCircle . "'); }")
+        );
+        $t->same(
+            '.foo{list-style-type:symbols("' . $openCircle . '" "' . $filledCircle . '")}',
+            $minifier->minify(".foo { list-style-type: symbols(symbolic '" . $openCircle . "' '" . $filledCircle . "'); }")
+        );
+        $t->same(
+            '.foo{list-style-type:symbols(url(ellipse.png))}',
+            $minifier->minify(".foo { list-style-type: symbols(symbolic url('ellipse.png')); }")
+        );
+        $t->same('.foo{list-style-image:url(ellipse.png)}', $minifier->minify(".foo { list-style-image: url('ellipse.png'); }"));
+        $t->same('.foo{list-style-position:outside}', $minifier->minify('.foo { list-style-position: outside; }'));
+        $t->same('.foo{list-style:url(ellipse.png) "' . $star . '"}', $minifier->minify('.foo { list-style: "' . $star . '" url(ellipse.png) outside; }'));
+        $t->same('.foo{list-style:none}', $minifier->minify('.foo { list-style: none; }'));
+        $t->same('.foo{list-style:none}', $minifier->minify('.foo { list-style: none none outside; }'));
+        $t->same('.foo{list-style:inside none}', $minifier->minify('.foo { list-style: none none inside; }'));
+        $t->same('.foo{list-style:inside none}', $minifier->minify('.foo { list-style: none inside; }'));
+        $t->same('.foo{list-style:outside}', $minifier->minify('.foo { list-style: none disc; }'));
+        $t->same('.foo{list-style:inside}', $minifier->minify('.foo { list-style: none inside disc; }'));
+        $t->same('.foo{list-style:"' . $star . '"}', $minifier->minify('.foo { list-style: none "' . $star . '"; }'));
+        $t->same('.foo{list-style:url(foo.png) none}', $minifier->minify('.foo { list-style: none url(foo.png); }'));
+    },
+    'css minifier maps upstream list-style longhand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $star = "\u{2605}";
+
+        $t->same(
+            '.foo{list-style:url("ellipse.png")}',
+            $minifier->minify('.foo { list-style-type: disc; list-style-image: url(ellipse.png); list-style-position: outside; }')
+        );
+        $t->same(
+            '.foo{list-style:"' . $star . '"}',
+            $minifier->minify('.foo { list-style: "' . $star . '" url(ellipse.png) outside; list-style-image: none; }')
+        );
+        $t->same(
+            '.foo{list-style:url("ellipse.png") "' . $star . '";list-style-image:var(--img)}',
+            $minifier->minify('.foo { list-style: "' . $star . '" url(ellipse.png) outside; list-style-image: var(--img); }')
+        );
+        $t->same(
+            '.foo{list-style:inside}',
+            $minifier->minify('.foo { list-style: inside; list-style-type: disc; }')
+        );
+        $t->same(
+            '.foo{list-style:inside decimal}',
+            $minifier->minify('.foo { list-style: inside; list-style-type: decimal; }')
+        );
+    },
     'css minifier maps upstream transition longhand composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

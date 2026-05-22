@@ -59,6 +59,7 @@ final class CssMinifier
         }
 
         $css = $this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output))));
+        $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
 
@@ -336,6 +337,7 @@ final class CssMinifier
         $value = $this->minifyBoxShadowValue($property, $value);
         $value = $this->minifyTextEmphasisValue($property, $value);
         $value = $this->minifyCaretValue($property, $value);
+        $value = $this->minifyListStyleValue($property, $value);
         if (!str_starts_with($property, '--')) {
             $value = $this->minifyColorKeywords($value);
         }
@@ -1107,6 +1109,267 @@ final class CssMinifier
             'caret-shape' => strtolower(trim($value)),
             default => $value,
         };
+    }
+
+    private function minifyListStyleValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'list-style' => $this->minifyListStyleShorthand($value),
+            'list-style-type' => $this->minifyListStyleTypeValue($value),
+            'list-style-image' => $this->minifyListStyleImageValue($value, false),
+            'list-style-position' => strtolower(trim($value)),
+            default => $value,
+        };
+    }
+
+    private function minifyListStyleShorthand(string $value): string
+    {
+        if ($this->containsCustomPropertyReference($value)) {
+            return implode(' ', array_map(
+                fn (string $token): string => $this->minifyListStyleTokenInPlace($token, false),
+                $this->splitWhitespaceTopLevel($value)
+            ));
+        }
+
+        $components = $this->parseListStyleComponents($value, false);
+
+        return $components === null ? trim($value) : $this->serializeListStyleComponents($components);
+    }
+
+    private function minifyListStyleTokenInPlace(string $token, bool $quoteSafeUrls): string
+    {
+        $lower = strtolower(trim($token));
+        if ($lower === 'inside' || $lower === 'outside' || $lower === 'none') {
+            return $lower;
+        }
+        if ($this->isListStyleImageToken($token)) {
+            return $this->minifyListStyleImageValue($token, $quoteSafeUrls);
+        }
+
+        return $this->minifyListStyleTypeValue($token);
+    }
+
+    private function minifyListStyleTypeValue(string $value): string
+    {
+        $value = trim($value);
+        if ($this->isQuotedStringToken($value)) {
+            return $this->normalizeCssStringToken($value);
+        }
+        if (preg_match('/^symbols\((.*)\)$/is', $value, $matches) === 1) {
+            $tokens = $this->splitListStyleSymbolsArguments(trim($matches[1]));
+            if ($tokens === []) {
+                return $value;
+            }
+
+            $system = strtolower($tokens[0]);
+            $parts = [];
+            if (in_array($system, ['cyclic', 'numeric', 'alphabetic', 'symbolic', 'fixed'], true)) {
+                array_shift($tokens);
+                if ($system !== 'symbolic') {
+                    $parts[] = $system;
+                }
+            }
+
+            foreach ($tokens as $token) {
+                $parts[] = $this->minifyListStyleSymbolToken($token);
+            }
+
+            return 'symbols(' . implode(' ', $parts) . ')';
+        }
+
+        return strtolower($value) === 'none' ? 'none' : $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitListStyleSymbolsArguments(string $value): array
+    {
+        $tokens = [];
+        $length = strlen($value);
+        for ($i = 0; $i < $length;) {
+            if (ctype_space($value[$i])) {
+                $i++;
+                continue;
+            }
+
+            $char = $value[$i];
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $token = $char;
+                for ($i++; $i < $length; $i++) {
+                    $token .= $value[$i];
+                    if ($value[$i] === '\\' && $i + 1 < $length) {
+                        $token .= $value[++$i];
+                        continue;
+                    }
+                    if ($value[$i] === $quote) {
+                        $i++;
+                        break;
+                    }
+                }
+                $tokens[] = $token;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$token, $offset] = $this->readFunctionRaw($value, $i);
+                $tokens[] = $token;
+                $i = $offset + 1;
+                continue;
+            }
+
+            $token = '';
+            for (; $i < $length; $i++) {
+                if (ctype_space($value[$i]) || $value[$i] === '"' || $value[$i] === "'") {
+                    break;
+                }
+                $token .= $value[$i];
+            }
+            if ($token !== '') {
+                $tokens[] = $token;
+            }
+        }
+
+        return $tokens;
+    }
+
+    private function minifyListStyleSymbolToken(string $token): string
+    {
+        $token = trim($token);
+        if ($this->isQuotedStringToken($token)) {
+            return $this->normalizeCssStringToken($token);
+        }
+        if (preg_match('/^url\(/i', $token) === 1) {
+            return $this->normalizeCssUrlToken($token, false);
+        }
+
+        return $token;
+    }
+
+    private function minifyListStyleImageValue(string $value, bool $quoteSafeUrls): string
+    {
+        $value = trim($value);
+        if (preg_match('/^url\(/i', $value) === 1) {
+            return $this->normalizeCssUrlToken($value, $quoteSafeUrls);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{type:string,image:string,position:string}|null
+     */
+    private function parseListStyleComponents(string $value, bool $quoteSafeUrls): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $type = null;
+        $image = null;
+        $position = null;
+        $noneCount = 0;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if ($lower === 'none') {
+                $noneCount++;
+                continue;
+            }
+            if (($lower === 'inside' || $lower === 'outside') && $position === null) {
+                $position = $lower;
+                continue;
+            }
+            if ($this->isListStyleImageToken($token)) {
+                if ($image !== null) {
+                    return null;
+                }
+                $image = $this->minifyListStyleImageValue($token, $quoteSafeUrls);
+                continue;
+            }
+            if ($type !== null) {
+                return null;
+            }
+            $type = $this->minifyListStyleTypeValue($token);
+        }
+
+        if ($noneCount > 0) {
+            if ($type === null) {
+                $type = 'none';
+                $noneCount--;
+            }
+            if ($noneCount > 0 && $image === null) {
+                $image = 'none';
+                $noneCount--;
+            }
+            if ($noneCount > 0) {
+                return null;
+            }
+            if ($type !== null && strtolower($type) !== 'none' && $image === null) {
+                $image = 'none';
+            }
+        }
+
+        return [
+            'type' => $type ?? 'disc',
+            'image' => $image ?? 'none',
+            'position' => $position ?? 'outside',
+        ];
+    }
+
+    /**
+     * @param array{type:string,image:string,position:string} $components
+     */
+    private function serializeListStyleComponents(array $components): string
+    {
+        $type = strtolower($components['type']) === 'none' ? 'none' : $components['type'];
+        $image = $components['image'];
+        $position = strtolower($components['position']);
+        $parts = [];
+
+        if ($position !== 'outside') {
+            $parts[] = $position;
+        }
+        if (strtolower($image) !== 'none') {
+            $parts[] = $image;
+        }
+        if (strtolower($type) !== 'disc') {
+            $parts[] = $type;
+        }
+
+        return $parts === [] ? 'outside' : implode(' ', $parts);
+    }
+
+    private function isListStyleImageToken(string $token): bool
+    {
+        return preg_match('/^(?:url|(?:-(?:webkit|o)-)?(?:linear|radial|conic)-gradient|image-set|cross-fade|paint)\(/i', trim($token)) === 1;
+    }
+
+    private function normalizeCssStringToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([\'"])(.*)\1$/s', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        return '"' . str_replace('"', '\\"', $matches[2]) . '"';
+    }
+
+    private function normalizeCssUrlToken(string $token, bool $quoteSafeUrls): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $url = ($matches[2] ?? '') !== '' ? $matches[2] : trim($matches[3] ?? '');
+        if ($quoteSafeUrls || preg_match('/[\s\'"()\\\\]/', $url) === 1) {
+            return 'url("' . str_replace('"', '\\"', $url) . '")';
+        }
+
+        return 'url(' . $url . ')';
     }
 
     private function minifyCaretShorthand(string $value): string
@@ -1935,6 +2198,48 @@ final class CssMinifier
         return $this->serializeDeclarationEntriesForComposition($entries);
     }
 
+    private function composeListStyleDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeListStyleDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeListStyleDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeListStyleDeclarationList(string $body): string
+    {
+        if (stripos($body, 'list-style') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteListStyleGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
     private function composeAnimationDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -2128,6 +2433,136 @@ final class CssMinifier
             'important' => false,
             'drop' => false,
         ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteListStyleGroup(array &$entries): void
+    {
+        $properties = [
+            'list' => 'list-style',
+            'type' => 'list-style-type',
+            'image' => 'list-style-image',
+            'position' => 'list-style-position',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === 'list-style') {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            if ($this->containsCustomPropertyReference($entries[$lastShorthand]['value'])) {
+                return;
+            }
+
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseListStyleComponents($entries[$lastShorthand]['value'], true);
+            if ($state === null) {
+                return;
+            }
+
+            $hasFollowingRelevant = false;
+            foreach ($relevantIndices as $index) {
+                if ($index > $lastShorthand && !$entries[$index]['drop']) {
+                    $hasFollowingRelevant = true;
+                    break;
+                }
+            }
+            $changed = $hasFollowingRelevant && $entries[$lastShorthand]['value'] !== $this->serializeListStyleComponents($state);
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'list') {
+                    continue;
+                }
+
+                $value = $this->normalizeListStyleComponentValue($component, $entries[$index]['value'], true);
+                if ($component === 'image' && $this->containsCustomPropertyReference($value)) {
+                    continue;
+                }
+
+                $state[$component] = $value;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeListStyleComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'list') {
+                $latest[$component] = $index;
+            }
+        }
+
+        foreach (['type', 'image', 'position'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+        if ($this->containsCustomPropertyReference($entries[$latest['image']]['value'])) {
+            return;
+        }
+
+        $replaceAt = min(array_values($latest));
+        $state = [
+            'type' => $this->normalizeListStyleComponentValue('type', $entries[$latest['type']]['value'], true),
+            'image' => $this->normalizeListStyleComponentValue('image', $entries[$latest['image']]['value'], true),
+            'position' => $this->normalizeListStyleComponentValue('position', $entries[$latest['position']]['value'], true),
+        ];
+
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'list-style',
+            'name' => 'list-style',
+            'value' => $this->serializeListStyleComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    private function normalizeListStyleComponentValue(string $component, string $value, bool $quoteSafeUrls): string
+    {
+        return match ($component) {
+            'type' => $this->minifyListStyleTypeValue($value),
+            'image' => $this->minifyListStyleImageValue($value, $quoteSafeUrls),
+            'position' => strtolower(trim($value)),
+            default => trim($value),
+        };
     }
 
     /**

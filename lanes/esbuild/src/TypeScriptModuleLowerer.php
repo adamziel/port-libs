@@ -413,7 +413,15 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
-        $header = $this->classHeaderText($start, $bodyOpen);
+        $fieldKeyExtendsPrelude = [];
+        $extendsTemp = null;
+        if ($this->useDefineForClassFields === false && $fieldKeyPrelude !== [] && $this->classHeaderHasExtends($cursor, $bodyOpen)) {
+            $extendsTemp = $this->allocateClassFieldTemp($fieldKeyTemps);
+            $fieldKeyExtendsPrelude = $fieldKeyPrelude;
+            $fieldKeyPrelude = [];
+        }
+
+        $header = $this->classHeaderText($start, $bodyOpen, $fieldKeyExtendsPrelude, $extendsTemp);
         $lines = [$header . ' {'];
         foreach ($members as $member) {
             foreach (explode("\n", $member) as $line) {
@@ -1275,6 +1283,24 @@ final class TypeScriptModuleLowerer
                 return $body;
             }
 
+            $statementSplit = $this->splitTopLevelCommaSuperConditionStatement($line)
+                ?? $this->splitTopLevelCommaSuperForInitializerStatement($line);
+            if ($statementSplit !== null) {
+                $replacement = [];
+                if ($statementSplit['before'] !== null) {
+                    $replacement[] = $statementSplit['before'];
+                }
+                $replacement[] = $statementSplit['super'];
+                $indent = $statementSplit['indent'];
+                foreach ($assignments as $assignment) {
+                    $replacement[] = $indent . $assignment;
+                }
+                $replacement[] = $statementSplit['after'];
+                array_splice($body, $index, 1, $replacement);
+
+                return $body;
+            }
+
             $split = $this->splitTopLevelCommaSuperExpressionStatement($line);
             if ($split !== null) {
                 $replacement = [];
@@ -1321,11 +1347,16 @@ final class TypeScriptModuleLowerer
             }
 
             $liveSuperCalls += $superCalls;
-            if ($superCalls > 1 || (!$this->constructorLineHasDirectSuperCall($line) && $this->splitTopLevelCommaSuperExpressionStatement($line) === null)) {
-                if ($this->splitTopLevelCommaSuperControlStatement($line) !== null) {
-                    continue;
-                }
+            if ($superCalls > 1) {
+                return true;
+            }
 
+            if (!$this->constructorLineHasDirectSuperCall($line)
+                && $this->splitTopLevelCommaSuperExpressionStatement($line) === null
+                && $this->splitTopLevelCommaSuperControlStatement($line) === null
+                && $this->splitTopLevelCommaSuperConditionStatement($line) === null
+                && $this->splitTopLevelCommaSuperForInitializerStatement($line) === null
+            ) {
                 return true;
             }
         }
@@ -1368,6 +1399,85 @@ final class TypeScriptModuleLowerer
     }
 
     /**
+     * @return array{indent:string, before:?string, super:string, after:string}|null
+     */
+    private function splitTopLevelCommaSuperConditionStatement(string $line): ?array
+    {
+        if (preg_match('/^(\s*)(if|switch)\s*\(/', $line, $match) !== 1) {
+            return null;
+        }
+
+        $indent = $match[1];
+        $open = strpos($line, '(', strlen($indent . $match[2]));
+        if ($open === false) {
+            return null;
+        }
+
+        $close = $this->matchingParenthesisOffset($line, $open);
+        if ($close === null) {
+            return null;
+        }
+
+        $split = $this->splitTopLevelSuperExpression(trim(substr($line, $open + 1, $close - $open - 1)), true);
+        if ($split === null) {
+            return null;
+        }
+
+        return [
+            'indent' => $indent,
+            'before' => $split['before'] === [] ? null : $indent . implode(', ', $split['before']) . ';',
+            'super' => $indent . $split['super'] . ';',
+            'after' => substr($line, 0, $open + 1) . implode(', ', $split['after']) . substr($line, $close),
+        ];
+    }
+
+    /**
+     * @return array{indent:string, before:?string, super:string, after:string}|null
+     */
+    private function splitTopLevelCommaSuperForInitializerStatement(string $line): ?array
+    {
+        if (preg_match('/^(\s*)for\s*\(/', $line, $match) !== 1) {
+            return null;
+        }
+
+        $indent = $match[1];
+        $open = strpos($line, '(', strlen($indent . 'for'));
+        if ($open === false) {
+            return null;
+        }
+
+        $close = $this->matchingParenthesisOffset($line, $open);
+        if ($close === null) {
+            return null;
+        }
+
+        $header = substr($line, $open + 1, $close - $open - 1);
+        $semicolon = $this->topLevelDelimiterOffset($header, ';');
+        if ($semicolon === null) {
+            return null;
+        }
+
+        $initializer = trim(substr($header, 0, $semicolon));
+        if ($initializer === '') {
+            return null;
+        }
+
+        $split = $this->splitTopLevelSuperExpression($initializer, false);
+        if ($split === null) {
+            return null;
+        }
+
+        $afterInitializer = implode(', ', $split['after']);
+
+        return [
+            'indent' => $indent,
+            'before' => $split['before'] === [] ? null : $indent . implode(', ', $split['before']) . ';',
+            'super' => $indent . $split['super'] . ';',
+            'after' => substr($line, 0, $open + 1) . $afterInitializer . substr($header, $semicolon) . substr($line, $close),
+        ];
+    }
+
+    /**
      * @return array{indent:string, before:?string, super:string, after:?string}|null
      */
     private function splitTopLevelCommaSuperExpressionStatement(string $line): ?array
@@ -1397,6 +1507,27 @@ final class TypeScriptModuleLowerer
             'super' => $indent . $split['super'] . ';',
             'after' => $split['after'] === [] ? null : $indent . implode(', ', $split['after']) . ';',
         ];
+    }
+
+    /**
+     * @return array{before:list<string>, super:string, after:list<string>}|null
+     */
+    private function splitTopLevelSuperExpression(string $expression, bool $requireAfter): ?array
+    {
+        $split = $this->splitTopLevelCommaSuperExpression($expression);
+        if ($split === null && $this->isDirectSuperCallExpression($expression)) {
+            $split = [
+                'before' => [],
+                'super' => trim($expression),
+                'after' => [],
+            ];
+        }
+
+        if ($split === null || ($requireAfter && $split['after'] === [])) {
+            return null;
+        }
+
+        return $split;
     }
 
     /**
@@ -1510,6 +1641,102 @@ final class TypeScriptModuleLowerer
         $parts[] = $tail;
 
         return $parts;
+    }
+
+    private function matchingParenthesisOffset(string $text, int $open): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($text);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $text[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function topLevelDelimiterOffset(string $text, string $delimiter): ?int
+    {
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        $quote = null;
+        $length = strlen($text);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $text[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth--;
+                continue;
+            }
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth--;
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth--;
+                continue;
+            }
+
+            if ($char === $delimiter && $parenDepth === 0 && $braceDepth === 0 && $bracketDepth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function isDirectSuperCallExpression(string $expression): bool
@@ -1993,7 +2220,10 @@ final class TypeScriptModuleLowerer
         return $end - 1;
     }
 
-    private function classHeaderText(int $start, int $bodyOpen): string
+    /**
+     * @param list<string> $extendsPrelude
+     */
+    private function classHeaderText(int $start, int $bodyOpen, array $extendsPrelude = [], ?string $extendsTemp = null): string
     {
         $parts = [];
         $previous = null;
@@ -2012,6 +2242,27 @@ final class TypeScriptModuleLowerer
             if ($token->text === 'implements') {
                 break;
             }
+            if ($token->text === 'extends' && $extendsPrelude !== [] && $extendsTemp !== null) {
+                $extendsExpressionStart = $i + 1;
+                $extendsExpressionEnd = $this->classHeaderExtendsExpressionEnd($extendsExpressionStart, $bodyOpen);
+                $extendsExpression = $this->printTokenRange($extendsExpressionStart, $extendsExpressionEnd);
+                if ($extendsExpression === '') {
+                    throw new \InvalidArgumentException('Expected class extends expression');
+                }
+                if ($previous !== null && $this->needsSpace($previous, 'extends')) {
+                    $parts[] = ' ';
+                }
+                $parts[] = 'extends';
+                $parts[] = ' ';
+                $parts[] = '(' . implode(', ', array_merge(
+                    [$extendsTemp . ' = ' . $extendsExpression],
+                    $this->statementLinesToExpressions($extendsPrelude),
+                    [$extendsTemp],
+                )) . ')';
+                $previous = ')';
+                $i = $extendsExpressionEnd;
+                continue;
+            }
 
             $text = $token->text;
             if ($previous !== null && $this->needsSpace($previous, $text)) {
@@ -2022,6 +2273,46 @@ final class TypeScriptModuleLowerer
         }
 
         return implode('', $parts);
+    }
+
+    private function classHeaderExtendsExpressionEnd(int $start, int $bodyOpen): int
+    {
+        $parenDepth = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        $end = $bodyOpen - 1;
+        for ($i = $start; $i < $bodyOpen; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '{') {
+                $braceDepth++;
+            } elseif ($text === '}') {
+                $braceDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($parenDepth === 0 && $braceDepth === 0 && $bracketDepth === 0 && $text === 'implements') {
+                return $i - 1;
+            }
+        }
+
+        return $end;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function statementLinesToExpressions(array $lines): array
+    {
+        return array_map(
+            static fn (string $line): string => rtrim(trim($line), ';'),
+            $lines,
+        );
     }
 
     private function typeParameterListEnd(int $start, int $limit): int
