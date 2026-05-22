@@ -1665,6 +1665,10 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $animationValue;
         }
+        $logicalBoxValue = $this->setLogicalBoxProperty($entries, $property, $value, $important);
+        if ($logicalBoxValue !== null) {
+            return $logicalBoxValue;
+        }
 
         $lastMatch = null;
         foreach ($entries as $index => $entry) {
@@ -1874,6 +1878,43 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setLogicalBoxProperty(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $shorthand = $this->boxShorthandForLogicalProperty($property);
+        if ($shorthand === null) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($this->isPhysicalBoxPropertyFor($entries[$index]['property'], $shorthand)) {
+                break;
+            }
+
+            if ($entries[$index]['property'] !== $property) {
+                continue;
+            }
+
+            $entries[$index] = [
+                'property' => $property,
+                'value' => $value,
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        $entries[] = [
+            'property' => $property,
+            'value' => $value,
+            'important' => $important,
+        ];
+
+        return $this->serializeEntries($entries);
     }
 
     /**
@@ -2380,6 +2421,11 @@ final class DeclarationBlock
         return in_array($property, self::BOX_SHORTHANDS[$shorthand] ?? [], true);
     }
 
+    private function isPhysicalBoxPropertyFor(string $property, string $shorthand): bool
+    {
+        return $property === $shorthand || $this->isBoxLonghandFor($property, $shorthand);
+    }
+
     private function isLogicalBoxPropertyFor(string $property, string $shorthand): bool
     {
         return in_array($property, [
@@ -2390,6 +2436,17 @@ final class DeclarationBlock
             "{$shorthand}-inline-start",
             "{$shorthand}-inline-end",
         ], true);
+    }
+
+    private function boxShorthandForLogicalProperty(string $property): ?string
+    {
+        foreach (array_keys(self::BOX_SHORTHANDS) as $shorthand) {
+            if ($this->isLogicalBoxPropertyFor($property, $shorthand)) {
+                return $shorthand;
+            }
+        }
+
+        return null;
     }
 
     private function boxShorthandForLonghand(string $property): ?string

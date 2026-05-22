@@ -284,6 +284,26 @@ return [
             $block->setProperty('margin: 5px; margin-inline-start: 8px', 'margin-left', '10px')
         );
     },
+    'declaration block sets upstream logical box properties after physical fallbacks' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'margin-inline-start: 5px; margin-top: 10px; margin-inline-start: 8px',
+            $block->setProperty('margin-inline-start: 5px; margin-top: 10px', 'margin-inline-start', '8px')
+        );
+        $t->same(
+            'margin-top: 10px; margin-inline-start: 8px',
+            $block->setProperty('margin-top: 10px; margin-inline-start: 5px', 'margin-inline-start', '8px')
+        );
+        $t->same(
+            'padding-inline-start: var(--wp--preset--spacing--30); padding-left: 1rem; padding-inline-start: var(--wp--preset--spacing--40)',
+            $block->setProperty(
+                'padding-inline-start: var(--wp--preset--spacing--30); padding-left: 1rem',
+                'padding-inline-start',
+                'var(--wp--preset--spacing--40)'
+            )
+        );
+    },
     'declaration block sets upstream background position shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

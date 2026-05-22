@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
         "total": 312,
-        "mapped": 88,
+        "mapped": 89,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted Rust #[test] attributes outside tests/test_cssom.rs, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, and counted Node uvu test(...) calls with ripgrep.",
         "inventory": {
             "behaviorChecks": 312,
@@ -65,7 +65,8 @@
                     "get_test grid-template areas combined with repeat() columns -> None because areas require explicit tracks",
                     "get_test grid longhands with initial grid-auto-* values -> explicit grid shorthand",
                     "get_test grid longhands with non-initial auto-flow/auto tracks -> None",
-                    "get_test mask-border: linear-gradient(red, green) 25 -> mask-border-source linear-gradient(red, green)"
+                    "get_test mask-border: linear-gradient(red, green) 25 -> mask-border-source linear-gradient(red, green)",
+                    "set_test margin-inline-start after margin-top appends a later logical declaration instead of replacing the earlier fallback"
                 ]
             }
         },
@@ -151,15 +152,16 @@
             "Animation-name CSSOM setting maps upstream tests/test_cssom.rs cases where replacing one name folds into the animation shorthand while replacing with a longer name list preserves the original shorthand name and appends animation-name.",
             "Grid-area CSSOM access maps upstream tests/test_cssom.rs cases that expose grid-row-start, grid-row-end, grid-row, and grid-column from an explicit four-part grid-area shorthand.",
             "Grid-template and grid CSSOM access maps upstream tests/test_cssom.rs cases where explicit grid-template rows/columns/areas compose to shorthands, repeat() tracks with areas are rejected, and grid shorthand is exposed only when grid-auto-* values are initial.",
-            "Mask-border-source CSSOM access maps the upstream tests/test_cssom.rs shorthand case where mask-border exposes its image source longhand."
+            "Mask-border-source CSSOM access maps the upstream tests/test_cssom.rs shorthand case where mask-border exposes its image source longhand.",
+            "Logical margin/padding CSSOM setting maps the upstream DeclarationBlock::set logical/physical category guard so logical fallbacks before later physical declarations are preserved by appending a new logical declaration."
         ],
-        "warning": "Native PHP progress maps 88 focused upstream-aligned lane checks and 155 local PHP assertions against a 312-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs instead of treating that file as only three Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
+        "warning": "Native PHP progress maps 89 focused upstream-aligned lane checks and 158 local PHP assertions against a 312-behavior-check upstream denominator. The denominator now counts CSSOM helper invocations in tests/test_cssom.rs instead of treating that file as only three Rust test functions. Upstream LightningCSS core Rust/Node CI runners now pass locally, and WASM Node/browser runners pass with a documented local compatibility override."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
+        "currentSlice": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct declaration plus margin/padding logical/physical ordering guards, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand access with priority flags, value-level color keyword shortening, calc/min/max/clamp operator spacing, stylesheet parser support for selectors/at-rules/declarations/nested WordPress rules, selector specificity packing/comparison, and media query range/feature/list normalization."
     },
-    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, grid-area, grid-template, and grid shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; fixture and examples cover block theme custom properties, block selectors, background, mask-border-source, border, flex-flow, animation-name, logical spacing fallback ordering, grid-area, grid-template, and grid shorthand CSSOM access, at-rule/nested-rule parsing, media query normalization, selector override specificity, color minification, and calc spacing.",
     "nextTask": "Map another upstream tests/test_cssom.rs family such as broader animation longhands, or start a custom-media/prefixing transformer slice."
 }
