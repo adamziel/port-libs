@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
     "currentWork": "Native Markdown reader now maps the bounded upstream HTML-reader empty-table semantics from test/html-reader.html/native: balanced empty table blocks with empty tbody or no rows are consumed and omitted from the AST/output instead of falling back to raw HTML or WordPress table blocks. Prior colspan/rowspan, table-attribute, head/body/foot, row-header, and omitted-section behavior remains intact, and simple non-structured raw tables with cells remain on the raw HTML path.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc tests pass 105/0 with 769 assertions. The required repo-wide php tools/run-tests.php command passed on 2026-05-22 with 126 test files, 11197 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "pending",
+    "latestCommit": "44f9bcc",
     "nextTask": "Map multiple tbody table body sections from test/html-reader.html/native instead of collapsing them into a single table_body node."
 }
