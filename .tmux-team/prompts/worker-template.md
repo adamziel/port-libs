@@ -11,15 +11,15 @@ Read first:
 - `lanes/{{LANE}}/lane-status.json`
 - the existing files under `lanes/{{LANE}}/src`, `tests`, `fixtures`, `notes`, and `examples`
 
-Your scope is only `lanes/{{LANE}}/**` plus root coordination files needed to reflect your lane status (`progress.md`, `porting.html`, and tooling if absolutely required). Other lane workers may be active, so do not touch unrelated lanes and do not revert changes you did not make.
+Your implementation scope is only `lanes/{{LANE}}/**`. Other lane workers may be active, so do not touch unrelated lanes and do not revert changes you did not make. Root coordination/publication files (`progress.md`, `porting.html`, `porting-summary.json`) are owned by the integrator/evaluator during high-concurrency runs; record lane facts in `lanes/{{LANE}}/lane-status.json`, lane notes, tests, examples, and your final report instead of editing those shared root files directly.
 
 Highest-value work for this run:
 
 1. Replace the seed upstream denominator for this lane with a stronger static or cloned upstream test inventory. If the full upstream runner cannot execute, say exactly why and count the defensible inventory you can inspect.
 2. Implement one narrow native PHP behavior slice against upstream semantics. Do not wrap JS/Rust/Go/C binaries as the deliverable.
 3. Add focused tests and at least one WordPress-relevant scenario/example if the lane lacks a good one.
-4. Update `lanes/{{LANE}}/lane-status.json` and `progress.md` to report the actual PHP pass/fail count, phase, current work, blocker, and next task.
-5. Run `php tools/run-tests.php` and `php tools/generate-dashboard.php`.
+4. Update `lanes/{{LANE}}/lane-status.json` and lane notes to report the actual PHP pass/fail count, phase, current work, blocker, and next task.
+5. Run `php tools/run-tests.php`. Do not regenerate `porting.html` or `porting-summary.json`; the integrator/evaluator will regenerate shared public status after accepting a lane batch.
 
 Resource constraints:
 
