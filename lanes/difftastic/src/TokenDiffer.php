@@ -8,6 +8,7 @@ final class TokenDiffer
 {
     private const BASE_DELIMITER_PAIRS = ['(' => ')', '[' => ']', '{' => '}'];
     private const DEFAULT_BYTE_LIMIT = 1_000_000;
+    private const DEFAULT_GRAPH_LIMIT = 3_000_000;
 
     /**
      * @param array{language?: string} $options
@@ -286,7 +287,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
      * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
      */
     public function diffSyntaxLists(string $old, string $new, array $options = []): array
@@ -350,12 +351,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{language?: string, byteLimit?: int, parseErrorLimit?: int} $options
+     * @param array{language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
      */
     public function textFallbackReason(string $old, string $new, array $options = [], ?string $languageName = null): ?string
     {
         return $this->byteLimitFallbackReason($old, $new, $options)
-            ?? $this->syntaxErrorFallbackReason($old, $new, $options, $languageName);
+            ?? $this->syntaxErrorFallbackReason($old, $new, $options, $languageName)
+            ?? $this->graphLimitFallbackReason($old, $new, $options);
     }
 
     /**
@@ -395,6 +397,55 @@ final class TokenDiffer
         $languageName ??= $this->displayLanguageName($options);
 
         return $errorCount . ' ' . $languageName . ' parse error' . ($errorCount === 1 ? '' : 's') . ', exceeded DFT_PARSE_ERROR_LIMIT';
+    }
+
+    /**
+     * @param array{language?: string, ignoreComments?: bool, ignoreTrailingCommas?: bool, graphLimit?: int} $options
+     */
+    public function graphLimitFallbackReason(string $old, string $new, array $options = []): ?string
+    {
+        if (!$this->usesTextFallback($options)) {
+            return null;
+        }
+
+        $limit = max(0, (int) ($options['graphLimit'] ?? self::DEFAULT_GRAPH_LIMIT));
+        if ($this->estimatedGraphVertexBound($old, $new, $options) <= $limit) {
+            return null;
+        }
+
+        return 'exceeded DFT_GRAPH_LIMIT';
+    }
+
+    /**
+     * Difftastic aborts Dijkstra when the visited graph exceeds DFT_GRAPH_LIMIT.
+     * The PHP port does not build the same arena graph, so this uses the syntax
+     * node cross-product as a conservative preflight bound for the same fallback.
+     *
+     * @param array{language?: string, ignoreComments?: bool, ignoreTrailingCommas?: bool} $options
+     */
+    private function estimatedGraphVertexBound(string $old, string $new, array $options): int
+    {
+        $delimiterPairs = $this->delimiterPairs($options);
+        $oldTree = $this->parseTokenTree($this->tokensForDiff($old, $options), $delimiterPairs);
+        $newTree = $this->parseTokenTree($this->tokensForDiff($new, $options), $delimiterPairs);
+
+        return $this->syntaxNodeCount($oldTree['children']) * $this->syntaxNodeCount($newTree['children']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     */
+    private function syntaxNodeCount(array $nodes): int
+    {
+        $count = 0;
+        foreach ($nodes as $node) {
+            $count++;
+            if (($node['type'] ?? '') === 'list') {
+                $count += $this->syntaxNodeCount($node['children'] ?? []);
+            }
+        }
+
+        return $count;
     }
 
     /**

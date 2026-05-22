@@ -72,6 +72,8 @@ JavaScript mode now also maps upstream parse-error fallback semantics from `DEFA
 
 Supported-language byte-limit fallback now maps upstream `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, and `TextFallback` behavior. The WordPress render metadata example lowers the limit to exercise the path with a bounded PHP block metadata change: render callback and support changes are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (... exceeded DFT_BYTE_LIMIT)` instead of attempting an incomplete structural diff.
 
+Supported-language graph-limit fallback now maps upstream `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `ExceededGraphLimit`, and `TextFallback` behavior. The WordPress block variation example lowers the graph limit to exercise the path with a bounded `registerBlockVariation` change: variation insertions and edits are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (exceeded DFT_GRAPH_LIMIT)` instead of attempting a partial structural `$js.array[...]` diff after the graph budget is exceeded.
+
 TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
 
 TypeScript mode now also maps module import/export declaration lists using the upstream TypeScript parser configuration's delimiter-list semantics. The WordPress block module fixture applies this to `index.ts` registration code where `BlockConfiguration`, `sprintf`, and `deprecatedSave` are inserted into existing import/export lists. Retained imports such as `__` and retained exports such as `save` stay aligned under `$ts.import[...]` and `$ts.export.local[...]` paths instead of being shown as deleted and re-added whole module statements.
@@ -100,6 +102,7 @@ php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-syntax-error-js-diff.php
 php lanes/difftastic/examples/wordpress-byte-limit-fallback-diff.php
+php lanes/difftastic/examples/wordpress-graph-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-block-edit-props-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-assets-ts-diff.php
@@ -125,4 +128,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map graph-limit text fallback semantics against upstream Dijkstra behavior, or broaden parse-error fallback beyond delimiter-shaped JavaScript/TypeScript/CSS/JSON/PHP/Rust/YAML errors.
+Broaden parse-error fallback beyond delimiter-shaped JavaScript/TypeScript/CSS/JSON/PHP/Rust/YAML errors, or map another upstream `sample_files` display pair.

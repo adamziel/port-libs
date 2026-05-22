@@ -12,7 +12,7 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
      */
     public function renderFileDiff(string $old, string $new, string $path, string $language, array $options = []): string
     {
@@ -23,7 +23,7 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param list<array{old:string, new:string, path:string, language:string, options?:array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int}}> $files
+     * @param list<array{old:string, new:string, path:string, language:string, options?:array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int}}> $files
      */
     public function renderDirectoryDiff(array $files, bool $printUnchanged = false): string
     {
@@ -45,7 +45,7 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, parseErrorLimit?: int} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
      * @return array<string, mixed>
      */
     public function fileDiff(string $old, string $new, string $path, string $language, array $options = []): array

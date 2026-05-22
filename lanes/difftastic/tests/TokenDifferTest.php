@@ -834,6 +834,45 @@ return [
         $t->contains('data-path="$text.fallback"', $html);
         $t->contains('Text (6 JavaScript parse errors, exceeded DFT_PARSE_ERROR_LIMIT)', $html);
     },
+    'wordpress block variation graph limit falls back to text diff' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-graph-limit-fallback-before.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-graph-limit-fallback-after.js');
+        $differ = new TokenDiffer();
+        $changes = $differ->diffSyntaxLists($before, $after, [
+            'language' => 'javascript',
+            'graphLimit' => 80,
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes,
+        ));
+        $structural = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $differ->diffSyntaxLists($before, $after, [
+                'language' => 'javascript',
+                'graphLimit' => 100000,
+            ]),
+        ));
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/variations.js',
+            'JavaScript',
+            ['language' => 'javascript', 'graphLimit' => 80],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('exceeded DFT_GRAPH_LIMIT', $differ->graphLimitFallbackReason($before, $after, [
+            'language' => 'javascript',
+            'graphLimit' => 80,
+        ]));
+        $t->contains('~ $text.fallback Text (exceeded DFT_GRAPH_LIMIT) line-oriented diff', $encoded);
+        $t->contains('~ $text.line[2]', $encoded);
+        $t->contains('gallery', $encoded);
+        $t->true(!str_contains($encoded, '$js.array["variations"]'), 'Graph-limit fallback should avoid structural JavaScript matching after the graph budget is exceeded.');
+        $t->contains('$js.array["variations"]', $structural);
+        $t->same('Text (exceeded DFT_GRAPH_LIMIT)', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+    },
     'wordpress block editor typescript props diff keeps retained props aligned' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-props-before.ts');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-edit-props-after.ts');
