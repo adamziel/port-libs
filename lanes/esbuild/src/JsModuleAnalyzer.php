@@ -576,6 +576,8 @@ final class JsModuleAnalyzer
                 $member = $this->typeScriptNamespaceMemberFromDeclaration($cursor, true, $declared);
                 if ($member !== null && $member->kind === 'namespace') {
                     $skipTo = $this->namespaceBlockEnd($cursor);
+                } elseif ($member !== null && $member->kind === 'import-equals') {
+                    $skipTo = $this->findStatementEnd($i);
                 }
             } elseif ($token->text === 'declare'
                 && $this->isTypeScriptNamespaceKeywordAt($i + 1)
@@ -588,6 +590,11 @@ final class JsModuleAnalyzer
                 $member = $this->typeScriptNamespaceMemberFromDeclaration($i, false, false);
                 if ($member !== null) {
                     $skipTo = $this->namespaceBlockEnd($i);
+                }
+            } elseif ($token->text === 'import') {
+                $member = $this->typeScriptNamespaceMemberFromDeclaration($i, false, false);
+                if ($member !== null) {
+                    $skipTo = $this->findStatementEnd($i);
                 }
             }
 

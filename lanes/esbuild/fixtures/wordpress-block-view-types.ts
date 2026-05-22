@@ -9,6 +9,13 @@ export { type EditProps, type WPElement };
 
 const config = blockMeta;
 
+namespace CardBlock {
+  export const name = config.name;
+  export function register() {
+    wpBlocks.registerBlockType(name, config);
+  }
+}
+
 domReady(() => {
-  wpBlocks.registerBlockType(config.name, config);
+  CardBlock.register();
 });
