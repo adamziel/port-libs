@@ -10,6 +10,6 @@
     "audit": "needs independent auditor review",
     "currentWork": "Native in-memory provider contract plus rclone-style path glob filters applied to checksum sync planning.",
     "blocker": "No upstream runner parity yet: go test ./... and fstest/test_all were not run because they require Go module builds and may exercise backend integration remotes under a larger CPU/network budget.",
-    "latestCommit": "pending current rclone commit",
+    "latestCommit": "8564ff9",
     "nextTask": "Map filesystem provider contract tests, hash set behavior, and rclone check/copy semantics."
 }
