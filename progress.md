@@ -78,6 +78,7 @@
 - Independent audit on 2026-05-22 found the current PHP pass/fail counts are seed-local and must not be treated as upstream parity.
 - Independent audit on 2026-05-22 found `port-difftastic` and `port-rclone` active while their manifests remained static seeds; rclone and difftastic are now reconciled with cloned static inventories, but neither has upstream runner parity.
 - Independent audit on 2026-05-22 found `.upstream-cache/pandoc` and `.upstream-cache/syncthing` still report mass tracked deletions even though the lane manifests now use cloned static inventories; restore or reclone those caches before relying on cache-local targeted reads or runner attempts.
+- Independent audit on 2026-05-22 found `port-esbuild` and `port-auditor` sessions active while this file still reported no active sessions; `.upstream-cache/esbuild` is at the manifest commit but reports 349 tracked deletions, and the esbuild manifest is still a static seed.
 - GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped at two implementation workers plus an auditor under the current background load.
 - Dolt is explicitly deferred by user direction until the other lanes reach the required baseline.
@@ -85,9 +86,9 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: none active after integrating the latest Difftastic and rclone slices.
+- Auditor: `port-auditor` session exists; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: `port-esbuild` session exists, but it should be limited to cache/manifest reconciliation until the esbuild denominator is counted.
 
 ## Next Best Step
 
-Replace the remaining non-deferred esbuild seed manifest with a safe upstream inventory, then continue Difftastic with a small recursive syntax-list diff for bracketed PHP/JS/CSS structures and map one upstream `sample_files` pair such as `simple_*.js` or `comma_*.js` into a fixture parity test. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
+Restore or reclone `.upstream-cache/esbuild`, replace the remaining non-deferred esbuild seed manifest with a counted upstream inventory and verified license, then continue Difftastic with a small recursive syntax-list diff for bracketed PHP/JS/CSS structures and map one upstream `sample_files` pair such as `simple_*.js` or `comma_*.js` into a fixture parity test. Keep dashboard PHP pass/fail values treated as local until they are tied to upstream fixture IDs.
