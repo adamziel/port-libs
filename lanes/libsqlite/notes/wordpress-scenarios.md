@@ -33,6 +33,12 @@ option_name)` index to return all autoloaded options for a requested value.
 Explicit composite index metadata is now parsed far enough to constrain both
 `autoload` and `option_name`, including second-column `NOCASE` comparison and
 safe `autoload IS NOT NULL` partial-index use for a known non-null value.
+Explicit or safe partial `wp_options(option_name)` indexes can also serve
+bounded range scans, including open lower/upper bounds and inclusive upper
+bounds. Bounded range scans skip `NULL` option-name keys the same way SQL
+comparison predicates do, which lets recovery tooling inspect transient-style
+or migration-prefix option-name ranges without decoding every row in the
+options table.
 
 ## Example
 
@@ -68,6 +74,14 @@ both the autoload value and option name are known. This is useful for recovery
 tools that need to inspect one autoloaded option while avoiding a whole-table
 scan on constrained hosts.
 
+`examples/wordpress-option-name-range.php` reads a WordPress-oriented SQLite
+database file, resolves an explicit or safe partial `wp_options(option_name)`
+range index, and returns options whose names fall between caller-supplied lower
+and upper bounds. Either bound can be omitted with `-`, and the upper bound can
+be made inclusive; at least one bound is required. By default it targets the
+`_transient_` prefix range, which maps cleanup and cache-inspection workflows
+on hosts without the PHP SQLite extension.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
@@ -75,6 +89,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: composite prefix seek bounds, range constraints, expression indexes,
-broader predicate-aware partial indexes, custom collations, automatic-index
-collation metadata, and full composite-key range scans.
+slice: optimized b-tree seek bounds, expression indexes, broader
+predicate-aware partial indexes, custom collations, automatic-index collation
+metadata, and full composite-key range scans.

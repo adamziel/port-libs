@@ -717,6 +717,138 @@ return [
         $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'autoload', 'yes'));
         $t->same(['siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $autoloaded));
     },
+    'uses option_name range bounds to scan transient wordpress options through an index' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_site_transient_update_plugins', 'cached-site-transient', 'yes'], 1),
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 2),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 3),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['_site_transient_update_plugins', 1]),
+            $indexCell(['_transient_feed', 2]),
+            $indexCell(['_transient_timeout_feed', 3]),
+            $indexCell(['blogname', 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $transients = $database->wordpressOptionsByIndexedNameRange('_transient_', '_transient`');
+        $limited = $database->wordpressOptionsByIndexedNameRange('_transient_', '_transient`', 1);
+        $empty = $database->wordpressOptionsByIndexedNameRange('blogname', 'blogname');
+
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $empty);
+    },
+    'uses partial option_name is not null indexes for indexed name range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_present_name', 'wp_options', 3, 'CREATE INDEX wp_options_present_name ON wp_options(option_name) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 1),
+            $schemaCell([null, null, 'draft option without name', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 1]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNameRange('h', 'i');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'home'));
+        $t->same(['home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
+    'uses open ended and inclusive option_name range bounds through a wordpress index' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'alpha_option', 'alpha', 'yes'], 1),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+            $schemaCell([null, 'zz_cleanup_marker', '1', 'no'], 4),
+            $schemaCell([null, null, 'draft option without name', 'no'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([null, 5]),
+            $indexCell(['alpha_option', 1]),
+            $indexCell(['blogname', 2]),
+            $indexCell(['siteurl', 3]),
+            $indexCell(['zz_cleanup_marker', 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $beforeBlog = $database->wordpressOptionsByIndexedNameRange(null, 'blogname');
+        $throughBlog = $database->wordpressOptionsByIndexedNameRange(null, 'blogname', null, true);
+        $afterSiteurl = $database->wordpressOptionsByIndexedNameRange('siteurl', null);
+        $limited = $database->wordpressOptionsByIndexedNameRange(null, 'zzzz', 1);
+
+        $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', null, 'blogname'));
+        $t->same(['alpha_option'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $beforeBlog));
+        $t->same(['alpha_option', 'blogname'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $throughBlog));
+        $t->same(['siteurl', 'zz_cleanup_marker'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $afterSiteurl));
+        $t->same(['alpha_option'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+    },
+    'uses upper-only bounds to imply partial is not null option_name range indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_present_name', 'wp_options', 3, 'CREATE INDEX wp_options_present_name ON wp_options(option_name) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'alpha_option', 'alpha', 'yes'], 1),
+            $schemaCell([null, null, 'draft option without name', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['alpha_option', 1]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNameRange(null, 'm');
+
+        $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', null, 'm'));
+        $t->same(['alpha_option'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRange(null, null));
+    },
+    'uses descending option_name indexes for inclusive wordpress range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name_desc', 'wp_options', 3, 'CREATE INDEX wp_options_option_name_desc ON wp_options(option_name DESC)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'admin_email', 'admin@example.test', 'yes'], 1),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 2),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 3),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['siteurl', 4]),
+            $indexCell(['home', 3]),
+            $indexCell(['blogname', 2]),
+            $indexCell(['admin_email', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $inclusive = $database->wordpressOptionsByIndexedNameRange('blogname', 'siteurl', null, true);
+        $exclusive = $database->wordpressOptionsByIndexedNameRange('blogname', 'siteurl');
+
+        $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', 'blogname', 'siteurl'));
+        $t->same(['siteurl', 'home', 'blogname'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusive));
+        $t->same(['home', 'blogname'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $exclusive));
+    },
     'infers sqlite automatic unique index columns from create table sql' => static function (TestRunner $t): void {
         $t->same([
             'option_name',

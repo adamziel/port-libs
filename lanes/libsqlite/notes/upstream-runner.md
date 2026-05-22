@@ -224,8 +224,8 @@ case-insensitive lookup through a descending `wp_options(option_name)` index,
 and refusal to use unsupported partial `option_name` indexes for unconstrained
 lookup. Built-in `RTRIM` comparison is implemented for text point lookups, but
 custom collations, broader predicate-aware partial-index use, automatic-index
-collation metadata, composite keys, expression indexes, and range scans remain
-unported.
+collation metadata, composite keys, expression indexes, and range variants
+beyond the bounded first-column slice below remain unported.
 
 ## Focused Native Mapping: IS NOT NULL Partial Index Point Lookup
 
@@ -335,6 +335,79 @@ second-column `COLLATE NOCASE` metadata, accepting an implied
 `WHERE autoload IS NOT NULL` partial predicate, and fetching one
 WordPress option through `wp_options(autoload, option_name)` without scanning
 the whole `wp_options` table. Remaining index work includes b-tree seek bounds
-for composite prefixes, range constraints, expression indexes, custom
+for composite prefixes, composite range constraints, expression indexes, custom
+collations, automatic-index collation metadata, and broader partial-predicate
+implication.
+
+## Focused Native Mapping: First-Column Range Constraints
+
+SQLite can use an index for bounded first-column range constraints such as
+`a>=100 AND a<300`. This slice maps a native read-side subset for WordPress:
+given an explicit or safe `WHERE option_name IS NOT NULL` partial
+`wp_options(option_name)` index, scan decoded index records and return rows
+whose first key is greater than or equal to a lower bound and less than an upper
+bound under the index collation.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test wherelimit3.test index6.test index7.test
+```
+
+Result: 8 Tcl script/permutation runs, 0 errors out of 415 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` section `index-14.*` checks indexed first-column text
+  comparison boundaries for `>`, `>=`, `<`, and `<=`.
+- `test/wherelimit3.test` verifies planner use of `SEARCH ... USING INDEX`
+  for lower/upper range constraints such as `a>=100 AND a<300`.
+- `test/index6.test` and `test/index7.test` verify that `a IS NOT NULL`
+  partial indexes may be used when the query predicate implies non-nullness.
+
+The native PHP tests now cover a WordPress-shaped transient recovery range
+``option_name >= '_transient_' AND option_name < '_transient`'``, result limiting,
+empty ranges, rowid resolution back through the table b-tree, and safe use of a
+partial `WHERE option_name IS NOT NULL` index for non-null range bounds.
+Remaining range work includes true b-tree lower/upper seek bounds instead of
+full native index traversal, composite-key ranges, and broader partial-predicate
+implication.
+
+## Focused Native Mapping: Open-Ended And Inclusive Range Variants
+
+SQLite range constraints can be lower-only, upper-only, or inclusive on either
+side. This slice keeps the native reader bounded to first-column index records
+but extends the WordPress-facing range helper to support nullable open bounds,
+inclusive upper bounds, and explicit range-root discovery when at least one
+bound is present. Bounded comparisons now skip `NULL` first-column index keys
+so `option_name < 'm'` behaves like SQL comparison semantics instead of
+treating `NULL` as a matching low sentinel.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test wherelimit3.test
+```
+
+Result: 4 Tcl script/permutation runs, 0 errors out of 275 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` section `index-14.*` covers indexed comparison boundary
+  variants including inclusive lower/upper operators.
+- `test/wherelimit3.test` covers planner use of indexed lower and upper range
+  constraints across bounded queries.
+
+The native PHP tests now cover upper-only ranges, inclusive upper ranges,
+lower-only ranges, result limits, explicit range-root lookup, safe use of
+`WHERE option_name IS NOT NULL` partial indexes when any non-null bound implies
+the predicate, rejection of unconstrained partial ranges, and descending
+`wp_options(option_name DESC)` index traversal for inclusive bounded scans.
+Remaining range work includes true b-tree lower/upper seek bounds instead of
+full native index traversal, composite-key ranges, expression indexes, custom
 collations, automatic-index collation metadata, and broader partial-predicate
 implication.

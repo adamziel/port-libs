@@ -201,6 +201,17 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    public function indexRootPageForRangeLookup(
+        string $tableName,
+        string $columnName,
+        mixed $lowerInclusive = null,
+        mixed $upperBound = null,
+    ): ?int {
+        $lookup = $this->indexLookupForColumnRange($tableName, $columnName, $lowerInclusive, $upperBound);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     /**
      * @param non-empty-array<string, mixed> $columnValues
      */
@@ -278,6 +289,29 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForColumnRange(
+        string $tableName,
+        string $columnName,
+        mixed $lowerInclusive = null,
+        mixed $upperBound = null,
+    ): ?array {
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite index range lookup requires at least one bound');
+        }
+
+        $predicateImplyingValue = $lowerInclusive ?? $upperBound;
+
+        return $this->indexLookupForColumn(
+            $tableName,
+            $columnName,
+            $predicateImplyingValue,
+            $predicateImplyingValue !== null,
+        );
+    }
+
+    /**
      * @return list<SQLiteWordPressOption>
      */
     public function wordpressOptions(int $limit = 100): array
@@ -343,6 +377,25 @@ final class SQLiteDatabase
         ], 1);
 
         return $options[0] ?? null;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameRange(
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array
+    {
+        return $this->wordpressOptionsByIndexedFirstColumnRange(
+            'option_name',
+            $lowerInclusive,
+            $upperBound,
+            $limit,
+            $upperInclusive,
+        );
     }
 
     /**
@@ -621,6 +674,64 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return list<SQLiteWordPressOption>
+     */
+    private function wordpressOptionsByIndexedFirstColumnRange(
+        string $columnName,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        ?int $limit,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForColumnRange('wp_options', $columnName, $lowerInclusive, $upperBound);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options {$columnName} range index is not present");
+        }
+        if ($lowerInclusive !== null && $upperBound !== null) {
+            $boundaryComparison = self::compareSQLiteScalar($lowerInclusive, $upperBound, $indexLookup['collation']);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByFirstValueRange(
+                $indexLookup['rootPage'],
+                $lowerInclusive,
+                $upperBound,
+                $indexLookup['collation'],
+                $upperInclusive,
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
      * @param non-empty-array<string, mixed> $columnValues
      * @return list<SQLiteWordPressOption>
      */
@@ -679,6 +790,43 @@ final class SQLiteDatabase
             if (self::compareSQLiteScalar($record->values[0], $value, $collation) === 0) {
                 $matches[] = $cell;
             }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @return list<SQLiteIndexCell>
+     */
+    private function indexCellsByFirstValueRange(
+        int $rootPageNumber,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        string $collation,
+        bool $upperInclusive = false,
+    ): array {
+        $matches = [];
+        foreach ($this->indexCells($rootPageNumber) as $cell) {
+            $record = $cell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+            }
+
+            $value = $record->values[0];
+            if (($lowerInclusive !== null || $upperBound !== null) && $value === null) {
+                continue;
+            }
+            if ($lowerInclusive !== null && self::compareSQLiteScalar($value, $lowerInclusive, $collation) < 0) {
+                continue;
+            }
+            if ($upperBound !== null) {
+                $upperComparison = self::compareSQLiteScalar($value, $upperBound, $collation);
+                if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
+                    continue;
+                }
+            }
+
+            $matches[] = $cell;
         }
 
         return $matches;
