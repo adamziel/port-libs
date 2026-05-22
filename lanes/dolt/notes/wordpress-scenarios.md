@@ -17,6 +17,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_status` and `dolt_status_ignored` row projection for staged/unstaged table changes, table renames, merge/conflict states, and ignored unstaged new tables.
 - Native `dolt_merge_status` and `dolt_conflicts` row projection for active merge metadata, unmerged table lists, and table/root-object conflict counts.
 - Native `dolt_history_dolt_schemas` and `dolt_diff_dolt_schemas` row projection for versioned schema objects such as views, triggers, and events.
+- Native `dolt_history_dolt_procedures` and `dolt_diff_dolt_procedures` row projection for versioned stored procedures.
+- Native `DOLT_COMMIT_DIFF_<table>` row projection that requires exactly one `from_commit` and one `to_commit`, then applies `to_*` / `from_*` key predicates to commit snapshots.
 
 ## Scenario Fixtures
 
@@ -44,7 +46,11 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-merge-status-review.php` returns the `dolt_merge_status` row plus `dolt_conflicts` table/count rows, so a WordPress migration UI can display unresolved merge state without shelling out to Dolt.
 - `fixtures/wp-schema-history.php` models versioned WordPress migration views, an import cleanup trigger, and working changes that add review/checkpoint schema objects while removing the trigger.
 - `examples/wordpress-schema-history-review.php` returns `dolt_history_dolt_schemas` rows plus working `dolt_diff_dolt_schemas` rows, so a migration UI can audit schema-object history without shelling out to Dolt.
+- `fixtures/wp-procedure-history.php` models versioned WordPress import/review stored procedures, including a modified post-prep routine, a new review cursor, and a removed media queue routine.
+- `examples/wordpress-procedure-history-review.php` returns `dolt_history_dolt_procedures` rows plus working `dolt_diff_dolt_procedures` rows, so a migration UI can audit stored-routine drift without shelling out to Dolt.
+- `fixtures/wp-commit-diff-review.php` models a WordPress import review between two named commits, with a bounded post-ID window over the changed `wp_posts` rows.
+- `examples/wordpress-commit-diff-review.php` returns `DOLT_COMMIT_DIFF`-style rows after applying the fixture's `to_ID > 900 AND to_ID < 950` predicate, so a migration UI can review a commit-to-commit window without shelling out to Dolt.
 
 ## Next Task
 
-Port a narrow native `dolt_history_dolt_procedures` or `dolt_diff_dolt_procedures` slice from the adjacent upstream integration evidence.
+Port a narrow native `dolt_log` / `dolt_commits` commit metadata slice, including parents/refs opt-in behavior from `log_table.go` and `dolt_log.go`.

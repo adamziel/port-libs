@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-bounded-upstream-runner",
         "total": "613 upstream executable test files counted: 399 Go _test.go files and 214 BATS files; 3,808 BATS @test cases were counted from targeted BATS hydration, plus 256 fixture/data artifact paths by static inventory",
-        "mapped": 55,
-        "source": "Shallow blob-filtered upstream clone in .upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef; counted with git ls-tree -r --name-only HEAD and targeted reads of LICENSE, integration-tests/bats/README.md, go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go, go/libraries/doltcore/sqle/enginetest/dolt_queries.go, go/libraries/doltcore/sqle/dtables/diff_iter.go, go/libraries/doltcore/sqle/dtables/prolly_row_conv.go, go/libraries/doltcore/sqle/dtables/diff_table.go, go/libraries/doltcore/sqle/dtables/status_table.go, go/libraries/doltcore/sqle/dtables/status_ignored_table.go, go/libraries/doltcore/sqle/dtables/merge_status_table.go, go/libraries/doltcore/sqle/dtables/table_of_tables_in_conflict.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_diff.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_diff_summary.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_diff_stat.go, go/libraries/doltcore/doltdb/ignore.go, go/libraries/doltcore/doltdb/table_name_patterns.go, go/libraries/doltcore/doltdb/errors.go, go/libraries/doltcore/diff/table_deltas.go, go/libraries/doltcore/diff/schema_diff.go, go/libraries/doltcore/schema/schema.go, go/libraries/doltcore/merge, go/libraries/doltcore/sqle/integration_test, integration-tests/bats/sql-status.bats, integration-tests/bats/status.bats, and focused tests/BATS files.",
+        "mapped": 64,
+        "source": "Shallow blob-filtered upstream clone in .upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef; counted with git ls-tree -r --name-only HEAD and targeted reads of LICENSE, integration-tests/bats/README.md, go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go, go/libraries/doltcore/sqle/enginetest/dolt_queries.go, go/libraries/doltcore/sqle/dtables/diff_iter.go, go/libraries/doltcore/sqle/dtables/prolly_row_conv.go, go/libraries/doltcore/sqle/dtables/diff_table.go, go/libraries/doltcore/sqle/dtables/commit_diff_table.go, go/libraries/doltcore/sqle/dtables/log_table.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_log.go, go/libraries/doltcore/sqle/dtables/status_table.go, go/libraries/doltcore/sqle/dtables/status_ignored_table.go, go/libraries/doltcore/sqle/dtables/merge_status_table.go, go/libraries/doltcore/sqle/dtables/table_of_tables_in_conflict.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_diff.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_diff_summary.go, go/libraries/doltcore/sqle/dtablefunctions/dolt_diff_stat.go, go/libraries/doltcore/sqle/dolt_schemas_history_table.go, go/libraries/doltcore/sqle/dolt_schemas_diff_table.go, go/libraries/doltcore/sqle/dolt_procedures_history_table.go, go/libraries/doltcore/sqle/dolt_procedures_diff_table.go, go/libraries/doltcore/doltdb/ignore.go, go/libraries/doltcore/doltdb/table_name_patterns.go, go/libraries/doltcore/doltdb/errors.go, go/libraries/doltcore/diff/table_deltas.go, go/libraries/doltcore/diff/schema_diff.go, go/libraries/doltcore/schema/schema.go, go/libraries/doltcore/merge, go/libraries/doltcore/sqle/integration_test, integration-tests/bats/sql-commit-diff.bats, integration-tests/bats/log.bats, integration-tests/bats/sql-status.bats, integration-tests/bats/status.bats, and focused tests/BATS files.",
         "inventory": {
             "repositoryPaths": 2387,
             "testRelatedPaths": 701,
@@ -45,7 +45,7 @@
         },
         "runnerStatus": {
             "executed": true,
-            "reason": "The full upstream runners were not executed. Go, BATS, and expect are installed, `.upstream-cache/dolt` was inspected as a shallow blob:none sparse checkout for `go/` and `integration-tests/bats`, cache-local Dolt utilities were rebuilt, and bounded local Go/BATS diff/schema/table/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status evidence passed. Fresh 2026-05-22 evidence includes a 16-package Go batch, focused sqle/enginetest diff/schema/system table-function tests, focused sqle integration diff/history tests, a combined 12-file local BATS slice with 253 planned tests (238 runnable passes and 15 upstream-declared skips), and 3 focused status tests. Earlier evidence also includes the expanded 179-plan local BATS slice, a focused DiffSummaryTableFunction rerun for dolt_ignore behavior, a focused TestDoltScripts/dolt_status_ignored conflicting-pattern subtest, status_table/status_ignored_table source inspection, and sql-status.bats/status.bats targeted reads. A broader 277-plan local BATS attempt exposed one stale upstream status.bats commit-hash helper; full `go test ./...` and the full BATS directory remain out of scope because they hydrate/compile the full Dolt workspace and run Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice.",
+            "reason": "The full upstream runners were not executed. Go, BATS, and expect are installed, `.upstream-cache/dolt` was inspected as a shallow blob:none sparse checkout for `go/` and `integration-tests/bats`, cache-local Dolt utilities were rebuilt, and bounded local Go/BATS diff/schema/table/rename/primary-key/diff-stat/query-diff/schema-change/column-tag/sql-diff/merge/conflict/status evidence passed. Fresh 2026-05-22 evidence includes a 16-package Go batch, focused sqle/enginetest diff/schema/system table-function tests, focused sqle integration schema/procedure/history tests, a focused `TestDoltProcedures(History|Diff)Table` rerun in 0.152s, a combined 12-file local BATS slice with 253 planned tests (238 runnable passes and 15 upstream-declared skips), a focused `CommitDiffSystemTable`/`LogTableFunction` Go pass in 0.987s, a local `sql-commit-diff.bats`/`log.bats` pass with 37 planned tests, a standalone `sql-commit-diff.bats` pass with 2 DOLT_COMMIT_DIFF tests, and 3 focused status tests. A fresh targeted one-test status rerun confirmed the stale upstream `status.bats` commit-hash helper failure. Earlier evidence also includes the expanded 179-plan local BATS slice, a focused DiffSummaryTableFunction rerun for dolt_ignore behavior, a focused TestDoltScripts/dolt_status_ignored conflicting-pattern subtest, status_table/status_ignored_table source inspection, and sql-status.bats/status.bats targeted reads. A broader 277-plan local BATS attempt exposed the same stale upstream status.bats helper; full `go test ./...` and the full BATS directory remain out of scope because they hydrate/compile the full Dolt workspace and run Python, parquet, Hadoop, server, compatibility, and client integration dependencies beyond this modest lane slice.",
             "boundedRunner": {
                 "executed": true,
                 "worktree": ".upstream-cache/dolt at b2274926e0dcd84aab000ee242df5b5e75689eef with blob:none partial clone and sparse checkout entries `go` and `integration-tests/bats`",
@@ -183,27 +183,63 @@
                     },
                     {
                         "command": "env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go test ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 15m",
-                        "result": "PASS: 14 packages passed, rowconv and sqle/dtables compiled with no test files, and merge passed in 5.989s"
+                        "result": "PASS: 14 packages passed, rowconv and sqle/dtables compiled with no test files, and merge passed in 5.999s"
                     },
                     {
                         "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(DiffTableFunction|DiffTableFunctionPrepared|DiffSummaryTableFunction|DiffSummaryTableFunctionPrepared|DiffStatTableFunction|DiffStatTableFunctionPrepared|SchemaDiffTableFunction|SchemaDiffTableFunctionPrepared|ColumnDiffSystemTable|ColumnDiffSystemTablePrepared|DiffSystemTable|DiffSystemTablePrepared|UnscopedDiffSystemTable|UnscopedDiffSystemTablePrepared)$' -count=1 -timeout 20m",
-                        "result": "PASS: focused sqle/enginetest diff, diff-summary, diff-stat, schema-diff, column-diff, unscoped-diff, and diff-system table/function tests passed in 3.827s"
+                        "result": "PASS: focused sqle/enginetest diff, diff-summary, diff-stat, schema-diff, column-diff, unscoped-diff, and diff-system table/function tests passed in 3.825s"
                     },
                     {
                         "command": "env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test ./libraries/doltcore/sqle/integration_test -run 'Test(DoltSchemasHistoryTable|DoltSchemasDiffTable|DoltProceduresDiffTable|HistoryTable)$' -count=1 -timeout 5m",
-                        "result": "PASS: focused schema/procedure/history diff-table sqle integration tests passed in 0.227s"
+                        "result": "PASS: focused schema/procedure/history diff-table sqle integration tests passed in 0.220s"
                     },
                     {
                         "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/integration_test -run 'TestDoltSchemas(History|Diff)Table$' -count=1 -timeout 10m",
-                        "result": "PASS: fresh schema-history/schema-diff integration rerun passed in 0.159s"
+                        "result": "PASS: fresh schema-history/schema-diff integration rerun passed in 0.138s"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test ./libraries/doltcore/sqle/integration_test -run 'TestDoltProcedures(History|Diff)Table$' -count=1 -timeout 10m",
+                        "result": "PASS: fresh procedure-history/procedure-diff integration rerun passed in 0.152s"
                     },
                     {
                         "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 75m bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats",
                         "result": "PASS: combined 12-file local BATS slice exited 0 with plan 1..253; 238 runnable tests passed and 15 upstream-declared skips remained"
                     },
                     {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 15m bats sql-commit-diff.bats",
+                        "result": "PASS: standalone sql-commit-diff.bats rerun exited 0 with plan 1..2, covering DOLT_COMMIT_DIFF range predicates over to_ and from_ primary-key columns"
+                    },
+                    {
                         "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: (tables in conflict|renamed table|dolt reset with a renamed table)' status.bats",
                         "result": "PASS: fresh focused status BATS rerun exited 0 with plan 1..3"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats",
+                        "result": "FAIL: targeted stale upstream status helper reproduced with plan 1..1; `get_head_commit()` truncates current `dolt log` commit hashes via `cut -c 13-44`, and `dolt reset` reports `branch not found` for the truncated suffix"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install ./cmd/dolt ./store/cmd/noms ./utils/remotesrv",
+                        "result": "PASS: cache-local dolt, noms, and remotesrv rebuilt during the commit-diff/log refresh"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version",
+                        "result": "PASS: dolt version 2.0.5"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test ./libraries/doltcore/sqle/enginetest -run 'Test(CommitDiffSystemTable|CommitDiffSystemTablePrepared|LogTableFunction|LogTableFunctionPrepared)$' -count=1 -timeout 20m",
+                        "result": "PASS: focused sqle/enginetest DOLT_COMMIT_DIFF and dolt_log table/function tests passed in 0.987s"
+                    },
+                    {
+                        "command": "env GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go test ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 15m",
+                        "result": "PASS: fresh rerun passed 14 packages; rowconv and sqle/dtables compiled with no test files; merge passed in 6.434s"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 30m bats sql-commit-diff.bats log.bats",
+                        "result": "PASS: local BATS commit-diff/log slice exited 0 with plan 1..37; 2 sql-commit-diff tests and 35 log tests passed"
+                    },
+                    {
+                        "command": "env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats",
+                        "result": "FAIL: targeted stale upstream status helper reproduced with plan 1..1; cut -c 13-44 returned truncated suffix joqcbc13neenpuul9iscj3vartf from commit qmvnfjoqcbc13neenpuul9iscj3vartf, and dolt reset reported branch not found"
                     }
                 ]
             },
@@ -226,15 +262,15 @@
                 },
                 {
                     "command": "bounded upstream runner pass count",
-                    "result": "Fresh 2026-05-22 rerun passed a 16-package Go batch for diff/schema/table/rowconv/sqlfmt/expreval/dtables/dtablefunctions/merge with 14 package passes and 2 no-test compile-only packages, focused sqle/enginetest diff/schema/system table-function entry points including DiffStat prepared coverage in 3.827s, and focused sqle integration diff/history tests in 0.227s. BATS evidence now includes a combined 12-file local slice with 253 planned tests, 238 runnable passes, and 15 upstream-declared skips, plus a fresh 3-test focused status pass. Earlier BATS evidence includes the 179-plan diff/schema/sql-diff slice and 74-plan merge/conflict slice. A broader 277-plan local BATS attempt failed on one stale upstream status.bats commit-hash helper."
+                    "result": "Fresh 2026-05-22 rerun passed a 16-package Go batch for diff/schema/table/rowconv/sqlfmt/expreval/dtables/dtablefunctions/merge with 14 package passes and 2 no-test compile-only packages, focused sqle/enginetest diff/schema/system table-function entry points including DiffStat prepared coverage in 3.825s, focused sqle integration schema/procedure/history tests in 0.220s, focused schema-history/schema-diff tests in 0.138s, and focused procedure-history/procedure-diff tests in 0.152s. BATS evidence now includes a combined 12-file local slice with 253 planned tests, 238 runnable passes, and 15 upstream-declared skips, a standalone sql-commit-diff.bats pass with 2 DOLT_COMMIT_DIFF tests, a local sql-commit-diff.bats/log.bats pass with 37 planned tests, plus a fresh 3-test focused status pass. Fresh commit-diff/log Go engine evidence passed in 0.987s. Earlier BATS evidence includes the 179-plan diff/schema/sql-diff slice and 74-plan merge/conflict slice. A fresh targeted one-test status rerun and a broader 277-plan local BATS attempt failed on one stale upstream status.bats commit-hash helper."
                 },
                 {
                     "command": "php tools/run-tests.php",
-                    "result": "PASS after final Dolt runner metadata refresh: 95 test files, 6,358 assertions, 0 failures."
+                    "result": "PASS after commit-diff slice and final Dolt runner metadata refresh: 100 test files, 6,747 assertions, 0 failures."
                 },
                 {
                     "command": "lane-only Dolt PHP tests",
-                    "result": "PASS: 4 Dolt test files, 55 behavior tests, 225 assertions, 0 failures."
+                    "result": "PASS: 6 Dolt test files, 64 behavior tests, 273 assertions, 0 failures."
                 },
                 {
                     "command": "targeted schema-aware diff inventory",
@@ -257,12 +293,24 @@
                     "result": "inspected and ran local merge package tests, focused sqle integration diff/history tests, merge.bats, schema-conflicts.bats, conflict-detection.bats, sql-commit-diff.bats, and focused status.bats rename/conflict/reset cases; full status.bats exposed a stale fixed-width commit hash helper"
                 },
                 {
+                    "command": "targeted DOLT_COMMIT_DIFF inventory",
+                    "result": "inspected commit_diff_table.go, log_table.go, dolt_log.go, and sql-commit-diff.bats; counted 2 sql-commit-diff.bats @test cases and reran both successfully"
+                },
+                {
                     "command": "targeted dolt_status inventory",
                     "result": "inspected go/libraries/doltcore/sqle/dtables/status_table.go, status_ignored_table.go, merge_status_table.go, table_of_tables_in_conflict.go, integration-tests/bats/sql-status.bats, and status.bats for staged/unstaged rows, renames, conflict rows, constraint/schema states, merged rows, and ignored unstaged new-table filtering"
                 },
                 {
                     "command": "targeted dolt_schemas history/diff inventory",
                     "result": "inspected go/libraries/doltcore/sqle/dolt_schemas_history_table.go, dolt_schemas_diff_table.go, integration_test/dolt_schemas_history_diff_test.go, and doltdb system-table constants for `EMPTY`, `WORKING`, and schema-object diff row shapes"
+                },
+                {
+                    "command": "targeted dolt_procedures history/diff inventory",
+                    "result": "inspected go/libraries/doltcore/sqle/dolt_procedures_history_table.go, dolt_procedures_diff_table.go, integration_test/dolt_procedures_history_test.go, the adjacent TestDoltProceduresDiffTable definitions, and procedure diff row helpers for case-insensitive name keys, `EMPTY`, `WORKING`, and from/to procedure row shapes"
+                },
+                {
+                    "command": "targeted dolt_log inventory",
+                    "result": "inspected log_table.go, dolt_log.go, and log.bats; counted 35 log.bats @test cases and reran them with sql-commit-diff.bats in a 37-plan local BATS pass"
                 }
             ]
         },
@@ -311,6 +359,13 @@
             "Dolt schema history rows project upstream `dolt_history_dolt_schemas` columns by appending commit hash, committer, and commit date metadata to every `dolt_schemas` object row.",
             "Dolt schema diff rows project upstream `dolt_diff_dolt_schemas` columns for initial `EMPTY` comparisons, commit-to-parent comparisons, and optional HEAD-to-`WORKING` schema object changes.",
             "Dolt schema-object diff keys are case-insensitive over `type:name`, while row equality still compares the rendered schema object fields and reports modified rows for changed definitions.",
+            "Dolt procedure history rows project upstream `dolt_history_dolt_procedures` columns by appending commit hash, committer, and commit date metadata to every `dolt_procedures` row.",
+            "Dolt procedure diff rows project upstream `dolt_diff_dolt_procedures` columns for initial `EMPTY` comparisons, commit-to-parent comparisons, and optional HEAD-to-`WORKING` procedure changes.",
+            "Dolt procedure diff keys are case-insensitive over procedure names, while row equality still compares rendered name, create statement, timestamps, and SQL mode.",
+            "DOLT_COMMIT_DIFF_<table> rows require exactly one `to_commit` and exactly one `from_commit`, matching upstream's required predicate boundary.",
+            "Commit-diff snapshots project selected commit roots through the existing Dolt `to_*` / `from_*` row shape with from/to commit names and dates.",
+            "Commit-diff rows apply focused projected `to_*` and `from_*` primary-key predicates after row shaping, including range filters and compound primary-key equality filters from `sql-commit-diff.bats`.",
+            "Commit-diff validation rejects missing, duplicate, non-string, and unresolved commit snapshot filters instead of silently comparing the wrong row set.",
             "WordPress `wp_posts` migration fixture renders inspectable Dolt-shaped content changes.",
             "WordPress table-delta fixture detects a renamed content table separately from dropped legacy links and added import audit tables.",
             "WordPress plugin schema-drift fixture projects a dropped/recreated event-count column through the latest diff schema.",
@@ -322,17 +377,19 @@
             "WordPress primary-key warning fixture surfaces a `wp_postmeta` composite-key review blocker while continuing to report unaffected `wp_posts` summary rows.",
             "WordPress status-review fixture surfaces staged post edits, unstaged option changes, visible import-review tables, conflict tables, and ignored generated cache tables.",
             "WordPress merge-review fixture surfaces unresolved migration merge state for `wp_posts`, `wp_postmeta`, and `wp_options`, while keeping constraint-only tables out of `dolt_conflicts` row counts.",
-            "WordPress schema-history fixture surfaces versioned migration views, import triggers, and working schema-object additions/removals for review without shelling out to Dolt."
+            "WordPress schema-history fixture surfaces versioned migration views, import triggers, and working schema-object additions/removals for review without shelling out to Dolt.",
+            "WordPress procedure-history fixture surfaces versioned import/review stored procedures, including modified post-prep logic, a new review cursor, and a removed media queue routine.",
+            "WordPress commit-diff fixture narrows named import commit-to-commit `wp_posts` review rows with an upstream-shaped `to_ID` range predicate."
         ],
         "inventoryPath": "lanes/dolt/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream package runner evidence, not full upstream runner parity. Native PHP progress maps 55 focused lane tests against a 613-test-file upstream denominator."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream package runner evidence, not full upstream runner parity. Native PHP progress maps 64 focused lane tests against a 613-test-file upstream denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native table diff classification, Dolt-style `DOLT_DIFF_*` row projection, tag-aware schema column diffs, primary-key set diffability checks, table delta matching for same-name and renamed tables, schema-aware row projection with Dolt warning collection, skinny diff schema projection with include-cols, Dolt-style projected row where/limit filtering, upstream-shaped `dolt_diff_summary()` / `dolt_diff_stat()` projections, summary/stat primary-key-change warning/error boundaries, working-set `dolt_ignore` filtering for diff summaries, Dolt-style ignore conflict errors, native `dolt_status` / `dolt_status_ignored` row projection, native `dolt_merge_status` active/inactive row projection, native `dolt_conflicts` table/count projection, and native `dolt_history_dolt_schemas` / `dolt_diff_dolt_schemas` schema-object history projections.",
-        "phpBehaviorTests": 55
+        "currentSlice": "Native table diff classification, Dolt-style `DOLT_DIFF_*` row projection, tag-aware schema column diffs, primary-key set diffability checks, table delta matching for same-name and renamed tables, schema-aware row projection with Dolt warning collection, skinny diff schema projection with include-cols, Dolt-style projected row where/limit filtering, upstream-shaped `dolt_diff_summary()` / `dolt_diff_stat()` projections, summary/stat primary-key-change warning/error boundaries, working-set `dolt_ignore` filtering for diff summaries, Dolt-style ignore conflict errors, native `dolt_status` / `dolt_status_ignored` row projection, native `dolt_merge_status` active/inactive row projection, native `dolt_conflicts` table/count projection, native `dolt_history_dolt_schemas` / `dolt_diff_dolt_schemas` schema-object history projections, native `dolt_history_dolt_procedures` / `dolt_diff_dolt_procedures` procedure history projections, and native `DOLT_COMMIT_DIFF_<table>` commit snapshot projection with required from/to commit filters and projected primary-key predicates.",
+        "phpBehaviorTests": 64
     },
-    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show `wp_posts` publish/remove/import row changes, a `wp_posts` to `wp_content_posts` table rename summary, plugin table schema-drift projection, skinny post-review diffs that keep requested status while hiding unchanged noise, filtered publish-impacting review rows, aggregate `wp_posts` diff-stat counts for migration dashboards, ignore-aware summaries that hide generated migration/cache tables, ambiguous ignore-rule conflicts surfaced for scratch/cache tables, `wp_postmeta` primary-key-change warnings that block stat rendering while preserving unaffected table summaries, a status-review queue for staged post edits, unstaged option changes, visible import-review tables, conflict tables, and ignored generated cache tables, a merge-review fixture for unresolved import branch conflicts and schema/constraint blockers, and a schema-history fixture for versioned migration views/triggers/events.",
-    "nextTask": "Port a narrow native `dolt_history_dolt_procedures` or `dolt_diff_dolt_procedures` slice from the adjacent upstream integration evidence."
+    "wordpressScenario": "Versioned WordPress content/data migrations and inspectable database change sets; current fixtures show `wp_posts` publish/remove/import row changes, a `wp_posts` to `wp_content_posts` table rename summary, plugin table schema-drift projection, skinny post-review diffs that keep requested status while hiding unchanged noise, filtered publish-impacting review rows, aggregate `wp_posts` diff-stat counts for migration dashboards, a `DOLT_COMMIT_DIFF`-style named import commit review window over `wp_posts`, ignore-aware summaries that hide generated migration/cache tables, ambiguous ignore-rule conflicts surfaced for scratch/cache tables, `wp_postmeta` primary-key-change warnings that block stat rendering while preserving unaffected table summaries, a status-review queue for staged post edits, unstaged option changes, visible import-review tables, conflict tables, and ignored generated cache tables, a merge-review fixture for unresolved import branch conflicts and schema/constraint blockers, a schema-history fixture for versioned migration views/triggers/events, and a procedure-history fixture for versioned WordPress import/review stored routines.",
+    "nextTask": "Port a narrow native `dolt_log` / `dolt_commits` commit metadata slice, including parents/refs opt-in behavior from log_table.go and dolt_log.go."
 }
