@@ -1596,6 +1596,78 @@ return [
             $result->worktreeConflictFiles($read),
         ));
     },
+    'maps upstream gix-merge tree-baseline conflicting-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "original\n1\n2\n3\n4\n5\n";
+        $ourContent = "1\n2\n3\n4\n5\n";
+        $theirContent = "original\n1\n2\n3\n4\n5\n6\n";
+        $directory = static fn (string $content): Tree => new Tree([
+            $treeEntry('sub', new Tree([
+                $blobEntry('y.f', $content),
+                $blobEntry('z', ''),
+            ])),
+            $blobEntry('w', ''),
+            $blobEntry('x.f', $content),
+        ]);
+        $base = new Tree([$treeEntry('a', $directory($baseContent))]);
+        $ours = new Tree([$treeEntry('a-renamed', $directory($ourContent))]);
+        $theirs = new Tree([$treeEntry('a-different', $directory($theirContent))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $expanded = MergeIndexFile::entriesForResult($result, $read);
+
+        $t->same(false, $result->isClean());
+        $t->same(['a'], $names($result->tree));
+        $t->same(['sub', 'w', 'x.f'], $names($aTree));
+        $t->same([
+            ['path' => 'a', 'reason' => 'rename-rename', 'base' => 'a', 'ours' => 'a-renamed', 'theirs' => 'a-different'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'a', 'kind' => 'tree'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a', 'kind' => 'tree'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a', 'kind' => 'tree'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind(),
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([
+            ['path' => 'a-different/sub/y.f', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => $theirContent],
+            ['path' => 'a-different/sub/z', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => ''],
+            ['path' => 'a-different/w', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => ''],
+            ['path' => 'a-different/x.f', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => $theirContent],
+            ['path' => 'a-renamed/sub/y.f', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => $ourContent],
+            ['path' => 'a-renamed/sub/z', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => ''],
+            ['path' => 'a-renamed/w', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => ''],
+            ['path' => 'a-renamed/x.f', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => $ourContent],
+            ['path' => 'a/sub/y.f', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => $baseContent],
+            ['path' => 'a/sub/z', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => ''],
+            ['path' => 'a/w', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => ''],
+            ['path' => 'a/x.f', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => $baseContent],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'body' => $read($entry->oid)->body,
+            ],
+            $expanded,
+        ));
+    },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "1\n2\n3\n4\n5\n")]);

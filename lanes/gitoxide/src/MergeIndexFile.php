@@ -44,12 +44,38 @@ final class MergeIndexFile
     public static function entriesForResult(TreeMergeResult $result, callable $readObject): array
     {
         $expanded = [];
-        foreach ($result->indexEntries() as $entry) {
-            array_push($expanded, ...self::expandEntry($entry, $readObject));
+        foreach ($result->conflicts as $conflict) {
+            foreach ([
+                MergeIndexEntry::STAGE_ANCESTOR => $conflict->base,
+                MergeIndexEntry::STAGE_OURS => $conflict->ours,
+                MergeIndexEntry::STAGE_THEIRS => $conflict->theirs,
+            ] as $stage => $entry) {
+                if ($entry === null) {
+                    continue;
+                }
+                $path = self::indexPathForConflictStage($conflict, $entry);
+                array_push($expanded, ...self::expandEntry(new MergeIndexEntry($path, $stage, $entry->mode, $entry->oid), $readObject));
+            }
         }
         usort($expanded, static fn (MergeIndexEntry $left, MergeIndexEntry $right): int => strcmp($left->path, $right->path) ?: $left->stage <=> $right->stage);
 
         return $expanded;
+    }
+
+    private static function indexPathForConflictStage(TreeMergeConflict $conflict, TreeEntry $entry): string
+    {
+        if ($conflict->reason !== 'rename-rename' || !$entry->isTree()) {
+            return $conflict->path;
+        }
+
+        $baseName = basename($conflict->path);
+        if ($entry->filename === $baseName) {
+            return $conflict->path;
+        }
+
+        $directory = dirname($conflict->path);
+
+        return ($directory === '.' ? '' : $directory . '/') . $entry->filename;
     }
 
     /**
