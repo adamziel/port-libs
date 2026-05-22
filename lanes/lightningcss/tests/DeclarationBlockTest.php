@@ -25,6 +25,89 @@ return [
             $block->getProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding')
         );
     },
+    'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background-color'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red url(foo.png)', 'background-color'));
+        $t->same(
+            ['value' => 'red', 'important' => false],
+            $block->getProperty('background: url(foo.png) green, url(bar.png) red', 'background-color')
+        );
+        $t->same(
+            ['value' => 'linear-gradient(red, green), linear-gradient(#fff, #000)', 'important' => false],
+            $block->getProperty(
+                'background: linear-gradient(red, green) repeat-x, linear-gradient(#fff, #000) repeat-y',
+                'background-image'
+            )
+        );
+        $t->same(
+            ['value' => 'repeat-x, repeat-y', 'important' => false],
+            $block->getProperty(
+                'background: linear-gradient(red, green) repeat-x, linear-gradient(#fff, #000) repeat-y',
+                'background-repeat'
+            )
+        );
+        $t->same(
+            ['value' => '20px 10px', 'important' => false],
+            $block->getProperty('background-position-x: 20px; background-position-y: 10px', 'background-position')
+        );
+        $t->same(
+            ['value' => '20px 10px', 'important' => false],
+            $block->getProperty('background: linear-gradient(red, green) 20px 10px', 'background-position')
+        );
+        $t->same(
+            ['value' => '20px', 'important' => false],
+            $block->getProperty('background: linear-gradient(red, green) 20px 10px', 'background-position-x')
+        );
+        $t->same(
+            ['value' => '10px', 'important' => false],
+            $block->getProperty('background: linear-gradient(red, green) 20px 10px', 'background-position-y')
+        );
+    },
+    'declaration block composes upstream background cssom shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'linear-gradient(red, green) 20px 10px / 50px 100px repeat-x', 'important' => false],
+            $block->getProperty(
+                'background: linear-gradient(red, green); background-position-x: 20px; background-position-y: 10px; background-size: 50px 100px; background-repeat: repeat no-repeat',
+                'background'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'background: linear-gradient(red, green); background-position-x: 20px; background-position-y: 10px !important; background-size: 50px 100px; background-repeat: repeat no-repeat',
+                'background'
+            )
+        );
+        $t->same(
+            [
+                'value' => 'linear-gradient(red, green) right 20px top 20px / 50px 50px repeat-x, gray linear-gradient(#fff, #000) 10px 15px no-repeat',
+                'important' => false,
+            ],
+            $block->getProperty(
+                'background: linear-gradient(red, green), linear-gradient(#fff, #000) gray; background-position-x: right 20px, 10px; background-position-y: top 20px, 15px; background-size: 50px 50px, auto; background-repeat: repeat no-repeat, no-repeat',
+                'background'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'background: linear-gradient(red, green); background-position-x: right 20px, 10px; background-position-y: top 20px, 15px; background-size: 50px 50px, auto; background-repeat: repeat no-repeat, no-repeat',
+                'background'
+            )
+        );
+        $t->same(
+            ['value' => 'linear-gradient(red, green) 20px 10px / 50px 100px repeat-x', 'important' => false],
+            $block->getProperty(
+                'background: linear-gradient(red, green); background-position: 20px 10px; background-size: 50px 100px; background-repeat: repeat no-repeat',
+                'background'
+            )
+        );
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -36,6 +119,18 @@ return [
         $t->same(
             'margin: 5px; margin-inline-start: 8px; margin-left: 10px',
             $block->setProperty('margin: 5px; margin-inline-start: 8px', 'margin-left', '10px')
+        );
+    },
+    'declaration block sets upstream background position shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'background: linear-gradient(red, green) 20px 0',
+            $block->setProperty('background: linear-gradient(red, green)', 'background-position-x', '20px')
+        );
+        $t->same(
+            'background: linear-gradient(red, green) 20px 10px',
+            $block->setProperty('background: linear-gradient(red, green)', 'background-position', '20px 10px')
         );
     },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {

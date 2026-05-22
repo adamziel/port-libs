@@ -21,6 +21,16 @@ final class DeclarationBlock
         ],
     ];
 
+    private const BACKGROUND_LONGHANDS = [
+        'background-color',
+        'background-image',
+        'background-position',
+        'background-position-x',
+        'background-position-y',
+        'background-size',
+        'background-repeat',
+    ];
+
     /**
      * @return array<string, string>
      */
@@ -83,6 +93,13 @@ final class DeclarationBlock
         if ($boxValue !== null) {
             return $boxValue;
         }
+        $backgroundValue = $this->getBackgroundProperty($entries, $property);
+        if ($backgroundValue !== null) {
+            return $backgroundValue;
+        }
+        if ($property === 'background' || in_array($property, self::BACKGROUND_LONGHANDS, true)) {
+            return null;
+        }
 
         $match = null;
         foreach ($entries as $entry) {
@@ -97,6 +114,446 @@ final class DeclarationBlock
         return $match;
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getBackgroundProperty(array $entries, string $property): ?array
+    {
+        if ($property !== 'background' && !in_array($property, self::BACKGROUND_LONGHANDS, true)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'background') {
+                $components = $this->backgroundComponentsFromShorthand($entry['value'], $entry['important']);
+                continue;
+            }
+
+            if (in_array($entry['property'], self::BACKGROUND_LONGHANDS, true)) {
+                $this->applyBackgroundLonghand($components, $entry['property'], $entry['value'], $entry['important']);
+            }
+        }
+
+        if ($property !== 'background') {
+            if ($property === 'background-position') {
+                return $this->getBackgroundPosition($components);
+            }
+
+            return $components[$property] ?? null;
+        }
+
+        if (!isset($components['background'])) {
+            return null;
+        }
+        $important = $components['background']['important'];
+        foreach ($components as $component) {
+            if ($component['important'] !== $important) {
+                return null;
+            }
+        }
+
+        $value = $this->composeBackgroundValue($components);
+        if ($value === null) {
+            return null;
+        }
+
+        return ['value' => $value, 'important' => $important];
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>
+     */
+    private function backgroundComponentsFromShorthand(string $value, bool $important): array
+    {
+        $layers = $this->parseBackgroundLayers($value);
+        $components = [
+            'background' => ['value' => $value, 'important' => $important],
+        ];
+        foreach (self::BACKGROUND_LONGHANDS as $longhand) {
+            $longhandValue = $this->backgroundLonghandFromLayers($layers, $longhand);
+            if ($longhandValue !== null) {
+                $components[$longhand] = ['value' => $longhandValue, 'important' => $important];
+            }
+        }
+
+        return $components;
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     */
+    private function applyBackgroundLonghand(array &$components, string $property, string $value, bool $important): void
+    {
+        $components[$property] = [
+            'value' => $value,
+            'important' => $important,
+        ];
+
+        if ($property !== 'background-position') {
+            return;
+        }
+
+        [$x, $y] = $this->splitBackgroundPositionList($value);
+        if ($x !== null) {
+            $components['background-position-x'] = ['value' => $x, 'important' => $important];
+        }
+        if ($y !== null) {
+            $components['background-position-y'] = ['value' => $y, 'important' => $important];
+        }
+    }
+
+    /**
+     * @return list<array{
+     *     raw:string,
+     *     image:?string,
+     *     color:?string,
+     *     position:?string,
+     *     positionX:?string,
+     *     positionY:?string,
+     *     size:?string,
+     *     repeat:?string
+     * }>
+     */
+    private function parseBackgroundLayers(string $value): array
+    {
+        return array_map(
+            fn (string $layer): array => $this->parseBackgroundLayer($layer),
+            $this->splitTopLevel($value, ',')
+        );
+    }
+
+    /**
+     * @return array{
+     *     raw:string,
+     *     image:?string,
+     *     color:?string,
+     *     position:?string,
+     *     positionX:?string,
+     *     positionY:?string,
+     *     size:?string,
+     *     repeat:?string
+     * }
+     */
+    private function parseBackgroundLayer(string $layer): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        $parsed = [
+            'raw' => trim($layer),
+            'image' => null,
+            'color' => null,
+            'position' => null,
+            'positionX' => null,
+            'positionY' => null,
+            'size' => null,
+            'repeat' => null,
+        ];
+        $positionTokens = [];
+
+        for ($i = 0; $i < count($tokens); $i++) {
+            $token = $tokens[$i];
+            $lower = strtolower($token);
+            if ($token === '/') {
+                $sizeTokens = [];
+                for ($i++; $i < count($tokens); $i++) {
+                    $sizeTokens[] = $tokens[$i];
+                }
+                $parsed['size'] = implode(' ', $sizeTokens);
+                break;
+            }
+            if (str_contains($token, '/') && $token !== '/' && $parsed['size'] === null) {
+                [$before, $after] = array_pad(explode('/', $token, 2), 2, '');
+                if ($before !== '') {
+                    $positionTokens[] = $before;
+                }
+                if ($after !== '') {
+                    $sizeTokens = [$after];
+                    for ($i++; $i < count($tokens); $i++) {
+                        $sizeTokens[] = $tokens[$i];
+                    }
+                    $parsed['size'] = implode(' ', $sizeTokens);
+                    break;
+                }
+            } elseif ($this->isBackgroundImageToken($token)) {
+                $parsed['image'] = $token;
+            } elseif ($this->isBackgroundRepeatToken($lower)) {
+                $parsed['repeat'] = $this->consumeBackgroundRepeat($tokens, $i);
+            } elseif ($this->isBackgroundColorToken($token)) {
+                $parsed['color'] = $token;
+            } else {
+                $positionTokens[] = $token;
+            }
+        }
+
+        if ($positionTokens !== []) {
+            $parsed['position'] = implode(' ', $positionTokens);
+            $parsed['positionX'] = $positionTokens[0] ?? null;
+            $parsed['positionY'] = count($positionTokens) > 1 ? implode(' ', array_slice($positionTokens, 1)) : null;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @param list<array{raw:string,image:?string,color:?string,position:?string,positionX:?string,positionY:?string,size:?string,repeat:?string}> $layers
+     */
+    private function backgroundLonghandFromLayers(array $layers, string $property): ?string
+    {
+        if ($property === 'background-color') {
+            for ($i = count($layers) - 1; $i >= 0; $i--) {
+                if ($layers[$i]['color'] !== null) {
+                    return $layers[$i]['color'];
+                }
+            }
+
+            return null;
+        }
+
+        $values = [];
+        foreach ($layers as $layer) {
+            $value = match ($property) {
+                'background-image' => $layer['image'],
+                'background-position' => $layer['position'],
+                'background-position-x' => $layer['positionX'],
+                'background-position-y' => $layer['positionY'],
+                'background-size' => $layer['size'],
+                'background-repeat' => $layer['repeat'],
+                default => null,
+            };
+            if ($value === null) {
+                return null;
+            }
+            $values[] = $value;
+        }
+
+        return $values === [] ? null : implode(', ', $values);
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     */
+    private function getBackgroundPosition(array $components): ?array
+    {
+        $x = $components['background-position-x'] ?? null;
+        $y = $components['background-position-y'] ?? null;
+        if ($x === null && $y === null) {
+            return $components['background-position'] ?? null;
+        }
+
+        $important = ($x ?? $y)['important'];
+        if ($x !== null && $x['important'] !== $important) {
+            return null;
+        }
+        if ($y !== null && $y['important'] !== $important) {
+            return null;
+        }
+
+        return [
+            'value' => trim(($x['value'] ?? '0') . ' ' . ($y['value'] ?? '0')),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     */
+    private function composeBackgroundValue(array $components): ?string
+    {
+        $layers = $this->parseBackgroundLayers($components['background']['value']);
+        $layerCount = max(1, count($layers));
+        if (!$this->backgroundComponentLayerCountsFit($components, $layerCount)) {
+            return null;
+        }
+
+        $images = $this->componentList($components['background-image']['value'] ?? null, $layerCount);
+        $positions = $this->componentList($components['background-position']['value'] ?? null, $layerCount);
+        $positionX = $this->componentList($components['background-position-x']['value'] ?? null, $layerCount);
+        $positionY = $this->componentList($components['background-position-y']['value'] ?? null, $layerCount);
+        $sizes = $this->componentList($components['background-size']['value'] ?? null, $layerCount);
+        $repeats = $this->componentList($components['background-repeat']['value'] ?? null, $layerCount);
+        $color = $components['background-color']['value'] ?? null;
+        $result = [];
+
+        for ($i = 0; $i < $layerCount; $i++) {
+            $layer = [];
+            if (($color !== null && $i === $layerCount - 1) && (($images[$i] ?? null) === null)) {
+                $layer[] = $color;
+            }
+            if (($images[$i] ?? null) !== null) {
+                $layer[] = $images[$i];
+            }
+            $position = null;
+            if (($positionX[$i] ?? null) !== null || ($positionY[$i] ?? null) !== null) {
+                $position = trim(($positionX[$i] ?? '0') . ' ' . ($positionY[$i] ?? '0'));
+            } else {
+                $position = $positions[$i] ?? null;
+            }
+            if ($position !== null) {
+                $layer[] = $position;
+            }
+            if (($sizes[$i] ?? null) !== null && !$this->isDefaultBackgroundSize($sizes[$i])) {
+                $layer[] = '/';
+                $layer[] = $sizes[$i];
+            }
+            if (($repeats[$i] ?? null) !== null) {
+                $layer[] = $this->compressBackgroundRepeat($repeats[$i]);
+            }
+            if ($color !== null && $i === $layerCount - 1 && ($images[$i] ?? null) !== null) {
+                array_unshift($layer, $color);
+            }
+            $result[] = implode(' ', array_values(array_filter($layer, static fn (string $part): bool => $part !== '')));
+        }
+
+        return implode(', ', $result);
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     */
+    private function backgroundComponentLayerCountsFit(array $components, int $layerCount): bool
+    {
+        foreach ([
+            'background-image',
+            'background-position',
+            'background-position-x',
+            'background-position-y',
+            'background-size',
+            'background-repeat',
+        ] as $property) {
+            if (!isset($components[$property])) {
+                continue;
+            }
+
+            if (count($this->splitTopLevel($components[$property]['value'], ',')) > $layerCount) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    private function componentList(?string $value, int $count): array
+    {
+        if ($value === null) {
+            return array_fill(0, $count, null);
+        }
+
+        $parts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, ',')
+        );
+        if ($parts === []) {
+            return array_fill(0, $count, null);
+        }
+        while (count($parts) < $count) {
+            $parts[] = $parts[array_key_last($parts)];
+        }
+
+        return array_slice($parts, 0, $count);
+    }
+
+    private function isBackgroundImageToken(string $token): bool
+    {
+        return preg_match('/^(?:url|[-_a-zA-Z][-_a-zA-Z0-9]*-gradient|image|cross-fade|image-set)\(/i', $token) === 1;
+    }
+
+    private function isBackgroundColorToken(string $token): bool
+    {
+        return preg_match('/^(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla|color)\(|[a-zA-Z]+)$/', $token) === 1
+            && !$this->isBackgroundRepeatToken(strtolower($token))
+            && !in_array(strtolower($token), ['left', 'right', 'top', 'bottom', 'center', 'scroll', 'fixed', 'local', 'border-box', 'padding-box', 'content-box', 'cover', 'contain', 'none'], true);
+    }
+
+    private function isBackgroundRepeatToken(string $token): bool
+    {
+        return in_array($token, ['repeat', 'no-repeat', 'space', 'round', 'repeat-x', 'repeat-y'], true);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function consumeBackgroundRepeat(array $tokens, int &$index): string
+    {
+        $first = strtolower($tokens[$index]);
+        if ($first === 'repeat-x' || $first === 'repeat-y') {
+            return $first;
+        }
+        $second = strtolower($tokens[$index + 1] ?? '');
+        if (in_array($second, ['repeat', 'no-repeat', 'space', 'round'], true)) {
+            $index++;
+
+            return $first . ' ' . $second;
+        }
+
+        return $first;
+    }
+
+    private function compressBackgroundRepeat(string $repeat): string
+    {
+        return match (strtolower($repeat)) {
+            'repeat no-repeat' => 'repeat-x',
+            'no-repeat repeat' => 'repeat-y',
+            default => $repeat,
+        };
+    }
+
+    private function isDefaultBackgroundSize(string $size): bool
+    {
+        return in_array(strtolower(trim($size)), ['auto', 'auto auto'], true);
+    }
+
+    /**
+     * @return array{0:?string,1:?string}
+     */
+    private function splitBackgroundPositionList(string $value): array
+    {
+        $xs = [];
+        $ys = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            [$x, $y] = $this->splitBackgroundPosition($layer);
+            if ($x === null) {
+                return [null, null];
+            }
+            $xs[] = $x;
+            $ys[] = $y ?? '0';
+        }
+
+        return [implode(', ', $xs), implode(', ', $ys)];
+    }
+
+    /**
+     * @return array{0:?string,1:?string}
+     */
+    private function splitBackgroundPosition(string $value): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        $count = count($tokens);
+        if ($count === 0) {
+            return [null, null];
+        }
+        if ($count === 1) {
+            return [$tokens[0], '0'];
+        }
+        if ($count === 2) {
+            return [$tokens[0], $tokens[1]];
+        }
+
+        for ($i = 1; $i < $count; $i++) {
+            if (in_array(strtolower($tokens[$i]), ['top', 'bottom'], true)) {
+                return [
+                    implode(' ', array_slice($tokens, 0, $i)),
+                    implode(' ', array_slice($tokens, $i)),
+                ];
+            }
+        }
+
+        return [$tokens[0], implode(' ', array_slice($tokens, 1))];
+    }
+
     public function setProperty(string $block, string $property, string $value, bool $important = false): string
     {
         $property = $this->normalizeProperty($property);
@@ -108,6 +565,10 @@ final class DeclarationBlock
         $entries = $this->parseEntries($block);
         if ($this->isBoxLonghand($property)) {
             return $this->setBoxLonghand($entries, $property, $value, $important);
+        }
+        $backgroundValue = $this->setBackgroundPositionLonghand($entries, $property, $value, $important);
+        if ($backgroundValue !== null) {
+            return $backgroundValue;
         }
 
         $lastMatch = null;
@@ -130,6 +591,52 @@ final class DeclarationBlock
         }
 
         return $this->serializeEntries($entries);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setBackgroundPositionLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!in_array($property, ['background-position', 'background-position-x', 'background-position-y'], true)) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'background') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->backgroundComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
+            $this->applyBackgroundLonghand($components, $property, $value, $important);
+            $background = $this->composeBackgroundValue($components);
+            if ($background === null) {
+                return null;
+            }
+
+            $entries[$index] = [
+                'property' => 'background',
+                'value' => $background,
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
     }
 
     public function removeProperty(string $block, string $property): string
