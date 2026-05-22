@@ -54,6 +54,10 @@ The two-level nested table shape from
 boundary as well: nested HTML tables become table AST nodes inside table cells
 and render as nested table HTML in a core table block, while simple non-nested
 raw HTML tables remain raw HTML for reviewer inspection.
+The same upstream fixture's third-level nested table case is mapped separately
+from Pandoc's AsciiDoc warning behavior: AsciiDoc downgrades because that target
+only supports two table levels, but the WordPress writer preserves the full
+third-level nested table HTML for migration reviewers.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -150,6 +154,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   imported raw HTML boundaries.
 - The fixture now includes a nested legacy HTML audit table to exercise nested
   table-cell block children and WordPress nested table rendering.
+- The fixture now also includes a third-level nested legacy HTML audit table,
+  documenting the WordPress-specific policy to preserve deep review matrices
+  rather than applying Pandoc's AsciiDoc-only two-level table downgrade.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -199,6 +206,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Nested legacy HTML audit tables render as nested table HTML inside the
   containing WordPress table block, preserving old reviewer matrices that used
   inner tables for grouped import status.
+- Third-level nested legacy audit tables are preserved as nested WordPress
+  table HTML, making the migration policy explicit for source documents that
+  would trigger Pandoc's AsciiDoc depth warning.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.
@@ -245,7 +255,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the bounded nested-table HTML fixture at
-`test/command/nested-table-to-asciidoc-6942.md`, then decide whether nested
-table cells should become block-child AST tables or remain raw HTML at the
-WordPress boundary.
+Map a bounded HTML reader table caption/thead/tfoot fixture from upstream
+`Tests.Readers.HTML` or command goldens so full HTML table imports preserve
+captions and section structure before broader HTML reader work.

@@ -1037,6 +1037,52 @@ HTML;
         $t->same('c', $body->children[1]->children[0]->attr('text'));
         $t->same('d', $body->children[1]->children[1]->attr('text'));
     },
+    'maps upstream command full html document with third-level nested table' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title> NestedTables </title>
+</head>
+<body>
+<table>
+ <tr>
+  <td>
+    <table>  <tr>
+	<td> a1 </td>
+	<td>
+	  <table>  <tr> <td> 1 </td> <td> 2 </td> </tr>  </table>
+	</td>
+    </tr>  </table>
+  </td>
+  <td>b</td>
+ </tr>
+ <tr>
+   <td>c</td> <td>d </td>
+ </tr>
+</table>
+</body>
+</html>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $middle = $body->children[0]->children[0]->children[0];
+        $inner = $middle->children[1]->children[0]->children[1]->children[0];
+
+        $t->same(1, count($document->children));
+        $t->same('table', $table->type);
+        $t->same([0.5, 0.5], $table->attr('widths'));
+        $t->same('table', $middle->type);
+        $t->same('a1', $middle->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('table', $inner->type);
+        $t->same('1', $inner->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('2', $inner->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('b', $body->children[0]->children[1]->attr('text'));
+        $t->same('c', $body->children[1]->children[0]->attr('text'));
+        $t->same('d', $body->children[1]->children[1]->attr('text'));
+    },
     'writes wordpress nested html tables inside table cells for legacy imports' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
@@ -1044,6 +1090,13 @@ HTML;
         $t->contains('<p>Nested import table:</p>', $blocks);
         $t->contains('<td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>Inner posts</td><td>42</td></tr></tbody></table></td><td>Batch status</td>', $blocks);
         $t->contains('<tr><td>Reviewer</td><td>Ready</td></tr>', $blocks);
+    },
+    'writes wordpress third-level nested html tables without asciidoc downgrade' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Deep nested import table:</p>', $blocks);
+        $t->contains('<td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>Outer note</td><td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>Inner posts</td><td>42</td></tr></tbody></table></td></tr></tbody></table></td><td>Batch status</td>', $blocks);
     },
     'maps upstream testsuite raw html comments hr blocks and indented html code' => static function (TestRunner $t): void {
         $markdown = implode("\n", [

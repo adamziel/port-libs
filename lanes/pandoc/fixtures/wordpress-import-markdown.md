@@ -97,6 +97,22 @@ Nested import table:
 </tr>
 </table>
 
+Deep nested import table:
+
+<table>
+<tr>
+<td>
+<table>
+<tr>
+<td>Outer note</td>
+<td><table><tr><td>Inner posts</td><td>42</td></tr></table></td>
+</tr>
+</table>
+</td>
+<td>Batch status</td>
+</tr>
+</table>
+
 Import metrics:
 
 | Item | Count | Notes |

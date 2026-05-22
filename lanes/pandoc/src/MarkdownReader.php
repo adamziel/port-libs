@@ -50,6 +50,11 @@ final class MarkdownReader
                 $blocks[] = $docBookTable;
                 continue;
             }
+            $nestedHtmlDocumentTable = $paragraph === [] && $listStack === [] ? $this->tryReadNestedHtmlDocumentTableBlock($lines, $index) : null;
+            if ($nestedHtmlDocumentTable !== null) {
+                $blocks[] = $nestedHtmlDocumentTable;
+                continue;
+            }
             $nestedHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadNestedHtmlTableBlock($lines, $index) : null;
             if ($nestedHtmlTable !== null) {
                 $blocks[] = $nestedHtmlTable;
@@ -827,6 +832,35 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadNestedHtmlDocumentTableBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}(?:<!doctype\s+html\b|<html\b)/i', $line) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        $count = count($lines);
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if (preg_match('/<\/html\s*>/i', $lines[$cursor]) === 1) {
+                $table = $this->parseNestedHtmlTable(implode("\n", $content));
+                if ($table === null) {
+                    return null;
+                }
+
+                $index = $cursor;
+
+                return $table;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function tryReadNestedHtmlTableBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
@@ -888,8 +922,11 @@ final class MarkdownReader
     {
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
+        $source = preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $html) === 1
+            ? '<?xml encoding="UTF-8">' . $html
+            : '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>';
         $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            $source,
             LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
         );
         libxml_clear_errors();

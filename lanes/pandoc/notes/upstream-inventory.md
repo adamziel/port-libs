@@ -111,8 +111,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   this run: 82 lines covering HTML input rendered to AsciiDoc, including a
   two-level nested table that Pandoc renders as a nested table and a separate
   three-level case where the AsciiDoc writer warns because that target format
-  only supports two table levels. The bounded PHP slice maps the two-level
-  nested-table AST shape at the WordPress boundary.
+  only supports two table levels. The bounded PHP slice maps both the
+  two-level nested-table AST shape and the full HTML document third-level case
+  at the WordPress boundary; WordPress output preserves the third nested table
+  rather than applying the AsciiDoc-specific downgrade.
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -142,12 +144,13 @@ included the five Lua-engine Haskell test modules.
 The full upstream suite was not executed in this run. Pandoc's `test-pandoc` and
 `test-pandoc-lua-engine` suites must be built as Haskell Tasty executables from
 a full checkout before they can run command, golden, HUnit, QuickCheck, and Lua
-tests. The current cache is intentionally blob-filtered and not checked out to
-keep network and disk use modest, and `ghc`, `cabal`, and `stack` are not on
-PATH; installing those tools alone would still leave a broad dependency build
-outside this bounded lane run. The defensible denominator used for this lane is
-therefore the cloned static `git ls-tree` inventory plus targeted `git show`
-reads from the upstream object database, not upstream runner parity.
+tests. `ghc` 9.10.3 and `cabal` 3.12.1.0 are now on PATH, while `stack` is not.
+The current upstream cache is blob-filtered/no-checkout with mass working-tree
+deletions, and a Cabal run would require hydrating the broad checkout plus
+downloading and building Pandoc's dependency graph. The defensible denominator
+used for this lane is therefore the cloned static `git ls-tree` inventory plus
+targeted `git show` reads from the upstream object database, not upstream
+runner parity.
 
 ## Native PHP Mapping Added
 
@@ -225,6 +228,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   WordPress table boundary: balanced nested `<table>` blocks are parsed into
   native table AST nodes inside `table_cell` children, while simple non-nested
   raw HTML tables continue to use the existing raw HTML block path.
+- The same upstream command fixture's full HTML document with a third-level
+  nested table is now represented too. Pandoc's AsciiDoc writer warns and
+  flattens the third level because that target format only supports two table
+  levels; the PHP WordPress writer records a separate target policy and
+  preserves the third-level nested table HTML for reviewer inspection.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
   single and double quotes become `quoted` AST nodes, apostrophes inside words
