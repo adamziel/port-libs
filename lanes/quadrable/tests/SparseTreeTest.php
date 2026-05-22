@@ -65,6 +65,37 @@ return [
         $t->true($query['c']['exists']);
         $t->true(!$query['missing']['exists']);
     },
+    'cached proof tree invalidates after later updates' => static function (TestRunner $t): void {
+        $tree = new SparseTree();
+        $tree->change()
+            ->putKey(Key::fromInteger(1), 'one')
+            ->putKey(Key::fromInteger(2), 'two')
+            ->apply();
+
+        $t->same(2, $tree->stats()['numLeafNodes']);
+        $t->same('one', SparseTree::importProof(
+            $tree->exportRawProof([Key::fromInteger(1)]),
+            $tree->rootHash()
+        )->getKey(Key::fromInteger(1)));
+
+        $oldRoot = $tree->rootHash();
+        $tree->change()
+            ->putKey(Key::fromInteger(2), 'two updated')
+            ->putKey(Key::fromInteger(3), 'three')
+            ->apply();
+
+        $newRoot = $tree->rootHash();
+        $t->true($oldRoot !== $newRoot);
+        $t->same(3, $tree->stats()['numLeafNodes']);
+
+        $partial = SparseTree::importProof(
+            $tree->exportRawProof([Key::fromInteger(2), Key::fromInteger(3)]),
+            $newRoot
+        );
+
+        $t->same('two updated', $partial->getKey(Key::fromInteger(2)));
+        $t->same('three', $partial->getKey(Key::fromInteger(3)));
+    },
     'update sets let later operations overwrite earlier operations before apply' => static function (TestRunner $t): void {
         $doublePut = new SparseTree();
         $doublePut->change()
