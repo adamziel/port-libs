@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, FakeSeeker/NoSeeker reader adapter behavior, PatternReader deterministic fixture bytes, LimitedReadCloser byte-limit and close-error behavior, NoCloseReader close-hiding behavior, GzipReader decompression and provider-close behavior, ContextReader cancellation-before-read behavior, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with advertised hash sets, object metadata, copy, list, ranged/reopenable readers including unknown-size streams and no-low-level-retry sticky errors, cache-backed repeatable readers with upstream limit/buffer constructor semantics, FakeSeeker/NoSeeker reader adapter behavior, PatternReader deterministic fixture bytes, LimitedReadCloser byte-limit and close-error behavior, NoCloseReader close-hiding behavior, GzipReader decompression and provider-close behavior, ContextReader cancellation-before-read behavior, CountingReader streamed-byte accounting, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification including download mode for providers without advertised hashes, `CheckEqualReaders`-style byte comparison for downloaded artifacts, provider-to-provider `CheckDownload` byte/error reporting, ReOpen-style retry/range/seek/readAt/accounting/accounting-error behavior, RepeatableReader-style cached seek/replay/limit behavior, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -46,6 +46,8 @@ The `../examples/wordpress-gzip-wxr-import.php` example maps upstream `GzipReade
 
 The `../examples/wordpress-cancelled-restore.php` example maps upstream `ContextReader` behavior for canceled restore streams. It reads an initial WXR probe, cancels the import context, then confirms the wrapped provider body is not read again after cancellation.
 
+The `../examples/wordpress-counted-wxr-upload.php` example maps upstream `CountingReader` behavior for streamed WXR upload bodies. It probes the export header, streams the rest of the body, and reports the exact byte count that passed through the request body wrapper.
+
 ## Next Task
 
-Map the bounded `lib/readers` `CountingReader` byte-accounting helper.
+Map a bounded `fs/operations` cleanup/delete planning slice for pruning stale WordPress backup artifacts.
