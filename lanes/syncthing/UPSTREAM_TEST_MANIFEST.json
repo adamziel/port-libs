@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 211,
-        "mapped": 11,
+        "mapped": 16,
         "source": "Shallow blob-filtered upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted test-related paths with git ls-tree without hydrating the full checkout.",
         "inventory": {
             "goTestFiles": 141,
@@ -50,15 +50,20 @@
             "Version vector merges keep the maximum counter value for each device while preserving sorted IDs.",
             "Missing counters compare as zero, so zero-valued counters compare equal to missing device counters.",
             "Vector comparison returns equal, greater, lesser, and Syncthing's oriented concurrent orderings.",
-            "Concurrent WordPress media/caption edits from separate devices are detected before merge and dominated by the merged vector."
+            "Concurrent WordPress media/caption edits from separate devices are detected before merge and dominated by the merged vector.",
+            "FileInfo conflict winners prefer valid entries over invalid entries, then newer modified time, then Syncthing's oriented concurrent vector order.",
+            "Local invalid and local conflict flags distinguish unsupported, ignored, must-rescan, receive-only, and remote-invalid states.",
+            "FileInfo conflict detection accepts descendant versions and concurrent updates that preserve the previous block hash lineage.",
+            "FileInfo conflict detection rejects stale concurrent updates and treats missing block hashes as conflict-prone type-change or unknown lineage cases.",
+            "Tombstone creation clears content hashes and size while advancing the local device version counter."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 11 focused lane tests against a 211-path upstream test-related denominator."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 16 focused lane tests against a 211-path upstream test-related denominator."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, and protocol version vector update/merge/compare semantics."
+        "currentSlice": "Native scanner-style block hashing, empty-file blocks, exact verification, block-list hashes, upstream block size selection, protocol version vector update/merge/compare semantics, and FileInfo conflict/tombstone decisions."
     },
-    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; example covers continuing a partially synchronized media upload from the first untrusted byte offset, and vector fixtures cover concurrent media/caption edits from separate devices.",
-    "nextTask": "Port FileInfo conflict winner, tombstone, and delete/modify ordering semantics from protocol conflict tests."
+    "wordpressScenario": "Resumable media/content synchronization for local-first WordPress and Playground folders; examples cover continuing a partially synchronized media upload from the first untrusted byte offset, detecting concurrent media/caption edits from separate devices, and resolving media tombstone/conflict winner decisions.",
+    "nextTask": "Port protocol FileInfo equivalence, index update message fixtures, or block comparison behavior from focused upstream tests."
 }
