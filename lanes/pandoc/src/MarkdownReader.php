@@ -10,13 +10,13 @@ final class MarkdownReader
     {
         $blocks = [];
         $paragraph = [];
-        $pendingList = null;
+        $listStack = [];
         $lines = preg_split('/\R/', trim($markdown)) ?: [];
 
         foreach ($lines as $line) {
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
-                $this->flushList($pendingList, $blocks);
+                $this->flushListStack($listStack, $blocks);
                 $text = trim($m[2]);
                 $blocks[] = new AstNode(
                     'heading',
@@ -25,32 +25,26 @@ final class MarkdownReader
                 );
                 continue;
             }
-            if (preg_match('/^[-*+]\s+(.+)$/', $line, $m)) {
+            if (preg_match('/^(\s*)[-*+]\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
-                if ($pendingList !== null && $pendingList['ordered']) {
-                    $this->flushList($pendingList, $blocks);
-                }
-                $this->appendListItem($pendingList, false, null, trim($m[1]));
+                $this->appendListItem($listStack, $blocks, false, null, strlen($m[1]), trim($m[2]));
                 continue;
             }
-            if (preg_match('/^(\d+)[.)]\s+(.+)$/', $line, $m)) {
+            if (preg_match('/^(\s*)(\d+)[.)]\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
-                if ($pendingList !== null && !$pendingList['ordered']) {
-                    $this->flushList($pendingList, $blocks);
-                }
-                $this->appendListItem($pendingList, true, (int) $m[1], trim($m[2]));
+                $this->appendListItem($listStack, $blocks, true, (int) $m[2], strlen($m[1]), trim($m[3]));
                 continue;
             }
             if (trim($line) === '') {
                 $this->flushParagraph($paragraph, $blocks);
-                $this->flushList($pendingList, $blocks);
+                $this->flushListStack($listStack, $blocks);
                 continue;
             }
-            $this->flushList($pendingList, $blocks);
+            $this->flushListStack($listStack, $blocks);
             $paragraph[] = trim($line);
         }
         $this->flushParagraph($paragraph, $blocks);
-        $this->flushList($pendingList, $blocks);
+        $this->flushListStack($listStack, $blocks);
 
         return new AstNode('document', [], $blocks);
     }
@@ -70,16 +64,25 @@ final class MarkdownReader
     }
 
     /**
-     * @param array{ordered: bool, start: int|null, items: list<AstNode>}|null $pendingList
+     * @param list<array{indent:int, ordered: bool, start: int|null, items: list<AstNode>}> $listStack
+     * @param list<AstNode> $blocks
      */
-    private function appendListItem(?array &$pendingList, bool $ordered, ?int $number, string $text): void
+    private function appendListItem(array &$listStack, array &$blocks, bool $ordered, ?int $number, int $indent, string $text): void
     {
-        if ($pendingList !== null && $pendingList['ordered'] !== $ordered) {
-            throw new \LogicException('Cannot mix ordered and bullet list items in one pending list.');
+        while ($listStack !== [] && $indent < $listStack[array_key_last($listStack)]['indent']) {
+            $this->closeLastList($listStack, $blocks);
         }
 
-        if ($pendingList === null) {
-            $pendingList = [
+        if ($listStack !== []) {
+            $top = $listStack[array_key_last($listStack)];
+            if ($indent === $top['indent'] && $top['ordered'] !== $ordered) {
+                $this->closeLastList($listStack, $blocks);
+            }
+        }
+
+        if ($listStack === [] || $indent > $listStack[array_key_last($listStack)]['indent']) {
+            $listStack[] = [
+                'indent' => $indent,
                 'ordered' => $ordered,
                 'start' => $ordered ? $number : null,
                 'items' => [],
@@ -91,22 +94,50 @@ final class MarkdownReader
             $attrs['number'] = $number;
         }
 
-        $pendingList['items'][] = new AstNode('list_item', $attrs, $this->parseInlines($text));
+        $lastIndex = array_key_last($listStack);
+        $listStack[$lastIndex]['items'][] = new AstNode('list_item', $attrs, $this->parseInlines($text));
     }
 
     /**
-     * @param array{ordered: bool, start: int|null, items: list<AstNode>}|null $pendingList
+     * @param list<array{indent:int, ordered: bool, start: int|null, items: list<AstNode>}> $listStack
      * @param list<AstNode> $blocks
      */
-    private function flushList(?array &$pendingList, array &$blocks): void
+    private function flushListStack(array &$listStack, array &$blocks): void
     {
-        if ($pendingList === null) {
+        while ($listStack !== []) {
+            $this->closeLastList($listStack, $blocks);
+        }
+    }
+
+    /**
+     * @param list<array{indent:int, ordered: bool, start: int|null, items: list<AstNode>}> $listStack
+     * @param list<AstNode> $blocks
+     */
+    private function closeLastList(array &$listStack, array &$blocks): void
+    {
+        $list = array_pop($listStack);
+        if ($list === null) {
             return;
         }
 
-        $attrs = $pendingList['ordered'] ? ['start' => $pendingList['start'] ?? 1] : [];
-        $blocks[] = new AstNode($pendingList['ordered'] ? 'ordered_list' : 'bullet_list', $attrs, $pendingList['items']);
-        $pendingList = null;
+        $attrs = $list['ordered'] ? ['start' => $list['start'] ?? 1] : [];
+        $node = new AstNode($list['ordered'] ? 'ordered_list' : 'bullet_list', $attrs, $list['items']);
+        if ($listStack === []) {
+            $blocks[] = $node;
+            return;
+        }
+
+        $parentIndex = array_key_last($listStack);
+        $itemIndex = array_key_last($listStack[$parentIndex]['items']);
+        if ($itemIndex === null) {
+            $blocks[] = $node;
+            return;
+        }
+
+        $item = $listStack[$parentIndex]['items'][$itemIndex];
+        $children = $item->children;
+        $children[] = $node;
+        $listStack[$parentIndex]['items'][$itemIndex] = new AstNode($item->type, $item->attrs, $children);
     }
 
     /**

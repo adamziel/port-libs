@@ -35,6 +35,16 @@ return [
         $t->same(3, $list->attr('start'));
         $t->same('Convert Markdown', $list->children[1]->attr('text'));
     },
+    'maps upstream markdown nested list item shape' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");
+        $list = $document->children[0];
+        $nested = $list->children[2]->children[1];
+
+        $t->same('bullet_list', $list->type);
+        $t->same('c', $list->children[2]->children[0]->attr('text'));
+        $t->same('bullet_list', $nested->type);
+        $t->same('d', $nested->children[0]->children[0]->attr('text'));
+    },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -44,6 +54,12 @@ return [
         $t->contains('<ul><li>One</li><li>Two</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3"><li>First</li><li>Second</li></ol>', $blocks);
+    },
+    'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<ul><li>a</li><li>b</li><li>c<ul><li>d</li></ul></li></ul>', $blocks);
     },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');

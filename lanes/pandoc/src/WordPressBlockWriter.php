@@ -73,12 +73,46 @@ final class WordPressBlockWriter
             if ($item->type !== 'list_item') {
                 continue;
             }
-            $items[] = '<li>' . $this->renderInlines($item) . '</li>';
+            $items[] = $this->renderListItem($item);
         }
 
         return $comment
             . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
             . "\n" . '<!-- /wp:list -->';
+    }
+
+    private function renderListHtml(AstNode $node, bool $ordered): string
+    {
+        $tag = $ordered ? 'ol' : 'ul';
+        $start = (int) $node->attr('start', 1);
+        $tagAttrs = $ordered && $start > 1 ? ' start="' . $start . '"' : '';
+        $items = [];
+        foreach ($node->children as $item) {
+            if ($item->type === 'list_item') {
+                $items[] = $this->renderListItem($item);
+            }
+        }
+
+        return '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+    }
+
+    private function renderListItem(AstNode $item): string
+    {
+        $html = '';
+        foreach ($item->children as $child) {
+            if ($child->type === 'bullet_list') {
+                $html .= $this->renderListHtml($child, false);
+                continue;
+            }
+            if ($child->type === 'ordered_list') {
+                $html .= $this->renderListHtml($child, true);
+                continue;
+            }
+
+            $html .= $this->renderInlineNode($child);
+        }
+
+        return '<li>' . $html . '</li>';
     }
 
     private function renderInlines(AstNode $node): string
