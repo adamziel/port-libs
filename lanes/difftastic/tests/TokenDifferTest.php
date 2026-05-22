@@ -418,6 +418,49 @@ return [
         $t->contains('"zab":string', $encoded);
         $t->contains('"woo":string', $encoded);
     },
+    'json display renderer maps upstream string subwords as word spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-string-subwords-1.el');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-string-subwords-2.el');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff($before, $after, 'sample_files/string_subwords_1.el', 'Emacs Lisp', ['language' => 'elisp']), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs SoloWiki:string', $encoded);
+        $t->contains('lhs Viewing:string', $encoded);
+        $t->contains('rhs site:normal', $encoded);
+        $t->true(!str_contains($encoded, 'lhs "SoloWiki Viewing: %s":string'), 'Changed string atoms should be split into word-level spans when they share enough words.');
+    },
+    'json display renderer maps upstream comment replacements as word spans' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-comments-1.rs');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-comments-2.rs');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff($before, $after, 'sample_files/comments_1.rs', 'Rust', ['language' => 'rust']), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs Changing:comment', $encoded);
+        $t->contains('rhs here:comment', $encoded);
+        $t->contains('rhs x:comment', $encoded);
+        $t->contains('rhs y:comment', $encoded);
+        $t->true(!str_contains($encoded, 'rhs // Changing a single word here.:comment'), 'Changed comment atoms should be split into word-level spans when they share enough words.');
+    },
     'wordpress block json display emits machine readable review chunks' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
@@ -447,5 +490,31 @@ return [
         $t->contains('"viewScriptModule"', $joined);
         $t->contains('"full"', $joined);
         $t->contains('true', $joined);
+    },
+    'wordpress block copy display reports description string word changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-copy-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-copy-after.json');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/block.json',
+            'JSON',
+            ['language' => 'json'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs legacy:string', $encoded);
+        $t->contains('rhs modern:string', $encoded);
+        $t->true(!str_contains($encoded, 'Render a card with a legacy call to action'), 'WordPress block descriptions should not be reported as whole-string replacements.');
     },
 ];

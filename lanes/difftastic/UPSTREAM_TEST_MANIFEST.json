@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": "404 inspected upstream behavior artifacts: 144 Rust #[test]/#[test_case] attributes in src/ and tests/, 111 sample_files/compare.expected golden output pairs, 114 numbered sample fixture pairs, and 35 vendored parser corpus files",
-        "mapped": 34,
-        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures including contiguous, hyphen_subwords, trailing_commas, html_simple, xml, json, slider_at_end, slider, nested_slider Rust, and nested_slider Emacs Lisp pairs. See lanes/difftastic/notes/upstream-inventory.md.",
+        "mapped": 37,
+        "source": "Shallow sparse blob-filtered upstream clone in .upstream-cache/difftastic at 7ccfcb315f7e46fd015809416c7d7dffa5be7078; counted paths with git ls-tree and targeted git show reads for Cargo.toml, tests/cli.rs, src/words.rs, src/display/*, src/diff/*, src/parse/*, sample_files/compare.expected, and selected sample fixtures including contiguous, hyphen_subwords, trailing_commas, html_simple, xml, json, slider_at_end, slider, nested_slider Rust, nested_slider Emacs Lisp, string_subwords Emacs Lisp, and comments Rust pairs. See lanes/difftastic/notes/upstream-inventory.md.",
         "inventory": {
             "treeFiles": 786,
             "rustFiles": 68,
@@ -46,6 +46,8 @@
             "mappedNestedSliderRustSampleFixtureFiles": 2,
             "mappedNestedSliderElispSampleFixtureFiles": 2,
             "mappedChangeOuterElispSampleFixtureFiles": 2,
+            "mappedStringSubwordsSampleFixtureFiles": 2,
+            "mappedCommentsSampleFixtureFiles": 2,
             "vendoredParserFiles": 382,
             "parserCorpusFiles": 35,
             "parserExampleFiles": 5,
@@ -103,15 +105,18 @@
             "A targeted excerpt from upstream `sample_files/slider_*.rs` maps Rust block item splitting so an inserted method, inserted setup statements, and the `codec_data` field are reported without swallowing the retained `receive_packet` method or unchanged negotiation statements.",
             "Targeted `src/display/json.rs` semantics are mapped for lowercase file statuses, language/path/status envelope fields, optional aligned_lines/chunks fields, zero-based line numbers, and novel token spans with start/end/content/highlight data.",
             "The native JSON display renderer emits compact machine-readable file and directory JSON without shelling out to difftastic, including unchanged/created/deleted short-status files and changed text chunks.",
-            "The WordPress block.json display fixture emits review data for plugin metadata changes at `wp-content/plugins/acme-card/block.json`, including added `viewScriptModule`, alignment support, and boolean support changes."
+            "The WordPress block.json display fixture emits review data for plugin metadata changes at `wp-content/plugins/acme-card/block.json`, including added `viewScriptModule`, alignment support, and boolean support changes.",
+            "A copied upstream `sample_files/string_subwords_*.el` fixture maps `ReplacedString` word splitting from `src/parse/syntax.rs`, so JSON display emits word spans inside changed string atoms when enough words are shared.",
+            "A copied upstream `sample_files/comments_*.rs` fixture maps `ReplacedComment` word splitting from `src/parse/syntax.rs`, including inserted comment words and changed environment-variable subwords.",
+            "The WordPress block copy fixture emits machine-readable `legacy` to `modern` description string spans for block metadata review instead of a whole-description replacement."
         ],
-        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 34 focused lane tests against an inspected 404-artifact upstream behavior inventory."
+        "warning": "This is a cloned static inventory, not upstream runner parity. Native PHP progress maps 37 focused lane tests against an inspected 404-artifact upstream behavior inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, copied upstream contiguous/trailing-comma/HTML/XML/JSON/slider_at_end/change_outer/nested_slider Rust/nested_slider Emacs Lisp fixture mapping, a targeted upstream slider Rust excerpt with method and statement item splitting, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, nested slider wrapper correction with inner-delimiter and Lisp outer-delimiter preferences, changed outer delimiter reporting for stable child atoms, JSON object-key and list-item alignment, upstream-style word/subword diffing, HTML/XML-mode angle-delimiter tag lists, escaped HTML rendering for token, subword, and syntax-list changes, and compact JSON display output following upstream `src/display/json.rs` envelope/status/chunk semantics."
+        "currentSlice": "Native tokenizer/differ with comment classification, delimiter anchors, ignore-comments filtering, JavaScript-like trailing-comma normalization, copied upstream contiguous/trailing-comma/HTML/XML/JSON/slider_at_end/change_outer/nested_slider Rust/nested_slider Emacs Lisp/string_subwords Emacs Lisp/comments Rust fixture mapping, a targeted upstream slider Rust excerpt with method and statement item splitting, recursive bracketed-list diffs for nested PHP/JS/CSS-like structures, nested slider wrapper correction with inner-delimiter and Lisp outer-delimiter preferences, changed outer delimiter reporting for stable child atoms, JSON object-key and list-item alignment, upstream-style word/subword diffing, paired changed string/comment atom word splitting, HTML/XML-mode angle-delimiter tag lists, escaped HTML rendering for token, subword, and syntax-list changes, and compact JSON display output following upstream `src/display/json.rs` envelope/status/chunk semantics."
     },
-    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, block.json metadata, saved block markup, WXR/XML postmeta tags, theme variation cleanup, PHP array syntax modernization, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, keep retained block allow-list items stable when `array(...)` becomes `[...]`, emit escaped HTML for block-style, template-wrapper, theme.json, block.json, block-markup, WXR XML, theme-variation, and block allow-list review UIs, and emit machine-readable JSON display chunks for block.json review pipelines.",
-    "nextTask": "Map upstream string/comment replacement semantics such as `string_subwords_*.el` or `comments_*.rs` with word-level changed-atom highlighting."
+    "wordpressScenario": "Readable diffs for block render callbacks, block-style slugs, templates, theme.json, block.json metadata, saved block markup, WXR/XML postmeta tags, theme variation cleanup, PHP array syntax modernization, code snippets, and structured documents; current examples filter PHP comment churn while preserving an escaping API change, recurse into nested block registration arrays, report hyphenated slug/version changes at subword granularity, keep retained block allow-list items stable when `array(...)` becomes `[...]`, emit escaped HTML for block-style, template-wrapper, theme.json, block.json, block-markup, WXR XML, theme-variation, and block allow-list review UIs, emit machine-readable JSON display chunks for block.json review pipelines, and report `legacy`/`modern` copy changes inside block description strings as word spans.",
+    "nextTask": "Map multiline string/comment atom positions from upstream `strings_*.el` or doc-comment sections so word spans survive multiline atoms instead of line-pair fallback."
 }

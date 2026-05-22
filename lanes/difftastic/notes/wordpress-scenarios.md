@@ -28,6 +28,8 @@ The block.json fixture compares block metadata where the title changes, a `viewS
 
 The JSON display fixture emits compact machine-readable review data for that same `block.json` path. It mirrors upstream `src/display/json.rs` by returning the language, path, lowercase status, aligned line pairs, and chunks with per-side line numbers and highlighted novel token spans. This gives a WordPress code review or migration UI data it can render itself without trusting source text as HTML.
 
+The block-copy JSON display fixture compares a block description string where only `legacy` changes to `modern`. It applies upstream `ReplacedString` word splitting from `src/parse/syntax.rs`, so machine-readable review data reports the changed words inside the string rather than replacing the whole description.
+
 The theme-variation fixture applies the upstream `slider_at_end` JSON list-deletion shape to `theme.json`. Deprecated button variations are reported as focused deletions while retained variations stay out of the rendered change stream.
 
 The template-wrapper fixture applies upstream `nested_slider` wrapper correction to a WordPress block template helper call. When `coreParagraph('Hero introduction')` is wrapped in `coreGroup(...)`, the retained paragraph call stays out of the deletion stream and the diff reports the wrapper as a focused syntactic insertion.
@@ -45,6 +47,7 @@ php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
+php lanes/difftastic/examples/wordpress-block-copy-display.php
 php lanes/difftastic/examples/wordpress-theme-variation-json-diff.php
 php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
@@ -53,4 +56,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map upstream string/comment replacement semantics such as `string_subwords_*.el` or `comments_*.rs` with word-level changed-atom highlighting.
+Map multiline string/comment atom positions from upstream `strings_*.el` or doc-comment sections so word spans survive multiline atoms instead of line-pair fallback.

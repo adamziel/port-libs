@@ -201,11 +201,51 @@ final class JsonDiffRenderer
         $oldLine = $side === 'lhs' ? $line : $otherLine;
         $newLine = $side === 'rhs' ? $line : $otherLine;
         $targetOp = $side === 'lhs' ? '-' : '+';
+        $oppositeOp = $side === 'lhs' ? '+' : '-';
         $changes = [];
         $cursor = 0;
+        $pending = [];
 
         foreach ($this->differ->diff($oldLine, $newLine, $options) as $op) {
-            if ($op['op'] !== '=' && $op['op'] !== $targetOp) {
+            if ($op['op'] !== '=') {
+                $pending[] = $op;
+                continue;
+            }
+
+            $this->flushChangedTokenOps($pending, $line, $targetOp, $oppositeOp, $options, $cursor, $changes);
+
+            $position = $this->findFrom($line, $op['text'], $cursor);
+            if ($position === null) {
+                continue;
+            }
+
+            $cursor = $position + strlen($op['text']);
+        }
+
+        $this->flushChangedTokenOps($pending, $line, $targetOp, $oppositeOp, $options, $cursor, $changes);
+
+        return $changes;
+    }
+
+    /**
+     * @param list<array{op:string, text:string}> $pending
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{start:int, end:int, content:string, highlight:string}> $changes
+     */
+    private function flushChangedTokenOps(array &$pending, string $line, string $targetOp, string $oppositeOp, array $options, int &$cursor, array &$changes): void
+    {
+        if ($pending === []) {
+            return;
+        }
+
+        $oppositeOps = array_values(array_filter(
+            $pending,
+            static fn (array $op): bool => $op['op'] === $oppositeOp,
+        ));
+        $usedOppositeIndexes = [];
+
+        foreach ($pending as $op) {
+            if ($op['op'] !== $targetOp) {
                 continue;
             }
 
@@ -215,18 +255,127 @@ final class JsonDiffRenderer
             }
 
             $end = $position + strlen($op['text']);
-            if ($op['op'] === $targetOp) {
+            $highlight = $this->highlightFor($op['text'], $options);
+            $oppositeText = $this->matchingSplittableOpposite($op['text'], $oppositeOps, $usedOppositeIndexes, $options);
+            if ($oppositeText !== null) {
+                $wordChanges = $this->splitAtomWordChanges($line, $op['text'], $oppositeText, $position, $highlight);
+                if ($wordChanges !== null) {
+                    foreach ($wordChanges as $wordChange) {
+                        $changes[] = $wordChange;
+                    }
+                    $cursor = $end;
+                    continue;
+                }
+            }
+
+            $changes[] = [
+                'start' => $position,
+                'end' => $end,
+                'content' => $op['text'],
+                'highlight' => $highlight,
+            ];
+            $cursor = $end;
+        }
+
+        $pending = [];
+    }
+
+    /**
+     * @param list<array{op:string, text:string}> $oppositeOps
+     * @param array<int, bool> $usedOppositeIndexes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     */
+    private function matchingSplittableOpposite(string $targetText, array $oppositeOps, array &$usedOppositeIndexes, array $options): ?string
+    {
+        $targetHighlight = $this->highlightFor($targetText, $options);
+        if (!in_array($targetHighlight, ['comment', 'string'], true)) {
+            return null;
+        }
+
+        foreach ($oppositeOps as $index => $oppositeOp) {
+            if (($usedOppositeIndexes[$index] ?? false) === true) {
+                continue;
+            }
+
+            if ($this->highlightFor($oppositeOp['text'], $options) !== $targetHighlight) {
+                continue;
+            }
+
+            $wordOps = $this->differ->diffWords($targetText, $oppositeOp['text'], ['splitNumbers' => true]);
+            if (!$this->atomWordDiffHasCommonWords($wordOps)) {
+                continue;
+            }
+
+            $usedOppositeIndexes[$index] = true;
+
+            return $oppositeOp['text'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return ?list<array{start:int, end:int, content:string, highlight:string}>
+     */
+    private function splitAtomWordChanges(string $line, string $targetText, string $oppositeText, int $start, string $highlight): ?array
+    {
+        $wordOps = $this->differ->diffWords($targetText, $oppositeText, ['splitNumbers' => true]);
+        if (!$this->atomWordDiffHasCommonWords($wordOps)) {
+            return null;
+        }
+
+        $changes = [];
+        $cursor = $start;
+        foreach ($wordOps as $op) {
+            if ($op['op'] === '+') {
+                continue;
+            }
+
+            $position = $this->findFrom($line, $op['text'], $cursor);
+            if ($position === null) {
+                continue;
+            }
+
+            $end = $position + strlen($op['text']);
+            if ($op['op'] === '=' || !$this->isAllWhitespace($op['text'])) {
                 $changes[] = [
                     'start' => $position,
                     'end' => $end,
                     'content' => $op['text'],
-                    'highlight' => $this->highlightFor($op['text'], $options),
+                    'highlight' => $highlight,
                 ];
             }
             $cursor = $end;
         }
 
-        return $changes;
+        return $changes === [] ? null : $changes;
+    }
+
+    /**
+     * @param list<array{op:string, text:string}> $wordOps
+     */
+    private function atomWordDiffHasCommonWords(array $wordOps): bool
+    {
+        $novelCount = 0;
+        $unchangedCount = 0;
+
+        foreach ($wordOps as $op) {
+            if ($op['op'] === '=') {
+                if ($op['text'] !== ' ') {
+                    $unchangedCount++;
+                }
+                continue;
+            }
+
+            $novelCount++;
+        }
+
+        return $unchangedCount > 2 && $unchangedCount * 2 >= $novelCount;
+    }
+
+    private function isAllWhitespace(string $text): bool
+    {
+        return preg_match('/^\s*$/u', $text) === 1;
     }
 
     /**
