@@ -767,6 +767,44 @@ return [
         $t->same(false, str_contains($article->title, 'Theme Fallback Title'));
         $t->same(false, str_contains((string) $article->byline, 'Wrong Theme Author'));
     },
+    'maps Mozilla title-en-dash fixture title separator cleanup' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/title-en-dash';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(false, str_contains($article->title, 'My website'), 'site suffix should not be retained in the article title');
+    },
+    'removes source site suffixes from WordPress import titles' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Reusable Pattern Migration Planning Guide – Legacy Agency Site</title></head><body><article>'
+            . '<h1>Reusable Pattern Migration Planning Guide</h1>'
+            . '<p>' . str_repeat('Imported posts should not carry the source site name in the WordPress post title. ', 3) . '</p>'
+            . '<h2>Block Review</h2>'
+            . '<p>' . str_repeat('The cleaned article body remains available for core paragraph and heading blocks. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Reusable Pattern Migration Planning Guide', $article->title);
+        $t->same(false, str_contains($article->title, 'Legacy Agency Site'));
+        $t->same(false, str_contains($article->text, 'Reusable Pattern Migration Planning Guide'), 'duplicate title heading should be removed from block content');
+        $t->contains('<h2>Block Review</h2>', $article->contentHtml);
+        $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
+        $t->contains('Imported posts should not carry the source site name', $blocks);
+    },
     'maps Mozilla mozilla-2 fixture metadata and retained content markers' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/mozilla-2';
         $source = (string) file_get_contents($fixture . '/source.html');

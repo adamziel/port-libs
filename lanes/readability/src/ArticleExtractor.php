@@ -288,11 +288,120 @@ final class ArticleExtractor
             $node = $xpath->query($query)?->item(0);
             $value = trim($node?->nodeValue ?? '');
             if ($value !== '') {
-                return $value;
+                return $query === '//title' ? $this->cleanArticleTitle($value, $xpath) : $value;
             }
         }
 
         return '';
+    }
+
+    private function cleanArticleTitle(string $title, \DOMXPath $xpath): string
+    {
+        $originalTitle = trim($title);
+        if ($originalTitle === '') {
+            return '';
+        }
+
+        $currentTitle = $originalTitle;
+        $titleHadHierarchicalSeparators = false;
+        $separatorMatches = $this->titleSeparatorMatches($originalTitle);
+
+        if ($separatorMatches !== []) {
+            $lastSeparator = $separatorMatches[count($separatorMatches) - 1];
+            $currentTitle = substr($originalTitle, 0, $lastSeparator['offset']);
+            $titleHadHierarchicalSeparators = $this->hasHierarchicalTitleSeparator($separatorMatches);
+
+            if ($this->titleWordCount($currentTitle) < 3) {
+                $firstSeparator = $separatorMatches[0];
+                $currentTitle = substr($originalTitle, $firstSeparator['offset'] + $firstSeparator['length']);
+            }
+        } elseif (str_contains($currentTitle, ': ')) {
+            $trimmedTitle = trim($currentTitle);
+            $matchesHeading = false;
+            foreach ($xpath->query('//h1|//h2') ?: [] as $heading) {
+                if ($heading instanceof \DOMElement && trim($heading->textContent) === $trimmedTitle) {
+                    $matchesHeading = true;
+                    break;
+                }
+            }
+
+            if (!$matchesHeading) {
+                $lastColon = strrpos($originalTitle, ':');
+                $firstColon = strpos($originalTitle, ':');
+                $currentTitle = $lastColon === false ? $originalTitle : substr($originalTitle, $lastColon + 1);
+
+                if ($this->titleWordCount($currentTitle) < 3 && $firstColon !== false) {
+                    $currentTitle = substr($originalTitle, $firstColon + 1);
+                } elseif ($firstColon !== false && $this->titleWordCount(substr($originalTitle, 0, $firstColon)) > 5) {
+                    $currentTitle = $originalTitle;
+                }
+            }
+        } elseif (mb_strlen($currentTitle) > 150 || mb_strlen($currentTitle) < 15) {
+            $h1Nodes = $xpath->query('//h1');
+            if (($h1Nodes?->length ?? 0) === 1) {
+                $h1 = $h1Nodes?->item(0);
+                if ($h1 instanceof \DOMElement) {
+                    $currentTitle = $h1->textContent;
+                }
+            }
+        }
+
+        $currentTitle = $this->normalizeWhitespace($currentTitle);
+        $currentTitleWordCount = $this->titleWordCount($currentTitle);
+        $titleWithoutSeparators = preg_replace('/\s[|\-–—\\\\\/>»]\s/u', '', $originalTitle) ?? $originalTitle;
+        if ($currentTitleWordCount <= 4
+            && (!$titleHadHierarchicalSeparators
+                || $currentTitleWordCount !== $this->titleWordCount($titleWithoutSeparators) - 1)) {
+            $currentTitle = $originalTitle;
+        }
+
+        return $this->normalizeWhitespace($currentTitle);
+    }
+
+    /**
+     * @return list<array{offset: int, length: int, separator: string}>
+     */
+    private function titleSeparatorMatches(string $title): array
+    {
+        if (preg_match_all('/\s([|\-–—\\\\\/>»])\s/u', $title, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return [];
+        }
+
+        $separators = [];
+        foreach ($matches[0] as $index => $match) {
+            $separator = $matches[1][$index][0] ?? '';
+            $separators[] = [
+                'offset' => $match[1],
+                'length' => strlen($match[0]),
+                'separator' => $separator,
+            ];
+        }
+
+        return $separators;
+    }
+
+    /**
+     * @param list<array{offset: int, length: int, separator: string}> $separatorMatches
+     */
+    private function hasHierarchicalTitleSeparator(array $separatorMatches): bool
+    {
+        foreach ($separatorMatches as $match) {
+            if (in_array($match['separator'], ['\\', '/', '>', '»'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function titleWordCount(string $title): int
+    {
+        $title = trim($title);
+        if ($title === '') {
+            return 0;
+        }
+
+        return count(preg_split('/\s+/u', $title) ?: []);
     }
 
     /**
