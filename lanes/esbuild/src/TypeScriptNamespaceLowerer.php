@@ -52,7 +52,10 @@ final class TypeScriptNamespaceLowerer
         $blockEnd = $this->findMatchingPunctuator($blockStart, '{', '}');
         $statements = $this->namespaceStatements($blockStart + 1, $blockEnd);
         $imports = [];
+        $exportedValues = [];
+        $exportedLocalBindings = [];
         $ordered = [];
+        $hasRuntimeNamespaceStatement = false;
 
         foreach ($statements as [$start, $end]) {
             $first = $this->tokens[$start] ?? null;
@@ -74,18 +77,46 @@ final class TypeScriptNamespaceLowerer
                 continue;
             }
 
+            if ($this->isExportedFunctionOrClassStatement($start)) {
+                $declaration = $this->parseExportedFunctionOrClassDeclaration($start, $end);
+                $exportedLocalBindings[$declaration['name']] = true;
+                $ordered[] = ['kind' => 'exported-local-declaration', 'declaration' => $declaration];
+                $hasRuntimeNamespaceStatement = true;
+                continue;
+            }
+
+            if ($this->isExportedVariableStatement($start)) {
+                $declarations = $this->parseExportedVariableDeclarations($start, $end);
+                foreach ($declarations as $declaration) {
+                    $exportedValues[$declaration['name']] = true;
+                }
+                $ordered[] = ['kind' => 'exported-vars', 'declarations' => $declarations];
+                $hasRuntimeNamespaceStatement = true;
+                continue;
+            }
+
             if ($this->isTypeOnlyNamespaceStatement($start)) {
                 continue;
             }
 
             $this->rejectNestedNamespaceImportEquals($start, $end);
             $ordered[] = ['kind' => 'body', 'start' => $start, 'end' => $end];
+            $hasRuntimeNamespaceStatement = true;
         }
 
-        $body = [];
-        foreach ($ordered as $item) {
+        $parameter = $this->namespaceParameterName($name->text, $imports, $exportedValues, $exportedLocalBindings);
+        $rendered = [];
+        foreach ($ordered as $index => $item) {
             if ($item['kind'] === 'body') {
-                $body[] = $this->printBodyStatement((int) $item['start'], (int) $item['end'], $name->text, $imports);
+                $statement = $this->printBodyStatement((int) $item['start'], (int) $item['end'], $parameter, $imports, $exportedValues);
+                $rendered[$index] = [
+                    'lines' => $statement['text'] === '' ? [] : [$statement['text']],
+                    'uses' => $statement['uses'],
+                ];
+            } elseif ($item['kind'] === 'exported-vars') {
+                $rendered[$index] = $this->printExportedVariableAssignments($item['declarations'], $parameter, $imports, $exportedValues);
+            } elseif ($item['kind'] === 'exported-local-declaration') {
+                $rendered[$index] = $this->printExportedLocalDeclaration($item['declaration'], $parameter, $imports, $exportedValues);
             }
         }
 
@@ -95,14 +126,14 @@ final class TypeScriptNamespaceLowerer
                 $used[$local] = true;
             }
         }
-        foreach ($body as $statement) {
+        foreach ($rendered as $statement) {
             foreach ($statement['uses'] as $local) {
                 $used[$local] = true;
             }
         }
 
         $lines = [];
-        foreach ($ordered as $item) {
+        foreach ($ordered as $index => $item) {
             if ($item['kind'] === 'import') {
                 $local = (string) $item['local'];
                 if (!isset($used[$local])) {
@@ -110,24 +141,23 @@ final class TypeScriptNamespaceLowerer
                 }
                 $import = $imports[$local];
                 $lines[] = $import['exported']
-                    ? $name->text . '.' . $local . ' = ' . $import['source'] . ';'
+                    ? $parameter . '.' . $local . ' = ' . $import['source'] . ';'
                     : 'const ' . $local . ' = ' . $import['source'] . ';';
                 continue;
             }
 
-            $statement = array_shift($body);
-            if ($statement !== null && $statement['text'] !== '') {
-                $lines[] = $statement['text'];
+            foreach ($rendered[$index]['lines'] ?? [] as $line) {
+                $lines[] = $line;
             }
         }
 
-        if ($lines === []) {
+        if ($lines === [] && !$hasRuntimeNamespaceStatement) {
             return ['', $blockEnd];
         }
 
         return [
             'var ' . $name->text . ";\n"
-            . '((' . $name->text . ") => {\n"
+            . '((' . $parameter . ") => {\n"
             . implode('', array_map(static fn (string $line): string => '  ' . $line . "\n", $lines))
             . '})(' . $name->text . ' || (' . $name->text . " = {}));\n",
             $blockEnd,
@@ -145,7 +175,8 @@ final class TypeScriptNamespaceLowerer
                 continue;
             }
 
-            $statementEnd = $this->findStatementEndOrLineBreak($i, $end);
+            $statementEnd = $this->declarationStatementEnd($i, $end)
+                ?? $this->findStatementEndOrLineBreak($i, $end);
             $effectiveEnd = $statementEnd;
             if (($this->tokens[$effectiveEnd] ?? null)?->text === ';') {
                 $effectiveEnd--;
@@ -158,6 +189,32 @@ final class TypeScriptNamespaceLowerer
         }
 
         return $statements;
+    }
+
+    private function declarationStatementEnd(int $start, int $limit): ?int
+    {
+        $cursor = $start;
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            $cursor++;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text === 'async'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'function'
+        ) {
+            $cursor++;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== 'function'
+            && ($this->tokens[$cursor] ?? null)?->text !== 'class'
+        ) {
+            return null;
+        }
+
+        for ($i = $cursor + 1; $i < $limit; $i++) {
+            if (($this->tokens[$i] ?? null)?->text === '{') {
+                return $this->findMatchingPunctuator($i, '{', '}');
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -187,6 +244,191 @@ final class TypeScriptNamespaceLowerer
             'local' => $local->text,
             'source' => $source,
             'exported' => $exported,
+        ];
+    }
+
+    private function isExportedVariableStatement(int $start): bool
+    {
+        return ($this->tokens[$start] ?? null)?->text === 'export'
+            && in_array(($this->tokens[$start + 1] ?? null)?->text, ['var', 'let', 'const'], true);
+    }
+
+    private function isExportedFunctionOrClassStatement(int $start): bool
+    {
+        $cursor = $start;
+        if (($this->tokens[$cursor] ?? null)?->text !== 'export') {
+            return false;
+        }
+        $cursor++;
+        if (($this->tokens[$cursor] ?? null)?->text === 'async'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'function'
+        ) {
+            return true;
+        }
+
+        return in_array(($this->tokens[$cursor] ?? null)?->text, ['function', 'class'], true);
+    }
+
+    /**
+     * @return array{name:string, declarationStart:int, declarationEnd:int}
+     */
+    private function parseExportedFunctionOrClassDeclaration(int $start, int $end): array
+    {
+        $declarationStart = $start + 1;
+        $keywordIndex = $declarationStart;
+        if (($this->tokens[$keywordIndex] ?? null)?->text === 'async'
+            && ($this->tokens[$keywordIndex + 1] ?? null)?->text === 'function'
+        ) {
+            $keywordIndex++;
+        }
+
+        $keyword = $this->tokens[$keywordIndex] ?? null;
+        if ($keyword === null || !in_array($keyword->text, ['function', 'class'], true)) {
+            throw new \InvalidArgumentException('Expected TypeScript namespace function or class export');
+        }
+
+        $nameIndex = $keywordIndex + 1;
+        if ($keyword->text === 'function' && ($this->tokens[$nameIndex] ?? null)?->text === '*') {
+            $nameIndex++;
+        }
+        $name = $this->tokens[$nameIndex] ?? null;
+        if ($name?->kind !== 'identifier') {
+            throw new \InvalidArgumentException('Expected identifier after TypeScript namespace function or class export');
+        }
+
+        return [
+            'name' => $name->text,
+            'declarationStart' => $declarationStart,
+            'declarationEnd' => $end,
+        ];
+    }
+
+    /**
+     * @return list<array{name:string, valueStart:?int, valueEnd:?int}>
+     */
+    private function parseExportedVariableDeclarations(int $start, int $end): array
+    {
+        $declarations = [];
+        $cursor = $start + 2;
+
+        while ($cursor <= $end) {
+            $name = $this->tokens[$cursor] ?? null;
+            if ($name?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier after namespace export variable declaration');
+            }
+
+            $cursor++;
+            $valueStart = null;
+            $valueEnd = null;
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                $valueStart = $cursor + 1;
+                if ($valueStart > $end) {
+                    throw new \InvalidArgumentException('Expected initializer after namespace export variable declaration');
+                }
+                $valueEnd = $this->variableInitializerEnd($valueStart, $end);
+                $cursor = $valueEnd + 1;
+            }
+
+            $declarations[] = [
+                'name' => $name->text,
+                'valueStart' => $valueStart,
+                'valueEnd' => $valueEnd,
+            ];
+
+            if ($cursor > $end) {
+                break;
+            }
+            if (($this->tokens[$cursor] ?? null)?->text !== ',') {
+                throw new \InvalidArgumentException('Expected "," after namespace export variable declaration');
+            }
+            $cursor++;
+        }
+
+        return $declarations;
+    }
+
+    private function variableInitializerEnd(int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i - 1;
+            }
+
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $end;
+    }
+
+    /**
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     */
+    private function namespaceParameterName(string $namespace, array $imports, array $exportedValues, array $exportedLocalBindings = []): string
+    {
+        return isset($imports[$namespace]) || isset($exportedValues[$namespace]) || isset($exportedLocalBindings[$namespace]) ? '_' . $namespace : $namespace;
+    }
+
+    /**
+     * @param list<array{name:string, valueStart:?int, valueEnd:?int}> $declarations
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     * @return array{lines:list<string>, uses:list<string>}
+     */
+    private function printExportedVariableAssignments(array $declarations, string $namespace, array $imports, array $exportedValues): array
+    {
+        $lines = [];
+        $uses = [];
+
+        foreach ($declarations as $declaration) {
+            if ($declaration['valueStart'] === null || $declaration['valueEnd'] === null) {
+                continue;
+            }
+
+            $value = $this->printTokenRange(
+                $declaration['valueStart'],
+                $declaration['valueEnd'],
+                $namespace,
+                $imports,
+                $exportedValues,
+                $uses
+            );
+            $lines[] = $namespace . '.' . $declaration['name'] . ' = ' . $value . ';';
+        }
+
+        return ['lines' => $lines, 'uses' => array_values(array_unique($uses))];
+    }
+
+    /**
+     * @param array{name:string, declarationStart:int, declarationEnd:int} $declaration
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     * @return array{lines:list<string>, uses:list<string>}
+     */
+    private function printExportedLocalDeclaration(array $declaration, string $namespace, array $imports, array $exportedValues): array
+    {
+        $uses = [];
+        $source = $this->printTokenRange(
+            $declaration['declarationStart'],
+            $declaration['declarationEnd'],
+            $namespace,
+            $imports,
+            $exportedValues,
+            $uses
+        );
+
+        return [
+            'lines' => [
+                $source,
+                $namespace . '.' . $declaration['name'] . ' = ' . $declaration['name'] . ';',
+            ],
+            'uses' => array_values(array_unique($uses)),
         ];
     }
 
@@ -229,10 +471,10 @@ final class TypeScriptNamespaceLowerer
      * @param array<string, array{local:string, source:string, exported:bool}> $imports
      * @return array{text:string, uses:list<string>}
      */
-    private function printBodyStatement(int $start, int $end, string $namespace, array $imports): array
+    private function printBodyStatement(int $start, int $end, string $namespace, array $imports, array $exportedValues): array
     {
         $uses = [];
-        $text = $this->printTokenRange($start, $end, $namespace, $imports, $uses);
+        $text = $this->printTokenRange($start, $end, $namespace, $imports, $exportedValues, $uses);
         if ($text !== '' && !str_ends_with($text, ';')) {
             $text .= ';';
         }
@@ -242,9 +484,10 @@ final class TypeScriptNamespaceLowerer
 
     /**
      * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
      * @param list<string> $uses
      */
-    private function printTokenRange(int $start, int $end, string $namespace, array $imports, array &$uses = []): string
+    private function printTokenRange(int $start, int $end, string $namespace, array $imports, array $exportedValues = [], array &$uses = []): string
     {
         $parts = [];
         $previous = null;
@@ -265,6 +508,12 @@ final class TypeScriptNamespaceLowerer
                 if ($imports[$token->text]['exported']) {
                     $text = $namespace . '.' . $token->text;
                 }
+            } elseif ($token->kind === 'identifier'
+                && isset($exportedValues[$token->text])
+                && ($this->tokens[$i - 1] ?? null)?->text !== '.'
+                && ($this->tokens[$i + 1] ?? null)?->text !== ':'
+            ) {
+                $text = $namespace . '.' . $token->text;
             }
 
             if ($previous !== null && $this->needsSpace($previous, $text)) {
@@ -279,6 +528,10 @@ final class TypeScriptNamespaceLowerer
 
     private function needsSpace(string $previous, string $current): bool
     {
+        $assignmentOperators = ['=', '+=', '-=', '*=', '/=', '%='];
+        if (in_array($previous, $assignmentOperators, true) || in_array($current, $assignmentOperators, true)) {
+            return true;
+        }
         if (in_array($current, [')', ']', '}', ',', ';', '.'], true)) {
             return false;
         }

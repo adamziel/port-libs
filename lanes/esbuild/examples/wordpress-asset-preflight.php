@@ -15,6 +15,8 @@ $commonJsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixt
 $typedCallbackTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-typed-callback.ts');
 $enumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-enum-config.ts');
 $constEnumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-const-enum-config.ts');
+$namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
+$namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
@@ -22,6 +24,8 @@ $commonJsLowered = (new TypeScriptModuleLowerer())->lower($commonJsTypeScriptSou
 $typedCallbackLowered = (new TypeScriptModuleLowerer())->lower($typedCallbackTypeScriptSource);
 $enumConfigLowered = (new TypeScriptModuleLowerer())->lower($enumConfigTypeScriptSource);
 $constEnumConfigLowered = (new TypeScriptModuleLowerer())->lower($constEnumConfigTypeScriptSource);
+$namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
+$namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $namespaceLowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
 namespace CardBlockRuntime {
   export import blocks = wp.blocks;
@@ -43,6 +47,8 @@ printf("WordPress TypeScript typed callback bytes: %d\n", strlen($typedCallbackL
 printf("WordPress TypeScript runtime enum config bytes: %d\n", strlen($enumConfigLowered));
 printf("WordPress TypeScript const enum config bytes: %d\n", strlen($constEnumConfigLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
+printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
+printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()
