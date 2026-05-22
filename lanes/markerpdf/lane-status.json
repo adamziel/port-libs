@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "markerPDF",
-    "estimatedProgress": 10,
-    "suiteProgress": "cloned static inventory: 27 inspected upstream benchmark/test/cleanup artifacts counted, 11 focused upstream source semantics plus 1 committed upstream-derived benchmark surrogate pair mapped, 0 external benchmark PDF/reference pairs mapped; upstream runner not executed",
-    "phpPass": 23,
+    "estimatedProgress": 11,
+    "suiteProgress": "cloned static inventory: 27 inspected upstream benchmark/test/cleanup artifacts counted, 14 focused upstream source semantics plus 2 committed upstream-derived benchmark surrogate pairs mapped, 0 external benchmark PDF/reference pairs mapped; upstream runner not executed",
+    "phpPass": 29,
     "phpFail": 0,
-    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output, wrapped-line dehyphenation before paragraph rendering, bullet/list cleanup before Gutenberg list output, CI-style text and table quality scoring against expected import content, and an upstream README-linked multicolcnn surrogate score fixture.",
-    "phase": "cloned inventory + upstream cleaner/scoring/table slices",
+    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows, including heading/paragraph block output, wrapped-line dehyphenation before paragraph rendering, bullet/list cleanup before Gutenberg list output, repeated header/footer cleanup before block rendering, CI-style text and table quality scoring against expected import content, and upstream README-linked multicolcnn and switch_trans surrogate score fixtures.",
+    "phase": "cloned inventory + upstream cleaner/scoring/table/header slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmark text/table scoring, a committed multicolcnn Marker-vs-Nougat surrogate score fixture from README-linked upstream examples, and upstream cleaner bullet/text normalization for WordPress list imports.",
-    "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required. Native text scoring, table scoring, cleaner slices, and one committed upstream-derived surrogate pair are mapped, but no external benchmark PDF/reference archive pair is mapped yet.",
-    "latestCommit": "1213c5c",
-    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate such as switch_transformers before broadening layout/OCR behavior."
+    "currentWork": "Native PDF text-line extraction, Marker markdown post-processing, upstream-style benchmark text/table scoring, committed multicolcnn and switch_trans Marker-vs-Nougat surrogate score fixtures from README-linked upstream examples, upstream bullet/text cleaners, and header/footer/common-title cleanup for WordPress imports.",
+    "blocker": "Full upstream benchmark runner not executed: benchmark PDFs/references are downloaded from Google Drive by CI and heavy Poetry dependencies/model downloads are required. Native text scoring, table scoring, cleaner slices, and two committed upstream-derived surrogate pairs are mapped, but no external benchmark PDF/reference archive pair is mapped yet.",
+    "latestCommit": "fe34b11",
+    "nextTask": "Acquire an actual external upstream benchmark PDF/reference pair from the benchmark_data archive or map another README-linked committed example surrogate such as thinkpython/thinkos before broadening layout/OCR behavior."
 }
