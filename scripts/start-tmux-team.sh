@@ -66,5 +66,9 @@ if ! tmux has-session -t port-auditor 2>/dev/null; then
   tmux new-session -d -s port-auditor "AGENT_BIN='$AGENT_BIN' '$ROOT/scripts/run-tmux-agent.sh' 'port-auditor' '$ROOT/.tmux-team/prompts/auditor.md' '$log'"
 fi
 
+if ! tmux has-session -t port-evaluator 2>/dev/null; then
+  tmux new-session -d -s port-evaluator "AGENT_BIN='$AGENT_BIN' INTERVAL_SECONDS='${EVALUATOR_INTERVAL_SECONDS:-1200}' '$ROOT/scripts/run-evaluator-loop.sh'"
+fi
+
 printf 'Started %d new implementation worker(s); max active workers: %s\n' "$started" "$MAX_WORKERS"
 tmux list-sessions | sed -n '/^port-/p'
