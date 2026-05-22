@@ -8,6 +8,7 @@ use PortLibs\Quadrable\Mt19937;
 use PortLibs\Quadrable\Proof;
 use PortLibs\Quadrable\SparseTree;
 use PortLibs\Quadrable\SyncCodec;
+use PortLibs\Quadrable\SyncFuzzer;
 use PortLibs\Quadrable\SyncRequest;
 use PortLibs\Quadrable\SyncSession;
 use PortLibs\Quadrable\TrackedNodeStore;
@@ -436,6 +437,25 @@ return [
             $t->same($remote->rootHash(), $reconstructed->rootHash(), 'reconstructed root mismatch on upstream-shaped trial ' . $trial);
             $t->same(quadrableSyncDiffSignature($finalDiffs), quadrableSyncDiffSignature($scanDiffs), 'scan diff mismatch on upstream-shaped trial ' . $trial);
             $t->same(quadrableSyncNodeIdSignature($finalDiffs), quadrableSyncNodeIdSignature($scanDiffs), 'scan diff node id mismatch on upstream-shaped trial ' . $trial);
+        }
+    },
+    'native sync fuzzer maps upstream trial dimensions and budgets' => static function (TestRunner $t): void {
+        $fuzzer = new SyncFuzzer(maxRoundTrips: 200);
+        $results = $fuzzer->run(4, 0);
+
+        $t->same(4, count($results));
+        $t->same(0, $results[0]['trial']);
+        $t->same(44, $results[0]['numElems']);
+        $t->same(39, $results[0]['numAlterations']);
+
+        foreach ($results as $result) {
+            $t->true($result['roundTrips'] > 0, 'sync fuzzer should need at least one request round trip');
+            $t->true($result['roundTrips'] < 200, 'sync fuzzer should converge before maxRoundTrips');
+            $t->true($result['requests'] >= $result['responses'], 'sync response count cannot exceed request count');
+            $t->same($result['diffCount'], $result['scanDiffCount']);
+            $t->true($result['shadowNodeId'] >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID, 'shadow root should be imported into memStore range');
+            $t->true($result['maxShadowNodeId'] >= $result['shadowNodeId'], 'max shadow node id should include the root');
+            $t->same(64, strlen($result['rootHash']));
         }
     },
 ];
