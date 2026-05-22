@@ -30,11 +30,23 @@ final class TransitionPrefixer
 
     public function prefixLegacySafari(string $css): string
     {
-        return $this->rewriteRuleList((new CssMinifier())->minify($css));
+        return $this->prefixForTargets($css, ['chrome' => 4, 'safari' => 14]);
     }
 
-    private function rewriteRuleList(string $css, bool $insideAdvancedColorSupports = false): string
+    /**
+     * @param array<string, int|float|string> $targets
+     */
+    public function prefixForTargets(string $css, array $targets): string
     {
+        return $this->rewriteRuleList((new CssMinifier())->minify($css), false, $this->targetOptions($targets));
+    }
+
+    /**
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool}|null $targetOptions
+     */
+    private function rewriteRuleList(string $css, bool $insideAdvancedColorSupports = false, ?array $targetOptions = null): string
+    {
+        $targetOptions ??= $this->targetOptions([]);
         $output = '';
         $cursor = 0;
         $length = strlen($css);
@@ -52,10 +64,11 @@ final class TransitionPrefixer
             if (str_starts_with($prelude, '@')) {
                 $output .= $prelude . '{' . $this->rewriteRuleList(
                     $body,
-                    $insideAdvancedColorSupports || $this->isAdvancedColorSupportsPrelude($prelude)
+                    $insideAdvancedColorSupports || $this->isAdvancedColorSupportsPrelude($prelude),
+                    $targetOptions
                 ) . '}';
             } else {
-                $output .= $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports);
+                $output .= $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports, $targetOptions);
             }
             $cursor = $close + 1;
         }
@@ -63,7 +76,10 @@ final class TransitionPrefixer
         return $output;
     }
 
-    private function rewriteStyleRule(string $selectors, string $body, bool $insideAdvancedColorSupports): string
+    /**
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool} $targetOptions
+     */
+    private function rewriteStyleRule(string $selectors, string $body, bool $insideAdvancedColorSupports, array $targetOptions): string
     {
         $entries = $this->parseDeclarations($body);
         if ($entries === null) {
@@ -92,10 +108,11 @@ final class TransitionPrefixer
         $supportRules = [];
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules);
+        $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -106,6 +123,42 @@ final class TransitionPrefixer
     {
         return preg_match('/^@supports\b/i', $prelude) === 1
             && preg_match('/:\s*(?:lab|lch|oklab|oklch|color)\(/i', $prelude) === 1;
+    }
+
+    /**
+     * @param array<string, int|float|string> $targets
+     * @return array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool}
+     */
+    private function targetOptions(array $targets): array
+    {
+        $normalized = [];
+        foreach ($targets as $browser => $version) {
+            $normalized[strtolower((string) $browser)] = $this->targetMajorVersion($version);
+        }
+
+        $chrome = $normalized['chrome'] ?? null;
+        $safari = $normalized['safari'] ?? null;
+        $needsWebkitBoxShadow = ($chrome !== null && $chrome <= 4.0)
+            || ($safari !== null && $safari < 5.1);
+        $supportsAdvancedColor = ($chrome !== null && $chrome >= 111.0)
+            || ($safari !== null && $safari >= 16.0);
+
+        return [
+            'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
+            'boxShadowDropLegacyPrefixes' => !$needsWebkitBoxShadow && (
+                ($chrome !== null && $chrome >= 95.0)
+                || ($safari !== null && $safari >= 16.0)
+            ),
+            'boxShadowSupportsAdvancedColor' => $supportsAdvancedColor,
+            'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
+        ];
+    }
+
+    private function targetMajorVersion(int|float|string $version): float
+    {
+        $numeric = (float) $version;
+
+        return $numeric >= 65536 ? (float) (((int) $numeric) >> 16) : $numeric;
     }
 
     /**
@@ -348,6 +401,89 @@ final class TransitionPrefixer
                 $supportEntries[] = $this->entryWithValue($entry, $labFallback);
                 $supportRules[] = $this->supportsLabRule($selectors, $supportEntries);
                 continue;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool} $targetOptions
+     */
+    private function rewriteBoxShadowPrefixEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $changed = false;
+        $rewritten = [];
+        $hasWebkitBoxShadow = false;
+
+        foreach ($entries as $entry) {
+            $hasWebkitBoxShadow = $hasWebkitBoxShadow || $entry['property'] === '-webkit-box-shadow';
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !$this->isBoxShadowProperty($entry['property'])) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($targetOptions['boxShadowDropLegacyPrefixes']
+                && $this->isLegacyBoxShadowProperty($entry['property'])
+                && $this->hasMatchingUnprefixedBoxShadow($entries, $entry['value'])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($this->isLegacyBoxShadowProperty($entry['property'])) {
+                $value = $this->expandLegacyAlphaHexColors($entry['value']);
+                $changed = $changed || $value !== $entry['value'];
+                $entry['value'] = $value;
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($targetOptions['boxShadowDropOverriddenFallbacks'] && !$this->containsCustomPropertyReference($entry['value'])) {
+                [$rewritten, $dropped] = $this->dropPreviousBoxShadowFallbacks($rewritten);
+                $changed = $changed || $dropped;
+            }
+
+            $fallback = $targetOptions['boxShadowSupportsAdvancedColor']
+                ? null
+                : $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback !== null) {
+                $hasPreviousFallback = $this->hasPreviousUnprefixedBoxShadow($rewritten);
+                $hasCustomPropertyReference = $this->containsCustomPropertyReference($entry['value']);
+
+                if (!$hasPreviousFallback) {
+                    if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
+                        $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($fallback));
+                    }
+                    $rewritten[] = $this->entryWithValue($entry, $fallback);
+                    $changed = true;
+                }
+
+                if ($hasCustomPropertyReference) {
+                    $labFallback = $this->advancedColorLabFallbackValue($entry['value'], true);
+                    if ($labFallback !== null) {
+                        $supportRules[] = $this->supportsLabRule($selectors, [$this->entryWithValue($entry, $labFallback)]);
+                    }
+                    continue;
+                }
+
+                $rewritten[] = $entry;
+                $changed = true;
+                continue;
+            }
+
+            if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
+                $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($entry['value']));
+                $changed = true;
             }
 
             $rewritten[] = $entry;
@@ -1144,6 +1280,104 @@ final class TransitionPrefixer
         $entry['value'] = $value;
 
         return $entry;
+    }
+
+    private function isBoxShadowProperty(string $property): bool
+    {
+        return in_array($property, ['box-shadow', '-webkit-box-shadow', '-moz-box-shadow'], true);
+    }
+
+    private function isLegacyBoxShadowProperty(string $property): bool
+    {
+        return in_array($property, ['-webkit-box-shadow', '-moz-box-shadow'], true);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasMatchingUnprefixedBoxShadow(array $entries, string $value): bool
+    {
+        foreach ($entries as $entry) {
+            if (!$entry['important'] && $entry['property'] === 'box-shadow' && $entry['value'] === $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasPreviousUnprefixedBoxShadow(array $entries): bool
+    {
+        foreach ($entries as $entry) {
+            if (!$entry['important'] && $entry['property'] === 'box-shadow') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     */
+    private function dropPreviousBoxShadowFallbacks(array $entries): array
+    {
+        $dropped = false;
+        $kept = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'box-shadow' && !$entry['important'] && !$this->containsCustomPropertyReference($entry['value'])) {
+                $dropped = true;
+                continue;
+            }
+
+            $kept[] = $entry;
+        }
+
+        return [$kept, $dropped];
+    }
+
+    private function expandLegacyAlphaHexColors(string $value): string
+    {
+        return preg_replace_callback(
+            '/#([0-9a-f]{4}|[0-9a-f]{8})(?![0-9a-f])/i',
+            function (array $matches): string {
+                $hex = strtolower($matches[1]);
+                if (strlen($hex) === 4) {
+                    [$red, $green, $blue, $alpha] = str_split($hex);
+                    $red .= $red;
+                    $green .= $green;
+                    $blue .= $blue;
+                    $alpha .= $alpha;
+                } else {
+                    $red = substr($hex, 0, 2);
+                    $green = substr($hex, 2, 2);
+                    $blue = substr($hex, 4, 2);
+                    $alpha = substr($hex, 6, 2);
+                }
+
+                return 'rgba('
+                    . hexdec($red)
+                    . ', '
+                    . hexdec($green)
+                    . ', '
+                    . hexdec($blue)
+                    . ', '
+                    . $this->formatAlphaHex((int) hexdec($alpha))
+                    . ')';
+            },
+            $value
+        ) ?? $value;
+    }
+
+    private function formatAlphaHex(int $alpha): string
+    {
+        $formatted = rtrim(rtrim(sprintf('%.3F', $alpha / 255), '0'), '.');
+
+        return str_starts_with($formatted, '0.') ? substr($formatted, 1) : $formatted;
     }
 
     /**

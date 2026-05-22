@@ -121,7 +121,7 @@ final class CssMinifier
         }
 
         return (ctype_alnum($previous) || $previous === '_' || $previous === '-' || $previous === '%')
-            && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.');
+            && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
     }
 
     private function minifyDeclarationValues(string $css): string

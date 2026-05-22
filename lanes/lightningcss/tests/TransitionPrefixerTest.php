@@ -232,6 +232,46 @@ CSS;
             $prefixer->prefixLegacySafari('.foo { filter: var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39)) }')
         );
     },
+    'transition prefixer maps upstream target-specific box-shadow prefixes and fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{box-shadow:12px 12px #b32323;box-shadow:12px 12px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{-webkit-box-shadow:12px 12px #b32323;box-shadow:12px 12px #b32323;box-shadow:12px 12px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39) }', ['chrome' => 4])
+        );
+        $t->same(
+            '.foo{-webkit-box-shadow:12px 12px #b32323,12px 12px #ff0;box-shadow:12px 12px #b32323,12px 12px #ff0;box-shadow:12px 12px lab(40% 56.6 39),12px 12px #ff0}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39), 12px 12px yellow }', ['chrome' => 4])
+        );
+        $t->same(
+            '.foo{-webkit-box-shadow:12px 12px rgba(0, 0, 0, .4);-moz-box-shadow:12px 12px rgba(0, 0, 0, .6)}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-shadow: 12px 12px #0006; -moz-box-shadow: 12px 12px #0009; }', ['chrome' => 4])
+        );
+        $t->same(
+            '.foo{box-shadow:12px 12px #0006}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-shadow: 12px 12px #0006; -moz-box-shadow: 12px 12px #0006; box-shadow: 12px 12px #0006; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{box-shadow:var(--foo) 12px #b32323}@supports (color:lab(0% 0 0)){.foo{box-shadow:var(--foo) 12px lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { box-shadow: var(--foo) 12px lab(40% 56.6 39) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{box-shadow:0 0 22px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 0px 0px 22px red; box-shadow: 0px 0px 22px lab(40% 56.6 39); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{box-shadow:var(--fallback);box-shadow:0 0 22px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: var(--fallback); box-shadow: 0px 0px 22px lab(40% 56.6 39); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{box-shadow:0 0 22px red;box-shadow:0 0 22px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 0px 0px 22px red; box-shadow: 0px 0px 22px lab(40% 56.6 39); }', ['safari' => 14])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -306,6 +346,18 @@ CSS;
         $t->same(
             '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-filter:var(--wp--custom--header-filter);filter:var(--wp--custom--header-filter)}',
             (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+    },
+    'wordpress query card shadows get target-specific WebKit and color fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-template .wp-block-post {
+  box-shadow: var(--wp--preset--shadow--card) 12px lab(40% 56.6 39);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-template .wp-block-post{-webkit-box-shadow:var(--wp--preset--shadow--card) 12px #b32323;box-shadow:var(--wp--preset--shadow--card) 12px #b32323}@supports (color:lab(0% 0 0)){.wp-block-post-template .wp-block-post{box-shadow:var(--wp--preset--shadow--card) 12px lab(40% 56.6 39)}}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 4])
         );
     },
     'wordpress cover frame mask-border longhands compose and prefix without node' => static function (TestRunner $t): void {
