@@ -70,6 +70,14 @@ interval, idle state does not, unchanged block lists are not retried, deregister
 cleanup emits a final forget and stops the interval, and DownloadProgress
 messages are converted to native BEP wire frames by a connection adapter after
 the local sent-state has already advanced.
+The inbound temporary-block slice now maps the adjacent upstream
+`model.DownloadProgress`, `blockAvailabilityFromTemporaryRLocked`, and
+`RequestGlobal` boundary: DownloadProgress messages from unknown or unshared
+folders are ignored, accepted updates emit RemoteDownloadProgress-style
+per-file block-count summaries, availability includes `fromTemporary`
+candidates from shared devices with matching advertised file versions, and a
+planned WordPress media block request sets `Request.fromTemporary` when the
+only source is a peer's temporary file.
 
 The example in `examples/wordpress-media-resume.php` shows how WordPress or
 Playground import tooling can resume a partially synchronized upload by trusting
@@ -117,10 +125,14 @@ progress for an import status surface.
 scheduler and wire connection adapter, showing an idle timer pass, an initial
 WordPress media temporary-block advertisement, and a later delta frame that
 contains only the newly available block.
+`examples/wordpress-inbound-temporary-request.php` applies a remote peer's
+temporary-block advertisement to a shared WordPress media folder, emits the
+same event summary the model would expose, and plans a native BEP Request frame
+with `fromTemporary` set for the advertised media block.
 
 ## Next Task
 
-Port the inbound temporary-block availability edge: model-level
-`DownloadProgress(conn, p)` folder/device sharing guards, RemoteDownloadProgress
-event summaries, and request planning that chooses `fromTemporary` candidates
-when a WordPress media block is only available from a peer's temporary file.
+Port inbound `Request.fromTemporary` serving semantics: try the advertised
+temporary file first, validate the requested block hash, fall back to the final
+file when the temp data is unavailable or invalid, and surface WordPress media
+restore errors without shelling out.
