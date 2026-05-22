@@ -120,6 +120,11 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   omitted section tags, row headers, colspan, rowspan, and empty tables. This
   run used it as bounded reader context without claiming full HTML reader
   parity.
+- `test/html-reader.native` table section inspected in this run: 1,393 native
+  AST lines covering 18 `Table` nodes from the upstream HTML reader fixture.
+  The inspected HTML slice contains 19 `<table` starts, 47 `<th` cells, 10
+  `<thead` starts, 17 `<tbody` starts, 5 `<tfoot` starts, and one native
+  `RowHeadColumns 1` body shape.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -253,6 +258,13 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `<sup>`/`<sub>` inline content maps to script nodes. Simple non-structured
   raw HTML tables still use the raw HTML path so legacy import-review markup
   is not over-normalized.
+- Three bounded HTML-reader table cases from `test/html-reader.html` and
+  `test/html-reader.native` are now represented: a first all-`th` row without
+  explicit `<thead>`/`<tbody>` tags is inferred as `table_head`, bodies whose
+  rows begin with `<th>` cells record `rowHeadColumns=1`, and omitted
+  `</thead>`, `</tbody>`, and `</tfoot>` end tags are normalized into distinct
+  head/body/foot AST sections. The WordPress writer now emits body row-header
+  cells as `<th>` instead of flattening them to `<td>`.
 - Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
   of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
   single and double quotes become `quoted` AST nodes, apostrophes inside words
@@ -353,6 +365,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-98 tests, 697 assertions, and 0 failures. The required repo-wide
+101 tests, 721 assertions, and 0 failures. The required repo-wide
 `php tools/run-tests.php` command also passed after this slice with 123 test
-files, 9,537 assertions, and 0 failures in the current shared worktree.
+files, 10,716 assertions, and 0 failures in the current shared worktree.

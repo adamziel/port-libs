@@ -315,6 +315,58 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-shadow: var(--foo) 12px lab(40% 56.6 39); } }', ['chrome' => 4])
         );
     },
+    'transition prefixer maps upstream text decoration prefixes and color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-text-decoration-line:underline;-moz-text-decoration-line:underline;text-decoration-line:underline}',
+            $prefixer->prefixForTargets('.foo { text-decoration-line: underline; }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-style:dotted;-moz-text-decoration-style:dotted;text-decoration-style:dotted}',
+            $prefixer->prefixForTargets('.foo { text-decoration-style: dotted; }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-color:#ff0;-moz-text-decoration-color:#ff0;text-decoration-color:#ff0}',
+            $prefixer->prefixForTargets('.foo { text-decoration-color: yellow; }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{text-decoration:underline}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline; }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline double;text-decoration:underline double}',
+            $prefixer->prefixForTargets('.foo { text-decoration: double underline; }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline double;text-decoration:underline double}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline; text-decoration-style: double; }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline red;text-decoration:underline red}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline; text-decoration-color: red; }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:var(--test);text-decoration:var(--test)}',
+            $prefixer->prefixForTargets('.foo { text-decoration: var(--test); }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline #ee00be;text-decoration:underline #ee00be;-webkit-text-decoration:underline lch(50.998% 135.363 338);text-decoration:underline lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { text-decoration: lch(50.998% 135.363 338) underline; }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-color:#ee00be;-moz-text-decoration-color:#ee00be;text-decoration-color:#ee00be;-webkit-text-decoration-color:lch(50.998% 135.363 338);-moz-text-decoration-color:lch(50.998% 135.363 338);text-decoration-color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { text-decoration-color: lch(50.998% 135.363 338); }', ['safari' => 8, 'firefox' => 30])
+        );
+        $t->same(
+            '.foo{text-decoration:#ee00be var(--style)}@supports (color:lab(0% 0 0)){.foo{text-decoration:lab(50.998% 125.506 -50.7078) var(--style)}}',
+            $prefixer->prefixForTargets('.foo { text-decoration: lch(50.998% 135.363 338) var(--style); }', ['chrome' => 90])
+        );
+        $t->same(
+            '@supports(color:lab(0% 0 0)){.foo{text-decoration:lab(50.998% 125.506 -50.7078) var(--style)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-decoration: lab(50.998% 125.506 -50.7078) var(--style); } }', ['chrome' => 90])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
@@ -413,6 +465,30 @@ CSS;
         $t->same(
             '.wp-block-post-title.has-text-shadow{text-shadow:var(--wp--preset--shadow--headline) 12px #b32323}@supports (color:lab(0% 0 0)){.wp-block-post-title.has-text-shadow{text-shadow:var(--wp--preset--shadow--headline) 12px lab(40% 56.6 39)}}',
             (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 4])
+        );
+    },
+    'wordpress link underline decoration gets legacy prefixes and lab fallbacks without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-content a.has-brand-underline {
+  text-decoration: lch(50.998% 135.363 338) var(--wp--custom--underline-style);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-content a.has-brand-underline{text-decoration:#ee00be var(--wp--custom--underline-style)}@supports (color:lab(0% 0 0)){.wp-block-post-content a.has-brand-underline{text-decoration:lab(50.998% 125.506 -50.7078) var(--wp--custom--underline-style)}}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 90])
+        );
+
+        $css = <<<'CSS'
+.wp-block-post-content a.has-brand-underline {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-content a.has-brand-underline{-webkit-text-decoration:underline dotted;text-decoration:underline dotted}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['safari' => 16])
         );
     },
     'wordpress cover frame mask-border longhands compose and prefix without node' => static function (TestRunner $t): void {

@@ -324,13 +324,13 @@ final class WordPressBlockWriter
 
     private function renderTableRow(AstNode $row, AstNode $table, bool $header): string
     {
-        $tag = $header ? 'th' : 'td';
         $html = '<tr>';
         foreach ($row->children as $index => $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
             }
             $attrs = $this->renderTableCellAttrs($table, $index, $cell);
+            $tag = $header || $cell->attr('header') === true ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
         }
 

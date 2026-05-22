@@ -970,6 +970,17 @@ final class MarkdownReader
             }
         }
 
+        return $this->htmlTableHasHeaderCells($table);
+    }
+
+    private function htmlTableHasHeaderCells(\DOMElement $table): bool
+    {
+        foreach ($table->getElementsByTagName('th') as $cell) {
+            if ($cell instanceof \DOMElement) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -989,6 +1000,12 @@ final class MarkdownReader
             }
         } else {
             $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns);
+            if ($headRows === [] && $this->firstHtmlTableRowIsHeader($bodyRows)) {
+                $headRow = array_shift($bodyRows);
+                if ($headRow instanceof AstNode) {
+                    $headRows[] = $this->markHtmlTableRowAsHeader($headRow);
+                }
+            }
         }
         $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
 
@@ -1010,13 +1027,77 @@ final class MarkdownReader
 
         $children = [
             new AstNode('table_head', [], $headRows),
-            new AstNode('table_body', [], $bodyRows),
+            new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows), $bodyRows),
         ];
         if ($footRows !== []) {
             $children[] = new AstNode('table_foot', [], $footRows);
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private function firstHtmlTableRowIsHeader(array $rows): bool
+    {
+        $first = $rows[0] ?? null;
+        if (!$first instanceof AstNode || $first->children === []) {
+            return false;
+        }
+
+        foreach ($first->children as $cell) {
+            if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function markHtmlTableRowAsHeader(AstNode $row): AstNode
+    {
+        return new AstNode(
+            $row->type,
+            array_merge($row->attrs, ['header' => true]),
+            $row->children
+        );
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return array<string, int>
+     */
+    private function htmlTableBodyAttrs(array $rows): array
+    {
+        $rowHeadColumns = $this->countHtmlTableRowHeadColumns($rows);
+
+        return $rowHeadColumns > 0 ? ['rowHeadColumns' => $rowHeadColumns] : [];
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private function countHtmlTableRowHeadColumns(array $rows): int
+    {
+        if ($rows === []) {
+            return 0;
+        }
+
+        $minimum = null;
+        foreach ($rows as $row) {
+            $count = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
+                    break;
+                }
+                $count++;
+            }
+
+            $minimum = $minimum === null ? $count : min($minimum, $count);
+        }
+
+        return $minimum ?? 0;
     }
 
     /**

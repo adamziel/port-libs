@@ -42,7 +42,7 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool}|null $targetOptions
+     * @param array<string, bool>|null $targetOptions
      */
     private function rewriteRuleList(string $css, bool $insideAdvancedColorSupports = false, ?array $targetOptions = null): string
     {
@@ -77,7 +77,7 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
+     * @param array<string, bool> $targetOptions
      */
     private function rewriteStyleRule(string $selectors, string $body, bool $insideAdvancedColorSupports, array $targetOptions): string
     {
@@ -112,10 +112,13 @@ final class TransitionPrefixer
         $textShadowChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteTextShadowFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
+        $textDecorationChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteTextDecorationPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -130,7 +133,7 @@ final class TransitionPrefixer
 
     /**
      * @param array<string, int|float|string> $targets
-     * @return array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool}
+     * @return array<string, bool>
      */
     private function targetOptions(array $targets): array
     {
@@ -141,6 +144,7 @@ final class TransitionPrefixer
 
         $chrome = $normalized['chrome'] ?? null;
         $safari = $normalized['safari'] ?? null;
+        $firefox = $normalized['firefox'] ?? null;
         $needsWebkitBoxShadow = ($chrome !== null && $chrome <= 4.0)
             || ($safari !== null && $safari < 5.1);
         $supportsAdvancedColor = ($chrome !== null && $chrome >= 111.0)
@@ -160,6 +164,8 @@ final class TransitionPrefixer
             'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
+            'textDecorationNeedsWebkit' => ($safari !== null && $safari <= 16.0) || ($chrome !== null && $chrome <= 4.0),
+            'textDecorationNeedsMoz' => $firefox !== null && $firefox <= 36.0,
         ];
     }
 
@@ -572,6 +578,367 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteTextDecorationPrefixEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $changed = false;
+        [$entries, $composed] = $this->composeTextDecorationEntries($entries);
+        $changed = $changed || $composed;
+
+        $hasWebkit = [];
+        $hasMoz = [];
+        foreach ($entries as $entry) {
+            $base = $this->textDecorationBaseProperty($entry['property']);
+            if ($base === null) {
+                continue;
+            }
+            $hasWebkit[$base] = ($hasWebkit[$base] ?? false) || str_starts_with($entry['property'], '-webkit-');
+            $hasMoz[$base] = ($hasMoz[$base] ?? false) || str_starts_with($entry['property'], '-moz-');
+        }
+
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !$this->isTextDecorationProperty($entry['property'])) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $base = $this->textDecorationBaseProperty($entry['property']);
+            if ($base === null || str_starts_with($entry['property'], '-moz-')) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $entry['value'] = $base === 'text-decoration'
+                ? $this->normalizeTextDecorationValue($entry['value'])
+                : $this->normalizeTextDecorationLonghandValue($base, $entry['value']);
+
+            if (str_starts_with($entry['property'], '-webkit-')) {
+                $rewritten[] = $entry;
+                $changed = true;
+                continue;
+            }
+
+            $fallback = $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback !== null) {
+                $labFallback = $this->advancedColorLabFallbackValue($entry['value'], $this->containsCustomPropertyReference($entry['value']));
+                $fallbackValue = $base === 'text-decoration'
+                    ? $this->normalizeTextDecorationValue($fallback)
+                    : $fallback;
+
+                if ($this->containsCustomPropertyReference($entry['value'])) {
+                    $rewritten[] = $this->entryWithValue($entry, $fallbackValue);
+                    if ($labFallback !== null) {
+                        $supportValue = $base === 'text-decoration'
+                            ? $this->normalizeTextDecorationValue($labFallback)
+                            : $labFallback;
+                        $supportRules[] = $this->supportsLabRule($selectors, [$this->entryWithValue($entry, $supportValue)]);
+                    }
+                    $changed = true;
+                    continue;
+                }
+
+                $finalValue = $base === 'text-decoration'
+                    ? $this->normalizeTextDecorationValue($this->advancedColorLabTargetValue($entry['value']) ?? $entry['value'])
+                    : ($this->advancedColorLabTargetValue($entry['value']) ?? $entry['value']);
+                if ($targetOptions['textDecorationNeedsWebkit'] && !($hasWebkit[$base] ?? false)) {
+                    $rewritten[] = $this->declarationEntry('-webkit-' . $base, $fallbackValue);
+                }
+                if ($targetOptions['textDecorationNeedsMoz'] && $this->textDecorationPropertySupportsMozPrefix($base) && !($hasMoz[$base] ?? false)) {
+                    $rewritten[] = $this->declarationEntry('-moz-' . $base, $fallbackValue);
+                }
+                $rewritten[] = $this->entryWithValue($entry, $fallbackValue);
+                if ($targetOptions['textDecorationNeedsWebkit'] && !($hasWebkit[$base] ?? false)) {
+                    $rewritten[] = $this->declarationEntry('-webkit-' . $base, $finalValue);
+                }
+                if ($targetOptions['textDecorationNeedsMoz'] && $this->textDecorationPropertySupportsMozPrefix($base) && !($hasMoz[$base] ?? false)) {
+                    $rewritten[] = $this->declarationEntry('-moz-' . $base, $finalValue);
+                }
+                $rewritten[] = $this->entryWithValue($entry, $finalValue);
+                $changed = true;
+                continue;
+            }
+
+            $needsWebkit = $targetOptions['textDecorationNeedsWebkit']
+                && !($hasWebkit[$base] ?? false)
+                && $this->textDecorationPropertyNeedsWebkitPrefix($base, $entry['value']);
+            $needsMoz = $targetOptions['textDecorationNeedsMoz']
+                && !($hasMoz[$base] ?? false)
+                && $this->textDecorationPropertySupportsMozPrefix($base);
+            if ($needsWebkit) {
+                $rewritten[] = $this->declarationEntry('-webkit-' . $base, $entry['value']);
+                $changed = true;
+            }
+            if ($needsMoz) {
+                $rewritten[] = $this->declarationEntry('-moz-' . $base, $entry['value']);
+                $changed = true;
+            }
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     */
+    private function composeTextDecorationEntries(array $entries): array
+    {
+        $changed = false;
+        $rewritten = [];
+        $latestShorthand = null;
+
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                $rewritten[] = $entry;
+                $latestShorthand = null;
+                continue;
+            }
+
+            if ($entry['property'] === 'text-decoration') {
+                $entry['value'] = $this->normalizeTextDecorationValue($entry['value']);
+                $rewritten[] = $entry;
+                $latestShorthand = array_key_last($rewritten);
+                continue;
+            }
+
+            if (
+                $latestShorthand !== null
+                && in_array($entry['property'], ['text-decoration-style', 'text-decoration-color'], true)
+                && !$this->containsCustomPropertyReference($entry['value'])
+            ) {
+                $component = $entry['property'] === 'text-decoration-style' ? 'style' : 'color';
+                $value = $this->normalizeTextDecorationLonghandValue($entry['property'], $entry['value']);
+                if ($this->canComposeTextDecorationComponent($component, $value)) {
+                    $rewritten[$latestShorthand]['value'] = $this->composeTextDecorationComponent(
+                        $rewritten[$latestShorthand]['value'],
+                        $component,
+                        $value
+                    );
+                    $changed = true;
+                    continue;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        return [$rewritten, $changed];
+    }
+
+    private function composeTextDecorationComponent(string $value, string $component, string $componentValue): string
+    {
+        $parts = $this->parseTextDecorationValue($value);
+        $parts[$component] = $componentValue;
+
+        return $this->serializeTextDecorationParts($parts);
+    }
+
+    private function canComposeTextDecorationComponent(string $component, string $value): bool
+    {
+        return $component === 'color'
+            ? $this->isTextDecorationColorToken($value)
+            : $this->isTextDecorationStyleToken($value);
+    }
+
+    private function normalizeTextDecorationLonghandValue(string $property, string $value): string
+    {
+        $value = trim($value);
+
+        return match ($property) {
+            'text-decoration-line' => $this->serializeTextDecorationLineTokens($this->splitWhitespaceTopLevel($value)),
+            'text-decoration-style' => strtolower($value),
+            default => $value,
+        };
+    }
+
+    private function normalizeTextDecorationValue(string $value): string
+    {
+        return $this->serializeTextDecorationParts($this->parseTextDecorationValue($value));
+    }
+
+    /**
+     * @return array{lines:list<string>,style:?string,color:?string,thickness:?string,other:list<string>}
+     */
+    private function parseTextDecorationValue(string $value): array
+    {
+        $parts = [
+            'lines' => [],
+            'style' => null,
+            'color' => null,
+            'thickness' => null,
+            'other' => [],
+        ];
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($this->isTextDecorationLineToken($lower)) {
+                if ($lower === 'none') {
+                    $parts['lines'] = ['none'];
+                    continue;
+                }
+                if (!in_array($lower, $parts['lines'], true) && !in_array('none', $parts['lines'], true)) {
+                    $parts['lines'][] = $lower;
+                }
+                continue;
+            }
+
+            if ($this->isTextDecorationStyleToken($lower)) {
+                $parts['style'] = $lower;
+                continue;
+            }
+
+            if ($this->isTextDecorationThicknessToken($token)) {
+                $parts['thickness'] = strtolower($token);
+                continue;
+            }
+
+            if ($this->isTextDecorationColorToken($token)) {
+                $parts['color'] = $token;
+                continue;
+            }
+
+            $parts['other'][] = $token;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array{lines:list<string>,style:?string,color:?string,thickness:?string,other:list<string>} $parts
+     */
+    private function serializeTextDecorationParts(array $parts): string
+    {
+        $output = [];
+        array_push($output, ...$this->sortTextDecorationLines($parts['lines']));
+        if ($parts['thickness'] !== null) {
+            $output[] = $parts['thickness'];
+        }
+        if ($parts['style'] !== null && $parts['style'] !== 'solid') {
+            $output[] = $parts['style'];
+        } elseif ($parts['style'] === 'solid' && $output === []) {
+            $output[] = 'solid';
+        }
+        if ($parts['color'] !== null) {
+            $output[] = $parts['color'];
+        }
+        array_push($output, ...$parts['other']);
+
+        return implode(' ', $output);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function serializeTextDecorationLineTokens(array $tokens): string
+    {
+        return implode(' ', $this->sortTextDecorationLines(array_map('strtolower', $tokens)));
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function sortTextDecorationLines(array $lines): array
+    {
+        if (in_array('none', $lines, true)) {
+            return ['none'];
+        }
+
+        $order = ['underline', 'overline', 'line-through', 'blink', 'spelling-error', 'grammar-error'];
+        $rank = array_flip($order);
+        usort($lines, static fn (string $a, string $b): int => ($rank[$a] ?? 99) <=> ($rank[$b] ?? 99));
+
+        return $lines;
+    }
+
+    private function isTextDecorationProperty(string $property): bool
+    {
+        return $this->textDecorationBaseProperty($property) !== null;
+    }
+
+    private function textDecorationBaseProperty(string $property): ?string
+    {
+        $base = preg_replace('/^-(?:webkit|moz)-/', '', $property) ?? $property;
+
+        return in_array($base, ['text-decoration', 'text-decoration-line', 'text-decoration-style', 'text-decoration-color'], true)
+            ? $base
+            : null;
+    }
+
+    private function textDecorationPropertyNeedsWebkitPrefix(string $base, string $value): bool
+    {
+        if ($base !== 'text-decoration') {
+            return true;
+        }
+
+        return !$this->isTextDecorationLineOnly($value);
+    }
+
+    private function textDecorationPropertySupportsMozPrefix(string $base): bool
+    {
+        return in_array($base, ['text-decoration-line', 'text-decoration-style', 'text-decoration-color'], true);
+    }
+
+    private function isTextDecorationLineOnly(string $value): bool
+    {
+        $parts = $this->parseTextDecorationValue($value);
+
+        return $parts['lines'] !== []
+            && $parts['style'] === null
+            && $parts['color'] === null
+            && $parts['thickness'] === null
+            && $parts['other'] === [];
+    }
+
+    private function isTextDecorationLineToken(string $token): bool
+    {
+        return in_array($token, ['none', 'underline', 'overline', 'line-through', 'blink', 'spelling-error', 'grammar-error'], true);
+    }
+
+    private function isTextDecorationStyleToken(string $token): bool
+    {
+        return in_array(strtolower($token), ['solid', 'double', 'dotted', 'dashed', 'wavy'], true);
+    }
+
+    private function isTextDecorationThicknessToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:px|em|rem|%)$/i', trim($token)) === 1
+            || in_array(strtolower(trim($token)), ['auto', 'from-font'], true);
+    }
+
+    private function isTextDecorationColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return in_array(strtolower($token), [
+            'black',
+            'blue',
+            'currentcolor',
+            'green',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
     }
 
     /**
@@ -1270,6 +1637,7 @@ final class TransitionPrefixer
             'lab(51% 70.4544 -115.586)' => '#7773ff',
             'color(display-p3 0 .5 1)' => '#4263eb',
             'color(display-p3 0 1 0)' => '#00f942',
+            'lch(50.998% 135.363 338)' => '#ee00be',
             default => null,
         };
     }

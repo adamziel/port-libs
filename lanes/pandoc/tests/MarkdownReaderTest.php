@@ -1189,12 +1189,124 @@ HTML;
         $t->same('Total', $foot->children[0]->children[0]->attr('text'));
         $t->same('27,376,022', $foot->children[0]->children[2]->attr('text'));
     },
+    'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('table_head', $head->type);
+        $t->same(1, count($head->children));
+        $t->same('X', $head->children[0]->children[0]->attr('text'));
+        $t->same('Z', $head->children[0]->children[2]->attr('text'));
+        $t->same('table_body', $body->type);
+        $t->same(2, count($body->children));
+        $t->same(false, (bool) $body->children[0]->children[0]->attr('header'));
+        $t->same('1', $body->children[0]->children[0]->attr('text'));
+        $t->same('6', $body->children[1]->children[2]->attr('text'));
+        $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody>', $blocks);
+    },
+    'maps upstream html reader row headers as table body row head columns' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <thead>
+    <tr>
+        <th>X</th>
+        <th>Y</th>
+        <th>Z</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <th>1</th>
+        <td>2</td>
+        <td>3</td>
+    </tr>
+    <tr>
+        <th>4</th>
+        <td>5</td>
+        <td>6</td>
+    </tr>
+    </tbody>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(1, $body->attr('rowHeadColumns'));
+        $t->same(true, $body->children[0]->children[0]->attr('header'));
+        $t->same(false, (bool) $body->children[0]->children[1]->attr('header'));
+        $t->same('1', $body->children[0]->children[0]->attr('text'));
+        $t->same('4', $body->children[1]->children[0]->attr('text'));
+        $t->contains('<tbody><tr><th>1</th><td>2</td><td>3</td></tr><tr><th>4</th><td>5</td><td>6</td></tr></tbody>', $blocks);
+    },
+    'maps upstream html reader omitted table section end tags' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+    <thead>
+        <tr>
+            <td>X</td>
+            <td>Y</td>
+            <td>Z</td>
+        </tr>
+    <tbody>
+        <tr>
+            <td>1</td>
+            <td>2</td>
+            <td>3</td>
+        </tr>
+    <tfoot>
+        <tr>
+            <td>4</td>
+            <td>5</td>
+            <td>6</td>
+        </tr>
+</table>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $foot = $table->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('X', $head->children[0]->children[0]->attr('text'));
+        $t->same('1', $body->children[0]->children[0]->attr('text'));
+        $t->same('4', $foot->children[0]->children[0]->attr('text'));
+        $t->contains('<thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot>', $blocks);
+    },
     'writes wordpress structured html table sections from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Structured HTML import table:</p>', $blocks);
         $t->contains('<figure class="wp-block-table"><table><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
+        $t->contains('<tbody><tr><th style="text-align:center">Denmark</th><td style="text-align:left">Copenhagen</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">States belonging to the <em>Nordics.</em></figcaption>', $blocks);
         $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:left"></td><td style="text-align:left">27,376,022</td><td style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
     },

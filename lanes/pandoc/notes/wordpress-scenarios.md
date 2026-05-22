@@ -64,6 +64,12 @@ native table AST when an HTML table exposes `caption`, `colgroup`, `thead`, or
 emphasis, explicit column widths, head/body/foot sections, row-header cells,
 soft line breaks, and superscript units while keeping plain non-structured raw
 tables on the existing reviewer-inspection HTML path.
+Bounded HTML-reader table cases from `test/html-reader.html` now cover inferred
+header rows and omitted section end tags: tables whose first row is all `<th>`
+cells become WordPress tables with a real `<thead>`, body rows that start with
+`<th>` cells keep `rowHeadColumns=1` in the AST and render those cells as
+`<th>`, and omitted `</thead>`, `</tbody>`, and `</tfoot>` tags are normalized
+into explicit WordPress table sections.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -221,8 +227,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   would trigger Pandoc's AsciiDoc depth warning.
 - Structured HTML import tables render as core WordPress table blocks with
   preserved `<thead>`, `<tbody>`, `<tfoot>`, `<colgroup>`, caption inline
-  markup, row-header cell treatment, and superscript units without invoking
-  Pandoc.
+  markup, row-header `<th>` cell treatment, inferred header rows, omitted
+  section-end normalization, and superscript units without invoking Pandoc.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.
@@ -269,6 +275,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map bounded HTML reader row-header and tag-omission cases from
-`test/html-reader.html` so omitted tbody/tfoot boundaries and row-header
-semantics are explicit before broader HTML reader work.
+Map bounded HTML reader colspan/rowspan and attribute-carrying table cases from
+`test/html-reader.html` and `test/html-reader.native` before broader HTML
+reader work.
