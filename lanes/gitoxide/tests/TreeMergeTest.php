@@ -355,6 +355,68 @@ return [
         $t->same("1\n2\n3\n4\n5\n6\n", $read($reverse->tree->entryNamed('sequence')?->oid ?? '')->body);
         $t->same([], $reverse->indexEntries());
     },
+    'maps upstream gix-merge tree-baseline simple single-content-conflict fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "hello\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+        $ours = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n6\n"),
+            $blobEntry('greeting', "hi\n"),
+            $blobEntry('whatever', "bar\n"),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('numbers', "0\n1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "yo\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $mergedGreeting = $read($result->tree->entryNamed('greeting')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(['greeting', 'numbers', 'whatever'], $names($result->tree));
+        $t->contains('<<<<<<< ours/greeting', $mergedGreeting->body);
+        $t->contains("hi\n", $mergedGreeting->body);
+        $t->contains("yo\n", $mergedGreeting->body);
+        $t->same("0\n1\n2\n3\n4\n5\n6\n", $read($result->tree->entryNamed('numbers')?->oid ?? '')->body);
+        $t->same("bar\n", $read($result->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'greeting', 'reason' => 'content-conflict', 'base' => 'greeting', 'ours' => 'greeting', 'theirs' => 'greeting'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'greeting', 'body' => "hello\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'greeting', 'body' => "hi\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'greeting', 'body' => "yo\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same(['greeting'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+
+        $diff3 = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $diff3Greeting = $read($diff3->tree->entryNamed('greeting')?->oid ?? '');
+
+        $t->same(false, $diff3->isClean());
+        $t->contains('||||||| base/greeting', $diff3Greeting->body);
+        $t->same("0\n1\n2\n3\n4\n5\n6\n", $read($diff3->tree->entryNamed('numbers')?->oid ?? '')->body);
+    },
     'recursive tree merge reports nested exact rename delete conflicts' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old.php', "<?php\nreturn 'base';\n")]))]);
