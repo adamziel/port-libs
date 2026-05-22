@@ -10,8 +10,7 @@ LOG_DIR="$ROOT/.tmux-team/logs"
 TMP_DIR="$ROOT/.tmux-team/tmp"
 mkdir -p "$LOG_DIR" "$TMP_DIR" audits
 
-# Dolt remains intentionally excluded until the user reauthorizes that lane.
-LANES=(gitoxide lightningcss markerpdf libsqlite readability pandoc quadrable syncthing difftastic rclone esbuild)
+LANES=(gitoxide lightningcss markerpdf libsqlite readability pandoc quadrable syncthing difftastic rclone dolt esbuild)
 
 descendants() {
   local root="$1"
@@ -106,6 +105,21 @@ ensure_integrator_session() {
   fi
 }
 
+ensure_prompt_session() {
+  local session="$1"
+  local prompt="$2"
+  if [[ ! -f "$prompt" ]]; then
+    return
+  fi
+  if ! tmux has-session -t "$session" 2>/dev/null; then
+    tmux new-session -d -s "$session" "cd '$ROOT' && exec bash"
+    printf '%s recreated %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session"
+  fi
+  if ! session_has_codex "$session"; then
+    start_worker "$session" "$prompt"
+  fi
+}
+
 ensure_evaluator_session() {
   if ! tmux has-session -t port-evaluator 2>/dev/null; then
     tmux new-session -d -s port-evaluator "AGENT_BIN='$AGENT_BIN' INTERVAL_SECONDS='${EVALUATOR_INTERVAL_SECONDS:-1200}' '$ROOT/scripts/run-evaluator-loop.sh'"
@@ -123,6 +137,7 @@ while true; do
   for lane in "${LANES[@]}"; do
     ensure_worker_session "$lane"
   done
+  ensure_prompt_session port-dolt-runner "$ROOT/.tmux-team/prompts/dolt-runner.md"
   ensure_auditor_session
   ensure_integrator_session
   ensure_evaluator_session

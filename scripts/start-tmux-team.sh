@@ -6,8 +6,7 @@ cd "$ROOT"
 
 MAX_WORKERS="${MAX_WORKERS:-3}"
 AGENT_BIN="${AGENT_BIN:-codex}"
-# Dolt is intentionally deferred by user direction until the other lanes reach baseline.
-LANES=(gitoxide lightningcss markerpdf libsqlite readability pandoc quadrable syncthing difftastic rclone esbuild)
+LANES=(gitoxide lightningcss markerpdf libsqlite readability pandoc quadrable syncthing difftastic rclone dolt esbuild)
 if [[ -n "${LANES_OVERRIDE:-}" ]]; then
   # Space-separated lane slugs, for example:
   # LANES_OVERRIDE="libsqlite readability pandoc" MAX_WORKERS=2 scripts/start-tmux-team.sh
