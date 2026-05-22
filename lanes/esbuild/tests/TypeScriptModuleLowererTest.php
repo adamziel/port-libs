@@ -71,6 +71,47 @@ var Foo = /* @__PURE__ */ ((Foo) => {
 })(Foo || {});
 JS . "\n", $lowerer->lower("enum Foo { A = 'x', B }"));
     },
+    'folds upstream enum member constants and split enum blocks' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["A"] = 1] = "A";
+  return Foo;
+})(Foo || {});
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["B"] = 2] = "B";
+  return Foo;
+})(Foo || {});
+JS . "\n", $lowerer->lower('enum Foo { A = 1 } enum Foo { B = 2 }'));
+
+        $t->same(<<<'JS'
+var Foo = /* @__PURE__ */ ((_Foo) => {
+  _Foo[_Foo["Foo"] = 1] = "Foo";
+  _Foo[_Foo["Bar"] = 1 /* Foo */] = "Bar";
+  return _Foo;
+})(Foo || {});
+JS . "\n", $lowerer->lower('enum Foo { Foo = 1, Bar = Foo }'));
+
+        $lowered = $lowerer->lower(<<<'TS'
+enum Foo {
+  'a' = 10.01,
+  'a b' = 100,
+  c = a + Foo.a + Foo['a b'],
+  d,
+  e = a + Foo.a + Foo['a b'] + Math.random(),
+  f,
+}
+enum Bar {
+  a = Foo.a
+}
+TS);
+
+        $t->contains('Foo[Foo["c"] = 120.02] = "c";', $lowered);
+        $t->contains('Foo[Foo["d"] = 121.02] = "d";', $lowered);
+        $t->contains('Foo[Foo["f"] = void 0] = "f";', $lowered);
+        $t->contains('Bar[Bar["a"] = 10.01 /* a */] = "a";', $lowered);
+    },
     'rejects malformed upstream typescript enum members' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -167,6 +208,18 @@ TS);
         $t->contains('viewMode:0 /* Card */', $lowered);
         $t->contains('layout:3 /* Grid */', $lowered);
         $t->contains('fallback:4 /* List */', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
+    },
+    'lowers wordpress enum alias config without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-enum-alias-config.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source);
+
+        $t->contains('DisplayMode[DisplayMode["Card"] = 0] = "Card";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Grid"] = 3] = "Grid";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Default"] = 0 /* Card */] = "Default";', $lowered);
+        $t->contains('DisplayMode[DisplayMode["Wide"] = 3 /* Grid */] = "Wide";', $lowered);
+        $t->contains('viewMode:0 /* Default */', $lowered);
+        $t->contains('supports:{layout:3 /* Wide */, fallback:0 /* Card */', $lowered);
         $t->contains('wp.blocks.registerBlockType(metadata.name, config);', $lowered);
     },
 ];

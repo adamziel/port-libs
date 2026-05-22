@@ -12,7 +12,7 @@ final class TypeScriptModuleLowerer
     private array $tokens = [];
     private string $source = '';
     /**
-     * @var array<string, array<string, array{value:string, comment:string}>>
+     * @var array<string, array<string, array{value:string, comment:string, numericValue:?float}>>
      */
     private array $enumConstants = [];
 
@@ -185,7 +185,7 @@ final class TypeScriptModuleLowerer
             throw new \InvalidArgumentException('TypeScript enum block must end inside its statement');
         }
 
-        $members = $this->parseEnumMembers($open + 1, $close, $name->text);
+        $members = $this->parseEnumMembers($open + 1, $close, $name->text, $this->enumConstants[$name->text] ?? [], $this->enumConstants);
         $parameter = $this->enumParameterName($name->text, $members);
         $lines = [
             ($exported ? 'export var ' : 'var ') . $name->text . ' = ' . ($this->enumMembersArePure($members) ? '/* @__PURE__ */ ' : '') . '((' . $parameter . ') => {',
@@ -207,7 +207,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @return array<string, array<string, array{value:string, comment:string}>>
+     * @return array<string, array<string, array{value:string, comment:string, numericValue:?float}>>
      */
     private function collectEnumConstants(): array
     {
@@ -227,14 +227,15 @@ final class TypeScriptModuleLowerer
 
             $open = $enumIndex + 2;
             $close = $this->findMatchingPunctuator($open, '{', '}');
-            foreach ($this->parseEnumMembers($open + 1, $close, $name->text) as $member) {
+            foreach ($this->parseEnumMembers($open + 1, $close, $name->text, $constants[$name->text] ?? [], $constants) as $member) {
                 if (!in_array($member['assignmentKind'], ['number', 'string'], true)) {
                     continue;
                 }
 
                 $constants[$name->text][$member['name']] = [
-                    'value' => $member['assignment'],
+                    'value' => $member['constantValue'],
                     'comment' => $this->enumInlineComment($member['name']),
+                    'numericValue' => $member['numericValue'],
                 ];
             }
             $i = $close;
@@ -244,11 +245,16 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @return list<array{name:string, assignment:string, assignmentKind:string}>
+     * @param array<string, array{value:string, comment:string, numericValue:?float}> $knownMembers
+     * @param array<string, array<string, array{value:string, comment:string, numericValue:?float}>> $knownEnums
+     * @return list<array{name:string, assignment:string, constantValue:string, assignmentKind:string, numericValue:?float}>
      */
-    private function parseEnumMembers(int $start, int $close, string $enumName): array
+    private function parseEnumMembers(int $start, int $close, string $enumName, array $knownMembers = [], array $knownEnums = []): array
     {
         $members = [];
+        $memberConstants = $knownMembers;
+        $enumConstants = $knownEnums;
+        $enumConstants[$enumName] = $memberConstants;
         $cursor = $start;
         $previousNumeric = -1.0;
 
@@ -267,6 +273,7 @@ final class TypeScriptModuleLowerer
             $memberName = $this->enumMemberName($nameToken);
             $cursor++;
             $assignmentKind = 'number';
+            $numericValue = null;
 
             if (($this->tokens[$cursor] ?? null)?->text === '=') {
                 $expressionStart = $cursor + 1;
@@ -275,22 +282,41 @@ final class TypeScriptModuleLowerer
                 }
 
                 $expressionEnd = $this->enumExpressionEnd($expressionStart, $close);
-                [$assignment, $assignmentKind, $numericValue] = $this->enumMemberAssignment($expressionStart, $expressionEnd, $enumName);
+                [$assignment, $assignmentKind, $numericValue] = $this->enumMemberAssignment(
+                    $expressionStart,
+                    $expressionEnd,
+                    $memberConstants,
+                    $enumConstants,
+                );
                 $previousNumeric = $numericValue;
                 $cursor = $expressionEnd + 1;
             } elseif ($previousNumeric !== null) {
                 $previousNumeric++;
                 $assignment = $this->formatEnumNumber($previousNumeric);
+                $numericValue = $previousNumeric;
             } else {
                 $assignment = 'void 0';
                 $assignmentKind = 'void';
             }
 
+            $constantValue = $assignmentKind === 'number' && $numericValue !== null
+                ? $this->formatEnumNumber($numericValue)
+                : $assignment;
             $members[] = [
                 'name' => $memberName,
                 'assignment' => $assignment,
+                'constantValue' => $constantValue,
                 'assignmentKind' => $assignmentKind,
+                'numericValue' => $numericValue,
             ];
+            if (in_array($assignmentKind, ['number', 'string'], true)) {
+                $memberConstants[$memberName] = [
+                    'value' => $constantValue,
+                    'comment' => $this->enumInlineComment($memberName),
+                    'numericValue' => $numericValue,
+                ];
+                $enumConstants[$enumName] = $memberConstants;
+            }
 
             $after = $this->tokens[$cursor] ?? null;
             if ($cursor < $close && $after?->text !== ',' && $after?->text !== ';') {
@@ -324,12 +350,25 @@ final class TypeScriptModuleLowerer
     }
 
     /**
+     * @param array<string, array{value:string, comment:string, numericValue:?float}> $memberConstants
+     * @param array<string, array<string, array{value:string, comment:string, numericValue:?float}>> $enumConstants
      * @return array{0:string, 1:string, 2:?float}
      */
-    private function enumMemberAssignment(int $start, int $end, string $enumName): array
+    private function enumMemberAssignment(int $start, int $end, array $memberConstants, array $enumConstants): array
     {
         if ($this->hasAdjacentEnumValueTokens($start, $end)) {
             throw new \InvalidArgumentException('Expected "," after TypeScript enum member');
+        }
+
+        $constant = $this->evaluateEnumConstantExpression($start, $end, $memberConstants, $enumConstants);
+        if ($constant !== null) {
+            [$value, $comment] = $constant;
+            $assignment = $this->formatEnumNumber($value);
+            if ($comment !== null) {
+                $assignment .= ' /* ' . $comment . ' */';
+            }
+
+            return [$assignment, 'number', $value];
         }
 
         if ($start === $end) {
@@ -360,6 +399,106 @@ final class TypeScriptModuleLowerer
         return [$this->printTokenRange($start, $end), 'unknown', null];
     }
 
+    /**
+     * @param array<string, array{value:string, comment:string, numericValue:?float}> $memberConstants
+     * @param array<string, array<string, array{value:string, comment:string, numericValue:?float}>> $enumConstants
+     * @return array{0:float, 1:?string}|null
+     */
+    private function evaluateEnumConstantExpression(int $start, int $end, array $memberConstants, array $enumConstants): ?array
+    {
+        $single = $this->enumConstantAt($start, $end, $memberConstants, $enumConstants);
+        if ($single !== null && $single['lastIndex'] === $end && $single['numericValue'] !== null) {
+            return [$single['numericValue'], $single['comment']];
+        }
+
+        $cursor = $start;
+        $value = 0.0;
+        $sign = 1.0;
+        $expectTerm = true;
+        $hasTerm = false;
+
+        while ($cursor <= $end) {
+            $token = $this->tokens[$cursor] ?? null;
+            if ($token === null) {
+                return null;
+            }
+
+            if ($expectTerm) {
+                if ($token->text === '+' || $token->text === '-') {
+                    $sign = $token->text === '-' ? -1.0 : 1.0;
+                    $cursor++;
+                    continue;
+                }
+
+                if ($token->kind === 'number') {
+                    $value += $sign * ($token->numberValue ?? (float) $token->text);
+                    $cursor++;
+                    $expectTerm = false;
+                    $hasTerm = true;
+                    continue;
+                }
+
+                $constant = $this->enumConstantAt($cursor, $end, $memberConstants, $enumConstants);
+                if ($constant !== null && $constant['numericValue'] !== null) {
+                    $value += $sign * $constant['numericValue'];
+                    $cursor = $constant['lastIndex'] + 1;
+                    $expectTerm = false;
+                    $hasTerm = true;
+                    continue;
+                }
+
+                return null;
+            }
+
+            if ($token->text !== '+' && $token->text !== '-') {
+                return null;
+            }
+            $sign = $token->text === '-' ? -1.0 : 1.0;
+            $cursor++;
+            $expectTerm = true;
+        }
+
+        return $hasTerm && !$expectTerm ? [$value, null] : null;
+    }
+
+    /**
+     * @param array<string, array{value:string, comment:string, numericValue:?float}> $memberConstants
+     * @param array<string, array<string, array{value:string, comment:string, numericValue:?float}>> $enumConstants
+     * @return array{value:string, comment:string, numericValue:?float, lastIndex:int}|null
+     */
+    private function enumConstantAt(int $index, int $end, array $memberConstants, array $enumConstants): ?array
+    {
+        $token = $this->tokens[$index] ?? null;
+        if ($token?->kind !== 'identifier') {
+            return null;
+        }
+
+        $member = null;
+        $lastIndex = null;
+        if ($index + 2 <= $end
+            && ($this->tokens[$index + 1] ?? null)?->text === '.'
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'identifier'
+        ) {
+            $member = $this->tokens[$index + 2]->text;
+            $lastIndex = $index + 2;
+        } elseif ($index + 3 <= $end
+            && ($this->tokens[$index + 1] ?? null)?->text === '['
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'string'
+            && ($this->tokens[$index + 3] ?? null)?->text === ']'
+        ) {
+            $member = $this->stringTokenValue($this->tokens[$index + 2]);
+            $lastIndex = $index + 3;
+        }
+
+        if ($member === null || $lastIndex === null || !isset($enumConstants[$token->text][$member])) {
+            return isset($memberConstants[$token->text])
+                ? $memberConstants[$token->text] + ['lastIndex' => $index]
+                : null;
+        }
+
+        return $enumConstants[$token->text][$member] + ['lastIndex' => $lastIndex];
+    }
+
     private function hasAdjacentEnumValueTokens(int $start, int $end): bool
     {
         for ($i = $start; $i < $end; $i++) {
@@ -380,7 +519,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @param list<array{name:string, assignment:string, assignmentKind:string}> $members
+     * @param list<array{name:string, assignment:string, constantValue:string, assignmentKind:string, numericValue:?float}> $members
      */
     private function enumParameterName(string $enumName, array $members): string
     {
@@ -394,7 +533,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @param list<array{name:string, assignment:string, assignmentKind:string}> $members
+     * @param list<array{name:string, assignment:string, constantValue:string, assignmentKind:string, numericValue:?float}> $members
      */
     private function enumMembersArePure(array $members): bool
     {

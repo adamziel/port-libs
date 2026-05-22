@@ -14,6 +14,7 @@ $typeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wor
 $commonJsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-commonjs-export.ts');
 $typedCallbackTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-typed-callback.ts');
 $enumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-enum-config.ts');
+$enumAliasConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-enum-alias-config.ts');
 $constEnumConfigTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-const-enum-config.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
@@ -26,6 +27,7 @@ $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
 $commonJsLowered = (new TypeScriptModuleLowerer())->lower($commonJsTypeScriptSource);
 $typedCallbackLowered = (new TypeScriptModuleLowerer())->lower($typedCallbackTypeScriptSource);
 $enumConfigLowered = (new TypeScriptModuleLowerer())->lower($enumConfigTypeScriptSource);
+$enumAliasConfigLowered = (new TypeScriptModuleLowerer())->lower($enumAliasConfigTypeScriptSource);
 $constEnumConfigLowered = (new TypeScriptModuleLowerer())->lower($constEnumConfigTypeScriptSource);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
@@ -51,6 +53,7 @@ printf("WordPress TypeScript namespace runtime exports: %d\n", count(
 printf("WordPress TypeScript CommonJS export bytes: %d\n", strlen($commonJsLowered));
 printf("WordPress TypeScript typed callback bytes: %d\n", strlen($typedCallbackLowered));
 printf("WordPress TypeScript runtime enum config bytes: %d\n", strlen($enumConfigLowered));
+printf("WordPress TypeScript enum alias config bytes: %d\n", strlen($enumAliasConfigLowered));
 printf("WordPress TypeScript const enum config bytes: %d\n", strlen($constEnumConfigLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
