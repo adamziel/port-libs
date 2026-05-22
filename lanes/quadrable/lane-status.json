@@ -10,6 +10,6 @@
     "audit": "needs auditor review against check.cpp denominator",
     "currentWork": "Native hash/key primitives for empty branches, leaf domain separation, path-bit addressing, integer key encoding, and prefix retention.",
     "blocker": "C++ runner not executed yet; upstream build requires LMDB, BLAKE2, and initialized submodules. Most tree/proof/sync scenarios remain unported.",
-    "latestCommit": "079f990fce6d",
+    "latestCommit": "312e7288a027",
     "nextTask": "Port the in-memory sparse tree update/get model for basic put/get, empty heads, batch insert, and deletion scenarios."
 }

@@ -10,6 +10,6 @@
     "audit": "deferred by user direction until non-dolt lanes reach baseline",
     "currentWork": "Sidetracked by user direction; no active worker should be assigned until the other lanes reach the required baseline.",
     "blocker": "User deferred Dolt until the rest of the portfolio has stronger baselines.",
-    "latestCommit": "079f990fce6d",
+    "latestCommit": "312e7288a027",
     "nextTask": "Do not schedule Dolt work until the other lanes have real upstream denominators, native slices, passing tests, WordPress scenarios, and dashboard status."
 }
