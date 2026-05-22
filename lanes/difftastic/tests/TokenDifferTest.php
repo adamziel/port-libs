@@ -161,10 +161,11 @@ return [
             $changes
         ));
 
-        $t->contains('~ $html.style.css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
-        $t->contains('+ $html.style.css["p"] p{color:#000;}', $encoded);
-        $t->contains('+ $html.style.css["#main"] #main{width:600px;', $encoded);
-        $t->true(!str_contains($encoded, '$html.style.css["@media"]'), 'Stable CSS @media rules inside upstream HTML style blocks should stay matched as a sublanguage.');
+        $t->contains('+ $html.style[0].css["p"] p{color:#000;}', $encoded);
+        $t->contains('~ $html.style[1].css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
+        $t->contains('+ $html.style[1].css["#main"] #main{width:600px;', $encoded);
+        $t->true(!str_contains($encoded, '$html.style.css["p"]'), 'Multiple upstream HTML style blocks should use indexed sub-language paths instead of one aggregate CSS stream.');
+        $t->true(!str_contains($encoded, '$html.style[1].css["@media"]'), 'Stable CSS @media rules inside upstream HTML style blocks should stay matched as a sublanguage.');
     },
     'maps upstream html sample script blocks as javascript sublanguage changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-1.html');
@@ -199,7 +200,7 @@ return [
         ));
 
         $t->same([], $rawBodyChanges, 'HTML raw text bodies should not duplicate CSS/JavaScript sub-language diffs as root HTML list churn.');
-        $t->contains('~ $html.style.css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
+        $t->contains('~ $html.style[1].css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
         $t->contains('~ $html.script.js.call["alert"][0] \'welcome!\' "goodbye!"', $encoded);
     },
     'maps upstream javascript simple sample with body and array statement alignment' => static function (TestRunner $t): void {
@@ -645,6 +646,29 @@ return [
         $t->contains('expanded:false', $html);
         $t->contains('expanded:true', $html);
         $t->same([], $rawScriptChanges, 'WordPress inline script raw body changes should only appear under the JavaScript sub-language path.');
+    },
+    'wordpress multi inline asset diff indexes style and script sublanguage blocks' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-multi-asset-html-before.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-multi-asset-html-after.html');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'html']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'html',
+            'title' => 'Multi inline asset sub-language diff',
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $html.style[0].css[".wp-block-acme-notice"] .wp-block-acme-notice{margin-block-start:1rem;}', $encoded);
+        $t->contains('- $html.style[1].css[".wp-block-acme-card"][0]/(0)[0] --wp--preset--color--primary', $encoded);
+        $t->contains('+ $html.style[1].css[".wp-block-acme-card"][1] border-radius:6px;', $encoded);
+        $t->contains('~ $html.style[2].css[".wp-site-blocks"][0] gap:1rem; gap:1.5rem;', $encoded);
+        $t->contains('~ $html.script[0].js.call["wp.interactivity.store"][1]/{0}[0]/{0}[0] label:\'Show details\' label:\'Read details\'', $encoded);
+        $t->contains('+ $html.script[1].js.call["wp.interactivity.store"] wp.interactivity.store(\'acme/analytics\'', $encoded);
+        $t->true(!str_contains($encoded, '$html.script[2].js.call["wp.interactivity.store"]'), 'Retained gallery interactivity store should remain matched after inserting another script block.');
+        $t->contains('data-path="$html.style[1].css[&quot;.wp-block-acme-card&quot;][1]"', $html);
+        $t->contains('data-path="$html.script[1].js.call[&quot;wp.interactivity.store&quot;]"', $html);
     },
     'wordpress view script diff reports javascript block wrappers and array insertions' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-view-script-before.js');

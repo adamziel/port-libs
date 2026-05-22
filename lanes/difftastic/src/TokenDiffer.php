@@ -1144,18 +1144,25 @@ final class TokenDiffer
      */
     private function diffHtmlStyleSubLanguage(string $old, string $new, array &$changes): void
     {
-        $oldCss = $this->htmlRawBlockContent($old, 'style');
-        $newCss = $this->htmlRawBlockContent($new, 'style');
-        if ($oldCss === '' && $newCss === '') {
+        $oldBlocks = $this->htmlRawBlocks($old, 'style');
+        $newBlocks = $this->htmlRawBlocks($new, 'style');
+        if ($oldBlocks === [] && $newBlocks === []) {
             return;
         }
 
         $cssOptions = ['language' => 'css'];
-        $delimiterPairs = $this->delimiterPairs($cssOptions);
-        $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldCss, $cssOptions), $delimiterPairs);
-        $newRoot = $this->parseTokenTree($this->tokensForDiff($newCss, $cssOptions), $delimiterPairs);
+        $multiBlock = count($oldBlocks) > 1 || count($newBlocks) > 1;
+        foreach ($this->pairedHtmlRawBlocks($oldBlocks, $newBlocks, $cssOptions) as $pair) {
+            $oldBlock = $pair['old'] ?? [];
+            $newBlock = $pair['new'] ?? [];
+            $blockIndex = $newBlock['index'] ?? $oldBlock['index'] ?? 0;
+            $basePath = $multiBlock ? '$html.style[' . $blockIndex . '].css' : '$html.style.css';
+            $delimiterPairs = $this->delimiterPairs($cssOptions);
+            $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldBlock['body'] ?? '', $cssOptions), $delimiterPairs);
+            $newRoot = $this->parseTokenTree($this->tokensForDiff($newBlock['body'] ?? '', $cssOptions), $delimiterPairs);
 
-        $this->diffCssRules($oldRoot['children'], $newRoot['children'], $cssOptions, $changes, '$html.style.css');
+            $this->diffCssRules($oldRoot['children'], $newRoot['children'], $cssOptions, $changes, $basePath);
+        }
     }
 
     /**
@@ -1163,18 +1170,25 @@ final class TokenDiffer
      */
     private function diffHtmlScriptSubLanguage(string $old, string $new, array &$changes): void
     {
-        $oldScript = $this->htmlRawBlockContent($old, 'script');
-        $newScript = $this->htmlRawBlockContent($new, 'script');
-        if ($oldScript === '' && $newScript === '') {
+        $oldBlocks = $this->htmlRawBlocks($old, 'script');
+        $newBlocks = $this->htmlRawBlocks($new, 'script');
+        if ($oldBlocks === [] && $newBlocks === []) {
             return;
         }
 
         $jsOptions = ['language' => 'javascript'];
-        $delimiterPairs = $this->delimiterPairs($jsOptions);
-        $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldScript, $jsOptions), $delimiterPairs);
-        $newRoot = $this->parseTokenTree($this->tokensForDiff($newScript, $jsOptions), $delimiterPairs);
+        $multiBlock = count($oldBlocks) > 1 || count($newBlocks) > 1;
+        foreach ($this->pairedHtmlRawBlocks($oldBlocks, $newBlocks, $jsOptions) as $pair) {
+            $oldBlock = $pair['old'] ?? [];
+            $newBlock = $pair['new'] ?? [];
+            $blockIndex = $newBlock['index'] ?? $oldBlock['index'] ?? 0;
+            $basePath = $multiBlock ? '$html.script[' . $blockIndex . '].js' : '$html.script.js';
+            $delimiterPairs = $this->delimiterPairs($jsOptions);
+            $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldBlock['body'] ?? '', $jsOptions), $delimiterPairs);
+            $newRoot = $this->parseTokenTree($this->tokensForDiff($newBlock['body'] ?? '', $jsOptions), $delimiterPairs);
 
-        $this->diffJavaScriptStatementSyntax($oldRoot['children'], $newRoot['children'], $jsOptions, $changes, '$html.script.js');
+            $this->diffJavaScriptStatementSyntax($oldRoot['children'], $newRoot['children'], $jsOptions, $changes, $basePath);
+        }
     }
 
     /**
@@ -1767,15 +1781,155 @@ final class TokenDiffer
         return null;
     }
 
-    private function htmlRawBlockContent(string $source, string $tagName): string
+    /**
+     * @return list<array{index:int, attributes:string, body:string}>
+     */
+    private function htmlRawBlocks(string $source, string $tagName): array
     {
         $quotedTag = preg_quote($tagName, '/');
-        $matched = preg_match_all('/<' . $quotedTag . '\b[^>]*>(?<body>[\s\S]*?)<\/' . $quotedTag . '>/i', $source, $matches);
+        $matched = preg_match_all(
+            '/<' . $quotedTag . '\b(?<attributes>[^>]*)>(?<body>[\s\S]*?)<\/' . $quotedTag . '>/i',
+            $source,
+            $matches,
+            PREG_SET_ORDER,
+        );
         if ($matched === false || $matched === 0) {
-            return '';
+            return [];
         }
 
-        return implode("\n", array_map(static fn (string $body): string => trim($body), $matches['body']));
+        $blocks = [];
+        foreach ($matches as $index => $match) {
+            $body = trim((string) $match['body']);
+            $attributes = $this->normalizeHtmlRawBlockAttributes((string) $match['attributes']);
+            $blocks[] = [
+                'index' => $index,
+                'attributes' => $attributes,
+                'body' => $body,
+            ];
+        }
+
+        return $blocks;
+    }
+
+    private function normalizeHtmlRawBlockAttributes(string $attributes): string
+    {
+        return strtolower((string) preg_replace('/\s+/', ' ', trim($attributes)));
+    }
+
+    /**
+     * @param list<array{index:int, attributes:string, body:string}> $oldBlocks
+     * @param list<array{index:int, attributes:string, body:string}> $newBlocks
+     * @param array{language?: string} $options
+     * @return list<array{old?:array{index:int, attributes:string, body:string}, new?:array{index:int, attributes:string, body:string}}>
+     */
+    private function pairedHtmlRawBlocks(array $oldBlocks, array $newBlocks, array $options): array
+    {
+        $pairs = [];
+        $matchedNew = [];
+
+        foreach ($oldBlocks as $oldBlock) {
+            $matchIndex = $this->bestHtmlRawBlockMatch($oldBlock, $newBlocks, $matchedNew, $options);
+            if ($matchIndex === null) {
+                $pairs[] = ['old' => $oldBlock];
+                continue;
+            }
+
+            $matchedNew[$matchIndex] = true;
+            $pairs[] = ['old' => $oldBlock, 'new' => $newBlocks[$matchIndex]];
+        }
+
+        foreach ($newBlocks as $newIndex => $newBlock) {
+            if (($matchedNew[$newIndex] ?? false) === true) {
+                continue;
+            }
+
+            $pairs[] = ['new' => $newBlock];
+        }
+
+        usort(
+            $pairs,
+            static fn (array $a, array $b): int => (($a['new']['index'] ?? $a['old']['index'] ?? 0) <=> ($b['new']['index'] ?? $b['old']['index'] ?? 0)),
+        );
+
+        return $pairs;
+    }
+
+    /**
+     * @param array{index:int, attributes:string, body:string} $oldBlock
+     * @param list<array{index:int, attributes:string, body:string}> $newBlocks
+     * @param array<int, bool> $matchedNew
+     * @param array{language?: string} $options
+     */
+    private function bestHtmlRawBlockMatch(array $oldBlock, array $newBlocks, array $matchedNew, array $options): ?int
+    {
+        $bestIndex = null;
+        $bestScore = 0;
+        foreach ($newBlocks as $newIndex => $newBlock) {
+            if (($matchedNew[$newIndex] ?? false) === true) {
+                continue;
+            }
+
+            $score = $this->htmlRawBlockSimilarity($oldBlock['body'], $newBlock['body'], $options);
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestIndex = $newIndex;
+            }
+        }
+
+        if ($bestIndex !== null && $bestScore > 0) {
+            return $bestIndex;
+        }
+
+        $oldIndex = $oldBlock['index'];
+        if (
+            isset($newBlocks[$oldIndex])
+            && ($matchedNew[$oldIndex] ?? false) === false
+            && $oldBlock['attributes'] === $newBlocks[$oldIndex]['attributes']
+        ) {
+            return $oldIndex;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function htmlRawBlockSimilarity(string $oldBody, string $newBody, array $options): int
+    {
+        $oldTokens = $this->htmlRawBlockComparableTokens($oldBody, $options);
+        $newTokens = $this->htmlRawBlockComparableTokens($newBody, $options);
+        if ($oldTokens === [] || $newTokens === []) {
+            return trim($oldBody) === trim($newBody) ? 1 : 0;
+        }
+
+        return count(array_intersect(array_unique($oldTokens), array_unique($newTokens)));
+    }
+
+    /**
+     * @param array{language?: string} $options
+     * @return list<string>
+     */
+    private function htmlRawBlockComparableTokens(string $body, array $options): array
+    {
+        $tokens = [];
+        foreach ($this->tokenize($body, $options) as $token) {
+            if ($token->kind === 'comment') {
+                continue;
+            }
+            if ($token->kind === 'punctuation' && !in_array($token->text, ['@', '#', '.'], true)) {
+                continue;
+            }
+
+            $text = strtolower($token->text);
+            if ($text === '') {
+                continue;
+            }
+
+            $tokens[] = $text;
+        }
+
+        return $tokens;
     }
 
     private function stripHtmlRawBlockBodies(string $source): string

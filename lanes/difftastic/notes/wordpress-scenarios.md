@@ -62,6 +62,8 @@ HTML mode now also maps the upstream `script_element` sub-language rule from `sr
 
 HTML root-list comparison now strips `<style>` and `<script>` raw bodies before generic tag/list diffing. The same WordPress Interactivity-style fixture asserts changed state labels and booleans appear under the JavaScript sub-language path without duplicate root `$[...]` raw script churn in the rendered review data.
 
+Indexed HTML raw-text comparison now handles multiple attributed inline asset blocks separately. The multi-inline asset fixture compares a block template that inserts a notice `<style>` block and an analytics `<script type="module">` while retaining existing card and gallery assets. The diff reports the inserted notice rule under `$html.style[0].css[...]`, the changed card CSS under `$html.style[1].css[...]`, the spacing CSS under `$html.style[2].css[...]`, and the inserted analytics store under `$html.script[1].js.call[...]` without treating the retained gallery script as changed.
+
 Standalone JavaScript mode now maps the upstream `sample_files/javascript_simple_*.js` statement shape. The WordPress block view-script fixture applies this to a `view.js` change where existing calls are wrapped in an `if (window.wp)` guard, a block action array gains `share`, and hydration booleans change. The renderer reports the guard under `$js.block[...]`, the action under `$js.array[...]`, and retained following actions stay out of the deletion stream.
 
 Standalone JavaScript mode now also maps the larger upstream `sample_files/javascript_*.js` repeated callback shape. Named callback calls such as Jest `describe(...)` / `test(...)` and WordPress `wp.hooks.addAction(...)` / `addFilter(...)` use their first string label plus enclosing named callback labels when matching repeated calls. The WordPress hook-registration fixture applies this to a block plugin `view.js` change where a new analytics action is inserted before the retained `acme.card.init` callback; the diff reports the new hook and the added `bindCard()` call without pairing the retained init hook with the analytics hook by callee name alone.
@@ -75,6 +77,7 @@ php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
+php lanes/difftastic/examples/wordpress-multi-asset-html-diff.php
 php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
@@ -95,4 +98,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Broaden HTML raw-text handling to indexed multiple style/script blocks with attributes, or map TypeScript/JSX sample pairs with import/export-heavy syntax.
+Map TypeScript/JSX sample pairs with import/export-heavy syntax, or broaden indexed HTML raw-text pairing to deletion-heavy/reordered script blocks with non-call statements.
