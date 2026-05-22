@@ -1,0 +1,8 @@
+.wp-block-image {
+  border-radius: 0;
+}
+
+.wp-block-acme-card {
+  background: var(--wp--preset--color--primary);
+  color: #fff;
+}

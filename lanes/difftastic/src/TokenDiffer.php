@@ -302,6 +302,11 @@ final class TokenDiffer
 
             return $changes;
         }
+        if ($this->isCssLanguage($options)) {
+            $this->diffCssRules($oldRoot['children'], $newRoot['children'], $options, $changes);
+
+            return $changes;
+        }
 
         $pairs = min(count($oldLists), count($newLists));
         for ($i = 0; $i < $pairs; $i++) {
@@ -1032,6 +1037,117 @@ final class TokenDiffer
     }
 
     /**
+     * @param list<array<string, mixed>> $oldNodes
+     * @param list<array<string, mixed>> $newNodes
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffCssRules(array $oldNodes, array $newNodes, array $options, array &$changes): void
+    {
+        $newRules = $this->cssRules($newNodes);
+        $newBySelector = [];
+        foreach ($newRules as $index => $rule) {
+            $newBySelector[$rule['selector']][] = $index;
+        }
+
+        $matchedNewIndexes = [];
+        foreach ($this->cssRules($oldNodes) as $oldRule) {
+            $selector = $oldRule['selector'];
+            $matchIndex = null;
+            foreach ($newBySelector[$selector] ?? [] as $candidateIndex) {
+                if (($matchedNewIndexes[$candidateIndex] ?? false) === false) {
+                    $matchIndex = $candidateIndex;
+                    break;
+                }
+            }
+
+            if ($matchIndex === null) {
+                $changes[] = [
+                    'op' => '-',
+                    'path' => $this->cssRulePath($selector),
+                    'text' => $this->cssRuleText($oldRule),
+                ];
+                continue;
+            }
+
+            $matchedNewIndexes[$matchIndex] = true;
+            $newRule = $newRules[$matchIndex];
+            if ($this->nodeText($oldRule['list']) !== $this->nodeText($newRule['list'])) {
+                $this->diffListNode(
+                    $oldRule['list'],
+                    $newRule['list'],
+                    $this->cssRulePath($selector),
+                    $options,
+                    $changes,
+                );
+            }
+        }
+
+        foreach ($newRules as $index => $rule) {
+            if (($matchedNewIndexes[$index] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '+',
+                'path' => $this->cssRulePath($rule['selector']),
+                'text' => $this->cssRuleText($rule),
+            ];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array{selector:string, list:array<string, mixed>}>
+     */
+    private function cssRules(array $nodes): array
+    {
+        $rules = [];
+        $selectorParts = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
+                if ($node['token']->kind !== 'comment') {
+                    $selectorParts[] = $node['token']->text;
+                }
+                continue;
+            }
+
+            if (($node['type'] ?? '') !== 'list') {
+                continue;
+            }
+
+            if (($node['open'] ?? '') !== '{') {
+                $selectorParts[] = $this->nodeText($node);
+                continue;
+            }
+
+            $selector = implode('', $selectorParts);
+            if ($selector !== '') {
+                $rules[] = [
+                    'selector' => $selector,
+                    'list' => $node,
+                ];
+            }
+            $selectorParts = [];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @param array{selector:string, list:array<string, mixed>} $rule
+     */
+    private function cssRuleText(array $rule): string
+    {
+        return $rule['selector'] . $this->nodeText($rule['list']);
+    }
+
+    private function cssRulePath(string $selector): string
+    {
+        return '$css[' . json_encode($selector, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+    }
+
+    /**
      * @param list<string> $a
      * @param list<string> $b
      * @return list<list<int>>
@@ -1350,6 +1466,11 @@ final class TokenDiffer
                 $items[] = $current;
                 $current = [];
             }
+
+            if ($this->isCssDeclarationSeparator($list, $child, $options)) {
+                $items[] = $current;
+                $current = [];
+            }
         }
         if ($current !== []) {
             $items[] = $current;
@@ -1464,6 +1585,20 @@ final class TokenDiffer
     }
 
     /**
+     * @param array<string, mixed> $list
+     * @param array<string, mixed> $child
+     * @param array{language?: string} $options
+     */
+    private function isCssDeclarationSeparator(array $list, array $child, array $options): bool
+    {
+        return $this->isCssLanguage($options)
+            && ($list['open'] ?? '') === '{'
+            && ($child['type'] ?? '') === 'atom'
+            && $child['token'] instanceof Token
+            && $child['token']->text === ';';
+    }
+
+    /**
      * @param array<string, mixed> $node
      */
     private function firstAtomText(array $node): string
@@ -1489,6 +1624,14 @@ final class TokenDiffer
     private function isYamlLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['yaml', 'yml'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isCssLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['css', 'scss'], true);
     }
 
     /**
@@ -1550,6 +1693,12 @@ final class TokenDiffer
             $jsonPropertyKey = $this->jsonPropertyKeySignature($item);
             if ($jsonPropertyKey !== null) {
                 return $jsonPropertyKey;
+            }
+        }
+        if ($this->isCssLanguage($options)) {
+            $cssDeclaration = $this->cssDeclarationSignature($item);
+            if ($cssDeclaration !== null) {
+                return $cssDeclaration;
             }
         }
 
@@ -1616,6 +1765,31 @@ final class TokenDiffer
             }
 
             return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $item
+     */
+    private function cssDeclarationSignature(array $item): ?string
+    {
+        $property = '';
+        foreach ($item as $node) {
+            if (($node['type'] ?? '') !== 'atom' || !$node['token'] instanceof Token) {
+                return null;
+            }
+
+            $text = $node['token']->text;
+            if ($text === ':') {
+                return $property === '' ? null : 'css-prop:' . $property;
+            }
+            if ($text === ';') {
+                return null;
+            }
+
+            $property .= $text;
         }
 
         return null;

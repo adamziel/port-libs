@@ -63,6 +63,7 @@ It failed before compilation because the local Cargo cache cannot resolve `clap`
 - `sample_files/multiline_string_eof_1.yml` / `sample_files/multiline_string_eof_2.yml`: copied locally and mapped through YAML block-scalar string atom spans. The JSON renderer now keeps removed words such as `set -x` string-highlighted even when the opposite block scalar becomes a single content line.
 - `sample_files/trailling_newline_1.yaml` / `sample_files/trailling_newline_2.yaml`: copied locally and mapped through one-line YAML block-scalar fallback spans. When the old and new scalar bodies do not share enough words for subword pairing, the JSON renderer still keeps `${{ BAR }}` and `bar` highlighted as string content instead of splitting expression braces into delimiters.
 - `sample_files/yaml_1.yaml` / `sample_files/yaml_2.yaml`: copied locally and mapped through a narrow YAML structural slice. Flow lists still use delimiter-list alignment, while line-based YAML block sequences report the inserted `'item'` under `$yaml.hello[1]` and the deleted `stuff: |` body is reported as a block-scalar deletion without deleting the retained `"world"` or `other` sequence items.
+- `sample_files/css_1.css` / `sample_files/css_2.css`: copied locally and mapped through CSS selector-block alignment plus declaration property signatures. Reordered stable selectors such as `.bar` remain matched, while `.foo1` gets a focused `color: green` declaration addition, `.baz` property values update in place, `.another` keeps the `margin-left` property aligned, and the new `p` rule is reported as a rule insertion.
 
 ## JSON Display Slice
 
@@ -80,19 +81,18 @@ Mapped native behavior:
 - YAML block scalar atoms that do not share enough words now fall back to per-line string spans instead of generic token highlighting, mapping upstream `trailling_newline_*.yaml`.
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 
-The focused PHP lane test now passes 49 tests and 209 assertions, including the mapped upstream XML sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, block allow-list array syntax, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
+The focused PHP lane test now passes 51 tests and 222 assertions, including the mapped upstream XML sample, CSS sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted slider Rust excerpt, and WordPress template-wrapper, render-callback return-type, WXR XML, block allow-list array syntax, block-style CSS, block-copy JSON display, multiline render doc-comment display, plugin workflow YAML display, and plugin workflow step YAML syntax-list scenarios.
 
-The required root test runner was attempted after this slice:
+The required root test runner was run after this CSS selector/declaration slice:
 
 ```text
 php tools/run-tests.php
 ```
 
-The latest required root test run after the PHP/Hack return-type slice passed:
+The latest required root test run after the CSS selector/declaration slice passed:
 
 ```text
-php tools/run-tests.php
-101 test files, 6,813 assertions, 0 failures
+103 test files, 7,052 assertions, 0 failures
 ```
 
-The difftastic-focused test file remains green with 49 tests, 209 assertions, and 0 failures.
+The difftastic-focused test file remains green with 51 tests, 222 assertions, and 0 failures via a direct `TestRunner` invocation.

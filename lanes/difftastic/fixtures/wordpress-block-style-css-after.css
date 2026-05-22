@@ -1,0 +1,13 @@
+.wp-block-acme-card {
+  background: var(--wp--preset--color--accent);
+  color: #fff;
+  border-radius: 4px;
+}
+
+.wp-block-image {
+  border-radius: 0;
+}
+
+.wp-block-query-title {
+  margin-block-start: 0;
+}

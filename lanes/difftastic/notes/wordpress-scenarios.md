@@ -50,6 +50,8 @@ The upstream Emacs Lisp `nested_slider` fixture now exercises the opposite outer
 
 The upstream Emacs Lisp `change_outer` fixture now exercises changed outer delimiters. The WordPress block allow-list fixture applies the same behavior to PHP array syntax modernization, where `array('core/paragraph', 'core/image')` becomes `['core/paragraph', 'core/image']` without rendering the retained block names as changed.
 
+The upstream CSS fixture now exercises selector-block alignment and declaration property matching. The WordPress block-style CSS fixture applies this to global style review: a `.wp-block-acme-card` custom-property color changes, `border-radius` is added, and a query-title selector is introduced while a reordered `.wp-block-image` rule stays out of the rendered change stream.
+
 Run:
 
 ```sh
@@ -57,6 +59,7 @@ php lanes/difftastic/examples/wordpress-render-callback-diff.php
 php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
+php lanes/difftastic/examples/wordpress-block-style-css-diff.php
 php lanes/difftastic/examples/wordpress-block-markup-html-diff.php
 php lanes/difftastic/examples/wordpress-block-json-diff.php
 php lanes/difftastic/examples/wordpress-block-json-display.php
@@ -72,4 +75,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Add more display parity for Lisp literal-list changes, including expected JSON/HTML output shape, or map another untouched upstream sample_files display pair.
+Expand CSS parity to nested at-rules and selector combinator whitespace, or map another PHP/Hack body sample beyond return types.

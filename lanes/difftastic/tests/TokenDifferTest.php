@@ -93,6 +93,22 @@ return [
         $t->contains('+ $[3] <stuff/>', $encoded);
         $t->true(!str_contains($encoded, '<root>'), 'Stable root tags should remain matched in XML mode.');
     },
+    'maps upstream css sample with selector and declaration alignment' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-css-1.css');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-css-2.css');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'css']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $css[".foo1"][1] color:green;', $encoded);
+        $t->contains('~ $css[".baz"][0] color:yellow; color:blue;', $encoded);
+        $t->contains('~ $css[".baz"][1] font-family:"Before"; font-family:"After";', $encoded);
+        $t->contains('~ $css[".another"][0] margin-left:0.5em; margin-left:1em;', $encoded);
+        $t->contains('+ $css["p"] p{color:#000;}', $encoded);
+        $t->true(!str_contains($encoded, '$css[".bar"]'), 'Reordered stable CSS selector blocks should stay matched.');
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -410,6 +426,22 @@ return [
         $t->contains('<del>()</del><ins>[]</ins>', $html);
         $t->true(!str_contains($html, '&#039;core/paragraph&#039;'), 'Retained block names should not be rendered as changed by array syntax modernization.');
         $t->true(!str_contains($html, '&#039;core/image&#039;'), 'Retained block names should not be rendered as changed by array syntax modernization.');
+    },
+    'wordpress block style css diff keeps reordered selectors stable' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-css-before.css');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-style-css-after.css');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'css',
+            'title' => 'Block style CSS selector diff',
+        ]);
+
+        $t->contains('Block style CSS selector diff', $html);
+        $t->contains('data-path="$css[&quot;.wp-block-acme-card&quot;][0]/(0)[0]"', $html);
+        $t->contains('--wp--preset--color--primary', $html);
+        $t->contains('--wp--preset--color--accent', $html);
+        $t->contains('border-radius:4px;', $html);
+        $t->contains('wp-block-query-title', $html);
+        $t->true(!str_contains($html, 'wp-block-image'), 'Reordered stable block style selectors should stay out of the rendered change stream.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');
