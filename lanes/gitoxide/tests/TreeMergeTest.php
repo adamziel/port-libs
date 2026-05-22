@@ -320,6 +320,41 @@ return [
             $worktreeFiles,
         ));
     },
+    'maps upstream gix-merge tree-baseline simple side-1-3-without-conflict fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "hello\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+        $ours = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n6\n"),
+            $blobEntry('greeting', "hi\n"),
+            $blobEntry('whatever', "bar\n"),
+        ]);
+        $theirs = new Tree([
+            $blobEntry('sequence', "1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "hello\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+
+        $t->true($result->isClean());
+        $t->same(['greeting', 'sequence', 'whatever'], $names($result->tree));
+        $t->same("hi\n", $read($result->tree->entryNamed('greeting')?->oid ?? '')->body);
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($result->tree->entryNamed('sequence')?->oid ?? '')->body);
+        $t->same("bar\n", $read($result->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same([], $result->indexEntries());
+        $t->same([], $result->worktreeConflictFiles($read));
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+
+        $t->true($reverse->isClean());
+        $t->same(['greeting', 'sequence', 'whatever'], $names($reverse->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($reverse->tree->entryNamed('sequence')?->oid ?? '')->body);
+        $t->same([], $reverse->indexEntries());
+    },
     'recursive tree merge reports nested exact rename delete conflicts' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([$treeEntry('wp-content', new Tree([$blobEntry('old.php', "<?php\nreturn 'base';\n")]))]);

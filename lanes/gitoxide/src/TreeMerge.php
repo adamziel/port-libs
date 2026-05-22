@@ -992,6 +992,29 @@ final class TreeMerge
                         continue;
                     }
 
+                    $fileRenameModifyMerge = self::tryMergeFileRenameModify(
+                        $pathPrefix,
+                        $path,
+                        $ourRename['path'],
+                        $baseEntry,
+                        $ourRename['entry'],
+                        $theirEntry,
+                        true,
+                        $readObject,
+                        $writeObject,
+                        $conflictStyle,
+                        $bigFileThreshold,
+                    );
+                    if ($fileRenameModifyMerge !== null) {
+                        if ($fileRenameModifyMerge['entry'] !== null) {
+                            $merged[] = $fileRenameModifyMerge['entry'];
+                        }
+                        array_push($conflicts, ...$fileRenameModifyMerge['conflicts']);
+                        $consumed[$path] = true;
+                        $consumed[$ourRename['path']] = true;
+                        continue;
+                    }
+
                     $renameModifyMerge = self::tryMergeDirectoryRenameModify(
                         $pathPrefix,
                         $ourRename['path'],
@@ -1091,6 +1114,29 @@ final class TreeMerge
                     if ($renameTypeChange !== null) {
                         array_push($merged, ...$renameTypeChange['merged']);
                         $conflicts[] = $renameTypeChange['conflict'];
+                        $consumed[$path] = true;
+                        $consumed[$theirRename['path']] = true;
+                        continue;
+                    }
+
+                    $fileRenameModifyMerge = self::tryMergeFileRenameModify(
+                        $pathPrefix,
+                        $path,
+                        $theirRename['path'],
+                        $baseEntry,
+                        $theirRename['entry'],
+                        $ourEntry,
+                        false,
+                        $readObject,
+                        $writeObject,
+                        $conflictStyle,
+                        $bigFileThreshold,
+                    );
+                    if ($fileRenameModifyMerge !== null) {
+                        if ($fileRenameModifyMerge['entry'] !== null) {
+                            $merged[] = $fileRenameModifyMerge['entry'];
+                        }
+                        array_push($conflicts, ...$fileRenameModifyMerge['conflicts']);
                         $consumed[$path] = true;
                         $consumed[$theirRename['path']] = true;
                         continue;
@@ -1309,6 +1355,51 @@ final class TreeMerge
                 $renamedByOurs ? null : $renameEntry,
             ),
         ];
+    }
+
+    /**
+     * @param null|callable(string): GitObject $readObject
+     * @param null|callable(GitObject): string $writeObject
+     * @return null|array{entry:?TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeFileRenameModify(
+        string $pathPrefix,
+        string $sourcePath,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        TreeEntry $renameEntry,
+        ?TreeEntry $otherEntry,
+        bool $renamedByOurs,
+        ?callable $readObject,
+        ?callable $writeObject,
+        string $conflictStyle,
+        ?int $bigFileThreshold = null,
+    ): ?array {
+        if ($otherEntry === null || $readObject === null || $writeObject === null) {
+            return null;
+        }
+        if ($baseEntry->isTree() || $renameEntry->isTree() || $otherEntry->isTree()) {
+            return null;
+        }
+        if ($baseEntry->oid !== $renameEntry->oid || $baseEntry->mode !== $renameEntry->mode) {
+            return null;
+        }
+        if ($baseEntry->kind() !== $renameEntry->kind() || $baseEntry->kind() !== $otherEntry->kind()) {
+            return null;
+        }
+
+        return self::tryMergeChangedEntry(
+            basename($targetPath),
+            self::joinPath($pathPrefix, $targetPath),
+            new TreeEntry($baseEntry->mode, basename($sourcePath), $baseEntry->oid),
+            $renamedByOurs ? new TreeEntry($renameEntry->mode, basename($targetPath), $renameEntry->oid) : $otherEntry,
+            $renamedByOurs ? $otherEntry : new TreeEntry($renameEntry->mode, basename($targetPath), $renameEntry->oid),
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+            [],
+            $bigFileThreshold,
+        );
     }
 
     /**
