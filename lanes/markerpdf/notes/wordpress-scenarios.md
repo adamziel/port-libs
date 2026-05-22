@@ -16,6 +16,8 @@ The lane now also maps `marker/pdf/utils.py::find_filetype`. `FiletypeDetector` 
 
 The lane now also maps top-level `convert.py` batch processing. `BatchConverter` plans folder conversions with upstream chunk sizing, loads `--metadata_file` JSON keyed by basename, applies existing-output skips, min-length preflight, empty-output skips, nonfatal error reporting, and Marker-style output artifact persistence around a supplied native conversion callback.
 
+The lane now also maps top-level `chunk_convert.py` and `chunk_convert.sh` sharded conversion planning. `ChunkConversionPlanner` validates `NUM_DEVICES`, `NUM_WORKERS`, input/output folders, optional metadata/min-length flags, and emits one queueable Marker job per device with upstream chunk arguments without executing the upstream subprocess.
+
 The lane now also maps top-level `convert_single.py` single-document processing. `SingleDocumentConverter` preserves upstream comma-separated language parsing, hands `max_pages`, `start_page`, `langs`, and `batch_multiplier` to a supplied converter callback, saves through Marker's per-document output layout, and intentionally persists empty output because the upstream single-file script does not apply batch skip gates.
 
 The lane now also maps the supplied-output boundary of `marker/layout/layout.py::surya_layout`. `LayoutAnnotator` computes the upstream layout batch size, records text-line detections that would be passed to Surya, assigns supplied layout predictions with Python `zip` semantics, and then feeds the existing native annotation path before WordPress block rendering.
@@ -121,6 +123,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-debug-bbox-export.php` maps Marker's upstream bbox debug dump into a WordPress review workflow. It writes a `_bbox.json` artifact, exposes layout labels and text-line counts for editorial tooling, and confirms heavy model fields are not stored in the review payload.
 
 `examples/wordpress-batch-convert-import.php` maps top-level `convert.py` into a WordPress bulk import job. It plans a folder of PDFs, loads a basename-keyed metadata JSON file with per-file titles, runs native min-length preflight, writes per-document Markdown/metadata artifacts, and reports converted/skipped/error counts without loading Python model workers.
+
+`examples/wordpress-chunk-convert-queue.php` maps top-level `chunk_convert.py` plus `chunk_convert.sh` into a WordPress sharded import queue. It emits per-device queue items with `CUDA_VISIBLE_DEVICES`, `--num_chunks`, `--chunk_idx`, `--workers`, optional metadata, and optional min-length gates while keeping execution in native PHP/planned queue metadata instead of invoking the upstream `marker` command.
 
 `examples/wordpress-single-convert-import.php` maps top-level `convert_single.py` into a WordPress single-upload import job. It passes single-file conversion options to a supplied native converter, writes Marker's Markdown/metadata output layout, and reports the import options a WordPress review screen can display before publishing the converted blocks.
 
