@@ -1,0 +1,156 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Gitoxide;
+
+final class ReceivePackAdvertisement
+{
+    /**
+     * @param list<RemoteRef> $refs
+     */
+    public function __construct(
+        private readonly ProtocolCapabilities $capabilities,
+        private readonly array $refs,
+    ) {
+        foreach ($refs as $ref) {
+            if (!$ref instanceof RemoteRef) {
+                throw new \InvalidArgumentException('Receive-pack advertisement refs must be RemoteRef instances');
+            }
+            ReferenceName::assertValid($ref->name);
+            if ($ref->object === null) {
+                throw new \InvalidArgumentException('Receive-pack advertised refs must point to objects');
+            }
+        }
+    }
+
+    public static function fromV1PacketLines(string $bytes): self
+    {
+        $offset = 0;
+        $refs = [];
+        $capabilities = null;
+
+        while (true) {
+            $packet = self::readPacket($bytes, $offset);
+            if ($packet === null || $packet['kind'] === 'flush') {
+                break;
+            }
+            if ($packet['kind'] !== 'data') {
+                throw new \InvalidArgumentException("receive-pack advertisement: unexpected {$packet['kind']} packet");
+            }
+
+            $payload = self::trimLineEnding($packet['payload']);
+            if ($capabilities === null) {
+                $parsed = ProtocolCapabilities::fromV1Bytes($payload);
+                $capabilities = $parsed['capabilities'];
+                $payload = substr($payload, 0, $parsed['delimiterPosition']);
+            } elseif (str_contains($payload, "\0")) {
+                throw new \InvalidArgumentException('receive-pack advertisement: capabilities appeared after the first ref');
+            }
+
+            if ($payload === '') {
+                continue;
+            }
+
+            $refs[] = self::parseRefLine($payload);
+        }
+
+        if ($capabilities === null) {
+            throw new \InvalidArgumentException('receive-pack advertisement: capabilities were missing');
+        }
+
+        return new self($capabilities, $refs);
+    }
+
+    public function capabilities(): ProtocolCapabilities
+    {
+        return $this->capabilities;
+    }
+
+    /**
+     * @return list<RemoteRef>
+     */
+    public function refs(): array
+    {
+        return $this->refs;
+    }
+
+    public function ref(string $name): ?RemoteRef
+    {
+        foreach ($this->refs as $ref) {
+            if ($ref->name === $name) {
+                return $ref;
+            }
+        }
+
+        return null;
+    }
+
+    public function objectFor(string $name): ?string
+    {
+        return $this->ref($name)?->object;
+    }
+
+    private static function parseRefLine(string $line): RemoteRef
+    {
+        $parts = explode(' ', $line, 2);
+        if (count($parts) !== 2) {
+            throw new \InvalidArgumentException('receive-pack advertisement: ref line must contain object id and ref name');
+        }
+        [$object, $refName] = $parts;
+        if (preg_match('/^[0-9a-fA-F]{40}$/', $object) !== 1) {
+            throw new \InvalidArgumentException('receive-pack advertisement: ref object must be a SHA-1 object id');
+        }
+        ReferenceName::assertValid($refName);
+
+        return RemoteRef::direct($refName, $object);
+    }
+
+    /**
+     * @return null|array{kind:string,payload:string}
+     */
+    private static function readPacket(string $bytes, int &$offset): ?array
+    {
+        if ($offset === strlen($bytes)) {
+            return null;
+        }
+        if ($offset + 4 > strlen($bytes)) {
+            throw new \InvalidArgumentException('receive-pack advertisement: truncated packet line length');
+        }
+
+        $header = substr($bytes, $offset, 4);
+        if (preg_match('/^[0-9a-fA-F]{4}$/', $header) !== 1) {
+            throw new \InvalidArgumentException("receive-pack advertisement: invalid packet line length {$header}");
+        }
+        $offset += 4;
+
+        $length = hexdec($header);
+        if ($length === 0) {
+            return ['kind' => 'flush', 'payload' => ''];
+        }
+        if ($length === 1) {
+            return ['kind' => 'delimiter', 'payload' => ''];
+        }
+        if ($length === 2) {
+            return ['kind' => 'response-end', 'payload' => ''];
+        }
+        if ($length < 4) {
+            throw new \InvalidArgumentException("receive-pack advertisement: invalid packet line length {$header}");
+        }
+
+        $payloadLength = $length - 4;
+        if ($offset + $payloadLength > strlen($bytes)) {
+            throw new \InvalidArgumentException('receive-pack advertisement: truncated packet line payload');
+        }
+
+        $payload = substr($bytes, $offset, $payloadLength);
+        $offset += $payloadLength;
+
+        return ['kind' => 'data', 'payload' => $payload];
+    }
+
+    private static function trimLineEnding(string $line): string
+    {
+        return rtrim($line, "\r\n");
+    }
+}
