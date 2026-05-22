@@ -295,6 +295,46 @@ scan that returns duplicate `autoload='yes'` options in index order, honors a
 result limit, returns an empty list for missing first-column values, and also
 uses a safe `WHERE autoload IS NOT NULL` partial index for non-null autoload
 point scans. Remaining index work includes optimized range seeks instead of
-full index traversal, composite duplicate scans with secondary constraints,
-expression indexes, custom collations, automatic-index collation metadata, and
-full composite-key range scans.
+full index traversal, expression indexes, custom collations, automatic-index
+collation metadata, and full composite-key range scans.
+
+## Focused Native Mapping: Composite Index Prefix Constraints
+
+SQLite can use a multi-column index for equality constraints across consecutive
+leading columns. This slice maps a bounded read-side variant for WordPress
+recovery: parse explicit `CREATE INDEX` column lists, retain per-column
+collation metadata for leading columns, and resolve a
+`wp_options(autoload, option_name)` index when both prefix values are known.
+The current implementation still traverses the bounded native index reader
+rather than performing lower/upper b-tree seek bounds.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  where4.test whereH.test index8.test
+```
+
+Result: 4 Tcl script/permutation runs, 0 errors out of 141 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/where4.test` checks multi-column index constraints such as `w=1 AND x
+  IS NULL AND y=3` and verifies that all constrained leading columns affect
+  index lookup behavior.
+- `test/whereH.test` verifies planner preference for the longer composite index
+  when `a=? AND b=?` or deeper leading constraints make it more specific than a
+  shorter candidate index.
+- `test/index8.test` covers scoring for index scans where later indexed columns
+  are relevant to filtering or ordering.
+
+The native PHP tests now cover parsing full explicit index column lists,
+rejecting expression-bearing composite lists for this slice, preserving
+second-column `COLLATE NOCASE` metadata, accepting an implied
+`WHERE autoload IS NOT NULL` partial predicate, and fetching one
+WordPress option through `wp_options(autoload, option_name)` without scanning
+the whole `wp_options` table. Remaining index work includes b-tree seek bounds
+for composite prefixes, range constraints, expression indexes, custom
+collations, automatic-index collation metadata, and broader partial-predicate
+implication.

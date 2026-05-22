@@ -30,6 +30,9 @@ results; the safe `WHERE option_name IS NOT NULL` partial-index form is usable
 for non-null option-name point lookup. Non-unique first-column indexes can now
 be scanned for duplicate matches, allowing a `wp_options(autoload,
 option_name)` index to return all autoloaded options for a requested value.
+Explicit composite index metadata is now parsed far enough to constrain both
+`autoload` and `option_name`, including second-column `NOCASE` comparison and
+safe `autoload IS NOT NULL` partial-index use for a known non-null value.
 
 ## Example
 
@@ -58,6 +61,13 @@ autoload value without scanning the entire `wp_options` table. This maps the
 recovery/import use case where a site needs to inspect autoloaded options on a
 host without the PHP SQLite extension.
 
+`examples/wordpress-autoloaded-option-by-name.php` reads a WordPress-oriented
+SQLite database file, resolves an explicit composite
+`wp_options(autoload, option_name)` index, and returns a single option when
+both the autoload value and option name are known. This is useful for recovery
+tools that need to inspect one autoloaded option while avoiding a whole-table
+scan on constrained hosts.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
@@ -65,6 +75,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: optimized composite duplicate scans with secondary constraints,
-expression indexes, broader predicate-aware partial indexes, custom collations,
-automatic-index collation metadata, and full composite-key range scans.
+slice: composite prefix seek bounds, range constraints, expression indexes,
+broader predicate-aware partial indexes, custom collations, automatic-index
+collation metadata, and full composite-key range scans.

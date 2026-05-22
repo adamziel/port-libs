@@ -202,6 +202,29 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $columnValues
+     */
+    public function indexRootPageForPointLookupColumns(string $tableName, array $columnValues): ?int
+    {
+        if ($columnValues === []) {
+            throw new \InvalidArgumentException('SQLite index prefix lookup requires at least one column');
+        }
+        if (count($columnValues) === 1) {
+            $columnName = array_key_first($columnValues);
+
+            return $this->indexRootPageForPointLookup($tableName, $columnName, $columnValues[$columnName]);
+        }
+
+        $lookup = $this->indexLookupForColumnPrefix(
+            $tableName,
+            array_keys($columnValues),
+            array_values($columnValues),
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
     private function indexLookupForColumn(
@@ -310,6 +333,16 @@ final class SQLiteDatabase
     public function wordpressOptionsByIndexedAutoload(string $autoload, ?int $limit = null): array
     {
         return $this->wordpressOptionsByIndexedFirstColumn('autoload', $autoload, $limit);
+    }
+
+    public function wordpressOptionByIndexedAutoloadAndName(string $autoload, string $optionName): ?SQLiteWordPressOption
+    {
+        $options = $this->wordpressOptionsByIndexedColumnPrefix([
+            'autoload' => $autoload,
+            'option_name' => $optionName,
+        ], 1);
+
+        return $options[0] ?? null;
     }
 
     /**
@@ -588,6 +621,51 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $columnValues
+     * @return list<SQLiteWordPressOption>
+     */
+    private function wordpressOptionsByIndexedColumnPrefix(array $columnValues, ?int $limit): array
+    {
+        if ($columnValues === []) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed lookup requires at least one column');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $columnNames = array_keys($columnValues);
+        $values = array_values($columnValues);
+        $indexLookup = $this->indexLookupForColumnPrefix('wp_options', $columnNames, $values);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options composite index is not present');
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByColumnPrefix($indexLookup['rootPage'], $values, $indexLookup['columns']) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
      * @return list<SQLiteIndexCell>
      */
     private function indexCellsByFirstValue(int $rootPageNumber, mixed $value, string $collation): array
@@ -604,6 +682,104 @@ final class SQLiteDatabase
         }
 
         return $matches;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return list<SQLiteIndexCell>
+     */
+    private function indexCellsByColumnPrefix(int $rootPageNumber, array $values, array $columns): array
+    {
+        $matches = [];
+        foreach ($this->indexCells($rootPageNumber) as $cell) {
+            $record = $cell->record($this->header->textEncoding);
+            if (count($record->values) < count($values)) {
+                throw new \InvalidArgumentException('SQLite index record has fewer values than the constrained prefix');
+            }
+
+            foreach ($values as $index => $value) {
+                if (self::compareSQLiteScalar($record->values[$index], $value, $columns[$index]->collation) !== 0) {
+                    continue 2;
+                }
+            }
+
+            $matches[] = $cell;
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param non-empty-list<string> $columnNames
+     * @param non-empty-list<mixed> $pointLookupValues
+     * @return null|array{rootPage:int,columns:non-empty-list<SQLiteIndexColumn>}
+     */
+    private function indexLookupForColumnPrefix(string $tableName, array $columnNames, array $pointLookupValues): ?array
+    {
+        if ($columnNames === []) {
+            throw new \InvalidArgumentException('SQLite index prefix lookup requires at least one column');
+        }
+        if (count($columnNames) !== count($pointLookupValues)) {
+            throw new \InvalidArgumentException('SQLite index prefix lookup requires one value per column');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $columns = SQLiteCreateIndex::columns($record->sql);
+            if ($columns === null || count($columns) < count($columnNames)) {
+                continue;
+            }
+
+            $prefix = array_slice($columns, 0, count($columnNames));
+            foreach ($prefix as $index => $column) {
+                if (strcasecmp($column->columnName, $columnNames[$index]) !== 0) {
+                    continue 2;
+                }
+            }
+
+            if (
+                $prefix[0]->partial
+                && (
+                    $prefix[0]->partialPredicate === null
+                    || !self::partialPredicateIsImpliedByPointLookup(
+                        $prefix[0]->partialPredicate,
+                        $columnNames,
+                        $pointLookupValues,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'columns' => $prefix,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param non-empty-list<string> $columnNames
+     * @param non-empty-list<mixed> $values
+     */
+    private static function partialPredicateIsImpliedByPointLookup(
+        SQLiteIndexPredicate $predicate,
+        array $columnNames,
+        array $values,
+    ): bool {
+        foreach ($columnNames as $index => $columnName) {
+            if ($predicate->isImpliedByPointLookup($columnName, $values[$index])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function automaticIndexFirstColumnsForTable(string $tableName): array

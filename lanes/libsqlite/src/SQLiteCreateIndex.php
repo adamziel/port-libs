@@ -8,6 +8,24 @@ final class SQLiteCreateIndex
 {
     public static function firstColumn(string $sql): ?SQLiteIndexColumn
     {
+        $columns = self::parseColumns($sql, 1);
+
+        return $columns[0] ?? null;
+    }
+
+    /**
+     * @return null|list<SQLiteIndexColumn>
+     */
+    public static function columns(string $sql): ?array
+    {
+        return self::parseColumns($sql, null);
+    }
+
+    /**
+     * @return null|list<SQLiteIndexColumn>
+     */
+    private static function parseColumns(string $sql, ?int $limit): ?array
+    {
         $onOffset = self::findTopLevelKeyword($sql, 'ON');
         if ($onOffset === null) {
             return null;
@@ -35,12 +53,6 @@ final class SQLiteCreateIndex
             return null;
         }
 
-        $firstTerm = self::firstTopLevelTerm(substr($sql, $offset + 1, $close - $offset - 1));
-        $column = self::parseIndexedColumn($firstTerm);
-        if ($column === null) {
-            return null;
-        }
-
         $tail = substr($sql, $close + 1);
         $whereOffset = self::findTopLevelKeyword($tail, 'WHERE');
         $partial = $whereOffset !== null;
@@ -48,13 +60,26 @@ final class SQLiteCreateIndex
             ? null
             : self::parsePartialPredicate(substr($tail, $whereOffset + strlen('WHERE')));
 
-        return new SQLiteIndexColumn(
-            $column['name'],
-            $column['collation'],
-            $column['descending'],
-            $partial,
-            $partialPredicate,
-        );
+        $columns = [];
+        foreach (self::topLevelTerms(substr($sql, $offset + 1, $close - $offset - 1)) as $term) {
+            if ($limit !== null && count($columns) >= $limit) {
+                break;
+            }
+            $column = self::parseIndexedColumn($term);
+            if ($column === null) {
+                return null;
+            }
+
+            $columns[] = new SQLiteIndexColumn(
+                $column['name'],
+                $column['collation'],
+                $column['descending'],
+                $partial,
+                $partialPredicate,
+            );
+        }
+
+        return $columns === [] ? null : $columns;
     }
 
     /**
@@ -111,8 +136,13 @@ final class SQLiteCreateIndex
         ];
     }
 
-    private static function firstTopLevelTerm(string $text): string
+    /**
+     * @return list<string>
+     */
+    private static function topLevelTerms(string $text): array
     {
+        $terms = [];
+        $start = 0;
         $depth = 0;
         $length = strlen($text);
         for ($i = 0; $i < $length; $i++) {
@@ -134,11 +164,13 @@ final class SQLiteCreateIndex
                 continue;
             }
             if ($char === ',' && $depth === 0) {
-                return substr($text, 0, $i);
+                $terms[] = substr($text, $start, $i - $start);
+                $start = $i + 1;
             }
         }
+        $terms[] = substr($text, $start);
 
-        return $text;
+        return $terms;
     }
 
     private static function parsePartialPredicate(string $where): ?SQLiteIndexPredicate
