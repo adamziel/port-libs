@@ -6,6 +6,10 @@ Readable diffs for blocks, render callbacks, templates, theme.json, code snippet
 
 Native token-level differ that avoids raw line-only comparison, classifies comments separately, carries delimiter open/close anchors, filters comments on request, normalizes trailing commas before closing delimiters with language-specific Python tuple handling, reports recursive changes inside bracketed syntax lists, applies upstream-style word/subword splitting for punctuation, Unicode words, and number boundaries, and renders escaped HTML for token, word/subword, and syntax-list changes.
 
+Plain-text mode now maps the upstream `sample_files/added_line_*.txt` line-parser shape. Explicit `text`/`plain` syntax-list diffs report changed, inserted, and deleted lines under `$text.line[...]` paths without a fallback marker or a false "No syntactic changes" result when there are no delimiters.
+
+The WordPress plugin readme fixture applies that to `readme.txt` release notes. It reports a stable-tag update, a description wording update, and an inserted changelog section under `$text.line[...]` paths while keeping retained older changelog entries matched.
+
 Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
 
 Python mode now adds a targeted upstream `if_*.py` mapping for indentation-sensitive blocks. It keeps a stable `if` header and retained body lines aligned when a statement moves out of the indented body, reporting the moved statement separately under `$py.if[...]` and `$py.root[...]` paths.
@@ -102,6 +106,8 @@ Supported-language graph-limit fallback now maps upstream `DEFAULT_GRAPH_LIMIT`,
 
 File-content decoding now maps upstream `src/files.rs` UTF-16 byte-order-mark handling and the `sample_files/utf16_*.py` pair. The WordPress UTF-16 WXR example compares byte-order-marked export XML bytes and renders `_old_builder`, `_wp_page_template`, and `_thumbnail_id` postmeta changes as normal XML JSON chunks instead of reporting the export as a binary file.
 
+File-content decoding now also maps the upstream `src/files.rs` Windows-1252 fallback branch and `sample_files/windows1251_*.txt`. The WordPress legacy encoded readme example compares plugin metadata bytes from an ISO-8859-1/Windows-1252 source, keeps decoded text such as `müller`, `Löst`, and `Blöcke` readable, and reports `alte` to `moderne` release copy as normal text chunks instead of a binary status.
+
 TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
 
 TypeScript mode now also maps module import/export declaration lists using the upstream TypeScript parser configuration's delimiter-list semantics. The WordPress block module fixture applies this to `index.ts` registration code where `BlockConfiguration`, `sprintf`, and `deprecatedSave` are inserted into existing import/export lists. Retained imports such as `__` and retained exports such as `save` stay aligned under `$ts.import[...]` and `$ts.export.local[...]` paths instead of being shown as deleted and re-added whole module statements.
@@ -122,6 +128,7 @@ Run:
 php lanes/difftastic/examples/wordpress-render-callback-diff.php
 php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
+php lanes/difftastic/examples/wordpress-plugin-readme-text-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
@@ -158,6 +165,7 @@ php lanes/difftastic/examples/wordpress-template-wrapper-diff.php
 php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
 php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 php lanes/difftastic/examples/wordpress-utf16-wxr-display.php
+php lanes/difftastic/examples/wordpress-legacy-encoding-display.php
 ```
 
 ## Next Task

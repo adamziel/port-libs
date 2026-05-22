@@ -583,6 +583,24 @@ return [
         $t->same('$[0][3]', $insertions[1]['path']);
         $t->same('"B"', $insertions[1]['text']);
     },
+    'maps upstream added line text sample as a line insertion' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-added-line-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-added-line-2.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'text']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'text',
+            'title' => 'Upstream added line text sample',
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('+ $text.line[2] legato', $encoded);
+        $t->true(!str_contains($encoded, '$text.fallback'), 'Plain text mode should use line parser output without a fallback marker.');
+        $t->contains('data-path="$text.line[2]"', $html);
+        $t->true(!str_contains($html, 'No syntactic changes'), 'Plain text syntax-list rendering should not hide text-only changes.');
+    },
     'recurses into nested wordpress registration arrays' => static function (TestRunner $t): void {
         $before = "register_block_type('demo/card', ['supports' => ['html' => false, 'align' => ['wide']], 'render_callback' => 'old_card']);";
         $after = "register_block_type('demo/card', ['supports' => ['html' => true, 'align' => ['wide', 'full']], 'render_callback' => 'old_card']);";
@@ -790,6 +808,22 @@ return [
         $t->contains('data-path="$css[&quot;@supports&quot;][&quot;.wp-block-acme-card&quot;][1]"', $html);
         $t->contains('grid-template-columns:minmax(0,1fr)auto;', $html);
         $t->true(!str_contains($html, 'wp-block-image'), 'Reordered nested stable selectors inside at-rules should stay out of the rendered change stream.');
+    },
+    'wordpress plugin readme text diff reports changelog insertions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-readme-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-readme-after.txt');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'text',
+            'title' => 'Plugin readme text diff',
+        ]);
+
+        $t->contains('Plugin readme text diff', $html);
+        $t->contains('data-path="$text.line[3]"', $html);
+        $t->contains('<del>Stable tag: 1.2.0</del><ins>Stable tag: 1.3.0</ins>', $html);
+        $t->contains('data-path="$text.line[9]"', $html);
+        $t->contains('= 1.3.0 =', $html);
+        $t->contains('Add Interactivity API view script support.', $html);
+        $t->true(!str_contains($html, 'data-op="-" data-path="$text.line[10]"'), 'Retained changelog entries should remain matched after a new release section is inserted.');
     },
     'wordpress inline html style diff reports css sublanguage changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-template-style-before.html');
@@ -1549,6 +1583,81 @@ return [
         $t->contains('lhs ☃:string', $encoded);
         $t->contains('rhs no:string', $encoded);
         $t->contains('rhs "こんにちは世界":string', $encoded);
+    },
+    'maps upstream windows1251 sample bytes as windows 1252 text content' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-windows1251-1.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-windows1251-2.hex')));
+        $t->true(is_string($before));
+        $t->true(is_string($after));
+
+        $decoder = new FileContentDecoder();
+        $decodedBefore = $decoder->guessTextContent($before);
+        $decodedAfter = $decoder->guessTextContent($after);
+        $t->contains('Muß können', (string) $decodedBefore);
+        $t->contains('ähnlich', (string) $decodedBefore);
+        $t->contains('ähmlich', (string) $decodedAfter);
+
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileBytesDiff(
+            $before,
+            $after,
+            'sample_files/windows1251_1.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Text', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']), 'Windows-1252 text should produce changed text chunks, not a binary status envelope.');
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs hnlich:normal', $encoded);
+        $t->contains('rhs hmlich:normal', $encoded);
+    },
+    'wordpress legacy encoded readme bytes render as text instead of binary' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-legacy-encoding-before.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-legacy-encoding-after.hex')));
+        $t->true(is_string($before));
+        $t->true(is_string($after));
+
+        $decoder = new FileContentDecoder();
+        $t->contains('müller', (string) $decoder->guessTextContent($before));
+        $t->contains('Löst alte Blöcke.', (string) $decoder->guessTextContent($before));
+
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileBytesDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-blocks/readme.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('wp-content/plugins/acme-blocks/readme.txt', $decoded['path']);
+        $t->same('Text', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $t->contains('lhs alte:normal', $encoded);
+        $t->contains('rhs moderne:normal', $encoded);
     },
     'wordpress utf16 wxr bytes render as xml text instead of binary' => static function (TestRunner $t): void {
         $encodeUtf16Le = static function (string $text): string {

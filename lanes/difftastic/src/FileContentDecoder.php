@@ -6,17 +6,47 @@ namespace PortLibs\Difftastic;
 
 final class FileContentDecoder
 {
+    private const WINDOWS_1252_C1_MAP = [
+        0x80 => 0x20ac,
+        0x82 => 0x201a,
+        0x83 => 0x0192,
+        0x84 => 0x201e,
+        0x85 => 0x2026,
+        0x86 => 0x2020,
+        0x87 => 0x2021,
+        0x88 => 0x02c6,
+        0x89 => 0x2030,
+        0x8a => 0x0160,
+        0x8b => 0x2039,
+        0x8c => 0x0152,
+        0x8e => 0x017d,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+        0x98 => 0x02dc,
+        0x99 => 0x2122,
+        0x9a => 0x0161,
+        0x9b => 0x203a,
+        0x9c => 0x0153,
+        0x9e => 0x017e,
+        0x9f => 0x0178,
+    ];
+
     public function guessTextContent(string $bytes): ?string
     {
         if ($this->isValidUtf8($bytes)) {
             return $bytes;
         }
 
-        if (!$this->hasUtf16ByteOrderMark($bytes)) {
-            return null;
+        if ($this->hasUtf16ByteOrderMark($bytes)) {
+            return $this->decodeUtf16WithByteOrderMark($bytes);
         }
 
-        return $this->decodeUtf16WithByteOrderMark($bytes);
+        return $this->decodeWindows1252Text($bytes);
     }
 
     public function isText(string $bytes): bool
@@ -32,6 +62,70 @@ final class FileContentDecoder
     private function hasUtf16ByteOrderMark(string $bytes): bool
     {
         return str_starts_with($bytes, "\xfe\xff") || str_starts_with($bytes, "\xff\xfe");
+    }
+
+    private function decodeWindows1252Text(string $bytes): ?string
+    {
+        if (!$this->looksLikeWindows1252Text($bytes)) {
+            return null;
+        }
+
+        $text = '';
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte < 0x80) {
+                $codePoint = $byte;
+            } elseif ($byte < 0xa0) {
+                if (!isset(self::WINDOWS_1252_C1_MAP[$byte])) {
+                    return null;
+                }
+
+                $codePoint = self::WINDOWS_1252_C1_MAP[$byte];
+            } else {
+                $codePoint = $byte;
+            }
+
+            $text .= $this->utf8CodePoint($codePoint);
+        }
+
+        return $this->isValidUtf8($text) ? $text : null;
+    }
+
+    private function looksLikeWindows1252Text(string $bytes): bool
+    {
+        if ($bytes === '') {
+            return false;
+        }
+
+        $hasHighByte = false;
+        $nulls = 0;
+        $length = min(strlen($bytes), 50_000);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte >= 0x80) {
+                $hasHighByte = true;
+            }
+
+            if ($byte === 0x00) {
+                $nulls++;
+                if ($nulls > 1) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if ($byte < 0x20 && !in_array($byte, [0x09, 0x0a, 0x0d], true)) {
+                return false;
+            }
+
+            if ($byte >= 0x80 && $byte < 0xa0 && !isset(self::WINDOWS_1252_C1_MAP[$byte])) {
+                return false;
+            }
+        }
+
+        return $hasHighByte;
     }
 
     private function decodeUtf16WithByteOrderMark(string $bytes): ?string

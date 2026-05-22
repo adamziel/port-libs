@@ -297,6 +297,10 @@ final class TokenDiffer
     public function diffSyntaxLists(string $old, string $new, array $options = []): array
     {
         if ($old !== $new) {
+            if ($this->isPlainTextLanguage($options)) {
+                return $this->diffPlainTextLines($old, $new);
+            }
+
             $fallbackReason = $this->textFallbackReason($old, $new, $options);
             if ($fallbackReason !== null) {
                 return $this->diffTextFallback($old, $new, $fallbackReason);
@@ -500,15 +504,31 @@ final class TokenDiffer
      */
     private function diffTextFallback(string $old, string $new, string $reason): array
     {
-        $oldLines = $this->fallbackLines($old);
-        $newLines = $this->fallbackLines($new);
-        $table = $this->lcsTable($oldLines, $newLines);
-        $changes = [[
+        return $this->diffLineChanges($old, $new, [[
             'op' => '~',
             'path' => '$text.fallback',
             'old' => 'Text (' . $reason . ')',
             'new' => 'line-oriented diff',
-        ]];
+        ]]);
+    }
+
+    /**
+     * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
+     */
+    private function diffPlainTextLines(string $old, string $new): array
+    {
+        return $this->diffLineChanges($old, $new);
+    }
+
+    /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
+     */
+    private function diffLineChanges(string $old, string $new, array $changes = []): array
+    {
+        $oldLines = $this->fallbackLines($old);
+        $newLines = $this->fallbackLines($new);
+        $table = $this->lcsTable($oldLines, $newLines);
         $deleted = [];
         $inserted = [];
         $i = 0;
@@ -628,7 +648,15 @@ final class TokenDiffer
             return false;
         }
 
-        return !in_array($language, ['plain', 'plain-text', 'plaintext', 'text'], true);
+        return !$this->isPlainTextLanguage($options);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isPlainTextLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['plain', 'plain-text', 'plaintext', 'text'], true);
     }
 
     private function formatBinarySize(int $bytes): string

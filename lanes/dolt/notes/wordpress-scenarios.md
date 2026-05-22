@@ -13,6 +13,9 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_diff_summary()` and `dolt_diff_stat()` projections for table-level review rows and aggregate row/cell counts.
 - Native `dolt diff --summary` fixed-width CLI text rendering plus `--name-only` table-name output for table-level review queues, including upstream `--filter` values and the `removed` alias for dropped tables.
 - Native `dolt diff --summary [tables...]` table-argument rendering, including upstream's current short-circuit behavior where a later changed table can produce successful empty output if an earlier changed table is outside the requested table set.
+- Native `dolt diff --stat [tables...]` CLI text rendering for row/cell impact review, including upstream's different table-argument behavior that scans past earlier unrequested changed tables and the schema-only no-data message.
+- Native `dolt diff --stat -r json` rendering for machine-readable row/cell impact review, including successful empty output for unchanged requested tables and empty `stats` objects for schema-only no-row diffs.
+- Native keyless `dolt diff --stat` text and JSON rendering for duplicate/cardinality-based import logs where Dolt reports row inserts/deletes instead of modified cells.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -51,6 +54,7 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-filtered-diff-review.php` returns the Dolt-shaped rows after applying the fixture's `to_post_status = 'publish' OR from_post_status = 'publish'` predicate and review limit.
 - `fixtures/wp-diff-stat-review.php` models a migration review where one published post changes, one post is added, one public page is removed, and one draft remains unchanged.
 - `examples/wordpress-diff-stat-review.php` returns a Dolt-style `dolt_diff_stat()` row with unmodified, added, deleted, modified, and cell-change counts for a compact review dashboard.
+- `examples/wordpress-diff-stat-cli.php` renders those counters as CLI-style `dolt diff --stat` text and compact `-r json` output for `wp_posts`, `wp_import_audit`, and a keyless `wp_import_log`, while showing that a requested `wp_posts` stat is not hidden by an earlier changed table and that schema-only `wp_options` changes report Dolt's no-data message or empty JSON `stats` object.
 - `fixtures/wp-ignore-summary.php` models a migration workspace with generated scratch/cache tables that should be hidden by `dolt_ignore`, while `dolt_ignore`, review tables, and explicit false-pattern exceptions remain visible.
 - `examples/wordpress-ignore-summary.php` returns ignore-aware `dolt_diff_summary()` rows for that workspace, so a WordPress migration UI can focus on reviewable data changes instead of generated scratch tables.
 - `fixtures/wp-ignore-conflict.php` models a migration workspace where generated-table rules conflict: `wp_tmp_*` says ignore while `*_cache` says keep.
@@ -80,4 +84,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map `dolt diff --stat <table>` table-specific output and empty-output boundaries, reusing the existing diff-stat counters.
+Next best slice: map keyless row SQL or tabular diff output, especially duplicate-row cardinality boundaries for import logs.
