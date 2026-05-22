@@ -905,6 +905,61 @@ return [
         $t->same([], $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLength(-1));
     },
+    'uses length expression index for wordpress option_name length IN-list buckets' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name_length', 'wp_options', 3, 'CREATE INDEX wp_options_option_name_length ON wp_options(length(option_name) DESC) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'cron', '1', 'no'], 3),
+            $schemaCell([null, 'café', 'unicode-name', 'no'], 4),
+            $schemaCell([null, 'db_version', '58796', 'yes'], 5),
+            $schemaCell([null, null, 'draft option without name', 'no'], 6),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([10, 5]),
+            $indexCell([7, 1]),
+            $indexCell([4, 2]),
+            $indexCell([4, 3]),
+            $indexCell([4, 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNameLengths([4, 10, 4, null]);
+        $limited = $database->wordpressOptionsByIndexedNameLengths([4, 10], 2);
+        $nullOnly = $database->wordpressOptionsByIndexedNameLengths([null]);
+
+        $t->same(3, $database->indexRootPageForLengthInLookup('wp_options', 'option_name', [4, 10]));
+        $t->same(['db_version', 'home', 'cron', 'café'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['58796', 'https://example.test/blog', '1', 'unicode-name'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['db_version', 'home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $nullOnly);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLengths([4, '7']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLengths([-1]));
+    },
+    'uses length expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_option_name_length', 'wp_options', 2, 'CREATE INDEX wp_options_option_name_length ON wp_options(length(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, [5, 99]]], 5);
+        $page3 = str_repeat("\0", 512);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'db_version', '58796', 'yes'], 1),
+        ]);
+        $page5 = $indexLeafPage([
+            $indexCell([10, 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedNameLengths([10, 12]);
+
+        $t->same(2, $database->indexRootPageForLengthInLookup('wp_options', 'option_name', [10, 12]));
+        $t->same(['db_version'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
     'uses substr expression index for wordpress option_name prefix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
@@ -935,6 +990,63 @@ return [
         $t->same(['_Transient_Feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
         $t->same([], $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNamePrefix(''));
+    },
+    'uses substr expression index for wordpress option_name prefix IN-list scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_name_prefix', 'wp_options', 3, 'CREATE INDEX wp_options_name_prefix ON wp_options(substr(option_name,1,11) COLLATE NOCASE) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_Transient_Feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_site_transient_update_plugins', 'site-cache', 'yes'], 2),
+            $schemaCell([null, '_transient_timeout_feed', '1700000000', 'no'], 3),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 4),
+            $schemaCell([null, null, 'draft option without name', 'no'], 5),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['_site_trans', 2]),
+            $indexCell(['_Transient_', 1]),
+            $indexCell(['_transient_', 3]),
+            $indexCell(['siteurl', 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedNamePrefixes(['_TRANSIENT_', '_site_trans', '_TRANSIENT_', null]);
+        $limited = $database->wordpressOptionsByIndexedNamePrefixes(['_TRANSIENT_', '_site_trans'], 2);
+        $nullOnly = $database->wordpressOptionsByIndexedNamePrefixes([null]);
+
+        $t->same(3, $database->indexRootPageForSubstringInLookup('wp_options', 'option_name', 1, 11, ['_TRANSIENT_', '_site_trans']));
+        $t->same(null, $database->indexRootPageForSubstringInLookup('wp_options', 'option_name', 1, 10, ['_TRANSIENT_']));
+        $t->same(['_site_transient_update_plugins', '_Transient_Feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['site-cache', 'cached-feed', '1700000000'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['_site_transient_update_plugins', '_Transient_Feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $nullOnly);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNamePrefixes([123]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNamePrefixes(['']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNamePrefixes(['_transient_', 'home']));
+    },
+    'uses substr expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_name_prefix', 'wp_options', 2, 'CREATE INDEX wp_options_name_prefix ON wp_options(substr(option_name,1,11)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['blogname', 99]]], 5);
+        $page3 = $indexLeafPage([
+            $indexCell(['_site_trans', 1]),
+            $indexCell(['_transient_', 2]),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, '_site_transient_update_plugins', 'site-cache', 'yes'], 1),
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 2),
+        ]);
+        $page5 = str_repeat("\0", 512);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedNamePrefixes(['_transient_', '_site_trans']);
+
+        $t->same(2, $database->indexRootPageForSubstringInLookup('wp_options', 'option_name', 1, 11, ['_transient_', '_site_trans']));
+        $t->same(['_site_transient_update_plugins', '_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['site-cache', 'cached-feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
     },
     'uses negative-start substr expression index for wordpress option_name suffix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

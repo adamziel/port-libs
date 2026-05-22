@@ -874,8 +874,44 @@ that returns `_transient_` option buckets without using the SQLite extension.
 The `examples/wordpress-option-name-prefix.php` script maps transient/cache
 bucket inspection on hosts where only a database image is available. Remaining
 expression-index work includes variable-start `substr(a,b,3)`, expression
-`IN` lookups, `abs()`, `json_extract()`, arbitrary deterministic expressions,
-and custom collations.
+`IN` lookups beyond the literal-start prefix-list slice, `abs()`,
+`json_extract()`, arbitrary deterministic expressions, and custom collations.
+
+## Focused Native Mapping: Substr Expression Index Prefix IN Lists
+
+SQLite can probe expression indexes with `IN (...)` constraints. This slice
+adds a bounded first-term `substr(option_name,1,N) IN (...)` path to the native
+reader. The implementation accepts same-length non-empty prefix values, ignores
+`NULL` RHS values for matching, suppresses duplicate RHS row output by scanning
+index records once, honors built-in collation and `DESC` metadata, and uses the
+existing bounded index traversal so out-of-range expression-index subtrees do
+not need to be readable.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test where2.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 199 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` verifies expression-index `IN` probes such as
+  `substr(a,b,3) IN ('and','l_t','xyz')` use the expression index and return
+  only matching rows.
+- `test/where2.test` covers duplicate RHS `IN` values without duplicate output
+  rows, which maps the native prefix-list scan behavior.
+
+The native PHP tests now cover a WordPress-shaped
+`wp_options(substr(option_name,1,11) COLLATE NOCASE)` index that reads both
+`_transient_` and `_site_trans` buckets from one prefix list, ignores `NULL`
+RHS values, rejects mixed prefix lengths, and prunes an intentionally invalid
+out-of-range index branch. The new
+`examples/wordpress-option-name-prefix-list.php` script maps cache and
+site-transient recovery on hosts where the PHP SQLite extension is unavailable.
 
 ## Focused Native Mapping: Negative-Start Substr Expression Index Suffix Buckets
 
@@ -949,3 +985,39 @@ length without scanning the whole table. The new
 `examples/wordpress-option-name-length.php` script maps recovery or audit tools
 that bucket suspicious, short, or policy-sensitive WordPress option names on
 hosts where the PHP SQLite extension is unavailable.
+
+## Focused Native Mapping: Length Expression Index IN Lists
+
+SQLite's `IN (...)` lookup behavior also applies to expression-index keys.
+This slice extends the existing first-term `length(option_name)` expression
+path from one exact bucket to a bounded integer length list. The native PHP
+reader validates non-negative integer RHS values, ignores `NULL` RHS values
+for matching, suppresses duplicate RHS output by scanning index records once,
+honors `DESC` metadata, and prunes out-of-range index subtrees before page
+decoding.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test where2.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 199 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` covers `length(a)` expression-index keys and nearby
+  expression-index planner matching.
+- `test/where2.test` covers indexed `IN (...)` lookup behavior, including
+  duplicate RHS values not producing duplicate output rows.
+
+The native PHP tests now cover a WordPress-shaped
+`wp_options(length(option_name) DESC)` index that reads multiple length buckets
+such as `4` and `10` in one pass, rejects non-integer and negative RHS values,
+ignores `NULL` RHS values, preserves UTF-8 character length behavior for
+stored option names, and skips an intentionally invalid out-of-range index
+branch. The new `examples/wordpress-option-name-length-list.php` script maps
+multi-bucket option-name audits on hosts where the PHP SQLite extension is
+unavailable.

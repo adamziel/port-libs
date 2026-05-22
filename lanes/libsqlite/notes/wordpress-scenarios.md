@@ -83,7 +83,13 @@ buckets such as `_transient_` through native index traversal, including
 `COLLATE NOCASE` comparison and safe `option_name IS NOT NULL` partial
 predicate checks. This remains intentionally narrower than SQLite's full
 expression engine: variable-start substrings, expression `IN` lookup families
-beyond `lower(column)`, and arbitrary functions are still future slices.
+beyond `lower(column)` and this literal-start prefix-list path, and arbitrary
+functions are still future slices.
+The literal-start prefix path now also supports bounded `IN (...)` reads for
+same-length prefixes. Recovery tools can read `_transient_` and `_site_trans`
+cache buckets from one `substr(option_name,1,N)` expression index, avoid
+duplicate rows for duplicate RHS prefixes, ignore `NULL` RHS values, and skip
+out-of-range expression-index branches before page decoding.
 Negative literal starts are now
 accepted for suffix buckets such as `substr(option_name,-9)`: native recovery
 tools can inspect `*_settings` option groups through stored suffix keys,
@@ -96,6 +102,10 @@ known-length option-name groups without scanning the whole `wp_options` table.
 This slice accepts only safe `option_name IS NOT NULL` partial predicates and
 uses UTF-8 character length when text is decodable, matching SQLite's text
 length semantics for the current WordPress-oriented fixture boundary.
+The same length-expression path now supports bounded `IN (...)` reads for
+multiple integer buckets. Recovery and audit tools can request lengths such as
+`4,10` in one index pass, ignore `NULL` RHS values, reject invalid length
+terms before lookup, and skip unrelated length subtrees before page decoding.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -120,8 +130,9 @@ subtrees before page decoding, so a small preload list can still be recovered
 when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
-First-column range, lower-expression IN-list/range, first-column IN-list, and
-composite equality-prefix range scans now use bounded index b-tree traversal instead of
+First-column range, lower-expression IN-list/range, length-expression IN-list,
+first-column IN-list, and composite equality-prefix range scans now use
+bounded index b-tree traversal instead of
 decoding every index page. This matters for WordPress recovery and import tools
 that inspect a narrow option-name range or a small known option-name set from a
 large or partially damaged database image: an unrelated out-of-range index
@@ -221,6 +232,13 @@ whose name prefix equals the caller-supplied prefix. By default it targets the
 `_transient_` bucket, mapping cache/transient inspection from SQLite database
 images without requiring the PHP SQLite extension or a full table scan.
 
+`examples/wordpress-option-name-prefix-list.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term
+`wp_options(substr(option_name,1,N))` expression index, and returns options
+whose prefix is in a same-length caller-supplied list such as
+`_transient_,_site_trans`. This maps cache/site-transient recovery and preload
+workflows that need multiple option-name buckets without scanning every row.
+
 `examples/wordpress-option-name-suffix.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(substr(option_name,-N))` expression index, and returns options
@@ -235,6 +253,12 @@ By default it targets length `4`, mapping quick recovery checks for compact
 core options such as `home` or other policy-sensitive option-name buckets
 without requiring a full table scan.
 
+`examples/wordpress-option-name-length-list.php` reads a WordPress-oriented
+SQLite database file, resolves a first-term `wp_options(length(option_name))`
+expression index, and returns options whose name lengths are in a caller
+supplied list such as `4,10`. This maps multi-bucket option-name audits and
+preload checks without scanning every `wp_options` row.
+
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
@@ -244,5 +268,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, literal-start
 `substr(column,...)`, and `length(column)` point buckets; expression
-`IN (...)` lookup families beyond `lower(column)`; custom collations; and
+`IN (...)` lookup families beyond `lower(column)` and literal-start
+`substr(column,1,N)` plus `length(column)` buckets; custom collations; and
 composite-key ranges beyond one equality prefix plus one range column.

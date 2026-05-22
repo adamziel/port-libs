@@ -250,6 +250,16 @@ final class SQLiteDatabase
         return $lookup['rootPage'] ?? null;
     }
 
+    /**
+     * @param list<mixed> $lengths
+     */
+    public function indexRootPageForLengthInLookup(string $tableName, string $columnName, array $lengths): ?int
+    {
+        $lookup = $this->indexLookupForLengthExpressionColumnInList($tableName, $columnName, $lengths);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
     public function indexRootPageForSubstringPointLookup(
         string $tableName,
         string $columnName,
@@ -258,6 +268,21 @@ final class SQLiteDatabase
         string $value,
     ): ?int {
         $lookup = $this->indexLookupForSubstringExpressionColumn($tableName, $columnName, $start, $length);
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    public function indexRootPageForSubstringInLookup(
+        string $tableName,
+        string $columnName,
+        int $start,
+        ?int $length,
+        array $values,
+    ): ?int {
+        $lookup = $this->indexLookupForSubstringExpressionColumnInList($tableName, $columnName, $start, $length, $values);
 
         return $lookup['rootPage'] ?? null;
     }
@@ -610,6 +635,65 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param list<mixed> $values
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForLengthExpressionColumnInList(
+        string $tableName,
+        string $columnName,
+        array $values,
+    ): ?array {
+        $hasNonNullValue = false;
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (!is_int($value)) {
+                throw new \InvalidArgumentException('SQLite length expression index IN lookup lengths must be integers or null');
+            }
+            if ($value < 0) {
+                throw new \InvalidArgumentException('SQLite length expression index IN lookup lengths cannot be negative');
+            }
+            $hasNonNullValue = true;
+        }
+        if (!$hasNonNullValue) {
+            return null;
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstLengthExpression($record->sql);
+            if ($firstExpression === null || strcasecmp($firstExpression->columnName, $columnName) !== 0) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @return null|array{rootPage:int,collation:string,descending:bool,expression:SQLiteSubstringIndexExpression}
      */
     private function indexLookupForSubstringExpressionColumn(
@@ -662,6 +746,24 @@ final class SQLiteDatabase
         }
 
         return null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return null|array{rootPage:int,collation:string,descending:bool,expression:SQLiteSubstringIndexExpression}
+     */
+    private function indexLookupForSubstringExpressionColumnInList(
+        string $tableName,
+        string $columnName,
+        int $start,
+        ?int $length,
+        array $values,
+    ): ?array {
+        if (!self::containsNonNullValue($values)) {
+            return null;
+        }
+
+        return $this->indexLookupForSubstringExpressionColumn($tableName, $columnName, $start, $length);
     }
 
     /**
@@ -1050,6 +1152,88 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param list<?string> $prefixes
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNamePrefixes(array $prefixes, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $prefixes === []) {
+            return [];
+        }
+
+        $prefixLength = null;
+        foreach ($prefixes as $prefix) {
+            if ($prefix !== null && !is_string($prefix)) {
+                throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list values must be strings or null');
+            }
+            if ($prefix === null) {
+                continue;
+            }
+            if ($prefix === '') {
+                throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list values must be non-empty');
+            }
+            $currentLength = self::sqliteLength($prefix);
+            if ($prefixLength === null) {
+                $prefixLength = $currentLength;
+                continue;
+            }
+            if ($currentLength !== $prefixLength) {
+                throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list values must share one prefix length');
+            }
+        }
+        if ($prefixLength === null) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForSubstringExpressionColumnInList(
+            'wp_options',
+            'option_name',
+            1,
+            $prefixLength,
+            $prefixes,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) expression IN-list index is not present');
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByFirstValueList(
+            $indexLookup['rootPage'],
+            $prefixes,
+            $indexLookup['collation'],
+            $indexLookup['descending'],
+        ) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar(
+                $prefixes,
+                self::sqliteSubstring($option->optionName, 1, $prefixLength),
+                $indexLookup['collation'],
+            )) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
      * @return list<SQLiteWordPressOption>
      */
     public function wordpressOptionsByIndexedNameSuffix(string $suffix, ?int $limit = null): array
@@ -1155,6 +1339,69 @@ final class SQLiteDatabase
 
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::sqliteLength($option->optionName) === $length) {
+                $options[] = $option;
+                if ($limit !== null && count($options) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<?int> $lengths
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameLengths(array $lengths, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $lengths === []) {
+            return [];
+        }
+
+        foreach ($lengths as $length) {
+            if ($length === null) {
+                continue;
+            }
+            if (!is_int($length)) {
+                throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list values must be integers or null');
+            }
+            if ($length < 0) {
+                throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list values cannot be negative');
+            }
+        }
+        if (!self::containsNonNullValue($lengths)) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForLengthExpressionColumnInList('wp_options', 'option_name', $lengths);
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options length(option_name) expression IN-list index is not present');
+        }
+
+        $options = [];
+        foreach ($this->indexCellsByFirstValueList(
+            $indexLookup['rootPage'],
+            $lengths,
+            $indexLookup['collation'],
+            $indexLookup['descending'],
+        ) as $indexCell) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($option->optionName), $indexLookup['collation'])) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
                     break;
