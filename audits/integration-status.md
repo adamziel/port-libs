@@ -1,5 +1,84 @@
 # Integration Status
 
+## Integration Worker Snapshot - 2026-05-22T20:57:49Z
+
+No lane implementation, generated public status batch, audit-evidence bundle, or
+dashboard update was accepted, staged, regenerated, pushed, or bundled by this
+integration pass. The checkout did not present a stable lane-scoped handoff:
+the index changed during inspection, a transient staged Syncthing batch was
+committed by another worker before review, and the remaining staged files are
+status/public artifacts rather than one lane batch.
+
+Current observed branch/status:
+
+- Branch line: `main...origin/main [ahead 42, behind 28]`.
+- Final observed `HEAD`: `ac2916a` (`Record Syncthing model callback status`).
+- Recent concurrent commits observed during this pass: `13d299c` (`Port
+  Syncthing model callback dispatch`) and `ac2916a`.
+- `git status --porcelain=v1 | wc -l` reported `99`
+  dirty/staged/untracked paths.
+- Final staged paths are not a lane-scoped implementation batch and were left
+  untouched for their owner: `audits/latest.md` and `progress.md`.
+- A staged Syncthing-only batch briefly appeared during inspection
+  (`lanes/syncthing/...` source, tests, notes, manifest, status, and example)
+  but disappeared before a focused review; the subsequent `HEAD` shows that
+  scope already committed by another worker.
+
+Active sessions/processes observed:
+
+- `tmux list-sessions` showed many live lane/audit roles, including
+  `port-pandoc`, `port-pandoc-reader-writer-runner-20260522T2040Z`,
+  `port-pandoc-redfix`, `port-pandoc-upstream-corpus-20260522T1959Z`,
+  `port-syncthing`, snapshot root verifiers, integration readiness auditors,
+  status-page workers, and multiple lane runners.
+- At first process inspection, one root suite was already running as
+  `php tools/run-tests.php` (PID `3082211`), so no duplicate root suite was
+  started. Later process checks showed no active `tools/run-tests.php`,
+  `phpunit`, `vendor/bin/phpunit`, or `run-agent` command other than the
+  inspection pipeline itself.
+
+Dirty scopes waiting for separate review:
+
+- Difftastic: manifest/status/notes, `TokenDiffer.php`, tests, and untracked
+  TypeScript module fixtures/examples.
+- Dolt: manifest/notes/status plus commit-log renderer/table source, fixture,
+  example, and tests.
+- esbuild: lane status, TypeScript lowerer source/tests, and untracked
+  WordPress private settings controller fixture.
+- LightningCSS: `CssMinifier.php` and `TransitionPrefixer.php`.
+- markerPDF: manifest/notes plus table recognizer source/tests.
+- Readability: article extractor source/tests plus untracked JSON-LD title
+  example and Mozilla fixture copy.
+- Quadrable: untracked Quadb store source/test/example.
+- Public/status artifacts: staged `audits/latest.md` and `progress.md`, plus
+  dirty `porting.html` and `porting-summary.json`; these were not bundled with
+  lane source.
+- Numerous untracked audit/evidence files remain review-only until a supervisor
+  explicitly asks to publish them.
+
+Checks run by this pass:
+
+- `git diff --check`: passed with no output on the dirty tree at initial
+  inspection.
+- `git diff --check HEAD --`: passed with no output for the full tree after the
+  concurrent Syncthing commits and staged public/status files appeared.
+- `git diff --cached --check`: passed with no output for the final staged
+  public/status files.
+- `php tools/run-tests.php`: not started by this pass because no lane batch was
+  accepted and a root suite was already active at initial inspection.
+- Focused lane tests: not run because no stable lane-scoped batch remained for
+  this integration worker to accept.
+
+Decision:
+
+- Do not accept a Pandoc batch: no staged Pandoc paths were present at any
+  stable inspection point.
+- Do not accept the remaining staged status/public files as a lane batch.
+- Do not stage or commit generated public files with lane source.
+- Record this status-only hold as the sole artifact for this pass, using a
+  path-limited commit so existing staged files remain owned by their current
+  worker.
+
 ## Integration Worker Snapshot - 2026-05-22T20:54:07Z
 
 No lane implementation, dashboard, generated status batch, or audit-evidence
