@@ -152,6 +152,20 @@ return [
         $t->contains('+ $css["p"] p{color:#000;}', $encoded);
         $t->true(!str_contains($encoded, '$css["@media"]'), 'Stable nested @media rules from the upstream HTML style sample should stay matched.');
     },
+    'maps upstream html sample style blocks as css sublanguage changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-1.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-2.html');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'html']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $html.style.css["body"][0] background-color:#f0f0f2; background-color:#fdfdff;', $encoded);
+        $t->contains('+ $html.style.css["p"] p{color:#000;}', $encoded);
+        $t->contains('+ $html.style.css["#main"] #main{width:600px;', $encoded);
+        $t->true(!str_contains($encoded, '$html.style.css["@media"]'), 'Stable CSS @media rules inside upstream HTML style blocks should stay matched as a sublanguage.');
+    },
     'maps upstream json sample with object key alignment' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -518,6 +532,24 @@ return [
         $t->contains('data-path="$css[&quot;@supports&quot;][&quot;.wp-block-acme-card&quot;][1]"', $html);
         $t->contains('grid-template-columns:minmax(0,1fr)auto;', $html);
         $t->true(!str_contains($html, 'wp-block-image'), 'Reordered nested stable selectors inside at-rules should stay out of the rendered change stream.');
+    },
+    'wordpress inline html style diff reports css sublanguage changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-template-style-before.html');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-template-style-after.html');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'html',
+            'title' => 'Inline block style sub-language diff',
+        ]);
+
+        $t->contains('Inline block style sub-language diff', $html);
+        $t->contains('data-path="$html.style.css[&quot;.wp-block-acme-card&quot;][0]/(0)[0]"', $html);
+        $t->contains('--wp--preset--color--primary', $html);
+        $t->contains('--wp--preset--color--accent', $html);
+        $t->contains('data-path="$html.style.css[&quot;@media&quot;][&quot;.wp-block-acme-card&quot;][0]"', $html);
+        $t->contains('gap:1rem;', $html);
+        $t->contains('gap:1.5rem;', $html);
+        $t->contains('wp-block-query-title', $html);
+        $t->true(!str_contains($html, 'data-path="$html.style.css[&quot;@media&quot;][&quot;.wp-block-image&quot;]'), 'Reordered stable CSS inside inline HTML style blocks should stay matched at the CSS sublanguage path.');
     },
     'wordpress wxr xml diff reports namespaced postmeta tags safely' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-wxr-postmeta-before.xml');

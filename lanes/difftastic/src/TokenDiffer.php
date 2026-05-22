@@ -299,6 +299,9 @@ final class TokenDiffer
         $newLists = $this->directLists($newRoot['children']);
         if ($this->usesAngleDelimiters($options)) {
             $this->diffRootListNodes($oldLists, $newLists, $options, $changes);
+            if ($this->isHtmlLanguage($options)) {
+                $this->diffHtmlStyleSubLanguage($old, $new, $changes);
+            }
 
             return $changes;
         }
@@ -1129,6 +1132,36 @@ final class TokenDiffer
     }
 
     /**
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffHtmlStyleSubLanguage(string $old, string $new, array &$changes): void
+    {
+        $oldCss = $this->htmlRawBlockContent($old, 'style');
+        $newCss = $this->htmlRawBlockContent($new, 'style');
+        if ($oldCss === '' && $newCss === '') {
+            return;
+        }
+
+        $cssOptions = ['language' => 'css'];
+        $delimiterPairs = $this->delimiterPairs($cssOptions);
+        $oldRoot = $this->parseTokenTree($this->tokensForDiff($oldCss, $cssOptions), $delimiterPairs);
+        $newRoot = $this->parseTokenTree($this->tokensForDiff($newCss, $cssOptions), $delimiterPairs);
+
+        $this->diffCssRules($oldRoot['children'], $newRoot['children'], $cssOptions, $changes, '$html.style.css');
+    }
+
+    private function htmlRawBlockContent(string $source, string $tagName): string
+    {
+        $quotedTag = preg_quote($tagName, '/');
+        $matched = preg_match_all('/<' . $quotedTag . '\b[^>]*>(?<body>[\s\S]*?)<\/' . $quotedTag . '>/i', $source, $matches);
+        if ($matched === false || $matched === 0) {
+            return '';
+        }
+
+        return implode("\n", array_map(static fn (string $body): string => trim($body), $matches['body']));
+    }
+
+    /**
      * @param list<array<string, mixed>> $nodes
      * @return list<array{selector:string, signature:string, list:array<string, mixed>}>
      */
@@ -1678,6 +1711,14 @@ final class TokenDiffer
     private function isCssLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['css', 'scss'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isHtmlLanguage(array $options): bool
+    {
+        return strtolower((string) ($options['language'] ?? '')) === 'html';
     }
 
     /**

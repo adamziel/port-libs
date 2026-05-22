@@ -56,6 +56,8 @@ The upstream Tailwind CSS and simple SCSS fixtures now exercise CSS at-rule item
 
 The upstream HTML style sample now contributes a targeted CSS `@media` extraction. The WordPress nested at-rule fixture applies that container shape to block styles under `@media` and `@supports`, keeping a reordered stable `.wp-block-image` child rule out of the rendered change stream while reporting padding, radius, gap, and grid-template-column changes under the retained `.wp-block-acme-card` paths.
 
+HTML mode now maps the upstream `style_element` sub-language rule from `src/parse/tree_sitter_parser.rs` by extracting `<style>` raw text and parsing it with the native CSS rule matcher. The inline block-template style fixture applies this to saved block markup that carries embedded CSS: color/padding/gap changes are rendered under `$html.style.css[...]` paths, an added query-title rule is shown as a CSS insertion, and reordered stable image rules remain matched at the CSS sub-language layer.
+
 Run:
 
 ```sh
@@ -63,6 +65,7 @@ php lanes/difftastic/examples/wordpress-render-callback-diff.php
 php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
+php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-scss-diff.php
 php lanes/difftastic/examples/wordpress-nested-at-rule-css-diff.php
@@ -81,4 +84,4 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 
 ## Next Task
 
-Map another PHP/Hack body sample beyond return types, or broaden nested CSS container parity beyond `@media`/`@supports` to `@container`/`@layer` and mixed declaration/nesting cases.
+Map upstream HTML `<script>` raw-text sub-language behavior to JavaScript syntax-list changes, or map another PHP/Hack body sample beyond return types.

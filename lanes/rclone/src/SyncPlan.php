@@ -140,6 +140,14 @@ final class SyncPlan
         bool $suffixKeepExtension = false,
         array $compareDest = [],
         array $copyDest = [],
+        bool $noCheckDest = false,
+        bool $ignoreExisting = false,
+        bool $immutable = false,
+        bool $ignoreTimes = false,
+        bool $updateOlder = false,
+        bool $noUpdateModTime = false,
+        int $modifyWindowSeconds = 1,
+        bool $checksum = false,
     ): array {
         $copied = [];
         foreach ($source->list() as $sourceInfo) {
@@ -148,8 +156,23 @@ final class SyncPlan
                 continue;
             }
 
-            $targetInfo = $this->optionalInfo($target, $path);
-            if (!$this->needsTransfer($sourceInfo, $targetInfo)) {
+            $targetInfo = $noCheckDest ? null : $this->optionalInfo($target, $path);
+            if (!$noCheckDest && $targetInfo !== null && $ignoreExisting) {
+                continue;
+            }
+
+            if (!$this->needsTransfer(
+                $source,
+                $target,
+                $sourceInfo,
+                $targetInfo,
+                $ignoreTimes,
+                $updateOlder,
+                $noUpdateModTime,
+                $modifyWindowSeconds,
+                $checksum,
+                $immutable,
+            )) {
                 continue;
             }
 
@@ -164,6 +187,10 @@ final class SyncPlan
                 }
                 $copied[] = $copyDestReference['provider']->copyTo($copyDestReference['path'], $target, $path);
                 continue;
+            }
+
+            if (!$noCheckDest && $targetInfo !== null && $immutable) {
+                throw new \RuntimeException('immutable file modified');
             }
 
             if ($this->backupRequested($backup, $backupPrefix, $suffix)) {
@@ -353,14 +380,209 @@ final class SyncPlan
         }
     }
 
-    private function needsTransfer(ObjectInfo $sourceInfo, ?ObjectInfo $targetInfo): bool
+    private function needsTransfer(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ObjectInfo $sourceInfo,
+        ?ObjectInfo $targetInfo,
+        bool $ignoreTimes,
+        bool $updateOlder,
+        bool $noUpdateModTime,
+        int $modifyWindowSeconds,
+        bool $checksum,
+        bool $immutable,
+    ): bool
     {
-        return $targetInfo === null || !$this->sameObject($sourceInfo, $targetInfo);
+        if ($targetInfo === null) {
+            return true;
+        }
+        if ($ignoreTimes) {
+            return true;
+        }
+        if ($updateOlder) {
+            return $this->needsUpdateOlderTransfer(
+                $source,
+                $target,
+                $sourceInfo,
+                $targetInfo,
+                $noUpdateModTime,
+                $modifyWindowSeconds,
+                $checksum,
+                $immutable,
+            );
+        }
+
+        return !$this->objectsEqualOrModTimeUpdated(
+            $source,
+            $target,
+            $sourceInfo,
+            $targetInfo,
+            $noUpdateModTime,
+            $modifyWindowSeconds,
+            $checksum,
+            $immutable,
+        );
     }
 
     private function sameObject(ObjectInfo $left, ObjectInfo $right): bool
     {
         return $left->size === $right->size && $left->sha256 === $right->sha256;
+    }
+
+    private function needsUpdateOlderTransfer(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ObjectInfo $sourceInfo,
+        ObjectInfo $targetInfo,
+        bool $noUpdateModTime,
+        int $modifyWindowSeconds,
+        bool $checksum,
+        bool $immutable,
+    ): bool {
+        $dt = $this->modTimeDeltaSeconds($sourceInfo, $targetInfo);
+        if ($dt === null) {
+            return !$this->objectsEqualOrModTimeUpdated(
+                $source,
+                $target,
+                $sourceInfo,
+                $targetInfo,
+                $noUpdateModTime,
+                $modifyWindowSeconds,
+                $checksum,
+                $immutable,
+            );
+        }
+
+        if ($this->modTimesWithinWindow($dt, $modifyWindowSeconds)) {
+            if ($checksum) {
+                return !$this->sameSizeAndHash($source, $target, $sourceInfo, $targetInfo, true);
+            }
+
+            return $sourceInfo->size !== $targetInfo->size;
+        }
+
+        if ($dt > 0) {
+            return false;
+        }
+
+        return !$this->objectsEqualOrModTimeUpdated(
+            $source,
+            $target,
+            $sourceInfo,
+            $targetInfo,
+            $noUpdateModTime,
+            $modifyWindowSeconds,
+            $checksum,
+            $immutable,
+            true,
+        );
+    }
+
+    private function objectsEqualOrModTimeUpdated(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ObjectInfo $sourceInfo,
+        ObjectInfo $targetInfo,
+        bool $noUpdateModTime,
+        int $modifyWindowSeconds,
+        bool $checksum,
+        bool $immutable,
+        bool $forceModTimeMatch = false,
+    ): bool {
+        if ($sourceInfo->size !== $targetInfo->size) {
+            return false;
+        }
+        if ($checksum) {
+            return $this->sameSizeAndHash($source, $target, $sourceInfo, $targetInfo, false);
+        }
+
+        $dt = $this->modTimeDeltaSeconds($sourceInfo, $targetInfo);
+        if (!$forceModTimeMatch && $dt !== null && $this->modTimesWithinWindow($dt, $modifyWindowSeconds)) {
+            return true;
+        }
+
+        $sameHash = $this->sameProviderHash($source, $target, $sourceInfo->path, $targetInfo->path);
+        if ($sameHash !== true) {
+            return false;
+        }
+
+        if ($sourceInfo->modTime !== $targetInfo->modTime) {
+            if ($immutable) {
+                return false;
+            }
+            if (!$noUpdateModTime) {
+                $target->setModTime($targetInfo->path, $sourceInfo->modTime);
+            }
+        }
+
+        return true;
+    }
+
+    private function sameSizeAndHash(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ObjectInfo $sourceInfo,
+        ObjectInfo $targetInfo,
+        bool $fallbackToSizeOnly,
+    ): bool {
+        if ($sourceInfo->size !== $targetInfo->size) {
+            return false;
+        }
+
+        $sameHash = $this->sameProviderHash($source, $target, $sourceInfo->path, $targetInfo->path);
+
+        return $sameHash ?? $fallbackToSizeOnly;
+    }
+
+    private function sameProviderHash(MemoryProvider $source, MemoryProvider $target, string $sourcePath, string $targetPath): ?bool
+    {
+        $commonHashes = $source->supportedHashes()->overlap($target->supportedHashes());
+        if ($commonHashes->count() === 0) {
+            return null;
+        }
+
+        $hashType = $commonHashes->getOne();
+
+        return ($source->hashes($sourcePath, new HashSet($hashType))[$hashType] ?? null)
+            === ($target->hashes($targetPath, new HashSet($hashType))[$hashType] ?? null);
+    }
+
+    private function modTimeDeltaSeconds(ObjectInfo $sourceInfo, ObjectInfo $targetInfo): ?float
+    {
+        $sourceTime = $this->timestamp($sourceInfo->modTime);
+        $targetTime = $this->timestamp($targetInfo->modTime);
+        if ($sourceTime === null || $targetTime === null) {
+            return null;
+        }
+
+        return $targetTime - $sourceTime;
+    }
+
+    private function timestamp(?string $modTime): ?float
+    {
+        if ($modTime === null || $modTime === '') {
+            return null;
+        }
+
+        try {
+            $dateTime = new \DateTimeImmutable($modTime);
+        } catch (\Exception) {
+            return null;
+        }
+
+        $seconds = (float) $dateTime->format('U');
+        $micros = (float) $dateTime->format('u') / 1_000_000;
+
+        return $seconds + $micros;
+    }
+
+    private function modTimesWithinWindow(float $deltaSeconds, int $modifyWindowSeconds): bool
+    {
+        if ($modifyWindowSeconds <= 0) {
+            return $deltaSeconds === 0.0;
+        }
+
+        return abs($deltaSeconds) < $modifyWindowSeconds;
     }
 
     /**

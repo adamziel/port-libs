@@ -11,10 +11,11 @@ return [
     'memory provider stores object metadata and copies content' => static function (TestRunner $t): void {
         $a = new MemoryProvider();
         $b = new MemoryProvider();
-        $info = $a->put('/site/export.wxr', 'content');
+        $info = $a->put('/site/export.wxr', 'content', ['modTime' => '2026-05-22T01:02:03Z']);
         $a->copyTo('site/export.wxr', $b, 'backup/export.wxr');
         $t->same(7, $info->size);
         $t->same('content', $b->get('backup/export.wxr'));
+        $t->same('2026-05-22T01:02:03Z', $b->info('backup/export.wxr')->modTime);
     },
     'memory provider can model case-insensitive provider object lookup' => static function (TestRunner $t): void {
         $provider = new MemoryProvider(true);

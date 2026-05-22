@@ -226,7 +226,17 @@ final class MemoryProvider
 
     public function copyTo(string $sourcePath, self $target, string $targetPath): ObjectInfo
     {
-        return $target->put($targetPath, $this->get($sourcePath));
+        $entry = $this->entry($sourcePath);
+
+        return $target->putEntry($targetPath, $entry);
+    }
+
+    public function setModTime(string $path, \DateTimeInterface|string|null $modTime): ObjectInfo
+    {
+        $path = $this->canonicalPath($path);
+        $this->objects[$path]['modTime'] = $this->normalizeModTime($modTime);
+
+        return $this->info($path);
     }
 
     /**

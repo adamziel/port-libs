@@ -120,6 +120,119 @@ return [
         $t->same('old', $target->get('old.txt'));
         $t->same(['old.txt'], $plan->deletePaths($source, $target));
     },
+    'ignore existing skips changed destination objects like upstream sync' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('existing', 'newpotatoes');
+        $source->put('missing', 'fresh');
+        $target->put('existing', 'potato');
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, ignoreExisting: true);
+
+        $t->same(['missing'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('potato', $target->get('existing'));
+        $t->same('fresh', $target->get('missing'));
+    },
+    'immutable copies new objects but refuses modified destination objects' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('archive/site-2026-05-22.wxr', '<rss>current</rss>');
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, immutable: true);
+        $t->same(['archive/site-2026-05-22.wxr'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('<rss>current</rss>', $target->get('archive/site-2026-05-22.wxr'));
+
+        $source->put('archive/site-2026-05-22.wxr', '<rss>rewritten</rss>');
+        $error = null;
+        try {
+            (new SyncPlan())->copyChanged($source, $target, immutable: true);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('immutable file modified', $error?->getMessage());
+        $t->same('<rss>current</rss>', $target->get('archive/site-2026-05-22.wxr'));
+    },
+    'no check dest transfers every source object without archiving overwritten targets' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('a.txt', 'same');
+        $source->put('b.txt', 'new');
+        $target->put('a.txt', 'same');
+        $target->put('b.txt', 'old');
+
+        $copied = (new SyncPlan())->copyChanged(
+            $source,
+            $target,
+            backupPrefix: 'backup',
+            noCheckDest: true,
+        );
+
+        $t->same(['a.txt', 'b.txt'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('same', $target->get('a.txt'));
+        $t->same('new', $target->get('b.txt'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('backup/b.txt'));
+    },
+    'ignore times transfers identical destination objects unconditionally' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('existing', 'potato', ['modTime' => '2026-05-22T12:00:00Z']);
+        $target->put('existing', 'potato', ['modTime' => '2026-05-21T12:00:00Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, ignoreTimes: true);
+
+        $t->same(['existing'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('potato', $target->get('existing'));
+        $t->same('2026-05-22T12:00:00Z', $target->info('existing')->modTime);
+    },
+    'modtime only differences update destination timestamp without transfer' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('empty space', '-', ['modTime' => '2026-05-22T12:00:00Z']);
+        $target->put('empty space', '-', ['modTime' => '2026-05-21T12:00:00Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target);
+
+        $t->same([], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('2026-05-22T12:00:00Z', $target->info('empty space')->modTime);
+
+        $target->setModTime('empty space', '2026-05-20T12:00:00Z');
+        $copied = (new SyncPlan())->copyChanged($source, $target, noUpdateModTime: true);
+
+        $t->same([], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('2026-05-20T12:00:00Z', $target->info('empty space')->modTime);
+    },
+    'update older skips newer destinations and checks older or near-equal files like upstream' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('one', 'one', ['modTime' => '2026-05-20T00:00:00Z']);
+        $source->put('two', 'two', ['modTime' => '2026-05-22T00:00:00Z']);
+        $source->put('three', 'three', ['modTime' => '2026-05-21T00:00:00Z']);
+        $source->put('four', 'four', ['modTime' => '2026-05-21T00:00:00Z']);
+        $source->put('five', 'five', ['modTime' => '2026-05-21T00:00:00Z']);
+
+        $target->put('one', 'ONE', ['modTime' => '2026-05-21T00:00:00Z']);
+        $target->put('two', 'TWO', ['modTime' => '2026-05-21T00:00:00Z']);
+        $target->put('three', 'THREE', ['modTime' => '2026-05-21T00:00:00.500000Z']);
+        $target->put('four', 'FOURFOUR', ['modTime' => '2026-05-21T00:00:00.500000Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, updateOlder: true, modifyWindowSeconds: 1);
+
+        $t->same(['five', 'four', 'two'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('ONE', $target->get('one'));
+        $t->same('two', $target->get('two'));
+        $t->same('2026-05-22T00:00:00Z', $target->info('two')->modTime);
+        $t->same('THREE', $target->get('three'));
+        $t->same('four', $target->get('four'));
+        $t->same('five', $target->get('five'));
+
+        $source->put('three', 'three', ['modTime' => '2026-05-21T00:00:00Z']);
+        $target->put('three', 'THREE', ['modTime' => '2026-05-21T00:00:00.500000Z']);
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, updateOlder: true, modifyWindowSeconds: 1, checksum: true);
+        $t->same(['three'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('three', $target->get('three'));
+    },
     'compare dest skips copies when an upstream reference matches source bytes' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
@@ -437,5 +550,66 @@ return [
         $t->same($tree['wp-content/uploads/2026/05/hero.jpg'], $target->get('wp-content/uploads/2026/05/hero.jpg'));
         $t->same($tree['database/site.sql'], $target->get('database/site.sql'));
         $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
+    },
+    'immutable wordpress archive sync preserves existing backup artifacts' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('exports/site-2026-05-22.wxr', '<rss version="2.0"></rss>');
+        $source->put('database/site-2026-05-22.sql', 'insert into wp_posts values (...)');
+        $target->put('exports/site-2026-05-22.wxr', '<rss version="2.0"></rss>');
+
+        $copied = (new SyncPlan())->copyChanged($source, $target, immutable: true);
+        $t->same(['database/site-2026-05-22.sql'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('<rss version="2.0"></rss>', $target->get('exports/site-2026-05-22.wxr'));
+        $t->same('insert into wp_posts values (...)', $target->get('database/site-2026-05-22.sql'));
+
+        $source->put('exports/site-2026-05-22.wxr', '<rss>rewritten archive</rss>');
+        $error = null;
+        try {
+            (new SyncPlan())->copyChanged($source, $target, immutable: true);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('immutable file modified', $error?->getMessage());
+        $t->same('<rss version="2.0"></rss>', $target->get('exports/site-2026-05-22.wxr'));
+    },
+    'update older wordpress archive sync preserves newer remote artifacts' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('database/site.sql', 'fresh sql dump', ['modTime' => '2026-05-22T00:00:00Z']);
+        $source->put('exports/site.wxr', '<rss>source export</rss>', ['modTime' => '2026-05-21T00:00:00Z']);
+        $source->put('wp-content/uploads/2026/05/hero.jpg', 'image-A', ['modTime' => '2026-05-22T00:00:00Z']);
+
+        $target->put('database/site.sql', 'stale sql dump', ['modTime' => '2026-05-21T00:00:00Z']);
+        $target->put('exports/site.wxr', '<rss>remote recovery export</rss>', ['modTime' => '2026-05-23T00:00:00Z']);
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'image-B', ['modTime' => '2026-05-22T00:00:00.500000Z']);
+        $target->put('wp-content/cache/orphan.html', '<html>cache</html>');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $copied = (new SyncPlan())->copyChanged(
+            $source,
+            $target,
+            $filter,
+            updateOlder: true,
+            modifyWindowSeconds: 1,
+            checksum: true,
+        );
+
+        $t->same([
+            'database/site.sql',
+            'wp-content/uploads/2026/05/hero.jpg',
+        ], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('fresh sql dump', $target->get('database/site.sql'));
+        $t->same('<rss>remote recovery export</rss>', $target->get('exports/site.wxr'));
+        $t->same('image-A', $target->get('wp-content/uploads/2026/05/hero.jpg'));
+        $t->same('<html>cache</html>', $target->get('wp-content/cache/orphan.html'));
     },
 ];
