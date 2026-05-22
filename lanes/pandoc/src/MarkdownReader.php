@@ -22,6 +22,11 @@ final class MarkdownReader
                 $blocks[] = $codeBlock;
                 continue;
             }
+            $blockQuote = $paragraph === [] && $listStack === [] ? $this->tryReadBlockQuote($lines, $index) : null;
+            if ($blockQuote !== null) {
+                $blocks[] = $blockQuote;
+                continue;
+            }
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -41,6 +46,12 @@ final class MarkdownReader
             if (preg_match('/^(\s*)(\d+)[.)]\s+(.+)$/', $line, $m)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->appendListItem($listStack, $blocks, true, (int) $m[2], strlen($m[1]), trim($m[3]));
+                continue;
+            }
+            $indentedCodeBlock = $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
+            if ($indentedCodeBlock !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $blocks[] = $indentedCodeBlock;
                 continue;
             }
             $definitionList = $this->tryReadDefinitionList($lines, $index);
@@ -110,6 +121,95 @@ final class MarkdownReader
         $index = $cursor - 1;
 
         return new AstNode('code_block', $attrs);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadBlockQuote(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->isBlockQuoteLine($lines[$index] ?? '')) {
+            return null;
+        }
+
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count && $this->isBlockQuoteLine($lines[$cursor])) {
+            $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+            $cursor++;
+        }
+
+        $index = $cursor - 1;
+        $inner = $this->read(implode("\n", $content));
+
+        return new AstNode('blockquote', [], $inner->children);
+    }
+
+    private function isBlockQuoteLine(string $line): bool
+    {
+        return preg_match('/^ {0,3}>/', $line) === 1;
+    }
+
+    private function stripBlockQuoteMarker(string $line): string
+    {
+        return preg_replace('/^ {0,3}>[ \t]?/', '', $line, 1) ?? $line;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadIndentedCodeBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->isIndentedCodeLine($lines[$index] ?? '')) {
+            return null;
+        }
+
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if ($this->isIndentedCodeLine($line)) {
+                $content[] = $this->stripCodeIndent($line);
+                $cursor++;
+                continue;
+            }
+
+            if (trim($line) === '') {
+                $content[] = '';
+                $cursor++;
+                continue;
+            }
+
+            break;
+        }
+
+        while ($content !== [] && end($content) === '') {
+            array_pop($content);
+        }
+
+        $index = $cursor - 1;
+
+        return new AstNode('code_block', [
+            'classes' => [],
+            'attributes' => [],
+            'text' => implode("\n", $content),
+        ]);
+    }
+
+    private function isIndentedCodeLine(string $line): bool
+    {
+        return str_starts_with($line, '    ') || str_starts_with($line, "\t");
+    }
+
+    private function stripCodeIndent(string $line): string
+    {
+        if (str_starts_with($line, "\t")) {
+            return substr($line, 1);
+        }
+
+        return substr($line, 4);
     }
 
     private function isClosingCodeFence(string $line, string $fenceChar, int $fenceLength): bool

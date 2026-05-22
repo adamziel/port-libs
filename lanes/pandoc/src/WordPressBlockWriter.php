@@ -35,6 +35,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderDefinitionList($node);
             } elseif ($node->type === 'code_block') {
                 $blocks[] = $this->renderCodeBlock($node);
+            } elseif ($node->type === 'blockquote') {
+                $blocks[] = $this->renderBlockQuote($node);
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -121,6 +123,11 @@ final class WordPressBlockWriter
 
     private function renderDefinitionList(AstNode $node): string
     {
+        return '<!-- wp:html -->' . "\n" . $this->renderDefinitionListHtml($node) . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderDefinitionListHtml(AstNode $node): string
+    {
         $html = '<dl>';
         foreach ($node->children as $item) {
             if ($item->type !== 'definition_item') {
@@ -143,18 +150,30 @@ final class WordPressBlockWriter
         }
         $html .= '</dl>';
 
-        return '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
+        return $html;
     }
 
     private function renderCodeBlock(AstNode $node): string
+    {
+        return '<!-- wp:code -->'
+            . "\n" . $this->renderCodeBlockHtml($node)
+            . "\n" . '<!-- /wp:code -->';
+    }
+
+    private function renderCodeBlockHtml(AstNode $node): string
     {
         $classes = $node->attr('classes', []);
         $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
 
-        return '<!-- wp:code -->'
-            . "\n" . '<pre class="wp-block-code"><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>'
-            . "\n" . '<!-- /wp:code -->';
+        return '<pre class="wp-block-code"><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    private function renderBlockQuote(AstNode $node): string
+    {
+        return '<!-- wp:quote -->'
+            . "\n" . '<blockquote class="wp-block-quote">' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
+            . "\n" . '<!-- /wp:quote -->';
     }
 
     private function sanitizeCodeClass(string $class): string
@@ -180,6 +199,46 @@ final class WordPressBlockWriter
             }
 
             $html .= $this->renderInlineNode($child);
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderBlocksAsHtml(array $blocks): string
+    {
+        $html = '';
+        foreach ($blocks as $block) {
+            if ($block->type === 'paragraph') {
+                $html .= '<p>' . $this->renderInlines($block) . '</p>';
+                continue;
+            }
+            if ($block->type === 'heading') {
+                $level = (int) $block->attr('level', 2);
+                $html .= '<h' . $level . '>' . $this->renderInlines($block) . '</h' . $level . '>';
+                continue;
+            }
+            if ($block->type === 'bullet_list') {
+                $html .= $this->renderListHtml($block, false);
+                continue;
+            }
+            if ($block->type === 'ordered_list') {
+                $html .= $this->renderListHtml($block, true);
+                continue;
+            }
+            if ($block->type === 'definition_list') {
+                $html .= $this->renderDefinitionListHtml($block);
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $html .= $this->renderCodeBlockHtml($block);
+                continue;
+            }
+            if ($block->type === 'blockquote') {
+                $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+            }
         }
 
         return $html;

@@ -18,6 +18,9 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/command` artifacts: 1,155
 - `test/command/*.md` command fixture files: 1,064
 - `.native` expected artifacts under `test/`: 252
+- `test/testsuite.txt` top-level Markdown sections: 14
+- `test/testsuite.native` rendered native AST lines: 2,238
+- `test/testsuite.native` `BlockQuote` nodes in the full rendered suite: 7
 - Markdown fixture files under `test/`: 1,096
 - Office/archive fixtures (`docx`, `odt`, `epub`, `pptx`, `xlsx`, `rtf`): 309
 - HTML/XML/JATS fixtures: 29
@@ -50,6 +53,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
   Pandoc's opening-fence indentation stripping and both bare language and
   `{.class}` info strings
+- Block quote cases from the `# Block Quotes` section of `test/testsuite.txt`,
+  cross-checked against `test/testsuite.native`: simple quoted paragraphs,
+  quote-contained indented code, ordered lists, nested block quotes, and the
+  lazy-continuation case where `> 1.` stays inside a paragraph instead of
+  starting a quote.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.

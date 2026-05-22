@@ -100,6 +100,37 @@ return [
         $t->same('bullet_list', $definition->children[0]->type);
         $t->same('bar', $definition->children[0]->children[0]->children[0]->attr('text'));
     },
+    'maps upstream testsuite simple block quote paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("> This is a block quote.\n> It is pretty short.");
+        $quote = $document->children[0];
+
+        $t->same('blockquote', $quote->type);
+        $t->same('paragraph', $quote->children[0]->type);
+        $t->same('This is a block quote. It is pretty short.', $quote->children[0]->attr('text'));
+    },
+    'maps upstream testsuite block quote with code list and nested quotes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("> Code in a block quote:\n> \n>     sub status {\n>         print \"working\";\n>     }\n> \n> A list:\n> \n> 1. item one\n> 2. item two\n>\n> Nested block quotes:\n>\n> > nested\n>\n>>  nested\n>");
+        $quote = $document->children[0];
+
+        $t->same('blockquote', $quote->type);
+        $t->same('paragraph', $quote->children[0]->type);
+        $t->same('code_block', $quote->children[1]->type);
+        $t->same("sub status {\n    print \"working\";\n}", $quote->children[1]->attr('text'));
+        $t->same('ordered_list', $quote->children[3]->type);
+        $t->same('item two', $quote->children[3]->children[1]->attr('text'));
+        $t->same('blockquote', $quote->children[5]->type);
+        $t->same('nested', $quote->children[5]->children[0]->attr('text'));
+        $t->same('blockquote', $quote->children[6]->type);
+        $t->same('nested', $quote->children[6]->children[0]->attr('text'));
+    },
+    'keeps upstream testsuite lazy quote marker inside paragraph' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("This should not be a block quote: 2\n> 1.");
+        $paragraph = $document->children[0];
+
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('This should not be a block quote: 2 > 1.', $paragraph->attr('text'));
+    },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -129,6 +160,13 @@ return [
 
         $t->contains('<!-- wp:code -->', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-gallery]&#039;);</code></pre>', $blocks);
+    },
+    'writes wordpress quote block markup for migration reviewer notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<!-- wp:quote -->', $blocks);
+        $t->contains('<blockquote class="wp-block-quote"><p>Reviewer note: keep the archive URL attached to the imported post.</p></blockquote>', $blocks);
     },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
