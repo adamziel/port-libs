@@ -88,8 +88,8 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor: `port-auditor` session exists; latest independent audit is recorded in `audits/latest.md`.
-- Worker sessions: `port-esbuild` completed cache/manifest reconciliation and a native lexer slice; next work is parser/import scanner mapping.
+- Auditor: stopped; latest independent audit is recorded in `audits/latest.md`.
+- Worker sessions: none active after integrating the latest esbuild slice.
 
 ## Next Best Step
 
