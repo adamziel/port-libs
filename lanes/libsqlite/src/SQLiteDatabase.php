@@ -189,9 +189,21 @@ final class SQLiteDatabase
 
     public function indexRootPageForColumn(string $tableName, string $columnName): ?int
     {
+        $autoIndexFirstColumns = null;
+        $autoIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable($tableName) as $record) {
             if ($record->sql !== null && self::indexSqlMatchesFirstColumn($record->sql, $columnName)) {
                 return $record->rootPage;
+            }
+            if ($record->sql === null && self::isAutomaticIndex($record, $tableName)) {
+                if ($autoIndexFirstColumns === null) {
+                    $autoIndexFirstColumns = $this->uniqueAutoIndexFirstColumnsForTable($tableName);
+                }
+                $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
+                $autoIndexOrdinal++;
+                if ($firstColumn !== null && strcasecmp($firstColumn, $columnName) === 0) {
+                    return $record->rootPage;
+                }
             }
         }
 
@@ -485,6 +497,24 @@ final class SQLiteDatabase
             : (($matches[6] ?? '') !== '' ? $matches[6] : (($matches[7] ?? '') !== '' ? $matches[7] : $matches[8]));
 
         return strcasecmp($firstColumn, $columnName) === 0;
+    }
+
+    private function uniqueAutoIndexFirstColumnsForTable(string $tableName): array
+    {
+        foreach ($this->schemaRecords() as $record) {
+            if ($record->isTable($tableName) && $record->sql !== null) {
+                return SQLiteCreateTable::uniqueAutoIndexFirstColumns($record->sql);
+            }
+        }
+
+        return [];
+    }
+
+    private static function isAutomaticIndex(SQLiteSchemaRecord $record, string $tableName): bool
+    {
+        return $record->type === 'index'
+            && $record->tableName === $tableName
+            && str_starts_with($record->name, "sqlite_autoindex_{$tableName}_");
     }
 
     private static function compareSQLiteScalar(mixed $left, mixed $right): int

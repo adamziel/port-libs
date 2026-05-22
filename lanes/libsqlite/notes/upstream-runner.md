@@ -119,4 +119,33 @@ index b-tree traversal that preserves interior index records, index local
 payload calculations, explicit `CREATE INDEX ... ON wp_options(option_name)`
 schema discovery, option-name index lookup, and rowid-backed table retrieval.
 Expression indexes, partial indexes, non-BINARY collations, descending sort
-order, and automatic-index column introspection remain unported.
+order, automatic `PRIMARY KEY` index inference, and full composite-key scans
+remain unported.
+
+## Focused Native Mapping: Automatic UNIQUE Autoindexes
+
+SQLite stores automatic indexes created by `UNIQUE` and `PRIMARY KEY`
+constraints as `sqlite_schema` index rows with `sql` set to `NULL`. The native
+PHP reader now infers the first column for automatic `UNIQUE` indexes from the
+owning table's `CREATE TABLE` SQL and maps those inferred columns to
+`sqlite_autoindex_<table>_<n>` rows in schema order.
+
+Focused upstream fixture boundary:
+
+- `test/index.test` checks the automatic index name convention
+  `sqlite_autoindex_<table name>_<integer>` and verifies that automatic indexes
+  cannot be dropped.
+- `test/schema6.test` checks that inline `b UNIQUE` table declarations produce
+  the same database content as an explicit `CREATE UNIQUE INDEX ... ON t1(b)`.
+- `test/schema5.test` and `test/index3.test` cover table-level `UNIQUE(...)`
+  constraints, quoted constraint columns, and collation/sort-order syntax at
+  the table/index boundary.
+
+The native PHP tests cover column-level `option_name text UNIQUE`, table-level
+`UNIQUE("slug" COLLATE nocase)` parsing, bracket-quoted column names, ignored
+`UNIQUE` text inside `CHECK(...)`, and a WordPress-shaped
+`sqlite_autoindex_wp_options_1` row whose `sql` is `NULL`. The lookup then uses
+the automatic index root page, decodes the index record's rowid tail, and reads
+the target `wp_options` row through the table b-tree. Automatic `PRIMARY KEY`
+index inference, full composite-key scans, non-BINARY collations, descending
+sort order, expression indexes, and partial indexes remain unported.

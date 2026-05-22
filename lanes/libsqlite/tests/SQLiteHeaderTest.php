@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
+use PortLibs\LibSqlite\SQLiteCreateTable;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -545,6 +546,41 @@ return [
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
         $t->same(null, $missing);
+    },
+    'infers sqlite automatic unique index columns from create table sql' => static function (TestRunner $t): void {
+        $t->same([
+            'option_name',
+            'slug',
+        ], SQLiteCreateTable::uniqueAutoIndexFirstColumns('CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, CONSTRAINT uq_slug UNIQUE("slug" COLLATE nocase))'));
+        $t->same([
+            'legacy_name',
+        ], SQLiteCreateTable::uniqueAutoIndexFirstColumns("CREATE TABLE t(a text CHECK(a <> 'UNIQUE'), [legacy_name] text unique on conflict ignore)"));
+    },
+    'uses sqlite automatic unique index rows with null sql to fetch a wordpress option' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'sqlite_autoindex_wp_options_1', 'wp_options', 3, null], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $tableInteriorPage([[4, 1]], 5);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+        ]);
+        $page5 = $tableLeafPage([
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $option = $database->wordpressOptionByIndexedName('siteurl');
+
+        $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->optionId);
+        $t->same('siteurl', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
     },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';

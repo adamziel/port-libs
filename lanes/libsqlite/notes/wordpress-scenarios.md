@@ -15,7 +15,10 @@ current slice also decodes bounded table rows and maps the standard
 pages are now reassembled through the native page reader. Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
-through the table b-tree without scanning the whole options table.
+through the table b-tree without scanning the whole options table. The same
+lookup path now handles automatic `UNIQUE` indexes where SQLite records
+`sqlite_autoindex_*` schema rows with `sql` set to `NULL`, by inferring the
+first indexed column from the owning table's `CREATE TABLE` statement.
 
 ## Example
 
@@ -29,7 +32,8 @@ import/export and recovery tooling on hosts where `sqlite3` is unavailable.
 
 `examples/wordpress-indexed-option-lookup.php` reads a WordPress-oriented
 SQLite database file, resolves an explicit `wp_options(option_name)` index,
-and returns one option by name using native index and rowid b-tree traversal.
+or an automatic `UNIQUE` option-name autoindex, and returns one option by name
+using native index and rowid b-tree traversal.
 
 `examples/wordpress-schema-record.php` builds a deterministic schema-root page
 containing a `wp_options` table record, parses the table leaf cell payload, and
@@ -38,5 +42,6 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
-slice: expression indexes, partial indexes, non-BINARY collations, descending
-sort order, and automatic-index column introspection.
+slice: automatic `PRIMARY KEY` index inference, composite duplicate scans,
+expression indexes, partial indexes, non-BINARY collations, and descending sort
+order.
