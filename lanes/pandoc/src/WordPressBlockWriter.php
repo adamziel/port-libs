@@ -43,6 +43,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderRawTexBlock($node);
             } elseif ($node->type === 'code_block') {
                 $blocks[] = $this->renderCodeBlock($node);
+            } elseif ($node->type === 'figure') {
+                $blocks[] = $this->renderFigureBlock($node);
             } elseif ($node->type === 'blockquote') {
                 $blocks[] = $this->renderBlockQuote($node);
             } elseif ($node->type === 'div') {
@@ -215,6 +217,50 @@ final class WordPressBlockWriter
             . '</code></pre>';
     }
 
+    private function renderFigureBlock(AstNode $node): string
+    {
+        return '<!-- wp:image -->'
+            . "\n" . $this->renderFigureHtml($node)
+            . "\n" . '<!-- /wp:image -->';
+    }
+
+    private function renderFigureHtml(AstNode $node): string
+    {
+        $image = null;
+        foreach ($node->children as $child) {
+            if ($child->type === 'image') {
+                $image = $child;
+                break;
+            }
+        }
+        if (!$image instanceof AstNode) {
+            $image = new AstNode('image', [
+                'url' => '',
+                'alt' => (string) $node->attr('caption', ''),
+            ]);
+        }
+
+        $caption = (string) $node->attr('caption', $image->attr('alt', ''));
+        $html = '<figure class="wp-block-image">' . $this->renderImageHtml($image);
+        if ($caption !== '') {
+            $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
+        }
+
+        return $html . '</figure>';
+    }
+
+    private function renderImageHtml(AstNode $node): string
+    {
+        $attrs = ' src="' . $this->esc((string) $node->attr('url', '')) . '"'
+            . ' alt="' . $this->esc((string) $node->attr('alt', '')) . '"';
+        $title = (string) $node->attr('title', '');
+        if ($title !== '') {
+            $attrs .= ' title="' . $this->esc($title) . '"';
+        }
+
+        return '<img' . $attrs . '/>';
+    }
+
     private function renderBlockQuote(AstNode $node): string
     {
         return '<!-- wp:quote -->'
@@ -317,6 +363,14 @@ final class WordPressBlockWriter
                 $html .= $this->renderCodeBlockHtml($block);
                 continue;
             }
+            if ($block->type === 'figure') {
+                $html .= $this->renderFigureHtml($block);
+                continue;
+            }
+            if ($block->type === 'image') {
+                $html .= $this->renderImageHtml($block);
+                continue;
+            }
             if ($block->type === 'blockquote') {
                 $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
                 continue;
@@ -369,6 +423,7 @@ final class WordPressBlockWriter
             'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
             'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
             'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
+            'image' => $this->renderImageHtml($node),
             default => $this->renderInlines($node),
         };
     }

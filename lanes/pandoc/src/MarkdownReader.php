@@ -1380,7 +1380,18 @@ final class MarkdownReader
             return;
         }
         $text = implode(' ', $paragraph);
-        $blocks[] = new AstNode('paragraph', ['text' => $text], $this->parseInlines($text));
+        $children = $this->parseInlines($text);
+        if (count($children) === 1 && $children[0]->type === 'image') {
+            $blocks[] = new AstNode(
+                'figure',
+                ['caption' => (string) $children[0]->attr('alt', '')],
+                [$children[0]]
+            );
+            $paragraph = [];
+            return;
+        }
+
+        $blocks[] = new AstNode('paragraph', ['text' => $text], $children);
         $paragraph = [];
     }
 
@@ -1536,6 +1547,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $image = $allowLinks ? $this->tryParseImage($text, $offset) : null;
+            if ($image !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $image['node'];
+                $offset = $image['next'];
+                continue;
+            }
+
             $inlineLink = $allowLinks ? $this->tryParseInlineLink($text, $offset) : null;
             if ($inlineLink !== null) {
                 $this->flushText($buffer, $nodes);
@@ -1581,6 +1600,90 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseImage(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '![' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($text, $offset + 1);
+        if ($label === null) {
+            return null;
+        }
+
+        $next = $label['next'];
+        if (($text[$next] ?? '') === '(') {
+            $target = $this->parseInlineLinkTarget($text, $next);
+            if ($target === null) {
+                return null;
+            }
+
+            return [
+                'node' => $this->buildImageNode($label['text'], $target['url'], $target['title']),
+                'next' => $target['next'],
+            ];
+        }
+
+        $referenceLabel = $label['text'];
+        if (($text[$next] ?? '') === '[') {
+            $reference = $this->parseBracketedLabel($text, $next);
+            if ($reference === null) {
+                return null;
+            }
+            $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
+            $next = $reference['next'];
+        }
+
+        $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
+        if ($target === null) {
+            return null;
+        }
+
+        return [
+            'node' => $this->buildImageNode($label['text'], $target['url'], $target['title']),
+            'next' => $next,
+        ];
+    }
+
+    private function buildImageNode(string $label, string $url, string $title): AstNode
+    {
+        $alt = $this->plainTextFromInlines($this->parseInlines($label, false));
+        $attrs = [
+            'url' => $url,
+            'alt' => $alt,
+        ];
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return new AstNode('image', $attrs, $this->parseInlines($label, false));
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainTextFromInlines(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
+                $text .= (string) $node->attr('text', '');
+                continue;
+            }
+            if ($node->type === 'raw_tex') {
+                $text .= (string) $node->attr('tex', '');
+                continue;
+            }
+
+            $text .= $this->plainTextFromInlines($node->children);
+        }
+
+        return $text;
     }
 
     /**

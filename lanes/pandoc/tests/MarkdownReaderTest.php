@@ -445,6 +445,38 @@ return [
         $t->same('or here: <http://example.com/>', $document->children[9]->attr('text'));
         $t->same('horizontal_rule', $document->children[10]->type);
     },
+    'maps upstream testsuite images as reference figures and inline images' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '# Images',
+            '',
+            'From "Voyage dans la Lune" by Georges Melies (1902):',
+            '',
+            '![lalune][]',
+            '',
+            '   [lalune]: lalune.jpg "Voyage dans la Lune"',
+            '',
+            'Here is a movie ![movie](movie.jpg) icon.',
+            '',
+            '----',
+        ]));
+        $figure = $document->children[2];
+        $figureImage = $figure->children[0];
+        $inlineImage = $document->children[3]->children[1];
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('quoted', $document->children[1]->children[1]->type);
+        $t->same('figure', $figure->type);
+        $t->same('lalune', $figure->attr('caption'));
+        $t->same('image', $figureImage->type);
+        $t->same('lalune', $figureImage->attr('alt'));
+        $t->same('lalune.jpg', $figureImage->attr('url'));
+        $t->same('Voyage dans la Lune', $figureImage->attr('title'));
+        $t->same('image', $inlineImage->type);
+        $t->same('movie', $inlineImage->attr('alt'));
+        $t->same('movie.jpg', $inlineImage->attr('url'));
+        $t->same(' icon.', $document->children[3]->children[2]->attr('text'));
+        $t->same('horizontal_rule', $document->children[4]->type);
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -949,6 +981,14 @@ return [
         $t->contains('<a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit imported post">migration checklist</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
+    },
+    'writes wordpress image blocks and inline media from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<!-- wp:image -->', $blocks);
+        $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/release-frame.jpg" alt="Release archive frame" title="Release archive frame"/><figcaption>Release archive frame</figcaption></figure>', $blocks);
+        $t->contains('<p>Inline media audit: <img src="https://example.test/uploads/thumb.jpg" alt="thumbnail" title="Thumbnail title"/> remains in paragraph text.</p>', $blocks);
     },
     'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");

@@ -2,11 +2,16 @@
 
 This **legacy post** links back to the [source archive](https://example.test/archive) and keeps `shortcodes` visible for follow-up cleanup.
 
+![Release archive frame][release-frame]
+
+Inline media audit: ![thumbnail](https://example.test/uploads/thumb.jpg "Thumbnail title") remains in paragraph text.
+
 Reference audit links: [migration checklist][checklist] and <https://example.test/audit?post=42&status=ready>.
 
 Contact importer: <importer@example.test>.
 
 [checklist]: </wp-admin/post.php?post=42&action=edit> "Edit imported post"
+[release-frame]: https://example.test/uploads/release-frame.jpg "Release archive frame"
 
 Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
