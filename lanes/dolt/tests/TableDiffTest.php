@@ -851,6 +851,48 @@ return [
             }
         }
     },
+    'keyless diff rows repeat duplicate cardinality deltas as adds and removes' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-keyless-import-log.php';
+        $rows = (new TableDiff())->keylessDiffTableRows(
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            $fixture['columns'],
+            $fixture['fromCommit'],
+            null,
+            $fixture['toCommit'],
+            null,
+        );
+
+        $t->same($fixture['expectedDiffTypeCounts'], array_replace(
+            ['added' => 0, 'removed' => 0, 'modified' => 0],
+            array_count_values(array_column($rows, 'diff_type'))
+        ));
+        $t->same([], array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['diff_type'] === TableDiff::DIFF_MODIFIED
+        )));
+        $t->same(1, count(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['diff_type'] === TableDiff::DIFF_ADDED
+                && $row['to_event_type'] === 'post'
+                && $row['to_message'] === 'queued post 501'
+                && $row['from_event_type'] === null
+        )));
+        $t->same(1, count(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['diff_type'] === TableDiff::DIFF_ADDED
+                && $row['to_event_type'] === 'media'
+                && $row['to_message'] === 'finished media scan'
+                && $row['from_event_type'] === null
+        )));
+        $t->same(1, count(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['diff_type'] === TableDiff::DIFF_REMOVED
+                && $row['from_event_type'] === 'scan'
+                && $row['from_message'] === 'started media scan'
+                && $row['to_event_type'] === null
+        )));
+    },
     'dolt diff stat rows match upstream single table counts' => static function (TestRunner $t): void {
         $schema = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],

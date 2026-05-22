@@ -117,6 +117,28 @@
   - `php tools/run-tests.php`
   - Result: exit 0 with 148 test files, 13,358 assertions, and 0 failures.
 
+## PHP Keyless Row Diff SQL/Tabular Slice Refresh 2026-05-22
+
+- Targeted source inspection covered `go/libraries/doltcore/sqle/dtables/diff_iter.go` keyless `getDiffRowAndCardinality`, `go/libraries/doltcore/diff/diff_stat.go` `reportKeylessChanges`, `go/libraries/doltcore/diff/diffsplitter.go`, `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go` `GenerateDataDiffStatement`, `go/libraries/doltcore/sqle/sqlfmt/row_fmt.go` `SqlRowAsDeleteStmt`, `go/libraries/doltcore/table/untyped/sqlexport/sql_diff_writer.go`, and `go/libraries/doltcore/table/untyped/tabular/fixedwidth_diff_tablewriter.go`.
+- Direct cache-local probe built a temporary Dolt repository under `.upstream-cache/dolt/tmp/keyless-row-diff.nTM3Wa`, created keyless `wp_import_log`, inserted duplicate rows, committed, then deleted one duplicate and inserted one duplicate plus one new row. Commands run:
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff -r sql wp_import_log`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff -r sql --filter=added wp_import_log`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff -r sql --filter=removed wp_import_log`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff wp_import_log`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff --filter=added wp_import_log`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt diff --filter=removed wp_import_log`
+  - `/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt sql -r csv -q "select to_event_type,to_message,from_event_type,from_message,diff_type from dolt_diff('HEAD','WORKING','wp_import_log');"`
+- Probe result: keyless row output emitted no `modified` rows. Cardinality increases were repeated `added` rows, the duplicate decrease was one `removed` row, SQL deletes used every table column in the `WHERE` predicate, and tabular output used only `+` / `-` markers. Observed SQL included `INSERT INTO ... ('post','queued')`, `DELETE FROM ... WHERE event_type='scan' AND message='started'`, and `INSERT INTO ... ('media','done')`; observed tabular rows were `| + | post | queued |`, `| - | scan | started |`, and `| + | media | done |`.
+- Native PHP lane-only verification after this slice:
+  - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; ... lanes/dolt/tests/*Test.php ...'`
+  - Result: 14 Dolt test files, 126 behavior tests, 660 assertions, 0 failures.
+- Required root verification after this slice:
+  - `tmp=.upstream-cache/dolt/tmp/root-php-keyless-row-20260522T233925.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 100 "$tmp"; exit $status`
+  - Initial result: exit 0 with 149 test files, 13,615 assertions, and 0 failures.
+  - A post-status exact rerun first failed outside Dolt with 149 test files, 13,616 assertions, and 3 failures in dirty `lanes/esbuild/tests/TypeScriptModuleLowererTest.php` and `lanes/quadrable/tests/QuadbStoreTest.php`; focused reruns of those two dirty-lane test files immediately passed with 687 assertions and 0 failures.
+  - Final exact rerun: `tmp=.upstream-cache/dolt/tmp/root-php-keyless-row-final-rerun-20260522T234141.log; php tools/run-tests.php > "$tmp" 2>&1; status=$?; tail -n 100 "$tmp"; exit $status`
+  - Final result: exit 0 with 150 test files, 13,659 assertions, and 0 failures.
+
 ## PHP Diff-Mode Slice Refresh 2026-05-22
 
 - Targeted upstream evidence reused the hydrated `integration-tests/bats/diff.bats` case `diff: row, line, in-place, context diff modes`, which had already passed in the bounded BATS runner.

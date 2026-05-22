@@ -99,7 +99,7 @@ final class DiffSqlRenderer
     private function deleteStatement(string $tableName, TableSchema $schema, array $row): string
     {
         return 'DELETE FROM ' . $this->quoteIdentifier($tableName)
-            . ' WHERE ' . implode(' AND ', $this->primaryKeyPredicates($schema, $row, 'from_')) . ';';
+            . ' WHERE ' . implode(' AND ', $this->deletePredicates($schema, $row, 'from_')) . ';';
     }
 
     /**
@@ -107,6 +107,10 @@ final class DiffSqlRenderer
      */
     private function updateStatement(string $tableName, TableSchema $schema, array $row): ?string
     {
+        if ($schema->isKeyless()) {
+            throw new \InvalidArgumentException('Keyless diff SQL rows must be added or removed.');
+        }
+
         $set = [];
         foreach ($schema->columns() as $column) {
             if ($column['primaryKey']) {
@@ -151,6 +155,33 @@ final class DiffSqlRenderer
 
         if ($predicates === []) {
             throw new \InvalidArgumentException('Diff SQL rendering requires at least one primary key column.');
+        }
+
+        return $predicates;
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     * @return list<string>
+     */
+    private function deletePredicates(TableSchema $schema, array $row, string $prefix): array
+    {
+        if (!$schema->isKeyless()) {
+            return $this->primaryKeyPredicates($schema, $row, $prefix);
+        }
+
+        $predicates = [];
+        foreach ($schema->columns() as $column) {
+            $name = $column['name'];
+            $key = $prefix . $name;
+            if (!array_key_exists($key, $row)) {
+                throw new \InvalidArgumentException("Diff SQL row is missing keyless column {$key}.");
+            }
+            $predicates[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($row[$key]);
+        }
+
+        if ($predicates === []) {
+            throw new \InvalidArgumentException('Diff SQL rendering requires at least one keyless column.');
         }
 
         return $predicates;

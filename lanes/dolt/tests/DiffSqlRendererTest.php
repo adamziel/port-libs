@@ -69,4 +69,29 @@ return [
         $t->contains('DELETE FROM `wp_posts` WHERE `ID`=102;', $output['all']);
         $t->contains('Imported resource', $output['all']);
     },
+    'dolt diff sql renderer uses every keyless column for delete predicates' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-keyless-import-log.php';
+        $rows = (new TableDiff())->keylessDiffTableRows(
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            $fixture['columns'],
+        );
+        $output = (new DiffSqlRenderer())->render($fixture['tableName'], $fixture['schema'], $rows);
+
+        $t->contains("INSERT INTO `wp_import_log` (`event_type`,`message`,`created_gmt`) VALUES ('post','queued post 501','2026-05-22 09:01:00');", $output);
+        $t->contains("INSERT INTO `wp_import_log` (`event_type`,`message`,`created_gmt`) VALUES ('media','finished media scan','2026-05-22 09:05:00');", $output);
+        $t->contains("DELETE FROM `wp_import_log` WHERE `event_type`='scan' AND `message`='started media scan' AND `created_gmt`='2026-05-22 09:00:00';", $output);
+        $t->same(2, substr_count($output, 'INSERT INTO'));
+        $t->same(1, substr_count($output, 'DELETE FROM'));
+        $t->same('', (new DiffSqlRenderer())->render($fixture['tableName'], $fixture['schema'], $rows, ['filter' => 'modified']));
+    },
+    'wordpress keyless import log sql example exposes duplicate row deltas' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-keyless-import-log-diff.php';
+
+        $t->contains('queued post 501', $output['sqlAdded']);
+        $t->contains('finished media scan', $output['sqlAdded']);
+        $t->contains("DELETE FROM `wp_import_log` WHERE `event_type`='scan'", $output['sqlRemoved']);
+        $t->true(!str_contains($output['sqlRemoved'], 'INSERT INTO'));
+        $t->same(3, count($output['rows']));
+    },
 ];

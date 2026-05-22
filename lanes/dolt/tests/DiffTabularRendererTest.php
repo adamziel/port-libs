@@ -226,4 +226,32 @@ return [
         $t->contains('| * | 701 |  Draft import block', $output['context']);
         $t->contains('|   |     | <p>DraftReviewed import copy.</p>', $output['inPlace']);
     },
+    'dolt tabular diff renderer maps keyless duplicate cardinality as added and removed rows' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-keyless-import-log.php';
+        $rows = (new TableDiff())->keylessDiffTableRows(
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            $fixture['columns'],
+        );
+        $output = (new DiffTabularRenderer())->render($fixture['tableName'], $fixture['schema'], $rows);
+
+        $t->contains('diff --dolt a/wp_import_log b/wp_import_log', $output);
+        $t->contains('| + | media', $output);
+        $t->contains('| + | post', $output);
+        $t->contains('| - | scan', $output);
+        $t->true(!str_contains($output, '| < |'));
+        $t->true(!str_contains($output, '| > |'));
+        $t->same(2, substr_count($output, '| + |'));
+        $t->same(1, substr_count($output, '| - |'));
+    },
+    'wordpress keyless import log tabular example separates duplicate review rows' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-keyless-import-log-diff.php';
+
+        $t->contains('| + | post', $output['tabularAdded']);
+        $t->contains('| + | media', $output['tabularAdded']);
+        $t->contains('| - | scan', $output['tabularRemoved']);
+        $t->true(!str_contains($output['tabularAdded'], '| - |'));
+        $t->true(!str_contains($output['tabularRemoved'], '| + |'));
+        $t->contains('created_gmt', $output['tabularAll']);
+    },
 ];

@@ -105,6 +105,70 @@ final class TableDiff
     }
 
     /**
+     * Project keyless row changes into Dolt's diff row shape.
+     *
+     * Upstream keyless table diffs compare complete row values as a multiset:
+     * duplicate cardinality increases become repeated `added` rows, decreases
+     * become repeated `removed` rows, and value changes are represented as one
+     * removal plus one addition rather than a `modified` row.
+     *
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @param list<non-empty-string>|null $columns
+     * @return list<array<string, scalar|null>>
+     */
+    public function keylessDiffTableRows(
+        array $fromRows,
+        array $toRows,
+        ?array $columns = null,
+        string $fromCommit = 'FROM',
+        ?string $fromCommitDate = null,
+        string $toCommit = 'TO',
+        ?string $toCommitDate = null,
+    ): array {
+        $columns = $columns === null ? $this->inferColumns($fromRows, $toRows) : $this->validateColumns($columns);
+        $from = $this->rowMultisetEntries($fromRows);
+        $to = $this->rowMultisetEntries($toRows);
+
+        $rows = [];
+        foreach ($this->orderedKeys($from, $to) as $key) {
+            $fromEntry = $from[$key] ?? ['row' => null, 'count' => 0];
+            $toEntry = $to[$key] ?? ['row' => null, 'count' => 0];
+            $delta = $toEntry['count'] - $fromEntry['count'];
+
+            if ($delta > 0) {
+                for ($i = 0; $i < $delta; $i++) {
+                    $rows[] = $this->formatDiffTableRow(
+                        self::DIFF_ADDED,
+                        null,
+                        $toEntry['row'],
+                        $columns,
+                        $fromCommit,
+                        $fromCommitDate,
+                        $toCommit,
+                        $toCommitDate
+                    );
+                }
+            } elseif ($delta < 0) {
+                for ($i = 0; $i < -$delta; $i++) {
+                    $rows[] = $this->formatDiffTableRow(
+                        self::DIFF_REMOVED,
+                        $fromEntry['row'],
+                        null,
+                        $columns,
+                        $fromCommit,
+                        $fromCommitDate,
+                        $toCommit,
+                        $toCommitDate
+                    );
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * Project row changes through explicit Dolt schemas. This mirrors the
      * upstream diff iterator boundary where stored rows are converted into the
      * schema chosen for the diff table before `to_*` and `from_*` columns are
@@ -562,12 +626,39 @@ final class TableDiff
     {
         $counts = [];
         foreach ($rows as $row) {
-            ksort($row, SORT_STRING);
-            $key = json_encode($row, JSON_THROW_ON_ERROR);
+            $key = $this->canonicalRowKey($row);
             $counts[$key] = ($counts[$key] ?? 0) + 1;
         }
 
         return $counts;
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $rows
+     * @return array<string, array{row:array<string, scalar|null>, count:int}>
+     */
+    private function rowMultisetEntries(array $rows): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            $key = $this->canonicalRowKey($row);
+            if (!isset($entries[$key])) {
+                $entries[$key] = ['row' => $row, 'count' => 0];
+            }
+            $entries[$key]['count']++;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, scalar|null> $row
+     */
+    private function canonicalRowKey(array $row): string
+    {
+        ksort($row, SORT_STRING);
+
+        return json_encode($row, JSON_THROW_ON_ERROR);
     }
 
     /**
