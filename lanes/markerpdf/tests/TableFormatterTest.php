@@ -1,0 +1,124 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\MarkdownPostProcessor;
+use PortLibs\MarkerPDF\TableFormatter;
+
+$tablePage = static function (): array {
+    return [
+        'pnum' => 5,
+        'bbox' => [0.0, 0.0, 600.0, 800.0],
+        'layout' => [
+            'image_bbox' => [0.0, 0.0, 1200.0, 1600.0],
+            'bboxes' => [
+                ['label' => 'Text', 'bbox' => [120.0, 100.0, 560.0, 160.0]],
+                ['label' => 'Table', 'bbox' => [120.0, 220.0, 560.0, 420.0]],
+            ],
+        ],
+        'blocks' => [
+            [
+                'type' => 'Text',
+                'bbox' => [60.0, 60.0, 280.0, 92.0],
+                'lines' => [
+                    ['text' => 'Imported table follows.', 'bbox' => [60.0, 64.0, 260.0, 80.0]],
+                ],
+            ],
+            [
+                'type' => 'Table',
+                'bbox' => [60.0, 110.0, 280.0, 210.0],
+                'lines' => [
+                    ['text' => 'Old PDF table text', 'bbox' => [62.0, 116.0, 270.0, 136.0]],
+                ],
+            ],
+            [
+                'type' => 'Caption',
+                'bbox' => [60.0, 226.0, 280.0, 250.0],
+                'lines' => [
+                    ['text' => 'Table 1: Import status.', 'bbox' => [60.0, 230.0, 250.0, 244.0]],
+                ],
+            ],
+        ],
+    ];
+};
+
+$markdown = "| Block | Status |\n| --- | --- |\n| Intro | Published |\n| Media | Draft |";
+
+$wordpressTable = static function (string $tableMarkdown): string {
+    $rows = array_values(array_filter(
+        preg_split('/\R/', trim($tableMarkdown)) ?: [],
+        static fn (string $row): bool => trim($row, " \t|") !== '' && !preg_match('/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/', $row)
+    ));
+    $htmlRows = [];
+    foreach ($rows as $row) {
+        $cells = array_map(
+            static fn (string $cell): string => htmlspecialchars(trim($cell), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            explode('|', trim($row, " \t|"))
+        );
+        $htmlRows[] = '<tr><td>' . implode('</td><td>', $cells) . '</td></tr>';
+    }
+
+    return "<!-- wp:table -->\n<figure class=\"wp-block-table\"><table><tbody>"
+        . implode('', $htmlRows)
+        . "</tbody></table></figure>\n<!-- /wp:table -->\n";
+};
+
+return [
+    'finds upstream table layout regions with page bbox rescaling' => static function (TestRunner $t) use ($tablePage): void {
+        $regions = (new TableFormatter())->findTableBlocks($tablePage());
+
+        $t->same(
+            [
+                [
+                    'bbox' => [120.0, 220.0, 560.0, 420.0],
+                    'page_bbox' => [60.0, 110.0, 280.0, 210.0],
+                ],
+            ],
+            $regions
+        );
+    },
+    'replaces intersecting upstream table blocks with supplied markdown tables' => static function (TestRunner $t) use ($tablePage, $markdown): void {
+        $formatted = (new TableFormatter())->formatTables([$tablePage()], [$markdown]);
+        $blocks = $formatted['pages'][0]['blocks'];
+
+        $t->same(1, $formatted['table_count']);
+        $t->same(1, $formatted['inserted_tables']);
+        $t->same(['Text', 'Table', 'Caption'], array_column($blocks, 'type'));
+        $t->same([120.0, 220.0, 560.0, 420.0], $blocks[1]['bbox']);
+        $t->same('0_table', $blocks[1]['lines'][0]['spans'][0]['span_id']);
+        $t->same('Table', $blocks[1]['lines'][0]['spans'][0]['font']);
+        $t->same($markdown, $blocks[1]['lines'][0]['spans'][0]['text']);
+    },
+    'skips recognized tables without matching table layout blocks like upstream formatter' => static function (TestRunner $t) use ($tablePage): void {
+        $page = $tablePage();
+        $page['blocks'][1]['type'] = 'Text';
+        $formatted = (new TableFormatter())->formatTables([$page], []);
+
+        $t->same(1, $formatted['table_count']);
+        $t->same(0, $formatted['inserted_tables']);
+        $t->same(['Text', 'Text', 'Caption'], array_column($formatted['pages'][0]['blocks'], 'type'));
+        $t->same('Old PDF table text', $formatted['pages'][0]['blocks'][1]['lines'][0]['text']);
+    },
+    'rejects missing supplied markdown for intersecting recognized tables' => static function (TestRunner $t) use ($tablePage): void {
+        $t->throws(InvalidArgumentException::class, static fn () => (new TableFormatter())->formatTables([$tablePage()], []));
+    },
+    'renders a WordPress table block scenario from formatted marker table markdown' => static function (TestRunner $t) use ($tablePage, $markdown, $wordpressTable): void {
+        $formatted = (new TableFormatter())->formatTables([$tablePage()], [$markdown]);
+        $merged = (new MarkdownPostProcessor())->mergeBlocks($formatted['pages']);
+        $tableBlocks = array_values(array_filter(
+            $merged,
+            static fn (array $block): bool => ($block['block_type'] ?? '') === 'Table'
+        ));
+        $html = $wordpressTable($tableBlocks[0]['text']);
+
+        $t->same(1, count($tableBlocks));
+        $t->same(
+            "<!-- wp:table -->\n<figure class=\"wp-block-table\"><table><tbody>"
+            . '<tr><td>Block</td><td>Status</td></tr>'
+            . '<tr><td>Intro</td><td>Published</td></tr>'
+            . '<tr><td>Media</td><td>Draft</td></tr>'
+            . "</tbody></table></figure>\n<!-- /wp:table -->\n",
+            $html
+        );
+    },
+];
