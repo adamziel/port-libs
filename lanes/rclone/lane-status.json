@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "rclone",
-    "estimatedProgress": 5,
-    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; filter, hash-set, check, and copy slices mapped; upstream runner not executed",
-    "phpPass": 11,
+    "estimatedProgress": 6,
+    "suiteProgress": "cloned static inventory: 327 upstream Go test files counted; filter, hash-set, check, copy, checksum-file, hashsum, and lsf slices mapped; upstream runner not executed",
+    "phpPass": 14,
     "phpFail": 0,
-    "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, and shared-hosting cloud storage workflows.",
-    "phase": "cloned static inventory plus native filter/hash/check/copy slices",
+    "wordpressScenarios": "Filtered WordPress backup/import/export sync for uploads, WXR exports, SQL dumps, cache/log exclusions, checksum manifests, and shared-hosting cloud storage workflows.",
+    "phase": "cloned static inventory plus native filter/hash/check/copy/listing slices",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, and filtered copy-changed planning.",
+    "currentWork": "Native in-memory provider contract, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, hashsum output, and lsf path/size/hash formatting.",
     "blocker": "No upstream runner parity yet: go test ./... and fstest/test_all were not run because they require Go module builds and may exercise backend integration remotes under a larger CPU/network budget.",
-    "latestCommit": "6786e8e",
-    "nextTask": "Map checksum file parsing, lsf/hash listing output, or deeper fs provider contract behavior."
+    "latestCommit": "cba3dd8",
+    "nextTask": "Map deeper fs provider contract behavior, lsjson output, or checksum verification against parsed sum files."
 }
