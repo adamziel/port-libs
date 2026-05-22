@@ -1,18 +1,18 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, bridge/shell-out usage, the current dirty worktree, and recent Git history through `f68237d` (`Stamp rclone checksum status`). I did not edit lane implementation files or launch agents.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files, bridge/shell-out usage, the current dirty worktree, and recent Git history through `e2bd7f8` (`Record latest independent audit`). I did not edit lane implementation files or launch agents.
 
 ## Findings
 
 1. **High - The dashboard and progress file currently include uncommitted lane and supervisor changes, so they are not a clean-HEAD publication state.**
    - Paths: `goal.md:29`, `goal.md:48`, `progress.md:31-42`, `progress.md:185`, `porting.html:56-62`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `.tmux-team/prompts/integrator.md`, `scripts/run-team-watchdog.sh`.
-   - Evidence: after `f68237d` committed rclone checksum status, `git status --short` still shows modified or staged files across Difftastic, esbuild, Gitoxide, LightningCSS, markerPDF status, Pandoc, Quadrable, Readability, Syncthing, generated dashboard files, progress, and team scripts, plus untracked lane source/fixture/test files. `porting.html` still renders several lanes as uncommitted or pending, including Difftastic (`porting.html:53`), LightningCSS (`porting.html:58`), markerPDF (`porting.html:59`), Quadrable (`porting.html:61`), Readability (`porting.html:63`), and Syncthing (`porting.html:64`).
+   - Evidence: after `e2bd7f8`, `git status --short` still shows modified files across esbuild status, Gitoxide, libsqlite, LightningCSS, Quadrable, Readability, Syncthing, generated dashboard files, and progress, plus untracked lane source/fixture/test files. `porting.html` still renders several lanes as uncommitted or pending, including Gitoxide (`porting.html:56`), LightningCSS (`porting.html:58`), Quadrable (`porting.html:61`), Readability (`porting.html:63`), and Syncthing (`porting.html:64`).
    - Goal requirement at risk: commit small reviewable slices with passing tests, verify/commit finished agent work before moving on, and track accurate latest commits.
    - Audit judgment: integrate or reject the current libsqlite, Quadrable, dashboard, progress, and supervisor-script changes as separate reviewable commits before treating the dashboard as published state.
 
 2. **High - Gitoxide remains overstated relative to a machine-checkable upstream denominator.**
    - Paths: `goal.md:7`, `goal.md:24-25`, `goal.md:35-38`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:12-20`, `porting.html:56`, `progress.md:31`, `progress.md:190`.
-   - Evidence: the priority-1 lane reports 65.0%, `1234 pass / 0 fail`, and `735 / inventory mapped`, but the manifest denominator is still a long prose inventory string and the runner remains unexecuted. The dashboard denominator is `inventory benchmark`, not a concrete upstream test count.
+   - Evidence: the priority-1 lane reports 66.0%, `1257 pass / 0 fail`, and `737 / 2877 mapped`, but the denominator is still a broad static inventory rather than an executed upstream test suite, and the Cargo runner remains unexecuted.
    - Goal requirement at risk: real upstream benchmark denominator, upstream tests as source of truth, full-denominator mapping before broad slices on huge suites, and honest blockers for unported Git behavior.
    - Audit judgment: the native Git slices are useful smoke coverage, but the percentage should remain suspect until the denominator is normalized into named upstream suites/fixtures with explicit covered and uncovered counts.
 
@@ -30,13 +30,13 @@ Scope reviewed: `goal.md`, `progress.md`, `porting.html`, every `lanes/*/UPSTREA
 
 5. **Medium - Several lanes still rely on static inventories or partial runner coverage, so local PHP pass counts are shallow against the original scope.**
    - Paths: `goal.md:24-40`, `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:12-59`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:12-72`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12-18`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:12-20`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:12-78`, `porting.html:53-64`, `progress.md:191`, `progress.md:196-201`.
-   - Evidence: Difftastic, Dolt, Pandoc, Quadrable, and Syncthing all explicitly say their upstream runners were not executed. The root PHP suite passes, but these lanes map 15/404, 5/613, 19/1979, 18/55, and 27/264 respectively, with large unported protocol, parser, proof, storage, and integration areas.
+   - Evidence: Difftastic, Dolt, Pandoc, Quadrable, and Syncthing all explicitly say their upstream runners were not executed or failed immediately. The root PHP suite passes, but these lanes map 15/404, 5/613, 19/1979, 24/55, and 27/264 respectively, with large unported protocol, parser, proof, storage, and integration areas.
    - Goal requirement at risk: passing tests are not enough; each lane needs meaningful fixture parity, edge-case/error coverage, and real upstream-denominator alignment.
    - Audit judgment: these are acceptable early slices, not broad native ports. The next slices should keep tying PHP tests to named upstream fixtures instead of increasing local-only smoke tests.
 
 6. **Medium - Session status in progress is wrong while active agents are mutating the tree.**
    - Paths: `goal.md:20`, `goal.md:47-48`, `progress.md:14`, `progress.md:223-227`, `.tmux-team/prompts/integrator.md`, `scripts/run-team-watchdog.sh`.
-   - Evidence: the just-updated session status now records active sessions, but `progress.md` previously claimed the auditor and all workers were stopped while `tmux ls` showed active `port-auditor`, implementation lane sessions, `port-evaluator`, `port-integrator`, and `port-watchdog`. The worktree continued changing during this audit. I did not launch any sessions for this audit.
+   - Evidence: the just-updated session status now records active sessions, but `progress.md` previously claimed the auditor and all workers were stopped while `tmux ls` showed active `port-auditor`, implementation lane sessions, `port-dolt`, `port-dolt-runner`, `port-evaluator`, `port-integrator`, and `port-watchdog`. The worktree continued changing during this audit. I did not launch any sessions for this audit.
    - Goal requirement at risk: durable supervision, independent auditor every 20 minutes, and clean integration of finished agent work.
    - Audit judgment: the supervisor needs to quiesce or explicitly coordinate these sessions before relying on `progress.md`/`porting.html` as a stable state snapshot.
 
@@ -51,7 +51,7 @@ Command: `php tools/run-tests.php`
 Exact result:
 
 ```text
-52 test files, 2636 assertions, 0 failures
+53 test files, 2677 assertions, 0 failures
 ```
 
 Exit status: 0.
