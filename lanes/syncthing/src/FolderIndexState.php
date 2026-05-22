@@ -6,6 +6,13 @@ namespace PortLibs\Syncthing;
 
 final class FolderIndexState
 {
+    public const PULL_ORDER_RANDOM = 'random';
+    public const PULL_ORDER_ALPHABETIC = 'alphabetic';
+    public const PULL_ORDER_SMALLEST_FIRST = 'smallestFirst';
+    public const PULL_ORDER_LARGEST_FIRST = 'largestFirst';
+    public const PULL_ORDER_OLDEST_FIRST = 'oldestFirst';
+    public const PULL_ORDER_NEWEST_FIRST = 'newestFirst';
+
     /**
      * @var array<string, array<string, FileInfo>>
      */
@@ -41,6 +48,16 @@ final class FolderIndexState
     public function dropAllFiles(string $deviceId): void
     {
         $this->assertDeviceId($deviceId);
+        unset($this->filesByDevice[$deviceId]);
+    }
+
+    public function dropDevice(string $deviceId): void
+    {
+        $this->assertDeviceId($deviceId);
+        if ($deviceId === $this->localDeviceId) {
+            throw new \LogicException('Cannot drop the local device');
+        }
+
         unset($this->filesByDevice[$deviceId]);
     }
 
@@ -139,12 +156,34 @@ final class FolderIndexState
     /**
      * @return list<FileInfo>
      */
-    public function neededFiles(string $deviceId, int $limit = 0, int $offset = 0): array
+    public function globalFilesPrefix(string $prefix): array
+    {
+        if ($prefix === '') {
+            return $this->globalFiles();
+        }
+
+        return array_values(array_filter(
+            $this->globalFiles(),
+            static fn (FileInfo $file): bool => str_starts_with($file->name, $prefix),
+        ));
+    }
+
+    /**
+     * @return list<FileInfo>
+     */
+    public function neededFiles(
+        string $deviceId,
+        int $limit = 0,
+        int $offset = 0,
+        string $order = self::PULL_ORDER_ALPHABETIC,
+        ?callable $randomize = null,
+    ): array
     {
         $this->assertDeviceId($deviceId);
         if ($limit < 0 || $offset < 0) {
             throw new \InvalidArgumentException('Need pagination values must not be negative');
         }
+        $order = self::normalizePullOrder($order);
 
         $files = [];
         foreach ($this->globalFiles() as $global) {
@@ -160,13 +199,26 @@ final class FolderIndexState
             }
         }
 
-        usort($files, static fn (FileInfo $left, FileInfo $right): int => strcmp($left->name, $right->name));
+        $files = $this->orderNeededFiles($files, $order, $randomize);
 
         if ($offset > 0 || $limit > 0) {
             return array_slice($files, $offset, $limit > 0 ? $limit : null);
         }
 
         return $files;
+    }
+
+    public static function pullOrderFromText(string $value): string
+    {
+        return match ($value) {
+            self::PULL_ORDER_RANDOM,
+            self::PULL_ORDER_ALPHABETIC,
+            self::PULL_ORDER_SMALLEST_FIRST,
+            self::PULL_ORDER_LARGEST_FIRST,
+            self::PULL_ORDER_OLDEST_FIRST,
+            self::PULL_ORDER_NEWEST_FIRST => $value,
+            default => self::PULL_ORDER_RANDOM,
+        };
     }
 
     public function countGlobal(): FolderCounts
@@ -294,6 +346,72 @@ final class FolderIndexState
             symlinks: $symlinks,
             deleted: $deleted,
         );
+    }
+
+    /**
+     * @param list<FileInfo> $files
+     *
+     * @return list<FileInfo>
+     */
+    private function orderNeededFiles(array $files, string $order, ?callable $randomize): array
+    {
+        if ($order === self::PULL_ORDER_RANDOM) {
+            if ($randomize !== null) {
+                $randomized = $randomize($files);
+                if (!is_array($randomized)) {
+                    throw new \UnexpectedValueException('Random pull-order callback must return FileInfo instances');
+                }
+                $this->assertFileList($randomized, 'Random pull-order callback must return FileInfo instances');
+
+                return array_values($randomized);
+            }
+
+            shuffle($files);
+
+            return $files;
+        }
+
+        usort($files, static function (FileInfo $left, FileInfo $right) use ($order): int {
+            return match ($order) {
+                self::PULL_ORDER_ALPHABETIC => strcmp($left->name, $right->name),
+                self::PULL_ORDER_SMALLEST_FIRST => $left->size <=> $right->size
+                    ?: strcmp($left->name, $right->name),
+                self::PULL_ORDER_LARGEST_FIRST => $right->size <=> $left->size
+                    ?: strcmp($left->name, $right->name),
+                self::PULL_ORDER_OLDEST_FIRST => [$left->modifiedS, $left->modifiedNs] <=> [$right->modifiedS, $right->modifiedNs]
+                    ?: strcmp($left->name, $right->name),
+                self::PULL_ORDER_NEWEST_FIRST => [$right->modifiedS, $right->modifiedNs] <=> [$left->modifiedS, $left->modifiedNs]
+                    ?: strcmp($left->name, $right->name),
+                default => 0,
+            };
+        });
+
+        return $files;
+    }
+
+    private static function normalizePullOrder(string $order): string
+    {
+        return match ($order) {
+            self::PULL_ORDER_RANDOM,
+            self::PULL_ORDER_ALPHABETIC,
+            self::PULL_ORDER_SMALLEST_FIRST,
+            self::PULL_ORDER_LARGEST_FIRST,
+            self::PULL_ORDER_OLDEST_FIRST,
+            self::PULL_ORDER_NEWEST_FIRST => $order,
+            default => throw new \InvalidArgumentException('Unknown pull order'),
+        };
+    }
+
+    /**
+     * @param array<int, mixed> $files
+     */
+    private function assertFileList(array $files, string $message): void
+    {
+        foreach ($files as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \UnexpectedValueException($message);
+            }
+        }
     }
 
     /**

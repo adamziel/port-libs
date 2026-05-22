@@ -521,10 +521,17 @@ from `internal/db/sqlite/db_global_test.go`, `folderdb_global.go`,
 which FileInfo is global, local and remote needed-file lists follow the same
 deleted/ignored/remote-invalid boundaries as upstream, directories and symlinks
 contribute to need counts, alphabetic pagination is stable,
+`AllNeededGlobalFiles` pull ordering supports alphabetic, smallestFirst,
+largestFirst, oldestFirst, newestFirst, and random ordering before pagination,
+`AllGlobalFilesPrefix`-style filtering returns all current globals for an empty
+prefix and only stable prefix-range globals for a WordPress uploads subtree,
 `GetGlobalAvailability`-style device lists include remote peers with the same
 version as the current global file, and remote drop/reset recalculation can
-promote the local or another remote version. A full Index reset from one remote
-does not erase another remote's need for a re-added media file. A bounded
+promote the local or another remote version. `DropDevice` is now represented as
+a no-op for missing peers, a full remote-file removal plus global recalculation
+for remote peers, and a local-device guard before mutation. A full Index reset
+from one remote does not erase another remote's need for a re-added media file.
+A bounded
 upstream runner was executed for this focused slice only:
 `go test ./internal/db/sqlite -run
 '^(TestNeed|TestNeedDeleted|TestDontNeedIgnored|TestLocalDontNeedDeletedMissing|TestRemoteDontNeedDeletedMissing|TestNeedRemoteSymlinkAndDir|TestNeedPagination)$'
@@ -532,10 +539,21 @@ upstream runner was executed for this focused slice only:
 `3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
 parity. The WordPress example `wordpress-global-need-state.php` shows a
 Playground peer editing a media file while an ignored same-version local export
-does not trigger a false redownload.
+does not trigger a false redownload, and now exposes smallest-first and
+newest-first media queues for prioritizing small previews or recent uploads. A
+bounded upstream runner was also executed for this focused pull-order slice
+only: `go test ./internal/db/sqlite -run '^TestBasics/AllNeededNamesLocal$'
+-count=1` passed in a throwaway worktree at commit
+`3962a237232473c20a44945a6c8ce8c930375360`; this is not full upstream runner
+parity. A bounded upstream runner was also executed for the prefix/drop slice:
+`go test ./internal/db/sqlite -run
+'TestBasics/AllGlobalPrefix|TestDropDevice' -count=1` passed in a throwaway
+worktree at the same commit with `ok
+github.com/syncthing/syncthing/internal/db/sqlite 0.028s`; this is not full
+upstream runner parity.
 
 ## Next Task
 
-Map upstream sqlite global availability/drop recalculation more broadly across
-device drops and availability ordering, or connect the attached FolderIndexState
-to a higher-level pull planner before broadening protocol/model behavior.
+Connect ordered and prefix-filtered FolderIndexState output to a higher-level
+pull planner, or broaden upstream sqlite conflict-delete promotion before
+broadening protocol/model behavior.

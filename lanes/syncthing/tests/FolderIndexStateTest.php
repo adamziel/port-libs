@@ -138,6 +138,84 @@ return [
             'wp-content/uploads/sym',
         ], syncthing_folder_index_state_names($state->neededFiles('local', limit: 3, offset: 2)));
     },
+    'maps upstream needed-file pull orders from sqlite folderdb' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $version = VersionVector::fromCounters([42 => 1]);
+        $state->update('remote-42', [
+            syncthing_folder_index_state_file('wp-content/uploads/2026/large-new.jpg', 500, 5000, $version),
+            syncthing_folder_index_state_file('wp-content/uploads/2026/medium-mid.jpg', 300, 3000, $version),
+            syncthing_folder_index_state_file('wp-content/uploads/2026/small-old.jpg', 100, 1000, $version),
+        ]);
+
+        $t->same([
+            'wp-content/uploads/2026/large-new.jpg',
+            'wp-content/uploads/2026/medium-mid.jpg',
+            'wp-content/uploads/2026/small-old.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', order: FolderIndexState::PULL_ORDER_ALPHABETIC)));
+        $t->same([
+            'wp-content/uploads/2026/small-old.jpg',
+            'wp-content/uploads/2026/medium-mid.jpg',
+            'wp-content/uploads/2026/large-new.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', order: FolderIndexState::PULL_ORDER_SMALLEST_FIRST)));
+        $t->same([
+            'wp-content/uploads/2026/large-new.jpg',
+            'wp-content/uploads/2026/medium-mid.jpg',
+            'wp-content/uploads/2026/small-old.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', order: FolderIndexState::PULL_ORDER_LARGEST_FIRST)));
+        $t->same([
+            'wp-content/uploads/2026/small-old.jpg',
+            'wp-content/uploads/2026/medium-mid.jpg',
+            'wp-content/uploads/2026/large-new.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', order: FolderIndexState::PULL_ORDER_OLDEST_FIRST)));
+        $t->same([
+            'wp-content/uploads/2026/large-new.jpg',
+            'wp-content/uploads/2026/medium-mid.jpg',
+            'wp-content/uploads/2026/small-old.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles('local', order: FolderIndexState::PULL_ORDER_NEWEST_FIRST)));
+        $t->same([
+            'wp-content/uploads/2026/medium-mid.jpg',
+        ], syncthing_folder_index_state_names($state->neededFiles(
+            'local',
+            limit: 1,
+            offset: 1,
+            order: FolderIndexState::PULL_ORDER_SMALLEST_FIRST,
+        )));
+    },
+    'maps pull order text fallback and deterministic random test hook' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $version = VersionVector::fromCounters([42 => 1]);
+        $state->update('remote-42', [
+            syncthing_folder_index_state_file('wp-content/uploads/2026/a.jpg', 1, 100, $version),
+            syncthing_folder_index_state_file('wp-content/uploads/2026/b.jpg', 2, 200, $version),
+            syncthing_folder_index_state_file('wp-content/uploads/2026/c.jpg', 3, 300, $version),
+        ]);
+
+        $t->same(FolderIndexState::PULL_ORDER_NEWEST_FIRST, FolderIndexState::pullOrderFromText('newestFirst'));
+        $t->same(FolderIndexState::PULL_ORDER_RANDOM, FolderIndexState::pullOrderFromText('unsupported-upstream-defaults-to-random'));
+
+        $randomized = $state->neededFiles(
+            'local',
+            order: FolderIndexState::PULL_ORDER_RANDOM,
+            randomize: static fn (array $files): array => [$files[2], $files[0], $files[1]],
+        );
+        $t->same([
+            'wp-content/uploads/2026/c.jpg',
+            'wp-content/uploads/2026/a.jpg',
+            'wp-content/uploads/2026/b.jpg',
+        ], syncthing_folder_index_state_names($randomized));
+        $t->throws(
+            UnexpectedValueException::class,
+            static fn () => $state->neededFiles(
+                'local',
+                order: FolderIndexState::PULL_ORDER_RANDOM,
+                randomize: static fn (array $files): array => ['not-a-file'],
+            ),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $state->neededFiles('local', order: 'unsupported-direct-api-order'),
+        );
+    },
     'maps upstream global availability and drop recalculation' => static function (TestRunner $t): void {
         $state = new FolderIndexState();
         $base = VersionVector::fromCounters([1 => 1]);
@@ -168,6 +246,58 @@ return [
 
         $state->dropAllFiles('remote-old');
         $t->same([], $state->globalAvailability('wp-content/uploads/drop-recalc.jpg'));
+    },
+    'maps upstream AllGlobalFilesPrefix subtree selection' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $base = VersionVector::fromCounters([1 => 1]);
+        $remote = VersionVector::fromCounters([1 => 1, 42 => 2]);
+        $blockSize = 128 << 10;
+
+        $state->update('local', [
+            syncthing_folder_index_state_file('test1', 1, $blockSize, $base),
+            syncthing_folder_index_state_file('test2', 2, 128, $base, type: FileInfo::TYPE_DIRECTORY),
+            syncthing_folder_index_state_file('test2/a', 3, 2 * $blockSize, $base),
+            syncthing_folder_index_state_file('test2/b', 4, 3 * $blockSize, $base),
+        ]);
+        $state->update('remote-42', [
+            syncthing_folder_index_state_file('test3', 101, 3 * $blockSize, $remote),
+            syncthing_folder_index_state_file('test4', 102, 4 * $blockSize, $remote),
+            syncthing_folder_index_state_file('test1', 103, 5 * $blockSize, $remote),
+        ]);
+
+        $t->same(['test2', 'test2/a', 'test2/b'], syncthing_folder_index_state_names($state->globalFilesPrefix('test2')));
+        $t->same(['test1', 'test2', 'test2/a', 'test2/b', 'test3', 'test4'], syncthing_folder_index_state_names($state->globalFilesPrefix('')));
+        $t->same([], $state->globalFilesPrefix('test5'));
+    },
+    'maps upstream DropDevice no-op and global recalculation' => static function (TestRunner $t): void {
+        $state = new FolderIndexState();
+        $base = VersionVector::fromCounters([1 => 1]);
+        $remoteWin = VersionVector::fromCounters([1 => 1, 42 => 2]);
+
+        $state->update('local', [
+            syncthing_folder_index_state_file('wp-content/uploads/2026/hero.jpg', 1, 128, $base),
+        ]);
+        $state->update('playground-peer', [
+            syncthing_folder_index_state_file('wp-content/uploads/2026/hero.jpg', 2, 256, $remoteWin),
+            syncthing_folder_index_state_file('wp-content/uploads/2026/peer-only.jpg', 3, 512, $remoteWin),
+        ]);
+        $state->update('backup-peer', [
+            syncthing_folder_index_state_file('wp-content/uploads/2026/backup.jpg', 4, 1024, $remoteWin),
+        ]);
+
+        $t->same(256, $state->globalFile('wp-content/uploads/2026/hero.jpg')?->size);
+        $t->same(['wp-content/uploads/2026/backup.jpg', 'wp-content/uploads/2026/hero.jpg', 'wp-content/uploads/2026/peer-only.jpg'], syncthing_folder_index_state_names($state->neededFiles('local')));
+
+        $state->dropDevice('playground-peer');
+
+        $t->same(null, $state->deviceFile('playground-peer', 'wp-content/uploads/2026/hero.jpg'));
+        $t->same(128, $state->globalFile('wp-content/uploads/2026/hero.jpg')?->size);
+        $t->same(null, $state->globalFile('wp-content/uploads/2026/peer-only.jpg'));
+        $t->same(['wp-content/uploads/2026/backup.jpg'], syncthing_folder_index_state_names($state->neededFiles('local')));
+
+        $state->dropDevice('missing-peer');
+        $t->same(['wp-content/uploads/2026/backup.jpg'], syncthing_folder_index_state_names($state->neededFiles('local')));
+        $t->throws(\LogicException::class, static fn () => $state->dropDevice('local'));
     },
 ];
 

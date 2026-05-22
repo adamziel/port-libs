@@ -52,12 +52,36 @@ $state->update('playground-peer', [
         deleted: true,
         sequence: 22,
     ),
+    new FileInfo(
+        name: 'wp-content/uploads/2026/theme-preview.css',
+        version: VersionVector::fromCounters([202 => 4]),
+        size: 256,
+        rawBlockSize: 256,
+        sequence: 23,
+    ),
+    new FileInfo(
+        name: 'wp-content/uploads/2026/gallery-archive.zip',
+        version: VersionVector::fromCounters([202 => 5]),
+        size: 16_384,
+        rawBlockSize: 16_384,
+        sequence: 24,
+    ),
 ]);
 
 $localNeed = $state->neededFiles('local');
+$smallestFirst = $state->neededFiles('local', order: FolderIndexState::PULL_ORDER_SMALLEST_FIRST);
+$newestFirst = $state->neededFiles('local', order: FolderIndexState::PULL_ORDER_NEWEST_FIRST);
+$globalUploads = $state->globalFilesPrefix('wp-content/uploads/2026/');
+$afterPeerDrop = clone $state;
+$afterPeerDrop->dropDevice('playground-peer');
 
 return [
     'localNeedNames' => array_map(static fn (FileInfo $file): string => $file->name, $localNeed),
+    'smallestFirstNeedNames' => array_map(static fn (FileInfo $file): string => $file->name, $smallestFirst),
+    'newestFirstNeedNames' => array_map(static fn (FileInfo $file): string => $file->name, $newestFirst),
+    'globalUploadNames' => array_map(static fn (FileInfo $file): string => $file->name, $globalUploads),
+    'afterPeerDropNeedNames' => array_map(static fn (FileInfo $file): string => $file->name, $afterPeerDrop->neededFiles('local')),
+    'afterPeerDropGlobalBytes' => $afterPeerDrop->countGlobal()->bytes,
     'localNeedCounts' => $state->countNeed('local')->items(),
     'localNeedBytes' => $state->countNeed('local')->bytes,
     'globalBytes' => $state->countGlobal()->bytes,
