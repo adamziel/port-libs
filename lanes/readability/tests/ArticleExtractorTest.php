@@ -171,6 +171,58 @@ return [
         $t->same([], $attributeValues($article->contentHtml, '//*[@aria-hidden="true" and not(contains(concat(" ", normalize-space(@class), " "), " fallback-image "))]'));
         $t->true(!str_contains($article->text, '**WRONG**'), 'aria-hidden source text should be removed during extraction');
     },
+    'maps Mozilla hidden-nodes fixture without dropping retained headers' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/hidden-nodes';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h2')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
+        );
+        $t->true(!str_contains($article->contentHtml, 'display: none'), 'display:none source content should be removed');
+        $t->true(!str_contains($article->contentHtml, 'hidden="hidden"'), 'hidden-attribute source content should be removed');
+    },
+    'maps Mozilla visibility-hidden fixture to the visible section only' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/visibility-hidden';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same([], $attributeValues($article->contentHtml, '//h1|//h2'));
+        $t->same([], $attributeValues($article->contentHtml, '//object|//embed|//iframe'));
+        $t->true(!str_contains($article->text, 'Iframe fallback test'), 'visibility:hidden section content should not be imported');
+    },
     'removes hidden WordPress export duplicates while preserving fallback images' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Hidden Export Cleanup"></head><body><article>'
             . '<h1>Hidden Export Cleanup</h1>'
@@ -808,5 +860,69 @@ return [
         $t->contains('alt="Hero image"', $article->contentHtml);
         $t->true(!str_contains($article->contentHtml, $transparentGif), 'short placeholder src should be removed before lazy source promotion');
         $t->contains('usable candidates for block image output', $article->text);
+    },
+    'maps Mozilla replace-brs fixture paragraph breaks' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/replace-brs';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(count($attributeValues($expected, '//br')), count($attributeValues($article->contentHtml, '//br')));
+        $t->true(!str_contains($article->contentHtml, '<br><br>'), 'br chains should be replaced by paragraph boundaries');
+    },
+    'maps Mozilla remove-extra-brs fixture cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/remove-extra-brs';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(0, count($attributeValues($article->contentHtml, '//br')));
+    },
+    'splits legacy WordPress br-separated exports before block serialization' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Line Break Migration"></head><body><article>'
+            . '<h1>Line Break Migration</h1>'
+            . '<p>' . str_repeat('Legacy exports keep copy in line-break paragraphs for import. ', 3) . '<br><br>'
+            . 'Second migrated paragraph keeps a soft<br>line break for editorial rhythm and has enough article text for scoring.<br><br>'
+            . 'Third migrated paragraph becomes a block instead of staying after raw break chains.</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Line Break Migration', $article->title);
+        $t->same(3, substr_count($article->contentHtml, '<p>'));
+        $t->same(3, substr_count($blocks, '<!-- wp:paragraph -->'));
+        $t->contains('Second migrated paragraph keeps a soft<br>line break', $blocks);
+        $t->true(!str_contains($article->contentHtml, '<br><br>'), 'hard break chains should not survive into migration markup');
+        $t->true(!str_contains($blocks, '<div><p>'), 'layout div wrappers created during br cleanup should flatten before block output');
     },
 ];

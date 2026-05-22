@@ -44,6 +44,7 @@ final class ArticleExtractor
     public function extract(string $html, ?string $url = null): Article
     {
         $dom = $this->loadHtmlDocument($html);
+        $this->replaceBreakChains($dom);
         $this->replaceElementsByTagName($dom, 'font', 'span');
         $xpath = new \DOMXPath($dom);
         $effectiveBaseUri = $this->effectiveBaseUri($xpath, $url);
@@ -66,6 +67,7 @@ final class ArticleExtractor
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeInteractiveArticleChrome($best);
             $this->removeDuplicateTitleHeader($best, $title);
+            $this->removeSectionScaffoldHeadings($best);
             $this->removeLeadingBylineActionBar($best);
             $this->demoteHeadingOnes($best);
             $best = $this->postProcessContent($best, $effectiveBaseUri, $url);
@@ -180,23 +182,73 @@ final class ArticleExtractor
             if (!$child instanceof \DOMElement) {
                 continue;
             }
-            $tag = strtolower($child->tagName);
-            $html = trim($dom->saveHTML($child) ?: '');
-            if ($html === '') {
-                continue;
-            }
-            if (preg_match('/^h([1-6])$/', $tag, $m)) {
-                $blocks[] = '<!-- wp:heading {"level":' . $m[1] . '} -->' . "\n" . $html . "\n" . '<!-- /wp:heading -->';
-            } elseif ($tag === 'img') {
-                $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
-            } elseif ($tag === 'table') {
-                $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
-            } else {
-                $blocks[] = '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
-            }
+            $this->appendWordPressBlock($dom, $child, $blocks);
         }
 
         return implode("\n\n", $blocks);
+    }
+
+    /**
+     * @param list<string> $blocks
+     */
+    private function appendWordPressBlock(\DOMDocument $dom, \DOMElement $element, array &$blocks): void
+    {
+        if ($this->canFlattenBlockContainer($element)) {
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $this->appendWordPressBlock($dom, $child, $blocks);
+                }
+            }
+
+            return;
+        }
+
+        $tag = strtolower($element->tagName);
+        $html = trim($dom->saveHTML($element) ?: '');
+        if ($html === '') {
+            return;
+        }
+
+        if (preg_match('/^h([1-6])$/', $tag, $m)) {
+            $blocks[] = '<!-- wp:heading {"level":' . $m[1] . '} -->' . "\n" . $html . "\n" . '<!-- /wp:heading -->';
+        } elseif ($tag === 'img') {
+            $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
+        } elseif ($tag === 'table') {
+            $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
+        } else {
+            $blocks[] = '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
+        }
+    }
+
+    private function canFlattenBlockContainer(\DOMElement $element): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['article', 'div', 'main', 'section'], true)) {
+            return false;
+        }
+
+        $elementChildren = 0;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $elementChildren++;
+            if (!$this->isWordPressBlockElement($child)) {
+                return false;
+            }
+        }
+
+        return $elementChildren > 0;
+    }
+
+    private function isWordPressBlockElement(\DOMElement $element): bool
+    {
+        return preg_match('/^h[1-6]$/', strtolower($element->tagName)) === 1
+            || in_array(strtolower($element->tagName), ['article', 'blockquote', 'div', 'figure', 'hr', 'img', 'ol', 'p', 'pre', 'section', 'table', 'ul'], true);
     }
 
     private function title(\DOMXPath $xpath, \DOMDocument $dom): string
@@ -1125,6 +1177,69 @@ final class ArticleExtractor
         }
     }
 
+    private function removeSectionScaffoldHeadings(\DOMElement $scope): void
+    {
+        if ($this->hasDirectParagraphChild($scope) || !$this->hasDirectParagraphSection($scope)) {
+            return;
+        }
+
+        $remove = [];
+        foreach ($scope->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $tag = strtolower($child->tagName);
+            if ($tag === 'h1' || $tag === 'h2') {
+                $remove[] = $child;
+                continue;
+            }
+
+            if (!$this->isParagraphSectionContainer($child)) {
+                return;
+            }
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function hasDirectParagraphChild(\DOMElement $scope): bool
+    {
+        foreach ($scope->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->tagName) === 'p') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasDirectParagraphSection(\DOMElement $scope): bool
+    {
+        foreach ($scope->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isParagraphSectionContainer($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isParagraphSectionContainer(\DOMElement $element): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['article', 'div', 'section'], true)) {
+            return false;
+        }
+
+        return $element->getElementsByTagName('p')->length > 0;
+    }
+
     private function headerDuplicatesTitle(\DOMElement $heading, string $title): bool
     {
         $tag = strtolower($heading->tagName);
@@ -1188,12 +1303,86 @@ final class ArticleExtractor
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->removeEmptyParagraphs($scope);
+        $this->removeBreaksBeforeParagraphs($scope);
         $scope = $this->unwrapSingleCellTables($scope);
         $this->removeCommentNodes($scope);
         $this->cleanPresentationalAttributes($scope);
         $this->cleanClasses($scope);
 
         return $scope;
+    }
+
+    private function replaceBreakChains(\DOMNode $scope): void
+    {
+        $document = $scope instanceof \DOMDocument ? $scope : $scope->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return;
+        }
+
+        $breaks = [];
+        foreach ($document->getElementsByTagName('br') as $break) {
+            if ($break instanceof \DOMElement) {
+                $breaks[] = $break;
+            }
+        }
+
+        foreach ($breaks as $break) {
+            if (!$break->parentNode instanceof \DOMNode) {
+                continue;
+            }
+
+            $next = $break->nextSibling;
+            $replaced = false;
+            while (($next = $this->nextNonWhitespaceNode($next)) instanceof \DOMElement && strtolower($next->tagName) === 'br') {
+                $replaced = true;
+                $nextSibling = $next->nextSibling;
+                $next->parentNode?->removeChild($next);
+                $next = $nextSibling;
+            }
+
+            if (!$replaced || !$break->parentNode instanceof \DOMNode) {
+                continue;
+            }
+
+            $paragraph = $document->createElement('p');
+            $break->parentNode->replaceChild($paragraph, $break);
+
+            $next = $paragraph->nextSibling;
+            while ($next instanceof \DOMNode) {
+                if ($next instanceof \DOMElement && strtolower($next->tagName) === 'br') {
+                    $nextElement = $this->nextNonWhitespaceNode($next->nextSibling);
+                    if ($nextElement instanceof \DOMElement && strtolower($nextElement->tagName) === 'br') {
+                        break;
+                    }
+                }
+
+                if (!$this->isPhrasingContent($next)) {
+                    break;
+                }
+
+                $sibling = $next->nextSibling;
+                $paragraph->appendChild($next);
+                $next = $sibling;
+            }
+
+            while ($paragraph->lastChild instanceof \DOMNode && $this->isWhitespaceNode($paragraph->lastChild)) {
+                $paragraph->removeChild($paragraph->lastChild);
+            }
+
+            if ($paragraph->parentNode instanceof \DOMElement && strtolower($paragraph->parentNode->tagName) === 'p') {
+                $this->replaceElementTag($paragraph->parentNode, 'div');
+            }
+        }
+    }
+
+    private function nextNonWhitespaceNode(?\DOMNode $node): ?\DOMNode
+    {
+        $next = $node;
+        while ($next instanceof \DOMNode && !$next instanceof \DOMElement && trim($next->textContent ?? '') === '') {
+            $next = $next->nextSibling;
+        }
+
+        return $next;
     }
 
     private function replaceElementsByTagName(\DOMDocument $dom, string $tagName, string $replacementTagName): void
@@ -1273,6 +1462,23 @@ final class ArticleExtractor
             }
 
             $paragraph->parentNode?->removeChild($paragraph);
+        }
+    }
+
+    private function removeBreaksBeforeParagraphs(\DOMElement $scope): void
+    {
+        $breaks = [];
+        foreach ($scope->getElementsByTagName('br') as $break) {
+            if ($break instanceof \DOMElement) {
+                $breaks[] = $break;
+            }
+        }
+
+        foreach ($breaks as $break) {
+            $next = $this->nextNonWhitespaceNode($break->nextSibling);
+            if ($next instanceof \DOMElement && strtolower($next->tagName) === 'p') {
+                $break->parentNode?->removeChild($break);
+            }
         }
     }
 
