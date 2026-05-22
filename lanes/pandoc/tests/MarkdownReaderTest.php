@@ -59,6 +59,43 @@ return [
         $t->same('emph', $nestedWord->children[0]->type);
         $t->same('this', $nestedWord->children[0]->children[0]->attr('text'));
     },
+    'maps upstream testsuite strikeout inline markup' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('~~This is *strikeout*.~~');
+        $strikeout = $document->children[0]->children[0];
+
+        $t->same('strikeout', $strikeout->type);
+        $t->same('This is ', $strikeout->children[0]->attr('text'));
+        $t->same('emph', $strikeout->children[1]->type);
+        $t->same('strikeout', $strikeout->children[1]->children[0]->attr('text'));
+        $t->same('.', $strikeout->children[2]->attr('text'));
+    },
+    'maps upstream testsuite superscript and subscript inline markup' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(
+            'Superscripts:  a^bc^d a^*hello*^ a^hello\ there^.'
+            . "\n\n" . 'Subscripts: H~2~O, H~23~O, H~many\ of\ them~O.'
+            . "\n\n" . 'These should not be superscripts or subscripts,'
+            . "\n" . 'because of the unescaped spaces:  a^b c^d, a~b c~d.'
+        );
+        $superscripts = $document->children[0];
+        $subscripts = $document->children[1];
+        $notScript = $document->children[2];
+
+        $t->same('superscript', $superscripts->children[1]->type);
+        $t->same('bc', $superscripts->children[1]->children[0]->attr('text'));
+        $t->same('superscript', $superscripts->children[3]->type);
+        $t->same('emph', $superscripts->children[3]->children[0]->type);
+        $t->same('hello', $superscripts->children[3]->children[0]->children[0]->attr('text'));
+        $t->same('superscript', $superscripts->children[5]->type);
+        $t->same("hello\xC2\xA0there", $superscripts->children[5]->children[0]->attr('text'));
+        $t->same('subscript', $subscripts->children[1]->type);
+        $t->same('2', $subscripts->children[1]->children[0]->attr('text'));
+        $t->same('subscript', $subscripts->children[3]->type);
+        $t->same('23', $subscripts->children[3]->children[0]->attr('text'));
+        $t->same('subscript', $subscripts->children[5]->type);
+        $t->same("many\xC2\xA0of\xC2\xA0them", $subscripts->children[5]->children[0]->attr('text'));
+        $t->same(1, count($notScript->children));
+        $t->contains('a^b c^d, a~b c~d.', $notScript->children[0]->attr('text'));
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -615,6 +652,12 @@ return [
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Reviewer <em>import note</em> flags <strong><em>urgent media cleanup</em></strong> before publishing.</p>', $blocks);
+    },
+    'writes wordpress strikeout superscript and subscript from import review notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Chemistry note: H<sub>2</sub>O import and a<sup><em>draft</em></sup> status need <del>legacy cleanup</del>.</p>', $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

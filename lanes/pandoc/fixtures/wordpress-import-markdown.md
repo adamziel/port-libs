@@ -4,6 +4,8 @@ This **legacy post** links back to the [source archive](https://example.test/arc
 
 Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
+Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.
+
 - Preserve editorial emphasis in imported paragraphs
 - Keep source links clickable for reviewer audits
 

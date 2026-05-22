@@ -53,6 +53,10 @@ The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
 renders as nested strong emphasis in WordPress block HTML.
+The remaining bounded Inline Markup script/deletion cases are also mapped:
+`~~legacy cleanup~~` renders as deletion markup, `a^*draft*^` renders as a
+superscript containing emphasis, and `H~2~O` renders as subscript text while
+Pandoc's unescaped-space examples stay plain text.
 
 ## Scenario Fixture
 
@@ -62,8 +66,9 @@ renders as nested strong emphasis in WordPress block HTML.
   reviewer follow-up item, parenthesized source-ID steps with nested roman
   reviewer checkpoints, definition-list import notes, an alternate-marker source
   glossary with nested ordered review tasks, a div-wrapped glossary audit note,
-  underscore-delimited reviewer emphasis, nested urgent cleanup emphasis, and a
-  fenced PHP migration snippet.
+  underscore-delimited reviewer emphasis, nested urgent cleanup emphasis,
+  strikeout cleanup notes, superscript draft status, subscript chemical/media
+  labels, and a fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -98,8 +103,10 @@ renders as nested strong emphasis in WordPress block HTML.
 - Underscore emphasis and nested strong-emphasis render as normal WordPress
   inline HTML, preserving reviewer urgency markers from older Pandoc-compatible
   Markdown exports.
+- Strikeout, superscript, and subscript render as normal WordPress inline HTML,
+  preserving cleanup annotations and compact metadata labels in imported
+  Markdown without shelling out to Pandoc.
 
 ## Next Task
 
-Map the remaining `test/testsuite.txt` Inline Markup strikeout, superscript, and
-subscript cases.
+Map a bounded `test/testsuite.txt` Smart quotes, ellipses, and dashes slice.

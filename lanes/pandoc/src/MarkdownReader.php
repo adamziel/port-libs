@@ -364,6 +364,9 @@ final class MarkdownReader
                 'text' => $this->escapeHtml((string) $node->attr('text', '')),
                 'emph' => '<em>' . $this->renderInlineHtml($node->children) . '</em>',
                 'strong' => '<strong>' . $this->renderInlineHtml($node->children) . '</strong>',
+                'strikeout' => '<del>' . $this->renderInlineHtml($node->children) . '</del>',
+                'superscript' => '<sup>' . $this->renderInlineHtml($node->children) . '</sup>',
+                'subscript' => '<sub>' . $this->renderInlineHtml($node->children) . '</sub>',
                 'code' => '<code>' . $this->escapeHtml((string) $node->attr('text', '')) . '</code>',
                 'link' => '<a href="' . $this->escapeHtml((string) $node->attr('url', '')) . '">'
                     . $this->renderInlineHtml($node->children) . '</a>',
@@ -1336,6 +1339,22 @@ final class MarkdownReader
                 }
             }
 
+            $strikeout = $this->tryParseStrikeout($text, $offset);
+            if ($strikeout !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $strikeout['node'];
+                $offset = $strikeout['next'];
+                continue;
+            }
+
+            $script = $this->tryParseScript($text, $offset);
+            if ($script !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $script['node'];
+                $offset = $script['next'];
+                continue;
+            }
+
             $emphasis = $this->tryParseEmphasisDelimiter($text, $offset);
             if ($emphasis !== null) {
                 $this->flushText($buffer, $nodes);
@@ -1362,6 +1381,119 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseStrikeout(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '~~') {
+            return null;
+        }
+
+        $end = strpos($text, '~~', $offset + 2);
+        if ($end === false || $end === $offset + 2) {
+            return null;
+        }
+
+        $inner = substr($text, $offset + 2, $end - $offset - 2);
+
+        return [
+            'node' => new AstNode('strikeout', [], $this->parseInlines($inner)),
+            'next' => $end + 2,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseScript(string $text, int $offset): ?array
+    {
+        $delimiter = $text[$offset] ?? '';
+        if ($delimiter !== '^' && $delimiter !== '~') {
+            return null;
+        }
+
+        if ($delimiter === '~' && ($text[$offset + 1] ?? '') === '~') {
+            return null;
+        }
+
+        $end = $this->findClosingScriptDelimiter($text, $offset + 1, $delimiter);
+        if ($end === null || $end === $offset + 1) {
+            return null;
+        }
+
+        $inner = substr($text, $offset + 1, $end - $offset - 1);
+        if ($this->hasUnescapedScriptWhitespace($inner)) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode(
+                $delimiter === '^' ? 'superscript' : 'subscript',
+                [],
+                $this->parseInlines($this->normalizeScriptContent($inner))
+            ),
+            'next' => $end + 1,
+        ];
+    }
+
+    private function findClosingScriptDelimiter(string $text, int $offset, string $delimiter): ?int
+    {
+        $position = strpos($text, $delimiter, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $delimiter, $position + 1);
+        }
+
+        return null;
+    }
+
+    private function hasUnescapedScriptWhitespace(string $text): bool
+    {
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($text[$offset] === '\\') {
+                $offset++;
+                continue;
+            }
+            if (ctype_space($text[$offset])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeScriptContent(string $text): string
+    {
+        $normalized = '';
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($text[$offset] === '\\' && ($text[$offset + 1] ?? '') === ' ') {
+                $normalized .= "\xC2\xA0";
+                $offset++;
+                continue;
+            }
+
+            $normalized .= $text[$offset];
+        }
+
+        return $normalized;
+    }
+
+    private function isEscapedInlinePosition(string $text, int $offset): bool
+    {
+        $slashes = 0;
+        for ($cursor = $offset - 1; $cursor >= 0 && $text[$cursor] === '\\'; $cursor--) {
+            $slashes++;
+        }
+
+        return $slashes % 2 === 1;
     }
 
     /**

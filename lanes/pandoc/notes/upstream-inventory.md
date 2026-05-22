@@ -38,7 +38,8 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.txt` Inline Markup section slice inspected in this run: 30
   Markdown lines through the start of `# Smart quotes, ellipses, dashes`
 - `test/testsuite.native` Inline Markup rendered native AST slice inspected in
-  this run: 168 lines, including 9 `Emph` markers and 6 `Strong` markers
+  this run: 168 lines, including 9 `Emph` markers, 6 `Strong` markers,
+  1 `Strikeout` marker, 3 `Superscript` markers, and 3 `Subscript` markers
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
@@ -81,6 +82,12 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `test/testsuite.txt`, cross-checked against `test/testsuite.native`: `_is
   this_` maps to `Emph`, `__is this__` maps to `Strong`, and triple `***`/`___`
   delimiters map to Pandoc's `Strong [Emph [...]]` shape.
+- Inline strikeout, superscript, and subscript from the same `# Inline Markup`
+  slice: `~~This is *strikeout*.~~` maps to a `Strikeout` node containing
+  nested emphasis, `a^bc^d`/`a^*hello*^`/`a^hello\ there^` map to
+  superscripts with escaped spaces normalized to non-breaking spaces,
+  `H~2~O`/`H~23~O`/`H~many\ of\ them~O` map to subscripts, and the upstream
+  unescaped-space examples remain plain text rather than script spans.
 - Inline code spans
 - Inline links with `[label](url)`
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
@@ -138,6 +145,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-49 tests, 250 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 76 test files, 4,335 assertions, and
+52 tests, 271 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 78 test files, 5,482 assertions, and
 0 failures after this lane batch in the shared dirty worktree.
