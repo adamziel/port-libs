@@ -21,8 +21,16 @@ final class ObjectDatabase
      * @var null|list<LooseObjectStore>
      */
     private ?array $looseStores = null;
+    /**
+     * @var null|array<string,string>
+     */
+    private ?array $replacementMap = null;
 
-    public function __construct(private readonly string $gitDirectory)
+    public function __construct(
+        private readonly string $gitDirectory,
+        private readonly bool $ignoreReplacements = false,
+        private readonly string $replacementRefBase = 'refs/replace',
+    )
     {
     }
 
@@ -50,6 +58,7 @@ final class ObjectDatabase
     {
         self::assertObjectId($oid);
         $oid = strtolower($oid);
+        $oid = $this->replacementFor($oid) ?? $oid;
 
         foreach ($this->packBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
@@ -158,6 +167,24 @@ final class ObjectDatabase
     public function alternateObjectDirectories(): array
     {
         return array_slice($this->objectDirectories(), 1);
+    }
+
+    /**
+     * @return list<array{from:string,to:string}>
+     */
+    public function replacements(): array
+    {
+        $replacements = [];
+        foreach ($this->replacementMap() as $from => $to) {
+            $replacements[] = ['from' => $from, 'to' => $to];
+        }
+
+        return $replacements;
+    }
+
+    public function withReplacementsIgnored(): self
+    {
+        return new self($this->gitDirectory, true, $this->replacementRefBase);
     }
 
     /**
@@ -321,6 +348,76 @@ final class ObjectDatabase
         }
 
         return $out;
+    }
+
+    private function replacementFor(string $oid): ?string
+    {
+        if ($this->ignoreReplacements) {
+            return null;
+        }
+
+        return $this->replacementMap()[$oid] ?? null;
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function replacementMap(): array
+    {
+        if ($this->replacementMap !== null) {
+            return $this->replacementMap;
+        }
+
+        $this->replacementMap = [];
+        $prefix = trim($this->replacementRefBase, '/');
+        if ($prefix === '') {
+            throw new \InvalidArgumentException('Replacement ref base cannot be empty');
+        }
+
+        $packedRefsPath = rtrim($this->gitDirectory, '/\\') . '/packed-refs';
+        if (is_file($packedRefsPath)) {
+            foreach (PackedReferences::open($packedRefsPath)->all() as $reference) {
+                $this->recordReplacementRef($prefix, $reference->name, $reference->targetObjectId());
+            }
+        }
+
+        $looseBase = rtrim($this->gitDirectory, '/\\') . '/' . $prefix;
+        if (is_dir($looseBase)) {
+            $files = glob($looseBase . '/*') ?: [];
+            sort($files, SORT_STRING);
+            foreach ($files as $file) {
+                $source = basename($file);
+                if (!is_file($file) || preg_match('/^[0-9a-fA-F]{40}$/', $source) !== 1) {
+                    continue;
+                }
+                try {
+                    $reference = LooseReference::parse($prefix . '/' . $source, (string) file_get_contents($file));
+                } catch (\InvalidArgumentException) {
+                    continue;
+                }
+                if ($reference->target->isObject()) {
+                    $this->replacementMap[strtolower($source)] = $reference->target->value;
+                }
+            }
+        }
+
+        ksort($this->replacementMap, SORT_STRING);
+
+        return $this->replacementMap;
+    }
+
+    private function recordReplacementRef(string $prefix, string $name, string $target): void
+    {
+        $prefixWithSlash = $prefix . '/';
+        if (!str_starts_with($name, $prefixWithSlash)) {
+            return;
+        }
+        $source = substr($name, strlen($prefixWithSlash));
+        if (preg_match('/^[0-9a-fA-F]{40}$/', $source) !== 1) {
+            return;
+        }
+
+        $this->replacementMap[strtolower($source)] = strtolower($target);
     }
 
     private static function assertObjectId(string $oid): void

@@ -6,6 +6,7 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\LooseReferenceStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
@@ -21,6 +22,8 @@ file_put_contents($packDir . '/' . $basename . '.idx', $fixture['indexBytes']);
 
 $loose = new LooseObjectStore($gitDir);
 $draftOid = $loose->write(new GitObject('blob', 'Draft block content pending the next packed snapshot.'));
+$reviewedDraftOid = $loose->write(new GitObject('blob', 'Reviewed draft block content ready for publishing.'));
+(new LooseReferenceStore($gitDir))->writeDirect('refs/replace/' . $draftOid, $reviewedDraftOid);
 $alternateObjectsDir = dirname($gitDir) . '/shared-package-cache/.git/objects';
 if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
     throw new RuntimeException("Unable to create alternate object directory: {$alternateObjectsDir}");
@@ -36,6 +39,7 @@ file_put_contents($infoDir . '/alternates', "# shared object cache\n{$alternateO
 $database = new ObjectDatabase($gitDir);
 $deltaBlob = $database->read($fixture['objects'][2]['oid']);
 $draft = $database->read($draftOid);
+$rawDraft = $database->withReplacementsIgnored()->read($draftOid);
 $sharedPackage = $database->read($sharedPackageOid);
 $prefix = $database->lookupPrefix(substr($fixture['objects'][2]['oid'], 0, 8));
 
@@ -46,7 +50,9 @@ return [
     'deltaBlobOid' => $deltaBlob->oid(),
     'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
     'draftOid' => $draft->oid(),
-    'draftSource' => 'loose object',
+    'draftSource' => 'replacement ref',
+    'rawDraftOid' => $rawDraft->oid(),
+    'replacementCount' => count($database->replacements()),
     'sharedPackageOid' => $sharedPackage->oid(),
     'sharedPackageSource' => 'alternate object database',
     'deltaPrefixStatus' => $prefix['status'],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\LooseReferenceStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 
 $writeWordPressPackFixture = static function (): array {
@@ -148,5 +149,47 @@ return [
         file_put_contents($alternateObjectsDir . '/info/alternates', "../../site/.git/objects\n");
         $cycleDatabase = new ObjectDatabase($gitDir);
         $t->throws(RuntimeException::class, static fn () => $cycleDatabase->alternateObjectDirectories());
+    },
+    'object database applies loose replacement refs and can ignore them' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-' . bin2hex(random_bytes(4)) . '/.git';
+        $loose = new LooseObjectStore($gitDir);
+        $originalOid = $loose->write(new GitObject('blob', 'Published WordPress block'));
+        $replacementOid = $loose->write(new GitObject('blob', 'Moderated WordPress block'));
+        (new LooseReferenceStore($gitDir))->writeDirect('refs/replace/' . $originalOid, $replacementOid);
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same('Moderated WordPress block', $database->read($originalOid)->body);
+        $t->same('Published WordPress block', $database->withReplacementsIgnored()->read($originalOid)->body);
+        $t->same([
+            ['from' => $originalOid, 'to' => $replacementOid],
+        ], $database->replacements());
+    },
+    'object database applies packed replacement refs and sorts replacement mappings' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-' . bin2hex(random_bytes(4)) . '/.git';
+        $loose = new LooseObjectStore($gitDir);
+        $firstOriginal = $loose->write(new GitObject('blob', 'First original package metadata'));
+        $firstReplacement = $loose->write(new GitObject('blob', 'First replaced package metadata'));
+        $secondOriginal = $loose->write(new GitObject('blob', 'Second original package metadata'));
+        $secondReplacement = $loose->write(new GitObject('blob', 'Second replaced package metadata'));
+        if (!is_dir($gitDir) && !mkdir($gitDir, 0777, true) && !is_dir($gitDir)) {
+            throw new RuntimeException("Unable to create git directory: {$gitDir}");
+        }
+        file_put_contents(
+            $gitDir . '/packed-refs',
+            "# pack-refs with: sorted\n"
+                . "{$secondReplacement} refs/replace/{$secondOriginal}\n"
+                . "{$firstReplacement} refs/replace/{$firstOriginal}\n"
+        );
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same('First replaced package metadata', $database->read($firstOriginal)->body);
+        $t->same('Second replaced package metadata', $database->read($secondOriginal)->body);
+
+        $expected = [
+            ['from' => $firstOriginal, 'to' => $firstReplacement],
+            ['from' => $secondOriginal, 'to' => $secondReplacement],
+        ];
+        usort($expected, static fn (array $a, array $b): int => strcmp($a['from'], $b['from']));
+        $t->same($expected, $database->replacements());
     },
 ];
