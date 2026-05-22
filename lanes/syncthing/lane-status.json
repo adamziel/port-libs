@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: lane-local Syncthing PHP tests pass 32/0; latest root `php tools/run-tests.php` passes 55 test files, 2791 assertions, 0 failures; no upstream runner parity",
     "currentWork": "Native scanner-style block hashing, version vectors, FileInfo conflict/equivalence behavior, protocol validation/wire-path normalization, and BEP Hello/Request/Response proto3 payload plus uncompressed post-auth frame serialization from upstream `bep_hello.go`, `bep_hello_test.go`, `bep_request_response.go`, `proto/bep/bep.proto`, and `protocol.go`.",
     "blocker": "Full upstream runner has not executed: `.upstream-cache/syncthing` is blob-filtered/no-checkout with mass tracked deletions, `go` is not on this shell's PATH, and `go test ./...` would require hydrating the full checkout, downloading/building Go dependencies, and running 141 Go test files plus integration test paths under `test/`.",
-    "latestCommit": "pending",
+    "latestCommit": "de3fbea",
     "nextTask": "Port native LZ4-compressed BEP message frames or cluster config protobuf serialization from focused upstream protocol tests."
 }
