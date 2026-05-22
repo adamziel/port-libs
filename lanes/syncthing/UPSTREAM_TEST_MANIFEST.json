@@ -13,7 +13,7 @@
         "status": "verified-cloned-static-test-inventory-plus-focused-runner",
         "total": 658,
         "mapped": 161,
-        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted 658 static Go test/benchmark entry points across 141 `_test.go` files plus 264 focused behavior/test inventory paths from Go tests, test/testdata fixtures, scripts, protocol/scanner/model paths, and targeted proto/XML/JSON/DB/cert artifacts with git ls-tree and targeted git show reads, without hydrating the full checkout. Bounded throwaway worktree runners passed the upstream block-pull reorderer, job queue, device activity, FileInfoBatch, service-map, indexhandler concurrency, receive-index RemoteIndexUpdated, folder completion, request max-size, and sqlite global/need tests.",
+        "source": "Shallow blob-filtered no-checkout upstream clone in .upstream-cache/syncthing at commit 3962a237232473c20a44945a6c8ce8c930375360; counted 658 static Go test/benchmark entry points across 141 `_test.go` files plus 264 focused behavior/test inventory paths from Go tests, test/testdata fixtures, scripts, protocol/scanner/model paths, and targeted proto/XML/JSON/DB/cert artifacts with git ls-tree and targeted git show reads, without hydrating the full checkout. Bounded throwaway worktree runners passed the upstream block-pull reorderer, job queue, device activity, FileInfoBatch, service-map, indexhandler concurrency, receive-index RemoteIndexUpdated, folder completion, request max-size, sqlite global/need, and sqlite global drop/recalculation tests.",
         "inventory": {
             "upstreamTrackedPaths": 940,
             "upstreamGoFiles": 548,
@@ -122,6 +122,7 @@
             "targetDbGlobalNeedMappedPhpTests": 4,
             "targetDbGlobalAvailabilityMethods": 1,
             "targetDbGlobalDropRecalcTestFunctions": 1,
+            "targetDbGlobalDropRecalcFocusedRunnerTests": 2,
             "targetFolderIndexStateAvailabilityMappedPhpTests": 1,
             "targetReceiveIndexFolderStateMappedPhpTests": 1,
             "targetInboundRequestServingMethods": 5,
@@ -253,6 +254,10 @@
                 {
                     "command": "git worktree add --detach /tmp/syncthing-dbneed.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./internal/db/sqlite -run '^(TestNeed|TestNeedDeleted|TestDontNeedIgnored|TestLocalDontNeedDeletedMissing|TestRemoteDontNeedDeletedMissing|TestNeedRemoteSymlinkAndDir|TestNeedPagination)$' -count=1",
                     "result": "passed focused upstream sqlite global/need package slice with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.041s`; this is bounded upstream evidence for seven selected need/global tests, not full `go test ./...` parity"
+                },
+                {
+                    "command": "git worktree add --detach /tmp/syncthing-globaldrop.* 3962a237232473c20a44945a6c8ce8c930375360; go test ./internal/db/sqlite -run '^(TestDropRecalcsGlobal|TestDeletedAfterConflict)$' -count=1",
+                    "result": "passed focused upstream sqlite global drop/recalculation package slice with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.025s`; this is bounded upstream evidence for two selected global recalculation tests, not full `go test ./...` parity"
                 },
                 {
                     "command": "targeted git show reads of lib/model/indexhandler.go and lib/model/indexhandler_test.go",
@@ -566,7 +571,7 @@
             "DeviceID parsing accepts old 52-character no-check-digit forms plus new 56-character forms, removes spaces/hyphens, uppercases input, and maps common copy mistakes `0` to `O`, `1` to `I`, and `8` to `B` before validation.",
             "Malformed DeviceID lengths, base32 characters, padding bits, and Luhn32 check digits are rejected before a WordPress peer identity is accepted; short IDs are the first seven base32 characters of the raw device ID."
         ],
-        "warning": "This is a cloned static inventory with ten bounded focused upstream package runners, not full upstream runner parity. Native PHP progress maps 161 focused lane tests against 658 counted static Go test/benchmark entry points plus a 264-path focused upstream behavior/test inventory."
+        "warning": "This is a cloned static inventory with eleven bounded focused upstream package runners, not full upstream runner parity. Native PHP progress maps 161 focused lane tests against 658 counted static Go test/benchmark entry points plus a 264-path focused upstream behavior/test inventory."
     },
     "nativeImplementation": {
         "language": "PHP",
