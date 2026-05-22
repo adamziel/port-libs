@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: bounded upstream Go runner passes 299 packages; rclone-only PHP coverage maps 24 tests and 166 assertions with 0 failures; root php tools/run-tests.php passes 57 files and 2986 assertions, not full upstream parity",
     "currentWork": "Native in-memory provider contract with advertised hash sets, case-insensitive provider path lookup, rclone-style path filters, hash set/type aliases, multi-hasher fixtures, check report sigils, one-way checks, filtered copy-changed planning, checksum file parsing, CheckSum-style manifest verification including download-mode byte hashing when provider hashes are unavailable, hashsum output, lsf path/size/hash formatting, lsjson list/stat JSON manifests, case-insensitive StatJSON canonical path lookups, and bounded upstream Go runner evidence.",
     "blocker": "Resolved the prior missing Go/module/tooling blocker for a bounded upstream runner: local Go 1.25.0, rebuilt rclone, local rsync, and a temporary MIME database overlay support a clean 299-package Go run. Full provider/mount parity remains open because live provider TestIntegration cases, FUSE mount packages, and Docker-backed serve/docker coverage are intentionally excluded from this bounded pass.",
-    "latestCommit": "d50b80b",
+    "latestCommit": "0430be6",
     "nextTask": "Map CheckDownload equal-reader read-error classification or deeper fs provider contract behavior beyond the in-memory checksum/listing slices."
 }
