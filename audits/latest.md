@@ -1,6 +1,6 @@
 # Independent Audit - 2026-05-22
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, bridge/shell-out usage, and recent Git history through `b29048e`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate drift, current dirty worktree state, bridge/shell-out usage, and recent Git history through `8528dca`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
 Audit boundary: the current PHP harness is green, but the repository is still a broad dirty integration target. Treat the green run as test evidence, not proof that all dirty lane batches have been reviewed, accepted, and published into the dashboard.
 
@@ -8,13 +8,13 @@ Audit boundary: the current PHP harness is green, but the repository is still a 
 
 1. **Critical - the visible coordination surfaces are stale against the current manifests and latest root test run.**
    - Paths: `porting.html:32`, `porting.html:53`, `porting.html:54`, `porting.html:55`, `porting.html:56`, `porting.html:57`, `porting.html:58`, `porting.html:59`, `porting.html:60`, `porting.html:61`, `porting.html:62`, `porting.html:63`, `porting.html:64`, `porting-summary.json:2`, `progress.md:194`, `progress.md:199`, `progress.md:230`, `progress.md:235`.
-   - Evidence: `porting.html` and `porting-summary.json` were generated at `2026-05-22 15:40:20 UTC` and still show mapped counts `15/5/16/737/18/78/11/19/24/20/89/27`. Current manifests report difftastic `58`, Dolt `74`, esbuild `68`, Gitoxide `1001`, libsqlite `58`, LightningCSS `198`, markerPDF `76`, Pandoc `127`, Quadrable `55`, rclone `96`, Readability `352`, and Syncthing `90`. The latest root run is green with `109 test files, 7887 assertions, 0 failures`. Before this audit update, `progress.md` still recorded the older `108 test files / 7759 assertions` result, and its Active Lanes table still has stale phases/next tasks.
+   - Evidence: `porting.html` and `porting-summary.json` were generated at `2026-05-22 15:40:20 UTC` and still show mapped counts `15/5/16/737/18/78/11/19/24/20/89/27`. Current manifests report difftastic `58`, Dolt `74`, esbuild `68`, Gitoxide `1001`, libsqlite `58`, LightningCSS `198`, markerPDF `78`, Pandoc `127`, Quadrable `55`, rclone `98`, Readability `352`, and Syncthing `90`. The latest root run is green with `110 test files, 7961 assertions, 0 failures`. Before this audit update, `progress.md` still recorded the older `109 test files / 7887 assertions` result, and its Active Lanes table still has stale phases/next tasks.
    - Goal requirement at risk: `goal.md` requires `progress.md` and `porting.html` to show current mapped upstream tests, PHP pass/fail counts, phase, audit status, blocker, current work, and commit.
    - Audit judgment: regenerate `porting.html`, `porting-summary.json`, lane statuses, and the progress lane table only after the remaining dirty batches are explicitly accepted or rejected from this same green baseline.
 
 2. **High - the worktree is still too broad to be a reviewable integration checkpoint.**
    - Paths: `audits/integration-status.md`, `lanes/esbuild/src/JsLexer.php`, `lanes/esbuild/src/TypeScriptModuleLowerer.php`, `lanes/gitoxide/src/ReferenceName.php`, `lanes/libsqlite/src/SQLiteDatabase.php`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/pandoc/src/MarkdownReader.php`, `lanes/readability/src/ArticleExtractor.php`, `lanes/syncthing/src/ReceiveEncrypted.php`, `porting.html`, `porting-summary.json`, `progress.md`.
-   - Evidence: `git status --short` still shows modified implementation, test, fixture, manifest, note, status, dashboard, and audit files across multiple lanes, plus untracked fixtures/examples and audit files. `git diff --stat` reports 32 changed tracked files with 3022 insertions and 186 deletions before this audit update.
+   - Evidence: `git status --short` still shows modified implementation, test, fixture, manifest, note, status, dashboard, and audit files across multiple lanes, plus untracked fixtures/examples and audit files. Excluding this audit update, `git diff --stat` reports 17 changed tracked files with 2564 insertions and 95 deletions before this audit update.
    - Goal requirement at risk: `goal.md` requires small, reviewable slices with passing tests and visible progress generated from the accepted state.
    - Audit judgment: accept or reject dirty batches one lane at a time. Rerun `php tools/run-tests.php` after each accepted batch before publishing the dashboard.
 
@@ -52,7 +52,7 @@ Command: `php tools/run-tests.php`
 
 ```text
 Exit status: 0
-109 test files, 7887 assertions, 0 failures
+110 test files, 7961 assertions, 0 failures
 ```
 
 ## Recommended Next Intervention
