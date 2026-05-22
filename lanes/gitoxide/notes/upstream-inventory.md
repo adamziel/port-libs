@@ -161,12 +161,20 @@ Focused thin/ref-delta pack generation inventory inspected on 2026-05-22:
 - `gix-pack/src/bundle/write/mod.rs` defines the related at-rest repair boundary: a thin-pack base object lookup is used when writing bundles to an object database, reinforcing that thin packs are transit payloads rather than complete packs at rest.
 - `gitprotocol-pack(5)` receive-pack documentation was used to cross-check that push data sends update commands followed by a packfile containing the objects the server needs, while receive-pack capabilities include `ofs-delta` rather than a separate `thin-pack` capability.
 
+Focused receive-pack transport I/O inventory inspected on 2026-05-22:
+
+- Selected `gix-transport/src/client/blocking_io/request.rs`, `gix-transport/src/client/git/blocking_io.rs`, `gix-transport/src/client/non_io_types.rs`, and `gix-transport/tests/client/git.rs::push_v1_simulated` with targeted reads.
+- 5 gix-transport client-git async/blocking tests remain the focused transport count for this slice, including `push_v1_simulated`.
+- `gix-transport/src/client/blocking_io/request.rs` defines the mapped request-writer boundary: binary writes are passed through, `into_read()` writes a terminating message and flushes, and `into_parts()` allows direct pack-byte writing before reading the response.
+- `gix-transport/src/client/git/blocking_io.rs` defines the mapped connection behavior: a handshake reads capabilities/refs, while `request(WriteMode::Binary, MessageKind::Flush, ...)` yields a request writer and response reader over the same transport.
+- `gix-transport/tests/client/git.rs::push_v1_simulated` defines the mapped receive-pack transport flow: write the first command, flush command packet-lines, write the remaining request bytes including pack payload, then parse sideband progress plus nested report-status lines.
+
 Runner status:
 
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either map receive-pack transport I/O adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either map merge-base/tree merge primitives, add concrete receive-pack URL adapters, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
@@ -190,3 +198,4 @@ Current PHP mapping:
 - `PushCommandTest.php` maps protocol v1 receive-pack update commands, create/update/delete ref lines, first-line capability negotiation, `atomic` and `push-options` guards, command packet-line framing before pack bytes, and a WordPress branch/tag deployment push request fixture.
 - `PushResponseTest.php` maps receive-pack report-status parsing, sideband progress/error extraction, nested sideband channel 1 report-status packet lines, accepted and rejected ref statuses, unpack failures, report-status-v2 rewritten-ref options, malformed response guards, and a WordPress branch/tag deployment push status fixture.
 - `SendPackSessionTest.php` maps receive-pack advertisement parsing, advertised-old-object create/update/delete planning, no-op update elision, generated pack request construction, delete-only request behavior, thin REF_DELTA request building from remote bases, session response parsing, a WordPress branch/tag send-pack fixture from advertised refs through status response, and a WordPress thin REF_DELTA send-pack fixture.
+- `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, and a WordPress receive-pack transport fixture over native PHP streams.
