@@ -642,6 +642,81 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline tree-to-non-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $treeEntry('a', new Tree([
+                $blobEntry('d', ''),
+                $blobEntry('e', ''),
+                $treeEntry('sub', new Tree([
+                    $blobEntry('b', "original\n1\n2\n3\n4\n5\n"),
+                    $blobEntry('c', ''),
+                ])),
+            ])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a', new Tree([
+                $blobEntry('d', ''),
+                $blobEntry('e', ''),
+                $treeEntry('sub', new Tree([
+                    $blobEntry('b', "1\n2\n3\n4\n5\n6\n"),
+                    $blobEntry('c', ''),
+                ])),
+            ])),
+        ]);
+        $theirs = new Tree([$blobEntry('a', "new file\n")]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $subTree = Tree::fromObject($read($aTree->entryNamed('sub', true)?->oid ?? ''));
+        $relocated = $result->tree->entryNamed('a~B');
+
+        $t->same(false, $result->isClean());
+        $t->same(['a', 'a~B'], $names($result->tree));
+        $t->same(['sub'], $names($aTree));
+        $t->same(['b'], $names($subTree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($subTree->entryNamed('b')?->oid ?? '')->body);
+        $t->same("new file\n", $read($relocated?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a/sub/b', 'reason' => 'delete-modify', 'base' => 'b', 'ours' => 'b', 'theirs' => null],
+            ['path' => 'a~B', 'reason' => 'directory-file', 'base' => null, 'ours' => null, 'theirs' => 'a~B'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'a/sub/b', 'body' => "original\n1\n2\n3\n4\n5\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a/sub/b', 'body' => "1\n2\n3\n4\n5\n6\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a~B', 'body' => "new file\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same([
+            ['path' => 'a/sub/b', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'body' => "original\n1\n2\n3\n4\n5\n"],
+            ['path' => 'a/sub/b', 'stage' => MergeIndexEntry::STAGE_OURS, 'body' => "1\n2\n3\n4\n5\n6\n"],
+            ['path' => 'a~B', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'body' => "new file\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'body' => $read($entry->oid)->body,
+            ],
+            MergeIndexFile::entriesForResult($result, $read),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline rename-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([

@@ -180,6 +180,13 @@ final class TreeMerge
                 continue;
             }
 
+            $treeFile = self::tryMergeTreeToFileConflict($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
+            if ($treeFile !== null) {
+                array_push($merged, ...$treeFile['merged']);
+                array_push($conflicts, ...$treeFile['conflicts']);
+                continue;
+            }
+
             $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
@@ -419,6 +426,133 @@ final class TreeMerge
                 $fileIsOurs ? null : $fileRelocated,
             ),
         ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return null|array{merged:list<TreeEntry>,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeTreeToFileConflict(
+        string $path,
+        string $fullPath,
+        ?TreeEntry $baseEntry,
+        ?TreeEntry $ourEntry,
+        ?TreeEntry $theirEntry,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+    ): ?array {
+        if ($baseEntry === null || !$baseEntry->isTree() || $ourEntry === null || $theirEntry === null) {
+            return null;
+        }
+        if ($ourEntry->isTree() === $theirEntry->isTree()) {
+            return null;
+        }
+
+        $treeEntry = $ourEntry->isTree() ? $ourEntry : $theirEntry;
+        $fileEntry = $ourEntry->isTree() ? $theirEntry : $ourEntry;
+        if (!$treeEntry->isTree() || $fileEntry->isTree()) {
+            return null;
+        }
+
+        $subtreeMerge = $ourEntry->isTree()
+            ? self::mergeTreeAgainstDeletion(
+                Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')),
+                Tree::fromObject(self::readTypedObject($readObject, $treeEntry->oid, 'tree')),
+                true,
+                $readObject,
+                $writeObject,
+                $fullPath,
+            )
+            : self::mergeTreeAgainstDeletion(
+                Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')),
+                Tree::fromObject(self::readTypedObject($readObject, $treeEntry->oid, 'tree')),
+                false,
+                $readObject,
+                $writeObject,
+                $fullPath,
+            );
+
+        $fileIsOurs = !$ourEntry->isTree();
+        $relocatedName = $path . ($fileIsOurs ? '~A' : '~B');
+        $relocatedPath = $fullPath . ($fileIsOurs ? '~A' : '~B');
+        $fileRelocated = new TreeEntry($fileEntry->mode, $relocatedName, $fileEntry->oid);
+
+        return [
+            'merged' => [
+                new TreeEntry($treeEntry->mode, $path, $writeObject($subtreeMerge->tree->toObject())),
+                $fileRelocated,
+            ],
+            'conflicts' => [
+                ...$subtreeMerge->conflicts,
+                new TreeMergeConflict(
+                    $relocatedPath,
+                    'directory-file',
+                    null,
+                    $fileIsOurs ? $fileRelocated : null,
+                    $fileIsOurs ? null : $fileRelocated,
+                ),
+            ],
+        ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function mergeTreeAgainstDeletion(
+        Tree $base,
+        Tree $modified,
+        bool $modifiedIsOurs,
+        callable $readObject,
+        callable $writeObject,
+        string $pathPrefix,
+    ): TreeMergeResult {
+        $baseEntries = self::entriesByName($base);
+        $modifiedEntries = self::entriesByName($modified);
+        $paths = array_keys($baseEntries + $modifiedEntries);
+        sort($paths, SORT_STRING);
+
+        $merged = [];
+        $conflicts = [];
+        foreach ($paths as $path) {
+            $baseEntry = $baseEntries[$path] ?? null;
+            $modifiedEntry = $modifiedEntries[$path] ?? null;
+            if ($modifiedEntry === null || self::sameEntry($baseEntry, $modifiedEntry)) {
+                continue;
+            }
+
+            $fullPath = self::joinPath($pathPrefix, $path);
+            if ($baseEntry !== null && $baseEntry->isTree() && $modifiedEntry->isTree()) {
+                $nested = self::mergeTreeAgainstDeletion(
+                    Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')),
+                    Tree::fromObject(self::readTypedObject($readObject, $modifiedEntry->oid, 'tree')),
+                    $modifiedIsOurs,
+                    $readObject,
+                    $writeObject,
+                    $fullPath,
+                );
+                if ($nested->tree->entries !== []) {
+                    $merged[] = new TreeEntry($modifiedEntry->mode, $path, $writeObject($nested->tree->toObject()));
+                }
+                array_push($conflicts, ...$nested->conflicts);
+                continue;
+            }
+
+            $merged[] = $modifiedEntry;
+            $conflicts[] = new TreeMergeConflict(
+                $fullPath,
+                'delete-modify',
+                $baseEntry,
+                $modifiedIsOurs ? $modifiedEntry : null,
+                $modifiedIsOurs ? null : $modifiedEntry,
+            );
+        }
+
+        self::sortEntries($merged);
+
+        return new TreeMergeResult(new Tree($merged), $conflicts);
     }
 
     private static function mergeBlobMode(TreeEntry $baseEntry, TreeEntry $ourEntry, TreeEntry $theirEntry): ?string
