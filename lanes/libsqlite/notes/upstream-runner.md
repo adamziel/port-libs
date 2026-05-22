@@ -761,8 +761,44 @@ pages are parsed. The focused regression fixture uses a WordPress-shaped
 index branch is intentionally invalid. The new
 `examples/wordpress-options-by-name-list.php` script maps bulk option
 preload/recovery workflows on hosts without the PHP SQLite extension.
-Remaining work includes expression-index `IN` lookups, custom collations, and
-broader composite `IN` constraints.
+Remaining work includes expression-index `IN` lookup families beyond
+`lower(column)`, custom collations, and broader composite `IN` constraints.
+
+## Focused Native Mapping: Lower Expression IN-List Option Lookups
+
+SQLite can use an expression index for an `IN (...)` predicate when the query
+expression matches the indexed expression. The native PHP reader now maps the
+WordPress-oriented `lower(option_name) IN (...)` slice: caller-supplied names
+are case-folded with SQLite-style ASCII lowercasing, duplicate RHS names do not
+duplicate result rows, `NULL` RHS terms do not match, and safe
+`WHERE option_name IS NOT NULL` partial expression indexes can be used.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test where2.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 199 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` sections `indexexpr1-150` and `indexexpr1-250`
+  verify expression-index `IN (...)` probes and planner use for
+  `substr(a,b,3) IN (...)` on rowid and WITHOUT ROWID tables.
+- `test/where2.test` section `where2-4.6*` verifies duplicate RHS values do
+  not duplicate output rows for indexed `IN` probes.
+
+The native PHP tests now cover `wp_options(lower(option_name) COLLATE NOCASE)`
+IN-list reads for mixed-case `SiteURL`/`HOME` option names, duplicate RHS
+suppression, `NULL` RHS non-matching behavior, rejection as a plain
+`option_name` index, limit handling, invalid RHS types, and bounded lower-key
+seek pruning where an out-of-range index branch is intentionally unreadable.
+The new `examples/wordpress-lowercase-options-by-name-list.php` script maps
+case-folded bulk option preload/recovery workflows on hosts without the PHP
+SQLite extension.
 
 ## Focused Native Mapping: First-Column B-Tree Seek Bounds
 

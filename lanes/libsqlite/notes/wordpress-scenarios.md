@@ -70,14 +70,21 @@ can match mixed-case option rows through `lower(option_name)` while avoiding
 ordinary `option_name` index assumptions. Only safe `option_name IS NOT NULL`
 partial predicates are accepted for expression ranges; raw comparison
 predicates are left unsupported because they are not implied by folded bounds.
+The lower-expression path now also supports bounded `IN (...)` reads. Recovery
+or preload tools can request a small mixed-case list such as `SITEURL,HOME`
+through `wp_options(lower(option_name))`, avoid duplicate rows for duplicate
+RHS names, ignore `NULL` RHS terms, and skip out-of-range index branches before
+page decoding when a large or partially damaged options database contains
+unrelated lower-key subtrees.
 First-term `substr(option_name,start,length)` expression indexes are now
 parsed for non-zero integer start and optional non-negative length literals. A
 WordPress recovery tool can use a `substr(option_name,1,N)` expression index to read prefix
 buckets such as `_transient_` through native index traversal, including
 `COLLATE NOCASE` comparison and safe `option_name IS NOT NULL` partial
 predicate checks. This remains intentionally narrower than SQLite's full
-expression engine: variable-start substrings, expression `IN` lookups, and
-arbitrary functions are still future slices. Negative literal starts are now
+expression engine: variable-start substrings, expression `IN` lookup families
+beyond `lower(column)`, and arbitrary functions are still future slices.
+Negative literal starts are now
 accepted for suffix buckets such as `substr(option_name,-9)`: native recovery
 tools can inspect `*_settings` option groups through stored suffix keys,
 including `COLLATE NOCASE`/`DESC` metadata, without treating that expression
@@ -113,8 +120,8 @@ subtrees before page decoding, so a small preload list can still be recovered
 when an unrelated branch of a large `wp_options(option_name)` index is damaged
 or expensive to hydrate.
 
-First-column range, lower-expression range, first-column IN-list, and composite
-equality-prefix range scans now use bounded index b-tree traversal instead of
+First-column range, lower-expression IN-list/range, first-column IN-list, and
+composite equality-prefix range scans now use bounded index b-tree traversal instead of
 decoding every index page. This matters for WordPress recovery and import tools
 that inspect a narrow option-name range or a small known option-name set from a
 large or partially damaged database image: an unrelated out-of-range index
@@ -200,6 +207,13 @@ folded names fall between caller-supplied bounds. By default it targets the
 without requiring the PHP SQLite extension or every out-of-range index branch
 to be readable.
 
+`examples/wordpress-lowercase-options-by-name-list.php` reads a
+WordPress-oriented SQLite database file, resolves a first-term
+`wp_options(lower(option_name))` expression index, and returns a bounded set of
+case-folded names such as `SITEURL,HOME` without scanning the whole table. This
+maps plugin/theme preload and recovery workflows where option names may have
+unexpected case and a plain `option_name` index is not available.
+
 `examples/wordpress-option-name-prefix.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(substr(option_name,1,N))` expression index, and returns options
@@ -230,5 +244,5 @@ reports the decoded table name/root page without using the PHP SQLite extension.
 Port SQLite index b-tree comparison features that are still outside the current
 slice: expression indexes beyond `lower(column)`, literal-start
 `substr(column,...)`, and `length(column)` point buckets; expression
-`IN (...)` lookups; custom collations; and composite-key ranges beyond one
-equality prefix plus one range column.
+`IN (...)` lookup families beyond `lower(column)`; custom collations; and
+composite-key ranges beyond one equality prefix plus one range column.

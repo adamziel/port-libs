@@ -822,6 +822,57 @@ return [
         $t->same(null, $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('SITEURL'));
     },
+    'uses lower expression index for case folded wordpress option_name IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_lower_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_lower_option_name ON wp_options(lower(option_name) COLLATE NOCASE) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'HOME', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 3),
+            $schemaCell([null, null, 'draft option without name', 'no'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['blogname', 3]),
+            $indexCell(['home', 2]),
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $options = $database->wordpressOptionsByIndexedLowercaseNames(['SITEURL', 'home', 'HOME', null]);
+        $limited = $database->wordpressOptionsByIndexedLowercaseNames(['SITEURL', 'home'], 1);
+        $nullOnly = $database->wordpressOptionsByIndexedLowercaseNames([null]);
+
+        $t->same(3, $database->indexRootPageForLowercaseInLookup('wp_options', 'option_name', ['SITEURL', 'home']));
+        $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['SITEURL', 'home']));
+        $t->same(['HOME', 'SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['HOME'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $nullOnly);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedLowercaseNames([123]));
+    },
+    'uses lower expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_lower_option_name', 'wp_options', 2, 'CREATE INDEX wp_options_lower_option_name ON wp_options(lower(option_name)) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['blogname', 2]]], 5);
+        $page3 = str_repeat("\0", 512);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+        ]);
+        $page5 = $indexLeafPage([
+            $indexCell(['siteurl', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $options = $database->wordpressOptionsByIndexedLowercaseNames(['SITEURL', 'missing']);
+
+        $t->same(2, $database->indexRootPageForLowercaseInLookup('wp_options', 'option_name', ['SITEURL', 'missing']));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+    },
     'uses length expression index for wordpress option_name length buckets' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
