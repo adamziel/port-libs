@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 5,
-    "suiteProgress": "static upstream inventory counted: 241 behavior checks (160 Rust #[test], 81 Node uvu tests) plus 8 CSS fixtures; selector/stylesheet parser slice mapped; upstream runners probed but not executed",
-    "phpPass": 12,
+    "estimatedProgress": 6,
+    "suiteProgress": "static upstream inventory counted: 241 behavior checks (160 Rust #[test], 81 Node uvu tests) plus 8 CSS fixtures; selector/stylesheet parser and CSSOM direct declaration slices mapped; upstream runners probed but not executed",
+    "phpPass": 15,
     "phpFail": 0,
     "wordpressScenarios": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery; block theme fixture covers custom properties, block selectors, at-rules, nested WordPress selectors, color minification, and calc spacing.",
-    "phase": "static upstream inventory plus stylesheet parser slice",
+    "phase": "static upstream inventory plus stylesheet parser/CSSOM declaration slice",
     "audit": "audited 2026-05-22: local PHP smoke coverage only; no upstream runner parity",
-    "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, color keyword shortening, calc/min/max/clamp operator spacing, stylesheet rule parsing for selectors, at-rule statements/blocks, nested rules, and a WordPress block-theme parser example.",
+    "currentWork": "Native CSS comment/whitespace minifier, declaration block parser, CSSOM-style direct get/set/remove helpers with !important priority handling, color keyword shortening, calc/min/max/clamp operator spacing, stylesheet rule parsing for selectors, at-rule statements/blocks, nested rules, and a WordPress block-theme parser example.",
     "blocker": "Full upstream runner not executed: npm test lacks node_modules/uvu, and offline Cargo no-run cannot resolve napi-derive for the Node workspace; full parity run requires dependency install/build beyond this modest lane slice.",
-    "latestCommit": "9fbfbb3",
-    "nextTask": "Expand parser coverage toward media query values, selector specificity, and CSSOM-style declaration access before adding prefixing or transformer semantics."
+    "latestCommit": "09ec278",
+    "nextTask": "Expand parser coverage toward media query values, selector specificity, and shorthand CSSOM access before adding prefixing or transformer semantics."
 }
