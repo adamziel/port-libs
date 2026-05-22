@@ -9,6 +9,11 @@ final class MarkdownReader
     /** @var array<string, array{url:string, title:string}> */
     private array $referenceLinks = [];
 
+    /** @var array<string, string> */
+    private array $footnoteDefinitions = [];
+
+    private bool $resolveFootnoteReferences = true;
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
@@ -16,8 +21,10 @@ final class MarkdownReader
         $listStack = [];
         $lines = preg_split('/\R/', rtrim($markdown, "\r\n")) ?: [];
         $previousReferenceLinks = $this->referenceLinks;
-        [$lines, $references] = $this->extractReferenceDefinitions($lines);
+        $previousFootnoteDefinitions = $this->footnoteDefinitions;
+        [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $references);
+        $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
@@ -46,6 +53,13 @@ final class MarkdownReader
             $rawTexBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawTexBlock($lines, $index) : null;
             if ($rawTexBlock !== null) {
                 $blocks[] = $rawTexBlock;
+                continue;
+            }
+            $pipeTable = $this->tryReadPipeTable($lines, $index);
+            if ($pipeTable !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = $pipeTable;
                 continue;
             }
             if ($this->isHorizontalRule($line)) {
@@ -98,22 +112,26 @@ final class MarkdownReader
 
         $document = new AstNode('document', [], $blocks);
         $this->referenceLinks = $previousReferenceLinks;
+        $this->footnoteDefinitions = $previousFootnoteDefinitions;
 
         return $document;
     }
 
     /**
      * @param list<string> $lines
-     * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>}
+     * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>, 2:array<string, string>}
      */
     private function extractReferenceDefinitions(array $lines): array
     {
         $content = [];
         $references = [];
+        $footnotes = [];
         $fenceChar = null;
         $fenceLength = 0;
+        $count = count($lines);
 
-        foreach ($lines as $line) {
+        for ($index = 0; $index < $count; $index++) {
+            $line = $lines[$index];
             if ($fenceChar !== null) {
                 $content[] = $line;
                 if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
@@ -130,7 +148,16 @@ final class MarkdownReader
                 continue;
             }
 
-            $reference = $this->tryParseReferenceDefinition($this->expandTabsToSpaces($line));
+            $expanded = $this->expandTabsToSpaces($line);
+            $footnote = $this->tryParseFootnoteDefinitionStart($expanded);
+            if ($footnote !== null) {
+                [$body, $nextIndex] = $this->collectFootnoteDefinitionBody($lines, $index, $footnote['content']);
+                $footnotes[$this->normalizeReferenceLabel($footnote['label'])] = implode("\n", $body);
+                $index = $nextIndex - 1;
+                continue;
+            }
+
+            $reference = $this->tryParseReferenceDefinition($expanded);
             if ($reference !== null) {
                 $references[$this->normalizeReferenceLabel($reference['label'])] = [
                     'url' => $reference['url'],
@@ -142,7 +169,7 @@ final class MarkdownReader
             $content[] = $line;
         }
 
-        return [$content, $references];
+        return [$content, $references, $footnotes];
     }
 
     private function normalizeReferenceLabel(string $label): string
@@ -169,6 +196,110 @@ final class MarkdownReader
             'url' => $target['url'],
             'title' => $target['title'],
         ];
+    }
+
+    /**
+     * @return array{label:string, content:string}|null
+     */
+    private function tryParseFootnoteDefinitionStart(string $line): ?array
+    {
+        if (preg_match('/^ {0,3}\[\^([^\]\s]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        return [
+            'label' => $m[1],
+            'content' => rtrim($m[2]),
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:int}
+     */
+    private function collectFootnoteDefinitionBody(array $lines, int $index, string $firstLine): array
+    {
+        $body = [];
+        if ($firstLine !== '') {
+            $body[] = $firstLine;
+        }
+
+        $cursor = $index + 1;
+        $count = count($lines);
+        $afterBlank = false;
+        $insideIndentedBlock = false;
+
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            $expanded = $this->expandTabsToSpaces($line);
+            if (trim($expanded) === '') {
+                $nextNonBlank = $this->nextNonBlankLineIndex($lines, $cursor + 1);
+                if (
+                    $nextNonBlank !== null
+                    && $this->isFootnoteIndentedContinuation($lines[$nextNonBlank])
+                ) {
+                    $body[] = '';
+                    $afterBlank = true;
+                    $insideIndentedBlock = false;
+                    $cursor++;
+                    continue;
+                }
+
+                $cursor = $nextNonBlank ?? $count;
+                break;
+            }
+
+            if ($this->tryParseFootnoteDefinitionStart($expanded) !== null || $this->tryParseReferenceDefinition($expanded) !== null) {
+                break;
+            }
+
+            if ($afterBlank && !$insideIndentedBlock) {
+                if (!$this->isFootnoteIndentedContinuation($line)) {
+                    break;
+                }
+
+                $body[] = rtrim($this->stripIndentColumns($line, 4));
+                $insideIndentedBlock = true;
+                $cursor++;
+                continue;
+            }
+
+            if ($afterBlank && $this->isFootnoteIndentedContinuation($line)) {
+                $body[] = rtrim($this->stripIndentColumns($line, 4));
+                $cursor++;
+                continue;
+            }
+
+            $body[] = rtrim($line);
+            $cursor++;
+        }
+
+        while ($body !== [] && end($body) === '') {
+            array_pop($body);
+        }
+
+        return [$body, $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function nextNonBlankLineIndex(array $lines, int $cursor): ?int
+    {
+        $count = count($lines);
+        while ($cursor < $count) {
+            if (trim($lines[$cursor]) !== '') {
+                return $cursor;
+            }
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    private function isFootnoteIndentedContinuation(string $line): bool
+    {
+        return $this->countIndentColumns($line) >= 4;
     }
 
     /**
@@ -405,6 +536,216 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadPipeTable(array $lines, int &$index): ?AstNode
+    {
+        if (!isset($lines[$index + 1])) {
+            return null;
+        }
+
+        $headerCells = $this->splitPipeTableRow($lines[$index]);
+        if ($headerCells === null) {
+            return null;
+        }
+
+        $delimiterCells = $this->splitPipeTableRow($lines[$index + 1]);
+        if ($delimiterCells === null || count($delimiterCells) !== count($headerCells)) {
+            return null;
+        }
+
+        $delimiter = $this->parsePipeTableDelimiter($delimiterCells);
+        if ($delimiter === null) {
+            return null;
+        }
+
+        $columnCount = count($delimiter['alignments']);
+        $cursor = $index + 2;
+        $bodyRows = [];
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) !== '') {
+            $row = $this->splitPipeTableRow($lines[$cursor]);
+            if ($row === null) {
+                break;
+            }
+
+            $bodyRows[] = $this->normalizePipeTableRow($row, $columnCount);
+            $cursor++;
+        }
+
+        $caption = '';
+        $captionCursor = $cursor;
+        while ($captionCursor < $count && trim($lines[$captionCursor]) === '') {
+            $captionCursor++;
+        }
+        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
+            $caption = trim($m[1]);
+            $cursor = $captionCursor + 1;
+        }
+
+        $headerIsEmpty = true;
+        foreach ($headerCells as $cell) {
+            if (trim($cell) !== '') {
+                $headerIsEmpty = false;
+                break;
+            }
+        }
+
+        $children = [];
+        if (!$headerIsEmpty) {
+            $children[] = new AstNode('table_head', [], [
+                $this->buildTableRow($this->normalizePipeTableRow($headerCells, $columnCount), true),
+            ]);
+        } else {
+            $children[] = new AstNode('table_head');
+        }
+
+        $bodyChildren = [];
+        foreach ($bodyRows as $row) {
+            $bodyChildren[] = $this->buildTableRow($row, false);
+        }
+        $children[] = new AstNode('table_body', [], $bodyChildren);
+
+        $attrs = [
+            'caption' => $caption,
+            'alignments' => $delimiter['alignments'],
+        ];
+        if ($delimiter['widths'] !== null) {
+            $attrs['widths'] = $delimiter['widths'];
+        }
+
+        $index = $cursor - 1;
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function splitPipeTableRow(string $line): ?array
+    {
+        $line = trim($line);
+        if ($line === '' || !str_contains($line, '|')) {
+            return null;
+        }
+
+        $cells = [];
+        $cell = '';
+        $codeFenceLength = null;
+        $length = strlen($line);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $line[$offset];
+            if ($char === '\\') {
+                $cell .= $char;
+                if ($offset + 1 < $length) {
+                    $offset++;
+                    $cell .= $line[$offset];
+                }
+                continue;
+            }
+
+            if ($char === '`') {
+                $tickCount = $this->countBackticks($line, $offset);
+                if ($codeFenceLength === null) {
+                    $codeFenceLength = $tickCount;
+                } elseif ($tickCount === $codeFenceLength) {
+                    $codeFenceLength = null;
+                }
+                $cell .= str_repeat('`', $tickCount);
+                $offset += $tickCount - 1;
+                continue;
+            }
+
+            if ($char === '|' && $codeFenceLength === null) {
+                $cells[] = $cell;
+                $cell = '';
+                continue;
+            }
+
+            $cell .= $char;
+        }
+        $cells[] = $cell;
+
+        if ($line[0] === '|') {
+            array_shift($cells);
+        }
+        if ($line !== '' && $line[strlen($line) - 1] === '|') {
+            array_pop($cells);
+        }
+
+        return $cells === [] ? null : $cells;
+    }
+
+    /**
+     * @param list<string> $cells
+     * @return array{alignments:list<string>, widths:list<float>|null}|null
+     */
+    private function parsePipeTableDelimiter(array $cells): ?array
+    {
+        $alignments = [];
+        $widthParts = [];
+        foreach ($cells as $cell) {
+            $marker = trim($cell);
+            if (preg_match('/^(:?)(-{2,})(:?)$/', $marker, $m) !== 1) {
+                return null;
+            }
+
+            $alignments[] = match (true) {
+                $m[1] === ':' && $m[3] === ':' => 'center',
+                $m[1] === ':' => 'left',
+                $m[3] === ':' => 'right',
+                default => 'default',
+            };
+            $widthParts[] = strlen($m[2]);
+        }
+
+        $widths = null;
+        if (max($widthParts) >= 20) {
+            $total = array_sum($widthParts);
+            $widths = array_map(
+                static fn (int $width): float => $total === 0 ? 0.0 : $width / $total,
+                $widthParts
+            );
+        }
+
+        return [
+            'alignments' => $alignments,
+            'widths' => $widths,
+        ];
+    }
+
+    /**
+     * @param list<string> $cells
+     * @return list<string>
+     */
+    private function normalizePipeTableRow(array $cells, int $columnCount): array
+    {
+        $cells = array_slice($cells, 0, $columnCount);
+        while (count($cells) < $columnCount) {
+            $cells[] = '';
+        }
+
+        return array_map(static fn (string $cell): string => trim($cell), $cells);
+    }
+
+    /**
+     * @param list<string> $cells
+     */
+    private function buildTableRow(array $cells, bool $header): AstNode
+    {
+        $children = [];
+        foreach ($cells as $cell) {
+            $children[] = new AstNode(
+                'table_cell',
+                ['text' => $cell, 'header' => $header],
+                $this->parseInlines($cell)
+            );
+        }
+
+        return new AstNode('table_row', ['header' => $header], $children);
     }
 
     /**
@@ -1499,6 +1840,14 @@ final class MarkdownReader
                 }
             }
 
+            $inlineNote = $this->resolveFootnoteReferences ? $this->tryParseInlineNote($text, $offset) : null;
+            if ($inlineNote !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $inlineNote['node'];
+                $offset = $inlineNote['next'];
+                continue;
+            }
+
             $math = $this->tryParseMath($text, $offset);
             if ($math !== null) {
                 $this->flushText($buffer, $nodes);
@@ -1544,6 +1893,14 @@ final class MarkdownReader
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $emphasis['node'];
                 $offset = $emphasis['next'];
+                continue;
+            }
+
+            $footnoteReference = $this->resolveFootnoteReferences ? $this->tryParseFootnoteReference($text, $offset) : null;
+            if ($footnoteReference !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $footnoteReference['node'];
+                $offset = $footnoteReference['next'];
                 continue;
             }
 
@@ -1600,6 +1957,107 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseInlineNote(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '^[' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $end = $this->findClosingInlineNoteBracket($text, $offset + 2);
+        if ($end === null) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('note', [], $this->parseFootnoteBlocks(substr($text, $offset + 2, $end - $offset - 2))),
+            'next' => $end + 1,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseFootnoteReference(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '[' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (preg_match('/\G\[\^([^\]\s]+)\]/', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $definition = $this->footnoteDefinitions[$this->normalizeReferenceLabel($m[1])] ?? null;
+        if ($definition === null) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('note', ['label' => $m[1]], $this->parseFootnoteBlocks($definition)),
+            'next' => $offset + strlen($m[0]),
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseFootnoteBlocks(string $markdown): array
+    {
+        $markdown = trim($markdown, "\r\n");
+        if (trim($markdown) === '') {
+            return [];
+        }
+
+        $previous = $this->resolveFootnoteReferences;
+        $this->resolveFootnoteReferences = false;
+        try {
+            return $this->read($markdown)->children;
+        } finally {
+            $this->resolveFootnoteReferences = $previous;
+        }
+    }
+
+    private function findClosingInlineNoteBracket(string $text, int $offset): ?int
+    {
+        $depth = 0;
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '`') {
+                $tickCount = $this->countBackticks($text, $cursor);
+                $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
+                if ($end !== null) {
+                    $cursor = $end + $tickCount - 1;
+                }
+                continue;
+            }
+
+            if ($text[$cursor] === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] !== ']') {
+                continue;
+            }
+
+            if ($depth === 0) {
+                return $cursor;
+            }
+
+            $depth--;
+        }
+
+        return null;
     }
 
     /**

@@ -477,6 +477,87 @@ return [
         $t->same(' icon.', $document->children[3]->children[2]->attr('text'));
         $t->same('horizontal_rule', $document->children[4]->type);
     },
+    'maps upstream testsuite footnote references inline notes quotes and lists' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '# Footnotes',
+            '',
+            'Here is a footnote reference,[^1] and another.[^longnote]',
+            'This should *not* be a footnote reference, because it ',
+            'contains a space.[^my note]  Here is an inline note.^[This',
+            'is *easier* to type.  Inline notes may contain',
+            '[links](http://google.com) and `]` verbatim characters,',
+            'as well as [bracketed text].]',
+            '',
+            '> Notes can go in quotes.^[In quote.]',
+            '',
+            '1.  And in list items.^[In list.]',
+            '',
+            "[^longnote]: Here's the long note.  This one contains multiple",
+            'blocks.  ',
+            '',
+            '    Subsequent blocks are indented to show that they belong to the',
+            'footnote (as with list items).',
+            '',
+            '          { <code> }',
+            '',
+            '    If you want, you can indent every line, but you can also be',
+            'lazy and just indent the first line of each block.',
+            '',
+            'This paragraph should not be part of the note, as it is not indented.',
+            '',
+            '  [^1]: Here is the footnote.  It can go anywhere after the footnote',
+            '  reference.  It need not be placed at the end of the document.',
+        ]));
+        $paragraph = $document->children[1];
+        $shortNote = $paragraph->children[1];
+        $longNote = $paragraph->children[3];
+        $inlineNote = $paragraph->children[7];
+        $inlineNoteParagraph = $inlineNote->children[0];
+        $quoteNote = $document->children[2]->children[0]->children[1];
+        $listNote = $document->children[3]->children[0]->children[1];
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Footnotes', $document->children[0]->attr('text'));
+        $t->same('note', $shortNote->type);
+        $t->same('1', $shortNote->attr('label'));
+        $t->contains('Here is the footnote.', $shortNote->children[0]->attr('text'));
+        $t->same('note', $longNote->type);
+        $t->same('longnote', $longNote->attr('label'));
+        $t->same(['paragraph', 'paragraph', 'code_block', 'paragraph'], array_map(static fn ($node): string => $node->type, $longNote->children));
+        $t->same('  { <code> }', $longNote->children[2]->attr('text'));
+        $t->same('emph', $paragraph->children[5]->type);
+        $t->contains('[^my note]', $paragraph->children[6]->attr('text'));
+        $t->same('note', $inlineNote->type);
+        $t->same('emph', $inlineNoteParagraph->children[1]->type);
+        $t->same('easier', $inlineNoteParagraph->children[1]->children[0]->attr('text'));
+        $t->same('link', $inlineNoteParagraph->children[3]->type);
+        $t->same('http://google.com', $inlineNoteParagraph->children[3]->attr('url'));
+        $t->same('code', $inlineNoteParagraph->children[5]->type);
+        $t->same(']', $inlineNoteParagraph->children[5]->attr('text'));
+        $t->contains('[bracketed text].', $inlineNoteParagraph->children[6]->attr('text'));
+        $t->same('note', $quoteNote->type);
+        $t->same('In quote.', $quoteNote->children[0]->attr('text'));
+        $t->same('note', $listNote->type);
+        $t->same('In list.', $listNote->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[4]->type);
+        $t->same('This paragraph should not be part of the note, as it is not indented.', $document->children[4]->attr('text'));
+    },
+    'maps upstream markdown footnote indentation and recursive reference edge cases' => static function (TestRunner $t): void {
+        $flushLeft = (new MarkdownReader())->read("[^1]\n\n[^1]: my note\n\n     \nnot in note\n");
+        $indented = (new MarkdownReader())->read("[^1]\n\n[^1]: my note\n     \n    in note\n");
+        $recursive = (new MarkdownReader())->read("[^1]\n\n[^1]: See [^1]\n");
+
+        $t->same('note', $flushLeft->children[0]->children[0]->type);
+        $t->same(1, count($flushLeft->children[0]->children[0]->children));
+        $t->same('not in note', $flushLeft->children[1]->attr('text'));
+        $t->same('note', $indented->children[0]->children[0]->type);
+        $t->same(2, count($indented->children[0]->children[0]->children));
+        $t->same('my note', $indented->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('in note', $indented->children[0]->children[0]->children[1]->attr('text'));
+        $t->same('note', $recursive->children[0]->children[0]->type);
+        $t->same('See [^1]', $recursive->children[0]->children[0]->children[0]->attr('text'));
+        $t->same(1, count($recursive->children[0]->children[0]->children[0]->children));
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -964,6 +1045,113 @@ return [
         $t->same('<hr>', $document->children[6]->attr('html'));
         $t->same('<hr class="foo" id="bar" />', $document->children[7]->attr('html'));
     },
+    'maps upstream pipe tables with captions alignments and body rows' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Simple table with caption:',
+            '',
+            '| Right | Left | Default | Center |',
+            '| ----: | :--- | ------- | :----: |',
+            '|   12  |  12  |    12   |    12  |',
+            '|  123  |  123 |   123   |   123  |',
+            '|    1  |    1 |     1   |     1  |',
+            '',
+            '  : Demonstration of simple table syntax.',
+        ]));
+        $table = $document->children[1];
+        $head = $table->children[0];
+        $body = $table->children[1];
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('table', $table->type);
+        $t->same('Demonstration of simple table syntax.', $table->attr('caption'));
+        $t->same(['right', 'left', 'default', 'center'], $table->attr('alignments'));
+        $t->same('table_head', $head->type);
+        $t->same('Right', $head->children[0]->children[0]->attr('text'));
+        $t->same('Center', $head->children[0]->children[3]->attr('text'));
+        $t->same(3, count($body->children));
+        $t->same('12', $body->children[0]->children[0]->attr('text'));
+        $t->same('123', $body->children[1]->children[2]->attr('text'));
+        $t->same('1', $body->children[2]->children[3]->attr('text'));
+    },
+    'maps upstream pipe table headerless and side-less forms' => static function (TestRunner $t): void {
+        $headerless = (new MarkdownReader())->read(implode("\n", [
+            'Headerless table without caption:',
+            '',
+            '|       |      |        |',
+            '|------:|:-----|:------:|',
+            '|12|12|12|',
+            '|123|123|123|',
+            '|1|1|1|',
+        ]));
+        $withoutSides = (new MarkdownReader())->read(implode("\n", [
+            'Table without sides:',
+            '',
+            'Fruit |Quantity',
+            '------|-------:',
+            'apple |    5',
+            'orange|   17',
+            'pear  |  302',
+        ]));
+        $headerlessTable = $headerless->children[1];
+        $sideTable = $withoutSides->children[1];
+
+        $t->same('table', $headerlessTable->type);
+        $t->same([], $headerlessTable->children[0]->children);
+        $t->same(['right', 'left', 'center'], $headerlessTable->attr('alignments'));
+        $t->same('12', $headerlessTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('table', $sideTable->type);
+        $t->same(['default', 'right'], $sideTable->attr('alignments'));
+        $t->same('Fruit', $sideTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Quantity', $sideTable->children[0]->children[0]->children[1]->attr('text'));
+        $t->same('302', $sideTable->children[1]->children[2]->children[1]->attr('text'));
+    },
+    'maps upstream one-column and no-body pipe tables' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'One-column:',
+            '',
+            '|hi|',
+            '|--|',
+            '|lo|',
+            '',
+            'Pipe table with no body:',
+            '',
+            '| Header |',
+            '| ------ |',
+        ]));
+        $oneColumn = $document->children[1];
+        $noBody = $document->children[3];
+
+        $t->same('table', $oneColumn->type);
+        $t->same(['default'], $oneColumn->attr('alignments'));
+        $t->same('hi', $oneColumn->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('lo', $oneColumn->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('table', $noBody->type);
+        $t->same('Header', $noBody->children[0]->children[0]->children[0]->attr('text'));
+        $t->same([], $noBody->children[1]->children);
+    },
+    'maps upstream pipe table escaped pipes and code span pipes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Pipe table with tricky cell contents (see #2765):',
+            '',
+            '|               | IP_gene8-_1st| IP_gene8+_1st|',
+            '|:--------------|-------------:|-------------:|',
+            '|IP_gene8-_1st  |     1.0000000|     0.4357325|',
+            '|IP_gene8+_1st  |     0.4357325|     1.0000000|',
+            '|foo`bar|baz`   | and\|escaped |     3.0000000|',
+        ]));
+        $table = $document->children[1];
+        $trickyRow = $table->children[1]->children[2];
+        $codeCell = $trickyRow->children[0];
+        $escapedCell = $trickyRow->children[1];
+
+        $t->same('table', $table->type);
+        $t->same(['left', 'right', 'right'], $table->attr('alignments'));
+        $t->same('foo', $codeCell->children[0]->attr('text'));
+        $t->same('code', $codeCell->children[1]->type);
+        $t->same('bar|baz', $codeCell->children[1]->attr('text'));
+        $t->same('and|escaped', $escapedCell->children[0]->attr('text'));
+        $t->same('3.0000000', $trickyRow->children[2]->attr('text'));
+    },
     'writes wordpress block output from ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("# Title\n\nParagraph with **strong** text and [source](https://example.test).\n\n- One\n- Two\n\n3. First\n4. Second");
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -989,6 +1177,15 @@ return [
         $t->contains('<!-- wp:image -->', $blocks);
         $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/release-frame.jpg" alt="Release archive frame" title="Release archive frame"/><figcaption>Release archive frame</figcaption></figure>', $blocks);
         $t->contains('<p>Inline media audit: <img src="https://example.test/uploads/thumb.jpg" alt="thumbnail" title="Thumbnail title"/> remains in paragraph text.</p>', $blocks);
+    },
+    'writes wordpress footnote endnotes from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Footnote audit: migration source<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and inline editor note.<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
+        $t->contains('<section class="footnotes" role="doc-endnotes"><ol>', $blocks);
+        $t->contains('<li id="fn-1"><p>Source archive footnote keeps the reviewer trail.</p><p>Confirm media IDs before publishing.</p><pre class="wp-block-code"><code>  do_action(&#039;import_note&#039;);</code></pre> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Inline note keeps <a href="https://example.test/audit-footnote">audit link</a> and <code>]</code> marker visible.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");
@@ -1043,6 +1240,16 @@ return [
         $t->contains('<table>' . "\n" . '<tr>' . "\n" . '<td><em>Legacy caption</em></td>' . "\n" . '<td><strong>Reviewer flag</strong></td>' . "\n" . '</tr>' . "\n" . '</table>', $blocks);
         $t->contains('<!-- Preserve migration audit marker -->', $blocks);
         $t->contains('<hr class="legacy-import-divider" />', $blocks);
+    },
+    'writes wordpress pipe table blocks for import metrics' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<figure class="wp-block-table"><table><thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Count</th><th style="text-align:left">Notes</th></tr></thead><tbody>', $blocks);
+        $t->contains('<tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:left"><strong>ready</strong></td></tr>', $blocks);
+        $t->contains('<tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:left">needs <code>alt</code></td></tr>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Migration batch summary.</figcaption>', $blocks);
     },
     'writes wordpress underscore and nested emphasis from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

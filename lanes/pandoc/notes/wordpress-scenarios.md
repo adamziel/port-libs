@@ -83,6 +83,20 @@ The bounded Images section is now mapped for import-safe media preservation:
 standalone reference images become WordPress image blocks with caption/title
 metadata, and inline image spans remain inside paragraph text with escaped alt
 and title attributes.
+The bounded Footnotes section is now mapped for import-safe note preservation:
+reference footnotes are collected from anywhere in the document and rendered at
+the reference point as `note` AST nodes, inline notes handle nested emphasis,
+links, code spans containing `]`, and bracketed text, quote/list-contained
+notes stay attached to their parent blocks, multi-block note definitions retain
+paragraph and code-block bodies, and recursive note references inside note
+bodies remain literal text instead of expanding forever.
+The bounded `test/pipe-tables.txt` pipe-table fixture is now represented for
+import-safe batch summaries: captioned aligned tables preserve their captions
+and left/right/center/default alignment metadata, headerless and side-less forms
+retain the expected table head/body shape, one-column and no-body tables parse
+without fallback HTML, and cells containing escaped pipes or code-span pipes
+stay in the intended cell. The WordPress writer renders these as core table
+blocks with escaped inline emphasis and code spans.
 
 ## Scenario Fixture
 
@@ -98,12 +112,15 @@ and title attributes.
   dashes, em-dash review notes, HTML entity text that must not double-escape,
   literal comparison characters, reference audit links with WordPress edit-link
   titles, autolinked audit URLs, importer email contacts, a standalone
-  referenced release image, an inline thumbnail image, raw TeX citations,
-  inline/display math notes, a raw TeX table source block, and a fenced PHP
-  migration snippet.
+  referenced release image, an inline thumbnail image, reference and inline
+  footnotes for source audit trails, raw TeX citations, inline/display math
+  notes, a raw TeX table source block, and a fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
+- The fixture now includes a pipe-table import metrics summary with aligned
+  numeric counts, emphasized status text, code spans, and a caption, exercising
+  the native table AST and WordPress table block writer.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -155,7 +172,17 @@ and title attributes.
 - Referenced import images render as core WordPress image blocks with preserved
   captions/titles, and inline thumbnail images render inside paragraph blocks
   without invoking Pandoc.
+- Reference and inline import footnotes render as numbered note references plus
+  one appended WordPress HTML endnotes block, preserving reviewer source trails,
+  nested links, code spans, continuation paragraphs, and indented code snippets
+  without invoking Pandoc.
+- Pipe-table import metrics render as a core WordPress table block with
+  `<thead>`, `<tbody>`, aligned cells, a figcaption, escaped emphasis, and code
+  spans without invoking Pandoc.
 
 ## Next Task
 
-Map a bounded `test/testsuite.txt` Footnotes inline note/reference slice.
+Map the remaining pipe-table cases from `test/pipe-tables.txt`, especially
+default/no-caption forms, header-less one-column tables, indented left-column
+values, and relative column widths, or start simple/multiline table syntax from
+`test/tables.markdown` and `test/tables.native`.

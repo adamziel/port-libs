@@ -6,12 +6,17 @@ namespace PortLibs\Pandoc;
 
 final class WordPressBlockWriter
 {
+    /** @var list<AstNode> */
+    private array $footnotes = [];
+
     public function write(AstNode $document): string
     {
         if ($document->type !== 'document') {
             throw new \InvalidArgumentException('WordPress writer expects a document node');
         }
 
+        $previousFootnotes = $this->footnotes;
+        $this->footnotes = [];
         $blocks = [];
         $pendingList = [];
         foreach ($document->children as $node) {
@@ -37,6 +42,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderList($node, true);
             } elseif ($node->type === 'definition_list') {
                 $blocks[] = $this->renderDefinitionList($node);
+            } elseif ($node->type === 'table') {
+                $blocks[] = $this->renderTable($node);
             } elseif ($node->type === 'raw_html') {
                 $blocks[] = $this->renderRawHtmlBlock($node);
             } elseif ($node->type === 'raw_tex') {
@@ -56,8 +63,14 @@ final class WordPressBlockWriter
             }
         }
         $this->flushList($pendingList, $blocks);
+        if ($this->footnotes !== []) {
+            $blocks[] = $this->renderFootnotesBlock();
+        }
 
-        return implode("\n\n", $blocks);
+        $output = implode("\n\n", $blocks);
+        $this->footnotes = $previousFootnotes;
+
+        return $output;
     }
 
     /**
@@ -153,6 +166,13 @@ final class WordPressBlockWriter
         return '<!-- wp:html -->' . "\n" . $this->renderDefinitionListHtml($node) . "\n" . '<!-- /wp:html -->';
     }
 
+    private function renderTable(AstNode $node): string
+    {
+        return '<!-- wp:table -->'
+            . "\n" . '<figure class="wp-block-table">' . $this->renderTableHtml($node) . '</figure>'
+            . "\n" . '<!-- /wp:table -->';
+    }
+
     private function renderRawHtmlBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
@@ -192,6 +212,75 @@ final class WordPressBlockWriter
         $html .= '</dl>';
 
         return $html;
+    }
+
+    private function renderTableHtml(AstNode $node): string
+    {
+        $head = null;
+        $body = null;
+        foreach ($node->children as $child) {
+            if ($child->type === 'table_head') {
+                $head = $child;
+                continue;
+            }
+            if ($child->type === 'table_body') {
+                $body = $child;
+            }
+        }
+
+        $html = '<table>';
+        if ($head instanceof AstNode && $head->children !== []) {
+            $html .= '<thead>';
+            foreach ($head->children as $row) {
+                $html .= $this->renderTableRow($row, $node, true);
+            }
+            $html .= '</thead>';
+        }
+
+        $html .= '<tbody>';
+        if ($body instanceof AstNode) {
+            foreach ($body->children as $row) {
+                $html .= $this->renderTableRow($row, $node, false);
+            }
+        }
+        $html .= '</tbody></table>';
+
+        $caption = (string) $node->attr('caption', '');
+        if ($caption !== '') {
+            $html .= '<figcaption class="wp-element-caption">' . $this->esc($caption) . '</figcaption>';
+        }
+
+        return $html;
+    }
+
+    private function renderTableRow(AstNode $row, AstNode $table, bool $header): string
+    {
+        $tag = $header ? 'th' : 'td';
+        $html = '<tr>';
+        foreach ($row->children as $index => $cell) {
+            if ($cell->type !== 'table_cell') {
+                continue;
+            }
+            $attrs = $this->renderTableCellAttrs($table, $index);
+            $html .= '<' . $tag . $attrs . '>' . $this->renderInlines($cell) . '</' . $tag . '>';
+        }
+
+        return $html . '</tr>';
+    }
+
+    private function renderTableCellAttrs(AstNode $table, int $index): string
+    {
+        $alignments = $table->attr('alignments', []);
+        if (!is_array($alignments)) {
+            return '';
+        }
+
+        $alignment = (string) ($alignments[$index] ?? 'default');
+        if (!in_array($alignment, ['left', 'right', 'center'], true)) {
+            return '';
+        }
+
+        return ' style="text-align:' . $alignment . '"';
     }
 
     private function renderCodeBlock(AstNode $node): string
@@ -359,6 +448,10 @@ final class WordPressBlockWriter
                 $html .= $this->renderDefinitionListHtml($block);
                 continue;
             }
+            if ($block->type === 'table') {
+                $html .= $this->renderTableHtml($block);
+                continue;
+            }
             if ($block->type === 'code_block') {
                 $html .= $this->renderCodeBlockHtml($block);
                 continue;
@@ -424,8 +517,35 @@ final class WordPressBlockWriter
             'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
             'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
             'image' => $this->renderImageHtml($node),
+            'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node),
         };
+    }
+
+    private function renderNoteReference(AstNode $node): string
+    {
+        $number = count($this->footnotes) + 1;
+        $this->footnotes[] = $node;
+
+        return '<sup id="fnref-' . $number . '"><a href="#fn-' . $number . '" role="doc-noteref">'
+            . $number
+            . '</a></sup>';
+    }
+
+    private function renderFootnotesBlock(): string
+    {
+        $items = [];
+        foreach ($this->footnotes as $index => $note) {
+            $number = $index + 1;
+            $items[] = '<li id="fn-' . $number . '">'
+                . $this->renderBlocksAsHtml($note->children)
+                . ' <a href="#fnref-' . $number . '" aria-label="Back to content">Back</a>'
+                . '</li>';
+        }
+
+        return '<!-- wp:html -->'
+            . "\n" . '<section class="footnotes" role="doc-endnotes"><ol>' . implode('', $items) . '</ol></section>'
+            . "\n" . '<!-- /wp:html -->';
     }
 
     private function renderLinkAttrs(AstNode $node): string

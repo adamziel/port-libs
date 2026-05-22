@@ -10,8 +10,16 @@ Reference audit links: [migration checklist][checklist] and <https://example.tes
 
 Contact importer: <importer@example.test>.
 
+Footnote audit: migration source[^source-note] and inline editor note.^[Inline note keeps [audit link](https://example.test/audit-footnote) and `]` marker visible.]
+
 [checklist]: </wp-admin/post.php?post=42&action=edit> "Edit imported post"
 [release-frame]: https://example.test/uploads/release-frame.jpg "Release archive frame"
+
+[^source-note]: Source archive footnote keeps the reviewer trail.
+
+    Confirm media IDs before publishing.
+
+          do_action('import_note');
 
 Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
@@ -74,6 +82,15 @@ Raw import table:
 <td>**Reviewer flag**</td>
 </tr>
 </table>
+
+Import metrics:
+
+| Item | Count | Notes |
+| :--- | ----: | :---- |
+| Posts | 42 | **ready** |
+| Media | 7 | needs `alt` |
+
+  : Migration batch summary.
 
 <!-- Preserve migration audit marker -->
 

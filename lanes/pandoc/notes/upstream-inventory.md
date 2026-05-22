@@ -69,10 +69,28 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   reference image with title metadata and an inline image inside a paragraph
 - `test/testsuite.native` Images rendered native AST slice inspected in this
   run: 48 lines, including 2 `Image` nodes and 1 `Figure` node
+- `test/testsuite.txt` Footnotes section slice inspected in this run: 28
+  Markdown lines through end of file, covering reference notes, inline notes,
+  quote-contained notes, list-contained notes, multi-block definitions,
+  whitespace-separated termination, and an invalid spaced footnote label
+- `test/testsuite.native` Footnotes rendered native AST slice inspected in this
+  run: 305 lines, including 4 `Note` nodes
+- `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
+  lines covering 11 upstream pipe tables, including captioned, uncaptioned,
+  headerless, side-less, one-column, no-body, relative-width, and tricky
+  escaped-pipe/code-span cell cases
+- `test/pipe-tables.native` pipe-table rendered native AST inspected in this
+  run: 927 lines, including 11 `Table` nodes, 88 `Cell` nodes, two headerless
+  `TableHead []` shapes, one `Code` node containing a literal pipe, and three
+  relative-width `ColWidth` entries
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
   case, now mapped by a PHP test
+- `Tests.Readers.Markdown` footnote edge cases: 3 focused cases, now mapped by
+  PHP tests for whitespace-only indented separator termination, indented
+  continuation after a blank line, and recursive references left literal inside
+  note bodies
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
   checks covering parenthesized decimal starts, lower/upper roman numerals,
   upper/lower alphabetic markers, and Pandoc autonumbering
@@ -209,11 +227,29 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   indented reference definition into a standalone `figure` block with image alt,
   source, title, and caption metadata, while `![movie](movie.jpg)` remains an
   inline `image` node inside its paragraph.
+- Footnotes cases from `test/testsuite.txt`, cross-checked against
+  `test/testsuite.native`: `[^1]` and `[^longnote]` resolve through collected
+  footnote definitions into inline `note` nodes, invalid labels containing
+  spaces remain literal text, inline notes parse nested emphasis, links, code
+  spans containing `]`, and bracketed plain text, notes inside block quotes and
+  list items stay attached to their containing block, and multi-block
+  definitions preserve paragraphs plus indented code. The three
+  `Tests.Readers.Markdown` footnote edge cases are also mapped: whitespace-only
+  indented separators terminate a note before flush-left text, indented text
+  after a separator remains in the note, and recursive `[^1]` references inside
+  their own note body remain literal text.
+- Pipe-table cases from `test/pipe-tables.txt`, cross-checked against
+  `test/pipe-tables.native`: captioned aligned pipe tables keep caption text
+  and right/left/default/center alignment metadata, headerless tables omit the
+  table head, side-less rows split correctly without leading or trailing pipes,
+  one-column and no-body tables preserve their header/body shape, and tricky
+  cells keep escaped `\|` pipes as text while `foo` plus a code span containing
+  `bar|baz` remains one cell.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-69 tests, 419 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed after this Images lane batch in the
-current shared tree with 99 test files, 6,678 assertions, and 0 failures.
+77 tests, 497 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command passed in the current shared worktree with
+104 test files, 7,236 assertions, and 0 failures.
