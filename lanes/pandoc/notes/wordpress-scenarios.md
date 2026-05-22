@@ -107,6 +107,11 @@ tables use opening and closing delimiter rows, multiline header/body rows keep
 wrapped lines as soft breaks inside cells, 80-column `ColWidth` fractions render
 as WordPress `<colgroup>` widths, and the headed-vs-headerless final-column
 alignment distinction is preserved.
+The upstream `test/command/short-caption.md` fixture is now represented for a
+narrow LaTeX table slice: optional short captions are kept separately from the
+visible long caption on the AST, and the WordPress table figure preserves the
+short label in `data-pandoc-short-caption` for reviewer handoff, search, or
+later export tooling.
 
 ## Scenario Fixture
 
@@ -136,6 +141,9 @@ alignment distinction is preserved.
   caption, plus a wrapped multiline review-note table with colgroup widths,
   exercising gridless table imports from older Pandoc-compatible exports that
   do not use pipe-table syntax.
+- The fixture now includes a short-caption LaTeX table import that keeps a
+  compact reviewer label (`Batch 42`) while rendering the longer handoff
+  caption in the WordPress table figcaption.
 - `examples/wordpress-import-markdown.php` converts that fixture to WordPress
   block comments and HTML without shelling out to pandoc.
 - Definition-list support maps Pandoc `Tests.Readers.Markdown` glossary-style
@@ -200,9 +208,13 @@ alignment distinction is preserved.
 - Wrapped multiline review tables render as core WordPress table blocks with
   softbreak newlines inside cells, inferred alignment styles, captions, and
   colgroup widths without invoking Pandoc.
+- Short-caption LaTeX tables render as core WordPress table blocks with
+  alignment styles, visible long captions, and preserved short-caption metadata
+  without invoking Pandoc.
 
 ## Next Task
 
-Map Pandoc short-caption semantics or another bounded table/writer fixture,
-starting with the upstream `test/command/short-caption.md` native `Caption`
-shape and a PHP AST representation for optional short captions.
+Map another bounded Pandoc table fixture with structural cells, starting with
+`test/command/table-with-cell-align.md` or
+`test/command/table-with-column-span.md`, then decide how rowspan/colspan should
+survive in the PHP AST and WordPress-safe table HTML.

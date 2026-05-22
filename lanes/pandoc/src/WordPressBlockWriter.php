@@ -169,7 +169,7 @@ final class WordPressBlockWriter
     private function renderTable(AstNode $node): string
     {
         return '<!-- wp:table -->'
-            . "\n" . '<figure class="wp-block-table">' . $this->renderTableHtml($node) . '</figure>'
+            . "\n" . '<figure' . $this->renderTableFigureAttrs($node) . '>' . $this->renderTableHtml($node) . '</figure>'
             . "\n" . '<!-- /wp:table -->';
     }
 
@@ -251,6 +251,17 @@ final class WordPressBlockWriter
         }
 
         return $html;
+    }
+
+    private function renderTableFigureAttrs(AstNode $node): string
+    {
+        $attrs = ' class="wp-block-table"';
+        $shortCaption = (string) $node->attr('shortCaption', '');
+        if ($shortCaption !== '') {
+            $attrs .= ' data-pandoc-short-caption="' . $this->esc($shortCaption) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderCaptionInlines(AstNode $node): string

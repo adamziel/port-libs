@@ -50,6 +50,11 @@ final class MarkdownReader
                 $blocks[] = $rawHtmlBlock;
                 continue;
             }
+            $latexTableBlock = $paragraph === [] && $listStack === [] ? $this->tryReadLatexTableBlock($lines, $index) : null;
+            if ($latexTableBlock !== null) {
+                $blocks[] = $latexTableBlock;
+                continue;
+            }
             $rawTexBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawTexBlock($lines, $index) : null;
             if ($rawTexBlock !== null) {
                 $blocks[] = $rawTexBlock;
@@ -511,6 +516,202 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadLatexTableBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}\\\\begin\{table\}(?:\[[^\]\r\n]*\])?[ \t]*$/', $line) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while ($cursor < $count) {
+            if (preg_match('/^ {0,3}\\\\end\{table\}[ \t]*$/', $lines[$cursor]) === 1) {
+                $table = $this->parseLatexTableEnvironment($content);
+                if ($table === null) {
+                    return null;
+                }
+
+                $index = $cursor;
+
+                return $table;
+            }
+
+            $content[] = rtrim($lines[$cursor]);
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function parseLatexTableEnvironment(array $content): ?AstNode
+    {
+        $caption = '';
+        $shortCaption = '';
+        $tabularStart = null;
+        $alignments = [];
+
+        foreach ($content as $lineIndex => $line) {
+            if ($caption === '' && preg_match('/\\\\caption(?:\[((?:\\\\.|[^\]\\\\])*)\])?\{((?:\\\\.|[^{}\\\\])*)\}/', $line, $captionMatch) === 1) {
+                $shortCaption = isset($captionMatch[1]) ? $this->normalizeLatexText($captionMatch[1]) : '';
+                $caption = $this->normalizeLatexText($captionMatch[2]);
+                continue;
+            }
+
+            if (preg_match('/\\\\begin\{tabular\}\{([^}]*)\}/', $line, $tabularMatch) === 1) {
+                $tabularStart = $lineIndex + 1;
+                $alignments = $this->parseLatexTabularAlignments($tabularMatch[1]);
+                break;
+            }
+        }
+
+        if ($tabularStart === null) {
+            return null;
+        }
+
+        $rows = [];
+        for ($cursor = $tabularStart, $count = count($content); $cursor < $count; $cursor++) {
+            $line = trim($content[$cursor]);
+            if (preg_match('/\\\\end\{tabular\}/', $line) === 1) {
+                break;
+            }
+
+            foreach ($this->parseLatexTabularRows($line) as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        if ($rows === []) {
+            return null;
+        }
+
+        $columnCount = max(count($alignments), count($rows[0]));
+        while (count($alignments) < $columnCount) {
+            $alignments[] = 'default';
+        }
+
+        $bodyRows = [];
+        foreach ($rows as $row) {
+            $bodyRows[] = $this->buildTableRow($this->normalizePipeTableRow($row, $columnCount), false);
+        }
+
+        $attrs = [
+            'caption' => $caption,
+            'alignments' => $alignments,
+        ];
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        }
+        if ($shortCaption !== '') {
+            $attrs['shortCaption'] = $shortCaption;
+            $attrs['shortCaptionInlines'] = $this->parseInlines($shortCaption);
+        }
+
+        return new AstNode('table', $attrs, [
+            new AstNode('table_head'),
+            new AstNode('table_body', [], $bodyRows),
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseLatexTabularAlignments(string $spec): array
+    {
+        $alignments = [];
+        $length = strlen($spec);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $spec[$offset];
+            if ($char === 'l') {
+                $alignments[] = 'left';
+                continue;
+            }
+            if ($char === 'r') {
+                $alignments[] = 'right';
+                continue;
+            }
+            if ($char === 'c') {
+                $alignments[] = 'center';
+                continue;
+            }
+        }
+
+        return $alignments;
+    }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function parseLatexTabularRows(string $line): array
+    {
+        $line = trim(str_replace('\hline', '', $line));
+        if ($line === '') {
+            return [];
+        }
+
+        $rows = [];
+        foreach (preg_split('/\\\\\\\\/', $line) ?: [] as $rowText) {
+            $rowText = trim($rowText);
+            if ($rowText === '') {
+                continue;
+            }
+
+            $rows[] = array_map(
+                fn (string $cell): string => $this->normalizeLatexText($cell),
+                $this->splitLatexTabularCells($rowText)
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitLatexTabularCells(string $row): array
+    {
+        $cells = [];
+        $cell = '';
+        $length = strlen($row);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($row[$offset] === '\\') {
+                $cell .= $row[$offset];
+                if ($offset + 1 < $length) {
+                    $offset++;
+                    $cell .= $row[$offset];
+                }
+                continue;
+            }
+
+            if ($row[$offset] === '&') {
+                $cells[] = $cell;
+                $cell = '';
+                continue;
+            }
+
+            $cell .= $row[$offset];
+        }
+        $cells[] = $cell;
+
+        return $cells;
+    }
+
+    private function normalizeLatexText(string $text): string
+    {
+        $text = trim($text);
+        $text = preg_replace('/\\\\([#$%&_{}])/', '$1', $text) ?? $text;
+        $text = preg_replace('/\s+/', ' ', $text) ?? $text;
+
+        return trim($text);
     }
 
     /**

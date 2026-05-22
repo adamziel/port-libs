@@ -88,6 +88,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   multiline gridless table cases are now mapped
 - `test/tables.native` rendered native AST inspected in this run: 964 lines,
   including seven `Table` nodes and two headerless `TableHead []` shapes
+- `test/command/short-caption.md` command fixture inspected in this run: one
+  LaTeX reader example whose native output is a `Table` with
+  `Caption (Just [Str "short", Space, Str "caption"]) [Plain [...]]`, two
+  left-aligned columns, no table head, and one body row.
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -271,11 +275,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   short-caption command fixture. WordPress figcaptions now render emphasis,
   links with titles, code spans, and smart punctuation instead of escaping
   Markdown markup as literal caption text.
+- The optional short-caption shape from `test/command/short-caption.md` is now
+  mapped for a narrow LaTeX table environment slice: `\caption[short
+  caption]{long caption}` keeps the long caption as visible table caption
+  content and stores the short caption separately on the table AST. The
+  WordPress writer preserves that short label as `data-pandoc-short-caption`
+  on the table figure while rendering the long caption in the figcaption.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-86 tests, 585 assertions, and 0 failures. The required repo-wide
+88 tests, 602 assertions, and 0 failures. The required repo-wide
 `php tools/run-tests.php` command passed in the current shared worktree with
-112 test files, 8,270 assertions, and 0 failures.
+113 test files, 8,425 assertions, and 0 failures.

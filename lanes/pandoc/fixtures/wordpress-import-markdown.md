@@ -123,6 +123,16 @@ Wrapped review summary:
 
   : Wrapped legacy review summary.
 
+Short-caption LaTeX import:
+
+\begin{table}
+\caption[Batch 42]{Long source table caption for reviewer handoff.}
+\begin{tabular}{lr}
+Posts & 42 \\
+Media & 7 \\
+\end{tabular}
+\end{table}
+
 <!-- Preserve migration audit marker -->
 
 <hr class="legacy-import-divider" />

@@ -1248,6 +1248,37 @@ return [
         $t->contains("1987\u{2013}1999.", $captionInlines[5]->attr('text'));
         $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a> uses <code>batch</code> 1987–1999.</figcaption>', $blocks);
     },
+    'maps upstream command short caption latex table shape' => static function (TestRunner $t): void {
+        $latex = <<<'LATEX'
+\begin{table}
+\caption[short caption]{long caption}
+\begin{tabular}{ll}
+hi & hi \\
+\end{tabular}
+\end{table}
+LATEX;
+        $document = (new MarkdownReader())->read($latex);
+        $table = $document->children[0];
+        $shortCaptionInlines = $table->attr('shortCaptionInlines');
+        $captionInlines = $table->attr('captionInlines');
+        $body = $table->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('short caption', $table->attr('shortCaption'));
+        $t->same('long caption', $table->attr('caption'));
+        $t->same(true, is_array($shortCaptionInlines));
+        $t->same('short caption', $shortCaptionInlines[0]->attr('text'));
+        $t->same(true, is_array($captionInlines));
+        $t->same('long caption', $captionInlines[0]->attr('text'));
+        $t->same(['left', 'left'], $table->attr('alignments'));
+        $t->same([], $table->children[0]->children);
+        $t->same(1, count($body->children));
+        $t->same('hi', $body->children[0]->children[0]->attr('text'));
+        $t->same('hi', $body->children[0]->children[1]->attr('text'));
+        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="short caption">', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">long caption</figcaption>', $blocks);
+    },
     'maps upstream pipe table headerless and side-less forms' => static function (TestRunner $t): void {
         $headerless = (new MarkdownReader())->read(implode("\n", [
             'Headerless table without caption:',
@@ -1521,6 +1552,14 @@ return [
         $t->contains("<th style=\"text-align:center\">Section\nName</th><th style=\"text-align:left\">Owner\nTeam</th>", $blocks);
         $t->contains("<td style=\"text-align:left\">Needs reviewer approval\nbefore publish.</td>", $blocks);
         $t->contains('<figcaption class="wp-element-caption">Wrapped legacy review summary.</figcaption>', $blocks);
+    },
+    'writes wordpress short caption table metadata from latex imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Batch 42">', $blocks);
+        $t->contains('<tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td></tr>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Long source table caption for reviewer handoff.</figcaption>', $blocks);
     },
     'writes wordpress underscore and nested emphasis from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
