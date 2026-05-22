@@ -73,4 +73,4 @@ The PHP slice maps selected semantics from `fs/filter/glob_test.go`, `fs/filter/
 ## Current PHP Verification
 
 - Rclone-only PHP lane check on 2026-05-22: 24 tests, 166 assertions, 0 failures.
-- Required root `php tools/run-tests.php` on 2026-05-22: 57 test files, 2,986 assertions, 0 failures against the current shared worktree.
+- Required root `php tools/run-tests.php` on 2026-05-22: 57 test files, 2,998 assertions, 0 failures against the current shared worktree.
