@@ -7,7 +7,7 @@
 - [x] Add root PHP test harness and dashboard generator.
 - [x] Create defensible seed upstream benchmark manifests for every lane.
 - [x] Publish progress through a generated `porting.html` dashboard.
-- [ ] Create GitHub repository and enable GitHub Pages for the dashboard.
+- [x] Create GitHub repository and enable GitHub Pages for the dashboard.
 - [ ] Replace seed manifests with full cloned/tested upstream benchmark denominators.
 - [ ] Keep each lane moving through native PHP implementation slices with mapped upstream behavior.
 - [ ] Run an independent auditor loop that challenges shallow progress and updates lane blockers.
@@ -51,7 +51,7 @@
 ## Open Blockers
 
 - Upstream benchmark denominators are currently static seed inventories until upstream repos are cloned or queried and their test suites counted.
-- GitHub repository and Pages publishing are in progress.
+- GitHub Pages may take a few minutes to finish its first build after each push.
 - The tmux team should stay capped to avoid saturating the 6-core VM.
 
 ## Current Owner / Session
@@ -62,4 +62,4 @@
 
 ## Next Best Step
 
-Initialize Git, create `adamziel/port-libs`, enable GitHub Pages from the `main` branch root, then start the capped tmux team on the top-priority lanes and auditor.
+Start the capped tmux team on the top-priority lanes and auditor, then replace seed manifests with full cloned/tested upstream benchmark denominators.

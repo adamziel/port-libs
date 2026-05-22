@@ -10,6 +10,11 @@ The durable coordination files are:
 - `lanes/*/UPSTREAM_TEST_MANIFEST.json`: upstream source and benchmark denominator mapping.
 - `lanes/*/lane-status.json`: current implementation/audit status consumed by the dashboard.
 
+Published progress:
+
+- Repository: <https://github.com/adamziel/port-libs>
+- Dashboard: <https://adamziel.github.io/port-libs/>
+
 Run the current PHP checks with:
 
 ```sh
@@ -22,3 +27,4 @@ Regenerate the dashboard with:
 php tools/generate-dashboard.php
 ```
 
+GitHub Pages is configured to publish from the `main` branch root. `index.html` redirects to the generated dashboard.
