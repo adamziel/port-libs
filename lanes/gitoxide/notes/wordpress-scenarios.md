@@ -4,7 +4,7 @@ Git-backed WordPress content workflows, package installs, Playground snapshots, 
 
 ## Current Native Slice
 
-Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose object database lookup/prefix/iteration.
+Native loose Git object storage with canonical object headers, SHA-1 object IDs, commit header parsing, tree entry parsing/serialization, loose direct/symbolic reference parsing/storage, packed-ref header/reference/peeled lookup parsing, loose+packed reference-store overlay resolution, v2 pack-index parsing/lookup, pack data entry decoding, OFS_DELTA/REF_DELTA object resolution, and pack+loose+alternate object database lookup/prefix/iteration.
 
 ## WordPress Deploy Tree Example
 
@@ -32,8 +32,8 @@ Native loose Git object storage with canonical object headers, SHA-1 object IDs,
 
 ## WordPress Object Database Example
 
-`examples/wordpress-object-database.php` writes the deterministic WordPress pack fixture into a temporary `.git/objects/pack` directory, adds a loose draft object, then reads both sources through one object database. This models package managers, Playground snapshot tools, and shared-hosting deployment code traversing packed and loose repository content without invoking the Git binary.
+`examples/wordpress-object-database.php` writes the deterministic WordPress pack fixture into a temporary `.git/objects/pack` directory, adds a loose draft object, links an alternate shared package object cache through `objects/info/alternates`, then reads every source through one object database. This models package managers, Playground snapshot tools, and shared-hosting deployment code traversing packed, loose, and shared cache repository content without invoking the Git binary.
 
 ## Next Task
 
-Map object database alternates/replacements or multi-pack-index semantics, then run a controlled gix-odb/gix-pack crate no-run probe if the VM remains clear.
+Map object replacement refs or multi-pack-index semantics, then run a controlled gix-odb/gix-pack crate no-run probe if the VM remains clear.
