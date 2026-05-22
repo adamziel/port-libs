@@ -6,12 +6,18 @@ namespace PortLibs\Pandoc;
 
 final class MarkdownReader
 {
+    /** @var array<string, array{url:string, title:string}> */
+    private array $referenceLinks = [];
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
         $paragraph = [];
         $listStack = [];
         $lines = preg_split('/\R/', rtrim($markdown, "\r\n")) ?: [];
+        $previousReferenceLinks = $this->referenceLinks;
+        [$lines, $references] = $this->extractReferenceDefinitions($lines);
+        $this->referenceLinks = array_replace($previousReferenceLinks, $references);
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
@@ -85,7 +91,68 @@ final class MarkdownReader
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
 
-        return new AstNode('document', [], $blocks);
+        $document = new AstNode('document', [], $blocks);
+        $this->referenceLinks = $previousReferenceLinks;
+
+        return $document;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>}
+     */
+    private function extractReferenceDefinitions(array $lines): array
+    {
+        $content = [];
+        $references = [];
+        $fenceChar = null;
+        $fenceLength = 0;
+
+        foreach ($lines as $line) {
+            if ($fenceChar !== null) {
+                $content[] = $line;
+                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
+                    $fenceChar = null;
+                    $fenceLength = 0;
+                }
+                continue;
+            }
+
+            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
+                $fenceChar = $fence[1][0];
+                $fenceLength = strlen($fence[1]);
+                $content[] = $line;
+                continue;
+            }
+
+            if (
+                preg_match(
+                    '/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(\S+)(?:[ \t]+(?:"([^"]*)"|\'([^\']*)\'|\(([^)]*)\)))?[ \t]*$/',
+                    $this->expandTabsToSpaces($line),
+                    $m
+                ) === 1
+            ) {
+                $label = $this->normalizeReferenceLabel($m[1]);
+                $url = $m[2];
+                if (str_starts_with($url, '<') && str_ends_with($url, '>')) {
+                    $url = substr($url, 1, -1);
+                }
+                $references[$label] = [
+                    'url' => $url,
+                    'title' => $m[3] ?? $m[4] ?? $m[5] ?? '',
+                ];
+                continue;
+            }
+
+            $content[] = $line;
+        }
+
+        return [$content, $references];
+    }
+
+    private function normalizeReferenceLabel(string $label): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
     }
 
     /**
@@ -367,6 +434,7 @@ final class MarkdownReader
                 'strikeout' => '<del>' . $this->renderInlineHtml($node->children) . '</del>',
                 'superscript' => '<sup>' . $this->renderInlineHtml($node->children) . '</sup>',
                 'subscript' => '<sub>' . $this->renderInlineHtml($node->children) . '</sub>',
+                'quoted' => $this->renderQuotedInlineHtml($node),
                 'code' => '<code>' . $this->escapeHtml((string) $node->attr('text', '')) . '</code>',
                 'link' => '<a href="' . $this->escapeHtml((string) $node->attr('url', '')) . '">'
                     . $this->renderInlineHtml($node->children) . '</a>',
@@ -375,6 +443,15 @@ final class MarkdownReader
         }
 
         return $html;
+    }
+
+    private function renderQuotedInlineHtml(AstNode $node): string
+    {
+        if ($node->attr('kind') === 'single') {
+            return "\u{2018}" . $this->renderInlineHtml($node->children) . "\u{2019}";
+        }
+
+        return "\u{201C}" . $this->renderInlineHtml($node->children) . "\u{201D}";
     }
 
     private function escapeHtml(string $value): string
@@ -1355,6 +1432,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $quote = $this->tryParseSmartQuote($text, $offset);
+            if ($quote !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $quote['node'];
+                $offset = $quote['next'];
+                continue;
+            }
+
             $emphasis = $this->tryParseEmphasisDelimiter($text, $offset);
             if ($emphasis !== null) {
                 $this->flushText($buffer, $nodes);
@@ -1374,6 +1459,28 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($text[$offset] === '[' && preg_match('/\G\[([^\]\[]+)\]\[([^\]\[]*)\]/', $text, $m, 0, $offset)) {
+                $label = $m[2] === '' ? $m[1] : $m[2];
+                $reference = $this->referenceLinks[$this->normalizeReferenceLabel($label)] ?? null;
+                if ($reference !== null) {
+                    $this->flushText($buffer, $nodes);
+                    $attrs = ['url' => $reference['url']];
+                    if ($reference['title'] !== '') {
+                        $attrs['title'] = $reference['title'];
+                    }
+                    $nodes[] = new AstNode('link', $attrs, $this->parseInlines($m[1]));
+                    $offset += strlen($m[0]);
+                    continue;
+                }
+            }
+
+            $replacement = $this->tryReadSmartTextReplacement($text, $offset);
+            if ($replacement !== null) {
+                $buffer .= $replacement['text'];
+                $offset = $replacement['next'];
+                continue;
+            }
+
             $buffer .= $text[$offset];
             $offset++;
         }
@@ -1381,6 +1488,115 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseSmartQuote(string $text, int $offset): ?array
+    {
+        $delimiter = $text[$offset] ?? '';
+        if ($delimiter !== '"' && $delimiter !== "'") {
+            return null;
+        }
+
+        if (!$this->canOpenSmartQuote($text, $offset, $delimiter)) {
+            return null;
+        }
+
+        $end = $this->findClosingSmartQuote($text, $offset + 1, $delimiter);
+        if ($end === null || $end === $offset + 1) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode(
+                'quoted',
+                ['kind' => $delimiter === "'" ? 'single' : 'double'],
+                $this->parseInlines(substr($text, $offset + 1, $end - $offset - 1))
+            ),
+            'next' => $end + 1,
+        ];
+    }
+
+    private function canOpenSmartQuote(string $text, int $offset, string $delimiter): bool
+    {
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return false;
+        }
+
+        $next = $text[$offset + 1] ?? '';
+        if ($next === '' || ctype_space($next)) {
+            return false;
+        }
+
+        if ($delimiter === "'" && $this->isApostrophe($text, $offset)) {
+            return false;
+        }
+
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+
+        return !$this->isAsciiAlnum($previous);
+    }
+
+    private function findClosingSmartQuote(string $text, int $offset, string $delimiter): ?int
+    {
+        $position = strpos($text, $delimiter, $offset);
+        while ($position !== false) {
+            if ($this->canCloseSmartQuote($text, $position, $delimiter)) {
+                return $position;
+            }
+
+            $position = strpos($text, $delimiter, $position + 1);
+        }
+
+        return null;
+    }
+
+    private function canCloseSmartQuote(string $text, int $offset, string $delimiter): bool
+    {
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return false;
+        }
+
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        if ($previous === '' || ctype_space($previous)) {
+            return false;
+        }
+
+        return !($delimiter === "'" && $this->isApostrophe($text, $offset));
+    }
+
+    /**
+     * @return array{text:string, next:int}|null
+     */
+    private function tryReadSmartTextReplacement(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 3) === '...') {
+            return ['text' => "\u{2026}", 'next' => $offset + 3];
+        }
+
+        if (substr($text, $offset, 3) === '---') {
+            return ['text' => "\u{2014}", 'next' => $offset + 3];
+        }
+
+        if (substr($text, $offset, 2) === '--') {
+            return ['text' => "\u{2013}", 'next' => $offset + 2];
+        }
+
+        if (($text[$offset] ?? '') === "'" && $this->isApostrophe($text, $offset)) {
+            return ['text' => "\u{2019}", 'next' => $offset + 1];
+        }
+
+        return null;
+    }
+
+    private function isApostrophe(string $text, int $offset): bool
+    {
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        $next = $text[$offset + 1] ?? '';
+
+        return $this->isAsciiAlnum($previous) && $this->isAsciiAlnum($next);
     }
 
     /**

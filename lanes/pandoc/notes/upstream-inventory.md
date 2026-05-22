@@ -40,6 +40,11 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/testsuite.native` Inline Markup rendered native AST slice inspected in
   this run: 168 lines, including 9 `Emph` markers, 6 `Strong` markers,
   1 `Strikeout` marker, 3 `Superscript` markers, and 3 `Subscript` markers
+- `test/testsuite.txt` Smart quotes, ellipses, dashes section slice inspected
+  in this run: 21 Markdown lines through the start of `# LaTeX`
+- `test/testsuite.native` Smart quotes, ellipses, dashes rendered native AST
+  slice inspected in this run: 154 lines, including 14 `Quoted` markers plus
+  smart apostrophe, em-dash, en-dash, and ellipsis code points in `Str` nodes
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
@@ -60,12 +65,13 @@ included the five Lua-engine Haskell test modules.
 
 ## Runner Blocker
 
-The full upstream suite was not executed in this run. This environment does not
-have `ghc`, `cabal`, or `stack`, Pandoc's `test-pandoc` and
-`test-pandoc-lua-engine` suites must be built as Haskell Tasty executables
-before they can run command, golden, HUnit, QuickCheck, and Lua tests, and the
-upstream cache is intentionally blob-filtered and not checked out to keep
-network and disk use modest. The defensible denominator used for this lane is
+The full upstream suite was not executed in this run. Pandoc's `test-pandoc` and
+`test-pandoc-lua-engine` suites must be built as Haskell Tasty executables from
+a full checkout before they can run command, golden, HUnit, QuickCheck, and Lua
+tests. The current cache is intentionally blob-filtered and not checked out to
+keep network and disk use modest, and `ghc`, `cabal`, and `stack` are not on
+PATH; installing those tools alone would still leave a broad dependency build
+outside this bounded lane run. The defensible denominator used for this lane is
 therefore the cloned static `git ls-tree` inventory plus targeted `git show`
 reads from the upstream object database, not upstream runner parity.
 
@@ -140,11 +146,19 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   raw without interpreting Markdown, HTML comments become raw HTML blocks with
   tabs expanded as Pandoc does, trailing spaces are trimmed from raw comments and
   `<hr>` tags, and tab-indented HTML remains an indented code block.
+- Smart-punctuation cases from the `# Smart quotes, ellipses, dashes` section
+  of `test/testsuite.txt`, cross-checked against `test/testsuite.native`: nested
+  single and double quotes become `quoted` AST nodes, apostrophes inside words
+  normalize to Pandoc's right single quotation mark, quoted code spans remain
+  code, quoted one-line reference links resolve through collected definitions,
+  `---` becomes an em dash, numeric `--` ranges become en dashes, and `...`
+  becomes an ellipsis while preserving a fourth trailing dot.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-52 tests, 271 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` suite passed with 79 test files, 5,537 assertions, and
-0 failures after this lane batch in the shared dirty worktree.
+56 tests, 301 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` suite passed with 85 test files, 5,739 assertions, and
+0 failures after this smart-punctuation lane batch in the shared dirty
+worktree.

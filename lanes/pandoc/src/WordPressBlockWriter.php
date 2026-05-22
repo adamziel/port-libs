@@ -340,10 +340,20 @@ final class WordPressBlockWriter
             'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
+            'quoted' => $this->renderQuotedInline($node),
             'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
             'link' => '<a href="' . $this->esc((string) $node->attr('url', '')) . '">' . $this->renderInlines($node) . '</a>',
             default => $this->renderInlines($node),
         };
+    }
+
+    private function renderQuotedInline(AstNode $node): string
+    {
+        if ($node->attr('kind') === 'single') {
+            return "\u{2018}" . $this->renderInlines($node) . "\u{2019}";
+        }
+
+        return "\u{201C}" . $this->renderInlines($node) . "\u{201D}";
     }
 
     private function esc(string $value): string

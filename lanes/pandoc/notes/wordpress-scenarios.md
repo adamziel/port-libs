@@ -57,6 +57,11 @@ The remaining bounded Inline Markup script/deletion cases are also mapped:
 `~~legacy cleanup~~` renders as deletion markup, `a^*draft*^` renders as a
 superscript containing emphasis, and `H~2~O` renders as subscript text while
 Pandoc's unescaped-space examples stay plain text.
+The bounded Smart quotes, ellipses, dashes section is now mapped too: nested
+single and double quote spans render as typographic quotes, contractions and
+date possessives keep Pandoc's right-apostrophe behavior, quoted code and
+one-line reference links stay semantic, `---` becomes an em dash, numeric `--`
+ranges become en dashes, and `...` becomes an ellipsis.
 
 ## Scenario Fixture
 
@@ -68,7 +73,8 @@ Pandoc's unescaped-space examples stay plain text.
   glossary with nested ordered review tasks, a div-wrapped glossary audit note,
   underscore-delimited reviewer emphasis, nested urgent cleanup emphasis,
   strikeout cleanup notes, superscript draft status, subscript chemical/media
-  labels, and a fenced PHP migration snippet.
+  labels, smart import-editor quotes, apostrophes, ellipses, date-range en
+  dashes, em-dash review notes, and a fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -106,7 +112,10 @@ Pandoc's unescaped-space examples stay plain text.
 - Strikeout, superscript, and subscript render as normal WordPress inline HTML,
   preserving cleanup annotations and compact metadata labels in imported
   Markdown without shelling out to Pandoc.
+- Smart quotes, apostrophes, dashes, and ellipses render as WordPress-safe
+  inline text, preserving editor comments and import date ranges without
+  shelling out to Pandoc.
 
 ## Next Task
 
-Map a bounded `test/testsuite.txt` Smart quotes, ellipses, and dashes slice.
+Map a bounded `test/testsuite.txt` LaTeX inline math/raw TeX slice.

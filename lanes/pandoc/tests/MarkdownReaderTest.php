@@ -96,6 +96,66 @@ return [
         $t->same(1, count($notScript->children));
         $t->contains('a^b c^d, a~b c~d.', $notScript->children[0]->attr('text'));
     },
+    'maps upstream testsuite smart quote nesting and apostrophes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '"Hello," said the spider.  "\'Shelob\' is my name."',
+            '\'A\', \'B\', and \'C\' are letters.',
+            '\'Oak,\' \'elm,\' and \'beech\' are names of trees.' . "\n" . 'So is \'pine.\'',
+            '\'He said, "I want to go."\'  Were you alive in the' . "\n" . '70\'s?',
+        ]));
+        $greeting = $document->children[0];
+        $letters = $document->children[1];
+        $trees = $document->children[2];
+        $speech = $document->children[3];
+
+        $t->same('quoted', $greeting->children[0]->type);
+        $t->same('double', $greeting->children[0]->attr('kind'));
+        $t->same('Hello,', $greeting->children[0]->children[0]->attr('text'));
+        $t->same('quoted', $greeting->children[2]->type);
+        $t->same('double', $greeting->children[2]->attr('kind'));
+        $t->same('single', $greeting->children[2]->children[0]->attr('kind'));
+        $t->same('Shelob', $greeting->children[2]->children[0]->children[0]->attr('text'));
+        $t->same('single', $letters->children[0]->attr('kind'));
+        $t->same('A', $letters->children[0]->children[0]->attr('text'));
+        $t->same('single', $letters->children[2]->attr('kind'));
+        $t->same('C', $letters->children[4]->children[0]->attr('text'));
+        $t->same('single', $trees->children[0]->attr('kind'));
+        $t->same('pine.', $trees->children[6]->children[0]->attr('text'));
+        $t->same('single', $speech->children[0]->attr('kind'));
+        $t->same('double', $speech->children[0]->children[1]->attr('kind'));
+        $t->contains("70\u{2019}s?", $speech->children[1]->attr('text'));
+    },
+    'maps upstream testsuite quoted code and reference links' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(
+            'Here is some quoted \'`code`\' and a "[quoted link][1]".'
+            . "\n\n" . '[1]: http://example.com/?foo=1&bar=2'
+        );
+        $paragraph = $document->children[0];
+        $quotedCode = $paragraph->children[1];
+        $quotedLink = $paragraph->children[3];
+
+        $t->same(1, count($document->children));
+        $t->same('quoted', $quotedCode->type);
+        $t->same('single', $quotedCode->attr('kind'));
+        $t->same('code', $quotedCode->children[0]->type);
+        $t->same('code', $quotedCode->children[0]->attr('text'));
+        $t->same('quoted', $quotedLink->type);
+        $t->same('double', $quotedLink->attr('kind'));
+        $t->same('link', $quotedLink->children[0]->type);
+        $t->same('http://example.com/?foo=1&bar=2', $quotedLink->children[0]->attr('url'));
+        $t->same('quoted link', $quotedLink->children[0]->children[0]->attr('text'));
+    },
+    'maps upstream testsuite smart dashes and ellipses' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            'Some dashes:  one---two --- three---four --- five.',
+            'Dashes between numbers: 5--7, 255--66, 1987--1999. ',
+            'Ellipses...and...and....',
+        ]));
+
+        $t->same("Some dashes:  one\u{2014}two \u{2014} three\u{2014}four \u{2014} five.", $document->children[0]->children[0]->attr('text'));
+        $t->same("Dashes between numbers: 5\u{2013}7, 255\u{2013}66, 1987\u{2013}1999.", $document->children[1]->children[0]->attr('text'));
+        $t->same("Ellipses\u{2026}and\u{2026}and\u{2026}.", $document->children[2]->children[0]->attr('text'));
+    },
     'maps upstream inline code containing list marker text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("1. `#. x`\n2. `x``#. x`\n- `- x`\n- `x``- x`");
         $ordered = $document->children[0];
@@ -658,6 +718,12 @@ return [
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Chemistry note: H<sub>2</sub>O import and a<sup><em>draft</em></sup> status need <del>legacy cleanup</del>.</p>', $blocks);
+    },
+    'writes wordpress smart punctuation from import review notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains("<p>Migration editor said, \u{201C}Don\u{2019}t flatten \u{2018}legacy\u{2019} captions\u{2026}\u{201D} Keep dates 1987\u{2013}1999 and one\u{2014}two review notes.</p>", $blocks);
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

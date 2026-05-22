@@ -6,6 +6,8 @@ Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
 Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.
 
+Migration editor said, "Don't flatten 'legacy' captions..." Keep dates 1987--1999 and one---two review notes.
+
 - Preserve editorial emphasis in imported paragraphs
 - Keep source links clickable for reviewer audits
 
