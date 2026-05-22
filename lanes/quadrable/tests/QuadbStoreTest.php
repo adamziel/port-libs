@@ -282,7 +282,7 @@ return [
             $t->same('https://example.test', $target->get('wp_options:siteurl'));
             $t->throws(RuntimeException::class, static fn () => $target->get('wp_posts:1'));
             $t->throws(RuntimeException::class, static fn () => $target->get('wp_posts:404'));
-            $t->throws(RuntimeException::class, static fn () => $target->put('wp_posts:2', 'Draft'));
+            $t->throws(RuntimeException::class, static fn () => $target->get('wp_options:home'));
             $t->throws(RuntimeException::class, static fn () => $target->exportLines('|'));
 
             $status = $target->status();
@@ -314,6 +314,108 @@ return [
             $wrongRootProofHex = $source->exportProofHex(['wp_posts:1'], Proof::ENCODING_FULL_KEYS);
             $t->throws(RuntimeException::class, static fn () => $reopened->mergeProofHex($wrongRootProofHex));
             $t->same('Published post', QuadbStore::open($targetDir)->get('wp_posts:1'));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
+    'native quadb store persists proof-backed partial-head writes across reopen' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $source->put('wp_options:siteurl', 'https://preview.example.test');
+            $updatedRoot = $source->tree()->rootHash();
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated');
+            $target->importProofHex($proofHex, $trustedRoot);
+            $target->put('wp_options:siteurl', 'https://preview.example.test');
+
+            $t->same($updatedRoot, $target->status()['rootHash']);
+            $t->same('https://preview.example.test', $target->get('wp_options:siteurl'));
+            $t->throws(RuntimeException::class, static fn () => $target->put('wp_posts:1', 'Unproved edit'));
+            $t->same($updatedRoot, $target->status()['rootHash']);
+            $t->throws(RuntimeException::class, static fn () => $target->mergeProofHex($source->exportProofHex(['wp_options:home'], Proof::ENCODING_FULL_KEYS)));
+
+            $reopened = QuadbStore::open($targetDir);
+            $t->same($updatedRoot, $reopened->status()['rootHash']);
+            $t->same('https://preview.example.test', $reopened->get('wp_options:siteurl'));
+
+            $delegatedProofHex = $reopened->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+            $delegated = SparseTree::importProof(
+                Proof::decode(quadrableQuadbDecodeHexProof($delegatedProofHex)),
+                $updatedRoot
+            );
+            $t->same('https://preview.example.test', $delegated->get('wp_options:siteurl'));
+            $t->same(null, $delegated->get('wp_posts:404'));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
+    'native quadb store deletes and forks proof-backed partial heads' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "731156037546|one\n"
+                . "925458752084|two\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportProofHex([
+                '731156037546',
+                '925458752084',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $source->delete('731156037546');
+            $deleteRoot = $source->tree()->rootHash();
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('upstream-partial');
+            $target->importProofHex($proofHex, $trustedRoot);
+
+            $forked = $target->fork('wp-preview-partial');
+            $t->true($forked instanceof SparseTree);
+            $target->put('925458752084', 'two-preview');
+            $previewRoot = $target->status()['rootHash'];
+
+            $original = $target->checkout('upstream-partial');
+            $t->true($original instanceof SparseTree);
+            $t->same($trustedRoot, $target->status()['rootHash']);
+            $t->same('two', $target->get('925458752084'));
+
+            $target->delete('731156037546');
+            $t->same($deleteRoot, $target->status()['rootHash']);
+            $t->throws(RuntimeException::class, static fn () => $target->get('731156037546'));
+            $t->same('two', $target->get('925458752084'));
+
+            $reopened = QuadbStore::open($targetDir);
+            $preview = $reopened->checkout('wp-preview-partial');
+            $t->true($preview instanceof SparseTree);
+            $t->same($previewRoot, $preview->rootHash());
+            $t->same('two-preview', $reopened->get('925458752084'));
         } finally {
             quadrableQuadbRemoveDir($sourceDir);
             quadrableQuadbRemoveDir($targetDir);

@@ -1293,7 +1293,7 @@ final class SparseTree
         self::assertHash($keyHashHex);
 
         return [
-            'nodeId' => 0,
+            'nodeId' => $this->allocatePartialNodeId(),
             'type' => 'leaf',
             'depth' => $depth,
             'keyHash' => $keyHashHex,
@@ -1325,7 +1325,7 @@ final class SparseTree
     private function branchPartialNode(int $depth, array $left, array $right, int $nodeId = 0): array
     {
         return [
-            'nodeId' => $nodeId,
+            'nodeId' => $nodeId !== 0 ? $nodeId : $this->allocatePartialNodeId(),
             'type' => 'branch',
             'depth' => $depth,
             'left' => $left,
