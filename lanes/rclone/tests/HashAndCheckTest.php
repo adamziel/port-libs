@@ -253,6 +253,31 @@ return [
         $t->same('sub', LsJsonListing::stat($provider, 'sub', ['dirsOnly' => true])['Path']);
         $t->same(null, LsJsonListing::stat($provider, 'file1', ['dirsOnly' => true]));
     },
+    'formats lsjson stat using case-insensitive provider directory matching' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(true);
+        $provider->put('wp-content/uploads/2026/05/Hero.JPG', 'new image bytes', [
+            'modTime' => '2026-05-22T00:00:00Z',
+        ]);
+        $provider->put('database/site.sql', 'insert into wp_posts values (...)', [
+            'modTime' => '2026-05-22T00:00:00Z',
+        ]);
+
+        $uploadDir = LsJsonListing::stat($provider, 'WP-CONTENT/UPLOADS');
+        $t->same('wp-content/uploads', $uploadDir['Path']);
+        $t->same('uploads', $uploadDir['Name']);
+        $t->same(true, $uploadDir['IsDir']);
+
+        $file = LsJsonListing::stat($provider, 'wp-content/uploads/2026/05/hero.jpg', [
+            'hashTypes' => ['MD5'],
+        ]);
+        $t->same('wp-content/uploads/2026/05/Hero.JPG', $file['Path']);
+        $t->same('Hero.JPG', $file['Name']);
+        $t->same(false, $file['IsDir']);
+        $t->same(['md5' => hash('md5', 'new image bytes')], $file['Hashes']);
+
+        $t->same(null, LsJsonListing::stat($provider, 'DATABASE', ['filesOnly' => true]));
+        $t->same('database', LsJsonListing::stat($provider, 'DATABASE', ['dirsOnly' => true])['Path']);
+    },
     'verifies wordpress checksum manifests with case-insensitive provider paths' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('wp-content/uploads/2026/05/Hero.JPG', 'new image bytes');

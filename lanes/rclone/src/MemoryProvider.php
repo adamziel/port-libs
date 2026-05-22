@@ -12,11 +12,29 @@ final class MemoryProvider
     private array $objects = [];
 
     /**
+     * @var array<string, string>
+     */
+    private array $caseIndex = [];
+
+    public function __construct(private readonly bool $caseInsensitive = false)
+    {
+    }
+
+    /**
      * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, tier?: string|null} $options
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
-        $this->objects[$this->normalize($path)] = [
+        $path = $this->normalize($path);
+        if ($this->caseInsensitive) {
+            $lookup = $this->lookupPath($path);
+            if (isset($this->caseIndex[$lookup]) && $this->caseIndex[$lookup] !== $path) {
+                unset($this->objects[$this->caseIndex[$lookup]]);
+            }
+            $this->caseIndex[$lookup] = $path;
+        }
+
+        $this->objects[$path] = [
             'bytes' => $bytes,
             'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
             'mimeType' => $options['mimeType'] ?? null,
@@ -28,6 +46,11 @@ final class MemoryProvider
         return $this->info($path);
     }
 
+    public function isCaseInsensitive(): bool
+    {
+        return $this->caseInsensitive;
+    }
+
     public function get(string $path): string
     {
         return $this->entry($path)['bytes'];
@@ -35,7 +58,7 @@ final class MemoryProvider
 
     public function info(string $path): ObjectInfo
     {
-        $path = $this->normalize($path);
+        $path = $this->canonicalPath($path);
         $entry = $this->entry($path);
         $bytes = $entry['bytes'];
 
@@ -59,7 +82,7 @@ final class MemoryProvider
         $prefix = $this->normalize($prefix);
         $items = [];
         foreach (array_keys($this->objects) as $path) {
-            if ($prefix === '' || str_starts_with($path, $prefix)) {
+            if ($prefix === '' || $this->pathStartsWith($path, $prefix)) {
                 $items[] = $this->info($path);
             }
         }
@@ -91,7 +114,7 @@ final class MemoryProvider
      */
     private function entry(string $path): array
     {
-        $path = $this->normalize($path);
+        $path = $this->canonicalPath($path);
         if (!array_key_exists($path, $this->objects)) {
             throw new \RuntimeException("Object not found: {$path}");
         }
@@ -109,5 +132,29 @@ final class MemoryProvider
         }
 
         return $modTime;
+    }
+
+    private function canonicalPath(string $path): string
+    {
+        $path = $this->normalize($path);
+        if (!$this->caseInsensitive) {
+            return $path;
+        }
+
+        return $this->caseIndex[$this->lookupPath($path)] ?? $path;
+    }
+
+    private function lookupPath(string $path): string
+    {
+        return strtolower($this->normalize($path));
+    }
+
+    private function pathStartsWith(string $path, string $prefix): bool
+    {
+        if (!$this->caseInsensitive) {
+            return str_starts_with($path, $prefix);
+        }
+
+        return str_starts_with(strtolower($path), strtolower($prefix));
     }
 }

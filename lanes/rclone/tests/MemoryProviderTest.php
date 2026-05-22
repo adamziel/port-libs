@@ -16,6 +16,20 @@ return [
         $t->same(7, $info->size);
         $t->same('content', $b->get('backup/export.wxr'));
     },
+    'memory provider can model case-insensitive provider object lookup' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(true);
+        $provider->put('wp-content/uploads/2026/05/Hero.JPG', 'image bytes');
+        $provider->put('DATABASE/SITE.SQL', 'sql bytes');
+
+        $t->true($provider->isCaseInsensitive());
+        $t->same('image bytes', $provider->get('WP-CONTENT/UPLOADS/2026/05/hero.jpg'));
+        $t->same('wp-content/uploads/2026/05/Hero.JPG', $provider->info('wp-content/uploads/2026/05/hero.jpg')->path);
+        $t->same('DATABASE/SITE.SQL', $provider->info('database/site.sql')->path);
+
+        $provider->put('database/site.sql', 'new sql bytes');
+        $t->same('new sql bytes', $provider->get('DATABASE/SITE.SQL'));
+        $t->same(['database/site.sql'], array_map(static fn ($info) => $info->path, $provider->list('DATABASE')));
+    },
     'sync plan reports missing and checksum changed paths' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

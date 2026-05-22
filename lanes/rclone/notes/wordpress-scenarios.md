@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with object metadata, copy, list, checksum sync plan, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with object metadata, copy, list, checksum sync plan, case-insensitive provider path lookup, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -16,6 +16,8 @@ The `../examples/wordpress-lsjson-manifest.php` example emits an rclone-style re
 
 The `../examples/wordpress-checksum-verify.php` example validates a published MD5 manifest against the portable backup set. It uses case-insensitive path matching to model shared-hosting and cloud-provider casing drift while still reporting rclone-style combined check lines.
 
+The `../examples/wordpress-case-insensitive-stat.php` example models an rclone provider that advertises case-insensitive path behavior. Differently-cased upload and database requests resolve to canonical provider paths in `lsjson --stat` output, which is useful when WordPress backup manifests are moved between shared hosts, local filesystems, and cloud providers with different casing rules.
+
 ## Next Task
 
-Map deeper fs provider contract behavior, `lsjson --stat` edge cases against case-insensitive providers, or download-mode checksum verification/error behavior.
+Map download-mode checksum verification/error behavior or deeper fs provider contract behavior beyond the in-memory case-insensitive lookup slice.

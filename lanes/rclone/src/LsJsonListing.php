@@ -13,6 +13,10 @@ final class LsJsonListing
     public static function items(MemoryProvider $provider, string $remote = '', array $options = []): array
     {
         $remote = self::normalize($remote);
+        if ($remote !== '') {
+            $remote = self::directoryPath($provider, $remote) ?? $remote;
+        }
+
         $items = [];
         foreach (self::entries($provider, $remote, (bool) ($options['recurse'] ?? false)) as $entry) {
             if (($options['filesOnly'] ?? false) && $entry['dir']) {
@@ -47,7 +51,9 @@ final class LsJsonListing
 
         if (!($options['dirsOnly'] ?? false)) {
             try {
-                return self::item($provider, ['path' => $remote, 'size' => $provider->info($remote)->size, 'dir' => false], $options);
+                $info = $provider->info($remote);
+
+                return self::item($provider, ['path' => $info->path, 'size' => $info->size, 'dir' => false], $options);
             } catch (\RuntimeException) {
                 if ($options['filesOnly'] ?? false) {
                     return null;
@@ -55,11 +61,12 @@ final class LsJsonListing
             }
         }
 
-        if (($options['filesOnly'] ?? false) || !self::directoryExists($provider, $remote)) {
+        $dirPath = self::directoryPath($provider, $remote);
+        if (($options['filesOnly'] ?? false) || $dirPath === null) {
             return null;
         }
 
-        return self::item($provider, ['path' => $remote, 'size' => -1, 'dir' => true], $options);
+        return self::item($provider, ['path' => $dirPath, 'size' => -1, 'dir' => true], $options);
     }
 
     /**
@@ -137,7 +144,7 @@ final class LsJsonListing
         $dirs = [];
 
         foreach ($provider->list() as $info) {
-            if (!self::insideRemote($info->path, $remote)) {
+            if (!self::insideRemote($provider, $info->path, $remote)) {
                 continue;
             }
 
@@ -174,20 +181,48 @@ final class LsJsonListing
         return $entries;
     }
 
-    private static function directoryExists(MemoryProvider $provider, string $remote): bool
+    private static function directoryPath(MemoryProvider $provider, string $remote): ?string
     {
+        $remote = self::normalize($remote);
+        if ($remote === '') {
+            return '';
+        }
+
+        $dirs = [];
         foreach ($provider->list() as $info) {
-            if (str_starts_with($info->path, $remote . '/')) {
-                return true;
+            $segments = explode('/', $info->path);
+            $prefix = '';
+            for ($i = 0; $i < count($segments) - 1; $i++) {
+                $prefix = $prefix === '' ? $segments[$i] : $prefix . '/' . $segments[$i];
+                $dirs[$prefix] = true;
             }
         }
 
-        return false;
+        foreach (array_keys($dirs) as $dir) {
+            if (self::pathsEqual($provider, $dir, $remote)) {
+                return $dir;
+            }
+        }
+
+        return null;
     }
 
-    private static function insideRemote(string $path, string $remote): bool
+    private static function insideRemote(MemoryProvider $provider, string $path, string $remote): bool
     {
-        return $remote === '' || str_starts_with($path, $remote . '/');
+        if ($remote === '') {
+            return true;
+        }
+
+        if ($provider->isCaseInsensitive()) {
+            return str_starts_with(strtolower($path), strtolower($remote . '/'));
+        }
+
+        return str_starts_with($path, $remote . '/');
+    }
+
+    private static function pathsEqual(MemoryProvider $provider, string $a, string $b): bool
+    {
+        return $provider->isCaseInsensitive() ? strtolower($a) === strtolower($b) : $a === $b;
     }
 
     private static function normalize(string $path): string
