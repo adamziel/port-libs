@@ -302,7 +302,7 @@ return [
         $t->same([], $attributeValues($article->contentHtml, '//object|//embed|//iframe'));
         $t->true(!str_contains($article->text, 'Iframe fallback test'), 'visibility:hidden section content should not be imported');
     },
-    'maps Mozilla basic tag and empty paragraph cleanup fixtures' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $normalizedText): void {
+    'maps Mozilla basic tag and empty paragraph cleanup fixtures' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {
         $extractor = new ArticleExtractor();
 
         foreach (['basic-tags-cleaning', 'remove-extra-paragraphs'] as $name) {
@@ -323,6 +323,7 @@ return [
                 array_map($normalizedText, $attributeValues($expected, '//p')),
                 array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
             );
+            $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
             $t->same($elementChildTags($expected, '//div[@id="readability-page-1"]'), $elementChildTags($article->contentHtml, '//main'));
             $t->same([], $attributeValues($article->contentHtml, '//h1|//h2|//object|//embed|//iframe'));
             $t->same([], $attributeValues($article->contentHtml, '//p[not(normalize-space()) and not(.//img or .//embed or .//object or .//iframe)]'));
@@ -857,7 +858,7 @@ return [
         $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
         $t->same(count($attributeValues($expected, '//table//col')), count($attributeValues($article->contentHtml, '//table//col')));
     },
-    'maps Mozilla keep-tabular-data fixture table rows and status images' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+    'maps Mozilla keep-tabular-data fixture table rows and status images' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/keep-tabular-data';
         $source = (string) file_get_contents($fixture . '/source.html');
         $expected = (string) file_get_contents($fixture . '/expected.html');
@@ -873,7 +874,9 @@ return [
         $t->same(count($attributeValues($expected, '//table')), count($attributeValues($article->contentHtml, '//table')));
         $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
         $t->same($attributeValues($expected, '//table//img[@src]/@src'), $attributeValues($article->contentHtml, '//table//img[@src]/@src'));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
         $t->contains('Blueprint library', $article->contentHtml);
+        $t->same(false, str_contains($article->text, '0.17.0.Not'), 'adjacent paragraphs in retained table fixtures should keep separator whitespace');
         $t->true(!str_contains($article->contentHtml, 'finished_gui_table'), 'source table classes should be stripped while data rows remain');
         $t->true(!str_contains($article->contentHtml, 'style='), 'source table styles should be stripped while data rows remain');
     },
@@ -1513,7 +1516,7 @@ return [
         $t->true(!str_contains($article->contentHtml, $transparentGif), 'short placeholder src should be removed before lazy source promotion');
         $t->contains('usable candidates for block image output', $article->text);
     },
-    'maps Mozilla replace-brs fixture paragraph breaks' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+    'maps Mozilla replace-brs fixture paragraph breaks' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/replace-brs';
         $source = (string) file_get_contents($fixture . '/source.html');
         $expected = (string) file_get_contents($fixture . '/expected.html');
@@ -1533,8 +1536,10 @@ return [
             array_map($normalizedText, $attributeValues($expected, '//p')),
             array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
         );
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
         $t->same(count($attributeValues($expected, '//br')), count($attributeValues($article->contentHtml, '//br')));
         $t->true(!str_contains($article->contentHtml, '<br><br>'), 'br chains should be replaced by paragraph boundaries');
+        $t->same(false, str_contains($article->text, 'Temporincididunt'), 'br-chain paragraph splits should retain separator whitespace in article text');
     },
     'maps Mozilla remove-extra-brs fixture cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/remove-extra-brs';
@@ -1576,6 +1581,26 @@ return [
         $t->contains('Second migrated paragraph keeps a soft<br>line break', $blocks);
         $t->true(!str_contains($article->contentHtml, '<br><br>'), 'hard break chains should not survive into migration markup');
         $t->true(!str_contains($blocks, '<div><p>'), 'layout div wrappers created during br cleanup should flatten before block output');
+    },
+    'keeps WordPress import text separated across block and table boundaries' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Import Boundary Spacing"></head><body><article>'
+            . '<h1>Import Boundary Spacing</h1>'
+            . '<p>Version 1.0.</p>'
+            . '<h2>Release Plan</h2>'
+            . '<p>' . str_repeat('Not all migration blocks start with explicit whitespace in source HTML. ', 3) . '</p>'
+            . '<table><tbody><tr><td>Status complete.</td><td>Next review.</td></tr></tbody></table>'
+            . '<p>' . str_repeat('Final paragraph text should remain readable in search excerpts and review logs. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(false, str_contains($article->text, '1.0.Release'), 'paragraph to heading boundaries should not concatenate in article text');
+        $t->same(false, str_contains($article->text, 'complete.Next'), 'table cell boundaries should not concatenate in article text');
+        $t->contains('Version 1.0. Release Plan Not all migration blocks', $article->text);
+        $t->contains('Status complete. Next review.', $article->text);
+        $t->contains('<!-- wp:table -->', $blocks);
     },
     'maps Mozilla replace-font-tags fixture to span markup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/replace-font-tags';

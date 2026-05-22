@@ -35,6 +35,44 @@ final class ArticleExtractor
         'HR',
         'PRE',
     ];
+    private const TEXT_SEPARATING_TAGS = [
+        'ADDRESS',
+        'ARTICLE',
+        'ASIDE',
+        'BLOCKQUOTE',
+        'CAPTION',
+        'DD',
+        'DETAILS',
+        'DIV',
+        'DL',
+        'DT',
+        'FIGCAPTION',
+        'FIGURE',
+        'FOOTER',
+        'H1',
+        'H2',
+        'H3',
+        'H4',
+        'H5',
+        'H6',
+        'HEADER',
+        'HR',
+        'LI',
+        'MAIN',
+        'NAV',
+        'OL',
+        'P',
+        'PRE',
+        'SECTION',
+        'TABLE',
+        'TBODY',
+        'TD',
+        'TFOOT',
+        'TH',
+        'THEAD',
+        'TR',
+        'UL',
+    ];
     private const UNLIKELY_ROLES = [
         'menu',
         'menubar',
@@ -1791,8 +1829,66 @@ final class ArticleExtractor
         $this->cleanPresentationalAttributes($scope);
         $this->cleanClasses($scope);
         $this->unwrapTransparentSectionWrappers($scope);
+        $this->insertTextBoundaryWhitespace($scope);
 
         return $scope;
+    }
+
+    private function insertTextBoundaryWhitespace(\DOMElement $scope): void
+    {
+        $document = $scope->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return;
+        }
+
+        $children = [];
+        foreach ($scope->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $children[] = $child;
+            }
+        }
+
+        foreach ($children as $child) {
+            $this->insertTextBoundaryWhitespace($child);
+        }
+
+        for ($child = $scope->firstChild; $child instanceof \DOMNode; $child = $child->nextSibling) {
+            $next = $child->nextSibling;
+            if (!$next instanceof \DOMNode || !$this->needsTextBoundaryWhitespace($child, $next)) {
+                continue;
+            }
+
+            $scope->insertBefore($document->createTextNode("\n"), $next);
+        }
+    }
+
+    private function needsTextBoundaryWhitespace(\DOMNode $left, \DOMNode $right): bool
+    {
+        if ($this->isWhitespaceTextNode($left) || $this->isWhitespaceTextNode($right)) {
+            return false;
+        }
+
+        if (!$this->nodeHasVisibleText($left) || !$this->nodeHasVisibleText($right)) {
+            return false;
+        }
+
+        return $this->isTextSeparatingNode($left) || $this->isTextSeparatingNode($right);
+    }
+
+    private function isTextSeparatingNode(\DOMNode $node): bool
+    {
+        return $node instanceof \DOMElement
+            && in_array(strtoupper($node->tagName), self::TEXT_SEPARATING_TAGS, true);
+    }
+
+    private function isWhitespaceTextNode(\DOMNode $node): bool
+    {
+        return $node instanceof \DOMText && preg_match('/[^\s\x{00a0}]/u', $node->textContent) !== 1;
+    }
+
+    private function nodeHasVisibleText(\DOMNode $node): bool
+    {
+        return preg_match('/[^\s\x{00a0}]/u', $node->textContent ?? '') === 1;
     }
 
     private function replaceBreakChains(\DOMNode $scope): void
