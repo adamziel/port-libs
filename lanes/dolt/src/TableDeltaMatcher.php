@@ -61,6 +61,58 @@ final class TableDeltaMatcher
         return $deltas;
     }
 
+    /**
+     * Project table deltas into the row shape returned by upstream
+     * `dolt_diff_summary()`.
+     *
+     * @param list<array{name:string, schema:TableSchema, rowHash?:string|null, rowCount?:int}> $fromTables
+     * @param list<array{name:string, schema:TableSchema, rowHash?:string|null, rowCount?:int}> $toTables
+     * @param list<array{pattern:string, ignore:bool}> $ignorePatterns Apply only when the compared refs include WORKING or STAGED.
+     * @return list<array{from_table_name:string, to_table_name:string, diff_type:string, data_change:bool, schema_change:bool}>
+     */
+    public function summaryRows(
+        array $fromTables,
+        array $toTables,
+        ?string $tableName = null,
+        bool $errorOnPrimaryKeyChange = false,
+        array $ignorePatterns = [],
+        array &$warnings = [],
+        string $fromCommit = 'FROM',
+        string $toCommit = 'TO',
+    ): array
+    {
+        $ignorePatterns = $this->normalizeIgnorePatterns($ignorePatterns);
+        $rows = [];
+        foreach ($this->summaries($fromTables, $toTables) as $summary) {
+            if ($tableName !== null && !$this->summaryMatchesTable($summary, $tableName)) {
+                continue;
+            }
+            if ($ignorePatterns !== [] && $this->shouldIgnoreSummary($summary, $ignorePatterns)) {
+                continue;
+            }
+            if ($summary['primary_key_set_changed']) {
+                if ($errorOnPrimaryKeyChange) {
+                    throw new \RuntimeException("failed to compute diff summary for table {$summary['table_name']}: primary key set changed");
+                }
+                $warnings[] = [
+                    'code' => TableSchema::WARNING_UNKNOWN,
+                    'message' => sprintf(TableSchema::PRIMARY_KEY_CHANGE_WARNING, $fromCommit, $toCommit),
+                ];
+                continue;
+            }
+
+            $rows[] = [
+                'from_table_name' => $summary['from_table_name'] ?? '',
+                'to_table_name' => $summary['to_table_name'] ?? '',
+                'diff_type' => $summary['diff_type'],
+                'data_change' => $summary['data_change'],
+                'schema_change' => $summary['schema_change'],
+            ];
+        }
+
+        return $rows;
+    }
+
     public static function changeTypeToDiffType(string $changeType): string
     {
         return match ($changeType) {
@@ -192,5 +244,184 @@ final class TableDeltaMatcher
         }
 
         return $from['rowHash'] !== $to['rowHash'];
+    }
+
+    /**
+     * @param array{table_name:string, from_table_name:string|null, to_table_name:string|null, diff_type:string, data_change:bool, schema_change:bool, primary_key_set_changed:bool} $summary
+     */
+    private function summaryMatchesTable(array $summary, string $tableName): bool
+    {
+        foreach ([$summary['from_table_name'], $summary['to_table_name'], $summary['table_name']] as $name) {
+            if (is_string($name) && strcasecmp($name, $tableName) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{table_name:string, from_table_name:string|null, to_table_name:string|null, diff_type:string, data_change:bool, schema_change:bool, primary_key_set_changed:bool} $summary
+     * @param list<array{pattern:non-empty-string, ignore:bool}> $ignorePatterns
+     */
+    private function shouldIgnoreSummary(array $summary, array $ignorePatterns): bool
+    {
+        if ($summary['diff_type'] === self::DIFF_ADDED && is_string($summary['to_table_name'])) {
+            return $this->ignoreResult($summary['to_table_name'], $ignorePatterns) === 'ignore';
+        }
+        if ($summary['diff_type'] === self::DIFF_DROPPED && is_string($summary['from_table_name'])) {
+            return $this->ignoreResult($summary['from_table_name'], $ignorePatterns) === 'ignore';
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{pattern:string, ignore:bool}> $patterns
+     * @return list<array{pattern:non-empty-string, ignore:bool}>
+     */
+    private function normalizeIgnorePatterns(array $patterns): array
+    {
+        $normalized = [];
+        foreach ($patterns as $pattern) {
+            $name = $pattern['pattern'] ?? null;
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('Dolt ignore patterns must include a non-empty pattern string.');
+            }
+            $ignore = $pattern['ignore'] ?? null;
+            if (!is_bool($ignore)) {
+                throw new \InvalidArgumentException("Dolt ignore pattern {$name} must include a boolean ignore flag.");
+            }
+
+            $normalized[] = ['pattern' => $name, 'ignore' => $ignore];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array{pattern:non-empty-string, ignore:bool}> $ignorePatterns
+     */
+    private function ignoreResult(string $tableName, array $ignorePatterns): string
+    {
+        if (strcasecmp($tableName, 'dolt_rebase') === 0) {
+            return 'ignore';
+        }
+
+        $trueMatches = [];
+        $falseMatches = [];
+        foreach ($ignorePatterns as $pattern) {
+            if (!$this->matchesIgnorePattern($pattern['pattern'], $tableName, false)) {
+                continue;
+            }
+            if ($pattern['ignore']) {
+                $trueMatches[] = $pattern['pattern'];
+            } else {
+                $falseMatches[] = $pattern['pattern'];
+            }
+        }
+
+        if ($trueMatches === []) {
+            return 'dont_ignore';
+        }
+        if ($falseMatches === []) {
+            return 'ignore';
+        }
+
+        return $this->resolveConflictingIgnorePatterns($trueMatches, $falseMatches, $tableName);
+    }
+
+    /**
+     * @param list<non-empty-string> $trueMatches
+     * @param list<non-empty-string> $falseMatches
+     */
+    private function resolveConflictingIgnorePatterns(array $trueMatches, array $falseMatches, string $tableName): string
+    {
+        $trueMatchesToRemove = [];
+        $falseMatchesToRemove = [];
+
+        foreach ($trueMatches as $trueMatch) {
+            foreach ($falseMatches as $falseMatch) {
+                if ($this->normalizeIgnorePattern($trueMatch) === $this->normalizeIgnorePattern($falseMatch)) {
+                    throw new \RuntimeException($this->ignoreConflictError($tableName, [$trueMatch], [$falseMatch]));
+                }
+                if ($this->matchesIgnorePattern($trueMatch, $falseMatch, true)) {
+                    $trueMatchesToRemove[$trueMatch] = true;
+                }
+            }
+        }
+
+        foreach ($falseMatches as $falseMatch) {
+            foreach ($trueMatches as $trueMatch) {
+                if ($this->matchesIgnorePattern($falseMatch, $trueMatch, true)) {
+                    $falseMatchesToRemove[$falseMatch] = true;
+                }
+            }
+        }
+
+        if (count($trueMatchesToRemove) === count($trueMatches)) {
+            return 'dont_ignore';
+        }
+        if (count($falseMatchesToRemove) === count($falseMatches)) {
+            return 'ignore';
+        }
+
+        $conflictingTrueMatches = [];
+        foreach ($trueMatches as $trueMatch) {
+            if (!isset($trueMatchesToRemove[$trueMatch])) {
+                $conflictingTrueMatches[] = $trueMatch;
+            }
+        }
+
+        $conflictingFalseMatches = [];
+        foreach ($falseMatches as $falseMatch) {
+            if (!isset($falseMatchesToRemove[$falseMatch])) {
+                $conflictingFalseMatches[] = $falseMatch;
+            }
+        }
+
+        throw new \RuntimeException($this->ignoreConflictError($tableName, $conflictingTrueMatches, $conflictingFalseMatches));
+    }
+
+    /**
+     * @param list<non-empty-string> $trueMatches
+     * @param list<non-empty-string> $falseMatches
+     */
+    private function ignoreConflictError(string $tableName, array $trueMatches, array $falseMatches): string
+    {
+        $message = "the table {$tableName} matches conflicting patterns in dolt_ignore:";
+        foreach ($trueMatches as $pattern) {
+            $message .= "\nignored:     {$pattern}";
+        }
+        foreach ($falseMatches as $pattern) {
+            $message .= "\nnot ignored: {$pattern}";
+        }
+
+        return $message;
+    }
+
+    private function matchesIgnorePattern(string $pattern, string $tableName, bool $moreSpecific): bool
+    {
+        $quoted = preg_quote($pattern, '~');
+        $quoted = str_replace('\\?', $moreSpecific ? '[^*%]' : '.', $quoted);
+        $quoted = str_replace('\\*', '.*', $quoted);
+        $quoted = str_replace('%', '.*', $quoted);
+        $result = preg_match('~^' . $quoted . '$~', $tableName);
+        if ($result === false) {
+            throw new \RuntimeException("Failed to compile Dolt ignore pattern: {$pattern}");
+        }
+
+        return $result === 1;
+    }
+
+    private function normalizeIgnorePattern(string $pattern): string
+    {
+        $pattern = str_replace('*', '%', $pattern);
+        do {
+            $previous = $pattern;
+            $pattern = str_replace('%%', '%', $pattern);
+        } while ($pattern !== $previous);
+
+        return $pattern;
     }
 }

@@ -658,6 +658,399 @@ return [
         $t->same('Published resource refresh', $filtered[0]['to_post_title']);
         $t->same(TableDiff::DIFF_MODIFIED, $filtered[0]['diff_type']);
     },
+    'dolt diff summary rows match upstream table function shape' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 2, 'type' => 'varchar(20)'],
+            ['name' => 'c2', 'tag' => 3, 'type' => 'varchar(20)'],
+        ]);
+        $matcher = new TableDeltaMatcher();
+
+        $emptyAdd = $matcher->summaryRows([], [['name' => 't', 'schema' => $schema, 'rowCount' => 0]]);
+        $dataAdd = $matcher->summaryRows([], [['name' => 't', 'schema' => $schema, 'rowCount' => 1]]);
+        $modified = $matcher->summaryRows(
+            [['name' => 't', 'schema' => $schema, 'rowHash' => 'before', 'rowCount' => 1]],
+            [['name' => 't', 'schema' => $schema, 'rowHash' => 'after', 'rowCount' => 1]],
+        );
+        $dropped = $matcher->summaryRows([['name' => 't', 'schema' => $schema, 'rowCount' => 1]], []);
+
+        $t->same([['from_table_name' => '', 'to_table_name' => 't', 'diff_type' => 'added', 'data_change' => false, 'schema_change' => true]], $emptyAdd);
+        $t->same(true, $dataAdd[0]['data_change']);
+        $t->same(['t', 't', 'modified', true, false], array_values($modified[0]));
+        $t->same(['t', '', 'dropped', true, true], array_values($dropped[0]));
+        $t->same([], $matcher->summaryRows([], [['name' => 't', 'schema' => $schema, 'rowCount' => 1]], 'missing'));
+    },
+    'dolt diff summary ignore patterns filter working set table additions' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $matcher = new TableDeltaMatcher();
+        $rows = $matcher->summaryRows(
+            [
+                ['name' => 'ignored_table', 'schema' => $schema, 'rowHash' => 'same', 'rowCount' => 1],
+                ['name' => 'not_ignored_table', 'schema' => $schema, 'rowHash' => 'same', 'rowCount' => 1],
+            ],
+            [
+                ['name' => 'ignored_table', 'schema' => $schema, 'rowHash' => 'same', 'rowCount' => 1],
+                ['name' => 'not_ignored_table', 'schema' => $schema, 'rowHash' => 'same', 'rowCount' => 1],
+                ['name' => 'dolt_ignore', 'schema' => $schema, 'rowHash' => 'patterns', 'rowCount' => 1],
+                ['name' => 'ignored_table2', 'schema' => $schema, 'rowHash' => 'ignored', 'rowCount' => 1],
+                ['name' => 'not_ignored_table2', 'schema' => $schema, 'rowHash' => 'kept', 'rowCount' => 1],
+            ],
+            null,
+            false,
+            [['pattern' => 'ignored_table2', 'ignore' => true]],
+        );
+
+        $t->same(['dolt_ignore', 'not_ignored_table2'], array_column($rows, 'to_table_name'));
+        $t->same(['added', 'added'], array_column($rows, 'diff_type'));
+    },
+    'dolt diff summary ignore patterns support wildcards and false overrides' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $rows = (new TableDeltaMatcher())->summaryRows(
+            [['name' => 'initial_table', 'schema' => $schema, 'rowHash' => 'same', 'rowCount' => 1]],
+            [
+                ['name' => 'initial_table', 'schema' => $schema, 'rowHash' => 'same', 'rowCount' => 1],
+                ['name' => 'dolt_ignore', 'schema' => $schema, 'rowHash' => 'patterns', 'rowCount' => 2],
+                ['name' => 'temp_table1', 'schema' => $schema, 'rowHash' => 'ignored-a', 'rowCount' => 1],
+                ['name' => 'temp_table2', 'schema' => $schema, 'rowHash' => 'ignored-b', 'rowCount' => 1],
+                ['name' => 'temp_important', 'schema' => $schema, 'rowHash' => 'kept-by-override', 'rowCount' => 1],
+                ['name' => 'regular_table', 'schema' => $schema, 'rowHash' => 'regular', 'rowCount' => 1],
+            ],
+            null,
+            false,
+            [
+                ['pattern' => 'temp_*', 'ignore' => true],
+                ['pattern' => 'temp_important', 'ignore' => false],
+            ],
+        );
+
+        $t->same(['dolt_ignore', 'regular_table', 'temp_important'], array_column($rows, 'to_table_name'));
+    },
+    'dolt diff summary ignore patterns filter dropped tables and specific queries' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $matcher = new TableDeltaMatcher();
+        $from = [
+            ['name' => 'dolt_ignore', 'schema' => $schema, 'rowHash' => 'old-patterns', 'rowCount' => 1],
+            ['name' => 'will_be_ignored', 'schema' => $schema, 'rowHash' => 'ignored', 'rowCount' => 1],
+            ['name' => 'will_not_be_ignored', 'schema' => $schema, 'rowHash' => 'kept', 'rowCount' => 1],
+        ];
+        $to = [
+            ['name' => 'dolt_ignore', 'schema' => $schema, 'rowHash' => 'new-patterns', 'rowCount' => 1],
+        ];
+        $patterns = [['pattern' => 'will_be_ignored', 'ignore' => true]];
+
+        $rows = $matcher->summaryRows($from, $to, null, false, $patterns);
+        $ignoredSpecific = $matcher->summaryRows($from, $to, 'will_be_ignored', false, $patterns);
+        $visibleSpecific = $matcher->summaryRows($from, $to, 'will_not_be_ignored', false, $patterns);
+        $commitToCommitRows = $matcher->summaryRows([], [['name' => 'the_table', 'schema' => $schema, 'rowCount' => 2]]);
+
+        $t->same(['dolt_ignore', 'will_not_be_ignored'], array_column($rows, 'from_table_name'));
+        $t->same(['modified', 'dropped'], array_column($rows, 'diff_type'));
+        $t->same([], $ignoredSpecific);
+        $t->same(1, count($visibleSpecific));
+        $t->same([['from_table_name' => '', 'to_table_name' => 'the_table', 'diff_type' => 'added', 'data_change' => true, 'schema_change' => true]], $commitToCommitRows);
+    },
+    'dolt ignore conflicts report upstream-shaped pattern errors' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+
+        try {
+            (new TableDeltaMatcher())->summaryRows(
+                [],
+                [['name' => 'test_special', 'schema' => $schema, 'rowHash' => 'rows', 'rowCount' => 1]],
+                null,
+                false,
+                [
+                    ['pattern' => 'test_*', 'ignore' => true],
+                    ['pattern' => '*_special', 'ignore' => false],
+                ],
+            );
+            $t->true(false, 'Expected conflicting dolt_ignore patterns to throw.');
+        } catch (RuntimeException $e) {
+            $t->contains('the table test_special matches conflicting patterns in dolt_ignore:', $e->getMessage());
+            $t->contains('ignored:     test_*', $e->getMessage());
+            $t->contains('not ignored: *_special', $e->getMessage());
+        }
+    },
+    'dolt ignore conflicts treat normalized duplicate wildcard patterns as errors' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+
+        try {
+            (new TableDeltaMatcher())->summaryRows(
+                [],
+                [['name' => 'temp_table', 'schema' => $schema, 'rowHash' => 'rows', 'rowCount' => 1]],
+                null,
+                false,
+                [
+                    ['pattern' => 'temp_*', 'ignore' => true],
+                    ['pattern' => 'temp_%', 'ignore' => false],
+                ],
+            );
+            $t->true(false, 'Expected normalized conflicting dolt_ignore patterns to throw.');
+        } catch (RuntimeException $e) {
+            $t->contains('ignored:     temp_*', $e->getMessage());
+            $t->contains('not ignored: temp_%', $e->getMessage());
+        }
+    },
+    'dolt ignore more-specific true patterns override broader false patterns' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+
+        $rows = (new TableDeltaMatcher())->summaryRows(
+            [],
+            [['name' => 'wp_secret_cache', 'schema' => $schema, 'rowHash' => 'secret', 'rowCount' => 1]],
+            null,
+            false,
+            [
+                ['pattern' => 'wp_*', 'ignore' => false],
+                ['pattern' => 'wp_secret_cache', 'ignore' => true],
+            ],
+        );
+
+        $t->same([], $rows);
+    },
+    'wordpress ignore summary fixture hides generated migration tables' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-ignore-summary.php';
+        $rows = (new TableDeltaMatcher())->summaryRows(
+            $fixture['fromTables'],
+            $fixture['toTables'],
+            null,
+            false,
+            $fixture['ignorePatterns'],
+        );
+
+        $t->same($fixture['expectedToTables'], array_column($rows, 'to_table_name'));
+        $t->same(['added', 'added', 'added'], array_column($rows, 'diff_type'));
+        $t->true(!in_array('wp_tmp_import_cache', array_column($rows, 'to_table_name'), true));
+        $t->true(!in_array('wp_migration_tmp_old', array_column($rows, 'from_table_name'), true));
+    },
+    'wordpress ignore conflict fixture surfaces ambiguous migration scratch rules' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-ignore-conflict.php';
+
+        try {
+            (new TableDeltaMatcher())->summaryRows(
+                $fixture['fromTables'],
+                $fixture['toTables'],
+                null,
+                false,
+                $fixture['ignorePatterns'],
+            );
+            $t->true(false, 'Expected WordPress dolt_ignore conflict fixture to throw.');
+        } catch (RuntimeException $e) {
+            foreach ($fixture['expectedErrorFragments'] as $fragment) {
+                $t->contains($fragment, $e->getMessage());
+            }
+        }
+    },
+    'dolt diff stat rows match upstream single table counts' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 2, 'type' => 'varchar(20)'],
+            ['name' => 'c2', 'tag' => 3, 'type' => 'varchar(20)'],
+        ]);
+        $differ = new TableDiff();
+        $empty = [];
+        $oneRow = [
+            ['pk' => 1, 'c1' => 'one', 'c2' => 'two'],
+        ];
+        $threeRows = [
+            ['pk' => 1, 'c1' => 'uno', 'c2' => 'dos'],
+            ['pk' => 2, 'c1' => 'two', 'c2' => 'three'],
+            ['pk' => 3, 'c1' => 'three', 'c2' => 'four'],
+        ];
+        $warnings = [];
+
+        $t->same(null, $differ->diffStatRow('t', $empty, $empty, 'pk', null, $schema, $warnings));
+        $t->same(['t', 0, 1, 0, 0, 3, 0, 0, 0, 1, 0, 3], array_values(
+            $differ->diffStatRow('t', $empty, $oneRow, 'pk', null, $schema, $warnings)
+        ));
+        $t->same(['t', 0, 2, 0, 1, 6, 0, 2, 1, 3, 3, 9], array_values(
+            $differ->diffStatRow('t', $oneRow, $threeRows, 'pk', $schema, $schema, $warnings)
+        ));
+        $t->same(['t', 0, 0, 2, 1, 0, 6, 2, 3, 1, 9, 3], array_values(
+            $differ->diffStatRow('t', $threeRows, $oneRow, 'pk', $schema, $schema, $warnings)
+        ));
+        $t->same(['t', 0, 0, 3, 0, 0, 9, 0, 3, 0, 9, 0], array_values(
+            $differ->diffStatRow('t', $threeRows, $empty, 'pk', $schema, null, $warnings)
+        ));
+        $t->same([], $warnings);
+    },
+    'dolt diff stat keyless rows use upstream delete insert counting' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int'],
+            ['name' => 'c1', 'tag' => 2, 'type' => 'varchar(20)'],
+            ['name' => 'c2', 'tag' => 3, 'type' => 'varchar(20)'],
+        ]);
+        $warnings = [];
+        $row = (new TableDiff())->diffStatRow(
+            't',
+            [['id' => 1, 'c1' => 'one', 'c2' => 'two']],
+            [
+                ['id' => 1, 'c1' => 'uno', 'c2' => 'dos'],
+                ['id' => 2, 'c1' => 'two', 'c2' => 'three'],
+                ['id' => 3, 'c1' => 'three', 'c2' => 'four'],
+            ],
+            null,
+            $schema,
+            $schema,
+            $warnings,
+            true,
+            true,
+        );
+
+        $t->same(['t', null, 3, 1, null, null, null, null, null, null, null, null], array_values($row));
+        $t->same([], $warnings);
+    },
+    'primary key set changes error for table-specific diff stat and warn for unscoped stats' => static function (TestRunner $t): void {
+        $fromSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'col1', 'tag' => 2, 'type' => 'int'],
+        ]);
+        $toSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'col1', 'tag' => 2, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $warnings = [];
+        $differ = new TableDiff();
+
+        try {
+            $differ->diffStatRow(
+                't',
+                [['pk' => 1, 'col1' => 0]],
+                [['pk' => 1, 'col1' => 0]],
+                'pk',
+                $fromSchema,
+                $toSchema,
+                $warnings,
+            );
+            $t->true(false, 'Expected table-specific primary-key change diff stat to throw.');
+        } catch (RuntimeException $e) {
+            $t->contains('failed to compute diff stat for table t: primary key set changed', $e->getMessage());
+        }
+
+        $row = $differ->diffStatRow(
+            't',
+            [['pk' => 1, 'col1' => 0]],
+            [['pk' => 1, 'col1' => 0]],
+            'pk',
+            $fromSchema,
+            $toSchema,
+            $warnings,
+            false,
+            false,
+            'HEAD~',
+            'HEAD',
+        );
+
+        $t->same(['t', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], array_values($row));
+        $t->same(1, count($warnings));
+        $t->same(TableSchema::WARNING_UNKNOWN, $warnings[0]['code']);
+        $t->contains('stat for table t cannot be determined. Primary key set changed.', $warnings[0]['message']);
+    },
+    'primary key set changes error for table-specific summaries and warn for unscoped summaries' => static function (TestRunner $t): void {
+        $fromSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'col1', 'tag' => 2, 'type' => 'int'],
+        ]);
+        $toSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'col1', 'tag' => 2, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $stableSchema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 10, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $fromTables = [
+            ['name' => 't', 'schema' => $fromSchema, 'rowHash' => 'same', 'rowCount' => 1],
+            ['name' => 't2', 'schema' => $stableSchema, 'rowHash' => 'before', 'rowCount' => 1],
+        ];
+        $toTables = [
+            ['name' => 't', 'schema' => $toSchema, 'rowHash' => 'same', 'rowCount' => 1],
+            ['name' => 't2', 'schema' => $stableSchema, 'rowHash' => 'after', 'rowCount' => 4],
+        ];
+        $matcher = new TableDeltaMatcher();
+
+        try {
+            $matcher->summaryRows($fromTables, $toTables, 't', true);
+            $t->true(false, 'Expected table-specific primary-key change summary to throw.');
+        } catch (RuntimeException $e) {
+            $t->contains('failed to compute diff summary for table t: primary key set changed', $e->getMessage());
+        }
+
+        $warnings = [];
+        $rows = $matcher->summaryRows($fromTables, $toTables, null, false, [], $warnings, 'HEAD~', 'HEAD');
+
+        $t->same([['from_table_name' => 't2', 'to_table_name' => 't2', 'diff_type' => 'modified', 'data_change' => true, 'schema_change' => false]], $rows);
+        $t->same(1, count($warnings));
+        $t->same(TableSchema::WARNING_UNKNOWN, $warnings[0]['code']);
+        $t->contains('cannot render full diff between commits HEAD~ and HEAD due to primary key set change', $warnings[0]['message']);
+    },
+    'wordpress primary key warning fixture surfaces postmeta review blockers' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-primary-key-warning.php';
+        $matcher = new TableDeltaMatcher();
+        $differ = new TableDiff();
+
+        $summaryWarnings = [];
+        $summaryRows = $matcher->summaryRows(
+            $fixture['fromTables'],
+            $fixture['toTables'],
+            null,
+            false,
+            [],
+            $summaryWarnings,
+            $fixture['fromCommit'],
+            $fixture['toCommit'],
+        );
+
+        $statWarnings = [];
+        $statRow = $differ->diffStatRow(
+            $fixture['tableName'],
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            $fixture['primaryKey'],
+            $fixture['fromSchema'],
+            $fixture['toSchema'],
+            $statWarnings,
+            false,
+            false,
+            $fixture['fromCommit'],
+            $fixture['toCommit'],
+        );
+
+        $t->same($fixture['expectedSummaryRows'], $summaryRows);
+        $t->same($fixture['expectedStatRow'], array_values($statRow));
+        $t->same(1, count($summaryWarnings));
+        $t->contains('cannot render full diff between commits', $summaryWarnings[0]['message']);
+        $t->same(1, count($statWarnings));
+        $t->contains('stat for table wp_postmeta cannot be determined. Primary key set changed.', $statWarnings[0]['message']);
+    },
+    'wordpress diff stat fixture summarizes migration review counts' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-diff-stat-review.php';
+        $warnings = [];
+        $row = (new TableDiff())->diffStatRow(
+            $fixture['tableName'],
+            $fixture['fromRows'],
+            $fixture['toRows'],
+            $fixture['primaryKey'],
+            $fixture['fromSchema'],
+            $fixture['toSchema'],
+            $warnings,
+        );
+
+        $t->same($fixture['expectedStatRow'], array_values($row));
+        $t->same(1, $row['rows_unmodified']);
+        $t->same(4, $row['cells_added']);
+        $t->same(2, $row['cells_modified']);
+        $t->same([], $warnings);
+    },
     'primary key set changes report dolt warning and stop non-fuzzy diffs' => static function (TestRunner $t): void {
         $fromSchema = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],

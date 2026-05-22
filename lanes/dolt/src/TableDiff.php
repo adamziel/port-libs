@@ -220,6 +220,90 @@ final class TableDiff
     }
 
     /**
+     * Compute the row shape returned by upstream `dolt_diff_stat()` for a
+     * single table delta. A null return matches upstream's empty result when
+     * a table was created without rows or an unchanged table has no data/cell
+     * count difference.
+     *
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @param non-empty-string|list<non-empty-string>|null $primaryKey
+     * @param list<array{code:int, message:string}> $warnings
+     * @return array{table_name:string, rows_unmodified:int|null, rows_added:int, rows_deleted:int, rows_modified:int|null, cells_added:int|null, cells_deleted:int|null, cells_modified:int|null, old_row_count:int|null, new_row_count:int|null, old_cell_count:int|null, new_cell_count:int|null}|null
+     */
+    public function diffStatRow(
+        string $tableName,
+        array $fromRows,
+        array $toRows,
+        string|array|null $primaryKey,
+        ?TableSchema $fromSchema,
+        ?TableSchema $toSchema,
+        array &$warnings = [],
+        bool $errorOnPrimaryKeyChange = true,
+        bool $keyless = false,
+        string $fromCommit = 'FROM',
+        string $toCommit = 'TO',
+    ): ?array {
+        if ($tableName === '') {
+            throw new \InvalidArgumentException('Diff stat table name must be a non-empty string.');
+        }
+        if ($fromSchema === null && $toSchema === null) {
+            throw new \InvalidArgumentException("Table {$tableName} could not be found.");
+        }
+
+        if (!$keyless && $fromSchema !== null && $toSchema !== null && !TableSchema::primaryKeySetsDiffable($fromSchema, $toSchema)) {
+            if ($errorOnPrimaryKeyChange) {
+                throw new \RuntimeException("failed to compute diff stat for table {$tableName}: primary key set changed");
+            }
+            $warnings[] = [
+                'code' => TableSchema::WARNING_UNKNOWN,
+                'message' => "stat for table {$tableName} cannot be determined. Primary key set changed.",
+            ];
+
+            return $this->formatDiffStatRow($tableName, 0, 0, 0, 0, 0, 0, 0, false);
+        }
+
+        $oldColumnCount = $fromSchema === null ? 0 : count($fromSchema->columns());
+        $newColumnCount = $toSchema === null ? 0 : count($toSchema->columns());
+        $oldRowCount = count($fromRows);
+        $newRowCount = count($toRows);
+        $oldCellCount = $oldRowCount * $oldColumnCount;
+        $newCellCount = $newRowCount * $newColumnCount;
+
+        if ($keyless || $primaryKey === null) {
+            [$added, $deleted] = $this->keylessRowCounts($fromRows, $toRows);
+            if ($added + $deleted === 0) {
+                return null;
+            }
+
+            return $this->formatKeylessDiffStatRow($tableName, $added, $deleted);
+        }
+
+        $diff = $this->diff($fromRows, $toRows, $primaryKey);
+        $added = count($diff['added']);
+        $deleted = count($diff['removed']);
+        $modified = count($diff['modified']);
+        $cellChanges = $this->modifiedCellCount($diff['modified'], $fromSchema, $toSchema);
+
+        if ($added + $deleted + $modified === 0 && $oldCellCount === $newCellCount) {
+            return null;
+        }
+
+        return $this->formatDiffStatRow(
+            $tableName,
+            $oldRowCount,
+            $newRowCount,
+            $oldCellCount,
+            $newCellCount,
+            $added,
+            $deleted,
+            $modified,
+            false,
+            $cellChanges
+        );
+    }
+
+    /**
      * @param list<array<string, scalar|null>> $rows
      * @param non-empty-string|list<non-empty-string> $primaryKey
      * @return array<string, array<string, scalar|null>>
@@ -440,6 +524,178 @@ final class TableDiff
         }
 
         return $include;
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $fromRows
+     * @param list<array<string, scalar|null>> $toRows
+     * @return array{0:int, 1:int}
+     */
+    private function keylessRowCounts(array $fromRows, array $toRows): array
+    {
+        $from = $this->rowMultiset($fromRows);
+        $to = $this->rowMultiset($toRows);
+        $added = 0;
+        $deleted = 0;
+
+        foreach ($from as $key => $count) {
+            $toCount = $to[$key] ?? 0;
+            if ($count > $toCount) {
+                $deleted += $count - $toCount;
+            }
+        }
+        foreach ($to as $key => $count) {
+            $fromCount = $from[$key] ?? 0;
+            if ($count > $fromCount) {
+                $added += $count - $fromCount;
+            }
+        }
+
+        return [$added, $deleted];
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $rows
+     * @return array<string, int>
+     */
+    private function rowMultiset(array $rows): array
+    {
+        $counts = [];
+        foreach ($rows as $row) {
+            ksort($row, SORT_STRING);
+            $key = json_encode($row, JSON_THROW_ON_ERROR);
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{old:array<string, scalar|null>, new:array<string, scalar|null>}> $modifiedRows
+     */
+    private function modifiedCellCount(array $modifiedRows, ?TableSchema $fromSchema, ?TableSchema $toSchema): int
+    {
+        $count = 0;
+        foreach ($modifiedRows as $change) {
+            foreach ($this->statComparableColumns($change['old'], $change['new'], $fromSchema, $toSchema) as $column) {
+                if (($change['old'][$column] ?? null) !== ($change['new'][$column] ?? null)) {
+                    $count++;
+                }
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, scalar|null> $fromRow
+     * @param array<string, scalar|null> $toRow
+     * @return list<string>
+     */
+    private function statComparableColumns(array $fromRow, array $toRow, ?TableSchema $fromSchema, ?TableSchema $toSchema): array
+    {
+        $columns = [];
+        foreach ([$fromSchema, $toSchema] as $schema) {
+            if ($schema === null) {
+                continue;
+            }
+            foreach ($schema->columns() as $column) {
+                $columns[$column['name']] = true;
+            }
+        }
+        foreach (array_keys($fromRow + $toRow) as $column) {
+            $columns[$column] = true;
+        }
+
+        return array_keys($columns);
+    }
+
+    /**
+     * @return array{table_name:string, rows_unmodified:int|null, rows_added:int, rows_deleted:int, rows_modified:int|null, cells_added:int|null, cells_deleted:int|null, cells_modified:int|null, old_row_count:int|null, new_row_count:int|null, old_cell_count:int|null, new_cell_count:int|null}
+     */
+    private function formatDiffStatRow(
+        string $tableName,
+        int $oldRowCount,
+        int $newRowCount,
+        int $oldCellCount,
+        int $newCellCount,
+        int $added,
+        int $deleted,
+        int $modified,
+        bool $keyless,
+        int $cellChanges = 0,
+    ): array {
+        if ($keyless) {
+            return $this->formatKeylessDiffStatRow($tableName, $added, $deleted);
+        }
+
+        [$cellsAdded, $cellsDeleted] = $this->cellsAddedAndDeleted(
+            $added,
+            $deleted,
+            $oldCellCount,
+            $newCellCount,
+            $newRowCount === 0 ? 0 : intdiv($newCellCount, $newRowCount)
+        );
+
+        return [
+            'table_name' => $tableName,
+            'rows_unmodified' => $oldRowCount - $modified - $deleted,
+            'rows_added' => $added,
+            'rows_deleted' => $deleted,
+            'rows_modified' => $modified,
+            'cells_added' => $cellsAdded,
+            'cells_deleted' => $cellsDeleted,
+            'cells_modified' => $cellChanges,
+            'old_row_count' => $oldRowCount,
+            'new_row_count' => $newRowCount,
+            'old_cell_count' => $oldCellCount,
+            'new_cell_count' => $newCellCount,
+        ];
+    }
+
+    /**
+     * @return array{table_name:string, rows_unmodified:int|null, rows_added:int, rows_deleted:int, rows_modified:int|null, cells_added:int|null, cells_deleted:int|null, cells_modified:int|null, old_row_count:int|null, new_row_count:int|null, old_cell_count:int|null, new_cell_count:int|null}
+     */
+    private function formatKeylessDiffStatRow(string $tableName, int $added, int $deleted): array
+    {
+        return [
+            'table_name' => $tableName,
+            'rows_unmodified' => null,
+            'rows_added' => $added,
+            'rows_deleted' => $deleted,
+            'rows_modified' => null,
+            'cells_added' => null,
+            'cells_deleted' => null,
+            'cells_modified' => null,
+            'old_row_count' => null,
+            'new_row_count' => null,
+            'old_cell_count' => null,
+            'new_cell_count' => null,
+        ];
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private function cellsAddedAndDeleted(int $added, int $deleted, int $oldCellCount, int $newCellCount, int $newColumnCount): array
+    {
+        $rowToCellInserts = $added * $newColumnCount;
+        $rowToCellDeletes = $deleted * $newColumnCount;
+        $cellDiff = $newCellCount - $oldCellCount;
+
+        if ($cellDiff > 0) {
+            return [$cellDiff + $rowToCellDeletes, $rowToCellDeletes];
+        }
+        if ($cellDiff < 0) {
+            return [$rowToCellInserts, abs($cellDiff) + $rowToCellInserts];
+        }
+        if ($rowToCellInserts !== $rowToCellDeletes) {
+            $max = max($rowToCellDeletes, $rowToCellInserts);
+
+            return [$max, $max];
+        }
+
+        return [$rowToCellInserts, $rowToCellDeletes];
     }
 
     /**
