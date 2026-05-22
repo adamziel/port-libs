@@ -271,6 +271,40 @@ final class Commit
         return $this->parsedMessage()->attributionTrailers();
     }
 
+    public function storageBytes(): string
+    {
+        $out = "tree {$this->tree}\n";
+        foreach ($this->parents as $parent) {
+            $out .= "parent {$parent}\n";
+        }
+
+        CommitSignature::parse($this->author);
+        CommitSignature::parse($this->committer);
+        $out .= "author {$this->author}\n"
+            . "committer {$this->committer}\n";
+
+        if ($this->encoding !== null) {
+            self::validateSingleLineHeaderValue('encoding', $this->encoding);
+            $out .= "encoding {$this->encoding}\n";
+        }
+
+        foreach ($this->allExtraHeaders() as $entry) {
+            $out .= self::formatMultiLineHeader($entry['name'], $entry['value']);
+        }
+
+        return $out . "\n" . $this->message;
+    }
+
+    public function size(): int
+    {
+        return strlen($this->storageBytes());
+    }
+
+    public function object(): GitObject
+    {
+        return new GitObject('commit', $this->storageBytes());
+    }
+
     /**
      * @return list<array{name: string, value: string}>
      */
@@ -482,6 +516,50 @@ final class Commit
         if (preg_match('/^[0-9a-fA-F]{' . $hashLength . '}$/', $id) !== 1) {
             throw new \InvalidArgumentException("Commit {$field} must be a {$hashLength}-character {$algorithm} hex object id");
         }
+    }
+
+    private static function validateSingleLineHeaderValue(string $name, string $value): void
+    {
+        if ($value === '') {
+            throw new \InvalidArgumentException("Commit {$name} header value cannot be empty");
+        }
+        if (str_contains($value, "\n")) {
+            throw new \InvalidArgumentException("Commit {$name} header value cannot contain a newline");
+        }
+    }
+
+    private static function formatMultiLineHeader(string $name, string $value): string
+    {
+        if ($name === '' || strpbrk($name, " \t\n\r") !== false) {
+            throw new \InvalidArgumentException('Commit extra header name is invalid');
+        }
+
+        $out = $name . ' ';
+        $offset = 0;
+        $first = true;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $newline = strpos($value, "\n", $offset);
+            if ($newline === false) {
+                $line = substr($value, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($value, $offset, $newline - $offset + 1);
+                $offset = $newline + 1;
+            }
+
+            if (!$first) {
+                $out .= ' ';
+            }
+            $out .= $line;
+            $first = false;
+        }
+
+        if (!str_ends_with($value, "\n")) {
+            $out .= "\n";
+        }
+
+        return $out;
     }
 
     /**

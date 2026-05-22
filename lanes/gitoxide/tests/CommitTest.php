@@ -135,6 +135,49 @@ return [
         $t->same(false, $tokens[2]['ok']);
         $t->contains('committer header is not newline terminated', $tokens[2]['error'] ?? '');
     },
+    'commit writer follows gitoxide WriteTo storage size and object semantics' => static function (TestRunner $t): void {
+        $body = "tree 0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef\n"
+            . "parent 1111111111111111111111111111111111111111111111111111111111111111\n"
+            . "author Ada Lovelace <ada@example.com> 1710000000 +0000\n"
+            . "committer Grace Hopper <grace@example.com> 1710003600 -0230\n"
+            . "encoding ISO-8859-1\n"
+            . "gpgsig -----BEGIN SSH SIGNATURE-----\n"
+            . " U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n"
+            . " -----END SSH SIGNATURE-----\n"
+            . "reviewed-by Release Reviewer <reviewer@example.test>\n"
+            . "\n"
+            . "sha256 subject\n\nsha256 body\n";
+        $commit = Commit::parse($body, 'sha256');
+        $expected = "tree 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"
+            . "parent 1111111111111111111111111111111111111111111111111111111111111111\n"
+            . "author Ada Lovelace <ada@example.com> 1710000000 +0000\n"
+            . "committer Grace Hopper <grace@example.com> 1710003600 -0230\n"
+            . "encoding ISO-8859-1\n"
+            . "gpgsig -----BEGIN SSH SIGNATURE-----\n"
+            . " U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n"
+            . " -----END SSH SIGNATURE-----\n"
+            . "reviewed-by Release Reviewer <reviewer@example.test>\n"
+            . "\n"
+            . "sha256 subject\n\nsha256 body\n";
+
+        $t->same($expected, $commit->storageBytes());
+        $t->same(strlen($expected), $commit->size());
+        $object = $commit->object();
+        $t->same('commit', $object->type);
+        $t->same($expected, $object->body);
+        $t->same(hash('sha1', 'commit ' . strlen($expected) . "\0" . $expected), $object->oid());
+
+        $emptyEncoding = new Commit(
+            '0123456789abcdef0123456789abcdef01234567',
+            [],
+            'Ada <ada@example.test> 1700000000 +0000',
+            'CI <ci@example.test> 1700000001 +0000',
+            'message',
+            [],
+            '',
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $emptyEncoding->storageBytes());
+    },
     'extra header lookup follows gitoxide first all and position semantics' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author Release Bot <release@example.test> 1710000000 +0000\n"
@@ -341,5 +384,9 @@ return [
         $t->same(false, $summary['signedDataHasSignatureHeader']);
         $t->same($fixture['expectedTokenTypes'], $summary['tokenTypes']);
         $t->same($fixture['expectedTokenExtraHeaders'], $summary['tokenExtraHeaderNames']);
+        $t->same($fixture['expectedStorageSha1'], $summary['storageSha1']);
+        $t->same($fixture['expectedObjectSha1'], $summary['objectSha1']);
+        $t->same($fixture['expectedSize'], $summary['size']);
+        $t->same(true, $summary['roundTripMatches']);
     },
 ];
