@@ -1148,12 +1148,15 @@ return [
         $t->same($metadata['lang'], $article->lang);
         $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
         $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
-        $t->same(array_slice($expectedParagraphs, 0, 4), array_slice($articleParagraphs, 0, 4));
+        $t->same($expectedParagraphs, $articleParagraphs);
         $t->true(str_starts_with($articleParagraphs[0] ?? '', 'SEOUL, South Korea'), 'article text should start at the first editorial paragraph');
+        $t->same('Abigail Williams and Beomsu Jo contributed.', $articleParagraphs[count($articleParagraphs) - 1] ?? null, 'React comment-delimited contributor text should remain one paragraph');
         $t->same(false, str_contains($article->text, 'Dec. 6, 2024, 10:00 PM UTC'), 'timestamp chrome should not enter article text');
         $t->same(false, str_contains($article->text, 'By Stella Kim and Jennifer Jett'), 'inline byline chrome should not enter article text');
         $t->contains('<!-- wp:paragraph -->', $blocks);
         $t->contains('SEOUL, South Korea', $blocks);
+        $t->contains('Abigail Williams and Beomsu Jo contributed.', $blocks);
+        $t->same(false, str_contains($blocks, '<p>Abigail Williams</p>'), 'WordPress blocks should not split comment-delimited contributor text into fragment paragraphs');
         $t->same(false, str_contains($blocks, 'article-body-timestamp'), 'timestamp wrappers should not enter WordPress blocks');
     },
     'maps Mozilla mozilla-2 fixture metadata and retained content markers' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {

@@ -1777,6 +1777,7 @@ final class ArticleExtractor
     private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri): \DOMElement
     {
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
+        $this->removeCommentNodes($scope);
         $this->wrapPhrasingContentInDivs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
