@@ -138,4 +138,16 @@ return [
         $t->true($afterDelete !== $tree->rootHash());
         $t->same('wp_posts:1=Hello world', $tree->getKey(Key::fromInteger(2)));
     },
+    'wordpress ordered snapshot root is upstream blake2s compatible' => static function (TestRunner $t): void {
+        $records = json_decode((string) file_get_contents(__DIR__ . '/../fixtures/wordpress-ordered-snapshot.json'), true, flags: JSON_THROW_ON_ERROR);
+
+        $tree = new SparseTree();
+        $changes = $tree->change();
+        foreach ($records as $record) {
+            $changes->putKey(Key::fromInteger((int) $record['key']), (string) $record['value']);
+        }
+        $changes->apply();
+
+        $t->same('2104f0067df53e082bf83d7a1d90af2c03dc1045ab7d3d6666394cc2c6e5e206', $tree->rootHash());
+    },
 ];

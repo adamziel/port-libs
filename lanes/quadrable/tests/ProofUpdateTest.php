@@ -39,7 +39,7 @@ return [
         $splitFull = quadrableUpdateProofFixture();
         $splitProof = Proof::decode($splitFull->exportProof(['852771900452'])->encode());
         $splitOrigRoot = $splitFull->rootHash();
-        // SHA-256 surrogate prefix 1101 follows the proven B leaf path, matching upstream's split-leaf shape.
+        // BLAKE2s prefix 1101 follows the proven B leaf path, matching upstream's split-leaf shape.
         $splitFull->put('candidate-10', 'E');
 
         $splitPartial = SparseTree::importProof($splitProof, $splitOrigRoot);
@@ -49,8 +49,8 @@ return [
         $t->same('E', $splitPartial->get('candidate-10'));
     },
     'maps upstream update proof witness leaf upgrade and split behavior' => static function (TestRunner $t): void {
-        // SHA-256 surrogate prefix 1100 reaches the A witness leaf without proving A as a full leaf.
-        $proofKey = 'candidate-8';
+        // BLAKE2s prefix 1100 reaches the A witness leaf without proving A as a full leaf.
+        $proofKey = 'candidate-1';
         $witnessLeafKey = '353568684874';
 
         $sameFull = quadrableUpdateProofFixture();

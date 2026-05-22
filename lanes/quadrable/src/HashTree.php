@@ -10,12 +10,12 @@ final class HashTree
 
     public function keyHash(string $key): string
     {
-        return hash('sha256', $key);
+        return Blake2s::hashHex($key);
     }
 
     public function valueHash(string $value): string
     {
-        return hash('sha256', $value);
+        return Blake2s::hashHex($value);
     }
 
     public function leafHash(string $key, string $value): string
@@ -35,7 +35,7 @@ final class HashTree
         $this->assertHash($keyHashHex);
         $this->assertHash($valueHashHex);
 
-        return hash('sha256', hex2bin($keyHashHex) . hex2bin($valueHashHex) . "\0");
+        return Blake2s::hashHex(hex2bin($keyHashHex) . hex2bin($valueHashHex) . "\0");
     }
 
     public function branchHash(string $leftHex, string $rightHex): string
@@ -46,7 +46,7 @@ final class HashTree
             return self::EMPTY_HASH;
         }
 
-        return hash('sha256', hex2bin($leftHex) . hex2bin($rightHex));
+        return Blake2s::hashHex(hex2bin($leftHex) . hex2bin($rightHex));
     }
 
     public function bitAt(string $hashHex, int $depth): int

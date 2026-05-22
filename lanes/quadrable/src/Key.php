@@ -30,7 +30,7 @@ final class Key
 
     public static function hash(string $value): self
     {
-        return new self(hash('sha256', $value, true));
+        return new self(Blake2s::hash($value));
     }
 
     public static function fromHex(string $hex): self
@@ -149,4 +149,3 @@ final class Key
         return $value;
     }
 }
-
