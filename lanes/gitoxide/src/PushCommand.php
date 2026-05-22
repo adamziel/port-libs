@@ -166,6 +166,11 @@ final class PushCommand
         return $bytes . $packBytes;
     }
 
+    public function requestWithPack(PackBuildResult $pack): string
+    {
+        return $this->requestBytes($pack->packBytes());
+    }
+
     public function validate(): void
     {
         if ($this->updates === []) {
