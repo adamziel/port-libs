@@ -184,13 +184,82 @@ return [
         $target = 'ffa700b4aca13b80cb6b98a078e7c96804f8e0ec';
 
         foreach (['v1.0.0', '0.2.1', '0-alpha1', 'release/2026.05'] as $name) {
+            $t->same(true, GitTag::isValidName($name));
+            GitTag::validateName($name);
             $tag = new GitTag($target, 'commit', $name, null, 'release notes');
             $t->contains("tag {$name}\n", $tag->storageBytes());
         }
 
-        foreach (['-', '-hello', '.hidden', 'bad..range', 'bad lock', 'bad.lock', 'bad/@{reflog', 'bad?name'] as $name) {
+        foreach (['-', '-hello', '.hidden', 'bad..range', 'bad lock', 'bad.lock', 'foo.lock/baz.lock/bar', 'bad/@{reflog', 'bad?name', "bad\rsuffix", 'bad*suffix'] as $name) {
+            $t->same(false, GitTag::isValidName($name), "invalid {$name}");
+            $t->throws(InvalidArgumentException::class, static fn () => GitTag::validateName($name));
             $t->throws(InvalidArgumentException::class, static fn () => (new GitTag($target, 'commit', $name, null, 'release notes'))->storageBytes());
         }
+    },
+    'tag name sanitizer follows gix validate byte rules' => static function (TestRunner $t): void {
+        $target = 'ffa700b4aca13b80cb6b98a078e7c96804f8e0ec';
+
+        $cases = [
+            '@' => '@',
+            'hello@foo' => 'hello@foo',
+            '你好吗' => '你好吗',
+            '😅🙌' => '😅🙌',
+            'file.lock.ext' => 'file.lock.ext',
+            'this_{is-fine}_too' => 'this_{is-fine}_too',
+            'this_{@is-fine@}_too' => 'this_{@is-fine@}_too',
+            'token.other' => 'token.other',
+            'hello/world' => 'hello/world',
+            'this_looks_like_a_@{reflog}' => 'this_looks_like_a_@-reflog}',
+            '......' => '-',
+            '//....///....///' => '-/-',
+            'prefix.lock' => 'prefix',
+            'prefix.lock.lock' => 'prefix',
+            'prefix//suffix' => 'prefix/suffix',
+            'prefix/' => 'prefix',
+            '/suffix' => 'suffix',
+            '.lock' => '-lock',
+            'foo.lock/baz.lock/bar' => 'foo/baz/bar',
+            'foo.lock/baz.lock/bar.lock' => 'foo/baz/bar',
+            'foo.lock.lock/baz.lock.lock/bar.lock.lock' => 'foo/baz/bar',
+            '...lock/..lock//lock' => '-lock/lock',
+            'with..double-dot' => 'with.double-dot',
+            '..with-double-dot' => '-with-double-dot',
+            'with-double-dot..' => 'with-double-dot-',
+            '*suffix' => '-suffix',
+            'prefix*' => 'prefix-',
+            'prefix*suffix' => 'prefix-suffix',
+            "prefix\0suffix" => 'prefix-suffix',
+            "prefix\x07suffix" => 'prefix-suffix',
+            "prefix\x08suffix" => 'prefix-suffix',
+            "prefix\x0bsuffix" => 'prefix-suffix',
+            "prefix\x0csuffix" => 'prefix-suffix',
+            "prefix\x1asuffix" => 'prefix-suffix',
+            "prefix\x1bsuffix" => 'prefix-suffix',
+            'prefix:suffix' => 'prefix-suffix',
+            'prefix?suffix' => 'prefix-suffix',
+            'prefix[suffix' => 'prefix-suffix',
+            'prefix\\suffix' => 'prefix-suffix',
+            'prefix^suffix' => 'prefix-suffix',
+            'prefix~suffix' => 'prefix-suffix',
+            'prefix suffix' => 'prefix-suffix',
+            "prefix\tsuffix" => 'prefix-suffix',
+            "prefix\nsuffix" => 'prefix-suffix',
+            "prefix\rsuffix" => 'prefix-suffix',
+            '.with-dot' => '-with-dot',
+            'with-dot.' => 'with-dot-',
+            '' => '-',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, GitTag::sanitizeName($input), "sanitize {$input}");
+        }
+
+        $sanitized = GitTag::sanitizeName('WordPress Export: v2026.05? beta.lock');
+        $t->same(false, GitTag::isValidName('WordPress Export: v2026.05? beta.lock'));
+        $t->same(true, GitTag::isValidName($sanitized));
+        $tag = new GitTag($target, 'commit', $sanitized, null, 'release notes');
+        $t->same('WordPress-Export--v2026.05--beta', $sanitized);
+        $t->contains("tag {$sanitized}\n", $tag->storageBytes());
     },
     'tag parser rejects malformed annotated tags' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitTag::parse("object 00000066666666666684666666666666666299297\n"
@@ -212,6 +281,11 @@ return [
         $summary = require dirname(__DIR__) . '/examples/wordpress-annotated-tag.php';
 
         $t->same($fixture['expectedName'], $summary['name']);
+        $t->same($fixture['draftReleaseName'], $summary['draftReleaseName']);
+        $t->same(false, $summary['draftReleaseNameValid']);
+        $t->same($fixture['expectedSanitizedDraftReleaseName'], $summary['sanitizedDraftReleaseName']);
+        $t->same(true, $summary['sanitizedDraftReleaseNameValid']);
+        $t->same(true, $summary['sanitizedDraftReleaseStorageHasName']);
         $t->same($fixture['expectedTarget'], $summary['target']);
         $t->same($fixture['expectedRawTarget'], $summary['rawTarget']);
         $t->same($fixture['expectedKind'], $summary['targetKind']);

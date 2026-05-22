@@ -18,6 +18,8 @@ $body = "object {$rawTarget}\n"
 
 return [
     'tagBody' => $body,
+    'draftReleaseName' => 'WordPress Export: v2026.05? beta.lock',
+    'expectedSanitizedDraftReleaseName' => 'WordPress-Export--v2026.05--beta',
     'expectedName' => 'wp-release-2026.05-signed',
     'expectedTarget' => $target,
     'expectedRawTarget' => $rawTarget,
@@ -28,5 +30,5 @@ return [
     'expectedStorageSha1' => sha1($body),
     'expectedObjectSha1' => sha1('tag ' . strlen($body) . "\0" . $body),
     'expectedSize' => strlen($body),
-    'wordpressUse' => 'A WordPress deployment tool can inspect, roundtrip, and hash a signed release tag for provenance without invoking git tag or git cat-file.',
+    'wordpressUse' => 'A WordPress deployment tool can reject invalid draft release names, sanitize them with Gitoxide tag-name byte rules, then inspect, roundtrip, and hash a signed release tag for provenance without invoking git tag or git cat-file.',
 ];

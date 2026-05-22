@@ -11,9 +11,16 @@ $tag = GitTag::parse($fixture['tagBody']);
 $tagger = $tag->taggerSignature();
 $storage = $tag->storageBytes();
 $object = $tag->object();
+$sanitizedDraftReleaseName = GitTag::sanitizeName($fixture['draftReleaseName']);
+$draftReleaseTag = new GitTag($tag->target, $tag->targetKind, $sanitizedDraftReleaseName, $tag->tagger, $tag->message, $tag->pgpSignature);
 
 return [
     'name' => $tag->name,
+    'draftReleaseName' => $fixture['draftReleaseName'],
+    'draftReleaseNameValid' => GitTag::isValidName($fixture['draftReleaseName']),
+    'sanitizedDraftReleaseName' => $sanitizedDraftReleaseName,
+    'sanitizedDraftReleaseNameValid' => GitTag::isValidName($sanitizedDraftReleaseName),
+    'sanitizedDraftReleaseStorageHasName' => str_contains($draftReleaseTag->storageBytes(), "tag {$sanitizedDraftReleaseName}\n"),
     'target' => $tag->target,
     'rawTarget' => $tag->rawTarget,
     'targetKind' => $tag->targetKind,

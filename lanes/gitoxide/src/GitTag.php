@@ -177,6 +177,99 @@ final class GitTag
         ];
     }
 
+    public static function isValidName(string $name): bool
+    {
+        try {
+            self::validateName($name);
+            return true;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    public static function validateName(string $name): void
+    {
+        self::validateWritableName($name);
+    }
+
+    public static function sanitizeName(string $name): string
+    {
+        if ($name === '') {
+            return '-';
+        }
+
+        $out = '';
+        $previous = "\0";
+        $componentStart = 0;
+        $componentEnd = 0;
+        $length = strlen($name);
+        $last = $length - 1;
+
+        for ($index = 0; $index < $length; $index++) {
+            $byte = $name[$index];
+            $ord = ord($byte);
+
+            if (
+                $byte === '\\'
+                || $byte === '^'
+                || $byte === ':'
+                || $byte === '['
+                || $byte === '?'
+                || $byte === ' '
+                || $byte === '~'
+                || $byte === '*'
+                || $ord <= 0x1f
+                || $ord === 0x7f
+            ) {
+                $out .= '-';
+            } elseif ($byte === '.' && $previous === '.') {
+                // Consecutive dots collapse during sanitization.
+            } elseif ($byte === '.' && $previous === '/') {
+                $out .= '-';
+            } elseif ($byte === '{' && $previous === '@') {
+                $out .= '-';
+            } elseif ($byte === '/' && $previous === '/') {
+                // Repeated slashes collapse during sanitization.
+            } else {
+                if ($byte === '/') {
+                    $componentStart = $componentEnd;
+                    $componentEnd = $index;
+                    $component = substr($name, $componentStart, $componentEnd - $componentStart);
+                    if (str_ends_with($component, '.lock')) {
+                        $out = self::trimRepeatedSuffix($out, '.lock');
+                    }
+                }
+
+                $out .= $byte;
+
+                if ($index === $last) {
+                    $component = substr($name, $componentEnd + 1);
+                    if (str_ends_with($component, '.lock')) {
+                        $out = self::trimRepeatedSuffix($out, '.lock');
+                    }
+                }
+            }
+
+            $previous = $byte;
+        }
+
+        $out = ltrim(rtrim($out, '/'), '/');
+        if ($out === '') {
+            return '-';
+        }
+
+        if ($out[0] === '.') {
+            $out = '-' . substr($out, 1);
+        }
+
+        $lastIndex = strlen($out) - 1;
+        if ($out[$lastIndex] === '.') {
+            $out = substr($out, 0, -1) . '-';
+        }
+
+        return $out === '' ? '-' : $out;
+    }
+
     /**
      * @param array<string, mixed> $token
      * @return array{ok: bool, token: array<string, mixed>}
@@ -297,6 +390,15 @@ final class GitTag
                 throw new \InvalidArgumentException('Git tag name contains an invalid byte');
             }
         }
+    }
+
+    private static function trimRepeatedSuffix(string $input, string $suffix): string
+    {
+        while (str_ends_with($input, $suffix)) {
+            $input = substr($input, 0, -strlen($suffix));
+        }
+
+        return $input;
     }
 
     private static function isOnlyNewlines(string $value): bool
