@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\BlobMerge;
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\MergeIndexFile;
 use PortLibs\Gitoxide\MergeIndexEntry;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
@@ -1004,6 +1005,59 @@ return [
             $result->indexEntries(),
         ));
         $t->same(['content'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+    },
+    'maps upstream gix-merge tree-baseline change-and-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseFile = "original\n1\n2\n3\n4\n5\n";
+        $ourFile = "1\n2\n3\n4\n5\n6\n";
+        $base = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', $baseFile)])),
+            $blobEntry('link', 'a/x.f', '120000'),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', $ourFile)])),
+            $blobEntry('link', "not-link\n"),
+        ]);
+        $theirs = new Tree([]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $aTree = Tree::fromObject($read($result->tree->entryNamed('a', true)?->oid ?? ''));
+        $link = $result->tree->entryNamed('link');
+
+        $t->same(false, $result->isClean());
+        $t->same(['a', 'link'], $names($result->tree));
+        $t->same($ourFile, $read($aTree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('100644', $link?->mode);
+        $t->same("not-link\n", $read($link?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a', 'reason' => 'delete-modify', 'base' => 'tree', 'ours' => 'tree', 'theirs' => null],
+            ['path' => 'link', 'reason' => 'delete-modify', 'base' => 'link', 'ours' => 'blob', 'theirs' => null],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->kind(),
+                'ours' => $conflict->ours?->kind(),
+                'theirs' => $conflict->theirs?->kind(),
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'a/x.f', 'kind' => 'blob', 'body' => $baseFile],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a/x.f', 'kind' => 'blob', 'body' => $ourFile],
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'link', 'kind' => 'link', 'body' => 'a/x.f'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'link', 'kind' => 'blob', 'body' => "not-link\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'kind' => (new TreeEntry($entry->mode, basename($entry->path), $entry->oid))->kind(),
+                'body' => $read($entry->oid)->body,
+            ],
+            MergeIndexFile::entriesForResult($result, $read),
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
     },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

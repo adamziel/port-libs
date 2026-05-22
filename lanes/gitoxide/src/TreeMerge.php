@@ -166,6 +166,13 @@ final class TreeMerge
                 continue;
             }
 
+            $deleteModify = self::tryMergeDeleteModifyEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry);
+            if ($deleteModify !== null) {
+                $merged[] = $deleteModify['entry'];
+                $conflicts[] = $deleteModify['conflict'];
+                continue;
+            }
+
             $contentMerge = self::tryMergeChangedEntry($path, $fullPath, $baseEntry, $ourEntry, $theirEntry, $readObject, $writeObject, $conflictStyle);
             if ($contentMerge !== null) {
                 if ($contentMerge['entry'] !== null) {
@@ -334,6 +341,31 @@ final class TreeMerge
         return [
             'entry' => new TreeEntry($ourEntry->mode, $path, $ourEntry->oid),
             'conflict' => new TreeMergeConflict($fullPath, 'add-add', null, $ourEntry, $theirEntry),
+        ];
+    }
+
+    /**
+     * @return null|array{entry:TreeEntry,conflict:TreeMergeConflict}
+     */
+    private static function tryMergeDeleteModifyEntry(
+        string $path,
+        string $fullPath,
+        ?TreeEntry $baseEntry,
+        ?TreeEntry $ourEntry,
+        ?TreeEntry $theirEntry,
+    ): ?array {
+        if ($baseEntry === null || ($ourEntry === null) === ($theirEntry === null)) {
+            return null;
+        }
+
+        $modifiedEntry = $ourEntry ?? $theirEntry;
+        if ($modifiedEntry === null || self::sameEntry($baseEntry, $modifiedEntry)) {
+            return null;
+        }
+
+        return [
+            'entry' => new TreeEntry($modifiedEntry->mode, $path, $modifiedEntry->oid),
+            'conflict' => new TreeMergeConflict($fullPath, 'delete-modify', $baseEntry, $ourEntry, $theirEntry),
         ];
     }
 
