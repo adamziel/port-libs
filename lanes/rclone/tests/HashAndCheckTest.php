@@ -109,6 +109,62 @@ return [
         $t->true(!isset($sums['file6']));
         $t->same(5, count($sums));
     },
+    'verifies checksum files against providers like upstream CheckSum' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('banana', 'Hello, World!');
+        $provider->put('potato', 'I am the walrus');
+
+        $banana = '65a8e27d8879283831b664bd8b7f0ad4';
+        $potato = '87396e030ef3f5b35bbf85c0a09a4fb3';
+
+        $result = ChecksumFile::check($provider, "{$banana}  banana\n", HashType::MD5);
+        $t->same(['banana'], $result->matches);
+        $t->same(['potato'], $result->missingOnSource);
+        $t->same(['- potato', '= banana'], $result->combinedLines());
+
+        $result = ChecksumFile::check($provider, "{$banana}  banana\n{$potato}  potato\n", HashType::MD5);
+        $t->same(['banana', 'potato'], $result->matches);
+        $t->same(0, $result->differences());
+
+        $result = ChecksumFile::check($provider, "{$potato}  banana\n{$potato}  potato\n", HashType::MD5);
+        $t->same(['banana'], $result->differ);
+        $t->same(['potato'], $result->matches);
+        $t->same(['* banana', '= potato'], $result->combinedLines());
+
+        $result = ChecksumFile::check($provider, "{$banana}  banana\n{$potato}  potato\n{$potato}  orange\n", HashType::MD5);
+        $t->same(['orange'], $result->missingOnTarget);
+        $t->same(['+ orange', '= banana', '= potato'], $result->combinedLines());
+
+        $result = ChecksumFile::check($provider, strtoupper($banana) . "  banana\n87396e030EF3f5b35BBf85c0a09a4FB3  potato\n", HashType::MD5);
+        $t->same(['banana', 'potato'], $result->matches);
+        $t->same(0, $result->differences());
+    },
+    'checksum verification honors one way filters and duplicate sum entries' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('banana', 'Hello, World!');
+        $provider->put('potato', 'I am the walrus');
+        $provider->put('wp-content/cache/page.html', '<html>cached</html>');
+
+        $banana = hash('md5', 'Hello, World!');
+        $cache = hash('md5', '<html>cached</html>');
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '+ *',
+        ]);
+
+        $result = ChecksumFile::check($provider, implode("\n", [
+            "{$banana}  banana",
+            '00000000000000000000000000000000  banana',
+            "{$banana}  orange",
+            "{$cache}  wp-content/cache/page.html",
+        ]), HashType::MD5, true, $filter);
+
+        $t->same(['banana'], $result->matches);
+        $t->same([], $result->differ);
+        $t->same([], $result->missingOnSource);
+        $t->same(['orange'], $result->missingOnTarget);
+        $t->same(['+ orange', '= banana'], $result->combinedLines());
+    },
     'lists hashes in rclone hashsum format' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('potato2', str_repeat('-', 60));
@@ -196,6 +252,24 @@ return [
         $t->same('file1', LsJsonListing::stat($provider, 'file1', ['filesOnly' => true])['Path']);
         $t->same('sub', LsJsonListing::stat($provider, 'sub', ['dirsOnly' => true])['Path']);
         $t->same(null, LsJsonListing::stat($provider, 'file1', ['dirsOnly' => true]));
+    },
+    'verifies wordpress checksum manifests with case-insensitive provider paths' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('wp-content/uploads/2026/05/Hero.JPG', 'new image bytes');
+        $provider->put('database/site.sql', 'insert into wp_posts values (...)');
+
+        $manifest = implode("\n", [
+            strtoupper(hash('md5', 'new image bytes')) . '  wp-content/uploads/2026/05/hero.jpg',
+            hash('md5', 'insert into wp_posts values (...)') . '  DATABASE/SITE.SQL',
+        ]);
+
+        $strict = ChecksumFile::check($provider, $manifest, HashType::MD5);
+        $t->same(['database/site.sql', 'wp-content/uploads/2026/05/Hero.JPG'], $strict->missingOnSource);
+        $t->same(['DATABASE/SITE.SQL', 'wp-content/uploads/2026/05/hero.jpg'], $strict->missingOnTarget);
+
+        $caseInsensitive = ChecksumFile::check($provider, $manifest, HashType::MD5, false, null, true);
+        $t->same(['database/site.sql', 'wp-content/uploads/2026/05/Hero.JPG'], $caseInsensitive->matches);
+        $t->same(0, $caseInsensitive->differences());
     },
     'publishes a wordpress backup lsjson manifest with hashes and metadata' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();

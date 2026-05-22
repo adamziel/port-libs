@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-bounded-go-runner-evidence",
         "total": 327,
-        "mapped": 17,
-        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, fs/operations check/copy/lsjson tests, and cmd/lsjson. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
+        "mapped": 20,
+        "source": "Shallow blob-filtered upstream clone at .upstream-cache/rclone; counted with git ls-tree -r --name-only HEAD and targeted reads of Makefile, COPYING, fs/filter, fs/hash, fs/operations check/copy/lsjson tests, cmd/checksum, cmd/hashsum, and cmd/lsjson. The prior missing Go/module/tooling blocker is resolved for a bounded local runner: Go 1.25.0 was installed locally, rclone was rebuilt at 28d6b0b, rsync was supplied from a local Fedora RPM extraction, and a 299-package Go test subset passes with provider TestIntegration cases skipped and only mount/FUSE packages excluded.",
         "inventory": {
             "allRepositoryFiles": 2553,
             "goTestFiles": 327,
@@ -34,6 +34,11 @@
             "lsjsonGoTestFunctions": 2,
             "lsjsonNamedTableCases": 24,
             "lsjsonCommandFlags": 11,
+            "checkGoTestFunctions": 9,
+            "parseSumFileSamples": 9,
+            "checkSumNamedRuns": 14,
+            "checkSumApplyTransformScenarios": 10,
+            "checksumCommandFiles": 2,
             "testFileBreakdown": {
                 "backend": 124,
                 "cmd": 47,
@@ -89,6 +94,8 @@
             "fs/operations check one-way mode ignores destination-only objects.",
             "fs/operations copy-style changed path copying is idempotent and honors WordPress backup filter rules.",
             "fs/operations ParseSumFile accepts md5sum-style two-space and space-star separators, preserves path whitespace, lowercases sums, skips malformed lines, and ignores duplicate filenames.",
+            "fs/operations CheckSum-style verification treats parsed SUM files as the source side, reports object-only paths as missing-on-source, sum-only paths as missing-on-destination, detects hash differences, accepts mixed-case checksum values, supports one-way mode, and filters checksum entries.",
+            "fs/operations ApplyTransforms-style case-insensitive checksum matching maps differently cased WordPress backup paths without shelling out to rclone.",
             "fs/operations HashLister/HashSumStream output hash values in md5sum-compatible `hash  path` lines, including base64 stream output for stdin-style input.",
             "cmd/lsf path/size/hash formatting maps default `p`, `ps`, `hp`, files-only, dirs-only, separator, recurse, and directory slash behavior for local-style listings.",
             "fs/operations ListJSON output maps upstream list table cases for default root listing, files-only, dirs-only, recursive listing, subdirectory listing, no-modtime, no-mimetype, selected hashes, and metadata.",
@@ -96,14 +103,14 @@
             "cmd/lsjson-style recursive WordPress backup manifests include portable artifact paths, directory entries, selected MD5 hashes, and metadata while excluding cache/log/source artifacts."
         ],
         "inventoryPath": "lanes/rclone/notes/upstream-inventory.md",
-        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 17 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
+        "warning": "This replaces the seed denominator with a cloned static inventory plus bounded upstream Go runner evidence, not full provider/mount parity. Native PHP progress maps 20 focused lane tests against a 327-Go-test-file upstream denominator; the clean upstream evidence is a 299-package non-mount run with provider TestIntegration cases skipped."
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native in-memory provider contract with object metadata, copy, list, checksum sync planning, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, ParseSumFile-style checksum parsing, HashLister/HashSumStream-style output, lsf path/size/hash formatting, and lsjson list/stat JSON manifests.",
-        "phpBehaviorTests": 17
+        "currentSlice": "Native in-memory provider contract with object metadata, copy, list, checksum sync planning, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, ParseSumFile-style checksum parsing, CheckSum-style checksum manifest verification, HashLister/HashSumStream-style output, lsf path/size/hash formatting, and lsjson list/stat JSON manifests.",
+        "phpBehaviorTests": 20
     },
-    "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, checksum manifests, recursive lsjson catalogs, and excluded cache/log/source artifacts.",
-    "nextTask": "Map deeper fs provider contract behavior, lsjson --stat edge cases against case-insensitive providers, or checksum verification against parsed sum files."
+    "wordpressScenario": "Portable WordPress backup/import/export sync for shared hosts and cloud storage providers, including filtered uploads, WXR exports, SQL dumps, checksum manifest verification, recursive lsjson catalogs, and excluded cache/log/source artifacts.",
+    "nextTask": "Map deeper fs provider contract behavior, lsjson --stat edge cases against case-insensitive providers, or download-mode checksum verification/error behavior."
 }

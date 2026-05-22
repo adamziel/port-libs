@@ -4,7 +4,7 @@ Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice
 
-Native in-memory provider contract with object metadata, copy, list, checksum sync plan, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
+Native in-memory provider contract with object metadata, copy, list, checksum sync plan, rclone-style path filter rules, hash set/type aliases, multi-hashing, check report sigils, one-way checks, filtered copy-changed planning, checksum manifest parsing and verification, hashsum-style output, `lsf` path/size/hash listings, and `lsjson` list/stat JSON manifests.
 
 ## Filtered Backup Example
 
@@ -14,6 +14,8 @@ The checksum and listing slice adds native pieces needed to publish or consume p
 
 The `../examples/wordpress-lsjson-manifest.php` example emits an rclone-style recursive JSON catalog for portable WordPress backup artifacts with MD5 hashes and metadata, while leaving cache, debug log, and source design files out of the published manifest.
 
+The `../examples/wordpress-checksum-verify.php` example validates a published MD5 manifest against the portable backup set. It uses case-insensitive path matching to model shared-hosting and cloud-provider casing drift while still reporting rclone-style combined check lines.
+
 ## Next Task
 
-Map deeper fs provider contract behavior, `lsjson --stat` edge cases against case-insensitive providers, or checksum verification against parsed sum files.
+Map deeper fs provider contract behavior, `lsjson --stat` edge cases against case-insensitive providers, or download-mode checksum verification/error behavior.
