@@ -12,6 +12,7 @@ $pack = PackData::fromBytes($fixture['packBytes']);
 $index = PackIndex::fromBytes($fixture['indexBytes']);
 $commit = $pack->readObject($index, $fixture['objects'][0]['oid']);
 $blob = $pack->readObject($index, $fixture['objects'][1]['oid']);
+$deltaBlob = $pack->readObject($index, $fixture['objects'][2]['oid']);
 
 return [
     'version' => $pack->version(),
@@ -19,5 +20,7 @@ return [
     'checksum' => $pack->verifyChecksum(),
     'commitOid' => $commit->oid(),
     'blobOid' => $blob->oid(),
+    'deltaBlobOid' => $deltaBlob->oid(),
     'blobPreview' => strtok($blob->body, "\n"),
+    'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
 ];

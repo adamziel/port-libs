@@ -16,6 +16,47 @@ $encodeEntryHeader = static function (int $typeId, int $size): string {
     return $out;
 };
 
+$encodeOfsDeltaDistance = static function (int $distance): string {
+    $bytes = [$distance & 0x7f];
+    $distance >>= 7;
+    while ($distance !== 0) {
+        $distance--;
+        array_unshift($bytes, 0x80 | ($distance & 0x7f));
+        $distance >>= 7;
+    }
+
+    return implode('', array_map(static fn (int $byte): string => chr($byte), $bytes));
+};
+
+$encodeDeltaSize = static function (int $size): string {
+    $bytes = '';
+    do {
+        $byte = $size & 0x7f;
+        $size >>= 7;
+        if ($size !== 0) {
+            $byte |= 0x80;
+        }
+        $bytes .= chr($byte);
+    } while ($size !== 0);
+
+    return $bytes;
+};
+
+$copyThenInsertDelta = static function (string $base, string $insert) use ($encodeDeltaSize): string {
+    if (strlen($base) > 255 || strlen($insert) > 127) {
+        throw new RuntimeException('WordPress pack fixture helper only encodes compact copy/insert commands');
+    }
+
+    return $encodeDeltaSize(strlen($base))
+        . $encodeDeltaSize(strlen($base) + strlen($insert))
+        . chr(0x80 | 0x10)
+        . chr(strlen($base))
+        . chr(strlen($insert))
+        . $insert;
+};
+
+$objectId = static fn (string $type, string $body): string => hash('sha1', $type . ' ' . strlen($body) . "\0" . $body);
+
 $buildIndex = static function (array $entries, string $packChecksum): string {
     usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
     $fanout = array_fill(0, 256, 0);
@@ -47,6 +88,9 @@ $buildIndex = static function (array $entries, string $packChecksum): string {
     return $bytes . hex2bin(hash('sha1', $bytes));
 };
 
+$postBlob = "Post title: Native PHP pack data\n\nThis blob stands in for a compacted wp_posts export.\n";
+$deltaSuffix = "\nDelta: reconstructed packed edit for a WordPress importer.\n";
+
 $objects = [
     [
         'type' => 'commit',
@@ -60,8 +104,17 @@ $objects = [
     [
         'type' => 'blob',
         'typeId' => 3,
-        'body' => "Post title: Native PHP pack data\n\nThis blob stands in for a compacted wp_posts export.\n",
+        'body' => $postBlob,
         'wordpressUse' => 'wp_posts export blob',
+    ],
+    [
+        'type' => 'ofs-delta',
+        'typeId' => 6,
+        'body' => $copyThenInsertDelta($postBlob, $deltaSuffix),
+        'baseEntry' => 1,
+        'finalType' => 'blob',
+        'finalBody' => $postBlob . $deltaSuffix,
+        'wordpressUse' => 'wp_posts export blob reconstructed from OFS_DELTA',
     ],
 ];
 
@@ -69,12 +122,29 @@ $pack = 'PACK' . pack('N2', 2, count($objects));
 $indexEntries = [];
 foreach ($objects as $index => $object) {
     $offset = strlen($pack);
-    $entryBytes = $encodeEntryHeader($object['typeId'], strlen($object['body'])) . gzcompress($object['body']);
+    $entryPrefix = '';
+    if ($object['typeId'] === 6) {
+        $base = $indexEntries[$object['baseEntry']] ?? null;
+        if ($base === null) {
+            throw new RuntimeException('OFS_DELTA WordPress fixture is missing its base entry');
+        }
+        $entryPrefix = $encodeOfsDeltaDistance($offset - $base['offset']);
+    } elseif ($object['typeId'] === 7) {
+        $base = $indexEntries[$object['baseEntry']] ?? null;
+        if ($base === null) {
+            throw new RuntimeException('REF_DELTA WordPress fixture is missing its base entry');
+        }
+        $entryPrefix = hex2bin($base['oid']);
+    }
+
+    $entryBytes = $encodeEntryHeader($object['typeId'], strlen($object['body'])) . $entryPrefix . gzcompress($object['body']);
     $pack .= $entryBytes;
+    $indexType = $object['finalType'] ?? $object['type'];
+    $indexBody = $object['finalBody'] ?? $object['body'];
     $indexEntries[] = [
-        'type' => $object['type'],
-        'body' => $object['body'],
-        'oid' => hash('sha1', $object['type'] . ' ' . strlen($object['body']) . "\0" . $object['body']),
+        'type' => $indexType,
+        'body' => $indexBody,
+        'oid' => $objectId($indexType, $indexBody),
         'offset' => $offset,
         'crc32' => hexdec(hash('crc32b', $entryBytes)),
         'wordpressUse' => $object['wordpressUse'],

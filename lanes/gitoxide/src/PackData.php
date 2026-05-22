@@ -145,12 +145,145 @@ final class PackData
         }
 
         $packEntry = $this->entryAtOffset($entry->packOffset, $this->nextOffset($index, $entry->packOffset));
-        $object = $packEntry->object();
+        $object = $this->resolveEntry($index, $packEntry);
         if ($object->oid() !== strtolower($oid)) {
             throw new \RuntimeException('Pack entry object id does not match index lookup');
         }
 
         return $object;
+    }
+
+    private function resolveEntry(PackIndex $index, PackDataEntry $entry, int $depth = 0): GitObject
+    {
+        if ($depth > 50) {
+            throw new \RuntimeException('Pack delta chain is too deep');
+        }
+        if (!$entry->isDelta()) {
+            return $entry->object();
+        }
+
+        if ($entry->kind === 'ofs-delta') {
+            if ($entry->baseDistance === null || $entry->baseDistance <= 0) {
+                throw new \RuntimeException('OFS_DELTA entry has an invalid base distance');
+            }
+            $baseOffset = $entry->packOffset - $entry->baseDistance;
+            if ($baseOffset < self::HEADER_BYTES) {
+                throw new \RuntimeException('OFS_DELTA base offset points before pack data');
+            }
+            $base = $this->resolveEntry($index, $this->entryAtOffset($baseOffset, $this->nextOffset($index, $baseOffset)), $depth + 1);
+        } elseif ($entry->kind === 'ref-delta') {
+            if ($entry->baseObjectId === null) {
+                throw new \RuntimeException('REF_DELTA entry is missing its base object id');
+            }
+            $baseIndexEntry = $index->lookup($entry->baseObjectId);
+            if ($baseIndexEntry === null) {
+                throw new \RuntimeException("REF_DELTA base object not found in pack index: {$entry->baseObjectId}");
+            }
+            $base = $this->resolveEntry(
+                $index,
+                $this->entryAtOffset($baseIndexEntry->packOffset, $this->nextOffset($index, $baseIndexEntry->packOffset)),
+                $depth + 1
+            );
+        } else {
+            throw new \RuntimeException("Unsupported delta entry kind: {$entry->kind}");
+        }
+
+        return new GitObject($base->type, self::applyDelta($base->body, $entry->data));
+    }
+
+    private static function applyDelta(string $base, string $delta): string
+    {
+        $cursor = 0;
+        [$baseSize, $cursor] = self::readDeltaSize($delta, $cursor);
+        [$resultSize, $cursor] = self::readDeltaSize($delta, $cursor);
+        if ($baseSize !== strlen($base)) {
+            throw new \RuntimeException("Delta base size mismatch: expected {$baseSize}, got " . strlen($base));
+        }
+
+        $result = '';
+        while ($cursor < strlen($delta)) {
+            $command = ord($delta[$cursor++]);
+            if (($command & 0x80) !== 0) {
+                $offset = 0;
+                $size = 0;
+                if (($command & 0x01) !== 0) {
+                    $offset = self::readDeltaCommandByte($delta, $cursor);
+                }
+                if (($command & 0x02) !== 0) {
+                    $offset |= self::readDeltaCommandByte($delta, $cursor) << 8;
+                }
+                if (($command & 0x04) !== 0) {
+                    $offset |= self::readDeltaCommandByte($delta, $cursor) << 16;
+                }
+                if (($command & 0x08) !== 0) {
+                    $offset |= self::readDeltaCommandByte($delta, $cursor) << 24;
+                }
+                if (($command & 0x10) !== 0) {
+                    $size = self::readDeltaCommandByte($delta, $cursor);
+                }
+                if (($command & 0x20) !== 0) {
+                    $size |= self::readDeltaCommandByte($delta, $cursor) << 8;
+                }
+                if (($command & 0x40) !== 0) {
+                    $size |= self::readDeltaCommandByte($delta, $cursor) << 16;
+                }
+                if ($size === 0) {
+                    $size = 0x10000;
+                }
+                if ($offset + $size > strlen($base)) {
+                    throw new \RuntimeException('Delta copy range exceeds base object size');
+                }
+                $result .= substr($base, $offset, $size);
+                continue;
+            }
+
+            if ($command === 0) {
+                throw new \RuntimeException('Delta command 0 is reserved and invalid');
+            }
+
+            if ($cursor + $command > strlen($delta)) {
+                throw new \RuntimeException('Delta insert data is truncated');
+            }
+            $result .= substr($delta, $cursor, $command);
+            $cursor += $command;
+        }
+
+        if (strlen($result) !== $resultSize) {
+            throw new \RuntimeException("Delta result size mismatch: expected {$resultSize}, got " . strlen($result));
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private static function readDeltaSize(string $delta, int $cursor): array
+    {
+        $shift = 0;
+        $size = 0;
+        while ($cursor < strlen($delta)) {
+            if ($shift >= 64) {
+                throw new \RuntimeException('Delta header size uses too many bits');
+            }
+            $byte = ord($delta[$cursor++]);
+            $size |= ($byte & 0x7f) << $shift;
+            if (($byte & 0x80) === 0) {
+                return [$size, $cursor];
+            }
+            $shift += 7;
+        }
+
+        throw new \RuntimeException('Delta header size is truncated');
+    }
+
+    private static function readDeltaCommandByte(string $delta, int &$cursor): int
+    {
+        if ($cursor >= strlen($delta)) {
+            throw new \RuntimeException('Delta copy instruction is truncated');
+        }
+
+        return ord($delta[$cursor++]);
     }
 
     private function nextOffset(PackIndex $index, int $packOffset): int

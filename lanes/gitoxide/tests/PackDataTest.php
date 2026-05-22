@@ -20,6 +20,17 @@ $buildPackFixture = static function (array $objects): array {
 
         return $out;
     };
+    $encodeOfsDeltaDistance = static function (int $distance): string {
+        $bytes = [$distance & 0x7f];
+        $distance >>= 7;
+        while ($distance !== 0) {
+            $distance--;
+            array_unshift($bytes, 0x80 | ($distance & 0x7f));
+            $distance >>= 7;
+        }
+
+        return implode('', array_map(chr(...), $bytes));
+    };
     $buildIndex = static function (array $entries, string $packChecksum): string {
         usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
         $fanout = array_fill(0, 256, 0);
@@ -54,12 +65,30 @@ $buildPackFixture = static function (array $objects): array {
     $entries = [];
     foreach ($objects as $object) {
         $offset = strlen($pack);
-        $entryBytes = $encodeEntryHeader($object['typeId'], strlen($object['body'])) . gzcompress($object['body']);
+        $objectBody = $object['body'];
+        $entryPrefix = '';
+        if ($object['typeId'] === 6) {
+            $base = $entries[$object['baseEntry']] ?? null;
+            if ($base === null) {
+                throw new RuntimeException('OFS_DELTA test fixture is missing its base entry');
+            }
+            $entryPrefix = $encodeOfsDeltaDistance($offset - $base['offset']);
+        } elseif ($object['typeId'] === 7) {
+            $base = $entries[$object['baseEntry']] ?? null;
+            if ($base === null) {
+                throw new RuntimeException('REF_DELTA test fixture is missing its base entry');
+            }
+            $entryPrefix = hex2bin($base['oid']);
+        }
+
+        $entryBytes = $encodeEntryHeader($object['typeId'], strlen($objectBody)) . $entryPrefix . gzcompress($objectBody);
         $pack .= $entryBytes;
+        $indexType = $object['finalType'] ?? $object['type'];
+        $indexBody = $object['finalBody'] ?? $objectBody;
         $entries[] = [
-            'type' => $object['type'],
-            'body' => $object['body'],
-            'oid' => (new GitObject($object['type'], $object['body']))->oid(),
+            'type' => $indexType,
+            'body' => $indexBody,
+            'oid' => (new GitObject($indexType, $indexBody))->oid(),
             'offset' => $offset,
             'crc32' => hexdec(hash('crc32b', $entryBytes)),
         ];
@@ -68,6 +97,33 @@ $buildPackFixture = static function (array $objects): array {
     $pack .= hex2bin($packChecksum);
 
     return [$pack, $buildIndex($entries, $packChecksum), $entries, $packChecksum];
+};
+
+$encodeDeltaSize = static function (int $size): string {
+    $bytes = '';
+    do {
+        $byte = $size & 0x7f;
+        $size >>= 7;
+        if ($size !== 0) {
+            $byte |= 0x80;
+        }
+        $bytes .= chr($byte);
+    } while ($size !== 0);
+
+    return $bytes;
+};
+
+$copyThenInsertDelta = static function (string $base, string $insert) use ($encodeDeltaSize): string {
+    if (strlen($base) > 255) {
+        throw new RuntimeException('Test helper only encodes one-byte copy sizes');
+    }
+
+    return $encodeDeltaSize(strlen($base))
+        . $encodeDeltaSize(strlen($base) + strlen($insert))
+        . chr(0x80 | 0x10)
+        . chr(strlen($base))
+        . chr(strlen($insert))
+        . $insert;
 };
 
 return [
@@ -125,7 +181,40 @@ return [
         $t->same(1, $delta->baseDistance);
         $t->throws(RuntimeException::class, static fn () => $delta->object());
     },
-    'wordpress fixture reads compacted commit and blob objects without git binary' => static function (TestRunner $t): void {
+    'resolves ofs-delta packed blob objects by base offset' => static function (TestRunner $t) use ($buildPackFixture, $copyThenInsertDelta): void {
+        $base = 'Hello ';
+        $final = 'Hello WordPress';
+        [$packBytes, $indexBytes, $entries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => $base],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $copyThenInsertDelta($base, 'WordPress'), 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => $final],
+        ]);
+
+        $object = PackData::fromBytes($packBytes)->readObject(PackIndex::fromBytes($indexBytes), $entries[1]['oid']);
+        $t->same('blob', $object->type);
+        $t->same($final, $object->body);
+        $t->same($entries[1]['oid'], $object->oid());
+    },
+    'resolves ref-delta packed blob objects by base object id' => static function (TestRunner $t) use ($buildPackFixture, $copyThenInsertDelta): void {
+        $base = 'WordPress';
+        $final = 'WordPress import';
+        [$packBytes, $indexBytes, $entries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => $base],
+            ['type' => 'ref-delta', 'typeId' => 7, 'body' => $copyThenInsertDelta($base, ' import'), 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => $final],
+        ]);
+
+        $object = PackData::fromBytes($packBytes)->readObject(PackIndex::fromBytes($indexBytes), $entries[1]['oid']);
+        $t->same('blob', $object->type);
+        $t->same($final, $object->body);
+    },
+    'rejects corrupt delta instructions during object resolution' => static function (TestRunner $t) use ($buildPackFixture, $encodeDeltaSize): void {
+        [$packBytes, $indexBytes, $entries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => 'base'],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $encodeDeltaSize(4) . $encodeDeltaSize(4) . chr(0), 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => 'base'],
+        ]);
+
+        $t->throws(RuntimeException::class, static fn () => PackData::fromBytes($packBytes)->readObject(PackIndex::fromBytes($indexBytes), $entries[1]['oid']));
+    },
+    'wordpress fixture reads compacted commit blob and delta objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
         $pack = PackData::fromBytes($fixture['packBytes']);
         $index = PackIndex::fromBytes($fixture['indexBytes']);
@@ -133,9 +222,12 @@ return [
         $t->same($fixture['packChecksum'], $pack->verifyChecksum());
         $commit = $pack->readObject($index, $fixture['objects'][0]['oid']);
         $blob = $pack->readObject($index, $fixture['objects'][1]['oid']);
+        $deltaBlob = $pack->readObject($index, $fixture['objects'][2]['oid']);
         $t->same('commit', $commit->type);
         $t->contains('Import WordPress content', $commit->body);
         $t->same('blob', $blob->type);
         $t->contains('wp_posts export', $blob->body);
+        $t->same('blob', $deltaBlob->type);
+        $t->contains('reconstructed packed edit', $deltaBlob->body);
     },
 ];
