@@ -19,6 +19,7 @@ final class Commit
         public readonly array $headers,
         public readonly ?string $encoding = null,
         public readonly array $extraHeaders = [],
+        public readonly ?string $rawBody = null,
     ) {
     }
 
@@ -88,6 +89,7 @@ final class Commit
             $headers,
             $headers['encoding'][0] ?? null,
             $extraHeaders,
+            $body,
         );
     }
 
@@ -99,5 +101,178 @@ final class Commit
     public function committerSignature(): CommitSignature
     {
         return CommitSignature::parse($this->committer);
+    }
+
+    public function parsedMessage(): CommitMessage
+    {
+        return CommitMessage::fromBytes($this->message);
+    }
+
+    public function messageSummary(): string
+    {
+        return $this->parsedMessage()->summary();
+    }
+
+    public function messageTitle(): string
+    {
+        return $this->parsedMessage()->title;
+    }
+
+    public function messageBody(): ?string
+    {
+        return $this->parsedMessage()->body;
+    }
+
+    public function messageBodyWithoutTrailers(): ?string
+    {
+        return $this->parsedMessage()->bodyWithoutTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function messageTrailers(): array
+    {
+        return $this->parsedMessage()->trailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function signedOffByTrailers(): array
+    {
+        return $this->parsedMessage()->signedOffByTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function coAuthoredByTrailers(): array
+    {
+        return $this->parsedMessage()->coAuthoredByTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function authorTrailers(): array
+    {
+        return $this->parsedMessage()->authorTrailers();
+    }
+
+    /**
+     * @return list<CommitTrailer>
+     */
+    public function attributionTrailers(): array
+    {
+        return $this->parsedMessage()->attributionTrailers();
+    }
+
+    public function pgpSignature(): ?string
+    {
+        $header = $this->signatureHeaderWithRange();
+        if ($header !== null) {
+            return $header['signature'];
+        }
+
+        return $this->extraHeaders['gpgsig'][0] ?? null;
+    }
+
+    public function signedDataForSignature(): ?string
+    {
+        $header = $this->signatureHeaderWithRange();
+        if ($header === null || $this->rawBody === null) {
+            return null;
+        }
+
+        return substr($this->rawBody, 0, $header['start']) . substr($this->rawBody, $header['end']);
+    }
+
+    /**
+     * @return array{signature: string, start: int, end: int}|null
+     */
+    private function signatureHeaderWithRange(): ?array
+    {
+        if ($this->rawBody === null) {
+            return null;
+        }
+
+        $offset = 0;
+        $length = strlen($this->rawBody);
+        while ($offset < $length) {
+            $start = $offset;
+            [, $line, $nextOffset] = self::lineWithTerminatorAt($this->rawBody, $offset);
+            if ($line === '') {
+                break;
+            }
+            if ($line[0] === ' ') {
+                $offset = $nextOffset;
+                continue;
+            }
+
+            $space = strpos($line, ' ');
+            if ($space === false) {
+                $offset = $nextOffset;
+                continue;
+            }
+
+            $name = substr($line, 0, $space);
+            $value = substr($line, $space + 1);
+            $end = $nextOffset;
+            $peek = $nextOffset;
+            while ($peek < $length) {
+                [, $nextLine, $afterNext] = self::lineWithTerminatorAt($this->rawBody, $peek);
+                if ($nextLine === '' || $nextLine[0] !== ' ') {
+                    break;
+                }
+                $value .= "\n" . substr($nextLine, 1);
+                $end = $afterNext;
+                $peek = $afterNext;
+            }
+
+            if ($name === 'gpgsig') {
+                return ['signature' => $value, 'start' => $start, 'end' => $end];
+            }
+
+            $offset = $end;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: int}
+     */
+    private static function lineWithTerminatorAt(string $input, int $offset): array
+    {
+        if ($offset >= strlen($input)) {
+            return ['', '', $offset];
+        }
+
+        $newline = strpos($input, "\n", $offset);
+        if ($newline === false) {
+            $raw = substr($input, $offset);
+            return [$raw, self::trimLineEnding($raw), strlen($input)];
+        }
+
+        $raw = substr($input, $offset, $newline - $offset + 1);
+        return [$raw, self::trimLineEnding($raw), $newline + 1];
+    }
+
+    private static function trimLineEnding(string $line): string
+    {
+        if (str_ends_with($line, "\n")) {
+            $line = substr($line, 0, -1);
+            if (str_ends_with($line, "\r")) {
+                $line = substr($line, 0, -1);
+            }
+            return $line;
+        }
+
+        if (str_ends_with($line, "\r")) {
+            return substr($line, 0, -1);
+        }
+
+        return $line;
     }
 }

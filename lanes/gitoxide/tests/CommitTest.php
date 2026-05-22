@@ -70,6 +70,86 @@ return [
         );
         $t->same("sha256 subject\n\nsha256 body\n", $commit->message);
     },
+    'parses gitoxide commit message summaries body trailers and attribution filters' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author Ada <ada@example.test> 1700000000 +0000\n"
+            . "committer CI <ci@example.test> 1700000001 +0000\n"
+            . "\n"
+            . "Import WordPress export \t\r\n from WXR\n\n"
+            . "Normalize block markup before import.\n\n"
+            . "Signed-off-by: Alice <alice@example.test>\n"
+            . "Co-authored-by : Bob <bob@example.test>\n"
+            . " continued metadata\n"
+            . "Reviewed-by: Carol <carol@example.test>\n";
+
+        $commit = Commit::parse($body);
+        $trailers = $commit->messageTrailers();
+
+        $t->same('Import WordPress export  from WXR', $commit->messageSummary());
+        $t->same("Import WordPress export \t\r\n from WXR", $commit->messageTitle());
+        $t->same("Normalize block markup before import.", $commit->messageBodyWithoutTrailers());
+        $t->same(3, count($trailers));
+        $t->same('Signed-off-by', $trailers[0]->token);
+        $t->same('Alice <alice@example.test>', $trailers[0]->value);
+        $t->same('Co-authored-by', $trailers[1]->token);
+        $t->same('Bob <bob@example.test> continued metadata', $trailers[1]->value);
+        $t->same(1, count($commit->signedOffByTrailers()));
+        $t->same(1, count($commit->coAuthoredByTrailers()));
+        $t->same(2, count($commit->authorTrailers()));
+        $t->same(3, count($commit->attributionTrailers()));
+    },
+    'commit trailer parser follows gitoxide footer block heuristics' => static function (TestRunner $t): void {
+        $generic = Commit::parse("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Subject\n\nNote: this is body text\nnot a trailer\n");
+        $t->same([], $generic->messageTrailers());
+        $t->same("Note: this is body text\nnot a trailer\n", $generic->messageBodyWithoutTrailers());
+
+        $recognized = Commit::parse("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Subject\n\nSigned-off-by: Alice <alice@example.test>\n"
+            . "not a trailer 1\nnot a trailer 2\nnot a trailer 3");
+        $t->same('', $recognized->messageBodyWithoutTrailers());
+        $t->same('Alice <alice@example.test>', $recognized->messageTrailers()[0]->value);
+
+        $belowThreshold = Commit::parse("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Subject\n\nSigned-off-by: Alice <alice@example.test>\n"
+            . "not a trailer 1\nnot a trailer 2\nnot a trailer 3\nnot a trailer 4");
+        $t->same([], $belowThreshold->messageTrailers());
+    },
+    'extracts commit pgp signature and signed data without signature header bytes' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+            . " \n"
+            . " cGF5bG9hZA==\n"
+            . " -----END PGP SIGNATURE-----\n"
+            . "\n"
+            . "Signed commit\n";
+
+        $commit = Commit::parse($body);
+
+        $t->same("-----BEGIN PGP SIGNATURE-----\n\ncGF5bG9hZA==\n-----END PGP SIGNATURE-----", $commit->pgpSignature());
+        $t->same("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Signed commit\n", $commit->signedDataForSignature());
+
+        $unsigned = Commit::parse("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n\nUnsigned\n");
+        $t->same(null, $unsigned->pgpSignature());
+        $t->same(null, $unsigned->signedDataForSignature());
+    },
     'commit body can be read from a native git object' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author A <a@example.test> 1700000000 +0000\n"
@@ -90,5 +170,10 @@ return [
         $t->same($fixture['expectedAuthorOffset'], $summary['author']['offsetSeconds']);
         $t->same('UTF-8', $summary['encoding']);
         $t->contains('BEGIN SSH SIGNATURE', $summary['signatureHeader']);
+        $t->same($fixture['expectedSummary'], $summary['summary']);
+        $t->same($fixture['expectedBodyWithoutTrailers'], $summary['bodyWithoutTrailers']);
+        $t->same($fixture['expectedSignedOffBy'], $summary['signedOffBy']);
+        $t->same($fixture['expectedCoAuthors'], $summary['coAuthoredBy']);
+        $t->same(false, $summary['signedDataHasSignatureHeader']);
     },
 ];

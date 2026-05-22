@@ -10,6 +10,8 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-commit-signature.php';
 $commit = Commit::parse($fixture['commitBody']);
 $author = $commit->authorSignature();
 $committer = $commit->committerSignature();
+$trailers = $commit->messageTrailers();
+$signedData = $commit->signedDataForSignature();
 
 return [
     'tree' => $commit->tree,
@@ -26,5 +28,16 @@ return [
         'offsetSeconds' => $committer->offsetSeconds(),
     ],
     'encoding' => $commit->encoding,
-    'signatureHeader' => $commit->extraHeaders['gpgsig'][0] ?? null,
+    'signatureHeader' => $commit->pgpSignature(),
+    'summary' => $commit->messageSummary(),
+    'bodyWithoutTrailers' => $commit->messageBodyWithoutTrailers(),
+    'trailers' => array_map(
+        static fn ($trailer): array => ['token' => $trailer->token, 'value' => $trailer->value],
+        $trailers,
+    ),
+    'signedOffBy' => array_map(static fn ($trailer): string => $trailer->value, $commit->signedOffByTrailers()),
+    'coAuthoredBy' => array_map(static fn ($trailer): string => $trailer->value, $commit->coAuthoredByTrailers()),
+    'attributions' => array_map(static fn ($trailer): string => "{$trailer->token}: {$trailer->value}", $commit->attributionTrailers()),
+    'signedDataSha1' => $signedData === null ? null : sha1($signedData),
+    'signedDataHasSignatureHeader' => $signedData !== null && str_contains($signedData, 'gpgsig '),
 ];

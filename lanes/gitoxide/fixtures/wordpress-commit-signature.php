@@ -12,7 +12,10 @@ $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . " -----END SSH SIGNATURE-----\n"
     . "\n"
     . "Import WordPress export\n\n"
-    . "Source: wp-content/uploads/export.wxr\n";
+    . "Source: wp-content/uploads/export.wxr\n\n"
+    . "Signed-off-by: WordPress Importer <importer@example.test>\n"
+    . "Co-authored-by: Content Reviewer <reviewer@example.test>\n"
+    . "Reviewed-by: Deployment Reviewer <deploy-review@example.test>\n";
 
 return [
     'commitBody' => $body,
@@ -20,5 +23,9 @@ return [
     'expectedAuthorName' => 'WordPress Importer',
     'expectedAuthorEmail' => 'importer@example.test',
     'expectedAuthorOffset' => -9000,
-    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, and signature headers without invoking git log.',
+    'expectedSummary' => 'Import WordPress export',
+    'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
+    'expectedSignedOffBy' => ['WordPress Importer <importer@example.test>'],
+    'expectedCoAuthors' => ['Content Reviewer <reviewer@example.test>'],
+    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, encoding, signed payload bytes, and attribution trailers without invoking git log.',
 ];

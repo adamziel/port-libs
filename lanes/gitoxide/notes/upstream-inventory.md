@@ -47,6 +47,15 @@ Focused commit signature/actor inventory inspected on 2026-05-22:
 - `gix-actor` parses the first `<` and last `>` around actor identity, tolerates nested delimiter bytes inside malformed email fields, consumes only timestamp bytes made from digits, signs, spaces, and tabs, and leaves invalid trailing timestamp bytes to the caller.
 - The PHP slice maps SHA-1/SHA-256 commit object-id lengths, uppercase commit IDs normalized at parse time, author/committer signature accessors, lenient delimiter handling, seconds and timezone-offset helpers, invalid trailing timestamp rejection, `encoding`, multiline `gpgsig` extra headers, and a WordPress import/deploy commit fixture.
 
+Focused commit message/trailer/signed-data inventory inspected on 2026-05-22:
+
+- Selected `gix-object/src/commit/message/mod.rs`, `gix-object/src/commit/message/body.rs`, `gix-object/src/commit/message/decode.rs`, `gix-object/src/commit/ref_iter.rs`, and `gix-object/tests/object/commit/message.rs` with targeted `git show`/`git grep`.
+- Counted 38 Rust `#[test]` attributes in `gix-object/tests/object/commit/message.rs`, plus 4 focused signed-data extraction tests in `gix-object/tests/object/commit/iter.rs`.
+- `MessageRef` splits title/body at two adjacent newline sequences, including CRLF combinations, and its summary folds line breaks in the title while trimming leading/trailing whitespace.
+- `BodyRef` only parses trailers from the bottom body paragraph. It accepts all-trailer blocks or recognized Git-generated prefixes such as `Signed-off-by: ` when the trailer/prose ratio satisfies Gitoxide's 25% heuristic.
+- `TrailerRef` normalizes optional whitespace before `:`, trims values, unfolds continuation lines, and exposes attribution filters for `Signed-off-by`, `Co-authored-by`, `Acked-by`, `Reviewed-by`, and `Tested-by`.
+- `CommitRefIter::signature()` returns the first `gpgsig` header value and signed data with the entire signature header byte range removed. The PHP slice now maps message summary/title/body parsing, body-without-trailers, trailer extraction and filters, first `pgpSignature()` lookup, and `signedDataForSignature()` for native provenance verification.
+
 Focused reference-store overlay inventory inspected on 2026-05-22:
 
 - 3 selected `gix-ref` file-store find and overlay fixture paths inspected with targeted `git show` and `git grep`.
@@ -224,12 +233,12 @@ Runner status:
 - `cargo` is available locally.
 - Full `cargo test` was not executed because the workspace is large, feature-heavy, and would hydrate/build far beyond the current VM cap.
 - Crate-level Cargo tests were not executed in this run because the cache is sparse/no-checkout; running them requires materializing at least the selected crate source paths and building Rust dependencies.
-- The next inventory slice should either map `gix-object` commit message/trailer/signature extraction semantics, add broader directory rename conflict cases, broaden proxy credential persistence, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
+- The next inventory slice should either broaden commit trailer edge cases from more upstream fixtures, add broader directory rename conflict cases, broaden proxy credential persistence, or materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt.
 
 Current PHP mapping:
 
 - `GitObjectTest.php` maps canonical object header storage, SHA-1 object IDs, loose object zlib storage, and invalid object headers.
-- `CommitTest.php` maps basic commit header parsing, parent lists, required header errors, reading a commit body from native Git object bytes, SHA-256 commit object IDs, `encoding`, multiline extra headers, author/committer signature parsing, lenient actor delimiter handling, timestamp seconds/offset helpers, invalid trailing timestamp rejection, and a WordPress import/deploy commit-signature fixture.
+- `CommitTest.php` maps basic commit header parsing, parent lists, required header errors, reading a commit body from native Git object bytes, SHA-256 commit object IDs, `encoding`, multiline extra headers, author/committer signature parsing, lenient actor delimiter handling, timestamp seconds/offset helpers, invalid trailing timestamp rejection, commit message summary/title/body parsing, trailer block heuristics, folded trailer values, attribution filters, first `gpgsig` lookup, signed-data extraction with signature header bytes removed, and a WordPress import/deploy commit-signature fixture.
 - `TreeTest.php` maps `gix-object` tree semantics for empty trees, `everything.tree` entry kinds, entry-mode classification, leading-space filenames, truncated object IDs, malformed modes, tree-object roundtrips, and a WordPress deploy tree fixture.
 - `LooseReferenceTest.php` maps `gix-ref` loose direct and symbolic ref parsing, uppercase object ID normalization, SHA-256 object IDs when requested, `FETCH_HEAD` first-OID parsing, trailing hex rejection in SHA-1 mode, symbolic target validation, loose on-disk writes, and a WordPress deploy-branch reference fixture.
 - `PackedReferencesTest.php` maps `gix-ref` packed-ref header traits, uppercase and SHA-256 object IDs, peeled object lines, invalid headers/lonely peels, upstream `without-header` and `unsorted` fixtures, packed partial lookup disambiguation, and a WordPress packed branch/tag fixture.
