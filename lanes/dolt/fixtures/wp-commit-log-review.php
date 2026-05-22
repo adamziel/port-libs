@@ -13,6 +13,7 @@ return [
             'message' => 'Initialize data repository',
             'parents' => [],
             'refs' => [],
+            'changedTables' => [],
         ],
         [
             'commit_hash' => 'wp-import-base',
@@ -22,6 +23,7 @@ return [
             'message' => 'Import WXR posts and pages',
             'parents' => ['wp-init'],
             'refs' => ['refs/tags/import-base'],
+            'changedTables' => ['wp_posts', 'wp_postmeta', 'wp_options'],
         ],
         [
             'commit_hash' => 'wp-review-main',
@@ -34,6 +36,7 @@ return [
             'author' => 'Editorial Reviewer',
             'author_email' => 'editor@example.test',
             'author_date' => '2026-05-22 09:18:00',
+            'changedTables' => ['wp_posts'],
         ],
         [
             'commit_hash' => 'wp-media-branch',
@@ -43,6 +46,7 @@ return [
             'message' => 'Prepare media backfill branch',
             'parents' => ['wp-import-base'],
             'refs' => ['refs/heads/media-import'],
+            'changedTables' => ['wp_postmeta'],
         ],
         [
             'commit_hash' => 'wp-merge-media',
@@ -52,6 +56,7 @@ return [
             'message' => 'Merge media backfill into reviewed import',
             'parents' => ['wp-review-main', 'wp-media-branch'],
             'refs' => ['refs/heads/main', 'refs/tags/import-reviewed'],
+            'changedTables' => ['wp_posts', 'wp_postmeta'],
         ],
     ],
     'expectedLogMessages' => [
@@ -76,5 +81,24 @@ return [
     'expectedMediaPromotionMessages' => [
         'Merge media backfill into reviewed import',
         'Prepare media backfill branch',
+    ],
+    'expectedPostTableLogMessages' => [
+        'Merge media backfill into reviewed import',
+        'Review public post statuses',
+        'Import WXR posts and pages',
+    ],
+    'expectedPostMetaTableLogMessages' => [
+        'Merge media backfill into reviewed import',
+        'Prepare media backfill branch',
+        'Import WXR posts and pages',
+    ],
+    'expectedMergeOnlyMessages' => [
+        'Merge media backfill into reviewed import',
+    ],
+    'expectedCheckpointMessages' => [
+        'Merge media backfill into reviewed import',
+        'Prepare media backfill branch',
+        'Review public post statuses',
+        'Import WXR posts and pages',
     ],
 ];

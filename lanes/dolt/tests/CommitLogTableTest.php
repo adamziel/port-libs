@@ -125,6 +125,94 @@ $revisionRangeGraph = static function (): array {
     ];
 };
 
+$tableFilterGraph = static function (): array {
+    return [
+        [
+            'commit_hash' => 'init',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:00:00',
+            'message' => 'Initialize data repository',
+            'parents' => [],
+            'tableHashes' => [],
+        ],
+        [
+            'commit_hash' => 'main-1',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:01:00',
+            'message' => 'created table test [1M]',
+            'parents' => ['init'],
+            'tableHashes' => ['test' => 'test-v1'],
+        ],
+        [
+            'commit_hash' => 'main-2',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:02:00',
+            'message' => 'created table test2 [2M]',
+            'parents' => ['main-1'],
+            'tableHashes' => ['test' => 'test-v1', 'test2' => 'test2-v1'],
+        ],
+        [
+            'commit_hash' => 'branch-1',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:03:00',
+            'message' => 'inserted 0 into test [1TB]',
+            'parents' => ['main-2'],
+            'tableHashes' => ['test' => 'test-v2', 'test2' => 'test2-v1'],
+        ],
+        [
+            'commit_hash' => 'branch-2',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:04:00',
+            'message' => 'created table test3 [2TB]',
+            'parents' => ['branch-1'],
+            'refs' => ['refs/heads/test-branch'],
+            'tableHashes' => ['test' => 'test-v2', 'test2' => 'test2-v1', 'test3' => 'test3-v1'],
+        ],
+        [
+            'commit_hash' => 'main-3',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:05:00',
+            'message' => 'inserted 1 into test [3M]',
+            'parents' => ['main-2'],
+            'tableHashes' => ['test' => 'test-v3', 'test2' => 'test2-v1'],
+        ],
+        [
+            'commit_hash' => 'main-4',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:06:00',
+            'message' => 'merged test-branch [4M]',
+            'parents' => ['main-3', 'branch-2'],
+            'tableHashes' => ['test' => 'test-v4', 'test2' => 'test2-v1', 'test3' => 'test3-v1'],
+        ],
+        [
+            'commit_hash' => 'main-5',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:07:00',
+            'message' => 'dropped table test3 [5M]',
+            'parents' => ['main-4'],
+            'tableHashes' => ['test' => 'test-v4', 'test2' => 'test2-v1'],
+        ],
+        [
+            'commit_hash' => 'main-6',
+            'committer' => 'root',
+            'email' => 'root@localhost',
+            'date' => '2026-05-22 10:08:00',
+            'message' => 'inserted 2 into test [6M]',
+            'parents' => ['main-5'],
+            'refs' => ['refs/heads/main'],
+            'tableHashes' => ['test' => 'test-v5', 'test2' => 'test2-v1'],
+        ],
+    ];
+};
+
 return [
     'dolt log rows keep fixed columns and null opt-in fields by default' => static function (TestRunner $t) use ($commitLogGraph): void {
         $rows = (new CommitLogTable())->logRows($commitLogGraph(), ['headHash' => 'merge-1']);
@@ -183,6 +271,48 @@ return [
         $t->same(['inserting into t', 'creating table t', 'Initialize data repository'], array_column($rows, 'message'));
         $t->same('main-1', $rows[0]['parents']);
         $t->same('', $rows[0]['refs']);
+    },
+    'dolt log filters merge commits with merges and min parents options' => static function (TestRunner $t) use ($commitLogGraph): void {
+        $table = new CommitLogTable();
+        $commits = $commitLogGraph();
+
+        $merges = $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'merges' => true,
+        ]);
+        $minTwoParents = $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'minParents' => 2,
+        ]);
+        $minOneParent = $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'minParents' => 1,
+        ]);
+        $mergedOverride = $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'minParents' => 1,
+            'merges' => true,
+            'showParents' => true,
+        ]);
+
+        $t->same(['merge feature'], array_column($merges, 'message'));
+        $t->same(['merge feature'], array_column($minTwoParents, 'message'));
+        $t->same(['merge feature', 'feature row', 'inserting into t', 'creating table t'], array_column($minOneParent, 'message'));
+        $t->same(['merge feature'], array_column($mergedOverride, 'message'));
+        $t->same('main-2, feature-1', $mergedOverride[0]['parents']);
+        $t->same([], $table->logRows($commits, ['headHash' => 'merge-1', 'min_parents' => 5]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'minParents' => -1,
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'minParents' => null,
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'merge-1',
+            'merges' => 'true',
+        ]));
     },
     'dolt log revision ranges map two-dot caret and not exclusions' => static function (TestRunner $t) use ($revisionRangeGraph): void {
         $table = new CommitLogTable();
@@ -312,6 +442,112 @@ return [
             'revisionSpecs' => ['^main'],
         ]));
     },
+    'dolt log table filters use root-value style table hash changes' => static function (TestRunner $t) use ($tableFilterGraph): void {
+        $table = new CommitLogTable();
+        $commits = $tableFilterGraph();
+        $messages = static fn (array $rows): array => array_column($rows, 'message');
+
+        $testRows = $table->logRows($commits, [
+            'headHash' => 'main-6',
+            'tableNames' => ['test'],
+        ]);
+        $test2Rows = $table->logRows($commits, [
+            'headHash' => 'main-6',
+            'tableNames' => ['test2'],
+        ]);
+        $test3Rows = $table->logRows($commits, [
+            'headHash' => 'main-6',
+            'tableNames' => ['test3'],
+        ]);
+        $multiRows = $table->logRows($commits, [
+            'headHash' => 'main-6',
+            'tableNames' => ['test', 'test2'],
+        ]);
+        $branchRows = $table->logRows($commits, [
+            'headHash' => 'main-6',
+            'revisionSpecs' => ['test-branch'],
+            'tableNames' => ['test'],
+        ]);
+
+        $t->same([
+            'inserted 2 into test [6M]',
+            'merged test-branch [4M]',
+            'inserted 1 into test [3M]',
+            'inserted 0 into test [1TB]',
+            'created table test [1M]',
+        ], $messages($testRows));
+        $t->same(['created table test2 [2M]'], $messages($test2Rows));
+        $t->same(['dropped table test3 [5M]', 'created table test3 [2TB]'], $messages($test3Rows));
+        $t->same([
+            'inserted 2 into test [6M]',
+            'merged test-branch [4M]',
+            'inserted 1 into test [3M]',
+            'inserted 0 into test [1TB]',
+            'created table test2 [2M]',
+            'created table test [1M]',
+        ], $messages($multiRows));
+        $t->same(['inserted 0 into test [1TB]', 'created table test [1M]'], $messages($branchRows));
+    },
+    'dolt log table filters support changed table metadata and upstream boundaries' => static function (TestRunner $t): void {
+        $commits = [
+            [
+                'commit_hash' => 'init',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:00:00',
+                'message' => 'Initialize data repository',
+                'parents' => [],
+            ],
+            [
+                'commit_hash' => 'create-test',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:01:00',
+                'message' => 'create test table',
+                'parents' => ['init'],
+                'changedTables' => ['test'],
+            ],
+            [
+                'commit_hash' => 'empty',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:02:00',
+                'message' => 'empty checkpoint',
+                'parents' => ['create-test'],
+                'changedTables' => [],
+            ],
+            [
+                'commit_hash' => 'create-other',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:03:00',
+                'message' => 'create unrelated table',
+                'parents' => ['empty'],
+                'changedTables' => ['other'],
+            ],
+        ];
+        $table = new CommitLogTable();
+
+        $rows = $table->logRows($commits, ['headHash' => 'create-other', 'tables' => ['test']]);
+
+        $t->same(['create test table'], array_column($rows, 'message'));
+        $t->same([], $table->logRows($commits, ['headHash' => 'create-other', 'tableNames' => ['missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->logRows($commits, [
+            'headHash' => 'create-other',
+            'tableNames' => [],
+        ]));
+        $t->throws(RuntimeException::class, static fn () => $table->logRows([
+            $commits[0],
+            [
+                'commit_hash' => 'no-metadata',
+                'committer' => 'root',
+                'email' => 'root@localhost',
+                'date' => '2026-05-22 10:01:00',
+                'message' => 'missing changed-table metadata',
+                'parents' => ['init'],
+            ],
+        ], ['headHash' => 'no-metadata', 'tableNames' => ['test']]));
+    },
     'dolt log validates duplicate commits and broken graphs' => static function (TestRunner $t) use ($commitLogGraph): void {
         $table = new CommitLogTable();
         $duplicate = $commitLogGraph();
@@ -365,6 +601,23 @@ return [
             'revisionSpecs' => ['wp-review-main..wp-merge-media'],
             'showParents' => true,
         ]);
+        $postTableRows = $table->logRows($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'tableNames' => ['wp_posts'],
+        ]);
+        $postMetaTableRows = $table->logRows($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'tableNames' => ['wp_postmeta'],
+        ]);
+        $mergeOnlyRows = $table->logRows($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'merges' => true,
+            'showParents' => true,
+        ]);
+        $checkpointRows = $table->logRows($fixture['commits'], [
+            'headHash' => $fixture['headHash'],
+            'minParents' => 1,
+        ]);
         $example = require __DIR__ . '/../examples/wordpress-commit-log-review.php';
 
         $t->same($fixture['expectedLogMessages'], array_column($rows, 'message'));
@@ -373,9 +626,18 @@ return [
         $t->same($fixture['expectedMainlineMessages'], array_column($mainlineRows, 'message'));
         $t->same($fixture['expectedReviewRangeMessages'], array_column($reviewRangeRows, 'message'));
         $t->same($fixture['expectedMediaPromotionMessages'], array_column($mediaPromotionRows, 'message'));
+        $t->same($fixture['expectedPostTableLogMessages'], array_column($postTableRows, 'message'));
+        $t->same($fixture['expectedPostMetaTableLogMessages'], array_column($postMetaTableRows, 'message'));
+        $t->same($fixture['expectedMergeOnlyMessages'], array_column($mergeOnlyRows, 'message'));
+        $t->same($fixture['expectedMergeParents'], $mergeOnlyRows[0]['parents']);
+        $t->same($fixture['expectedCheckpointMessages'], array_column($checkpointRows, 'message'));
         $t->same($rows, $example['log']);
         $t->same($reviewRangeRows, $example['reviewRange']);
         $t->same($mediaPromotionRows, $example['mediaPromotionRange']);
+        $t->same($postTableRows, $example['postTableLog']);
+        $t->same($postMetaTableRows, $example['postMetaTableLog']);
+        $t->same($mergeOnlyRows, $example['mergeOnlyLog']);
+        $t->same($checkpointRows, $example['checkpointLog']);
         $t->same(CommitLogTable::COMMITS_COLUMNS, array_keys($example['commits'][0]));
     },
 ];

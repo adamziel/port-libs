@@ -40,7 +40,7 @@ final class CommitLogTable
      * upstream's opt-in cost boundary.
      *
      * @param list<array<string, mixed>> $commits
-     * @param array{headHash?:string|null, includeAll?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null} $options
+     * @param array{headHash?:string|null, includeAll?:bool, revisionSpecs?:list<string>, revisions?:list<string>, notRevisionSpecs?:list<string>, notRevisions?:list<string>, tableNames?:list<string>, tables?:list<string>, projectedColumns?:list<string>, showParents?:bool, showSignature?:bool, decorate?:string, limit?:int|null, minParents?:int, min_parents?:int, merges?:bool} $options
      * @return list<array<string, scalar|null>>
      */
     public function logRows(array $commits, array $options = []): array
@@ -64,6 +64,22 @@ final class CommitLogTable
             : (bool) ($options['showSignature'] ?? false);
         $decorate = $this->normalizeDecoration($options['decorate'] ?? 'short');
         $limit = $this->normalizeLimit($options['limit'] ?? null);
+        $minParents = $this->normalizeMinParents($options);
+        if (array_key_exists('merges', $options)) {
+            if (!is_bool($options['merges'])) {
+                throw new \InvalidArgumentException('Dolt log merges must be a boolean.');
+            }
+            if ($options['merges']) {
+                $minParents = 2;
+            }
+        }
+        $tableNames = $this->normalizeOptionalStringList(
+            $options['tableNames'] ?? $options['tables'] ?? null,
+            'Dolt log tableNames',
+        );
+        if ($tableNames === []) {
+            throw new \InvalidArgumentException('Dolt log tableNames must contain at least one table name.');
+        }
         $revisionSpecs = $this->normalizeOptionalStringList(
             $options['revisionSpecs'] ?? $options['revisions'] ?? null,
             'Dolt log revisionSpecs',
@@ -88,6 +104,12 @@ final class CommitLogTable
 
         $rows = [];
         foreach ($this->orderedCommits($commits, $visible) as $commit) {
+            if (count($commit['parents']) < $minParents) {
+                continue;
+            }
+            if ($tableNames !== null && !$this->commitChangedAnyTable($commit, $commits, $tableNames)) {
+                continue;
+            }
             $rows[] = $this->logRow($commit, $logHeadHash, $showParents, $showSignature, $decorate);
             if ($limit !== null && count($rows) >= $limit) {
                 break;
@@ -159,7 +181,7 @@ final class CommitLogTable
 
     /**
      * @param list<array<string, mixed>> $commits
-     * @return array<string, array{commit_hash:non-empty-string, committer:non-empty-string, email:non-empty-string, date:non-empty-string, message:string, commit_order:int, parents:list<non-empty-string>, refs:list<non-empty-string>, signature:string|null, signatureVerification:string|null, author:non-empty-string, author_email:non-empty-string, author_date:non-empty-string}>
+     * @return array<string, array{commit_hash:non-empty-string, committer:non-empty-string, email:non-empty-string, date:non-empty-string, message:string, commit_order:int, parents:list<non-empty-string>, refs:list<non-empty-string>, signature:string|null, signatureVerification:string|null, author:non-empty-string, author_email:non-empty-string, author_date:non-empty-string, changedTables:list<non-empty-string>|null, tableHashes:array<string, non-empty-string>|null}>
      */
     private function normalizeCommits(array $commits): array
     {
@@ -211,6 +233,14 @@ final class CommitLogTable
                 'author' => $author,
                 'author_email' => $authorEmail,
                 'author_date' => $authorDate,
+                'changedTables' => $this->normalizeOptionalStringList(
+                    $commit['changedTables'] ?? $commit['changed_tables'] ?? null,
+                    "Dolt commit {$hash} changedTables",
+                ),
+                'tableHashes' => $this->normalizeTableHashes(
+                    $commit['tableHashes'] ?? $commit['table_hashes'] ?? null,
+                    "Dolt commit {$hash} tableHashes",
+                ),
             ];
         }
 
@@ -294,6 +324,106 @@ final class CommitLogTable
         }
 
         return $reachable;
+    }
+
+    /**
+     * @param array{commit_hash:non-empty-string, parents:list<non-empty-string>, changedTables:list<non-empty-string>|null, tableHashes:array<string, non-empty-string>|null} $commit
+     * @param array<string, array{commit_hash:non-empty-string, parents:list<non-empty-string>, changedTables:list<non-empty-string>|null, tableHashes:array<string, non-empty-string>|null}> $commits
+     * @param list<non-empty-string> $tableNames
+     */
+    private function commitChangedAnyTable(array $commit, array $commits, array $tableNames): bool
+    {
+        if ($commit['parents'] === []) {
+            return false;
+        }
+
+        foreach ($tableNames as $tableName) {
+            if ($this->commitChangedTable($commit, $commits, $tableName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{commit_hash:non-empty-string, parents:list<non-empty-string>, changedTables:list<non-empty-string>|null, tableHashes:array<string, non-empty-string>|null} $commit
+     * @param array<string, array{commit_hash:non-empty-string, parents:list<non-empty-string>, changedTables:list<non-empty-string>|null, tableHashes:array<string, non-empty-string>|null}> $commits
+     */
+    private function commitChangedTable(array $commit, array $commits, string $tableName): bool
+    {
+        if ($commit['tableHashes'] !== null) {
+            return $this->tableHashChangedAgainstParents($commit, $commits, $tableName);
+        }
+
+        if ($commit['changedTables'] === null) {
+            throw new \RuntimeException("Dolt commit {$commit['commit_hash']} requires changedTables or tableHashes for tableNames filtering.");
+        }
+
+        return in_array($tableName, $commit['changedTables'], true);
+    }
+
+    /**
+     * @param array{commit_hash:non-empty-string, parents:list<non-empty-string>, tableHashes:array<string, non-empty-string>|null} $commit
+     * @param array<string, array{commit_hash:non-empty-string, parents:list<non-empty-string>, tableHashes:array<string, non-empty-string>|null}> $commits
+     */
+    private function tableHashChangedAgainstParents(array $commit, array $commits, string $tableName): bool
+    {
+        $parent0 = $commits[$commit['parents'][0]] ?? null;
+        if ($parent0 === null) {
+            throw new \RuntimeException("Dolt commit parent not found: {$commit['parents'][0]}");
+        }
+        if ($parent0['tableHashes'] === null || $commit['tableHashes'] === null) {
+            throw new \RuntimeException("Dolt commit {$commit['commit_hash']} requires tableHashes on itself and parents for tableNames filtering.");
+        }
+
+        $childHas = array_key_exists($tableName, $commit['tableHashes']);
+        $parent0Has = array_key_exists($tableName, $parent0['tableHashes']);
+        $childHash = $childHas ? $commit['tableHashes'][$tableName] : null;
+        $parent0Hash = $parent0Has ? $parent0['tableHashes'][$tableName] : null;
+
+        $parent1 = null;
+        if (isset($commit['parents'][1])) {
+            $parent1 = $commits[$commit['parents'][1]] ?? null;
+            if ($parent1 === null) {
+                throw new \RuntimeException("Dolt commit parent not found: {$commit['parents'][1]}");
+            }
+            if ($parent1['tableHashes'] === null) {
+                throw new \RuntimeException("Dolt commit {$commit['commit_hash']} requires tableHashes on itself and parents for tableNames filtering.");
+            }
+        }
+
+        if ($parent1 === null) {
+            if (!$childHas && !$parent0Has) {
+                return false;
+            }
+            if (!$childHas || !$parent0Has) {
+                return true;
+            }
+
+            return $childHash !== $parent0Hash;
+        }
+
+        $parent1Has = array_key_exists($tableName, $parent1['tableHashes']);
+        $parent1Hash = $parent1Has ? $parent1['tableHashes'][$tableName] : null;
+
+        if (!$childHas && !$parent0Has && !$parent1Has) {
+            return false;
+        }
+        if (!$childHas) {
+            return true;
+        }
+        if (!$parent0Has && !$parent1Has) {
+            return true;
+        }
+        if (!$parent0Has) {
+            return $childHash !== $parent1Hash;
+        }
+        if (!$parent1Has) {
+            return $childHash !== $parent0Hash;
+        }
+
+        return $childHash !== $parent0Hash || $childHash !== $parent1Hash;
     }
 
     /**
@@ -611,5 +741,51 @@ final class CommitLogTable
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function normalizeMinParents(array $options): int
+    {
+        $hasCamel = array_key_exists('minParents', $options);
+        $hasSnake = array_key_exists('min_parents', $options);
+        if (!$hasCamel && !$hasSnake) {
+            return 0;
+        }
+
+        $value = $hasCamel ? $options['minParents'] : $options['min_parents'];
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException('Dolt log minParents must be a non-negative integer.');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<string, non-empty-string>|null
+     */
+    private function normalizeTableHashes($value, string $label): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException("{$label} must be a map of table names to hashes.");
+        }
+
+        $normalized = [];
+        foreach ($value as $tableName => $hash) {
+            if (!is_string($tableName) || $tableName === '') {
+                throw new \InvalidArgumentException("{$label} keys must be non-empty table-name strings.");
+            }
+            if (!is_string($hash) || $hash === '') {
+                throw new \InvalidArgumentException("{$label} values must be non-empty strings.");
+            }
+            $normalized[$tableName] = $hash;
+        }
+
+        return $normalized;
     }
 }

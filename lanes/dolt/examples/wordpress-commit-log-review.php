@@ -27,5 +27,26 @@ return [
         'showParents' => true,
         'decorate' => 'short',
     ]),
+    'postTableLog' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'tableNames' => ['wp_posts'],
+        'decorate' => 'short',
+    ]),
+    'postMetaTableLog' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'tableNames' => ['wp_postmeta'],
+        'decorate' => 'short',
+    ]),
+    'mergeOnlyLog' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'merges' => true,
+        'showParents' => true,
+        'decorate' => 'short',
+    ]),
+    'checkpointLog' => $table->logRows($fixture['commits'], [
+        'headHash' => $fixture['headHash'],
+        'minParents' => 1,
+        'decorate' => 'short',
+    ]),
     'commits' => $table->commitsRows($fixture['commits']),
 ];
