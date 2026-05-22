@@ -101,6 +101,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   run: 385 lines covering a DocBook `informaltable` reader example with 16
   `colspec` entries, `ColWidth 6.25e-2`, strong emphasis inside spanned cells,
   and `namest`/`nameend` entries that become `ColSpan 8` cells.
+- `test/command/rst-writer-gridtable-if-rowspans.md` command fixture inspected
+  in this run: 246 lines covering Pandoc native table input rendered to RST
+  grid tables. The native AST includes `RowSpan 2` cells in body, head, and
+  foot sections; the bounded PHP slice maps those row-span and section shapes
+  through DocBook `morerows`, `thead`, `tbody`, and `tfoot` input and
+  WordPress `rowspan`/`tfoot` output.
 - `Tests.Readers.Markdown` definition-list cases: 8, all of which are now
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
@@ -297,12 +303,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `namest`/`nameend` column spans, and strong emphasis inside cells. The
   WordPress writer emits core table HTML with escaped `style` and `colspan`
   attributes, so structural cells survive import without shelling out to Pandoc.
+- The row-span table-section shape from
+  `test/command/rst-writer-gridtable-if-rowspans.md` is now mapped through the
+  same bounded table AST: DocBook `morerows="1"` becomes `rowspan=2`,
+  `thead`/`tbody`/`tfoot` become `table_head`/`table_body`/`table_foot`, and
+  the WordPress writer emits `<thead>`, `<tbody>`, `<tfoot>`, and `rowspan`
+  attributes without shelling out to Pandoc.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-22: the pandoc-local test file passed with
-91 tests, 631 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command passed in the current shared worktree with
-115 test files, 8,728 assertions, and 0 failures after one transient red run
-overlapped with concurrent lane writes.
+92 tests, 647 assertions, and 0 failures. The required repo-wide
+`php tools/run-tests.php` command also passed after this slice with 116 test
+files, 8,947 assertions, and 0 failures in the current shared worktree.

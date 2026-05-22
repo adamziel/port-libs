@@ -118,6 +118,10 @@ narrow DocBook table slice: `informaltable` fragments keep colspec widths,
 per-cell left/right/center/default alignment, strong emphasis inside cells, and
 colspan metadata. The WordPress table writer preserves those as core table
 markup with safe `style` and `colspan` attributes.
+The upstream `test/command/rst-writer-gridtable-if-rowspans.md` row-span shape
+is now represented as well: DocBook `morerows` imports become AST row spans,
+table head/body/foot sections remain distinct, and WordPress table output keeps
+`rowspan` plus `<tfoot>` markup for reviewer-audit tables.
 
 ## Scenario Fixture
 
@@ -152,7 +156,8 @@ markup with safe `style` and `colspan` attributes.
   caption in the WordPress table figcaption.
 - `fixtures/wordpress-docbook-table.xml` is a bounded DocBook import-audit
   table with a spanned strong batch heading, aligned status cells, proportional
-  colspec widths, and spanned remediation summary cells.
+  colspec widths, spanned remediation summary cells, and a row-spanned media
+  review window plus a footer reminder.
 - `examples/wordpress-import-markdown.php` converts
   `fixtures/wordpress-import-markdown.md` to WordPress block comments and HTML
   without shelling out to pandoc.
@@ -224,12 +229,13 @@ markup with safe `style` and `colspan` attributes.
   alignment styles, visible long captions, and preserved short-caption metadata
   without invoking Pandoc.
 - DocBook import-audit tables render as core WordPress table blocks with
-  colgroup widths, per-cell alignment, strong inline cell content, and preserved
-  `colspan` structural metadata without invoking Pandoc.
+  colgroup widths, per-cell alignment, strong inline cell content, preserved
+  `colspan`/`rowspan` structural metadata, and table footers without invoking
+  Pandoc.
 
 ## Next Task
 
-Map another bounded Pandoc structural table fixture with row spans or nested
-tables, starting with `test/command/rst-writer-gridtable-if-rowspans.md` or
+Map the bounded nested-table HTML fixture at
 `test/command/nested-table-to-asciidoc-6942.md`, then decide whether nested
-table cells need block-child AST support.
+table cells should become block-child AST tables or remain raw HTML at the
+WordPress boundary.

@@ -767,8 +767,11 @@ final class MarkdownReader
         }
 
         $tgroup = $this->firstDescendantElement($root, 'tgroup');
-        $tbody = $this->firstDescendantElement($root, 'tbody');
-        if (!$tbody instanceof \DOMElement) {
+        $sectionRoot = $tgroup instanceof \DOMElement ? $tgroup : $root;
+        $thead = $this->firstChildElement($sectionRoot, 'thead');
+        $tbody = $this->firstChildElement($sectionRoot, 'tbody');
+        $tfoot = $this->firstChildElement($sectionRoot, 'tfoot');
+        if (!$thead instanceof \DOMElement && !$tbody instanceof \DOMElement && !$tfoot instanceof \DOMElement) {
             return null;
         }
 
@@ -776,29 +779,23 @@ final class MarkdownReader
             ? $this->readDocBookColumnSpecs($tgroup)
             : [[], null];
 
-        $bodyRows = [];
         $maxColumns = count($columnNames);
-        foreach ($this->childElements($tbody, 'row') as $rowElement) {
-            $cells = [];
-            $rowColumns = 0;
-            foreach ($this->childElements($rowElement, 'entry') as $entry) {
-                $cell = $this->buildDocBookTableCell($entry, $columnNames);
-                $cells[] = $cell;
-                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
-            }
+        $headRows = $thead instanceof \DOMElement
+            ? $this->readDocBookTableRows($thead, $columnNames, true, $maxColumns)
+            : [];
+        $bodyRows = $tbody instanceof \DOMElement
+            ? $this->readDocBookTableRows($tbody, $columnNames, false, $maxColumns)
+            : [];
+        $footRows = $tfoot instanceof \DOMElement
+            ? $this->readDocBookTableRows($tfoot, $columnNames, false, $maxColumns)
+            : [];
 
-            if ($cells !== []) {
-                $bodyRows[] = new AstNode('table_row', ['header' => false], $cells);
-                $maxColumns = max($maxColumns, $rowColumns);
-            }
-        }
-
-        if ($bodyRows === []) {
+        if ($headRows === [] && $bodyRows === [] && $footRows === []) {
             return null;
         }
 
         if ($maxColumns === 0) {
-            foreach ($bodyRows as $row) {
+            foreach ([...$headRows, ...$bodyRows, ...$footRows] as $row) {
                 $maxColumns = max($maxColumns, count($row->children));
             }
         }
@@ -811,10 +808,40 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, [
-            new AstNode('table_head'),
+        $children = [
+            new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $bodyRows),
-        ]);
+        ];
+        if ($footRows !== []) {
+            $children[] = new AstNode('table_foot', [], $footRows);
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param list<string> $columnNames
+     * @return list<AstNode>
+     */
+    private function readDocBookTableRows(\DOMElement $section, array $columnNames, bool $header, int &$maxColumns): array
+    {
+        $rows = [];
+        foreach ($this->childElements($section, 'row') as $rowElement) {
+            $cells = [];
+            $rowColumns = 0;
+            foreach ($this->childElements($rowElement, 'entry') as $entry) {
+                $cell = $this->buildDocBookTableCell($entry, $columnNames, $header);
+                $cells[] = $cell;
+                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
+            }
+
+            if ($cells !== []) {
+                $rows[] = new AstNode('table_row', ['header' => $header], $cells);
+                $maxColumns = max($maxColumns, $rowColumns);
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -851,12 +878,12 @@ final class MarkdownReader
     /**
      * @param list<string> $columnNames
      */
-    private function buildDocBookTableCell(\DOMElement $entry, array $columnNames): AstNode
+    private function buildDocBookTableCell(\DOMElement $entry, array $columnNames, bool $header): AstNode
     {
         $children = $this->parseDocBookInlineNodes($entry);
         $attrs = [
             'text' => $this->plainTextFromInlines($children),
-            'header' => false,
+            'header' => $header,
         ];
 
         $align = $this->normalizeDocBookAlignment($entry->getAttribute('align'));
@@ -967,6 +994,17 @@ final class MarkdownReader
         foreach ($root->getElementsByTagName($name) as $element) {
             if ($element instanceof \DOMElement) {
                 return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstChildElement(\DOMElement $root, string $name): ?\DOMElement
+    {
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === $name) {
+                return $child;
             }
         }
 

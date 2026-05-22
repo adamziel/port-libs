@@ -1385,6 +1385,75 @@ XML;
         $t->contains('<td colspan="8" style="text-align:center"><strong>Octet no. 1</strong></td>', $blocks);
         $t->contains('<td colspan="8" style="text-align:center">Code B</td>', $blocks);
     },
+    'maps upstream command row-span table head body and foot shape' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<informaltable frame="all" rowsep="1" colsep="1">
+<tgroup cols="3">
+<colspec colname="col_1" colwidth="1*"/>
+<colspec colname="col_2" colwidth="1*"/>
+<colspec colname="col_3" colwidth="1*"/>
+<thead>
+<row>
+<entry>1</entry>
+<entry morerows="1">2</entry>
+<entry>3</entry>
+</row>
+<row>
+<entry>1</entry>
+<entry>3</entry>
+</row>
+</thead>
+<tbody>
+<row>
+<entry>1</entry>
+<entry morerows="1">2</entry>
+<entry>3</entry>
+</row>
+<row>
+<entry>1</entry>
+<entry>3</entry>
+</row>
+<row>
+<entry>1</entry>
+<entry>2</entry>
+<entry>3</entry>
+</row>
+</tbody>
+<tfoot>
+<row>
+<entry>1</entry>
+<entry morerows="1">2</entry>
+<entry>3</entry>
+</row>
+<row>
+<entry>1</entry>
+<entry>3</entry>
+</row>
+</tfoot>
+</tgroup>
+</informaltable>
+XML;
+        $document = (new MarkdownReader())->read($docbook);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $foot = $table->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('table_head', $head->type);
+        $t->same('table_body', $body->type);
+        $t->same('table_foot', $foot->type);
+        $t->same(2, $head->children[0]->children[1]->attr('rowspan'));
+        $t->same(true, $head->children[0]->children[1]->attr('header'));
+        $t->same(2, count($head->children[1]->children));
+        $t->same(2, $body->children[0]->children[1]->attr('rowspan'));
+        $t->same(3, count($body->children));
+        $t->same(2, $foot->children[0]->children[1]->attr('rowspan'));
+        $t->contains('<thead><tr><th>1</th><th rowspan="2">2</th><th>3</th></tr><tr><th>1</th><th>3</th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td>1</td><td rowspan="2">2</td><td>3</td></tr><tr><td>1</td><td>3</td></tr><tr><td>1</td><td>2</td><td>3</td></tr></tbody>', $blocks);
+        $t->contains('<tfoot><tr><td>1</td><td rowspan="2">2</td><td>3</td></tr><tr><td>1</td><td>3</td></tr></tfoot>', $blocks);
+    },
     'maps upstream pipe table headerless and side-less forms' => static function (TestRunner $t): void {
         $headerless = (new MarkdownReader())->read(implode("\n", [
             'Headerless table without caption:',
@@ -1657,6 +1726,9 @@ XML;
         $t->contains('<td colspan="4" style="text-align:center"><strong>Migration Batch 42</strong></td>', $blocks);
         $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">ready</td><td>editorial</td>', $blocks);
         $t->contains('<td colspan="2" style="text-align:center">Needs media review</td><td colspan="2" style="text-align:center">Ready for block publish</td>', $blocks);
+        $t->contains('<td rowspan="2" style="text-align:left">Media review window</td><td colspan="3" style="text-align:center">Initial sweep</td>', $blocks);
+        $t->contains('<td colspan="3" style="text-align:center">Follow-up attachments</td>', $blocks);
+        $t->contains('<tfoot><tr><td colspan="4" style="text-align:right">Review before publish</td></tr></tfoot>', $blocks);
     },
     'writes wordpress multiline simple table blocks for wrapped review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

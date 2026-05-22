@@ -218,6 +218,7 @@ final class WordPressBlockWriter
     {
         $head = null;
         $body = null;
+        $foot = null;
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
                 $head = $child;
@@ -225,6 +226,10 @@ final class WordPressBlockWriter
             }
             if ($child->type === 'table_body') {
                 $body = $child;
+                continue;
+            }
+            if ($child->type === 'table_foot') {
+                $foot = $child;
             }
         }
 
@@ -243,7 +248,15 @@ final class WordPressBlockWriter
                 $html .= $this->renderTableRow($row, $node, false);
             }
         }
-        $html .= '</tbody></table>';
+        $html .= '</tbody>';
+        if ($foot instanceof AstNode && $foot->children !== []) {
+            $html .= '<tfoot>';
+            foreach ($foot->children as $row) {
+                $html .= $this->renderTableRow($row, $node, false);
+            }
+            $html .= '</tfoot>';
+        }
+        $html .= '</table>';
 
         $caption = (string) $node->attr('caption', '');
         if ($caption !== '') {
