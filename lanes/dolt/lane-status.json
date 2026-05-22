@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-22: 26 Dolt PHP behavior tests pass with 118 assertions; root PHP harness passed with 67 files and 3,687 assertions; bounded upstream Go diff/schema/table/dtablefunction/enginetest evidence freshly reran and passes, including DiffTableFunction predicate coverage; local three-file BATS diff/rename/primary-key slice freshly reran after expect confirmation and passes; no full upstream runner parity",
     "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* row projection, tag-aware schema column diffs, primary-key set diffability, table delta matching/filtering, schema-aware target row projection, Dolt warning collection for coercion/primary-key changes, skinny diff schema projection with include-cols, projected row where/limit filtering, and WordPress row/table/schema-drift/skinny/filtered-review fixtures.",
     "blocker": "No full upstream runner parity: full go test ./... and the full upstream BATS directory still require hydrating/compiling the full Dolt workspace and running Python, parquet, Hadoop, server, compatibility, client integration, and benchmark-style dependencies beyond this modest lane slice. Root PHP suite is green for this Dolt runner batch.",
-    "latestCommit": "bc06077",
+    "latestCommit": "ad9cf96",
     "nextTask": "Map broader dolt diff output modes or dolt_diff_summary / dolt_diff_stat table-function behavior from focused upstream tests."
 }
