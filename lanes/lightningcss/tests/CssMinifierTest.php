@@ -198,6 +198,29 @@ return [
         $t->same('@font-face{unicode-range:U+10????}', $minifier->minify('@font-face {unicode-range: U+100000-10FFFF;}'));
         $t->same('@font-face{unicode-range:U+1E1E?}', $minifier->minify('@font-face {unicode-range: U+1e1e?;}'));
     },
+    'css minifier maps upstream font palette values minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@font-palette-values --Cooler{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}',
+            $minifier->minify(
+                '@font-palette-values --Cooler { font-family: Bixa; base-palette: 1; override-colors: 1 #7EB7E4; }'
+            )
+        );
+        $t->same(
+            '@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 #2b0c09,3 #0f0}',
+            $minifier->minify(
+                '@font-palette-values --Cooler { font-family: Handover Sans; base-palette: 3; override-colors: 1 rgb(43, 12, 9), 3 lime; }'
+            )
+        );
+        $t->same(
+            '@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 #2b0c09, 3 var(--highlight)}',
+            $minifier->minify(
+                '@font-palette-values --Cooler { font-family: Handover Sans; base-palette: 3; override-colors: 1 rgb(43, 12, 9), 3 var(--highlight); }'
+            )
+        );
+        $t->same('.foo{font-palette:--Custom}', $minifier->minify('.foo { font-palette: --Custom; }'));
+    },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1367,6 +1390,24 @@ CSS;
 
         $t->same(
             '.wp-block-post-title{font-family:Inter,Helvetica Neue,sans-serif;font-stretch:125%}@font-face{font-family:"revert";src:url(./fonts/revert.woff2)format("woff2")}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress variable font palettes minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@font-palette-values --wp-duotone-accent {
+  font-family: Bixa;
+  base-palette: 1;
+  override-colors: 1 #7EB7E4, 3 var(--wp--preset--color--accent);
+}
+
+.wp-block-heading.is-style-color-font {
+  font-palette: --wp-duotone-accent;
+}
+CSS;
+
+        $t->same(
+            '@font-palette-values --wp-duotone-accent{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4, 3 var(--wp--preset--color--accent)}.wp-block-heading.is-style-color-font{font-palette:--wp-duotone-accent}',
             (new CssMinifier())->minify($css)
         );
     },

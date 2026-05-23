@@ -1416,6 +1416,7 @@ final class CssMinifier
             'font-weight' => $this->minifyFontWeightValue($value),
             'src' => $this->minifyFontFaceSrcValue($value),
             'unicode-range' => $this->minifyUnicodeRangeValue($value),
+            'override-colors' => $this->minifyFontPaletteOverrideColorsValue($value),
             default => $value,
         };
     }
@@ -1837,6 +1838,51 @@ final class CssMinifier
             fn (string $part): string => $this->minifyUnicodeRangePart($part),
             $this->splitTopLevel($value, ',')
         ));
+    }
+
+    private function minifyFontPaletteOverrideColorsValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $tokens = $this->splitWhitespaceTopLevel($part);
+            if (count($tokens) < 2) {
+                $parts[] = trim($part);
+                continue;
+            }
+
+            $paletteIndex = array_shift($tokens);
+            $color = implode(' ', $tokens);
+            $parts[] = $this->minifyPlainNumberToken($paletteIndex) . ' ' . $this->minifyPaletteColorToken($color);
+        }
+
+        $output = '';
+        foreach ($parts as $index => $part) {
+            if ($index > 0) {
+                $output .= str_contains($part, 'var(') ? ', ' : ',';
+            }
+            $output .= $part;
+        }
+
+        return $output;
+    }
+
+    private function minifyPaletteColorToken(string $color): string
+    {
+        $color = trim($color);
+        if (preg_match('/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $color) === 1) {
+            return $this->compressHexColor($color);
+        }
+
+        return $this->minifyColorKeywords($color);
+    }
+
+    private function minifyPlainNumberToken(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1
+            ? $this->minifyNumber((float) $value)
+            : $value;
     }
 
     private function minifyUnicodeRangePart(string $part): string
@@ -7802,6 +7848,7 @@ final class CssMinifier
             'cornflowerblue' => '#6495ed',
             'cyan' => '#0ff',
             'fuchsia' => '#f0f',
+            'lime' => '#0f0',
             'magenta' => '#f0f',
             'transparent' => '#0000',
             'white' => '#fff',
