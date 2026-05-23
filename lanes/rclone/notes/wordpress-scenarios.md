@@ -218,6 +218,8 @@ The `../examples/wordpress-onedrive-shared-listp-error-preflight.php` scenario m
 
 The `../examples/wordpress-onedrive-listp-cache-metadata-preflight.php` scenario maps OneDrive ordinary `ListP` item conversion and directory-cache side effects. It lists a shared review WXR export and upload folder, hides a OneNote migration notebook unless package exposure is enabled, reuses the upload folder ID cached from the parent listing for a later scoped media listing, and reports a lazy permissions metadata error only when metadata is requested.
 
+The `../examples/wordpress-onedrive-permissions-metadata-preflight.php` scenario maps OneDrive metadata-permissions read modes for migration review manifests. It materializes OneDrive permission JSON for a review WXR export when read mode is enabled, suppresses permission metadata for a private draft when permissions are off, and defers a permission serialization failure until metadata is requested, all without OAuth or live provider credentials.
+
 ## Next Task
 
-Map OneDrive `ListP` and `ListR` metadata permission read modes more deeply, including successful permission JSON materialization and permission serialization failures.
+Map OneDrive permission write/update/remove planning more deeply, including add-only copy behavior, owner-role removal suppression, and failok error aggregation.

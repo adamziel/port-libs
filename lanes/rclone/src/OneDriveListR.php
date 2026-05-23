@@ -594,17 +594,105 @@ final class OneDriveListR
      */
     private static function metadataError(array $item): ?\Throwable
     {
-        $permissionError = self::errorFromValue(
-            $item['metadataPermissionsError']
-                ?? $item['metadata_permissions_error']
-                ?? $item['permissionsError']
-                ?? null,
-        );
-        if ($permissionError !== null) {
-            return new \RuntimeException("failed to get permissions: {$permissionError->getMessage()}", 0, $permissionError);
+        if (self::permissionsReadEnabled($item)) {
+            $permissionError = self::errorFromValue(
+                $item['metadataPermissionsError']
+                    ?? $item['metadata_permissions_error']
+                    ?? $item['permissionsError']
+                    ?? null,
+            );
+            if ($permissionError !== null) {
+                return new \RuntimeException("failed to get permissions: {$permissionError->getMessage()}", 0, $permissionError);
+            }
+
+            $permissions = self::permissionsMetadata($item);
+            if ($permissions['error'] !== null) {
+                return $permissions['error'];
+            }
         }
 
         return self::errorFromValue($item['metadataError'] ?? $item['metadata_error'] ?? null);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{json: ?string, error: ?\Throwable}
+     */
+    private static function permissionsMetadata(array $item): array
+    {
+        if (!self::permissionsReadEnabled($item)) {
+            return ['json' => null, 'error' => null];
+        }
+
+        $marshalError = self::errorFromValue(
+            $item['metadataPermissionsMarshalError']
+                ?? $item['metadata_permissions_marshal_error']
+                ?? $item['permissionsMarshalError']
+                ?? null,
+        );
+        if ($marshalError !== null) {
+            return [
+                'json' => null,
+                'error' => new \RuntimeException("failed to marshal permissions: {$marshalError->getMessage()}", 0, $marshalError),
+            ];
+        }
+
+        $permissions = $item['metadataPermissions']
+            ?? $item['metadata_permissions']
+            ?? $item['permissionsMetadata']
+            ?? null;
+        if (!is_array($permissions) || $permissions === []) {
+            return ['json' => null, 'error' => null];
+        }
+
+        $permissions = array_is_list($permissions) ? $permissions : [$permissions];
+        $json = json_encode($permissions, JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return [
+                'json' => null,
+                'error' => new \RuntimeException('failed to marshal permissions: ' . json_last_error_msg()),
+            ];
+        }
+
+        return ['json' => $json, 'error' => null];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function permissionsReadEnabled(array $item): bool
+    {
+        $mode = $item['metadataPermissionsMode']
+            ?? $item['metadata_permissions_mode']
+            ?? $item['permissionsMode']
+            ?? null;
+        if ($mode === null) {
+            return array_key_exists('metadataPermissions', $item)
+                || array_key_exists('metadata_permissions', $item)
+                || array_key_exists('permissionsMetadata', $item)
+                || array_key_exists('metadataPermissionsError', $item)
+                || array_key_exists('metadata_permissions_error', $item)
+                || array_key_exists('permissionsError', $item)
+                || array_key_exists('metadataPermissionsMarshalError', $item)
+                || array_key_exists('metadata_permissions_marshal_error', $item)
+                || array_key_exists('permissionsMarshalError', $item);
+        }
+        if (is_bool($mode)) {
+            return $mode;
+        }
+
+        $normalized = strtolower(trim((string) $mode));
+        if ($normalized === '' || in_array($normalized, ['off', 'false', '0', 'none'], true)) {
+            return false;
+        }
+
+        foreach (preg_split('/[|,\s+]+/', $normalized) ?: [] as $part) {
+            if ($part === 'read') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function errorFromValue(mixed $value): ?\Throwable
@@ -676,6 +764,11 @@ final class OneDriveListR
                     $metadata[$target] = $value;
                 }
             }
+        }
+
+        $permissions = self::permissionsMetadata($item);
+        if ($permissions['json'] !== null) {
+            $metadata['permissions'] = $permissions['json'];
         }
 
         return $metadata;

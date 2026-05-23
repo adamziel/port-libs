@@ -623,6 +623,97 @@ return [
             $t->same('failed to get permissions: Graph permissions failed', $exception->getMessage());
         }
     },
+    'onedrive child ListP materializes permissions only in metadata read mode' => static function (TestRunner $t): void {
+        $listP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [[
+                    'value' => [
+                        [
+                            'id' => 'review',
+                            'name' => 'review.wxr',
+                            'size' => 18,
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'file' => ['mimeType' => 'application/rss+xml'],
+                            'metadataPermissionsMode' => 'read',
+                            'metadataPermissions' => [
+                                [
+                                    'id' => 'perm-user',
+                                    'grantedTo' => [
+                                        'user' => [
+                                            'id' => 'reviewer@example.com',
+                                            'displayName' => 'Migration Reviewer',
+                                        ],
+                                    ],
+                                    'roles' => ['read'],
+                                ],
+                                [
+                                    'id' => 'perm-link',
+                                    'link' => [
+                                        'type' => 'view',
+                                        'scope' => 'organization',
+                                        'webUrl' => 'https://share.example/review.wxr',
+                                    ],
+                                    'roles' => ['read'],
+                                    'shareId' => 'share-token',
+                                ],
+                            ],
+                        ],
+                        [
+                            'id' => 'private',
+                            'name' => 'private.wxr',
+                            'size' => 10,
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'file' => ['mimeType' => 'application/rss+xml'],
+                            'metadataPermissionsMode' => 'off',
+                            'metadataPermissions' => [
+                                ['id' => 'hidden-permission', 'roles' => ['read']],
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+        );
+
+        $collected = rclone_onedrive_listr_collect_listp($listP, 'site-backups/shared-review');
+        $reviewMetadata = $collected['entries'][0]->readMetadata();
+        $privateMetadata = $collected['entries'][1]->readMetadata();
+
+        $t->same([
+            'site-backups/shared-review/review.wxr',
+            'site-backups/shared-review/private.wxr',
+        ], rclone_onedrive_listr_names($collected['entries']));
+        $t->same(
+            '[{"id":"perm-user","grantedTo":{"user":{"id":"reviewer@example.com","displayName":"Migration Reviewer"}},"roles":["read"]},{"id":"perm-link","link":{"type":"view","scope":"organization","webUrl":"https://share.example/review.wxr"},"roles":["read"],"shareId":"share-token"}]',
+            $reviewMetadata['permissions'],
+        );
+        $t->same(false, array_key_exists('permissions', $privateMetadata));
+    },
+    'onedrive ListR defers permission marshal errors until metadata is read' => static function (TestRunner $t): void {
+        $listR = OneDriveListR::fromDelta([
+            [
+                'id' => 'review',
+                'name' => 'review.wxr',
+                'size' => 18,
+                'parentReference' => ['driveId' => 'drive', 'id' => 'root'],
+                'file' => ['mimeType' => 'application/rss+xml'],
+                'metadataPermissionsMode' => 'read',
+                'metadataPermissionsMarshalError' => 'json: unsupported permission value',
+            ],
+        ], 'drive#root');
+
+        $collected = rclone_onedrive_listr_collect($listR);
+
+        $t->same(['review.wxr'], rclone_onedrive_listr_names($collected['entries']));
+        $t->same('application/rss+xml', $collected['entries'][0]->metadata['content-type']);
+        $message = null;
+        try {
+            $collected['entries'][0]->readMetadata();
+        } catch (RuntimeException $exception) {
+            $message = $exception->getMessage();
+        }
+        $t->same('failed to marshal permissions: json: unsupported permission value', $message);
+    },
     'onedrive child ListP item conversion errors keep flushed batches and suppress pending flush' => static function (TestRunner $t): void {
         $firstPage = [];
         for ($i = 1; $i <= 101; $i++) {
@@ -1012,5 +1103,19 @@ return [
         $t->same(true, $example['oneNoteHidden']);
         $t->same('failed to get permissions: Graph permissions denied', $example['metadataError']);
         $t->same('application/rss+xml', $example['listedContentType']);
+    },
+    'wordpress onedrive permissions metadata example records read off and marshal modes' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-permissions-metadata-preflight.php';
+
+        $t->same('onedrive-permissions-metadata-preflight', $example['source']);
+        $t->same([
+            'site-backups/review-export.wxr',
+            'site-backups/private-draft.wxr',
+            'site-backups/broken-permissions.wxr',
+        ], $example['manifest']);
+        $t->same(['perm-reviewer', 'perm-share-link'], $example['permissionIds']);
+        $t->same('Migration Reviewer', $example['reviewerDisplayName']);
+        $t->same(true, $example['noPermissionsWhenOff']);
+        $t->same('failed to marshal permissions: json: unsupported permission value', $example['marshalError']);
     },
 ];
