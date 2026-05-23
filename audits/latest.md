@@ -3,7 +3,8 @@
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane status files needed to check alignment, recent Git history through
-`002f1c95`, dirty-tree status, active process state, and PHP shell-out surface.
+pre-audit `HEAD` `002f1c95`, dirty-tree status, active process state, and PHP
+shell-out surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, or start a root harness.
@@ -34,8 +35,8 @@ temporary oracle tooling.
    - Evidence: `HEAD` moved during this audit from `74d55284` to
      `3a5cb66b`, `3d986983`, `4446edc9`, and then `002f1c95`. Dirty-tree
      samples moved from `100 files changed, 23863 insertions(+), 661
-     deletions(-)` to `115 files changed, 24925 insertions(+), 905
-     deletions(-)`, with `115` tracked changed files and `1050` default
+     deletions(-)` to `120 files changed, 24909 insertions(+), 739
+     deletions(-)`, with `120` tracked changed files and `1050` default
      `git status --short` entries.
    - Audit judgment: do not accept any dashboard, lane-status, root-test, or
      manifest percentage as the current portfolio baseline until active
@@ -60,8 +61,11 @@ temporary oracle tooling.
    - Evidence: the required duplicate-root gate was initially clear, then
      returned PID `2291638 php tools/run-tests.php lanes/esbuild/tests`.
      The process exited before `ps` owner sampling, so owner evidence was not
-     recoverable; a later exact sample was clear. I did not start a duplicate
-     or replacement root run because the tree was non-quiescent.
+     recoverable; a later exact sample was clear. A handoff sanity sample then
+     found PID `2350046 php tools/run-tests.php lanes/syncthing/tests`, with
+     owner evidence `2350046 claude 2287669 00:09 Rs php tools/run-tests.php
+     lanes/syncthing/tests`. I did not start a duplicate or replacement root
+     run because the tree was non-quiescent.
    - Evidence: lane statuses currently mix incompatible root stories:
      libsqlite, rclone, esbuild, Dolt, Syncthing, and Difftastic claim green
      root evidence; Readability records a root failure in Dolt conflict tests;
@@ -198,8 +202,10 @@ Observed during this audit:
 ```text
 initial sample: no exact root-harness process
 later sample: 2291638 php tools/run-tests.php lanes/esbuild/tests
-owner sample: process exited before ps owner evidence could be collected
-final later sample: no exact root-harness process
+owner sample for 2291638: process exited before ps owner evidence could be collected
+later sample: no exact root-harness process
+handoff sample: 2350046 php tools/run-tests.php lanes/syncthing/tests
+owner evidence: 2350046 claude 2287669 00:09 Rs php tools/run-tests.php lanes/syncthing/tests
 ```
 
 No duplicate root run was started. Even when the exact gate was clear, the tree
@@ -209,9 +215,9 @@ status publishers, and dirty lane batches were still moving.
 Latest dirty-tree samples:
 
 ```text
-git status --short --untracked-files=no: 115 tracked entries
+git status --short --untracked-files=no: 120 tracked entries
 git status --short: 1050 entries
-git diff --shortstat: 115 files changed, 24925 insertions(+), 905 deletions(-)
+git diff --shortstat: 120 files changed, 24909 insertions(+), 739 deletions(-)
 ```
 
 Recent history reviewed:
