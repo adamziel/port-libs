@@ -43,9 +43,15 @@ final class FileInfoScanner
         $this->blockList = $blockList ?? new BlockList();
     }
 
-    public function scan(string $name, bool $hashBlocks = false, ?int $blockSize = null): FileInfo
+    public function scan(string $name, bool $hashBlocks = false, ?int $blockSize = null, ?FileInfo $currentFile = null): FileInfo
     {
         ProtocolValidation::checkFilename($name);
+        if ($blockSize !== null && $blockSize <= 0) {
+            throw new \InvalidArgumentException('Block size must be positive');
+        }
+        if ($currentFile !== null && $currentFile->name !== $name) {
+            throw new \InvalidArgumentException('Current FileInfo must describe the scanned path');
+        }
 
         $path = $this->absolutePath($name);
         $stat = @lstat($path);
@@ -98,7 +104,10 @@ final class FileInfoScanner
         $size = (int) $stat['size'];
         $blocks = [];
         $blocksHash = '';
-        $rawBlockSize = $blockSize ?? BlockList::blockSizeForFileSize($size);
+        $currentBlockSize = $currentFile !== null && $currentFile->type === FileInfo::TYPE_FILE
+            ? $currentFile->blockSize()
+            : null;
+        $rawBlockSize = $blockSize ?? BlockList::blockSizeForFileSize($size, $currentBlockSize);
         if ($hashBlocks) {
             $bytes = file_get_contents($path);
             if (!is_string($bytes)) {
@@ -123,6 +132,46 @@ final class FileInfoScanner
             unixGid: $platform['unixGid'],
             xattrs: $platform['xattrs'],
         );
+    }
+
+    /**
+     * @param list<string> $subs
+     * @return list<FileInfo>
+     */
+    public function walk(
+        array $subs = [],
+        ?IgnoreMatcher $ignoreMatcher = null,
+        bool $hashBlocks = false,
+        ?int $blockSize = null,
+        iterable $currentFiles = [],
+    ): array {
+        $results = [];
+        $seen = [];
+        $subs = $subs === [] ? [''] : $subs;
+        $currentByName = $this->currentFilesByName($currentFiles);
+
+        foreach ($subs as $sub) {
+            if (!is_string($sub)) {
+                throw new \InvalidArgumentException('Scanner walk subs must be strings');
+            }
+
+            $name = self::normalizeWalkSub($sub);
+            $path = $name === '' ? $this->rootPath : $this->absolutePath($name);
+            if (!file_exists($path) && !is_link($path)) {
+                continue;
+            }
+
+            if ($name === '') {
+                foreach ($this->directoryEntries($path) as $entry) {
+                    $this->walkPath($entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results);
+                }
+                continue;
+            }
+
+            $this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results);
+        }
+
+        return $results;
     }
 
     /**
@@ -232,6 +281,7 @@ final class FileInfoScanner
                 throw new \UnexpectedValueException('xattr lister must return an array');
             }
 
+            sort($names, SORT_STRING);
             return array_values($names);
         }
 
@@ -240,7 +290,12 @@ final class FileInfoScanner
         }
 
         $names = @xattr_list($path);
-        return is_array($names) ? array_values($names) : [];
+        if (!is_array($names)) {
+            return [];
+        }
+
+        sort($names, SORT_STRING);
+        return array_values($names);
     }
 
     private function getXattr(string $path, string $name): ?string
@@ -265,6 +320,182 @@ final class FileInfoScanner
     private function xattrPermitted(string $name): bool
     {
         return $this->xattrFilter === null || (bool) ($this->xattrFilter)($name);
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @param list<FileInfo> $results
+     */
+    private function walkPath(
+        string $name,
+        ?IgnoreMatcher $ignoreMatcher,
+        bool $hashBlocks,
+        ?int $blockSize,
+        array $currentByName,
+        ?string $ignoredParent,
+        array &$seen,
+        array &$results,
+    ): void {
+        $path = $this->absolutePath($name);
+        if (!file_exists($path) && !is_link($path)) {
+            return;
+        }
+
+        if (RequestServer::isTemporaryName($name) || RequestServer::isInternalName($name)) {
+            return;
+        }
+
+        $isDirectory = is_dir($path) && !is_link($path);
+        $isRegularOrSymlink = is_file($path) || is_link($path);
+        if (!$isDirectory && !$isRegularOrSymlink) {
+            return;
+        }
+
+        if ($ignoreMatcher !== null) {
+            $match = $ignoreMatcher->match($name);
+            if ($match->isIgnored()) {
+                if ($isDirectory && !$match->canSkipDir()) {
+                    $highestIgnoredParent = $ignoredParent;
+                    if ($highestIgnoredParent === null || !self::isParentPath($name, $highestIgnoredParent)) {
+                        $highestIgnoredParent = $name;
+                    }
+
+                    foreach ($this->directoryEntries($path) as $entry) {
+                        $this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results);
+                    }
+                }
+
+                return;
+            }
+        }
+
+        if ($ignoredParent !== null && self::isParentPath($name, $ignoredParent)) {
+            $this->emitIgnoredParentChain($ignoredParent, $name, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+        } else {
+            $this->emitScanned($name, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+        }
+
+        if ($isDirectory) {
+            foreach ($this->directoryEntries($path) as $entry) {
+                $this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @param list<FileInfo> $results
+     */
+    private function emitIgnoredParentChain(
+        string $ignoredParent,
+        string $name,
+        bool $hashBlocks,
+        ?int $blockSize,
+        array $currentByName,
+        array &$seen,
+        array &$results,
+    ): void {
+        $this->emitScanned($ignoredParent, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+
+        $relative = substr($name, strlen($ignoredParent) + 1);
+        $current = $ignoredParent;
+        foreach (explode('/', $relative) as $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            $current .= '/' . $part;
+            $this->emitScanned($current, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+        }
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @param list<FileInfo> $results
+     */
+    private function emitScanned(
+        string $name,
+        bool $hashBlocks,
+        ?int $blockSize,
+        array $currentByName,
+        array &$seen,
+        array &$results,
+    ): void {
+        if (isset($seen[$name])) {
+            return;
+        }
+
+        $results[] = $this->scan($name, $hashBlocks, $blockSize, $currentByName[$name] ?? null);
+        $seen[$name] = true;
+    }
+
+    /**
+     * @param iterable<FileInfo> $currentFiles
+     * @return array<string, FileInfo>
+     */
+    private function currentFilesByName(iterable $currentFiles): array
+    {
+        $currentByName = [];
+        foreach ($currentFiles as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException('Current scanner files must be FileInfo instances');
+            }
+
+            $currentByName[$file->name] = $file;
+        }
+
+        return $currentByName;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function directoryEntries(string $path): array
+    {
+        $entries = [];
+        foreach (scandir($path) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $entries[] = $entry;
+        }
+
+        sort($entries, SORT_STRING);
+        return $entries;
+    }
+
+    private static function normalizeWalkSub(string $sub): string
+    {
+        $sub = trim(str_replace('\\', '/', $sub));
+        if ($sub === '' || $sub === '.' || $sub === '/') {
+            return '';
+        }
+
+        $sub = ltrim($sub, '/');
+        $parts = [];
+        foreach (explode('/', $sub) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                throw new \InvalidArgumentException('Scanner walk sub must not traverse above the root');
+            }
+
+            $parts[] = $part;
+        }
+
+        $normalized = implode('/', $parts);
+        if ($normalized !== '') {
+            ProtocolValidation::checkFilename($normalized);
+        }
+
+        return $normalized;
+    }
+
+    private static function isParentPath(string $name, string $parent): bool
+    {
+        return $name === $parent || str_starts_with($name, $parent . '/');
     }
 
     private function absolutePath(string $name): string

@@ -135,6 +135,7 @@ final class PlatformMetadataApplier
                 throw new \UnexpectedValueException('xattr lister must return an array');
             }
 
+            sort($names, SORT_STRING);
             return array_values($names);
         }
 
@@ -143,7 +144,12 @@ final class PlatformMetadataApplier
         }
 
         $names = @xattr_list($path);
-        return is_array($names) ? array_values($names) : [];
+        if (!is_array($names)) {
+            return [];
+        }
+
+        sort($names, SORT_STRING);
+        return array_values($names);
     }
 
     private function getXattr(string $path, string $name): ?string

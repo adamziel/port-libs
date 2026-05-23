@@ -6,6 +6,7 @@ use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\FileInfoComparison;
 use PortLibs\Syncthing\FileInfoScanner;
+use PortLibs\Syncthing\IgnoreMatcher;
 
 return [
     'maps upstream scanner CreateFileInfo ownership xattrs and block metadata' => static function (TestRunner $t): void {
@@ -66,9 +67,9 @@ return [
                 'user.wordpress.source' => 'playground',
             ], $info->xattrs);
             $t->same([
+                ['scanned-platform.jpg', 'user.wordpress.origin'],
                 ['scanned-platform.jpg', 'user.wordpress.source'],
                 ['scanned-platform.jpg', 'user.wordpress.too-large'],
-                ['scanned-platform.jpg', 'user.wordpress.origin'],
             ], $seenXattrs);
 
             $withoutXattrs = new FileInfo(
@@ -185,6 +186,108 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk maps upstream scanner sub walk ignore pruning' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            syncthing_scanner_write($root, 'dir2/cfile', "baz\n");
+            syncthing_scanner_write($root, 'dir2/dfile', "quux\n");
+            syncthing_scanner_write($root, 'dir2/dir21/media.jpg', 'ignored subtree');
+            $scanner = new FileInfoScanner($root);
+            $matcher = IgnoreMatcher::fromLines([
+                'dir2/dfile',
+                '/dir2/dir21',
+            ]);
+
+            $files = $scanner->walk(['dir2'], $matcher, hashBlocks: true, blockSize: 4);
+            $names = array_map(static fn (FileInfo $file): string => $file->name, $files);
+
+            $t->same(['dir2', 'dir2/cfile'], $names);
+            $t->same(FileInfo::TYPE_DIRECTORY, $files[0]->type);
+            $t->same(FileInfo::TYPE_FILE, $files[1]->type);
+            $t->same(4, $files[1]->size);
+            $t->same(hash('sha256', "baz\n"), $files[1]->blocks[0]->hashHex);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk preserves ignored ancestor directories for included descendants' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            syncthing_scanner_write($root, 'foo/bar/included/asset.jpg', 'public media');
+            syncthing_scanner_write($root, 'foo/private/secret.zip', 'private export');
+            $scanner = new FileInfoScanner($root);
+            $matcher = IgnoreMatcher::fromLines([
+                '!foo/bar',
+                '*',
+            ]);
+
+            $files = $scanner->walk(ignoreMatcher: $matcher);
+            $names = array_map(static fn (FileInfo $file): string => $file->name, $files);
+
+            $t->same([
+                'foo',
+                'foo/bar',
+                'foo/bar/included',
+                'foo/bar/included/asset.jpg',
+            ], $names);
+            $t->same(FileInfo::TYPE_DIRECTORY, $files[0]->type);
+            $t->same(FileInfo::TYPE_DIRECTORY, $files[1]->type);
+            $t->same(FileInfo::TYPE_FILE, $files[3]->type);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk skips internal and temporary entries while accepting slash-rooted subs' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            syncthing_scanner_write($root, '.stignore', '*');
+            syncthing_scanner_write($root, '.stfolder/marker', 'folder marker');
+            syncthing_scanner_write($root, '.syncthing.asset.tmp', 'stale temp');
+            syncthing_scanner_write($root, 'foo', 'scanned from slash sub');
+            $scanner = new FileInfoScanner($root);
+
+            $all = $scanner->walk();
+            $slashSub = $scanner->walk(['/foo'], hashBlocks: true, blockSize: 8);
+
+            $t->same(['foo'], array_map(static fn (FileInfo $file): string => $file->name, $all));
+            $t->same(['foo'], array_map(static fn (FileInfo $file): string => $file->name, $slashSub));
+            $t->same(hash('sha256', 'scanned '), $slashSub[0]->blocks[0]->hashHex);
+            $t->same(22, $slashSub[0]->size);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk retains current file block size within upstream hysteresis window' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/hero.jpg';
+            $bytes = 'existing wordpress media bytes';
+            syncthing_scanner_write($root, $name, $bytes);
+
+            $current = new FileInfo(
+                name: $name,
+                size: strlen($bytes),
+                type: FileInfo::TYPE_FILE,
+                rawBlockSize: 256 << 10,
+            );
+            $scanner = new FileInfoScanner($root);
+
+            $scanned = $scanner->scan($name, hashBlocks: true, currentFile: $current);
+            $walked = $scanner->walk(['wp-content/uploads/2026/05'], hashBlocks: true, currentFiles: [$current]);
+            $walkedByName = [];
+            foreach ($walked as $file) {
+                $walkedByName[$file->name] = $file;
+            }
+
+            $t->same(256 << 10, $scanned->rawBlockSize);
+            $t->same(256 << 10, $walkedByName[$name]->rawBlockSize);
+            $t->same(hash('sha256', $bytes), $walkedByName[$name]->blocks[0]->hashHex);
+            $t->same(BlockList::blockSizeForFileSize(strlen($bytes)), (new FileInfoScanner($root))->scan($name)->rawBlockSize);
+            $t->throws(InvalidArgumentException::class, static fn () => $scanner->scan($name, currentFile: $current->withName('other.jpg')));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
 ];
 
 function syncthing_scanner_root(): string
@@ -197,6 +300,20 @@ function syncthing_scanner_root(): string
 function syncthing_scanner_path(string $root, string $name): string
 {
     return $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+}
+
+function syncthing_scanner_write(string $root, string $name, string $bytes): string
+{
+    $path = syncthing_scanner_path($root, $name);
+    $dir = dirname($path);
+    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+        throw new RuntimeException('Failed to create scanner test directory');
+    }
+    if (file_put_contents($path, $bytes) === false) {
+        throw new RuntimeException('Failed to write scanner test file');
+    }
+
+    return $path;
 }
 
 function syncthing_scanner_rm(string $path): void

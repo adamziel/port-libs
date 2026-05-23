@@ -61,10 +61,13 @@ final class BlockList
         return $nextOffset === strlen($bytes);
     }
 
-    public static function blockSizeForFileSize(int $fileSize): int
+    public static function blockSizeForFileSize(int $fileSize, ?int $currentBlockSize = null): int
     {
         if ($fileSize < 0) {
             throw new \InvalidArgumentException('File size must not be negative');
+        }
+        if ($currentBlockSize !== null && $currentBlockSize < 0) {
+            throw new \InvalidArgumentException('Current block size must not be negative');
         }
 
         $selected = self::MIN_BLOCK_SIZE;
@@ -72,6 +75,16 @@ final class BlockList
             $selected = $blockSize;
             if ($fileSize < self::DESIRED_PER_FILE_BLOCKS * $blockSize) {
                 break;
+            }
+        }
+
+        if ($currentBlockSize !== null) {
+            $currentBlockSize = max($currentBlockSize, self::MIN_BLOCK_SIZE);
+            if ($selected > $currentBlockSize && intdiv($selected, $currentBlockSize) <= 2) {
+                return $currentBlockSize;
+            }
+            if ($currentBlockSize > $selected && intdiv($currentBlockSize, $selected) <= 2) {
+                return $currentBlockSize;
             }
         }
 

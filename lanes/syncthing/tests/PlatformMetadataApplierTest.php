@@ -53,9 +53,9 @@ return [
 
             $t->same(null, $error);
             $t->same([
-                ['get', 'user.wordpress.source'],
-                ['get', 'user.wordpress.old-import'],
                 ['get', 'user.wordpress.media-id'],
+                ['get', 'user.wordpress.old-import'],
+                ['get', 'user.wordpress.source'],
                 ['remove', 'user.wordpress.old-import'],
                 ['set', 'user.wordpress.media-id', '451'],
                 ['set', 'user.wordpress.origin', 'remote-device'],
@@ -98,7 +98,7 @@ return [
             $error = $applier->apply(new FileInfo(name: 'wp-content/uploads/2026/05/hero.jpg'), $path);
 
             $t->same(null, $error);
-            $t->same(['user.wordpress.source', 'user.wordpress.media-id'], $removed);
+            $t->same(['user.wordpress.media-id', 'user.wordpress.source'], $removed);
             $t->same(['security.selinux' => 'host-label'], $xattrs[$path]);
         } finally {
             syncthing_platform_rm($root);
@@ -161,6 +161,152 @@ return [
 
             $t->same(null, $error);
             $t->same([], $writes);
+        } finally {
+            syncthing_platform_rm($root);
+        }
+    },
+    'propagates xattr list failures before metadata writes' => static function (TestRunner $t): void {
+        $root = syncthing_platform_root();
+        try {
+            $path = $root . DIRECTORY_SEPARATOR . 'metadata-list-denied.jpg';
+            file_put_contents($path, 'media bytes');
+            $writes = [];
+            $applier = new PlatformMetadataApplier(
+                syncXattrs: true,
+                xattrSetter: static function (string $_path, string $name) use (&$writes): bool {
+                    $writes[] = ['set', $name];
+                    return true;
+                },
+                xattrLister: static fn (): array => throw new RuntimeException('Listxattr permission denied'),
+                xattrRemover: static function (string $_path, string $name) use (&$writes): bool {
+                    $writes[] = ['remove', $name];
+                    return true;
+                },
+            );
+            $file = new FileInfo(
+                name: 'wp-content/uploads/2026/05/hero.jpg',
+                xattrs: ['user.wordpress.media-id' => '451'],
+            );
+
+            $error = $applier->apply($file, $path);
+
+            $t->same('setting xattrs: GetXattr: Listxattr permission denied', $error);
+            $t->same([], $writes);
+        } finally {
+            syncthing_platform_rm($root);
+        }
+    },
+    'propagates xattr get failures before remove or set' => static function (TestRunner $t): void {
+        $root = syncthing_platform_root();
+        try {
+            $path = $root . DIRECTORY_SEPARATOR . 'metadata-get-denied.jpg';
+            file_put_contents($path, 'media bytes');
+            $writes = [];
+            $applier = new PlatformMetadataApplier(
+                syncXattrs: true,
+                xattrSetter: static function (string $_path, string $name) use (&$writes): bool {
+                    $writes[] = ['set', $name];
+                    return true;
+                },
+                xattrLister: static fn (): array => ['user.wordpress.old-import'],
+                xattrGetter: static fn (): string => throw new RuntimeException('Lgetxattr permission denied'),
+                xattrRemover: static function (string $_path, string $name) use (&$writes): bool {
+                    $writes[] = ['remove', $name];
+                    return true;
+                },
+            );
+            $file = new FileInfo(
+                name: 'wp-content/uploads/2026/05/hero.jpg',
+                xattrs: ['user.wordpress.media-id' => '451'],
+            );
+
+            $error = $applier->apply($file, $path);
+
+            $t->same('setting xattrs: GetXattr: Lgetxattr permission denied', $error);
+            $t->same([], $writes);
+        } finally {
+            syncthing_platform_rm($root);
+        }
+    },
+    'propagates xattr remove hard errors before setting new xattrs' => static function (TestRunner $t): void {
+        $root = syncthing_platform_root();
+        try {
+            $path = $root . DIRECTORY_SEPARATOR . 'metadata-remove-denied.jpg';
+            file_put_contents($path, 'media bytes');
+            $set = [];
+            $applier = new PlatformMetadataApplier(
+                syncXattrs: true,
+                xattrSetter: static function (string $_path, string $name) use (&$set): bool {
+                    $set[] = $name;
+                    return true;
+                },
+                xattrLister: static fn (): array => ['user.wordpress.old-import'],
+                xattrGetter: static fn (): string => 'delete-me',
+                xattrRemover: static fn (): bool => throw new RuntimeException('read-only filesystem'),
+                xattrFilter: static fn (string $name): bool => str_starts_with($name, 'user.wordpress.'),
+            );
+            $file = new FileInfo(
+                name: 'wp-content/uploads/2026/05/hero.jpg',
+                xattrs: ['user.wordpress.media-id' => '451'],
+            );
+
+            $error = $applier->apply($file, $path);
+
+            $t->same('setting xattrs: remove user.wordpress.old-import: read-only filesystem', $error);
+            $t->same([], $set);
+        } finally {
+            syncthing_platform_rm($root);
+        }
+    },
+    'propagates xattr set hard errors with the attribute name' => static function (TestRunner $t): void {
+        $root = syncthing_platform_root();
+        try {
+            $path = $root . DIRECTORY_SEPARATOR . 'metadata-set-denied.jpg';
+            file_put_contents($path, 'media bytes');
+            $attempts = [];
+            $applier = new PlatformMetadataApplier(
+                syncXattrs: true,
+                xattrSetter: static function (string $_path, string $name) use (&$attempts): bool {
+                    $attempts[] = $name;
+                    throw new RuntimeException('quota exceeded');
+                },
+                xattrLister: static fn (): array => [],
+            );
+            $file = new FileInfo(
+                name: 'wp-content/uploads/2026/05/hero.jpg',
+                xattrs: [
+                    'user.wordpress.media-id' => '451',
+                    'user.wordpress.origin' => 'remote-device',
+                ],
+            );
+
+            $error = $applier->apply($file, $path);
+
+            $t->same('setting xattrs: user.wordpress.media-id: quota exceeded', $error);
+            $t->same(['user.wordpress.media-id'], $attempts);
+        } finally {
+            syncthing_platform_rm($root);
+        }
+    },
+    'treats absent default host xattr extension as unsupported no-op' => static function (TestRunner $t): void {
+        $root = syncthing_platform_root();
+        try {
+            $path = $root . DIRECTORY_SEPARATOR . 'metadata-no-extension.jpg';
+            file_put_contents($path, 'media bytes');
+            $applier = new PlatformMetadataApplier(syncXattrs: true);
+            $file = new FileInfo(
+                name: 'wp-content/uploads/2026/05/hero.jpg',
+                xattrs: ['user.wordpress.media-id' => '451'],
+            );
+
+            if (function_exists('xattr_list') || function_exists('xattr_get') || function_exists('xattr_set') || function_exists('xattr_remove')) {
+                $file = new FileInfo(name: 'wp-content/uploads/2026/05/hero.jpg');
+            }
+
+            $error = $applier->apply($file, $path);
+
+            $t->same(null, $error);
+            $t->same(true, file_get_contents($path) === 'media bytes');
         } finally {
             syncthing_platform_rm($root);
         }

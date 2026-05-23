@@ -53,6 +53,16 @@ return [
         $t->same(256 << 10, BlockList::blockSizeForFileSize(2000 * (128 << 10)));
         $t->same(16 << 20, BlockList::blockSizeForFileSize(PHP_INT_MAX));
     },
+    'maps upstream scanner block size hysteresis from current FileInfo' => static function (TestRunner $t): void {
+        $fileSize = 500 << 20;
+
+        $t->same(512 << 10, BlockList::blockSizeForFileSize($fileSize));
+        $t->same(256 << 10, BlockList::blockSizeForFileSize($fileSize, 256 << 10));
+        $t->same(1 << 20, BlockList::blockSizeForFileSize($fileSize, 1 << 20));
+        $t->same(512 << 10, BlockList::blockSizeForFileSize($fileSize, 128 << 10));
+        $t->same(512 << 10, BlockList::blockSizeForFileSize($fileSize, 2 << 20));
+        $t->same(128 << 10, BlockList::blockSizeForFileSize(1024, 0));
+    },
     'hashes block lists and validates optional hashes' => static function (TestRunner $t): void {
         $list = new BlockList();
         $blocks = $list->fromBytes('contents', 3);
@@ -64,5 +74,6 @@ return [
     'rejects invalid block sizing input' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => (new BlockList())->fromBytes('content', 0));
         $t->throws(InvalidArgumentException::class, static fn () => BlockList::blockSizeForFileSize(-1));
+        $t->throws(InvalidArgumentException::class, static fn () => BlockList::blockSizeForFileSize(1, -1));
     },
 ];

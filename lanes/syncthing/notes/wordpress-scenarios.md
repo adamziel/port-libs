@@ -916,31 +916,87 @@ around `CreateFileInfo`, `lib/fs/platform_common.go`, and
 `wordpress-scanner-platform-metadata.php` shows a local-first WordPress media
 file scanned with owner/group IDs, filtered `user.wordpress.*` xattrs, block
 hashing, and xattr-ignored equivalence for hosts that cannot scan xattrs.
+The xattr hard-error and deterministic listing-order slice now maps upstream
+`BasicFilesystem.GetXattr`, `BasicFilesystem.SetXattr`, `listXattr`, and
+`setPlatformData`: listed xattr names are processed in sorted order before
+filtered reads, list/get/remove/set errors stop later metadata writes and return
+retryable metadata errors, and missing PHP host xattr functions behave like the
+upstream unsupported-xattrs sentinel. `wordpress-xattr-hard-error-retry.php`
+shows a WordPress media metadata update where a read-only xattr removal error
+preserves the stale host metadata, blocks new metadata writes, and prevents the
+database update until a later retry succeeds.
+The scanner walk ignore-pruning slice now maps focused upstream `Walk`,
+`WalkWithoutHashing`, `scan`, `walkAndHashFiles`, `Matcher.Match`,
+`fs.IsTemporary`, `fs.IsInternal`, `ignoredParent`, and `handleItem`
+boundaries. Native `FileInfoScanner::walk()` accepts slash-rooted sub paths,
+skips Syncthing internal and temporary names, prunes ignored directories when
+the matcher says they are safe to skip, keeps walking ignored directories when
+negated child patterns require it, emits ignored ancestor directories before an
+included descendant, and can hash regular WordPress media files while walking.
+`wordpress-scanner-walk-includes.php` shows an ignore-all WordPress media scan
+that still emits the included public upload ancestor chain and hashed media
+file while excluding `.stfolder`, `.stignore`, private exports, and stale
+`.syncthing.*.tmp` files.
+The scanner block-size hysteresis slice now maps upstream
+`TestBlocksizeHysteresis` and `walkRegular`: PHP selects the normal Syncthing
+block size from file length, but retains the current indexed `FileInfo` block
+size when the new and old sizes differ by at most a factor of two in either
+direction. `FileInfoScanner::scan()` and `FileInfoScanner::walk()` can accept
+current FileInfo state so a WordPress media rescan does not unnecessarily
+change block boundaries for an existing indexed upload. `wordpress-scanner-block-hysteresis.php`
+shows a small local-first media file retaining its prior 256 KiB block size and
+prints the upstream 500 MiB hysteresis cases.
 
 ## Test Run Notes
 
-On 2026-05-23, the focused xattr metadata tests
-`php tools/run-tests.php lanes/syncthing/tests/PlatformMetadataApplierTest.php`
-passed 1 file, 14 assertions, and 0 failures, and
+On 2026-05-23, the focused scanner tests
 `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed 1
-file, 32 assertions, and 0 failures. The full Syncthing lane suite
-`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2017
+file, 50 assertions, and 0 failures after adding upstream
+`TestBlocksizeHysteresis` mapping on top of the existing `TestWalkSub`,
+`TestRecurseInclude`/`TestIncludedSubdir`, `TestSkipIgnoredDirs`,
+`TestNotExistingError`, and `TestIssue4799` mappings. The focused block-list
+test `php tools/run-tests.php lanes/syncthing/tests/BlockListTest.php` passed 1
+file, 35 assertions, and 0 failures. The focused xattr metadata test
+`php tools/run-tests.php lanes/syncthing/tests/PlatformMetadataApplierTest.php`
+passed 1 file, 24 assertions, and 0 failures. The full Syncthing lane suite
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2052
 assertions, and 0 failures. The WordPress example
-`php lanes/syncthing/examples/wordpress-xattr-unsupported.php` ran
-successfully. Focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1`
-passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`
-with `ok github.com/syncthing/syncthing/lib/fs 0.009s`. Static upstream
-inventory remains 610 Test functions, 48 Benchmark functions, and 0 Fuzz
-functions across 141 `_test.go` files; the full upstream runner remains
-unexecuted because the primary cache is blob-filtered/no-checkout and broad
-`go test ./...` would require full hydration and dependency work. Before the
-root PHP harness, this worker ran the required
-`pgrep -af '^php tools/run-tests\.php( |$)'` check; it returned no active root
-harness, so `php tools/run-tests.php` was run and passed 185 test files, 19815
-assertions, and 0 failures.
+`php lanes/syncthing/examples/wordpress-xattr-hard-error-retry.php` ran
+successfully and reported a retryable `setting xattrs: remove
+user.wordpress.old-import: read-only filesystem` error with no new xattr writes
+or database update. The new WordPress example
+`php lanes/syncthing/examples/wordpress-scanner-walk-includes.php` ran
+successfully and emitted the included public upload chain plus a hashed public
+media file while keeping private and internal paths out of the scan. The new
+WordPress example `php lanes/syncthing/examples/wordpress-scanner-block-hysteresis.php`
+ran successfully and reported default 128 KiB block sizing, retained 256 KiB
+current-file sizing, and upstream 500 MiB hysteresis examples.
+
+Focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1` passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/fs 0.006s`. Static upstream inventory
+remains 610 Test functions, 48 Benchmark functions, and 0 Fuzz functions across
+141 `_test.go` files; the full upstream runner remains unexecuted because the
+primary cache is blob-filtered/no-checkout with mass tracked deletions, and
+broad `go test ./...` would require hydrating the full checkout, downloading
+and building the full Go module graph, and running the integration test tree.
+Focused upstream scanner walk evidence was refreshed with
+`go test ./lib/scanner -run 'TestWalk$|TestWalkSub|TestRecurseInclude|TestIncludedSubdir|TestSkipIgnoredDirs|TestNotExistingError|TestIssue4799' -count=1`,
+which passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.024s`.
+Focused upstream scanner block-size evidence was refreshed with
+`go test ./lib/scanner -run '^TestBlocksizeHysteresis$' -count=1`, which passed
+in the same hydrated worktree with
+`ok github.com/syncthing/syncthing/lib/scanner 1.556s`.
+
+Before root PHP harnesses, this worker ran the required
+`pgrep -af '^php tools/run-tests\.php( |$)'` check before starting any root
+harness. It returned no active root harness, so this worker ran
+`php tools/run-tests.php`; the root harness passed 189 test files, 20500
+assertions, and 0 failures. No Syncthing lane-local test failed.
 
 ## Next Task
 
-Map xattr list/get/set/remove hard-error propagation from PHP callbacks and
-default host-extension absence, or move to upstream scanner walk ignore/error
-edge cases if the metadata xattr slice is accepted.
+Map upstream scanner walk normalization/error reporting and unchanged-file
+short-circuiting against current file state, or extend xattr hard-error behavior
+through `PullItemUpdater` and `PullTemporaryFile` integration tests.
