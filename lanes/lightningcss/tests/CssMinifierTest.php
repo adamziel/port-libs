@@ -166,6 +166,121 @@ CSS;
         $css = '.asset { background: url("/yellow/blue.svg"); content: "yellow"; --brand-color: yellow; color: var(--yellow); width: calc(100% + 8px); }';
         $t->same('.asset{background:url("/yellow/blue.svg");content:"yellow";--brand-color:yellow;color:var(--yellow);width:calc(100% + 8px)}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream linear calc arithmetic cluster' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{width:120px}', $minifier->minify('.foo { width: calc(20px * 2 * 3) }'));
+        $t->same('.foo{width:90px}', $minifier->minify('.foo { width: calc(20px + 30px + 40px) }'));
+        $t->same('.foo{width:calc(100% - 10px)}', $minifier->minify('.foo { width: calc(100% - 30px + 20px) }'));
+        $t->same('.foo{width:calc(100% - 10px)}', $minifier->minify('.foo { width: calc(20px + 100% - 30px) }'));
+        $t->same('.foo{width:calc(200% - 40px)}', $minifier->minify('.foo { width: calc(2 * (100% - 20px)) }'));
+        $t->same('.foo{width:calc(200% - 40px)}', $minifier->minify('.foo { width: calc((100% - 20px) * 2) }'));
+        $t->same('.foo{width:calc(100% - 40px)}', $minifier->minify('.foo { width: calc(100% - 20px * 2) }'));
+        $t->same('.foo{width:2px}', $minifier->minify('.foo { width: calc(1px + 1px) }'));
+        $t->same('.foo{width:50vw}', $minifier->minify('.foo { width: calc(100vw / 2) }'));
+        $t->same('.foo{width:60px}', $minifier->minify('.foo { width: calc(50px - (20px - 30px)) }'));
+        $t->same('.foo{width:100%}', $minifier->minify('.foo { width: calc(100px - (100px - 100%)) }'));
+        $t->same('.foo{width:calc(200px - 100%)}', $minifier->minify('.foo { width: calc(100px + (100px - 100%)) }'));
+        $t->same('.foo{width:calc(1px - 2em - 3%)}', $minifier->minify('.foo { width: calc(1px - (2em + 3%)) }'));
+        $t->same('.foo{width:calc(50vw - 25em)}', $minifier->minify('.foo { width: calc((100vw - 50em) / 2) }'));
+        $t->same('.foo{width:.01px}', $minifier->minify('.foo { width: calc(1px/100) }'));
+        $t->same('.foo{width:100%}', $minifier->minify('.foo { width: calc(100% / 3 * 3) }'));
+        $t->same('.foo{width:200px}', $minifier->minify('.foo { width: calc(+100px + +100px) }'));
+        $t->same('.foo{width:0}', $minifier->minify('.foo { width: calc(+100px - +100px) }'));
+        $t->same('.foo{width:200px}', $minifier->minify('.foo { width: calc(200px * +1) }'));
+        $t->same('.foo{width:200px}', $minifier->minify('.foo { width: calc(200px / +1) }'));
+        $t->same('.foo{width:22px}', $minifier->minify('.foo { width: calc(1.1e+1px + 1.1e+1px) }'));
+        $t->same('.foo{border-width:3px}', $minifier->minify('.foo { border-width: calc(1px + 2px) }'));
+        $t->same('.foo{border-width:calc(3em + 5px)}', $minifier->minify('.foo { border-width: calc(1em + 2px + 2em + 3px) }'));
+        $t->same('.foo{width:calc(1x + 2x)}', $minifier->minify('.foo { width: calc(1x + 2x) }'));
+        $t->same('.foo{width:calc(var(--gap) + 2px)}', $minifier->minify('.foo { width: calc(var(--gap) + 2px) }'));
+    },
+    'css minifier maps upstream min max and clamp math function cluster' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{border-width:min(1em,2px)}', $minifier->minify('.foo { border-width: min(1em, 2px) }'));
+        $t->same('.foo{border-width:min(3em,4px)}', $minifier->minify('.foo { border-width: min(1em + 2em, 2px + 2px) }'));
+        $t->same('.foo{border-width:min(1em + 2px,2px + 1em)}', $minifier->minify('.foo { border-width: min(1em + 2px, 2px + 1em) }'));
+        $t->same('.foo{border-width:min(1em + 4px,3px + 1em)}', $minifier->minify('.foo { border-width: min(1em + 2px + 2px, 2px + 1em + 1px) }'));
+        $t->same('.foo{border-width:3px}', $minifier->minify('.foo { border-width: min(2px + 1px, 3px + 4px) }'));
+        $t->same('.foo{border-width:min(1px,1em)}', $minifier->minify('.foo { border-width: min(1px, 1em, 2px, 3in) }'));
+
+        $t->same('.foo{border-width:max(1em,2px)}', $minifier->minify('.foo { border-width: max(1em, 2px) }'));
+        $t->same('.foo{border-width:max(3em,4px)}', $minifier->minify('.foo { border-width: max(1em + 2em, 2px + 2px) }'));
+        $t->same('.foo{border-width:max(1em + 2px,2px + 1em)}', $minifier->minify('.foo { border-width: max(1em + 2px, 2px + 1em) }'));
+        $t->same('.foo{border-width:max(1em + 4px,3px + 1em)}', $minifier->minify('.foo { border-width: max(1em + 2px + 2px, 2px + 1em + 1px) }'));
+        $t->same('.foo{border-width:7px}', $minifier->minify('.foo { border-width: max(2px + 1px, 3px + 4px) }'));
+        $t->same('.foo{border-width:max(3in,1em)}', $minifier->minify('.foo { border-width: max(1px, 1em, 2px, 3in) }'));
+
+        $t->same('.foo{border-width:2px}', $minifier->minify('.foo { border-width: clamp(1px, 2px, 3px) }'));
+        $t->same('.foo{border-width:3px}', $minifier->minify('.foo { border-width: clamp(1px, 10px, 3px) }'));
+        $t->same('.foo{border-width:5px}', $minifier->minify('.foo { border-width: clamp(5px, 2px, 10px) }'));
+        $t->same('.foo{border-width:100px}', $minifier->minify('.foo { border-width: clamp(100px, 2px, 10px) }'));
+        $t->same('.foo{border-width:12px}', $minifier->minify('.foo { border-width: clamp(5px + 5px, 5px + 7px, 10px + 20px) }'));
+        $t->same('.foo{border-width:clamp(1em,2px,4vh)}', $minifier->minify('.foo { border-width: clamp(1em, 2px, 4vh) }'));
+        $t->same('.foo{border-width:clamp(1em,2em,4vh)}', $minifier->minify('.foo { border-width: clamp(1em, 2em, 4vh) }'));
+        $t->same('.foo{border-width:max(1em,2vh)}', $minifier->minify('.foo { border-width: clamp(1em, 2vh, 4vh) }'));
+        $t->same('.foo{border-width:2pt}', $minifier->minify('.foo { border-width: clamp(1px, 2pt, 1in) }'));
+        $t->same('.foo{width:clamp(-100px,0px,50% - 50vw)}', $minifier->minify('.foo { width: clamp(-100px, 0px, 50% - 50vw); }'));
+    },
+    'css minifier maps upstream round rem and mod math function cluster' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{width:20px}', $minifier->minify('.foo { width: round(22px, 5px) }'));
+        $t->same('.foo{width:20px}', $minifier->minify('.foo { width: round(nearest, 22px, 5px) }'));
+        $t->same('.foo{width:20px}', $minifier->minify('.foo { width: round(down, 22px, 5px) }'));
+        $t->same('.foo{width:20px}', $minifier->minify('.foo { width: round(to-zero, 22px, 5px) }'));
+        $t->same('.foo{width:25px}', $minifier->minify('.foo { width: round(up, 22px, 5px) }'));
+        $t->same('.foo{width:25px}', $minifier->minify('.foo { width: round(23px, 5px) }'));
+        $t->same('.foo{width:25px}', $minifier->minify('.foo { width: round(nearest, 23px, 5px) }'));
+        $t->same('.foo{width:20px}', $minifier->minify('.foo { width: round(down, 23px, 5px) }'));
+        $t->same('.foo{width:20px}', $minifier->minify('.foo { width: round(to-zero, 23px, 5px) }'));
+        $t->same('.foo{width:25px}', $minifier->minify('.foo { width: round(up, 23px, 5px) }'));
+        $t->same('.foo{width:round(22px,5vw)}', $minifier->minify('.foo { width: round(22px, 5vw) }'));
+        $t->same('.foo{rotate:20deg}', $minifier->minify('.foo { rotate: round(22deg, 5deg) }'));
+        $t->same('.foo{transition-duration:20ms}', $minifier->minify('.foo { transition-duration: round(22ms, 5ms) }'));
+        $t->same('.foo{margin:-20px}', $minifier->minify('.foo { margin: round(to-zero, -23px, 5px) }'));
+        $t->same('.foo{margin:-25px}', $minifier->minify('.foo { margin: round(nearest, -23px, 5px) }'));
+        $t->same('.foo{margin:200px}', $minifier->minify('.foo { margin: calc(10px * round(22, 5)) }'));
+
+        $t->same('.foo{width:3px}', $minifier->minify('.foo { width: rem(18px, 5px) }'));
+        $t->same('.foo{width:-3px}', $minifier->minify('.foo { width: rem(-18px, 5px) }'));
+        $t->same('.foo{width:rem(18px,5vw)}', $minifier->minify('.foo { width: rem(18px, 5vw) }'));
+        $t->same('.foo{rotate:-50deg}', $minifier->minify('.foo { rotate: rem(-140deg, -90deg) }'));
+        $t->same('.foo{rotate:50deg}', $minifier->minify('.foo { rotate: rem(140deg, -90deg) }'));
+        $t->same('.foo{width:30px}', $minifier->minify('.foo { width: calc(10px * rem(18, 5)) }'));
+
+        $t->same('.foo{width:3px}', $minifier->minify('.foo { width: mod(18px, 5px) }'));
+        $t->same('.foo{width:2px}', $minifier->minify('.foo { width: mod(-18px, 5px) }'));
+        $t->same('.foo{rotate:-50deg}', $minifier->minify('.foo { rotate: mod(-140deg, -90deg) }'));
+        $t->same('.foo{rotate:-40deg}', $minifier->minify('.foo { rotate: mod(140deg, -90deg) }'));
+        $t->same('.foo{width:mod(18px,5vw)}', $minifier->minify('.foo { width: mod(18px, 5vw) }'));
+        $t->same('.foo{width:30px}', $minifier->minify('.foo { width: calc(10px * mod(18, 5)) }'));
+    },
+    'css minifier maps upstream nested math functions inside calc' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{top:calc(-1*clamp(1.75rem,8vw,4rem))}',
+            $minifier->minify('.foo { top: calc(-1 * clamp(1.75rem, 8vw, 4rem)) }')
+        );
+        $t->same(
+            '.foo{top:calc(-1*min(1.75rem,8vw))}',
+            $minifier->minify('.foo { top: calc(-1 * min(1.75rem, 8vw, 4rem)) }')
+        );
+        $t->same(
+            '.foo{top:calc(-1*max(4rem,8vw))}',
+            $minifier->minify('.foo { top: calc(-1 * max(1.75rem, 8vw, 4rem)) }')
+        );
+        $t->same(
+            '.foo{top:calc(clamp(1.75rem,8vw,4rem)/2)}',
+            $minifier->minify('.foo { top: calc(clamp(1.75rem, 8vw, 4rem) / 2) }')
+        );
+        $t->same(
+            '.foo{left:calc(50% - 100px + clamp(0px,50vw - 50px,100px))}',
+            $minifier->minify('.foo { left: calc(50% - 100px + clamp(0px, calc(50vw - 50px), 100px)) }')
+        );
+    },
     'css minifier maps upstream animation longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -763,6 +878,22 @@ CSS;
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
         $t->same(trim($expected), (new CssMinifier())->minify($css));
+    },
+    'wordpress fluid block spacing math functions minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-query {
+  gap: round(23px, 5px);
+  margin-block-start: rem(38px, 12px);
+  padding-inline: mod(42px, 16px);
+  width: calc(10px * round(22, 5));
+  border-width: clamp(1rem + 1rem, 1rem + 3rem, 6rem);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-query{gap:25px;margin-block-start:2px;padding-inline:10px;width:200px;border-width:4rem}',
+            (new CssMinifier())->minify($css)
+        );
     },
     'wordpress block interaction transition shorthands minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'

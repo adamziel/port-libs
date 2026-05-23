@@ -1155,7 +1155,7 @@ final class CssMinifier
 
     private function minifyDeclarationValue(string $property, string $value): string
     {
-        $value = $this->foldSimpleLengthCalcs($this->normalizeMathFunctionOperators($value));
+        $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
@@ -4936,6 +4936,486 @@ final class CssMinifier
         return $output;
     }
 
+    private function minifyMathFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $url;
+                $i = $offset;
+                continue;
+            }
+
+            if ($this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($value, $i);
+                $next = $i + strlen($identifier);
+                if (($value[$next] ?? '') === '(') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $this->minifyMathFunction($function);
+                    $i = $offset;
+                    continue;
+                }
+
+                $output .= $identifier;
+                $i = $next - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifyMathFunction(string $function): string
+    {
+        if (preg_match('/^([-_a-zA-Z][-_a-zA-Z0-9]*)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $name = strtolower($matches[1]);
+        $inner = $this->minifyMathFunctions($matches[2]);
+
+        if ($name === 'calc') {
+            $linear = $this->parseLinearMathArgument($inner);
+
+            return $linear === null
+                ? 'calc(' . $this->compactMathFallback($inner) . ')'
+                : $this->serializeLinearCalc($linear);
+        }
+
+        if ($name === 'min' || $name === 'max') {
+            return $this->minifyMathMinMax($name, $this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'clamp') {
+            return $this->minifyMathClamp($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'round') {
+            return $this->minifyMathRound($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'rem' || $name === 'mod') {
+            return $this->minifyMathRemainder($name, $this->splitTopLevel($inner, ','));
+        }
+
+        return $matches[1] . '(' . $this->compactMathFallback($inner) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathMinMax(string $name, array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if ($normalized === []) {
+            return $name . '()';
+        }
+
+        return $this->minifyMathMinMaxNormalized($name, $normalized);
+    }
+
+    /**
+     * @param non-empty-list<string> $args
+     */
+    private function minifyMathMinMaxNormalized(string $name, array $args): string
+    {
+        $comparables = [];
+        $groupOrder = [];
+        foreach ($args as $index => $arg) {
+            $comparables[$index] = $this->comparableMathValue($arg);
+            if ($comparables[$index] !== null && !array_key_exists($comparables[$index]['group'], $groupOrder)) {
+                $groupOrder[$comparables[$index]['group']] = $index;
+            }
+        }
+
+        $keep = array_fill(0, count($args), true);
+        foreach ($args as $index => $_arg) {
+            $left = $comparables[$index];
+            if ($left === null) {
+                continue;
+            }
+
+            foreach ($args as $otherIndex => $_otherArg) {
+                if ($index === $otherIndex) {
+                    continue;
+                }
+                $right = $comparables[$otherIndex];
+                if ($right === null) {
+                    continue;
+                }
+                $comparison = $this->compareComparableMathValues($right, $left);
+                if ($comparison === null) {
+                    continue;
+                }
+
+                if ($name === 'min' && ($comparison < 0 || ($comparison === 0 && $otherIndex < $index))) {
+                    $keep[$index] = false;
+                    break;
+                }
+                if ($name === 'max' && ($comparison > 0 || ($comparison === 0 && $otherIndex < $index))) {
+                    $keep[$index] = false;
+                    break;
+                }
+            }
+        }
+
+        $kept = [];
+        foreach ($args as $index => $arg) {
+            if ($keep[$index]) {
+                $kept[] = ['index' => $index, 'value' => $arg, 'comparable' => $comparables[$index]];
+            }
+        }
+
+        usort($kept, static function (array $left, array $right) use ($groupOrder): int {
+            $leftOrder = $left['comparable'] === null ? $left['index'] : $groupOrder[$left['comparable']['group']];
+            $rightOrder = $right['comparable'] === null ? $right['index'] : $groupOrder[$right['comparable']['group']];
+
+            return $leftOrder <=> $rightOrder ?: $left['index'] <=> $right['index'];
+        });
+
+        $values = array_map(static fn (array $item): string => $item['value'], $kept);
+        if (count($values) === 1) {
+            return $values[0];
+        }
+
+        return $name . '(' . implode(',', $values) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathClamp(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 3) {
+            return 'clamp(' . implode(',', $normalized) . ')';
+        }
+
+        [$lower, $preferred, $upper] = $normalized;
+        $lowerComparable = $this->comparableMathValue($lower);
+        $preferredComparable = $this->comparableMathValue($preferred);
+        $upperComparable = $this->comparableMathValue($upper);
+
+        if ($lowerComparable !== null && $preferredComparable !== null && $upperComparable !== null) {
+            $lowerToUpper = $this->compareComparableMathValues($lowerComparable, $upperComparable);
+            $preferredToLower = $this->compareComparableMathValues($preferredComparable, $lowerComparable);
+            $preferredToUpper = $this->compareComparableMathValues($preferredComparable, $upperComparable);
+            if ($lowerToUpper !== null && $preferredToLower !== null && $preferredToUpper !== null) {
+                if ($lowerToUpper > 0 || $preferredToLower < 0) {
+                    return $lower;
+                }
+                if ($preferredToUpper > 0) {
+                    return $upper;
+                }
+
+                return $preferred;
+            }
+        }
+
+        if ($preferredComparable !== null && $upperComparable !== null) {
+            $preferredToUpper = $this->compareComparableMathValues($preferredComparable, $upperComparable);
+            if ($preferredToUpper !== null && $preferredToUpper <= 0) {
+                return $this->minifyMathMinMaxNormalized('max', [$lower, $preferred]);
+            }
+        }
+
+        return 'clamp(' . implode(',', $normalized) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathRound(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        $strategy = 'nearest';
+        if (count($normalized) === 3) {
+            $strategy = strtolower($normalized[0]);
+            $normalized = [$normalized[1], $normalized[2]];
+        }
+        if (count($normalized) !== 2 || !in_array($strategy, ['nearest', 'down', 'up', 'to-zero'], true)) {
+            return 'round(' . implode(',', $this->normalizeMathArguments($args)) . ')';
+        }
+
+        $value = $this->comparableMathValue($normalized[0]);
+        $step = $this->comparableMathValue($normalized[1]);
+        if ($value === null || $step === null || $this->compareComparableMathValues($value, $step) === null || abs($step['canonical']) < 0.0000001) {
+            return 'round(' . implode(',', $strategy === 'nearest' ? $normalized : array_merge([$strategy], $normalized)) . ')';
+        }
+
+        $ratio = $value['canonical'] / abs($step['canonical']);
+        $rounded = match ($strategy) {
+            'down' => floor($ratio),
+            'up' => ceil($ratio),
+            'to-zero' => $ratio < 0 ? ceil($ratio) : floor($ratio),
+            default => round($ratio),
+        };
+
+        return $this->serializeMathNumberWithUnit($rounded * abs($step['value']), $value['unit']);
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathRemainder(string $name, array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 2) {
+            return $name . '(' . implode(',', $normalized) . ')';
+        }
+
+        $dividend = $this->comparableMathValue($normalized[0]);
+        $divisor = $this->comparableMathValue($normalized[1]);
+        if ($dividend === null || $divisor === null || $this->compareComparableMathValues($dividend, $divisor) === null || abs($divisor['canonical']) < 0.0000001) {
+            return $name . '(' . implode(',', $normalized) . ')';
+        }
+
+        if ($name === 'rem') {
+            $result = fmod($dividend['canonical'], $divisor['canonical']);
+        } else {
+            $result = $dividend['canonical'] - $divisor['canonical'] * floor($dividend['canonical'] / $divisor['canonical']);
+        }
+
+        return $this->serializeMathNumberWithUnit($result / $dividend['canonicalPerUnit'], $dividend['unit']);
+    }
+
+    /**
+     * @param list<string> $args
+     * @return list<string>
+     */
+    private function normalizeMathArguments(array $args): array
+    {
+        return array_map(fn (string $arg): string => $this->normalizeMathArgument($arg), $args);
+    }
+
+    private function normalizeMathArgument(string $arg): string
+    {
+        $arg = trim($this->minifyMathFunctions($arg));
+        $linear = $this->parseLinearMathArgument($arg);
+        if ($linear !== null) {
+            return $this->serializeLinearCalcArgument($linear, true);
+        }
+
+        return $this->compactMathFallback($arg);
+    }
+
+    /**
+     * @return array{terms:array<string,float>,order:list<string>}|null
+     */
+    private function parseLinearMathArgument(string $arg): ?array
+    {
+        $arg = trim($arg);
+        if (preg_match('/^calc\((.*)\)$/is', $arg, $matches) === 1) {
+            $arg = trim($matches[1]);
+        }
+
+        $tokens = $this->tokenizeLinearCalcExpression($arg);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $offset = 0;
+        $result = $this->parseLinearCalcExpression($tokens, $offset);
+
+        return $result !== null && $offset === count($tokens) ? $result : null;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $value
+     */
+    private function serializeLinearCalcArgument(array $value, bool $preserveZeroUnit = false): string
+    {
+        $units = $this->nonZeroLinearCalcUnits($value);
+        if ($units === []) {
+            $zeroUnit = $preserveZeroUnit ? $this->zeroLinearCalcUnit($value) : null;
+
+            return $zeroUnit === null ? '0' : '0' . $zeroUnit;
+        }
+        if (count($units) === 1) {
+            $unit = $units[0];
+
+            return $this->serializeLinearCalcTerm($value['terms'][$unit], $unit);
+        }
+
+        if (($value['terms'][$units[0]] ?? 0.0) < 0) {
+            $positive = array_values(array_filter($units, fn (string $unit): bool => ($value['terms'][$unit] ?? 0.0) > 0));
+            if ($positive !== []) {
+                $negative = array_values(array_filter($units, fn (string $unit): bool => ($value['terms'][$unit] ?? 0.0) < 0));
+                $units = array_merge($positive, $negative);
+            }
+        }
+
+        $output = '';
+        foreach ($units as $unit) {
+            $coefficient = $value['terms'][$unit];
+            $term = $this->serializeLinearCalcTerm(abs($coefficient), $unit);
+            if ($output === '') {
+                $output = $coefficient < 0 ? '-' . $term : $term;
+                continue;
+            }
+            $output .= $coefficient < 0 ? ' - ' . $term : ' + ' . $term;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $value
+     */
+    private function zeroLinearCalcUnit(array $value): ?string
+    {
+        if (count($value['order']) !== 1) {
+            return null;
+        }
+
+        $unit = $value['order'][0];
+
+        return $unit !== '' && abs($value['terms'][$unit] ?? 0.0) < 0.0000001 ? $unit : null;
+    }
+
+    /**
+     * @return array{value:float,unit:string,group:string,canonical:float,canonicalPerUnit:float}|null
+     */
+    private function comparableMathValue(string $arg): ?array
+    {
+        $linear = $this->parseLinearMathArgument($arg);
+        if ($linear === null) {
+            return null;
+        }
+
+        $units = $this->nonZeroLinearCalcUnits($linear);
+        if ($units === []) {
+            $unit = $this->zeroLinearCalcUnit($linear) ?? '';
+            $value = 0.0;
+        } elseif (count($units) === 1) {
+            $unit = $units[0];
+            $value = $linear['terms'][$unit];
+        } else {
+            return null;
+        }
+
+        $comparison = $this->mathComparison($value, $unit);
+        if ($comparison === null) {
+            return null;
+        }
+
+        return [
+            'value' => $value,
+            'unit' => $unit,
+            'group' => $comparison['group'],
+            'canonical' => $comparison['canonical'],
+            'canonicalPerUnit' => $comparison['canonicalPerUnit'],
+        ];
+    }
+
+    /**
+     * @return array{group:string,canonical:float,canonicalPerUnit:float}|null
+     */
+    private function mathComparison(float $value, string $unit): ?array
+    {
+        $absoluteLengths = [
+            'px' => 1.0,
+            'in' => 96.0,
+            'cm' => 96.0 / 2.54,
+            'mm' => 96.0 / 25.4,
+            'q' => 96.0 / 101.6,
+            'pc' => 16.0,
+            'pt' => 96.0 / 72.0,
+        ];
+        if (isset($absoluteLengths[$unit])) {
+            return [
+                'group' => 'length:absolute',
+                'canonical' => $value * $absoluteLengths[$unit],
+                'canonicalPerUnit' => $absoluteLengths[$unit],
+            ];
+        }
+
+        $times = ['s' => 1.0, 'ms' => 0.001];
+        if (isset($times[$unit])) {
+            return [
+                'group' => 'time',
+                'canonical' => $value * $times[$unit],
+                'canonicalPerUnit' => $times[$unit],
+            ];
+        }
+
+        $angles = [
+            'deg' => 1.0,
+            'grad' => 0.9,
+            'rad' => 180.0 / M_PI,
+            'turn' => 360.0,
+        ];
+        if (isset($angles[$unit])) {
+            return [
+                'group' => 'angle',
+                'canonical' => $value * $angles[$unit],
+                'canonicalPerUnit' => $angles[$unit],
+            ];
+        }
+
+        return [
+            'group' => $unit === '' ? 'number' : 'unit:' . $unit,
+            'canonical' => $value,
+            'canonicalPerUnit' => 1.0,
+        ];
+    }
+
+    /**
+     * @param array{group:string,canonical:float} $left
+     * @param array{group:string,canonical:float} $right
+     */
+    private function compareComparableMathValues(array $left, array $right): ?int
+    {
+        if ($left['group'] !== $right['group']) {
+            return null;
+        }
+        if (abs($left['canonical'] - $right['canonical']) < 0.0000001) {
+            return 0;
+        }
+
+        return $left['canonical'] < $right['canonical'] ? -1 : 1;
+    }
+
+    private function serializeMathNumberWithUnit(float $number, string $unit): string
+    {
+        $serialized = $this->minifyNumber($number);
+
+        return $serialized === '0' ? '0' : $serialized . $unit;
+    }
+
+    private function compactMathFallback(string $value): string
+    {
+        $value = preg_replace('/\s*,\s*/', ',', trim($value)) ?? trim($value);
+        $value = preg_replace('/\s*([*\/])\s*/', '$1', $value) ?? $value;
+
+        return $value;
+    }
+
     private function foldSimpleLengthCalcs(string $value): string
     {
         $output = '';
@@ -4992,46 +5472,336 @@ final class CssMinifier
 
     private function foldSimpleLengthCalc(string $function): string
     {
-        $numberPattern = '[+-]?(?:\d+|\d*\.\d+)';
-        $unitPattern = '(?:%|[a-zA-Z]+)';
         if (preg_match('/^calc\((.*)\)$/is', trim($function), $calcMatches) !== 1) {
             return $function;
         }
         $inner = trim($calcMatches[1]);
 
-        if (preg_match('/^(' . $numberPattern . ')(' . $unitPattern . ')\s*([*\/])\s*(' . $numberPattern . ')$/i', $inner, $matches) === 1) {
-            $left = (float) $matches[1];
-            $right = (float) $matches[4];
-            if ($matches[3] === '/' && abs($right) < 0.0000001) {
-                return $function;
+        $tokens = $this->tokenizeLinearCalcExpression($inner);
+        if ($tokens !== []) {
+            $offset = 0;
+            $result = $this->parseLinearCalcExpression($tokens, $offset);
+            if ($result !== null && $offset === count($tokens)) {
+                return $this->serializeLinearCalc($result);
             }
-            $value = $matches[3] === '*' ? $left * $right : $left / $right;
-            $number = $this->minifyNumber($value);
-
-            return $number === '0' ? '0' : $number . strtolower($matches[2]);
         }
 
-        if (preg_match('/^(' . $numberPattern . ')\s*\*\s*(' . $numberPattern . ')(' . $unitPattern . ')$/i', $inner, $matches) === 1) {
-            $value = (float) $matches[1] * (float) $matches[2];
-            $number = $this->minifyNumber($value);
+        return $function;
+    }
 
-            return $number === '0' ? '0' : $number . strtolower($matches[3]);
+    /**
+     * @return list<array{type:string,value:string,unit?:string}>
+     */
+    private function tokenizeLinearCalcExpression(string $expression): array
+    {
+        $tokens = [];
+        $length = strlen($expression);
+        for ($i = 0; $i < $length;) {
+            $char = $expression[$i];
+            if (ctype_space($char)) {
+                $i++;
+                continue;
+            }
+            if (str_contains('()+-*/', $char)) {
+                $tokens[] = ['type' => $char, 'value' => $char];
+                $i++;
+                continue;
+            }
+            if (preg_match('/\G(\d*\.\d+|\d+)(?:[eE][+-]?\d+)?/A', $expression, $numberMatches, 0, $i) === 1) {
+                $number = $numberMatches[0];
+                $i += strlen($number);
+                $unit = '';
+                if (preg_match('/\G(?:%|[a-zA-Z][a-zA-Z0-9]*)/A', $expression, $unitMatches, 0, $i) === 1) {
+                    $unit = strtolower($unitMatches[0]);
+                    $i += strlen($unitMatches[0]);
+                }
+                $tokens[] = ['type' => 'number', 'value' => $number, 'unit' => $unit];
+                continue;
+            }
+            if ($this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($expression, $i);
+                $tokens[] = ['type' => 'ident', 'value' => strtolower($identifier)];
+                $i += strlen($identifier);
+                continue;
+            }
+
+            return [];
         }
 
-        if (preg_match(
-            '/^(' . $numberPattern . ')(' . $unitPattern . ')\s*([+-])\s*(' . $numberPattern . ')\2$/i',
-            $inner,
-            $matches
-        ) !== 1) {
-            return $function;
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string,value:string,unit?:string}> $tokens
+     * @return array{terms:array<string,float>,order:list<string>}|null
+     */
+    private function parseLinearCalcExpression(array $tokens, int &$offset): ?array
+    {
+        $value = $this->parseLinearCalcProduct($tokens, $offset);
+        if ($value === null) {
+            return null;
         }
 
-        $left = (float) $matches[1];
-        $right = (float) $matches[4];
-        $value = $matches[3] === '+' ? $left + $right : $left - $right;
-        $number = $this->minifyNumber($value);
+        while ($offset < count($tokens) && in_array($tokens[$offset]['type'], ['+', '-'], true)) {
+            $operator = $tokens[$offset++]['type'];
+            $right = $this->parseLinearCalcProduct($tokens, $offset);
+            if ($right === null) {
+                return null;
+            }
+            $value = $this->combineLinearCalc($value, $right, $operator === '-' ? -1.0 : 1.0);
+        }
 
-        return $number === '0' ? '0' : $number . strtolower($matches[2]);
+        return $value;
+    }
+
+    /**
+     * @param list<array{type:string,value:string,unit?:string}> $tokens
+     * @return array{terms:array<string,float>,order:list<string>}|null
+     */
+    private function parseLinearCalcProduct(array $tokens, int &$offset): ?array
+    {
+        $value = $this->parseLinearCalcFactor($tokens, $offset);
+        if ($value === null) {
+            return null;
+        }
+
+        while ($offset < count($tokens) && in_array($tokens[$offset]['type'], ['*', '/'], true)) {
+            $operator = $tokens[$offset++]['type'];
+            $right = $this->parseLinearCalcFactor($tokens, $offset);
+            if ($right === null) {
+                return null;
+            }
+
+            if ($operator === '*') {
+                $leftScalar = $this->linearCalcScalar($value);
+                $rightScalar = $this->linearCalcScalar($right);
+                if ($leftScalar === null && $rightScalar === null) {
+                    return null;
+                }
+                $value = $leftScalar !== null
+                    ? $this->scaleLinearCalc($right, $leftScalar)
+                    : $this->scaleLinearCalc($value, $rightScalar);
+                continue;
+            }
+
+            $rightScalar = $this->linearCalcScalar($right);
+            if ($rightScalar === null || abs($rightScalar) < 0.0000001) {
+                return null;
+            }
+            $value = $this->scaleLinearCalc($value, 1 / $rightScalar);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{type:string,value:string,unit?:string}> $tokens
+     * @return array{terms:array<string,float>,order:list<string>}|null
+     */
+    private function parseLinearCalcFactor(array $tokens, int &$offset): ?array
+    {
+        if ($offset >= count($tokens)) {
+            return null;
+        }
+
+        $token = $tokens[$offset++];
+        if ($token['type'] === '+') {
+            return $this->parseLinearCalcFactor($tokens, $offset);
+        }
+        if ($token['type'] === '-') {
+            $value = $this->parseLinearCalcFactor($tokens, $offset);
+
+            return $value === null ? null : $this->scaleLinearCalc($value, -1.0);
+        }
+        if ($token['type'] === '(') {
+            $value = $this->parseLinearCalcExpression($tokens, $offset);
+            if ($value === null || ($tokens[$offset]['type'] ?? null) !== ')') {
+                return null;
+            }
+            $offset++;
+
+            return $value;
+        }
+        if ($token['type'] === 'ident' && $token['value'] === 'calc' && ($tokens[$offset]['type'] ?? null) === '(') {
+            $offset++;
+            $value = $this->parseLinearCalcExpression($tokens, $offset);
+            if ($value === null || ($tokens[$offset]['type'] ?? null) !== ')') {
+                return null;
+            }
+            $offset++;
+
+            return $value;
+        }
+        if ($token['type'] !== 'number') {
+            return null;
+        }
+
+        $unit = strtolower($token['unit'] ?? '');
+        if ($unit !== '' && !$this->isFoldableCalcUnit($unit)) {
+            return null;
+        }
+
+        return [
+            'terms' => [$unit => (float) $token['value']],
+            'order' => [$unit],
+        ];
+    }
+
+    private function isFoldableCalcUnit(string $unit): bool
+    {
+        return in_array($unit, [
+            '%',
+            'cap',
+            'ch',
+            'cm',
+            'cqb',
+            'cqh',
+            'cqi',
+            'cqmax',
+            'cqmin',
+            'cqw',
+            'deg',
+            'dvh',
+            'dvw',
+            'em',
+            'ex',
+            'grad',
+            'ic',
+            'in',
+            'lh',
+            'lvh',
+            'lvw',
+            'mm',
+            'ms',
+            'pc',
+            'pt',
+            'px',
+            'q',
+            'rad',
+            'rem',
+            'ric',
+            'rlh',
+            's',
+            'svh',
+            'svmin',
+            'svw',
+            'turn',
+            'vh',
+            'vmax',
+            'vmin',
+            'vw',
+        ], true);
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $left
+     * @param array{terms:array<string,float>,order:list<string>} $right
+     * @return array{terms:array<string,float>,order:list<string>}
+     */
+    private function combineLinearCalc(array $left, array $right, float $rightSign): array
+    {
+        $terms = $left['terms'];
+        $order = $left['order'];
+        foreach ($right['order'] as $unit) {
+            if (!in_array($unit, $order, true)) {
+                $order[] = $unit;
+            }
+        }
+        foreach ($right['terms'] as $unit => $coefficient) {
+            $terms[$unit] = ($terms[$unit] ?? 0.0) + $rightSign * $coefficient;
+        }
+
+        return ['terms' => $terms, 'order' => $order];
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $value
+     * @return array{terms:array<string,float>,order:list<string>}
+     */
+    private function scaleLinearCalc(array $value, float $factor): array
+    {
+        $terms = [];
+        foreach ($value['terms'] as $unit => $coefficient) {
+            $terms[$unit] = $coefficient * $factor;
+        }
+
+        return ['terms' => $terms, 'order' => $value['order']];
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $value
+     */
+    private function linearCalcScalar(array $value): ?float
+    {
+        $nonZero = $this->nonZeroLinearCalcUnits($value);
+        if ($nonZero === []) {
+            return 0.0;
+        }
+
+        return $nonZero === [''] ? ($value['terms'][''] ?? 0.0) : null;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $value
+     * @return list<string>
+     */
+    private function nonZeroLinearCalcUnits(array $value): array
+    {
+        $units = [];
+        foreach ($value['order'] as $unit) {
+            if (abs($value['terms'][$unit] ?? 0.0) >= 0.0000001) {
+                $units[] = $unit;
+            }
+        }
+
+        return $units;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $value
+     */
+    private function serializeLinearCalc(array $value): string
+    {
+        $units = $this->nonZeroLinearCalcUnits($value);
+        if ($units === []) {
+            return '0';
+        }
+        if (count($units) === 1) {
+            $unit = $units[0];
+
+            return $this->serializeLinearCalcTerm($value['terms'][$unit], $unit);
+        }
+
+        if (($value['terms'][$units[0]] ?? 0.0) < 0) {
+            $positive = array_values(array_filter($units, fn (string $unit): bool => ($value['terms'][$unit] ?? 0.0) > 0));
+            if ($positive !== []) {
+                $negative = array_values(array_filter($units, fn (string $unit): bool => ($value['terms'][$unit] ?? 0.0) < 0));
+                $units = array_merge($positive, $negative);
+            }
+        }
+
+        $output = '';
+        foreach ($units as $unit) {
+            $coefficient = $value['terms'][$unit];
+            $term = $this->serializeLinearCalcTerm(abs($coefficient), $unit);
+            if ($output === '') {
+                $output = $coefficient < 0 ? '-' . $term : $term;
+                continue;
+            }
+            $output .= $coefficient < 0 ? ' - ' . $term : ' + ' . $term;
+        }
+
+        return 'calc(' . $output . ')';
+    }
+
+    private function serializeLinearCalcTerm(float $coefficient, string $unit): string
+    {
+        $number = $this->minifyNumber($coefficient);
+        if ($number === '0' || $unit === '') {
+            return $number;
+        }
+
+        return $number . $unit;
     }
 
     private function isBinaryMathOperator(string $value, int $offset): bool
