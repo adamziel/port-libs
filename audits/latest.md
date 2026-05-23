@@ -1,4 +1,4 @@
-# Independent Audit - 2026-05-23T12:45:49Z
+# Independent Audit - 2026-05-23T12:52:50Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane
@@ -10,100 +10,75 @@ read secrets, inspect process environments, or start a root harness. Bridge,
 generated, supplied, oracle, CLI, and shell-backed evidence is treated as
 non-progress unless it is explicitly temporary oracle tooling.
 
-Sampled `HEAD` for this audit was `30be5e3c193c` (`Refresh independent audit
-status`). Recent history reviewed includes `30be5e3c`, `90d1fa3b`,
-`81419ac3`, `69405063`, `0f1444c1`, `efa4e0c2`, `f8bd46e4`,
-`09995598`, `a04f2c8b`, `5b6d5a84`, `957f8587`, and `f40a591b`.
+Sampled `HEAD` for this audit was `51867989249e` (`Refresh independent audit
+status`). Recent history reviewed includes `51867989`, `b75226d1`,
+`30be5e3c`, `90d1fa3b`, `81419ac3`, `69405063`, `0f1444c1`,
+`efa4e0c2`, `f8bd46e4`, `09995598`, `a04f2c8b`, and `5b6d5a84`.
 
 ## Findings
 
 1. **Critical - the checkout is still not a stable integration checkpoint.**
    - Paths: `progress.md:25`, `progress.md:31`-`42`,
-     `lanes/*/lane-status.json`, `porting.html`, and
-     `porting-summary.json`.
-   - Goal requirement at risk: `goal.md:20` requires supervised parallel work
-     capped to VM capacity, `goal.md:29` requires small reviewable slices with
-     passing tests, `goal.md:44` requires current owner/session/status
-     tracking, and `goal.md:49` requires honest repo-wide test recording.
-   - Evidence: `progress.md:25` still documents a launch target of 2
-     implementation lanes plus 1 auditor, while `progress.md:31`-`42` still
-     reports all 12 lane sessions as `stopped`.
-   - Evidence: process sampling found 20 active repo worker/status processes:
-     team watchdog, evaluator, capacity controller, dashboard updater,
-     auditor, integrator, 12 primary lane agents, `port-dolt-runner`, and a
-     capacity SQLite job.
-   - Evidence: the dirty tree grew during this audit. The latest sample
-     reported `1547` default `git status --short --untracked-files=all` rows,
-     `165` tracked changed files, and `165 files changed, 49263
-     insertions(+), 5120 deletions(-)`.
+     `lanes/*/lane-status.json`, `porting.html`, `porting-summary.json`.
+   - Goal requirement at risk: `goal.md` requires capped supervised workers,
+     small reviewable slices with passing tests, current owner/session/status
+     tracking, and honest repo-wide test records.
+   - Evidence: `progress.md:25` still says the launch target is 2
+     implementation lanes plus 1 auditor, while `progress.md:31`-`42` reports
+     all 12 lane sessions as `stopped`.
+   - Evidence: process sampling found active primary lane agents, auditor,
+     integrator, evaluator, dashboard updater, capacity controller, capacity
+     jobs, Dolt runner, and a no-argument root harness despite the stopped-lane
+     table.
+   - Evidence: the required duplicate-root gate later returned active root PIDs
+     `180953 php tools/run-tests.php`, `212436 php tools/run-tests.php`, and
+     `214873 php tools/run-tests.php`; owner evidence showed all owned by
+     `claude`.
+   - Evidence: latest dirty-tree samples reported `1550` default
+     `git status --short --untracked-files=all` rows, `161` tracked changed
+     files, and `161 files changed, 50128 insertions(+), 5110 deletions(-)`.
    - Audit judgment: current lane percentages, green lane-local claims,
      latest-commit fields, and root-test anecdotes are not acceptance evidence
      until active writers/status publishers are frozen and one regenerated
      snapshot is validated.
 
-2. **High - `porting.html` and `porting-summary.json` are stale and do not
-   satisfy the dashboard contract.**
-   - Paths: `porting.html:30`-`36`, `porting.html:41`-`50`,
-     `porting.html:54`-`65`, and `porting-summary.json:2`-`8`.
-   - Goal requirement at risk: `goal.md:3` and `goal.md:45` require current
-     tracking of benchmark source, upstream denominator, mapped tests, PHP
-     pass/fail, WordPress scenarios, phase, audit, current work, blocker, and
-     latest commit.
-   - Evidence: `porting.html:32`-`36` and `porting-summary.json:2`-`8` still
-     publish generated time `2026-05-23 04:57:16 UTC` and source commit
-     `bda83c6b93d4`, while sampled `HEAD` is `30be5e3c193c`.
-   - Evidence: `porting.html:41`-`50` still exposes compact `Benchmark` and
-     `Mapped` columns instead of separate benchmark source, upstream
-     denominator, mapped tests, and PHP pass/fail columns.
-   - Evidence: dashboard rows disagree with current manifests. Examples:
-     Difftastic publishes `160 / 417` at `porting.html:54`, but the manifest
-     is `266` mapped over `587...` at
-     `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:14`-`15`; Dolt publishes
-     `242 / 613` at `porting.html:55`, but the manifest is `489 / 613...` at
-     `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:14`-`15`; Esbuild publishes
-     `164 / 2,567` at `porting.html:56`, but the manifest is `227 / 2,567` at
-     `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:14`-`15`; Gitoxide publishes
-     `1432 / 2877` at `porting.html:57`, but the manifest is `1920 / 2877` at
-     `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:14`-`15`; libsqlite publishes
-     `149 / 1454` at `porting.html:58`, but the manifest is `214 / 1589` at
-     `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json:15`-`16`; LightningCSS
-     publishes `773 / 3532` at `porting.html:59`, but the manifest is
-     `1201 / 3532` at
-     `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:14`-`15`; markerPDF
-     publishes `159 / 78` at `porting.html:60`, but the manifest is
-     `220 / 274` at `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14`-`15`;
-     Pandoc publishes `426 / 2028` at `porting.html:61`, but the manifest is
-     `648 / 2276...` at `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:14`-`15`;
-     rclone publishes `291 / 327` at `porting.html:63`, but the manifest is
-     `458 / 2553` at `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:14`-`15`;
-     Readability publishes `1031 / 1984` at `porting.html:64`, but the
-     manifest is `1579 / 1984` at
-     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:14`-`15`; and Syncthing
-     publishes `235 / 658` at `porting.html:65`, but the manifest is
-     `337 / 658` at `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:14`-`15`.
+2. **High - `porting.html` and `porting-summary.json` are stale and still
+   fail the dashboard contract.**
+   - Paths: `porting.html:30`-`36`, `porting.html:43`-`44`,
+     `porting-summary.json:2`-`8`.
+   - Goal requirement at risk: `goal.md` requires the dashboard to show current
+     benchmark source, upstream denominator, mapped tests, PHP pass/fail,
+     WordPress scenarios, phase, audit, current work, blocker, and commit.
+   - Evidence: `porting.html` still publishes generated time
+     `2026-05-23 04:57:16 UTC` and snapshot `bda83c6b93d4`, while sampled
+     `HEAD` is `51867989249e`; `porting-summary.json` has the same stale
+     source commit.
+   - Evidence: `porting.html` still collapses required fields into compact
+     `Benchmark` and `Mapped` columns instead of separate benchmark source,
+     upstream denominator, mapped tests, and PHP pass/fail columns.
+   - Evidence: dashboard rows disagree with current manifests. Current
+     manifest mapped counts are Difftastic `266`, Dolt `489`, Esbuild `228`,
+     Gitoxide `1924`, libsqlite `215`, LightningCSS `1201`, markerPDF `220`,
+     Pandoc `648`, rclone `458`, Readability `1579`, and Syncthing `337`, while
+     the dashboard still publishes `160`, `242`, `164`, `1432`, `149`, `773`,
+     `159`, `426`, `291`, `1031`, and `235` respectively. Quadrable's mapped
+     denominator still matches `55 / 55`, but its dashboard PHP count is stale
+     relative to current lane status.
 
 3. **High - repo-wide PHP test records remain mutually non-comparable.**
    - Paths: `tools/run-tests.php`, `progress.md`, and all
      `lanes/*/lane-status.json`.
-   - Goal requirement at risk: `goal.md:29`, `goal.md:35`, and `goal.md:49`
-     require passing tests to be tied to accepted native slices and recorded
-     honestly.
-   - Evidence: current lane statuses mix incompatible aggregate claims. Dolt
-     records a root rerun passing with 226 files and 26,546 assertions in
-     `lanes/dolt/lane-status.json:10`; Gitoxide records a root failure outside
-     Gitoxide in Readability in `lanes/gitoxide/lane-status.json:10`;
-     Pandoc records 204 Difftastic failures in
-     `lanes/pandoc/lane-status.json:10`; Syncthing records 2 LightningCSS
-     failures in `lanes/syncthing/lane-status.json:10`; rclone records a green
-     aggregate in `lanes/rclone/lane-status.json:10`; and Readability records
-     root verification as pending in `lanes/readability/lane-status.json:10`.
-   - Evidence: many latest-commit fields are not immutable accepted commits:
-     examples include `pending`, `not committed`, `uncommitted`, and dirty
-     batch prose at `lanes/difftastic/lane-status.json:13`,
-     `lanes/dolt/lane-status.json:13`, `lanes/esbuild/lane-status.json:13`,
-     `lanes/gitoxide/lane-status.json:13`,
-     `lanes/readability/lane-status.json:13`, and
-     `lanes/syncthing/lane-status.json:13`.
+   - Goal requirement at risk: `goal.md` requires passing tests to be tied to
+     accepted native slices and recorded honestly.
+   - Evidence: lane statuses currently mix green aggregate claims, red
+     aggregate claims, pending root claims, duplicate-gated claims, and
+     focused-only claims. Examples: Gitoxide records root green with `226`
+     files / `26600` assertions; rclone records root green with `226` files /
+     `26546` assertions; Pandoc records `204` Difftastic failures; Syncthing
+     records `2` LightningCSS failures; Readability and Quadrable record root
+     pending/duplicate-gated evidence.
+   - Evidence: duplicate-root gates were active during audit and handoff
+     samples, so this audit did not start another root run.
    - Audit judgment: the next accepted test result must be one quiesced
      `php tools/run-tests.php` run from one accepted tree, not lane-by-lane
      anecdotes gathered while active workers mutate the checkout.
@@ -111,51 +86,43 @@ status`). Recent history reviewed includes `30be5e3c`, `90d1fa3b`,
 4. **High - manifest/status schemas still cannot produce trustworthy
    portfolio math.**
    - Paths: all `lanes/*/UPSTREAM_TEST_MANIFEST.json`, all
-     `lanes/*/lane-status.json`, `porting-summary.json`, and `porting.html`.
-   - Goal requirement at risk: `goal.md:25`, `goal.md:38`, `goal.md:44`, and
-     `goal.md:45` require real upstream denominators, explicit slices,
-     comparable mapped-test/PHP pass-fail counts, precise blockers, and a
-     dashboard generated from those fields.
+     `lanes/*/lane-status.json`, `porting-summary.json`, `porting.html`.
+   - Goal requirement at risk: `goal.md` requires real upstream denominators,
+     explicit slices, comparable mapped-test/PHP pass-fail counts, precise
+     blockers, and a generated dashboard backed by those fields.
    - Evidence: denominator units remain mixed. Difftastic, Dolt, Esbuild,
-     Pandoc, and Quadrable store prose-string totals at
-     `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:14`, and
-     `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:14`, while Gitoxide,
-     libsqlite, LightningCSS, markerPDF, rclone, Readability, and Syncthing use
-     numeric totals.
+     Pandoc, and Quadrable store prose-string totals; Gitoxide, libsqlite,
+     LightningCSS, markerPDF, rclone, Readability, and Syncthing store numeric
+     totals.
    - Evidence: `runnerStatus` remains non-normalized: objects appear in
-     Difftastic, Dolt, libsqlite, LightningCSS, rclone, Readability, and
-     Syncthing; long strings appear in Gitoxide and Quadrable; markerPDF uses
-     the string `not-executed`; and Pandoc has no comparable runner-status
-     field in the denominator block.
-   - Evidence: manifest/status values moved while this audit was reading them.
-     For example, Dolt changed from `481 / 613...` to `489 / 613...`, and
-     rclone lane status moved from `453` to `458` PHP behavior tests during
-     the same audit window.
+     several manifests, strings appear in Gitoxide, markerPDF, and Quadrable,
+     and Pandoc has no comparable denominator-level runner-status field. The
+     contents mix upstream runner pass/fail, static reads, PHP test counts,
+     root-test anecdotes, and skipped-suite rationale.
+   - Evidence: `porting-summary.json` is generated from stale condensed fields
+     (`denominator`, `mapped`, `php`, `coverage`) rather than the normalized
+     source fields the goal asks the dashboard to expose.
 
-5. **Medium - upstream runner, oracle, generated-fixture, and CLI evidence is
-   still over-mixed with native PHP progress.**
-   - Paths: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:18`,
-     `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:275`,
-     `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:18`,
-     `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:517`,
-     `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:432`, and
-     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:40`.
-   - Goal requirement at risk: `goal.md:1`, `goal.md:30`, `goal.md:35`,
-     `goal.md:37`, and `goal.md:40` require bridge/shell-out evidence not to
-     count as native implementation progress, upstream tests as source of
-     truth where possible, meaningful fixture parity, and hard gaps recorded
-     explicitly.
-   - Evidence: Gitoxide's runner string combines bounded upstream runner
-     shards, static source inventory, PHP assertion counts, and a red root
-     anecdote. Quadrable folds C++ runner passes, LMDB dump/load oracles,
-     command-output wrappers, and benchmark exclusions into one field. rclone
-     and Syncthing include useful bounded upstream evidence, but visible fields
-     still do not separate upstream runner pass, temporary oracle/CLI probe,
-     native PHP behavior count, assertions, failures, blocker, and accepted
-     commit.
+5. **Medium - too much evidence is still unaccepted lane-local work rather
+   than committed native implementation progress.**
+   - Paths: `lanes/difftastic/lane-status.json:13`,
+     `lanes/dolt/lane-status.json:13`, `lanes/esbuild/lane-status.json:13`,
+     `lanes/gitoxide/lane-status.json:13`,
+     `lanes/libsqlite/lane-status.json:13`,
+     `lanes/markerpdf/lane-status.json:13`,
+     `lanes/pandoc/lane-status.json:13`,
+     `lanes/quadrable/lane-status.json:13`,
+     `lanes/readability/lane-status.json:13`,
+     `lanes/syncthing/lane-status.json:13`.
+   - Goal requirement at risk: `goal.md` requires small reviewable committed
+     slices and says generated fixtures, bridge calls, and shell-outs must not
+     count as native implementation progress.
+   - Evidence: many lane `latestCommit` fields say `pending`, `not committed`,
+     `uncommitted`, or dirty-batch prose. Several manifests and statuses also
+     mix static upstream reads, temporary oracle/CLI evidence, and aggregate
+     root anecdotes into progress prose.
+   - Audit judgment: the supervisor should accept/reject dirty lane batches one
+     lane at a time and only then let dashboard math count them.
 
 ## Test Gate
 
@@ -167,12 +134,31 @@ Required duplicate-root gate before any possible root run:
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-Observed output at audit sample `2026-05-23T12:45:49Z`: no rows.
+Observed during audit:
 
-No duplicate root harness was active at that sample, but no root run was
-started because the tree was not stable enough for accepted aggregate evidence:
-active writer/status processes persisted, manifest/status values changed during
-the audit, and the dirty tree remained broad.
+```text
+159110 php tools/run-tests.php lanes/readability/tests
+```
+
+That focused process exited before owner sampling. Later required gates found
+active no-argument root harnesses:
+
+```text
+180953 php tools/run-tests.php
+212436 php tools/run-tests.php
+214873 php tools/run-tests.php
+```
+
+Owner evidence:
+
+```text
+PID USER  PPID ELAPSED STAT COMMAND
+180953 claude 33144 22 Rs php tools/run-tests.php
+212436 claude 32975 18 Rs php tools/run-tests.php
+214873 claude 136997 21 Rs php tools/run-tests.php
+```
+
+No duplicate root harness was started.
 
 Validation commands run instead:
 
@@ -182,22 +168,24 @@ git status --short --untracked-files=all | wc -l
 git status --short --untracked-files=no | wc -l
 git diff --shortstat
 pgrep -af '^php tools/run-tests\.php( |$)'
-ps -eo pid,user,ppid,etimes,stat,args | rg 'run-|php tools/run-tests\.php'
+ps -o pid,user,ppid,etimes,stat,args -p 180953
+ps -o pid,user,ppid,etimes,stat,args -p 212436
+ps -o pid,user,ppid,etimes,stat,args -p 214873
 git log --oneline --decorate -n 30
 git show --stat --oneline --decorate --no-renames -n 8
 ```
 
 Results: all lane upstream manifests, lane status files, and
 `porting-summary.json` parsed as valid JSON at the time checked. Latest samples
-reported `1547` default status rows, `165` tracked changed files, and
-`165 files changed, 49263 insertions(+), 5120 deletions(-)`.
+reported `1550` default status rows, `161` tracked changed files, and
+`161 files changed, 50128 insertions(+), 5110 deletions(-)`.
 
 ## Next Intervention
 
-Freeze active writers/status publishers and duplicate focused PHP loops first.
-Then validate manifests from the frozen tree, accept or reject dirty lane
-batches one lane at a time, normalize manifest/status denominator, mapped, PHP
-pass/fail, runner, progress, and commit fields, regenerate `progress.md`,
+Freeze active writers/status publishers and duplicate root/focused PHP loops
+first. Then validate manifests from the frozen tree, accept or reject dirty
+lane batches one lane at a time, normalize manifest/status denominator, mapped,
+PHP pass/fail, runner, progress, and commit fields, regenerate `progress.md`,
 `porting.html`, `porting-summary.json`, and lane statuses from that same
 accepted snapshot, rerun the exact duplicate-root gate, and capture one
 quiesced `php tools/run-tests.php` result.
