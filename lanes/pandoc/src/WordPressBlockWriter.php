@@ -884,10 +884,46 @@ final class WordPressBlockWriter
             $attrs .= ' title="' . $this->esc($title) . '"';
         }
 
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        if (
+            count($htmlAttributes) === 1
+            && isset($htmlAttributes['class'])
+            && in_array((string) $htmlAttributes['class'], ['uri', 'email'], true)
+        ) {
+            $htmlAttributes = [];
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'href' || ($name === 'title' && $title !== '') || !$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
         return $attrs;
     }
 
     private function renderInlineSpanAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inlineHtmlAttributes(AstNode $node): array
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
         if (!is_array($htmlAttributes)) {
@@ -918,17 +954,7 @@ final class WordPressBlockWriter
             }
         }
 
-        $attrs = '';
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if (!$this->isAllowedInlineHtmlAttr($name)) {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
-        }
-
-        return $attrs;
+        return $htmlAttributes;
     }
 
     private function renderInlineCodeAttrs(AstNode $node): string

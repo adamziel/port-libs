@@ -418,6 +418,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `Tests.Readers.Markdown` inline-code attribute cases: 2 focused cases, now
   mapped by PHP tests for immediate attribute attachment and spaced
   attribute-looking text remaining literal
+- `Tests.Readers.Markdown` autolink attribute cases: 2 focused cases, now
+  mapped by PHP tests for immediate link attribute attachment and spaced
+  attribute-looking text remaining literal
+- `Tests.Readers.Markdown` no-links-inside-link-label cases: 3 focused cases,
+  now mapped by PHP tests for autolinks, inline links, and bare URI-looking
+  text staying literal inside ordinary link labels
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
   checks covering parenthesized decimal starts, lower/upper roman numerals,
   upper/lower alphabetic markers, and Pandoc autonumbering
@@ -480,6 +486,14 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `{.javascript}` after a closing backtick run attaches class metadata to the
   Code node, while a space before `{.haskell .special x="7"}` keeps that
   attribute-looking text literal.
+- Autolink attributes from `Tests.Readers.Markdown`: immediate
+  `{#i .j .z k=v}` after `<http://foo.bar>` attaches id/class/key metadata to
+  the Link node and replaces the default `uri` class, while a space before the
+  attribute spec keeps it as literal text after the autolink.
+- Link-label recursion boundaries from `Tests.Readers.Markdown`: autolinks,
+  nested inline links, and bare URI-looking text inside an ordinary link label
+  remain literal label text, while non-link inline markup such as emphasis still
+  parses inside the label.
 - Multilingual URI/e-mail links from `test/markdown-reader-more.txt`: Unicode
   URI autolinks keep the URL as both text and destination, inline links keep
   Unicode destination text plus title metadata, and Unicode e-mail autolinks
@@ -804,11 +818,22 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   the spaced attribute-looking form stays literal text instead of being parsed
   or smart-quoted. The WordPress writer emits safe inline `<code>` attributes
   for reviewer/source tokens.
+- The `Tests.Readers.Markdown` autolink attribute slice is now mapped too:
+  immediate autolink attributes become AST id/class/key-value metadata on the
+  Link node, and the spaced attribute-looking form stays literal text. The
+  WordPress writer emits safe link id/class/data/title attrs for reviewer
+  source links while keeping ordinary URI/e-mail autolinks visually unchanged.
+- The `Tests.Readers.Markdown` no-links-inside-link-label slice is now mapped
+  too: `[<https://example.org>](url)`, `[[a](url2)](url)`, and
+  `[https://example.org(](url)` each produce one outer Link whose label content
+  stays literal text. The helper used for link and image labels keeps recursive
+  link parsing disabled while preserving non-link inline markup such as
+  emphasis.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 161 behavior tests, 1,645 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command was also run and passed
-with 183 test files, 17,781 assertions, and 0 failures.
+with 163 behavior tests, 1,680 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command was also run after this
+slice and passed with 183 test files, 18,129 assertions, and 0 failures.

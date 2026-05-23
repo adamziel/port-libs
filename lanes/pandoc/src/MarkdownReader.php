@@ -6200,6 +6200,9 @@ final class MarkdownReader
             if ($autolink !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $autolink['node'];
+                if (isset($autolink['literalAttribute'])) {
+                    $nodes[] = new AstNode('text', ['text' => $autolink['literalAttribute']]);
+                }
                 $offset = $autolink['next'];
                 continue;
             }
@@ -6408,7 +6411,8 @@ final class MarkdownReader
 
     private function buildImageNode(string $label, string $url, string $title): AstNode
     {
-        $alt = $this->plainTextFromInlines($this->parseInlines($label, false));
+        $labelInlines = $this->parseLinkLabelInlines($label);
+        $alt = $this->plainTextFromInlines($labelInlines);
         $attrs = [
             'url' => $url,
             'alt' => $alt,
@@ -6417,7 +6421,15 @@ final class MarkdownReader
             $attrs['title'] = $title;
         }
 
-        return new AstNode('image', $attrs, $this->parseInlines($label, false));
+        return new AstNode('image', $attrs, $labelInlines);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseLinkLabelInlines(string $label): array
+    {
+        return $this->parseInlines($label, false);
     }
 
     /**
@@ -6471,7 +6483,7 @@ final class MarkdownReader
         }
 
         return [
-            'node' => new AstNode('link', $attrs, $this->parseInlines($label['text'], false)),
+            'node' => new AstNode('link', $attrs, $this->parseLinkLabelInlines($label['text'])),
             'next' => $target['next'],
         ];
     }
@@ -6509,7 +6521,7 @@ final class MarkdownReader
         }
 
         return [
-            'node' => new AstNode('link', $attrs, $this->parseInlines($label['text'], false)),
+            'node' => new AstNode('link', $attrs, $this->parseLinkLabelInlines($label['text'])),
             'next' => $next,
         ];
     }
@@ -6626,7 +6638,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{node: AstNode, next: int}|null
+     * @return array{node: AstNode, next: int, literalAttribute?: string}|null
      */
     private function tryParseAutolink(string $text, int $offset): ?array
     {
@@ -6636,15 +6648,25 @@ final class MarkdownReader
 
         if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
             $url = $this->normalizeLinkDestination($m[1]);
+            $next = $offset + strlen($m[0]);
+            [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
+                'url' => $url,
+                'classes' => ['uri'],
+            ]);
 
-            return [
+            $result = [
                 'node' => new AstNode(
                     'link',
-                    ['url' => $url, 'classes' => ['uri']],
+                    $attrs,
                     [new AstNode('text', ['text' => $url])]
                 ),
-                'next' => $offset + strlen($m[0]),
+                'next' => $next,
             ];
+            if ($literalAttribute !== null) {
+                $result['literalAttribute'] = $literalAttribute;
+            }
+
+            return $result;
         }
 
         if (
@@ -6657,18 +6679,52 @@ final class MarkdownReader
             ) === 1
         ) {
             $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($m[1]));
+            $next = $offset + strlen($m[0]);
+            [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
+                'url' => 'mailto:' . $address,
+                'classes' => ['email'],
+            ]);
 
-            return [
+            $result = [
                 'node' => new AstNode(
                     'link',
-                    ['url' => 'mailto:' . $address, 'classes' => ['email']],
+                    $attrs,
                     [new AstNode('text', ['text' => $address])]
                 ),
-                'next' => $offset + strlen($m[0]),
+                'next' => $next,
             ];
+            if ($literalAttribute !== null) {
+                $result['literalAttribute'] = $literalAttribute;
+            }
+
+            return $result;
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array{0:array<string, mixed>, 1:int, 2:string|null}
+     */
+    private function readTrailingAutolinkAttributes(string $text, int $offset, array $attrs): array
+    {
+        $attribute = $this->tryParseInlineAttributeSpec($text, $offset);
+        if ($attribute !== null) {
+            $merged = array_replace($attrs, $attribute['attrs']);
+            if (isset($attrs['classes']) && !array_key_exists('classes', $attribute['attrs'])) {
+                unset($merged['classes']);
+            }
+
+            return [$merged, $attribute['next'], null];
+        }
+
+        $literalAttribute = $this->tryParseSpacedInlineAttributeLiteral($text, $offset);
+        if ($literalAttribute !== null) {
+            return [$attrs, $literalAttribute['next'], $literalAttribute['text']];
+        }
+
+        return [$attrs, $offset, null];
     }
 
     /**

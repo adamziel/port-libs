@@ -694,6 +694,63 @@ return [
         $t->contains('<p><code>*</code> {.haskell .special x=&quot;7&quot;}</p>', $blocks);
         $t->contains('<p>Reviewer token: <code id="enqueue" class="php" data-source="batch-42" title="Import source">wp_enqueue_script</code>.</p>', $blocks);
     },
+    'maps upstream markdown reader autolink attributes and spaced literals' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '<http://foo.bar>{#i .j .z k=v}',
+            '<http://foo.bar> {#i .j .z k=v}',
+            'Reviewer source: <https://example.test/review-token>{#review-token .source-link data-source=batch-42 title="Review token"}.',
+        ]));
+        $attributed = $document->children[0]->children[0];
+        $spaced = $document->children[1];
+        $reviewerLink = $document->children[2]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $attributed->type);
+        $t->same('http://foo.bar', $attributed->attr('url'));
+        $t->same('i', $attributed->attr('id'));
+        $t->same(['j', 'z'], $attributed->attr('classes'));
+        $t->same(['k' => 'v'], $attributed->attr('attributes'));
+        $t->same('http://foo.bar', $attributed->children[0]->attr('text'));
+        $t->same(2, count($spaced->children));
+        $t->same('link', $spaced->children[0]->type);
+        $t->same(['uri'], $spaced->children[0]->attr('classes'));
+        $t->same(' {#i .j .z k=v}', $spaced->children[1]->attr('text'));
+        $t->same('review-token', $reviewerLink->attr('id'));
+        $t->same(['source-link'], $reviewerLink->attr('classes'));
+        $t->same(['data-source' => 'batch-42', 'title' => 'Review token'], $reviewerLink->attr('attributes'));
+        $t->contains('<p><a href="http://foo.bar" id="i" class="j z">http://foo.bar</a></p>', $blocks);
+        $t->contains('<p><a href="http://foo.bar">http://foo.bar</a> {#i .j .z k=v}</p>', $blocks);
+        $t->contains('<p>Reviewer source: <a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>.</p>', $blocks);
+    },
+    'maps upstream markdown reader no links inside link labels' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '[<https://example.org>](url)',
+            '[[a](url2)](url)',
+            '[https://example.org(](url)',
+            '[*emphasized* <https://example.org> label](url)',
+        ]));
+        $autolinkLabel = $document->children[0]->children[0];
+        $inlineLinkLabel = $document->children[1]->children[0];
+        $bareUriLabel = $document->children[2]->children[0];
+        $mixedLabel = $document->children[3]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $autolinkLabel->type);
+        $t->same('url', $autolinkLabel->attr('url'));
+        $t->same(1, count($autolinkLabel->children));
+        $t->same('<https://example.org>', $autolinkLabel->children[0]->attr('text'));
+        $t->same('link', $inlineLinkLabel->type);
+        $t->same('[a](url2)', $inlineLinkLabel->children[0]->attr('text'));
+        $t->same('link', $bareUriLabel->type);
+        $t->same('https://example.org(', $bareUriLabel->children[0]->attr('text'));
+        $t->same('emph', $mixedLabel->children[0]->type);
+        $t->same('emphasized', $mixedLabel->children[0]->children[0]->attr('text'));
+        $t->same(' <https://example.org> label', $mixedLabel->children[1]->attr('text'));
+        $t->contains('<p><a href="url">&lt;https://example.org&gt;</a></p>', $blocks);
+        $t->contains('<p><a href="url">[a](url2)</a></p>', $blocks);
+        $t->contains('<p><a href="url">https://example.org(</a></p>', $blocks);
+        $t->contains('<p><a href="url"><em>emphasized</em> &lt;https://example.org&gt; label</a></p>', $blocks);
+    },
     'maps upstream markdown reader more multilingual urls and numbered examples' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<http://测.com?测=测>',
@@ -3949,6 +4006,7 @@ XML;
         $t->contains('<a href="https://example.test/uploads/legacy%20media%20file.jpg" title="Legacy media file">legacy media file</a>', $blocks);
         $t->contains('<a href="/wp-content/uploads/import%20batch%2042.csv" title="Batch manifest">spaced batch manifest</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
+        $t->contains('<a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
         $t->contains('<a href="http://测.com?测=测">http://测.com?测=测</a>', $blocks);
         $t->contains('<a href="/bar/测?x=测" title="Translated media">translated media</a>', $blocks);
@@ -3956,6 +4014,9 @@ XML;
         $t->contains('<a href="/ürl" title="öö!">legacy umlaut media</a>', $blocks);
         $t->contains('<a href="http://göögle.com">http://göögle.com</a>', $blocks);
         $t->contains('<a href="mailto:me@exämple.com">me@exämple.com</a>', $blocks);
+        $t->contains('<a href="https://example.test/review-label">&lt;https://example.test/source&gt;</a>', $blocks);
+        $t->contains('<a href="https://example.test/link-label-audit">[edit link](/wp-admin/post.php?post=42&amp;action=edit)</a>', $blocks);
+        $t->contains('<a href="https://example.test/bare-uri-label">https://example.test/raw-source(</a>', $blocks);
         $t->contains('<a href="/hi(there)">campaign landing</a>', $blocks);
         $t->contains('<a href="hi_(there_(nested))">nested reference</a>', $blocks);
         $t->contains('<p>Inline code attribute audit: <code id="enqueue-call" class="php" data-source="batch-42" title="Import source token">wp_enqueue_script</code> stays tagged for reviewer tooling.</p>', $blocks);

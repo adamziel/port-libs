@@ -231,6 +231,16 @@ represented too: immediate attributes attach to code nodes, while spaced
 attribute-looking text remains literal. The WordPress fixture uses this path for
 reviewer/source tokens such as `wp_enqueue_script` that need stable id, class,
 data, and title metadata without shelling out to Pandoc.
+The focused `Tests.Readers.Markdown` autolink attribute cases are now
+represented too: immediate attributes attach to autolink nodes, while spaced
+attribute-looking text remains literal. The WordPress fixture uses this path for
+reviewer source links that need stable id, class, data, and title metadata
+without changing ordinary autolink markup.
+The focused `Tests.Readers.Markdown` no-links-inside-link-label cases are now
+represented too: autolink-looking source URLs, nested Markdown link syntax, and
+bare URI-looking text remain literal inside the outer reviewer link label. The
+WordPress fixture uses this path when import notes need the visible source
+notation to stay reviewable without producing nested anchors.
 The next adjacent `test/markdown-reader-more.txt` multilingual URL and
 numbered-example cases are now represented too: Unicode URI autolinks, Unicode
 inline link destinations, and Unicode e-mail autolinks stay clickable, while
@@ -315,6 +325,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes an attributed inline code source token, exercising
   Pandoc-compatible code attrs and WordPress-safe inline `<code>` id/class/data
   attributes for migration review tooling.
+- The fixture now includes an attributed autolink source token, exercising
+  Pandoc-compatible autolink attrs and WordPress-safe link id/class/data/title
+  attributes for migration review tooling.
+- The fixture now includes link-label boundary audit notes, exercising Pandoc's
+  rule that link-looking syntax remains literal inside an ordinary link label
+  instead of creating nested anchors.
 - The fixture now includes a Pandoc-style line block, exercising source stanza
   boundaries, nonbreaking indentation, and continuation-line preservation in
   WordPress paragraph output.
@@ -585,6 +601,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the bounded `Tests.Readers.Markdown` autolink attribute cases, starting
-with immediate attributes on `<http://foo.bar>{#i .j .z k=v}` and the spaced
-attribute form that should remain literal text.
+Map the bounded `Tests.Readers.Markdown` backslash-escape cases in link URLs
+and titles, starting with escaped closing parentheses in inline destinations and
+escaped title delimiters in inline/reference links.
