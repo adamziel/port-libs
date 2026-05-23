@@ -116,7 +116,9 @@ non-progress unless it is explicitly temporary oracle tooling.
    - Evidence: the required exact duplicate-root gate returned no active
      `php tools/run-tests.php` process at the audit samples, but the tree was
      not stable enough to start a trustworthy root run because active writers
-     and broad dirty lane changes persisted.
+     and broad dirty lane changes persisted. A post-commit handoff sample then
+     found active exact-root PIDs `3187243` and `3188250`, confirming the root
+     gate was no longer clear.
    - Evidence: lane statuses do not describe one shared snapshot. Difftastic
      records root green at `213` files / `24473` assertions; Dolt `24519`;
      libsqlite `24527`; markerPDF `24506`; Quadrable `24612`; rclone `24589`;
@@ -159,6 +161,20 @@ pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
 Observed during audit: no output at the exact root samples.
+
+Post-commit handoff sample:
+
+```text
+3187243 php tools/run-tests.php
+3188250 php tools/run-tests.php
+```
+
+Owner evidence:
+
+```text
+3187243 claude 3151335 21 Rs php tools/run-tests.php
+3188250 claude 3188249 19 S php tools/run-tests.php
+```
 
 No duplicate root run was started. The stability gate failed because active
 writer/status loops persisted and the dirty tree remained broad.
