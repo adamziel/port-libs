@@ -155,10 +155,6 @@ final class ArticleExtractor
                 $jsonLdMetadata['publishedTime'] ?? null,
                 $metaValues['article:published_time'] ?? null,
                 $metaValues['parsely-pub-date'] ?? null,
-                $this->metadataValue($xpath, [
-                    '//meta[@name="pubdate"]/@content',
-                    '//time[@datetime]/@datetime',
-                ]),
             ]),
             $articleDir,
             $this->documentAttribute($dom, 'lang'),

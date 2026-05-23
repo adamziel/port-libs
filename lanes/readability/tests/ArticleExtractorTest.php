@@ -1182,6 +1182,41 @@ return [
         $t->same(false, str_contains($article->text, 'Canonical Import Title'), 'duplicate title heading should still be removed from block content');
         $t->contains('plugin-injected structured data', $blocks);
     },
+    'maps Mozilla v8-blog fixture without generic time datetime published metadata' => static function (TestRunner $t) use ($normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/v8-blog';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+
+        $t->contains('datetime="2019-11-21"', $source);
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime, 'Mozilla does not use visible time datetime nodes for publishedTime metadata');
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+    },
+    'does not turn visible WordPress article times into published metadata without upstream fields' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Visible Date Boundary"></head><body><article>'
+            . '<header><h1>Visible Date Boundary</h1><p><time datetime="2024-04-09T12:00:00+00:00" itemprop="datePublished">April 9, 2024</time></p></header>'
+            . '<div itemprop="articleBody">'
+            . '<p>' . str_repeat('A WordPress importer should not promote visible template dates to post metadata unless upstream Readability metadata fields support it. ', 3) . '</p>'
+            . '<p>' . str_repeat('The editorial body remains available for block output while the date boundary stays explicit for the import layer. ', 3) . '</p>'
+            . '</div>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Visible Date Boundary', $article->title);
+        $t->same(null, $article->publishedTime);
+        $t->contains('should not promote visible template dates', $blocks);
+        $t->same(false, str_contains($blocks, 'April 9, 2024'), 'visible template date should not become WordPress block content when articleBody wins');
+    },
     'maps Mozilla schema-org context object fixture without leading news chrome' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/schema-org-context-object';
         $source = (string) file_get_contents($fixture . '/source.html');
