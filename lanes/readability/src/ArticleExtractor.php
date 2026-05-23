@@ -1868,6 +1868,7 @@ final class ArticleExtractor
         $this->wrapPhrasingContentInDivs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
+        $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->removeEmptyParagraphs($scope);
         $this->removeEmptyHeadings($scope);
@@ -1879,6 +1880,7 @@ final class ArticleExtractor
         $this->cleanPresentationalAttributes($scope);
         $this->cleanClasses($scope);
         $this->unwrapTransparentSectionWrappers($scope);
+        $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $this->insertTextBoundaryWhitespace($scope);
         $this->trimBoundaryWhitespace($scope);
 
@@ -3014,6 +3016,107 @@ final class ArticleExtractor
         }
 
         return $elementChildren > 0;
+    }
+
+    private function unwrapHrSeparatedPageContainers(\DOMElement $scope): \DOMElement
+    {
+        if ($this->isHrSeparatedPageContainer($scope)) {
+            $this->removeDirectHrChildren($scope);
+
+            return $scope;
+        }
+
+        do {
+            $changed = false;
+            $containers = [];
+            foreach ($scope->getElementsByTagName('div') as $container) {
+                if ($container instanceof \DOMElement) {
+                    $containers[] = $container;
+                }
+            }
+
+            foreach ($containers as $container) {
+                if (!$container->parentNode instanceof \DOMNode
+                    || $container === $scope
+                    || !$this->isHrSeparatedPageContainer($container)) {
+                    continue;
+                }
+
+                $parent = $container->parentNode;
+                while ($container->firstChild instanceof \DOMNode) {
+                    $child = $container->firstChild;
+                    if ($child instanceof \DOMElement && strtolower($child->tagName) === 'hr') {
+                        $container->removeChild($child);
+                        continue;
+                    }
+
+                    $parent->insertBefore($child, $container);
+                }
+                $parent->removeChild($container);
+                $changed = true;
+                break;
+            }
+        } while ($changed);
+
+        return $scope;
+    }
+
+    private function removeDirectHrChildren(\DOMElement $container): void
+    {
+        $remove = [];
+        foreach ($container->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->tagName) === 'hr') {
+                $remove[] = $child;
+            }
+        }
+
+        foreach ($remove as $child) {
+            $container->removeChild($child);
+        }
+    }
+
+    private function isHrSeparatedPageContainer(\DOMElement $container): bool
+    {
+        if (strtolower($container->tagName) !== 'div') {
+            return false;
+        }
+
+        $contentChildren = 0;
+        $sawSeparator = false;
+        $lastWasSeparator = true;
+        foreach ($container->childNodes as $child) {
+            if ($child instanceof \DOMText && !$this->isWhitespaceTextNode($child)) {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $tagName = strtolower($child->tagName);
+            if ($tagName === 'hr') {
+                if ($lastWasSeparator || $contentChildren === 0) {
+                    return false;
+                }
+
+                $sawSeparator = true;
+                $lastWasSeparator = true;
+                continue;
+            }
+
+            if (!in_array($tagName, ['article', 'div', 'section'], true)) {
+                return false;
+            }
+
+            if (!$this->nodeHasVisibleText($child) && !$this->hasMediaPayload($child)) {
+                return false;
+            }
+
+            $contentChildren++;
+            $lastWasSeparator = false;
+        }
+
+        return $sawSeparator && $contentChildren >= 2 && !$lastWasSeparator;
     }
 
     private function replaceElementTag(\DOMElement $element, string $tagName): \DOMElement

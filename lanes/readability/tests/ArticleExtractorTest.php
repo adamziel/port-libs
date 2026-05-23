@@ -1564,6 +1564,59 @@ return [
         $t->same([], $attributeValues($article->contentHtml, '//*[contains(., "Originally published at")]'));
         $t->same([], $attributeValues($article->contentHtml, '//section'));
     },
+    'maps Mozilla medium-3 hr page breaks to readability page sections' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $imageAttributeRows, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/medium-3';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            $elementChildTags($expected, '//div[@id="readability-page-1"]'),
+            $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]'),
+            'hr-separated Medium article pages should become sibling readability-page sections',
+        );
+        $t->same(
+            $elementChildTags($expected, '//div[@id="readability-page-1"]/*[1]'),
+            $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]/*[1]'),
+            'the first Medium page should keep its avatar, lead paragraph, quote, and article paragraphs',
+        );
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//blockquote')), count($attributeValues($article->contentHtml, '//blockquote')));
+        $t->same(count($attributeValues($expected, '//ol')), count($attributeValues($article->contentHtml, '//ol')));
+        $t->same(count($attributeValues($expected, '//li')), count($attributeValues($article->contentHtml, '//li')));
+        $t->same([], $attributeValues($article->contentHtml, '//hr'));
+    },
+    'removes Medium page break separators before WordPress block output' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Paged Medium Import"></head><body><article>'
+            . '<div class="postField postField--body">'
+            . '<div><p>' . str_repeat('The first imported page should remain editorial paragraph content without a synthetic separator block. ', 3) . '</p></div>'
+            . '<hr>'
+            . '<div><p>' . str_repeat('The second imported page should follow as ordinary WordPress paragraph content. ', 3) . '</p></div>'
+            . '</div></article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.com/imports/paged-medium');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Paged Medium Import', $article->title);
+        $t->contains('first imported page', $blocks);
+        $t->contains('second imported page', $blocks);
+        $t->same(false, str_contains($article->contentHtml, '<hr'), 'Medium source page separators should be removed during extraction');
+        $t->same(false, str_contains($blocks, '<hr'), 'source page separators should not become WordPress paragraph blocks');
+    },
     'removes trailing WordPress syndication source notes before block output' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Syndicated Review"></head><body><article>'
             . '<div class="entry-content">'

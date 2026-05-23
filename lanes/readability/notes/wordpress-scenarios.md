@@ -22,7 +22,7 @@ The current SVG sprite slice maps Mozilla `cnet-svg-classes` behavior and WordPr
 
 The current visible-date metadata slice maps Mozilla `v8-blog` behavior: a visible body/header `<time datetime>` does not populate `publishedTime` unless upstream-supported JSON-LD, `article:published_time`, or `parsely-pub-date` metadata supplies the date. For WordPress imports, this keeps theme template dates out of trusted post metadata until the import layer decides how to handle them.
 
-The current syndication-footer slice maps Mozilla `medium-2` behavior: nested last-child source notes beginning `Originally published at` are removed after substantial article content, preventing stale source-platform links from becoming migrated WordPress paragraph blocks.
+The current Medium page-break slice maps Mozilla `medium-3` behavior: source `<hr>` separators between Medium page sections are removed while the content sections remain separate for oracle output, preventing synthetic page rules from becoming migrated WordPress paragraph blocks.
 
 ## Scenario Fixture
 
@@ -44,6 +44,7 @@ The current syndication-footer slice maps Mozilla `medium-2` behavior: nested la
 - `lanes/readability/fixtures/mozilla/keep-images/` copies Mozilla's media-heavy Medium fixture to keep full-width editorial image/caption retention tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/medium-1/` copies Mozilla's Medium fixture to keep empty spacer-heading cleanup and heading-to-paragraph text boundary behavior tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/medium-2/` copies Mozilla's Medium fixture to keep trailing syndication/source-note cleanup tied to a named upstream page.
+- `lanes/readability/fixtures/mozilla/medium-3/` copies Mozilla's Medium fixture to keep hr-separated page-section cleanup, long article text, blockquotes, ordered lists, links, images, and readability-page child structure tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/cnet-svg-classes/` copies Mozilla's CNET fixture to keep duplicate SVG symbol-sprite cleanup, article image parity, and Spanish metadata tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/v8-blog/` copies Mozilla's V8 fixture to keep the null publishedTime boundary for visible article header time elements tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/base-url/` copies Mozilla's no-base-element URL fixture to keep source-page relative links, root-relative links, hash links, and image sources tied to a named upstream page.
@@ -98,6 +99,7 @@ The current syndication-footer slice maps Mozilla `medium-2` behavior: nested la
 - `lanes/readability/examples/wordpress-svg-sprite-dedupe.php` demonstrates removing duplicate inline theme symbol sprites while retaining the first sprite sheet and an editorial inline SVG diagram.
 - `lanes/readability/examples/wordpress-visible-time-metadata-boundary.php` demonstrates leaving visible template dates out of trusted publishedTime metadata unless upstream-supported metadata fields supply a date.
 - `lanes/readability/examples/wordpress-syndication-footer-cleanup.php` demonstrates removing a trailing `Originally published at` source note before WordPress block serialization.
+- `lanes/readability/examples/wordpress-medium-page-break-cleanup.php` demonstrates removing Medium page-break `<hr>` separators before WordPress block serialization while keeping each editorial section as paragraph content.
 - The focused WordPress test covers migration output where `post_title` stores the article title separately: duplicate source `h1` content is removed, while real body section headings remain as `h2` block headings.
 - The focused WordPress full-width media test covers imports where a theme/page builder emits a layout-only crop outside the paragraph column: the decorative wrapper is removed while the editorial figure remains available for image block serialization.
 - The focused WordPress editorial media test covers imports where a Medium-style `postField--fillWidthImage` figure is editorial content: the figure and caption remain available for block output while the source class is stripped after the keep decision.
@@ -138,7 +140,8 @@ The current syndication-footer slice maps Mozilla `medium-2` behavior: nested la
 - The focused SVG sprite cleanup test covers WordPress themes that repeat inline symbol sprite sheets around article content: duplicate sprites are removed by symbol signature, but reusable symbols and editorial inline SVG diagrams remain available to block output.
 - The focused visible-date metadata test covers WordPress themes that expose a visible `<time datetime>` in article chrome: the date does not become trusted published metadata without upstream-supported JSON-LD, `article:published_time`, or `parsely-pub-date` evidence.
 - The focused syndication footer cleanup test covers syndicated WordPress imports where a source platform appends an `Originally published at` note after the article body: the source note and link are removed before paragraph block serialization.
+- The focused Medium page-break cleanup test covers source exports that split a long Medium article with `<hr>` separators: editorial sections remain in order, but separator rules are not emitted as WordPress paragraph blocks.
 
 ## Next Task
 
-Continue Medium exact structural parity for remaining image/avatar wrapper shape and default/root wrapper strategy, using `medium-1` and `lazy-image-1` as the next fixture pair.
+Continue exact Medium image/avatar wrapper parity and default/root wrapper strategy, using `lazy-image-1` and `medium-1` as the next fixture pair.
