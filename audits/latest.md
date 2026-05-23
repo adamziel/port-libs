@@ -35,8 +35,8 @@ temporary oracle tooling.
    - Evidence: `HEAD` moved during this audit from `74d55284` to
      `3a5cb66b`, `3d986983`, `4446edc9`, and then `002f1c95`. Dirty-tree
      samples moved from `100 files changed, 23863 insertions(+), 661
-     deletions(-)` to `120 files changed, 24909 insertions(+), 739
-     deletions(-)`, with `120` tracked changed files and `1050` default
+     deletions(-)` to `118 files changed, 25558 insertions(+), 737
+     deletions(-)`, with `118` tracked changed files and `1061` default
      `git status --short` entries.
    - Audit judgment: do not accept any dashboard, lane-status, root-test, or
      manifest percentage as the current portfolio baseline until active
@@ -64,8 +64,12 @@ temporary oracle tooling.
      recoverable; a later exact sample was clear. A handoff sanity sample then
      found PID `2350046 php tools/run-tests.php lanes/syncthing/tests`, with
      owner evidence `2350046 claude 2287669 00:09 Rs php tools/run-tests.php
-     lanes/syncthing/tests`. I did not start a duplicate or replacement root
-     run because the tree was non-quiescent.
+     lanes/syncthing/tests`. Another later sample found transient PID
+     `2390768 php tools/run-tests.php lanes/quadrable/tests`, which exited
+     before owner sampling. A later exact full-root sample found PID
+     `2399793 php tools/run-tests.php`, with owner evidence `2399793 claude
+     2264530 00:27 Rs php tools/run-tests.php`. I did not start a duplicate
+     or replacement root run because the tree was non-quiescent.
    - Evidence: lane statuses currently mix incompatible root stories:
      libsqlite, rclone, esbuild, Dolt, Syncthing, and Difftastic claim green
      root evidence; Readability records a root failure in Dolt conflict tests;
@@ -206,6 +210,10 @@ owner sample for 2291638: process exited before ps owner evidence could be colle
 later sample: no exact root-harness process
 handoff sample: 2350046 php tools/run-tests.php lanes/syncthing/tests
 owner evidence: 2350046 claude 2287669 00:09 Rs php tools/run-tests.php lanes/syncthing/tests
+later sample: 2390768 php tools/run-tests.php lanes/quadrable/tests
+owner sample for 2390768: process exited before ps owner evidence could be collected
+later sample: 2399793 php tools/run-tests.php
+owner evidence: 2399793 claude 2264530 00:27 Rs php tools/run-tests.php
 ```
 
 No duplicate root run was started. Even when the exact gate was clear, the tree
@@ -215,9 +223,9 @@ status publishers, and dirty lane batches were still moving.
 Latest dirty-tree samples:
 
 ```text
-git status --short --untracked-files=no: 120 tracked entries
-git status --short: 1050 entries
-git diff --shortstat: 120 files changed, 24909 insertions(+), 739 deletions(-)
+git status --short --untracked-files=no: 118 tracked entries
+git status --short: 1061 entries
+git diff --shortstat: 118 files changed, 25558 insertions(+), 737 deletions(-)
 ```
 
 Recent history reviewed:
