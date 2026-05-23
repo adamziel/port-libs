@@ -1,5 +1,168 @@
 # Integration Status
 
+## Integration Hold - 2026-05-23T21:04:14Z
+
+No lane worker output was integrated by this pass. No lane implementation files
+were staged, `php tools/generate-dashboard.php` was not run, no local dashboard
+artifacts were accepted, no push was attempted, and no upstream parity claim is
+accepted from this moving dirty tree.
+
+Inputs reviewed: `goal.md`, `progress.md`, `git status --short --branch`,
+recent `git log --oneline --decorate -30`, newest current
+`.tmux-team/logs/port-*.log` tails for finished/active workers, dirty lane
+files shown by Git, active tmux/process state, exact PHP runner sampling,
+capacity clean/dirty PHP shard logs, Dolt runner/BATS activity, and the
+existing public status artifacts.
+
+Current snapshot:
+
+- `HEAD` moved during this integration pass from sampled `c2a83c53dcd4` to
+  `27491c5adad9` (`Refresh independent audit status`); branch status sampled
+  as `main...origin/main [ahead 532, behind 68]`.
+- Dirty tree counts moved during this review. Latest sampled counts: `4084`
+  to `4163` total `git status --short` rows, `259` tracked dirty rows, `259`
+  tracked dirty files from `git diff --name-only`, `0` staged files, and `3992`
+  untracked files.
+- `git diff --shortstat`: moved to `259 files changed, 102893
+  insertions(+), 11491 deletions(-)`.
+- Dirty tracked/untracked scope still spans every priority lane. Row counts
+  sampled from Git: Difftastic `164`, Dolt `77`, esbuild `24`, Gitoxide
+  `111`, libsqlite `65`, LightningCSS `85`, markerPDF `154`, Pandoc `43`,
+  Quadrable `65`, rclone `72`, Readability `89`, Syncthing `97`,
+  `.tmux-team` `1132`, audits `1911`, scripts `16`, plus generated dashboard
+  files and scratch output.
+- Active tmux sessions moved to `113`; sampled repo worker/status/test-control
+  process matches moved to `47`. The active set included every primary lane agent, dashboard,
+  evaluator, auditor, integrator, capacity executor/feeder/controller loops,
+  Dolt runner sessions, stale root-red/capacity sessions, and fresh focused
+  PHP shard sessions.
+- Exact runner sampling found active PHP harnesses owned by `claude`,
+  including no-argument root PID `945019`, focused Syncthing PID `934784`, and
+  focused Syncthing shard PID `945190`. Earlier in this pass the active set
+  also included root PID `930241` and multi-lane focused shard PIDs `930352`,
+  `930361`, and `930372`. This worker did not start a no-argument root harness
+  and did not wait on `.upstream-cache/run-tests.lock` because no lane batch was
+  accepted and root/focused harnesses were already active.
+- New diagnostic evidence reviewed but not accepted: dirty-root capacity runs
+  reported `php tools/run-tests.php` green for snapshots
+  `2b46d89b6a75-77c5397566ea` (`276` files, `37788` assertions, `0`
+  failures) and `fbe8ba56bfc3-94a59aaf56fc` (`278` files, `37841`
+  assertions, `0` failures). These remain diagnostic moving-tree anecdotes,
+  not one accepted integration snapshot.
+- Additional clean-head focused scratch clones for `c2a83c53dcd4` reported
+  green results for Gitoxide/Dolt (`52` files, `3738` assertions, `0`
+  failures), markerPDF/Pandoc/Readability (`49` files, `5028` assertions, `0`
+  failures), and rclone/Syncthing (`79` files, `6198` assertions, `0`
+  failures). A clean-head multi-lane small shard log had started but did not
+  show a completion line in the reviewed tail. These are shard diagnostics
+  only.
+- Dolt remains unsafe to accept despite reauthorization. `port-dolt`,
+  `port-dolt-runner`, Dolt lane files, a broad local BATS runner, and an
+  additional Dolt BATS candidate-index session were active in the same sampling
+  window.
+- `audits/latest.md` and `progress.md` were being updated by another active
+  audit/integration session during this pass. This worker did not overwrite or
+  stage those active status artifacts.
+- `porting.html` and `porting-summary.json` remain dirty in this worktree and
+  were not regenerated or accepted locally because no coherent lane/status
+  batch was accepted.
+
+Decision: the tree is too active to safely integrate. All priority lanes were
+skipped as active or unsafe: Difftastic, Dolt, esbuild, Gitoxide, libsqlite,
+LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, and
+Syncthing. Capacity/control script changes were also skipped because active
+executor, dashboard, watchdog, auditor, evaluator, and integrator loops were
+operating against the same control files.
+
+Next safe integration point: freeze or let finish active lane agents, Dolt
+runner/BATS work, capacity work, dashboard/evaluator/auditor/integrator loops,
+focused PHP shards, upstream runners, and the active no-argument root harness.
+Then confirm `HEAD`, tracked status, diff shortstat, exact PHP runner PIDs,
+upstream runner PIDs, and relevant log mtimes are unchanged across two polls
+before accepting one coherent lane batch. The accepting worker should run
+focused lane inspection/tests, one serialized `php tools/run-tests.php`, full
+`git diff --check`, and dashboard regeneration from that same accepted
+snapshot.
+
+## Integration Hold - 2026-05-23T20:59:29Z
+
+No lane worker output was integrated by this pass. No lane implementation files
+were staged, `php tools/generate-dashboard.php` was not run, no local dashboard
+artifacts were accepted, no push was attempted by this worker, and no upstream
+parity claim is accepted from this moving dirty tree.
+
+Inputs reviewed: `goal.md`, `progress.md`, `git status --short --branch`,
+recent `git log --oneline --decorate -30`, the newest current
+`.tmux-team/logs/port-*.log` tails, dirty lane files shown by Git, active
+tmux/process state, exact PHP runner sampling, capacity dirty PHP shard logs,
+Dolt runner/BATS activity, and the existing integration status artifact.
+
+Current snapshot:
+
+- `HEAD` moved during this integration pass from `fbe8ba56` to
+  `c2a83c53dcd4` (`Refresh independent audit status`); branch status sampled
+  as `main...origin/main [ahead 531, behind 68]`.
+- Dirty tree counts sampled after that move: `258` tracked dirty files from
+  `git diff --name-only`, `0` staged files from `git diff --cached
+  --name-only`, `3847` untracked files, and `4017` total rows from
+  `git status --short`.
+- `git diff --shortstat`: `258 files changed, 101792 insertions(+), 11466
+  deletions(-)`.
+- Dirty tracked/untracked scope still spans every priority lane. Row counts
+  sampled from Git: Difftastic `164`, Dolt `77`, esbuild `24`, Gitoxide
+  `111`, libsqlite `65`, LightningCSS `82`, markerPDF `153`, Pandoc `43`,
+  Quadrable `65`, rclone `72`, Readability `89`, Syncthing `97`,
+  `.tmux-team` `1106`, audits `1874`, scripts `16`, plus generated dashboard
+  files and scratch output.
+- Active tmux sessions: `101`; the visible `port-*` set included active lane
+  agents, dashboard/evaluator/auditor/integrator loops, capacity executor and
+  feeder sessions, Dolt runner sessions, stale root-red/capacity sessions, and
+  fresh focused shard sessions.
+- Exact runner sampling showed focused PHP harnesses still running, including
+  Syncthing and a combined rclone/Syncthing focused shard. A no-argument root
+  harness was active earlier in the reviewed log/process window but was not
+  active in the final sample. This worker did not start a no-argument root
+  harness and did not wait on `.upstream-cache/run-tests.lock` because no lane
+  batch was accepted and the tree was still moving.
+- Diagnostic focused evidence reviewed but not accepted: Quadrable reported
+  `php tools/run-tests.php lanes/quadrable/tests` green with `12` files,
+  `4557` assertions, `0` failures and upstream `make -r test` green; Gitoxide
+  reported focused lane tests green with `39` files, `5368` assertions, `0`
+  failures and a focused `gix-protocol` cargo selector green; Readability
+  capacity shard reported `1` file, `2747` assertions, `0` failures; Pandoc
+  reported `1` file, `2535` assertions, `0` failures; LightningCSS reported
+  `10` files, `2104` assertions, `0` failures; rclone focused shards reported
+  green part results. These remain diagnostic shard evidence only, not an
+  accepted integration snapshot.
+- Negative evidence reviewed: libsqlite capacity shard
+  `capacity-feed-dirty-php-fbe8ba56bfc3-94a59aaf56fc-libsqlite` exited `1`
+  with `1` failure (`1` file, `2506` assertions). That alone blocks accepting
+  an aggregate dirty-tree batch.
+- Dolt remains unsafe to accept despite reauthorization. `port-dolt`,
+  `port-dolt-runner`, Dolt lane files, and a broad BATS process against
+  constraint/diff/schema/keyless suites were active in the same sampling
+  window, so no Dolt source or metadata was integrated.
+- `porting.html` and `porting-summary.json` remain dirty in this worktree and
+  were not regenerated or accepted locally because no coherent lane/status
+  batch was accepted.
+
+Decision: the tree is too active to safely integrate. All priority lanes were
+skipped as active or unsafe: Difftastic, Dolt, esbuild, Gitoxide, libsqlite,
+LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, and
+Syncthing. Capacity/control script changes were also skipped because active
+executor, dashboard, watchdog, auditor, evaluator, and integrator loops were
+operating against the same control files.
+
+Next safe integration point: freeze or let finish active lane agents, Dolt
+runner/BATS work, capacity work, dashboard/evaluator/auditor/integrator loops,
+focused PHP shards, upstream runners, and any no-argument root harness. Then
+confirm `HEAD`, tracked status, diff shortstat, exact PHP runner PIDs, upstream
+runner PIDs, and relevant log mtimes are unchanged across two polls before
+accepting one coherent lane batch. The accepting worker should run focused lane
+inspection/tests, one serialized `php tools/run-tests.php`, full
+`git diff --check`, and dashboard regeneration from that same accepted
+snapshot.
+
 ## Integration Hold - 2026-05-23T20:56:28Z
 
 No lane worker output was integrated by this pass. No lane implementation files
