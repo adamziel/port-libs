@@ -1,5 +1,70 @@
 # Integration Status
 
+## Integration Hold - 2026-05-23T21:41:11Z
+
+No lane worker output was integrated by this pass. No lane implementation files
+were staged, `php tools/generate-dashboard.php` was not run, no dashboard
+artifacts were accepted, no push was attempted, and no upstream parity claim is
+accepted from this moving dirty tree.
+
+Inputs reviewed: `goal.md`, `progress.md`, `git status --short --branch`,
+recent `git log --oneline --decorate -30`, current
+`.tmux-team/logs/port-*.log` mtimes/tails for active and just-finished
+workers, dirty lane files shown by Git, active tmux/process state, root/focused
+PHP runner evidence, Dolt BATS runner evidence, and the existing integration
+status artifact.
+
+Current snapshot:
+
+- `HEAD` moved during this pass from `395219edeca1` (`Record integration hold
+  status`) to `dbf36aa4ff6b` (`Refresh independent audit status`); branch
+  status after the move was `main...origin/main [ahead 546, behind 68]`.
+- Dirty tree counts after the `HEAD` move: `5238` default
+  `git status --short` rows and `264 files changed, 106888 insertions(+),
+  11657 deletions(-)` from `git diff --shortstat`.
+- Dirty lane rows span every priority lane: Difftastic `164`, markerPDF
+  `159`, Gitoxide `116`, Syncthing `105`, LightningCSS `100`, Readability
+  `93`, rclone `81`, Dolt `79`, Quadrable `70`, libsqlite `70`, Pandoc `47`,
+  and esbuild `25`, plus modified control/status files, `progress.md`,
+  `porting.html`, and `porting-summary.json`.
+- Active process sampling still showed primary lane agents and control loops:
+  Difftastic, Dolt, Dolt runner, esbuild, Gitoxide, LightningCSS, libsqlite,
+  markerPDF, Pandoc, Quadrable, rclone, Readability, Syncthing, auditor,
+  evaluator, dashboard updater, team watchdog, capacity controller, capacity
+  executor, and another integrator.
+- The serialized dirty-root evidence run
+  `.tmux-team/logs/port-capacity-feed-dirty-root-6267ae67ae99-7f7d558a148d.log`
+  completed red: `php tools/run-tests.php` exit `1`, `287` test files,
+  `38602` assertions, and `1` failure. The failing test was
+  `lanes/libsqlite/tests/SQLiteHeaderTest.php`: `plans sqlite savepoint page
+  capture for journal-mode-off and write errors`, with message `SQLite
+  sub-journal page-capture error phase must be write or bitvec`.
+- Just-finished focused PHP shards were green but are not accepted as an
+  aggregate integration snapshot: Readability `1` file / `2799` assertions,
+  Quadrable `12` files / `4581` assertions, Syncthing part01 `16` files /
+  `1026` assertions, and Syncthing part04 `16` files / `1178` assertions.
+- Dolt is still skipped. The bounded BATS runner finished green with plan
+  `1..369`, `369` ok lines, `0` failures, and `30` upstream-declared skips,
+  but the Dolt implementation lane and Dolt runner were both active and the
+  runner log stated it was about to edit Dolt runner metadata.
+
+Decision: the tree is too active and the current dirty-root harness is red, so
+all priority lanes were skipped as active or unsafe: Difftastic, Dolt, esbuild,
+Gitoxide, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone,
+Readability, and Syncthing. Capacity/control script changes and generated
+dashboard/status artifacts were also skipped because active control loops are
+operating against the same files.
+
+Next safe integration point: freeze or let finish active lane agents, Dolt
+runner metadata edits, capacity work, dashboard/evaluator/auditor/integrator
+loops, focused PHP shards, upstream runners, and the red libsqlite dirty-root
+state. Then confirm `HEAD`, tracked status, diff shortstat, exact PHP runner
+PIDs, upstream runner PIDs, and relevant log mtimes are unchanged across two
+polls before accepting one coherent lane batch. The accepting worker should run
+focused lane inspection/tests, one serialized `php tools/run-tests.php`, full
+`git diff --check`, and dashboard regeneration from that same accepted
+snapshot.
+
 ## Integration Hold - 2026-05-23T21:36:18Z
 
 No lane worker output was integrated by this pass. No lane implementation files
