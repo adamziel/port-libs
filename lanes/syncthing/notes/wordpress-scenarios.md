@@ -799,8 +799,22 @@ pass:
 renamed into the dated uploads folder without re-downloading the same block
 content, while the native DB updater records the target update and source
 tombstone.
+The metadata-shortcut slice now maps upstream `processNeeded` and
+`shortcutFile`: needed regular files whose current local FileInfo has the same
+block identity skip full handle-file work, emit ItemStarted/ItemFinished
+`metadata` payloads, update permissions unless ignored, apply the upstream
+mtime, schedule `dbUpdateShortcutFile`, fsync the parent directory through the
+DB updater, and avoid `ReceivedFile` notifications because no content was
+transferred. Missing on-disk files fail the metadata path without creating empty
+placeholders, matching the upstream `Chtimes` error boundary. This is backed by
+targeted reads of `lib/model/folder_sendrecv.go` around `processNeeded`,
+`shortcutFile`, and `dbUpdaterRoutine`; no additional upstream package test was
+found for this exact branch. `wordpress-metadata-shortcut.php` shows an existing
+WordPress media item receiving a permissions/mtime-only update while a different
+needed file remains queued for full pull work.
 
 ## Next Task
 
-Target metadata-only `shortcutFile` updates before queuing full `handleFile`
-work, including permission/mtime changes and `dbUpdateShortcutFile` behavior.
+Target the receive-encrypted `shortcutFile` branch that rewrites the encrypted
+FileInfo trailer and adjusts advertised size before scheduling
+`dbUpdateShortcutFile`.

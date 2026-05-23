@@ -387,6 +387,125 @@ return [
             syncthing_item_rm($root);
         }
     },
+    'processMetadataShortcuts updates same-block metadata and leaves other files for pull' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/hero.jpg';
+            $otherName = 'wp-content/uploads/2026/05/new.jpg';
+            $bytes = 'same wordpress media bytes';
+            $blocksHash = hash('sha256', 'metadata shortcut shared blocks');
+            $path = syncthing_item_write($root, $name, $bytes, 1_700_004_400);
+            chmod($path, 0644);
+
+            $current = syncthing_item_file_info($name, $bytes, 1_700_004_400, [101 => 70], $blocksHash);
+            $target = syncthing_item_file_info($name, $bytes, 1_700_004_500, [202 => 71], $blocksHash, permissions: 0600);
+            $fullPull = syncthing_item_file_info(
+                $otherName,
+                'new media bytes not already local',
+                1_700_004_600,
+                [202 => 72],
+                hash('sha256', 'different metadata shortcut blocks'),
+            );
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media');
+
+            $remainingFiles = $updater->processMetadataShortcuts([$target, $fullPull], [$current]);
+
+            $t->same([$otherName], array_map(static fn (FileInfo $file): string => $file->name, $remainingFiles));
+            $t->same($bytes, file_get_contents($path));
+            $t->same(1_700_004_500, filemtime($path));
+            $t->same(0600, fileperms($path) & 0777);
+            $t->same([], $updater->scanNames());
+            $t->same([], $updater->pullErrors());
+            $t->same([
+                [
+                    'folder' => 'wordpress-media',
+                    'item' => $name,
+                    'type' => 'file',
+                    'action' => 'metadata',
+                ],
+            ], $updater->itemStartedEvents());
+            $t->same([
+                [
+                    'folder' => 'wordpress-media',
+                    'item' => $name,
+                    'error' => null,
+                    'type' => 'file',
+                    'action' => 'metadata',
+                ],
+            ], $updater->itemFinishedEvents());
+            $t->same(PullDbUpdater::DB_UPDATE_SHORTCUT_FILE, $updater->dbUpdates()[0]['type']);
+
+            $db = new PullDbUpdater(folderId: 'wordpress-media', folderLabel: 'Media');
+            foreach ($updater->dbUpdates() as $update) {
+                $db->append($update['file'], $update['type']);
+            }
+            $t->same(1, $db->close());
+            $t->same(['wp-content/uploads/2026/05'], $db->fsyncedDirectories());
+            $t->same([], $db->receivedFiles());
+            $t->same('modified', $db->remoteChangeEvents()[0]['action']);
+            $t->same(str_replace('/', DIRECTORY_SEPARATOR, $name), $db->remoteChangeEvents()[0]['path']);
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'shortcutFile honors ignored permissions while applying upstream mtime' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/caption.txt';
+            $bytes = 'caption bytes';
+            $path = syncthing_item_write($root, $name, $bytes, 1_700_004_700);
+            chmod($path, 0644);
+            $target = syncthing_item_file_info(
+                $name,
+                $bytes,
+                1_700_004_800,
+                [202 => 73],
+                hash('sha256', 'caption metadata shortcut blocks'),
+                permissions: 0600,
+            );
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media', ignorePerms: true);
+
+            $updated = $updater->shortcutFile($target);
+
+            $t->true($updated);
+            $t->same(0644, fileperms($path) & 0777);
+            $t->same(1_700_004_800, filemtime($path));
+            $t->same(PullDbUpdater::DB_UPDATE_SHORTCUT_FILE, $updater->dbUpdates()[0]['type']);
+            $t->same('metadata', $updater->itemFinishedEvents()[0]['action']);
+            $t->same([], $updater->pullErrors());
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'shortcutFile reports missing files without creating empty placeholders' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/missing.jpg';
+            $target = syncthing_item_file_info(
+                $name,
+                'expected bytes',
+                1_700_004_900,
+                [202 => 74],
+                hash('sha256', 'missing metadata shortcut blocks'),
+            );
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media', ignorePerms: true);
+
+            $updated = $updater->shortcutFile($target);
+
+            $t->true(!$updated);
+            $t->true(!file_exists(syncthing_item_path($root, $name)));
+            $t->same([], $updater->dbUpdates());
+            $t->same([
+                [
+                    'path' => $name,
+                    'error' => 'shortcut file (setting metadata): file is not a regular file',
+                ],
+            ], $updater->pullErrors());
+            $t->same('shortcut file (setting metadata): file is not a regular file', $updater->itemFinishedEvents()[0]['error']);
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
     'processRenameShortcuts renames same-block source tombstone into target' => static function (TestRunner $t): void {
         $root = syncthing_item_root();
         try {
@@ -531,7 +650,15 @@ function syncthing_item_write(string $root, string $name, string $bytes, int $mt
 /**
  * @param array<int, int> $version
  */
-function syncthing_item_file_info(string $name, string $bytes, int $modifiedS, array $version, string $blocksHash = ''): FileInfo
+function syncthing_item_file_info(
+    string $name,
+    string $bytes,
+    int $modifiedS,
+    array $version,
+    string $blocksHash = '',
+    int $permissions = 0644,
+    bool $noPermissions = false,
+): FileInfo
 {
     return new FileInfo(
         name: $name,
@@ -540,7 +667,8 @@ function syncthing_item_file_info(string $name, string $bytes, int $modifiedS, a
         size: strlen($bytes),
         blocksHash: $blocksHash,
         type: FileInfo::TYPE_FILE,
-        permissions: 0644,
+        permissions: $permissions,
+        noPermissions: $noPermissions,
         rawBlockSize: max(1, strlen($bytes)),
         modifiedBy: array_key_first($version) ?? 0,
     );

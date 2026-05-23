@@ -330,6 +330,66 @@ final class PullItemUpdater
         return array_values($remainingDeletes);
     }
 
+    /**
+     * @param iterable<FileInfo> $neededFiles
+     * @param iterable<FileInfo> $currentFiles
+     *
+     * @return list<FileInfo> files that still need full handle-file work
+     */
+    public function processMetadataShortcuts(
+        iterable $neededFiles,
+        iterable $currentFiles,
+    ): array {
+        $currentByName = $this->fileInfoByName($currentFiles, 'Current files');
+        $remainingFiles = [];
+
+        foreach ($neededFiles as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException('Needed files must be FileInfo instances');
+            }
+            if (!$this->isRegularAvailableFile($file)) {
+                throw new \InvalidArgumentException('Metadata shortcut candidates must be available regular-file FileInfos');
+            }
+
+            $current = $currentByName[$file->name] ?? null;
+            if ($current !== null && $this->isRegularAvailableFile($current) && $file->blocksEqual($current)) {
+                $this->shortcutFile($file, $current);
+                continue;
+            }
+
+            $remainingFiles[] = $file;
+        }
+
+        return $remainingFiles;
+    }
+
+    public function shortcutFile(FileInfo $file, ?FileInfo $current = null): bool
+    {
+        $this->itemStartedEvents[] = [
+            'folder' => $this->folderId,
+            'item' => $file->name,
+            'type' => 'file',
+            'action' => 'metadata',
+        ];
+
+        try {
+            $error = $this->shortcutFileError($file, $current);
+        } catch (\Throwable $throwable) {
+            $error = $throwable->getMessage();
+            $this->newPullError($file->name, $error);
+        }
+
+        $this->itemFinishedEvents[] = [
+            'folder' => $this->folderId,
+            'item' => $file->name,
+            'error' => $error,
+            'type' => 'file',
+            'action' => 'metadata',
+        ];
+
+        return $error === null;
+    }
+
     public function renameFileShortcut(
         FileInfo $currentSource,
         FileInfo $sourceDeletion,
@@ -476,6 +536,37 @@ final class PullItemUpdater
         }
 
         return $list;
+    }
+
+    private function shortcutFileError(FileInfo $file, ?FileInfo $current): ?string
+    {
+        if (!$this->isRegularAvailableFile($file)) {
+            return $this->fail($file->name, 'metadata shortcut target must be an available regular file');
+        }
+        if ($current !== null) {
+            if (!$this->isRegularAvailableFile($current)) {
+                return $this->fail($file->name, 'metadata shortcut current file must be an available regular file');
+            }
+            if (!$file->blocksEqual($current)) {
+                return $this->fail($file->name, 'metadata shortcut requires matching block identity');
+            }
+        }
+
+        $path = $this->absolutePath($file->name);
+        if (!is_file($path) || is_link($path)) {
+            return $this->fail($file->name, 'shortcut file (setting metadata): file is not a regular file');
+        }
+
+        if (!$this->ignorePerms && !$file->noPermissions && !@chmod($path, $file->permissions & 0777)) {
+            return $this->fail($file->name, 'shortcut file (setting permissions): chmod failed');
+        }
+        if ($file->modifiedS > 0 && !@touch($path, $file->modifiedS)) {
+            return $this->fail($file->name, 'shortcut file (setting metadata): chtimes failed');
+        }
+
+        $this->scheduleDbUpdate($file, PullDbUpdater::DB_UPDATE_SHORTCUT_FILE);
+
+        return null;
     }
 
     private function renameFileShortcutError(
