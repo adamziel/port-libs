@@ -139,6 +139,17 @@ represented too: nested `<strong><em>...</em></strong>` source emphasis stays
 nested in the AST and WordPress output, and HTML `<code>` spans preserve
 literal reviewer/source tokens such as `>`, `$`, `\`, `\$`, and `<html>`
 without becoming raw HTML or Markdown code-span re-parses.
+The bounded HTML-reader Smart quotes, ellipses, dashes slice is now represented
+too: bare self-closing `<hr />` separators become WordPress separator blocks on
+the HTML-reader path, while straight quotes, source apostrophes, quoted
+HTML code/link punctuation, dash strings, numeric hyphen ranges, and spaced
+ellipsis dots stay literal instead of receiving Markdown smart-punctuation
+rewrites.
+The bounded HTML-reader LaTeX slice is now represented too: source TeX commands,
+dollar-delimited math-looking strings, and one-line tabular fragments inside
+HTML text stay literal on the HTML-reader path, while explicit HTML `<code>` and
+`<em>` markup remains semantic. This keeps legacy source snippets reviewable
+without incorrectly turning imported HTML into Markdown math or raw TeX spans.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -360,6 +371,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - HTML reader inline emphasis/strong markup renders as normal WordPress inline
   HTML, preserving empty source markers and emphasized edit links without
   invoking Pandoc.
+- HTML reader literal punctuation imports render as source-preserving WordPress
+  paragraphs and separator blocks: straight quotes, apostrophes, quoted
+  code/link punctuation, dash strings, hyphen ranges, and spaced ellipses stay
+  literal instead of receiving Markdown smart punctuation.
+- HTML reader LaTeX-looking source imports render as ordinary WordPress text and
+  list markup: `\cite`, `$x \in y$`, and one-line `\begin{tabular}` fragments
+  remain literal reviewer source instead of becoming math spans or raw-TeX
+  preservation spans.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -412,6 +431,7 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader Smart quotes, ellipses, dashes slice from
-`test/html-reader.html/native`, starting with straight quote/apostrophe text
-and the quoted HTML code/link paragraph after the Inline Markup section.
+Map the next bounded HTML-reader Special Characters slice from
+`test/html-reader.html/native`, starting with Unicode text, decoded entities,
+literal comparison characters, and punctuation that should remain text on the
+HTML-reader path.

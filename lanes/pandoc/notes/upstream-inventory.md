@@ -218,6 +218,29 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `Strong [ Emph ... ]` paragraph shapes and five `Code` inline nodes. The
   bounded PHP mapping now preserves the nested strong/emphasis shape and code
   span literal text through WordPress output.
+- `test/html-reader.html` Smart quotes, ellipses, dashes slice inspected in
+  this run: upstream lines 326-336 cover two bare self-closing `<hr />`
+  separators, the section heading, four straight quote/apostrophe paragraphs,
+  one quoted HTML `<code>`/`<a>` paragraph, two dash/hyphen paragraphs, and one
+  spaced ellipsis paragraph.
+- `test/html-reader.native` Smart quotes, ellipses, dashes rendered native AST
+  slice inspected in this run: upstream lines 961-1118 show two
+  `HorizontalRule` nodes, one `Header`, and eight `Para` nodes. Unlike
+  Pandoc's Markdown reader smart-punctuation section, the HTML reader keeps
+  straight quotes, apostrophes, dash strings, numeric hyphen ranges, and
+  ellipsis dots as literal `Str` text while preserving the quoted code/link
+  span boundaries.
+- `test/html-reader.html` LaTeX slice inspected in this run: upstream lines
+  337-357 cover the `LaTeX` heading, nine TeX/math-looking list items, a
+  "These shouldn't be math" paragraph, three not-math list items with
+  `<code>` and `<em>` children, a LaTeX table-introduction paragraph, a
+  one-line `\begin{tabular}` paragraph, and a self-closing `<hr />` separator.
+- `test/html-reader.native` LaTeX rendered native AST slice inspected in this
+  run: upstream lines 1119-1297 show the section as literal `Str` text, `Code`
+  for the explicit HTML code spans, `Emph` for the explicit HTML emphasis
+  spans, and a final `HorizontalRule`. Unlike Pandoc's Markdown reader LaTeX
+  section, the HTML reader does not produce `Math` or TeX `RawInline` nodes for
+  dollar-delimited or backslash-command source text.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -523,11 +546,24 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   Pandoc-style `linebreak`, multiple `<dd>` bodies stay attached to the same
   term, and the WordPress writer emits glossary/FAQ `<dl>` markup without
   invoking Pandoc.
+- The HTML-reader Smart quotes, ellipses, dashes shape from
+  `test/html-reader.html` is now mapped for a narrow HTML reader slice: bare
+  self-closing `<hr />` separators become `horizontal_rule` nodes, the section
+  heading gets the Pandoc-style identifier, straight source quotes and
+  apostrophes remain literal text, quoted HTML code/link boundaries stay
+  semantic, and dash/ellipsis strings are not converted through Markdown smart
+  punctuation.
+- The HTML-reader LaTeX shape from `test/html-reader.html` is now mapped for a
+  narrow HTML reader slice: TeX commands, dollar-delimited math-looking text,
+  and `\begin{tabular}` source in HTML text nodes stay literal text, while only
+  explicit HTML inline tags such as `<code>` and `<em>` become semantic inline
+  nodes. WordPress output preserves the source text without creating math spans
+  or raw-TeX spans on the HTML-reader path.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
-Focused local verification on 2026-05-22: the pandoc-local test file passed with
-126 tests, 1,030 assertions, and 0 failures. The required repo-wide
-`php tools/run-tests.php` command was run after this slice and passed with 148
-test files, 13,284 assertions, and 0 failures.
+Focused local verification on 2026-05-22: the pandoc-local test file passed
+with 134 behavior tests, 1,162 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command was run after this slice
+and passed with 155 test files, 14,065 assertions, and 0 failures.

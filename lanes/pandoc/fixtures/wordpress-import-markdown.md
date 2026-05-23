@@ -187,6 +187,20 @@ HTML reader inline markup import:
 <p><strong><em>Urgent media cleanup</em></strong> stays nested for reviewer emphasis.</p>
 <p>Legacy block source: <code>&lt;!-- wp:paragraph --&gt;</code>, <code>$post_id</code>, and <code>\$literal</code>.</p>
 
+HTML reader literal punctuation import:
+
+<hr />
+<p>"HTML source quotes" and 70's apostrophe stay literal, with one---two and dates 1987-1999 unchanged.</p>
+<p>Quoted HTML source '<code>code</code>' and a "<a href="https://example.test/review?item=42&amp;stage=html">review link</a>" stay literal.</p>
+
+<h2>HTML reader LaTeX literal import</h2>
+<ul>
+<li>\cite[22-23]{smith.1899}</li>
+<li>$x \in y$</li>
+<li>Here's the source math literal: $\alpha + \omega \times x^2$.</li>
+</ul>
+<p>\begin{tabular}{|l|l|}\hline Field &amp; Value \\ \hline Posts &amp; 42 \\ \hline \end{tabular}</p>
+
 Empty import audit table:
 
 <table>

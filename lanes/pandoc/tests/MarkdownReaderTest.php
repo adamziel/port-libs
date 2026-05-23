@@ -1648,6 +1648,123 @@ HTML);
         $t->contains('<p>So is <strong><em>this</em></strong> word.</p>', $blocks);
         $t->contains('<p>This is code: <code>&gt;</code>, <code>$</code>, <code>\</code>, <code>\$</code>, <code>&lt;html&gt;</code>.</p>', $blocks);
     },
+    'maps upstream html reader smart quotes dashes and ellipses as literal text' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<hr />
+<h1>Smart quotes, ellipses, dashes</h1>
+<p>"Hello," said the spider. "'Shelob' is my name."</p>
+<p>'A', 'B', and 'C' are letters.</p>
+<p>'Oak,' 'elm,' and 'beech' are names of trees. So is 'pine.'</p>
+<p>'He said, "I want to go."' Were you alive in the 70's?</p>
+<p>Here is some quoted '<code>code</code>' and a "<a href="http://example.com/?foo=1&amp;bar=2">quoted link</a>".</p>
+<p>Some dashes: one---two --- three--four -- five.</p>
+<p>Dashes between numbers: 5-7, 255-66, 1987-1999.</p>
+<p>Ellipses...and. . .and . . . .</p>
+<hr />
+HTML);
+        $heading = $document->children[1];
+        $hello = $document->children[2];
+        $possessive = $document->children[5];
+        $quotedCode = $document->children[6];
+        $dashes = $document->children[7];
+        $numberDashes = $document->children[8];
+        $ellipses = $document->children[9];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('heading', $heading->type);
+        $t->same('smart-quotes-ellipses-dashes', $heading->attr('id'));
+        $t->same('horizontal_rule', $document->children[10]->type);
+        $t->same('"Hello," said the spider. "\'Shelob\' is my name."', $hello->children[0]->attr('text'));
+        $t->same('\'He said, "I want to go."\' Were you alive in the 70\'s?', $possessive->children[0]->attr('text'));
+        $t->same(['text', 'code', 'text', 'link', 'text'], array_map(static fn (AstNode $node): string => $node->type, $quotedCode->children));
+        $t->same('Here is some quoted \'', $quotedCode->children[0]->attr('text'));
+        $t->same('code', $quotedCode->children[1]->attr('text'));
+        $t->same('\' and a "', $quotedCode->children[2]->attr('text'));
+        $t->same('http://example.com/?foo=1&bar=2', $quotedCode->children[3]->attr('url'));
+        $t->same('quoted link', $quotedCode->children[3]->children[0]->attr('text'));
+        $t->same('".', $quotedCode->children[4]->attr('text'));
+        $t->same('Some dashes: one---two --- three--four -- five.', $dashes->children[0]->attr('text'));
+        $t->same('Dashes between numbers: 5-7, 255-66, 1987-1999.', $numberDashes->children[0]->attr('text'));
+        $t->same('Ellipses...and. . .and . . . .', $ellipses->children[0]->attr('text'));
+        $t->contains('<h1 id="smart-quotes-ellipses-dashes">Smart quotes, ellipses, dashes</h1>', $blocks);
+        $t->contains('<p>&quot;Hello,&quot; said the spider. &quot;&#039;Shelob&#039; is my name.&quot;</p>', $blocks);
+        $t->contains('<p>Some dashes: one---two --- three--four -- five.</p>', $blocks);
+        $t->contains('<p>Ellipses...and. . .and . . . .</p>', $blocks);
+        $t->same(false, str_contains($blocks, "\u{201C}Hello"));
+        $t->same(false, str_contains($blocks, "one\u{2014}two"));
+        $t->same(false, str_contains($blocks, "\u{2026}"));
+    },
+    'maps upstream html reader latex as literal text not math or raw tex' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<h1>LaTeX</h1>
+<ul>
+<li>\cite[22-23]{smith.1899}</li>
+<li>\doublespacing</li>
+<li>$2+2=4$</li>
+<li>$x \in y$</li>
+<li>$\alpha \wedge \omega$</li>
+<li>$223$</li>
+<li>$p$-Tree</li>
+<li>$\frac{d}{dx}f(x)=\lim_{h\to 0}\frac{f(x+h)-f(x)}{h}$</li>
+<li>Here's one that has a line break in it: $\alpha + \omega \times x^2$.</li>
+</ul>
+<p>These shouldn't be math:</p>
+<ul>
+<li>To get the famous equation, write <code>$e = mc^2$</code>.</li>
+<li>$22,000 is a <em>lot</em> of money. So is $34,000. (It worked if "lot" is emphasized.)</li>
+<li>Escaped <code>$</code>: $73 <em>this should be emphasized</em> 23$.</li>
+</ul>
+<p>Here's a LaTeX table:</p>
+<p>\begin{tabular}{|l|l|}\hline Animal &amp; Number \\ \hline Dog &amp; 2 \\ Cat &amp; 1 \\ \hline \end{tabular}</p>
+<hr />
+HTML);
+        $heading = $document->children[0];
+        $latexList = $document->children[1];
+        $notMathList = $document->children[3];
+        $tableSource = $document->children[5];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(7, count($document->children));
+        $t->same('heading', $heading->type);
+        $t->same('latex', $heading->attr('id'));
+        $t->same('bullet_list', $latexList->type);
+        $t->same('\cite[22-23]{smith.1899}', $latexList->children[0]->children[0]->attr('text'));
+        $t->same('\doublespacing', $latexList->children[1]->children[0]->attr('text'));
+        $t->same('$2+2=4$', $latexList->children[2]->children[0]->attr('text'));
+        $t->same('$x \in y$', $latexList->children[3]->children[0]->attr('text'));
+        $t->same('$\alpha \wedge \omega$', $latexList->children[4]->children[0]->attr('text'));
+        $t->same('$223$', $latexList->children[5]->children[0]->attr('text'));
+        $t->same('$p$-Tree', $latexList->children[6]->children[0]->attr('text'));
+        $t->contains('$\frac{d}{dx}f(x)=\lim', $latexList->children[7]->children[0]->attr('text'));
+        $t->same('Here\'s one that has a line break in it: $\alpha + \omega \times x^2$.', $latexList->children[8]->children[0]->attr('text'));
+        $t->same('These shouldn\'t be math:', $document->children[2]->children[0]->attr('text'));
+        $t->same('code', $notMathList->children[0]->children[1]->type);
+        $t->same('$e = mc^2$', $notMathList->children[0]->children[1]->attr('text'));
+        $t->same('emph', $notMathList->children[1]->children[1]->type);
+        $t->same('$22,000 is a ', $notMathList->children[1]->children[0]->attr('text'));
+        $t->same(' of money. So is $34,000. (It worked if "lot" is emphasized.)', $notMathList->children[1]->children[2]->attr('text'));
+        $t->same('code', $notMathList->children[2]->children[1]->type);
+        $t->same('$', $notMathList->children[2]->children[1]->attr('text'));
+        $t->same('emph', $notMathList->children[2]->children[3]->type);
+        $t->same(' 23$.', $notMathList->children[2]->children[4]->attr('text'));
+        $t->same('Here\'s a LaTeX table:', $document->children[4]->children[0]->attr('text'));
+        $t->same('paragraph', $tableSource->type);
+        $t->contains('\begin{tabular}{|l|l|}\hline Animal & Number', $tableSource->children[0]->attr('text'));
+        $t->same('horizontal_rule', $document->children[6]->type);
+        foreach ([$latexList, $notMathList, $tableSource] as $node) {
+            $types = array_map(static fn (AstNode $child): string => $child->type, $node->children);
+            $t->same(false, in_array('math', $types, true));
+            $t->same(false, in_array('raw_tex', $types, true));
+        }
+        $t->contains('<h1 id="latex">LaTeX</h1>', $blocks);
+        $t->contains('<li>\cite[22-23]{smith.1899}</li><li>\doublespacing</li><li>$2+2=4$</li>', $blocks);
+        $t->contains('<li>To get the famous equation, write <code>$e = mc^2$</code>.</li>', $blocks);
+        $t->contains('<li>$22,000 is a <em>lot</em> of money. So is $34,000. (It worked if &quot;lot&quot; is emphasized.)</li>', $blocks);
+        $t->contains('<p>\begin{tabular}{|l|l|}\hline Animal &amp; Number \\\\ \hline Dog &amp; 2 \\\\ Cat &amp; 1 \\\\ \hline \end{tabular}</p>', $blocks);
+        $t->same(false, str_contains($blocks, 'pandoc-raw-tex'));
+        $t->same(false, str_contains($blocks, 'class="math'));
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -3270,6 +3387,64 @@ XML;
         $t->same('/wp-admin/post.php?post=42&action=edit', $emphasizedLink->children[1]->children[0]->attr('url'));
         $t->contains('<p>Empty importer marks <strong></strong> and <em></em>.</p>', $blocks);
         $t->contains('<p>An <em><a href="/wp-admin/post.php?post=42&amp;action=edit">emphasized edit link</a></em> stays attached to review copy.</p>', $blocks);
+    },
+    'writes wordpress html reader literal punctuation imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $literalParagraph = null;
+        $quotedSource = null;
+        foreach ($document->children as $node) {
+            if ($node->type !== 'paragraph') {
+                continue;
+            }
+            if (str_contains((string) $node->attr('text', ''), 'HTML source quotes')) {
+                $literalParagraph = $node;
+            }
+            if (str_contains((string) $node->attr('text', ''), 'Quoted HTML source')) {
+                $quotedSource = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($literalParagraph !== null, 'HTML reader literal punctuation paragraph should stay on the native HTML path');
+        $t->true($quotedSource !== null, 'HTML reader quoted code/link paragraph should stay on the native HTML path');
+        $t->same('"HTML source quotes" and 70\'s apostrophe stay literal, with one---two and dates 1987-1999 unchanged.', $literalParagraph->children[0]->attr('text'));
+        $t->same(['text', 'code', 'text', 'link', 'text'], array_map(static fn ($node): string => $node->type, $quotedSource->children));
+        $t->same('https://example.test/review?item=42&stage=html', $quotedSource->children[3]->attr('url'));
+        $t->contains('<p>&quot;HTML source quotes&quot; and 70&#039;s apostrophe stay literal, with one---two and dates 1987-1999 unchanged.</p>', $blocks);
+        $t->contains('<p>Quoted HTML source &#039;<code>code</code>&#039; and a &quot;<a href="https://example.test/review?item=42&amp;stage=html">review link</a>&quot; stay literal.</p>', $blocks);
+    },
+    'writes wordpress html reader latex literal imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $latexHeading = null;
+        $latexList = null;
+        $literalTableSource = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'HTML reader LaTeX literal import') {
+                $latexHeading = $node;
+                $latexList = $document->children[$index + 1] ?? null;
+                continue;
+            }
+            if ($node->type === 'paragraph' && str_contains((string) $node->attr('text', ''), '\begin{tabular}{|l|l|}\hline Field')) {
+                $literalTableSource = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($latexHeading !== null, 'HTML reader LaTeX heading should stay on the native HTML path');
+        $t->true($latexList instanceof AstNode && $latexList->type === 'bullet_list', 'HTML reader LaTeX list should stay a native list');
+        $t->same('\cite[22-23]{smith.1899}', $latexList->children[0]->children[0]->attr('text'));
+        $t->same('$x \in y$', $latexList->children[1]->children[0]->attr('text'));
+        $t->same('Here\'s the source math literal: $\alpha + \omega \times x^2$.', $latexList->children[2]->children[0]->attr('text'));
+        $t->true($literalTableSource !== null, 'HTML reader LaTeX table source should remain a literal paragraph');
+        $t->contains('<h2 id="html-reader-latex-literal-import">HTML reader LaTeX literal import</h2>', $blocks);
+        $t->contains('<ul><li>\cite[22-23]{smith.1899}</li><li>$x \in y$</li><li>Here&#039;s the source math literal: $\alpha + \omega \times x^2$.</li></ul>', $blocks);
+        $t->contains('<p>\begin{tabular}{|l|l|}\hline Field &amp; Value \\\\ \hline Posts &amp; 42 \\\\ \hline \end{tabular}</p>', $blocks);
+        $latexFragment = substr($blocks, strpos($blocks, '<h2 id="html-reader-latex-literal-import">') ?: 0);
+        $latexFragment = substr($latexFragment, 0, strpos($latexFragment, '<p>Empty import audit table:</p>') ?: strlen($latexFragment));
+        $t->same(false, str_contains($latexFragment, 'pandoc-raw-tex'));
+        $t->same(false, str_contains($latexFragment, 'class="math'));
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

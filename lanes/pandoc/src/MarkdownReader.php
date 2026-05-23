@@ -93,6 +93,11 @@ final class MarkdownReader
                 $blocks[] = $htmlParagraph;
                 continue;
             }
+            $htmlHorizontalRule = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHorizontalRuleBlock($lines, $index) : null;
+            if ($htmlHorizontalRule !== null) {
+                $blocks[] = $htmlHorizontalRule;
+                continue;
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -1050,6 +1055,19 @@ final class MarkdownReader
         }
 
         return $this->buildHtmlParagraphNode($paragraph);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlHorizontalRuleBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $this->normalizeRawHtmlLine($lines[$index] ?? '');
+        if (preg_match('/^ {0,3}<hr\s*\/>[ \t]*$/i', $line) !== 1) {
+            return null;
+        }
+
+        return new AstNode('horizontal_rule');
     }
 
     /**
