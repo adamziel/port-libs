@@ -646,6 +646,50 @@ TS,
         $t->true(!str_contains($lowered, 'await using'));
         $t->true(!str_contains($lowered, ': AsyncGenerator'));
     },
+    'lowers upstream async generator await operands with nested commas' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+async function* foo(): AsyncGenerator<string> {
+  const asset = await openAsset(queue, metadata, { kind: "view" });
+  const fallback = await (prepare(metadata), openAsset(queue, "fallback"));
+  yield await renderAsset(asset, fallback);
+}
+TS,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains('const asset = yield new __await(openAsset(queue, metadata, {kind:"view"}));', $lowered);
+        $t->contains('const fallback = yield new __await((prepare(metadata), openAsset(queue, "fallback")));', $lowered);
+        $t->contains('yield yield new __await(renderAsset(asset, fallback));', $lowered);
+        $t->true(!str_contains($lowered, 'yield new __await(openAsset(queue), metadata'));
+        $t->true(!str_contains($lowered, 'const fallback = await('));
+        $t->true(!str_contains($lowered, 'async function*'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
+    'lowers upstream async generator await operands with unary and binary precedence' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+async function* foo(): AsyncGenerator<string> {
+  const sum = await loadAsset() + metadata.version;
+  const ready = await queue.ready && queue.hasMore();
+  const choice = await getChoice() ? "primary" : "fallback";
+  const grouped = await (asset.score + fallback.score);
+  const negated = await !queue.paused;
+}
+TS,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains('const sum = yield new __await(loadAsset())+metadata.version;', $lowered);
+        $t->contains('const ready = yield new __await(queue.ready)&&queue.hasMore();', $lowered);
+        $t->contains('const choice = yield new __await(getChoice())?"primary":"fallback";', $lowered);
+        $t->contains('const grouped = yield new __await((asset.score+fallback.score));', $lowered);
+        $t->contains('const negated = yield new __await(!queue.paused);', $lowered);
+        $t->true(!str_contains($lowered, 'yield new __await(loadAsset()+metadata.version)'));
+        $t->true(!str_contains($lowered, 'yield new __await(queue.ready&&queue.hasMore())'));
+        $t->true(!str_contains($lowered, 'async function*'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
     'lowers upstream async generator for await bodies through runtime helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             <<<'TS'
@@ -2063,14 +2107,15 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('import metadata from "./block.json" with { type: "json" };', $lowered);
         $t->contains('const previewStreams = [function(queue) {', $lowered);
         $t->contains('return __asyncGenerator(this, null, function* () {', $lowered);
-        $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(metadata.viewScript)), true);', $lowered);
+        $t->contains('const preferredHandle = yield new __await(queue.resolveHandle(metadata.viewScript))||metadata.viewScript;', $lowered);
+        $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(metadata.viewScript, metadata.name)), true);', $lowered);
         $t->contains('yield {handle:asset.handle, url:asset.url};', $lowered);
         $t->contains('yield* __yieldStar(queue.extraAssets(metadata.name));', $lowered);
-        $t->contains('const fallback = __using(_stack3, yield new __await(queue.openNext(metadata.editorScript)), true);', $lowered);
+        $t->contains('const fallback = __using(_stack3, yield new __await((queue.prepareFallback(metadata.name), queue.openNext(metadata.editorScript, metadata.name))), true);', $lowered);
         $t->contains('yield {handle:fallback.handle, url:fallback.url};', $lowered);
         $t->contains('yield* __yieldStar(queue.fallbackAssets(metadata.name));', $lowered);
         $t->contains('const previewStreamMap = {[metadata.name]:function(queue) {', $lowered);
-        $t->contains('const asset = __using(_stack4, yield new __await(queue.openNext(metadata.editorScript)), true);', $lowered);
+        $t->contains('const asset = __using(_stack4, yield new __await(queue.openNext(metadata.editorScript, metadata.name)), true);', $lowered);
         $t->contains('consumePreviewStream(metadata.name, function() {', $lowered);
         $t->contains('yield* __yieldStar(stream(queue));', $lowered);
         $t->contains('consumePreviewStream(metadata.name, previewStreamMap[metadata.name]);', $lowered);

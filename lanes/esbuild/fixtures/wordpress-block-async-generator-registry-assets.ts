@@ -3,12 +3,13 @@ import metadata from "./block.json" with { type: "json" };
 
 const previewStreams = [
   async function* (queue): AsyncGenerator<any> {
-    await using asset: AsyncDisposable = await queue.openNext(metadata.viewScript);
-    yield { handle: asset.handle, url: asset.url };
+    const preferredHandle = await queue.resolveHandle(metadata.viewScript) || metadata.viewScript;
+    await using asset: AsyncDisposable = await queue.openNext(metadata.viewScript, metadata.name);
+    yield { handle: preferredHandle, url: asset.url };
     yield* queue.extraAssets(metadata.name);
   },
   async function* (queue): AsyncGenerator<any> {
-    await using fallback: AsyncDisposable = await queue.openNext(metadata.editorScript);
+    await using fallback: AsyncDisposable = await (queue.prepareFallback(metadata.name), queue.openNext(metadata.editorScript, metadata.name));
     yield { handle: fallback.handle, url: fallback.url };
     yield* queue.fallbackAssets(metadata.name);
   },
@@ -16,7 +17,7 @@ const previewStreams = [
 
 const previewStreamMap = {
   [metadata.name]: async function* (queue): AsyncGenerator<any> {
-    await using asset: AsyncDisposable = await queue.openNext(metadata.editorScript);
+    await using asset: AsyncDisposable = await queue.openNext(metadata.editorScript, metadata.name);
     yield { handle: asset.handle, url: asset.url };
   },
 };

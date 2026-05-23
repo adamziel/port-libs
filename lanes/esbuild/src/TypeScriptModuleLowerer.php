@@ -5563,11 +5563,131 @@ final class TypeScriptModuleLowerer
 
         $this->needsAsyncGeneratorHelperRuntime = true;
 
-        return preg_replace_callback(
-            '/\bawait\s+([^,;\n]+?)(?=,|;|$)/',
-            fn (array $match): string => 'yield new ' . $this->asyncGeneratorAwaitName . '(' . trim($match[1]) . ')',
-            $expression,
-        ) ?? $expression;
+        $output = '';
+        $length = strlen($expression);
+        for ($i = 0; $i < $length;) {
+            $char = $expression[$i];
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $end = $this->quotedStringEnd($expression, $i);
+                $output .= substr($expression, $i, $end - $i + 1);
+                $i = $end + 1;
+                continue;
+            }
+
+            if (substr($expression, $i, 5) !== 'await'
+                || ($i > 0 && ($this->isIdentifierCharacter($expression[$i - 1]) || $expression[$i - 1] === '.'))
+                || ($i + 5 < $length && $this->isIdentifierCharacter($expression[$i + 5]))
+            ) {
+                $output .= $char;
+                $i++;
+                continue;
+            }
+
+            $operandStart = $i + 5;
+            while ($operandStart < $length && ctype_space($expression[$operandStart])) {
+                $operandStart++;
+            }
+            if ($operandStart >= $length) {
+                $output .= 'await';
+                $i += 5;
+                continue;
+            }
+
+            $operandEnd = $this->awaitOperandEnd($expression, $operandStart);
+            if ($operandEnd < $operandStart) {
+                $output .= 'await';
+                $i += 5;
+                continue;
+            }
+
+            $operand = trim(substr($expression, $operandStart, $operandEnd - $operandStart + 1));
+            $output .= 'yield new ' . $this->asyncGeneratorAwaitName . '(' . $operand . ')';
+            $i = $operandEnd + 1;
+        }
+
+        return $output;
+    }
+
+    private function awaitOperandEnd(string $expression, int $start): int
+    {
+        $length = strlen($expression);
+        $depth = 0;
+        $end = $start - 1;
+        for ($i = $start; $i < $length; $i++) {
+            $char = $expression[$i];
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $i = $this->quotedStringEnd($expression, $i);
+                $end = $i;
+                continue;
+            }
+
+            if ($depth === 0 && ($char === ',' || $char === ';' || $char === "\n" || $char === ')' || $char === ']' || $char === '}')) {
+                break;
+            }
+
+            if ($depth === 0 && $end >= $start) {
+                if (($char === '+' || $char === '-') && ($expression[$i + 1] ?? '') === $char) {
+                    $end = $i + 1;
+                    break;
+                }
+
+                if ($this->awaitOperandHasTopLevelBinaryOperatorAt($expression, $i)) {
+                    break;
+                }
+            }
+
+            if ($depth === 0 && $i === $start && ($char === '+' || $char === '-') && ($expression[$i + 1] ?? '') === $char) {
+                $end = $i + 1;
+                $i++;
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $depth++;
+            } elseif ($char === ')' || $char === ']' || $char === '}') {
+                $depth--;
+            }
+
+            $end = $i;
+        }
+
+        return $end;
+    }
+
+    private function awaitOperandHasTopLevelBinaryOperatorAt(string $expression, int $offset): bool
+    {
+        $char = $expression[$offset];
+        if (ctype_space($char)) {
+            return preg_match('/\G\s+(?:in|instanceof)\b/', $expression, $matches, 0, $offset) === 1;
+        }
+
+        if ($char === '?' && ($expression[$offset + 1] ?? '') === '.') {
+            return false;
+        }
+
+        return str_contains('?:=<>|&^+-*/%!', $char);
+    }
+
+    private function quotedStringEnd(string $expression, int $start): int
+    {
+        $quote = $expression[$start];
+        $length = strlen($expression);
+        for ($i = $start + 1; $i < $length; $i++) {
+            if ($expression[$i] === '\\') {
+                $i++;
+                continue;
+            }
+            if ($expression[$i] === $quote) {
+                return $i;
+            }
+        }
+
+        return $length - 1;
+    }
+
+    private function isIdentifierCharacter(string $char): bool
+    {
+        return preg_match('/[A-Za-z0-9_$]/', $char) === 1;
     }
 
     /**
