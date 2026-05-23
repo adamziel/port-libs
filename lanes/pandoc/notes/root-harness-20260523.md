@@ -102,3 +102,31 @@
 - A final duplicate-root gate was clear, so this lane worker ran the root harness once:
   - `php tools/run-tests.php`
   - Result: 205 test files, 23,807 assertions, 0 failures
+
+## Markdown Writer Note/Reference Location Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- Focused example passed:
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - Result: emitted setext-heading handoff Markdown with block-local footnotes
+    and shortcut reference definitions.
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,242 assertions, 0 failures
+- Required duplicate-root gate found an active exact root harness, so this lane
+  did not start a duplicate root run:
+  - PID `2966490`, user `claude`, PPID `2966489`, elapsed `00:08`, state `R`,
+    command `php tools/run-tests.php`
+- A later exact-root sample briefly found PID `2969564`, but it exited before
+  owner sampling. When this lane attempted a root run after a clear sample, the
+  root runner immediately reported that another root run held
+  `.upstream-cache/run-tests.lock`; process sampling showed active root PID
+  `2970899` owned by `claude` and this lane's queued `php tools/run-tests.php`
+  process `2970907`. The queued lane process was terminated instead of waiting
+  to run behind the active root.
+- A final exact-root sample was clear, so this lane ran the root harness once:
+  - `php tools/run-tests.php`
+  - Result: 209 test files, 24,067 assertions, 0 failures

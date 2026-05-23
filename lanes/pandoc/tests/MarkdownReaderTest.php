@@ -2242,6 +2242,136 @@ MD;
         $t->same("iv. roman checkpoint\nv.  publish handoff", $writer->write($roman));
         $t->same("1.  Autonumber.\n2.  More.\n  1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
     },
+    'maps upstream markdown writer note and reference placement' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [
+            'text' => implode('', array_map(
+                static fn (AstNode $node): string => $node->type === 'text' ? (string) $node->attr('text', '') : '',
+                $children
+            )),
+        ], $children);
+        $heading = static fn (string $text): AstNode => new AstNode('heading', [
+            'level' => 1,
+            'text' => $text,
+        ], [new AstNode('text', ['text' => $text])]);
+        $note = static fn (string $text): AstNode => new AstNode('note', [], [
+            new AstNode('paragraph', ['text' => $text], [new AstNode('text', ['text' => $text])]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            $heading('First Header'),
+            $paragraph([
+                $text('This is a footnote.'),
+                $note('Down here.'),
+                $text(' And this is a '),
+                new AstNode('link', ['url' => 'https://www.google.com', 'title' => ''], [$text('link')]),
+                $text('.'),
+            ]),
+            new AstNode('blockquote', [], [
+                $paragraph([
+                    $text('A note inside a block quote.'),
+                    $note('The second note.'),
+                ]),
+                $paragraph([$text('A second paragraph.')]),
+            ]),
+            $heading('Second Header'),
+            $paragraph([$text('Some more text.')]),
+        ]);
+
+        $endOfDocument = (new MarkdownWriter(['setextHeadings' => true]))->write($document);
+        $endOfBlockFootnotesOnly = (new MarkdownWriter([
+            'setextHeadings' => true,
+            'referenceLocation' => 'end_of_block',
+        ]))->write($document);
+        $endOfBlock = (new MarkdownWriter([
+            'setextHeadings' => true,
+            'referenceLocation' => 'end_of_block',
+            'referenceLinks' => true,
+        ]))->write($document);
+        $endOfSection = (new MarkdownWriter([
+            'setextHeadings' => true,
+            'referenceLocation' => 'end_of_section',
+        ]))->write($document);
+
+        $t->same(implode("\n", [
+            'First Header',
+            '============',
+            '',
+            'This is a footnote.[^1] And this is a [link](https://www.google.com).',
+            '',
+            '> A note inside a block quote.[^2]',
+            '>',
+            '> A second paragraph.',
+            '',
+            'Second Header',
+            '=============',
+            '',
+            'Some more text.',
+            '',
+            '[^1]: Down here.',
+            '',
+            '[^2]: The second note.',
+        ]), $endOfDocument);
+        $t->same(implode("\n", [
+            'First Header',
+            '============',
+            '',
+            'This is a footnote.[^1] And this is a [link](https://www.google.com).',
+            '',
+            '[^1]: Down here.',
+            '',
+            '> A note inside a block quote.[^2]',
+            '>',
+            '> A second paragraph.',
+            '',
+            '[^2]: The second note.',
+            '',
+            'Second Header',
+            '=============',
+            '',
+            'Some more text.',
+        ]), $endOfBlockFootnotesOnly);
+        $t->same(implode("\n", [
+            'First Header',
+            '============',
+            '',
+            'This is a footnote.[^1] And this is a [link].',
+            '',
+            '[^1]: Down here.',
+            '',
+            '  [link]: https://www.google.com',
+            '',
+            '> A note inside a block quote.[^2]',
+            '>',
+            '> A second paragraph.',
+            '',
+            '[^2]: The second note.',
+            '',
+            'Second Header',
+            '=============',
+            '',
+            'Some more text.',
+        ]), $endOfBlock);
+        $t->same(implode("\n", [
+            'First Header',
+            '============',
+            '',
+            'This is a footnote.[^1] And this is a [link](https://www.google.com).',
+            '',
+            '> A note inside a block quote.[^2]',
+            '>',
+            '> A second paragraph.',
+            '',
+            '[^1]: Down here.',
+            '',
+            '[^2]: The second note.',
+            '',
+            'Second Header',
+            '=============',
+            '',
+            'Some more text.',
+        ]), $endOfSection);
+    },
     'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '-     code',

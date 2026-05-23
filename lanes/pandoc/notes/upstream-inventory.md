@@ -679,6 +679,13 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   output emits `(2)`/`(3)`, `iv.`/`v.`, `A.`/`I.`, `(6)`, `c)`, default
   autonumbered decimal markers, and Pandoc-style short-marker padding for
   reviewer handoff lists.
+- `test/Tests/Writers/Markdown.hs` inspected for its bounded note/reference
+  location group: 20 HUnit cases are present in the module, including four
+  note/reference-location cases. The PHP slice maps those four cases for
+  `EndOfDocument`, `EndOfBlock`, `EndOfBlock` plus shortcut reference links,
+  and `EndOfSection`, including setext headings, block quote prefixing,
+  footnote definition placement, and the indented shortcut reference definition
+  shape used by Pandoc's Markdown writer.
 - Definition-list cases from `Tests.Readers.Markdown`: no blank space,
   blank space before the first definition, lazy continuation lines, indented
   continuation paragraphs, blank space before the second definition, first-line
@@ -1215,3 +1222,17 @@ Required root verification on 2026-05-23 after the task-list writer slice: the
 duplicate-root gate returned clear before the final root run, and
 `php tools/run-tests.php` passed 204 test files, 23,553 assertions, and
 0 failures.
+
+Focused local verification on 2026-05-23 after the Markdown writer
+note/reference-location slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted the
+expected setext-heading handoff Markdown with block-local footnotes and
+shortcut reference definitions; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,242
+assertions, and 0 failures. The focused file now contains 200 behavior tests.
+
+Required root verification on 2026-05-23 after the Markdown writer
+note/reference-location slice eventually ran after earlier active-root lock
+races and passed: `php tools/run-tests.php` reported 209 test files, 24,067
+assertions, and 0 failures.

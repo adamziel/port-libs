@@ -781,6 +781,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   roman `iv.`, alpha `A.`/`c)`, and default autonumbered Markdown lists with
   Pandoc-style marker spacing instead of flattening every ordered list to
   decimal periods.
+- `examples/wordpress-markdown-review-handoff.php` demonstrates a native
+  Markdown reviewer packet for WordPress editorial handoff: inline notes and
+  quote-contained notes are emitted at Pandoc-compatible block boundaries, and
+  source-review links can be written as shortcut reference links with their
+  definitions beside the relevant block instead of being flattened into inline
+  URLs.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -790,6 +796,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded upstream writer slice, preferably Markdown writer
-reference-link/footnote placement from `Tests.Writers.Markdown` or another
-small command fixture not yet represented in the manifest.
+Map another bounded upstream writer slice, preferably shortcut reference-link
+adjacency/deduplication cases from `Tests.Writers.Markdown` or a small Markdown
+writer inline escaping fixture with native WordPress review relevance.

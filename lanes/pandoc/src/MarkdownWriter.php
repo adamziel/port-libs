@@ -6,19 +6,51 @@ namespace PortLibs\Pandoc;
 
 final class MarkdownWriter
 {
+    /** @var list<array{number:int, node:AstNode}> */
+    private array $notes = [];
+
+    /** @var list<array{label:string, url:string, title:string}> */
+    private array $references = [];
+
+    /** @var array<string, int> */
+    private array $referenceLabelUses = [];
+
+    private int $nextNoteNumber = 1;
+
+    /**
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string} $options
+     */
+    public function __construct(private readonly array $options = [])
+    {
+    }
+
     public function write(AstNode $document): string
     {
         if ($document->type !== 'document') {
             throw new \InvalidArgumentException('Markdown writer expects a document node');
         }
 
+        $this->notes = [];
+        $this->references = [];
+        $this->referenceLabelUses = [];
+        $this->nextNoteNumber = 1;
+
         $blocks = [];
-        foreach ($document->children as $node) {
+        foreach ($document->children as $index => $node) {
+            if ($this->referenceLocation() === 'end_of_section' && $node->type === 'heading' && $index > 0) {
+                $this->appendPendingDefinitions($blocks);
+            }
+
             $lines = $this->renderBlock($node, 0);
             if ($lines !== []) {
                 $blocks[] = implode("\n", $lines);
             }
+
+            if ($this->referenceLocation() === 'end_of_block') {
+                $this->appendPendingDefinitions($blocks);
+            }
         }
+        $this->appendPendingDefinitions($blocks);
 
         return implode("\n\n", $blocks);
     }
@@ -30,12 +62,37 @@ final class MarkdownWriter
     {
         return match ($node->type) {
             'paragraph', 'plain' => [str_repeat(' ', $indent) . $this->renderInlines($node->children)],
-            'heading' => [str_repeat(' ', $indent) . str_repeat('#', (int) $node->attr('level', 1)) . ' ' . $this->renderInlines($node->children)],
+            'heading' => $this->renderHeading($node, $indent),
             'bullet_list' => $this->renderList($node, false, $indent),
             'ordered_list' => $this->renderList($node, true, $indent),
+            'blockquote' => $this->renderBlockQuote($node, $indent),
             'code_block' => $this->renderCodeBlock($node, $indent),
+            'horizontal_rule' => [str_repeat(' ', $indent) . '* * *'],
+            'raw_html' => array_map(
+                static fn (string $line): string => str_repeat(' ', $indent) . $line,
+                explode("\n", (string) $node->attr('html', ''))
+            ),
             default => [],
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHeading(AstNode $node, int $indent): array
+    {
+        $level = max(1, min(6, (int) $node->attr('level', 1)));
+        $text = $this->renderInlines($node->children);
+        $prefix = str_repeat(' ', $indent);
+
+        if ($indent === 0 && (bool) ($this->options['setextHeadings'] ?? false) && ($level === 1 || $level === 2)) {
+            return [
+                $text,
+                str_repeat($level === 1 ? '=' : '-', max(1, strlen($text))),
+            ];
+        }
+
+        return [$prefix . str_repeat('#', $level) . ' ' . $text];
     }
 
     /**
@@ -165,6 +222,25 @@ final class MarkdownWriter
     /**
      * @return list<string>
      */
+    private function renderBlockQuote(AstNode $node, int $indent): array
+    {
+        $body = $this->renderBlockCollection($node->children);
+        $prefix = str_repeat(' ', $indent) . '>';
+        if ($body === '') {
+            return [$prefix];
+        }
+
+        $lines = [];
+        foreach (explode("\n", $body) as $line) {
+            $lines[] = $line === '' ? $prefix : $prefix . ' ' . $line;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
         $lines = [];
@@ -182,14 +258,14 @@ final class MarkdownWriter
     private function renderInlines(array $nodes): string
     {
         $text = '';
-        foreach ($nodes as $node) {
-            $text .= $this->renderInline($node);
+        foreach ($nodes as $index => $node) {
+            $text .= $this->renderInline($node, $nodes[$index + 1] ?? null);
         }
 
         return $text;
     }
 
-    private function renderInline(AstNode $node): string
+    private function renderInline(AstNode $node, ?AstNode $next = null): string
     {
         return match ($node->type) {
             'text' => (string) $node->attr('text', ''),
@@ -198,9 +274,200 @@ final class MarkdownWriter
             'code' => '`' . str_replace('`', '\\`', (string) $node->attr('text', '')) . '`',
             'emph' => '*' . $this->renderInlines($node->children) . '*',
             'strong' => '**' . $this->renderInlines($node->children) . '**',
-            'link' => '[' . $this->renderInlines($node->children) . '](' . (string) $node->attr('url', '') . ')',
+            'link' => $this->renderLink($node, $next),
+            'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
         };
+    }
+
+    private function renderLink(AstNode $node, ?AstNode $next): string
+    {
+        if ((bool) ($this->options['referenceLinks'] ?? false)) {
+            return $this->renderReferenceLink($node, $next);
+        }
+
+        return '[' . $this->renderInlines($node->children) . '](' . (string) $node->attr('url', '') . ')';
+    }
+
+    private function renderReferenceLink(AstNode $node, ?AstNode $next): string
+    {
+        $labelText = $this->renderInlines($node->children);
+        $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
+        $referenceLabel = $this->registerReference(
+            $plainLabel,
+            (string) $node->attr('url', ''),
+            (string) $node->attr('title', '')
+        );
+
+        $shortcutable = $referenceLabel === $plainLabel && $this->canUseShortcutReference($next);
+        if ($shortcutable) {
+            return '[' . $labelText . ']';
+        }
+
+        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $referenceLabel . ']';
+
+        return '[' . $labelText . ']' . $suffix;
+    }
+
+    private function renderNoteReference(AstNode $node): string
+    {
+        $number = $this->nextNoteNumber++;
+        $this->notes[] = [
+            'number' => $number,
+            'node' => $node,
+        ];
+
+        return '[^' . $number . ']';
+    }
+
+    private function registerReference(string $suggestedLabel, string $url, string $title): string
+    {
+        $label = $this->normalizeReferenceLabelText($suggestedLabel);
+        if ($label === '') {
+            $label = 'link';
+        }
+
+        $key = strtolower($label);
+        $use = $this->referenceLabelUses[$key] ?? 0;
+        $this->referenceLabelUses[$key] = $use + 1;
+
+        $actualLabel = $use === 0 ? $label : (string) $use;
+        $this->references[] = [
+            'label' => $actualLabel,
+            'url' => $url,
+            'title' => $title,
+        ];
+
+        return $actualLabel;
+    }
+
+    private function canUseShortcutReference(?AstNode $next): bool
+    {
+        if ($next === null) {
+            return true;
+        }
+
+        if ($next->type === 'link' || $next->type === 'citation') {
+            return false;
+        }
+
+        if ($next->type !== 'text') {
+            return true;
+        }
+
+        return !str_starts_with((string) $next->attr('text', ''), '[');
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainInlineText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            $text .= match ($node->type) {
+                'text', 'code' => (string) $node->attr('text', ''),
+                'softbreak', 'linebreak' => ' ',
+                default => $this->plainInlineText($node->children),
+            };
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+    }
+
+    private function normalizeReferenceLabelText(string $label): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $label) ?? $label);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderBlockCollection(array $nodes): string
+    {
+        $blocks = [];
+        foreach ($nodes as $node) {
+            $lines = $this->renderBlock($node, 0);
+            if ($lines !== []) {
+                $blocks[] = implode("\n", $lines);
+            }
+        }
+
+        return implode("\n\n", $blocks);
+    }
+
+    /**
+     * @param list<string> $blocks
+     */
+    private function appendPendingDefinitions(array &$blocks): void
+    {
+        foreach ($this->pendingDefinitionBlocks() as $definitionBlock) {
+            if ($definitionBlock !== '') {
+                $blocks[] = $definitionBlock;
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pendingDefinitionBlocks(): array
+    {
+        $blocks = [];
+        while ($this->notes !== [] || $this->references !== []) {
+            $notes = $this->notes;
+            $references = $this->references;
+            $this->notes = [];
+            $this->references = [];
+
+            foreach ($notes as $note) {
+                $blocks[] = $this->renderNoteDefinition($note['number'], $note['node']);
+            }
+
+            foreach ($references as $reference) {
+                $blocks[] = $this->renderReferenceDefinition($reference);
+            }
+        }
+
+        return $blocks;
+    }
+
+    private function renderNoteDefinition(int $number, AstNode $node): string
+    {
+        $body = $this->renderBlockCollection($node->children);
+        if ($body === '') {
+            return '[^' . $number . ']:';
+        }
+
+        $lines = explode("\n", $body);
+        $first = array_shift($lines);
+        $rendered = '[^' . $number . ']: ' . $first;
+        foreach ($lines as $line) {
+            $rendered .= "\n" . ($line === '' ? '' : '    ' . $line);
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * @param array{label:string, url:string, title:string} $reference
+     */
+    private function renderReferenceDefinition(array $reference): string
+    {
+        $title = $reference['title'] === ''
+            ? ''
+            : ' "' . str_replace(['\\', '"'], ['\\\\', '\\"'], $reference['title']) . '"';
+
+        return '  [' . $reference['label'] . ']: ' . $reference['url'] . $title;
+    }
+
+    private function referenceLocation(): string
+    {
+        $location = (string) ($this->options['referenceLocation'] ?? 'end_of_document');
+
+        return in_array($location, ['end_of_document', 'end_of_block', 'end_of_section'], true)
+            ? $location
+            : 'end_of_document';
     }
 
     private function isInlineNode(AstNode $node): bool
@@ -213,6 +480,7 @@ final class MarkdownWriter
             'linebreak',
             'code',
             'link',
+            'note',
         ], true);
     }
 }
