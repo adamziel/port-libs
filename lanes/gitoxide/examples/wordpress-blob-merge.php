@@ -62,6 +62,15 @@ $sharedBlockRefactor = BlobMerge::mergeText(
     'ours/post.html',
     'theirs/post.html',
 );
+$configuredZdiff3 = BlobMerge::mergeText(
+    $fixture['themeSharedDecision']['base'],
+    $fixture['themeSharedDecision']['ours'],
+    $fixture['themeSharedDecision']['theirs'],
+    $fixture['gitConfigConflictStyle'],
+    'base/theme.json',
+    'ours/theme.json',
+    'theirs/theme.json',
+);
 
 echo 'metadata=' . $metadata->resolution . "\n";
 echo 'metadata-content=' . str_replace("\n", '|', trim($metadata->content)) . "\n";
@@ -79,3 +88,5 @@ echo 'mixed-line-endings=' . $mixedLineEndings->resolution . "\n";
 echo 'mixed-line-endings-content=' . str_replace(["\r", "\n"], ['\\r', '|'], $mixedLineEndings->content) . "\n";
 echo 'shared-block-refactor=' . $sharedBlockRefactor->resolution . "\n";
 echo 'shared-block-refactor-content=' . str_replace("\n", '|', trim($sharedBlockRefactor->content)) . "\n";
+echo 'configured-zdiff3=' . $configuredZdiff3->resolution . "\n";
+echo 'configured-zdiff3-content=' . str_replace("\n", '|', trim($configuredZdiff3->content)) . "\n";

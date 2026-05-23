@@ -8,6 +8,7 @@ final class BlobMerge
 {
     public const STYLE_MERGE = 'merge';
     public const STYLE_DIFF3 = 'diff3';
+    public const STYLE_ZDIFF3 = 'zdiff3';
     public const STYLE_ZEALOUS_DIFF3 = 'zealous-diff3';
     public const STYLE_UNION = 'union';
     public const STYLE_OURS = 'ours';
@@ -26,6 +27,9 @@ final class BlobMerge
         string $theirsLabel = 'theirs',
         int $markerSize = 7,
     ): BlobMergeResult {
+        if ($style === self::STYLE_ZDIFF3) {
+            $style = self::STYLE_ZEALOUS_DIFF3;
+        }
         if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3, self::STYLE_ZEALOUS_DIFF3, self::STYLE_UNION, self::STYLE_OURS, self::STYLE_THEIRS], true)) {
             throw new \InvalidArgumentException("Unsupported text merge style: {$style}");
         }

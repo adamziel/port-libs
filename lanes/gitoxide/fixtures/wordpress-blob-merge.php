@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    'gitConfigConflictStyle' => 'zdiff3',
     'metadata' => [
         'base' => "title: Demo\nslug: demo\nstatus: draft\n",
         'ours' => "title: Demo Import\nslug: demo\nstatus: draft\n",

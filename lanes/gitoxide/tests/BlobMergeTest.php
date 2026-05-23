@@ -133,6 +133,21 @@ return [
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $diff3->resolution);
         $t->same("1\r\n<<<<<<< {$oursLabel}\r\n2\n4\r\n||||||| {$baseLabel}\r\n2\r\n3\r\n=======\r\n2\n5\r\n>>>>>>> {$theirsLabel}\r\n", $diff3->content);
     },
+    'text merge accepts upstream zdiff3 conflict style literal' => static function (TestRunner $t): void {
+        $base = "1\r\n2\r\n3";
+        $ours = "1\r\n2\n4";
+        $theirs = "1\r\n2\n5";
+        $baseLabel = 'complex/marker-newline-handling-lf2/base.blob';
+        $oursLabel = 'complex/marker-newline-handling-lf2/ours.blob';
+        $theirsLabel = 'complex/marker-newline-handling-lf2/theirs.blob';
+
+        $alias = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_ZDIFF3, $baseLabel, $oursLabel, $theirsLabel);
+        $named = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_ZEALOUS_DIFF3, $baseLabel, $oursLabel, $theirsLabel);
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $alias->resolution);
+        $t->same($named->content, $alias->content);
+        $t->same("1\r\n2\n<<<<<<< {$oursLabel}\n4\r\n||||||| {$baseLabel}\r\n2\r\n3\n=======\n5\n>>>>>>> {$theirsLabel}\n", $alias->content);
+    },
     'text merge maps upstream partial match baseline' => static function (TestRunner $t): void {
         $result = BlobMerge::mergeText(
             "0\n1\n2\n3\n4\n5\n",
@@ -232,6 +247,15 @@ return [
             'ours/post.html',
             'theirs/post.html',
         );
+        $configuredZdiff3 = BlobMerge::mergeText(
+            $fixture['themeSharedDecision']['base'],
+            $fixture['themeSharedDecision']['ours'],
+            $fixture['themeSharedDecision']['theirs'],
+            $fixture['gitConfigConflictStyle'],
+            'base/theme.json',
+            'ours/theme.json',
+            'theirs/theme.json',
+        );
 
         $t->true($metadata->isClean());
         $t->same($fixture['metadata']['expected'], $metadata->content);
@@ -250,5 +274,7 @@ return [
         $t->same($fixture['mixedLineEndings']['expected'], $mixedLineEndings->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $sharedBlockRefactor->resolution);
         $t->same($fixture['sharedBlockRefactor']['expected'], $sharedBlockRefactor->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $configuredZdiff3->resolution);
+        $t->same($fixture['themeSharedDecision']['expectedZealousDiff3'], $configuredZdiff3->content);
     },
 ];
