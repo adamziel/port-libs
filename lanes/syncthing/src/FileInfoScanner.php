@@ -252,6 +252,10 @@ final class FileInfoScanner
                 break;
             }
 
+            if ($this->subParentTraversesSymlink($name)) {
+                continue;
+            }
+
             $path = $name === '' ? $this->rootPath : $this->absolutePath($name);
             if (!file_exists($path) && !is_link($path)) {
                 continue;
@@ -945,6 +949,40 @@ final class FileInfoScanner
         }
 
         return array_values(array_unique($checkpointSubs));
+    }
+
+    private function subParentTraversesSymlink(string $name): bool
+    {
+        if ($name === '' || !str_contains($name, '/')) {
+            return false;
+        }
+
+        $parent = substr($name, 0, strrpos($name, '/'));
+        if ($parent === '') {
+            return false;
+        }
+
+        $current = '';
+        foreach (explode('/', $parent) as $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            $current = $current === '' ? $part : $current . '/' . $part;
+            $path = $this->absolutePath($current);
+            $stat = @lstat($path);
+            if (!is_array($stat)) {
+                return false;
+            }
+            if (is_link($path)) {
+                return true;
+            }
+            if (!is_dir($path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function isParentPath(string $name, string $parent): bool

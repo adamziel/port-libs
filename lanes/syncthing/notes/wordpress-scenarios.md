@@ -1006,6 +1006,13 @@ scans ignore symlink entries entirely. `wordpress-scanner-windows-symlink-skip.p
 shows Windows-mode WordPress media scans skipping file and directory symlink
 aliases so they are not advertised as synced content on hosts where upstream
 Syncthing does not support symlinks.
+The scanner symlink-parent sub-walk guard now maps upstream `scan` and
+`osutil.TraversesSymlink(filepath.Dir(sub))` behavior: a direct sub request for
+a symlink itself can still advertise the symlink `FileInfo`, but a direct sub
+request below a symlinked parent is skipped instead of walking through the
+alias. `wordpress-scanner-symlink-parent-sub.php` shows a WordPress media
+library alias being advertised while a direct scan for a file below that alias
+is skipped and the canonical media path remains scannable.
 
 ## Test Run Notes
 
@@ -1239,3 +1246,45 @@ Verification for this batch:
 - The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
   returned no active root harness, so this worker ran `php tools/run-tests.php`;
   it passed 198 files, 22201 assertions, and 0 failures.
+
+## 2026-05-23 Scanner Symlink Parent Sub Guard
+
+Targeted upstream reads covered `lib/scanner/walk.go` where each configured
+sub-walk calls `osutil.TraversesSymlink(filepath.Dir(sub))` before walking, plus
+`lib/osutil/traversessymlink.go` and `traversessymlink_test.go` for the
+component-by-component symlink and missing-path boundaries. Focused upstream
+commands passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/scanner -run 'TestWalkSub|TestIssue4799|TestWalkSymlinkUnix' -count=1`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.016s`, and
+`go test ./lib/osutil -run '^TestTraversesSymlink$|^TestIssue4875$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/osutil 0.011s`.
+
+Native PHP `FileInfoScanner::walk()` now checks each normalized sub's parent
+components with `lstat()` before walking. Directly walking the symlink path
+still emits the symlink FileInfo on POSIX, but walking `linked-library/file.jpg`
+is skipped when `linked-library` is a symlink, matching upstream's sub-walk
+guard. The WordPress example `wordpress-scanner-symlink-parent-sub.php`
+demonstrates this for a media-library alias.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FileInfoScanner.php` passed.
+- `php -l lanes/syncthing/tests/FileInfoScannerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-symlink-parent-sub.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+  passed 1 file, 138 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2140
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-symlink-parent-sub.php` ran
+  successfully and reported `subBelowSymlinkParentSkipped=true`.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active root harness. The first root run later exited red in the
+  moving aggregate with 198 files, 22337 assertions, and 3 failures. A second
+  gated root run captured to `.upstream-cache/syncthing-root-rerun.log` waited
+  on the root lock and then passed 198 files, 22371 assertions, and 0 failures.
+
+## Next Task
+
+Map scanner sub-walk not-a-directory and missing-parent diagnostics against
+upstream `osutil.TraversesSymlink` error boundaries.

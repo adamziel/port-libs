@@ -200,6 +200,39 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk skips requested subs below symlinked parents like upstream TraversesSymlink' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/library/original.jpg', 'target media bytes');
+            $linkedDirName = $dir . '/linked-library';
+            $linkedDirPath = syncthing_scanner_path($root, $linkedDirName);
+            if (!@symlink('library', $linkedDirPath)) {
+                throw new RuntimeException('directory symlink creation failed');
+            }
+
+            $scanner = new FileInfoScanner($root);
+            $linkedDir = $scanner->walk([$linkedDirName]);
+            $belowLinkedDir = $scanner->walk([$linkedDirName . '/original.jpg'], hashBlocks: true, blockSize: 8);
+            $ordinaryTarget = $scanner->walk([$dir . '/library/original.jpg'], hashBlocks: true, blockSize: 8);
+            $wholeParent = $scanner->walk([$dir]);
+
+            $t->same([$linkedDirName], array_map(static fn (FileInfo $file): string => $file->name, $linkedDir));
+            $t->same(FileInfo::TYPE_SYMLINK, $linkedDir[0]->type);
+            $t->same('library', $linkedDir[0]->symlinkTarget);
+            $t->same([], $belowLinkedDir);
+            $t->same([$dir . '/library/original.jpg'], array_map(static fn (FileInfo $file): string => $file->name, $ordinaryTarget));
+            $t->same(hash('sha256', 'target m'), $ordinaryTarget[0]->blocks[0]->hashHex);
+            $t->same([
+                $dir,
+                $dir . '/library',
+                $dir . '/library/original.jpg',
+                $linkedDirName,
+            ], array_map(static fn (FileInfo $file): string => $file->name, $wholeParent));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
     'propagates platform data read errors like upstream CreateFileInfo' => static function (TestRunner $t): void {
         $root = syncthing_scanner_root();
         try {
