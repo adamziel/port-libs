@@ -432,8 +432,23 @@ final class TypeScriptNamespaceLowerer
 
         return $declaration . "\n"
             . '((' . $parameter . ") => {\n"
-            . implode('', array_map(static fn (string $line): string => '  ' . $line . "\n", $lines))
+            . $this->indentNamespaceLines($lines)
             . '})(' . $initializer . ");\n";
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function indentNamespaceLines(array $lines): string
+    {
+        $output = '';
+        foreach ($lines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                $output .= '  ' . $part . "\n";
+            }
+        }
+
+        return $output;
     }
 
     /**
@@ -1911,6 +1926,8 @@ JS, [
     ): array {
         $parts = [];
         $uses = [];
+        $hasUsingHelperScope = false;
+        $hasAwaitUsing = false;
         for ($cursor = $start; $cursor < $bodyClose;) {
             if (($this->tokens[$cursor] ?? null)?->text === ';') {
                 $cursor++;
@@ -1929,7 +1946,7 @@ JS, [
             }
 
             if ($this->isNamespaceUsingStatement($cursor)) {
-                [$statement, $statementUses] = $this->printNamespaceFunctionUsingDeclaration(
+                [$statement, $statementUses, $isAwaitUsing] = $this->printNamespaceFunctionUsingDeclaration(
                     $cursor,
                     $effectiveEnd,
                     $isAsync,
@@ -1937,6 +1954,8 @@ JS, [
                     $imports,
                     $exportedValues
                 );
+                $hasUsingHelperScope = true;
+                $hasAwaitUsing = $hasAwaitUsing || $isAwaitUsing;
             } else {
                 $statementUses = [];
                 $statement = $this->printTokenRange($cursor, $effectiveEnd, $namespace, $imports, $exportedValues, $statementUses);
@@ -1952,13 +1971,50 @@ JS, [
             $cursor = $statementEnd + 1;
         }
 
+        if ($hasUsingHelperScope) {
+            return [$this->namespaceFunctionUsingHelperBody($parts, $hasAwaitUsing), array_values(array_unique($uses))];
+        }
+
         return [implode('', $parts), array_values(array_unique($uses))];
+    }
+
+    /**
+     * @param list<string> $statements
+     */
+    private function namespaceFunctionUsingHelperBody(array $statements, bool $hasAwaitUsing): string
+    {
+        $this->needsUsingHelperRuntime = true;
+
+        $lines = [
+            'var _stack = [];',
+            'try {',
+        ];
+        foreach ($statements as $statement) {
+            foreach (explode("\n", $statement) as $line) {
+                if ($line === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $line;
+            }
+        }
+        $lines[] = '} catch (_) {';
+        $lines[] = '  var _error = _, _hasError = true;';
+        $lines[] = '} finally {';
+        if ($hasAwaitUsing) {
+            $lines[] = '  var _promise = ' . $this->usingHelperCallDisposeName . '(_stack, _error, _hasError);';
+            $lines[] = '  _promise && await _promise;';
+        } else {
+            $lines[] = '  ' . $this->usingHelperCallDisposeName . '(_stack, _error, _hasError);';
+        }
+        $lines[] = '}';
+
+        return "\n  " . implode("\n  ", $lines) . "\n";
     }
 
     /**
      * @param array<string, array{local:string, source:string, exported:bool}> $imports
      * @param array<string, true> $exportedValues
-     * @return array{0:string, 1:list<string>}
+     * @return array{0:string, 1:list<string>, 2:bool}
      */
     private function printNamespaceFunctionUsingDeclaration(
         int $start,
@@ -2013,7 +2069,8 @@ JS, [
             }
 
             $valueUses = [];
-            $declarators[] = $name->text . ' = ' . $this->printTokenRange($valueStart, $valueEnd, $namespace, $imports, $exportedValues, $valueUses);
+            $value = $this->printTokenRange($valueStart, $valueEnd, $namespace, $imports, $exportedValues, $valueUses);
+            $declarators[] = $name->text . ' = ' . $this->usingHelperUsingName . '(_stack, ' . $value . ($isAwaitUsing ? ', true' : '') . ')';
             array_push($uses, ...$valueUses);
 
             if (($this->tokens[$cursor] ?? null)?->text !== ',') {
@@ -2023,8 +2080,9 @@ JS, [
         }
 
         return [
-            ($isAwaitUsing ? 'await using ' : 'using ') . implode(', ', $declarators) . ';',
+            'const ' . implode(', ', $declarators) . ';',
             array_values(array_unique($uses)),
+            $isAwaitUsing,
         ];
     }
 

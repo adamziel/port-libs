@@ -74,7 +74,7 @@ TS);
         $t->true(!str_contains($lowered, 'var __using = (stack, value, async) => {'));
         $t->true(!str_contains($lowered, '__callDispose(_stack, _error, _hasError);'));
     },
-    'erases upstream namespace function scoped using declarations' => static function (TestRunner $t): void {
+    'lowers upstream namespace function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptNamespaceLowerer();
         $lowered = $lowerer->lower(<<<'TS'
 namespace ns {
@@ -90,11 +90,21 @@ namespace ns {
 }
 TS);
 
-        $t->contains('function register(){using preview = acquire(ns.settings.viewScript);done(preview, ns.settings);}', $lowered);
-        $t->contains('async function registerAsync(queue){await using asset = await queue.open(ns.settings.editorScript);done(asset, ns.settings);}', $lowered);
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains("function register(){\n    var _stack = [];", $lowered);
+        $t->contains('const preview = __using(_stack, acquire(ns.settings.viewScript));', $lowered);
+        $t->contains('done(preview, ns.settings);', $lowered);
+        $t->contains('__callDispose(_stack, _error, _hasError);', $lowered);
+        $t->contains("async function registerAsync(queue){\n    var _stack = [];", $lowered);
+        $t->contains('const asset = __using(_stack, await queue.open(ns.settings.editorScript), true);', $lowered);
+        $t->contains('var _promise = __callDispose(_stack, _error, _hasError);', $lowered);
+        $t->contains('_promise && await _promise;', $lowered);
         $t->contains('ns.registerAsync = registerAsync;', $lowered);
+        $t->true(strpos($lowered, 'const preview = __using') < strpos($lowered, 'done(preview, ns.settings);'));
+        $t->true(strpos($lowered, 'const asset = __using') < strpos($lowered, 'done(asset, ns.settings);'));
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, 'await using asset'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('namespace ns { function f() { await using x: AsyncDisposable = y } }'));
     },
     'lowers upstream namespace exported variable declarations' => static function (TestRunner $t): void {
@@ -406,11 +416,17 @@ JS . "\n", $lowered);
         $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
 
         $t->contains('CardBlockRuntime.settings = {name:metadata.name, viewScript:metadata.viewScript, editorScript:metadata.editorScript,};', $lowered);
-        $t->contains('async function registerPreview(queue){await using previewAsset = await queue.open(CardBlockRuntime.settings.viewScript);', $lowered);
+        $t->contains("async function registerPreview(queue){\n    var _stack = [];", $lowered);
+        $t->contains('const previewAsset = __using(_stack, await queue.open(CardBlockRuntime.settings.viewScript), true);', $lowered);
         $t->contains('wp.blocks.registerBlockType(CardBlockRuntime.settings.name, {...CardBlockRuntime.settings, viewScript:previewAsset.url,});', $lowered);
+        $t->contains('var _promise = __callDispose(_stack, _error, _hasError);', $lowered);
+        $t->contains('_promise && await _promise;', $lowered);
         $t->contains('CardBlockRuntime.registerPreview = registerPreview;', $lowered);
-        $t->true(strpos($lowered, 'CardBlockRuntime.settings =') < strpos($lowered, 'await using previewAsset ='));
+        $t->true(strpos($lowered, 'CardBlockRuntime.settings =') < strpos($lowered, 'const previewAsset = __using'));
+        $t->true(strpos($lowered, 'const previewAsset = __using') < strpos($lowered, 'wp.blocks.registerBlockType'));
+        $t->true(strpos($lowered, 'wp.blocks.registerBlockType') < strpos($lowered, '_promise && await _promise;'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'await using previewAsset'));
         $t->true(!str_contains($lowered, ': AsyncDisposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },

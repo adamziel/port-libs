@@ -1435,10 +1435,68 @@ JS . "\n", $lowerer->lower('export default @dec class {}', lowerDecorators: true
         $t->true(!str_contains($collision, '@track'));
         $t->true(!str_contains($collision, 'BlockConfiguration'));
 
-        $t->throws(
-            InvalidArgumentException::class,
-            static fn (): string => $lowerer->lower('@dec class Foo { @field x }', lowerDecorators: true)
-        );
+        $mixed = $lowerer->lower('@dec class Foo { @field x }', lowerDecorators: true);
+        $t->contains('Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);', $mixed);
+        $t->contains('__decorateElement(_init, 5, "x", _x_dec, Foo);', $mixed);
+    },
+    'lowers upstream mixed class and member decorators through shared helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _x_dec, _Foo_decorators, _init;
+_Foo_decorators = [classDec];
+_x_dec = [methodDec];
+class Foo {
+  constructor() {
+    __runInitializers(_init, 5, this);
+  }
+  x() {return y}
+}
+_init = __decoratorStart(null);
+__decorateElement(_init, 1, "x", _x_dec, Foo);
+Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);
+__runInitializers(_init, 1, Foo);
+JS . "\n", $lowerer->lower('@classDec class Foo { @methodDec x(): any { return y } }', lowerDecorators: true));
+
+        $field = $lowerer->lower('@classDec class Foo { @fieldDec x: any = y }', lowerDecorators: true);
+        $t->contains('_Foo_decorators = [classDec];', $field);
+        $t->contains('_x_dec = [fieldDec];', $field);
+        $t->contains('__publicField(this, "x", __runInitializers(_init, 8, this, y)), __runInitializers(_init, 11, this);', $field);
+        $t->contains('__decorateElement(_init, 5, "x", _x_dec, Foo);', $field);
+        $t->contains('Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);', $field);
+        $t->true(strpos($field, '__decorateElement(_init, 5, "x"') < strpos($field, 'Foo = __decorateElement(_init, 0'));
+        $t->true(!str_contains($field, '__decoratorMetadata(_init, Foo);'));
+
+        $derived = $lowerer->lower('@classDec class Foo extends Bar { @methodDec x(): any { return y } }', lowerDecorators: true);
+        $t->contains('class Foo extends (_a = Bar, _x_dec = [methodDec], _a) {', $derived);
+        $t->contains('_init = __decoratorStart(_a);', $derived);
+        $t->contains('__decorateElement(_init, 1, "x", _x_dec, Foo);', $derived);
+        $t->contains('Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);', $derived);
+    },
+    'lowers upstream exported mixed class and member decorators through shared helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $exported = $lowerer->lower('export @classDec class Foo { @methodDec x(): any { return y } }', lowerDecorators: true);
+        $t->contains('var _x_dec, _Foo_decorators, _init;', $exported);
+        $t->contains('_Foo_decorators = [classDec];', $exported);
+        $t->contains('_x_dec = [methodDec];', $exported);
+        $t->contains('export class Foo {', $exported);
+        $t->contains('__decorateElement(_init, 1, "x", _x_dec, Foo);', $exported);
+        $t->contains('Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);', $exported);
+        $t->contains('__runInitializers(_init, 1, Foo);', $exported);
+        $t->true(strpos($exported, '__decorateElement(_init, 1, "x"') < strpos($exported, 'Foo = __decorateElement(_init, 0'));
+        $t->true(!str_contains($exported, '__decoratorMetadata(_init, Foo);'));
+
+        $default = $lowerer->lower('export default @classDec class { @methodDec x(): any { return y } }', lowerDecorators: true);
+        $t->contains('var _x_dec, _class_decorators, _init;', $default);
+        $t->contains('_class_decorators = [classDec];', $default);
+        $t->contains('_x_dec = [methodDec];', $default);
+        $t->contains('export default class defaultExport {', $default);
+        $t->contains('__decorateElement(_init, 1, "x", _x_dec, defaultExport);', $default);
+        $t->contains('defaultExport = __decorateElement(_init, 0, "", _class_decorators, defaultExport);', $default);
+        $t->contains('__runInitializers(_init, 1, defaultExport);', $default);
+        $t->true(strpos($default, '__decorateElement(_init, 1, "x"') < strpos($default, 'defaultExport = __decorateElement(_init, 0'));
+        $t->true(!str_contains($default, '__decoratorMetadata(_init, defaultExport);'));
     },
     'lowers upstream instance method decorators through helper calls' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
@@ -1784,6 +1842,70 @@ JS . "\n", $lowerer->lower('class Foo { @dec static [x](): any {} }', lowerDecor
         $t->contains('__runInitializers(_init, 5, this);', $derived);
         $t->contains('_init = __decoratorStart(_a2);', $derived);
         $t->contains('__decorateElement(_init, 1, _a, _x_dec, Foo);', $derived);
+    },
+    'lowers upstream getter and setter decorators through helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $getter = $lowerer->lower('class Foo { @dec get x(): any { return y } }', lowerDecorators: true);
+        $t->contains('_x_dec = [dec];', $getter);
+        $t->contains('constructor() {', $getter);
+        $t->contains('__runInitializers(_init, 5, this);', $getter);
+        $t->contains('get x() {return y}', $getter);
+        $t->contains('__decorateElement(_init, 2, "x", _x_dec, Foo);', $getter);
+        $t->contains('__decoratorMetadata(_init, Foo);', $getter);
+
+        $setter = $lowerer->lower('class Foo { @dec set x(value: any) { this.value = value } }', lowerDecorators: true);
+        $t->contains('set x(value) {this.value = value}', $setter);
+        $t->contains('__decorateElement(_init, 3, "x", _x_dec, Foo);', $setter);
+
+        $staticGetter = $lowerer->lower('class Foo { @dec static get x(): any { return y } }', lowerDecorators: true);
+        $t->contains('static get x() {return y}', $staticGetter);
+        $t->contains('__decorateElement(_init, 10, "x", _x_dec, Foo);', $staticGetter);
+        $t->contains('__runInitializers(_init, 3, Foo);', $staticGetter);
+        $t->true(!str_contains($staticGetter, '__runInitializers(_init, 5, this);'));
+    },
+    'lowers upstream computed getter and setter decorators through helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $getter = $lowerer->lower('class Foo { @dec get [x](): any { return y } }', lowerDecorators: true);
+        $t->contains('var _x_dec, _a, _init;', $getter);
+        $t->contains('get [_a = (_x_dec = [dec], x)]() {return y}', $getter);
+        $t->contains('__decorateElement(_init, 2, _a, _x_dec, Foo);', $getter);
+
+        $setter = $lowerer->lower('class Foo { @dec static set [x](value: any) { this.value = value } }', lowerDecorators: true);
+        $t->contains('static set [_a = (_x_dec = [dec], x)](value) {this.value = value}', $setter);
+        $t->contains('__decorateElement(_init, 11, _a, _x_dec, Foo);', $setter);
+        $t->contains('__runInitializers(_init, 3, Foo);', $setter);
+
+        $derived = $lowerer->lower('class Foo extends Bar { @dec get [x](): any { return y } }', lowerDecorators: true);
+        $t->contains('class Foo extends (_a2 = Bar, _a2) {', $derived);
+        $t->contains('get [_a = (_x_dec = [dec], x)]() {return y}', $derived);
+        $t->contains('_init = __decoratorStart(_a2);', $derived);
+        $t->contains('__decorateElement(_init, 2, _a, _x_dec, Foo);', $derived);
+    },
+    'lowers upstream private getter and setter decorators through helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $getter = $lowerer->lower('class Foo { @dec get #x(): any { return y } }', lowerDecorators: true);
+        $t->contains('var _x_dec, _init, _x_instances, x_get;', $getter);
+        $t->contains('__runInitializers(_init, 5, this);', $getter);
+        $t->contains('__privateAdd(this, _x_instances);', $getter);
+        $t->contains('_x_instances = new WeakSet();', $getter);
+        $t->contains('x_get = function() {return y};', $getter);
+        $t->contains('x_get = __decorateElement(_init, 18, "#x", _x_dec, _x_instances, x_get);', $getter);
+
+        $setter = $lowerer->lower('class Foo { @dec static set #x(value: any) { this.value = value } }', lowerDecorators: true);
+        $t->contains('var _x_dec, _init, _x_static, x_set;', $setter);
+        $t->contains('x_set = function(value) {this.value = value};', $setter);
+        $t->contains('x_set = __decorateElement(_init, 27, "#x", _x_dec, _x_static, x_set);', $setter);
+        $t->contains('__privateAdd(Foo, _x_static);', $setter);
+        $t->contains('__runInitializers(_init, 3, Foo);', $setter);
+
+        $derived = $lowerer->lower('class Foo extends Bar { @dec get #x(): any { return y } }', lowerDecorators: true);
+        $t->contains('class Foo extends (_a = Bar, _x_dec = [dec], _a) {', $derived);
+        $t->contains('__privateAdd(this, _x_instances);', $derived);
+        $t->contains('_init = __decoratorStart(_a);', $derived);
+        $t->contains('x_get = __decorateElement(_init, 18, "#x", _x_dec, _x_instances, x_get);', $derived);
     },
     'lowers upstream derived member decorators through helper calls' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
@@ -2891,6 +3013,44 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
+    'lowers wordpress mixed class and member decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-mixed-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('_MixedDecoratedRegistration_decorators = [blockController(metadata)];', $lowered);
+        $t->contains('_register_dec = [methodController(metadata)];', $lowered);
+        $t->contains('class MixedDecoratedRegistration {', $lowered);
+        $t->contains('__runInitializers(_init, 5, this);', $lowered);
+        $t->contains('register(blocks = wp.blocks, settings = metadata) {blocks.registerBlockType(metadata.name, settings);}', $lowered);
+        $t->contains('__decorateElement(_init, 1, "register", _register_dec, MixedDecoratedRegistration);', $lowered);
+        $t->contains('MixedDecoratedRegistration = __decorateElement(_init, 0, "MixedDecoratedRegistration", _MixedDecoratedRegistration_decorators, MixedDecoratedRegistration);', $lowered);
+        $t->contains('__runInitializers(_init, 1, MixedDecoratedRegistration);', $lowered);
+        $t->true(strpos($lowered, '__decorateElement(_init, 1, "register"') < strpos($lowered, 'MixedDecoratedRegistration = __decorateElement(_init, 0'));
+        $t->true(!str_contains($lowered, '__decoratorMetadata(_init, MixedDecoratedRegistration);'));
+        $t->true(!str_contains($lowered, '@blockController'));
+        $t->true(!str_contains($lowered, '@methodController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress default mixed class and member decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-default-mixed-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('_class_decorators = [blockController(metadata)];', $lowered);
+        $t->contains('_register_dec = [methodController(metadata)];', $lowered);
+        $t->contains('export default class defaultExport {', $lowered);
+        $t->contains('__runInitializers(_init, 5, this);', $lowered);
+        $t->contains('register(blocks = wp.blocks, settings = metadata) {blocks.registerBlockType(metadata.name, settings);}', $lowered);
+        $t->contains('__decorateElement(_init, 1, "register", _register_dec, defaultExport);', $lowered);
+        $t->contains('defaultExport = __decorateElement(_init, 0, "", _class_decorators, defaultExport);', $lowered);
+        $t->contains('__runInitializers(_init, 1, defaultExport);', $lowered);
+        $t->true(strpos($lowered, '__decorateElement(_init, 1, "register"') < strpos($lowered, 'defaultExport = __decorateElement(_init, 0'));
+        $t->true(!str_contains($lowered, '__decoratorMetadata(_init, defaultExport);'));
+        $t->true(!str_contains($lowered, '@blockController'));
+        $t->true(!str_contains($lowered, '@methodController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
     'lowers wordpress static method decorators for legacy targets without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-static-method-decorator-legacy-controller.ts');
         $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
@@ -2956,6 +3116,23 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
+    'lowers wordpress private getter decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-private-getter-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('_settings_dec = [privateGetterController(metadata)];', $lowered);
+        $t->contains('class PrivateGetterDecoratedRegistration {', $lowered);
+        $t->contains('__runInitializers(_init, 5, this);', $lowered);
+        $t->contains('__privateAdd(this, _settings_instances);', $lowered);
+        $t->contains('_settings_instances = new WeakSet();', $lowered);
+        $t->contains('settings_get = function() {return this.settings;};', $lowered);
+        $t->contains('settings_get = __decorateElement(_init, 18, "#settings", _settings_dec, _settings_instances, settings_get);', $lowered);
+        $t->contains('blocks.registerBlockType(metadata.name, this.settings);', $lowered);
+        $t->contains('new PrivateGetterDecoratedRegistration().register();', $lowered);
+        $t->true(!str_contains($lowered, '@privateGetterController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
     'lowers wordpress accessor decorators for legacy targets without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-accessor-decorator-legacy-controller.ts');
         $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
@@ -2995,6 +3172,23 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->contains('__decorateElement(_init, 1, _a, _methodKey_dec, ComputedMethodDecoratedRegistration);', $lowered);
         $t->contains("new ComputedMethodDecoratedRegistration()[methodKey('register')]();", $lowered);
         $t->true(!str_contains($lowered, '@methodController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress computed getter and setter decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-computed-accessor-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('var _accessorKey_dec, _accessorKey_dec2, _a, _a2, _init;', $lowered);
+        $t->contains('get [_a = (_accessorKey_dec = [accessorController(metadata)], accessorKey("settings"))]() {return this.#settings;}', $lowered);
+        $t->contains('set [_a2 = (_accessorKey_dec2 = [accessorController(metadata)], accessorKey("settings"))](value) {this.#settings = value;}', $lowered);
+        $t->contains('__runInitializers(_init, 5, this);', $lowered);
+        $t->same(1, substr_count($lowered, '__runInitializers(_init, 5, this);'));
+        $t->contains('__decorateElement(_init, 2, _a, _accessorKey_dec, ComputedAccessorDecoratedRegistration);', $lowered);
+        $t->contains('__decorateElement(_init, 3, _a2, _accessorKey_dec2, ComputedAccessorDecoratedRegistration);', $lowered);
+        $t->contains('blocks.registerBlockType(metadata.name, this[accessorKey("settings")]);', $lowered);
+        $t->contains("controller[accessorKey('settings')] = metadata;", $lowered);
+        $t->true(!str_contains($lowered, '@accessorController'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },

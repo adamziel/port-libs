@@ -764,12 +764,6 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
-        if ($this->lowerDecorators && $hasClassDecorators && $this->rangeContainsToken('@', $bodyOpen + 1, $bodyClose - 1)) {
-            throw new \InvalidArgumentException('Decorator lowering for class members is not supported yet');
-        }
-        if ($this->lowerDecorators && $memberDecorators !== [] && $hasClassDecorators) {
-            throw new \InvalidArgumentException('Decorator lowering for mixed class and member decorators is not supported yet');
-        }
         $fieldKeyExtendsPrelude = [];
         $extendsTemp = null;
         if ($this->useDefineForClassFields === false && $fieldKeyPrelude !== [] && $hasExtends) {
@@ -808,6 +802,10 @@ final class TypeScriptModuleLowerer
                 throw new \InvalidArgumentException('Decorator lowering for derived members with computed class field keys is not supported yet');
             }
             $memberDecoratorClassName = $this->classDeclarationName($cursor, $bodyOpen);
+            if ($memberDecoratorClassName === null && $isExportDefaultClass) {
+                $memberDecoratorClassName = $defaultClassName ?? $this->allocateDefaultExportName();
+                $defaultClassName ??= $memberDecoratorClassName;
+            }
             if ($memberDecoratorClassName === null) {
                 throw new \InvalidArgumentException('Decorator lowering for anonymous class members is not supported yet');
             }
@@ -831,6 +829,7 @@ final class TypeScriptModuleLowerer
         $decoratorTargetClassName = null;
         $decoratorContextName = null;
         $decoratorVariableBaseName = null;
+        $memberDecoratorClassDecorator = null;
         if ($this->lowerDecorators && $hasClassDecorators) {
             $decoratorTargetClassName = $this->classDeclarationName($cursor, $bodyOpen);
             if ($decoratorTargetClassName === null && $isExportDefaultClass) {
@@ -841,6 +840,16 @@ final class TypeScriptModuleLowerer
             }
             if ($decoratorTargetClassName === null) {
                 throw new \InvalidArgumentException('Decorator lowering for anonymous classes is not supported yet');
+            }
+            if ($memberDecorators !== []) {
+                $memberDecoratorClassDecorator = [
+                    'decoratorName' => $this->allocateGeneratedIdentifier($decoratorVariableBaseName ?? '_' . $decoratorTargetClassName . '_decorators'),
+                    'decorators' => array_map(
+                        fn (string $decoratorText): string => $this->decoratorExpression($decoratorText),
+                        $decoratorTexts,
+                    ),
+                    'contextName' => $decoratorContextName ?? $decoratorTargetClassName,
+                ];
             }
         }
 
@@ -897,10 +906,11 @@ final class TypeScriptModuleLowerer
                 $memberDecoratorBaseName ?? 'null',
                 $initializeMemberDecoratorArraysBeforeClass,
                 $memberDecoratorBaseName === null ? [] : [$memberDecoratorBaseName],
+                $memberDecoratorClassDecorator,
             );
         }
 
-        if ($this->lowerDecorators && $hasClassDecorators) {
+        if ($this->lowerDecorators && $hasClassDecorators && $memberDecorators === []) {
             if ($decoratorTargetClassName === null) {
                 throw new \LogicException('Expected a class name for decorator lowering');
             }
@@ -963,7 +973,8 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @param list<array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool, instanceInitializer:?string, staticInitializer:?string, extraDeclarations?:list<string>, beforeDecorateStatements?:list<string>, afterDecorateStatements?:list<string>, decorateExtraArgument?:string, decorateTarget?:string, memberNameExpression?:string, memberNameTemp?:string, memberNameInitializer?:string, decoratorArrayInitializedInMemberKey?:bool, decorateResultTemp?:string, decorateResultGet?:string, decorateResultSet?:string, instanceInitializers?:list<string>}> $memberDecorators
+     * @param list<array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool, instanceInitializer:?string, staticInitializer:?string, extraDeclarations?:list<string>, beforeDecorateStatements?:list<string>, afterDecorateStatements?:list<string>, decorateExtraArgument?:string, decorateTarget?:string, memberNameExpression?:string, memberNameTemp?:string, memberNameInitializer?:string, decoratorArrayInitializedInMemberKey?:bool, decorateResultAssignment?:string, decorateResultTemp?:string, decorateResultGet?:string, decorateResultSet?:string, instanceInitializers?:list<string>}> $memberDecorators
+     * @param array{decoratorName:string, decorators:list<string>, contextName:string}|null $classDecorator
      */
     private function lowerClassMemberDecoratorStatements(
         string $classOutput,
@@ -973,6 +984,7 @@ final class TypeScriptModuleLowerer
         string $decoratorStartBase = 'null',
         bool $initializeDecoratorArraysBeforeClass = true,
         array $extraDeclarations = [],
+        ?array $classDecorator = null,
     ): string {
         $decoratorExtraDeclarations = [];
         foreach ($memberDecorators as $decorator) {
@@ -982,12 +994,16 @@ final class TypeScriptModuleLowerer
         }
         $declarations = array_merge(
             array_map(static fn (array $decorator): string => $decorator['decoratorName'], $memberDecorators),
+            $classDecorator === null ? [] : [$classDecorator['decoratorName']],
             array_values(array_filter(array_map(static fn (array $decorator): ?string => $decorator['memberNameTemp'] ?? null, $memberDecorators))),
             $extraDeclarations,
             [$initName],
             $decoratorExtraDeclarations,
         );
         $prefix = ['var ' . implode(', ', $declarations) . ';'];
+        if ($classDecorator !== null) {
+            $prefix[] = $classDecorator['decoratorName'] . ' = [' . implode(', ', $classDecorator['decorators']) . '];';
+        }
         if ($initializeDecoratorArraysBeforeClass) {
             array_push($prefix, ...$this->memberDecoratorArrayAssignmentStatements($memberDecorators));
         }
@@ -1013,7 +1029,9 @@ final class TypeScriptModuleLowerer
             $decorateCall = '__decorateElement(' . $initName . ', ' . $decorator['flags'] . ', '
                 . $this->memberDecoratorNameExpression($decorator) . ', '
                 . $decorator['decoratorName'] . ', ' . $decorateTarget . $extraArgument . ')';
-            if (isset($decorator['decorateResultTemp'], $decorator['decorateResultGet'], $decorator['decorateResultSet'])) {
+            if (isset($decorator['decorateResultAssignment'])) {
+                $suffix[] = $decorator['decorateResultAssignment'] . ' = ' . $decorateCall . ';';
+            } elseif (isset($decorator['decorateResultTemp'], $decorator['decorateResultGet'], $decorator['decorateResultSet'])) {
                 $suffix[] = $decorator['decorateResultTemp'] . ' = ' . $decorateCall
                     . ', ' . $decorator['decorateResultGet'] . ' = ' . $decorator['decorateResultTemp'] . '.get'
                     . ', ' . $decorator['decorateResultSet'] . ' = ' . $decorator['decorateResultTemp'] . '.set;';
@@ -1027,7 +1045,13 @@ final class TypeScriptModuleLowerer
                 ]);
             }
         }
-        $suffix[] = '__decoratorMetadata(' . $initName . ', ' . $className . ');';
+        if ($classDecorator === null) {
+            $suffix[] = '__decoratorMetadata(' . $initName . ', ' . $className . ');';
+        } else {
+            $suffix[] = $className . ' = __decorateElement(' . $initName . ', 0, '
+                . $this->quoteJsString($classDecorator['contextName']) . ', '
+                . $classDecorator['decoratorName'] . ', ' . $className . ');';
+        }
         if ($this->memberDecoratorsNeedStaticInitializer($memberDecorators)) {
             $suffix[] = '__runInitializers(' . $initName . ', 3, ' . $className . ');';
         }
@@ -1038,6 +1062,9 @@ final class TypeScriptModuleLowerer
                     '_INIT_' => $initName,
                 ]);
             }
+        }
+        if ($classDecorator !== null) {
+            $suffix[] = '__runInitializers(' . $initName . ', 1, ' . $className . ');';
         }
 
         return implode("\n", $prefix) . "\n" . $classOutput . "\n" . implode("\n", $suffix);
@@ -1095,6 +1122,7 @@ final class TypeScriptModuleLowerer
     private function memberDecoratorInstanceInitializers(array $memberDecorators, string $initName): array
     {
         $initializers = [];
+        $defaultInitializerAdded = false;
         foreach ($memberDecorators as $decorator) {
             if (!$decorator['needsInstanceInitializer']) {
                 continue;
@@ -1107,7 +1135,15 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            $initializer = $decorator['instanceInitializer'] ?? '__runInitializers(' . $initName . ', 5, this);';
+            $initializer = $decorator['instanceInitializer'] ?? null;
+            if ($initializer === null) {
+                if ($defaultInitializerAdded) {
+                    continue;
+                }
+
+                $initializer = '__runInitializers(' . $initName . ', 5, this);';
+                $defaultInitializerAdded = true;
+            }
             $initializers[] = str_replace('_INIT_', $initName, $initializer);
         }
 
@@ -1421,6 +1457,10 @@ final class TypeScriptModuleLowerer
             if ($decoratedAccessor !== null) {
                 return $decoratedAccessor;
             }
+            $decoratedGetterSetter = $this->lowerDecoratedGetterSetterMember($memberStart, $end, $cursor, $modifiers, $decoratorTexts);
+            if ($decoratedGetterSetter !== null) {
+                return $decoratedGetterSetter;
+            }
             $decoratedMethod = $this->lowerDecoratedMethodMember($memberStart, $end, $cursor, $modifiers, $decoratorTexts);
             if ($decoratedMethod !== null) {
                 return $decoratedMethod;
@@ -1711,6 +1751,138 @@ final class TypeScriptModuleLowerer
         }
 
         return [[], true, [], [], [], $decorator];
+    }
+
+    /**
+     * @param list<string> $modifiers
+     * @param list<string> $decoratorTexts
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>, 5:array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool, instanceInitializer:?string, staticInitializer:?string, memberNameExpression?:string, memberNameTemp?:string, decoratorArrayInitializedInMemberKey?:bool}}|null
+     */
+    private function lowerDecoratedGetterSetterMember(
+        int $memberStart,
+        int $end,
+        int $memberNameIndex,
+        array $modifiers,
+        array $decoratorTexts
+    ): ?array {
+        $isGetter = in_array('get', $modifiers, true);
+        $isSetter = in_array('set', $modifiers, true);
+        if ($decoratorTexts === []
+            || in_array('accessor', $modifiers, true)
+            || in_array('declare', $modifiers, true)
+            || $isGetter === $isSetter
+        ) {
+            return null;
+        }
+
+        $isStatic = in_array('static', $modifiers, true);
+        $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
+        $name = $this->decoratedPublicMemberName($memberNameIndex, $effectiveEnd);
+        $privateName = $name === null ? $this->decoratedPrivateMemberName($memberNameIndex) : null;
+        if (($name === null && $privateName === null) || ($name !== null && $name['text'] === 'constructor')) {
+            return null;
+        }
+
+        $cursor = ($name ?? $privateName)['end'] + 1;
+        if (($this->tokens[$cursor] ?? null)?->text === '?' || ($this->tokens[$cursor] ?? null)?->text === '!') {
+            throw new \InvalidArgumentException('Expected "(" but found "' . $this->tokens[$cursor]->text . '"');
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== '(') {
+            return null;
+        }
+
+        $paramsClose = $this->findMatchingPunctuator($cursor, '(', ')');
+        if ($paramsClose > $effectiveEnd) {
+            return null;
+        }
+
+        $afterParams = $paramsClose + 1;
+        if (($this->tokens[$afterParams] ?? null)?->text === ':') {
+            $afterParams = $this->skipTypeExpression($afterParams + 1, $effectiveEnd, ['{']);
+        }
+        if (($this->tokens[$afterParams] ?? null)?->text !== '{') {
+            return null;
+        }
+        $bodyOpen = $afterParams;
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd) {
+            return null;
+        }
+
+        $decorator = [
+            'memberName' => $name['text'] ?? $privateName['text'],
+            'decoratorName' => $this->allocateGeneratedIdentifier($name['decoratorBase'] ?? $privateName['decoratorBase']),
+            'decorators' => array_map(fn (string $decorator): string => $this->decoratorExpression($decorator), $decoratorTexts),
+            'flags' => $privateName === null
+                ? ($isStatic ? ($isGetter ? 10 : 11) : ($isGetter ? 2 : 3))
+                : 16 + ($isStatic ? 8 : 0) + ($isGetter ? 2 : 3),
+            'needsInstanceInitializer' => !$isStatic,
+            'needsStaticInitializer' => $isStatic,
+            'instanceInitializer' => null,
+            'staticInitializer' => null,
+        ];
+
+        if ($privateName !== null) {
+            $brandName = $this->allocateGeneratedIdentifier($isStatic ? '_' . $privateName['plain'] . '_static' : '_' . $privateName['plain'] . '_instances');
+            $accessorFunction = $this->allocateGeneratedIdentifier($privateName['plain'] . ($isGetter ? '_get' : '_set'));
+            $params = $paramsClose > $cursor + 1
+                ? $this->printParameterRuntimeRange($cursor + 1, $paramsClose - 1)
+                : '';
+            $body = $bodyClose > $bodyOpen + 1
+                ? $this->printRuntimeTokenRange($bodyOpen + 1, $bodyClose - 1, $memberStart)
+                : '';
+            $decorator['extraDeclarations'] = [$brandName, $accessorFunction];
+            $decorator['beforeDecorateStatements'] = [
+                $brandName . ' = new WeakSet();',
+                $accessorFunction . ' = function(' . $params . ') {' . $body . '};',
+            ];
+            $decorator['decorateTarget'] = $brandName;
+            $decorator['decorateExtraArgument'] = $accessorFunction;
+            $decorator['decorateResultAssignment'] = $accessorFunction;
+            if ($isStatic) {
+                $decorator['afterDecorateStatements'] = ['__privateAdd(%%CLASS%%, ' . $brandName . ');'];
+            } else {
+                $decorator['instanceInitializers'] = [
+                    '__runInitializers(_INIT_, 5, this);',
+                    '__privateAdd(this, ' . $brandName . ');',
+                ];
+            }
+
+            return [
+                [],
+                true,
+                [],
+                [],
+                [],
+                $decorator,
+            ];
+        }
+
+        $method = $this->printClassMemberRuntimeRange($memberStart, $end);
+        if ($name !== null && $name['expression'] !== null && $name['temp'] !== null) {
+            $decorator['memberNameExpression'] = $name['temp'];
+            $decorator['memberNameTemp'] = $name['temp'];
+            $decorator['decoratorArrayInitializedInMemberKey'] = true;
+            $replacement = $name['temp'] . ' = ('
+                . $decorator['decoratorName'] . ' = [' . implode(', ', $decorator['decorators']) . '], '
+                . $name['expression'] . ')';
+            $method = $this->printClassMemberRuntimeRangeWithComputedKeyReplacement(
+                $memberStart,
+                $end,
+                $memberNameIndex,
+                $name['end'],
+                $replacement
+            );
+        }
+
+        return [
+            [$method],
+            true,
+            [],
+            [],
+            [],
+            $decorator,
+        ];
     }
 
     /**
@@ -8291,7 +8463,7 @@ JS, [
         if (in_array($previous, ['=', '=>', '&&=', '||=', '??='], true) || in_array($current, ['=', '=>', '&&=', '||=', '??='], true)) {
             return true;
         }
-        if (in_array($previous, ['accessor', 'static', 'get', 'set'], true) && ($current === '[' || str_starts_with($current, '#'))) {
+        if (in_array($previous, ['accessor', 'static', 'get', 'set'], true) && (str_starts_with($current, '[') || str_starts_with($current, '#'))) {
             return true;
         }
         if ($previous === ')' && $current === '{') {
