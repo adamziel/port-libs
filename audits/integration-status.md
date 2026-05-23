@@ -1,5 +1,55 @@
 # Integration Status
 
+## Integration Hold - 2026-05-23T23:33:53Z
+
+No worker output was integrated by this pass. I did not stage lane files, run
+`php tools/generate-dashboard.php`, start `php tools/run-tests.php`, wait on
+`.upstream-cache/run-tests.lock`, or treat concurrent runner output as an
+accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` was `0add1f30fdf2` on `main...origin/main [ahead 582, behind 68]`.
+- Dirty scope remained broad: `8126` `git status --porcelain` rows, `277`
+  tracked rows, `7849` untracked rows, and
+  `277 files changed, 120762 insertions(+), 12481 deletions(-)`.
+- Dirty lane rows span every priority lane: Difftastic `199`, Dolt `97`,
+  esbuild `26`, Gitoxide `120`, libsqlite `84`, LightningCSS `129`,
+  markerPDF `169`, Pandoc `54`, Quadrable `78`, rclone `96`,
+  Readability `178`, and Syncthing `127`.
+- Active tmux/process state showed `139` tmux sessions, primary lane agents
+  for the priority lanes, capacity executor/feed sessions, dashboard/evaluator
+  loops, auditor/integrator loops, and Dolt implementation plus Dolt runner
+  activity.
+- Exact PHP runner sampling showed active no-argument root harness PID
+  `169251` running `php tools/run-tests.php` and focused Readability PID
+  `187024` running `php tools/run-tests.php lanes/readability/tests`. This
+  pass did not start or wait on the root harness.
+- Current worker log tails included scoped green focused shards for Pandoc
+  (`1` file, `2622` assertions), markerPDF part01 (`16` files, `524`
+  assertions), Gitoxide part02 (`16` files, `1955` assertions), and Gitoxide
+  part03 (`8` files, `1843` assertions), but they are moving-tree signals only.
+- Dolt-runner tails showed a bounded Go package batch green for selected
+  Dolt diff/schema packages, followed by a still-running enginetest diff/schema
+  selector. Dolt is still skipped until implementation and runner sessions hand
+  off a frozen lane-scoped batch with coherent verification.
+- `dependency-backlog.json` is valid JSON with `18` items, `12` candidate,
+  `6` deferred, and `0` missing activation/scope/reuse/test-expectation
+  fields. No dependency implementation or dashboard integration was accepted.
+
+Decision: the tree is still too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. Recent focused and upstream
+runner evidence can guide the next review, but it does not form one accepted
+integration checkpoint because lane agents, capacity sessions, focused tests,
+and the root harness were active concurrently.
+
+Next safe integration point: freeze or let finish active lane/control workers
+and focused/upstream/root runners, then confirm `HEAD`, tracked status,
+shortstat, exact PHP runner state, upstream runner state, and relevant log
+mtimes are unchanged across two polls. After that, accept one lane-scoped batch
+with focused inspection/tests, one serialized `php tools/run-tests.php`,
+`git diff --check`, and dashboard regeneration from the same accepted snapshot.
+
 ## Integration Hold - 2026-05-23T23:28:47Z
 
 No worker output was integrated by this pass. I did not stage lane files, run
