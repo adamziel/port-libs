@@ -54,6 +54,10 @@ Side-by-side display now also maps upstream novel line/span coloring from `src/d
 
 The WordPress highlighted readme example applies that to plugin release-review copy. A `legacy` to `modern` wording change is highlighted inline while the stable FAQ footer context remains visible but uncolored.
 
+Unified inline display now maps upstream `src/display/inline.rs` and header styling from `src/display/style.rs`. It emits path/language headers for every hunk, hunk ordinals when separated changes produce multiple hunks, optional renamed-file extra info on the first hunk, tab-expanded lines, and LHS-before/RHS-after context windows with colored line numbers when requested.
+
+The WordPress readme inline example applies that to plugin release notes. A compact terminal or browser review can keep `wp-content/plugins/acme-review-tools/readme.txt` visible in the header, show a `legacy` to `modern` copy change and nearby FAQ footer context, and omit distant stable metadata.
+
 Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
 
 The WordPress large asset manifest example applies that to generated block asset metadata. A one-line JSON manifest that gains a `view.js` asset and changes its version remains bounded to the configured side-by-side column width instead of producing an unreadable or prohibitively slow review line.
@@ -208,6 +212,7 @@ php lanes/difftastic/examples/wordpress-tabbed-block-json-side-by-side.php
 php lanes/difftastic/examples/wordpress-pattern-context-side-by-side.php
 php lanes/difftastic/examples/wordpress-created-import-report-side-by-side.php
 php lanes/difftastic/examples/wordpress-highlighted-side-by-side.php
+php lanes/difftastic/examples/wordpress-readme-inline-diff.php
 php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
 php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -258,4 +263,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream display boundary such as unified inline output context and header/path styling.
+Map another upstream CLI/display boundary such as binary modified/removed status output or Git rename/permission metadata in inline output.

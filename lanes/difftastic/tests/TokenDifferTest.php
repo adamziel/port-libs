@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Difftastic\HtmlDiffRenderer;
 use PortLibs\Difftastic\FileContentDecoder;
+use PortLibs\Difftastic\InlineDiffRenderer;
 use PortLibs\Difftastic\JsonDiffRenderer;
 use PortLibs\Difftastic\SideBySideDiffRenderer;
 use PortLibs\Difftastic\TokenDiffer;
@@ -1050,6 +1051,63 @@ return [
         $t->contains('let opposite_to_lhs', $display);
         $t->contains('let lang_name;', $display);
         $t->true(!str_contains($display, 'No syntactic changes'), 'The upstream context fixture should remain a visible side-by-side change.');
+    },
+    'maps upstream inline display headers and context windows' => static function (TestRunner $t): void {
+        $beforeLines = array_map(static fn (int $line): string => 'stable-' . str_pad((string) $line, 2, '0', STR_PAD_LEFT), range(1, 22));
+        $afterLines = $beforeLines;
+        $afterLines[5] = 'changed-alpha';
+        $afterLines[17] = 'changed-beta';
+        $before = implode("\n", $beforeLines) . "\n";
+        $after = implode("\n", $afterLines) . "\n";
+        $display = (new InlineDiffRenderer())->renderTextDiff($before, $after, [
+            'path' => 'wp-content/plugins/acme-card/patterns.php',
+            'language' => 'php',
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('wp-content/plugins/acme-card/patterns.php --- 1/2 --- PHP', $display);
+        $t->contains('wp-content/plugins/acme-card/patterns.php --- 2/2 --- PHP', $display);
+        $t->contains('5    stable-05', $display);
+        $t->contains('6    stable-06', $display);
+        $t->contains('   6 changed-alpha', $display);
+        $t->contains('   7 stable-07', $display);
+        $t->contains('18    stable-18', $display);
+        $t->contains('   18 changed-beta', $display);
+        $t->true(!str_contains($display, 'stable-11'), 'Inline display should omit distant unchanged lines outside the context window.');
+    },
+    'maps upstream inline header extra info and color styling' => static function (TestRunner $t): void {
+        $display = (new InlineDiffRenderer())->renderTextDiff(
+            "label:\tlegacy\n",
+            "label:\tmodern\n",
+            [
+                'path' => 'wp-content/plugins/acme-card/readme.txt',
+                'language' => 'text',
+                'extraInfo' => 'Renamed from readme-old.txt to readme.txt',
+                'tabWidth' => 4,
+                'useColor' => true,
+            ],
+        );
+
+        $t->contains("\033[1;33mwp-content/plugins/acme-card/readme.txt\033[0m\033[2m --- Text\033[0m", $display);
+        $t->contains("\033[2mRenamed from readme-old.txt to readme.txt\033[0m", $display);
+        $t->contains("\033[1;31m1 \033[0m   label:    legacy", $display);
+        $t->contains("   \033[1;32m1 \033[0mlabel:    modern", $display);
+        $t->true(!str_contains($display, "\t"), 'Inline display replaces tabs before rendering lines.');
+    },
+    'wordpress readme inline display keeps path header and compact context' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-after.txt');
+        $display = (new InlineDiffRenderer())->renderTextDiff($before, $after, [
+            'path' => 'wp-content/plugins/acme-review-tools/readme.txt',
+            'language' => 'text',
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('wp-content/plugins/acme-review-tools/readme.txt --- Text', $display);
+        $t->contains('legacy', $display);
+        $t->contains('modern', $display);
+        $t->contains('Frequently Asked Questions', $display);
+        $t->true(!str_contains($display, 'Stable tag: 1.3.0'), 'Distant stable readme metadata should stay out of compact inline review output.');
     },
     'maps upstream side by side created files as single column by default' => static function (TestRunner $t): void {
         $display = (new SideBySideDiffRenderer())->renderTextDiff('', "alpha\tasset\nbeta asset\n", [
