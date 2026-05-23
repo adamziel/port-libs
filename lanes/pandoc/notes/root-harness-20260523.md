@@ -81,6 +81,6 @@
 - Required duplicate-root gate was clear:
   - `pgrep -af '^php tools/run-tests\.php( |$)'`
   - Result: no active root harness processes
-- Root harness was run once and passed:
+- Final root harness run passed:
   - `php tools/run-tests.php`
-  - Result: 203 test files, 23,476 assertions, 0 failures
+  - Result: 204 test files, 23,553 assertions, 0 failures

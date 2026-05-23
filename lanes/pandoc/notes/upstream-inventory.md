@@ -1201,5 +1201,6 @@ Focused local verification on 2026-05-23 after the task-list writer slice:
 198 behavior tests.
 
 Required root verification on 2026-05-23 after the task-list writer slice: the
-duplicate-root gate returned clear, so `php tools/run-tests.php` was run once
-and passed 203 test files, 23,476 assertions, and 0 failures.
+duplicate-root gate returned clear before the final root run, and
+`php tools/run-tests.php` passed 204 test files, 23,553 assertions, and
+0 failures.
