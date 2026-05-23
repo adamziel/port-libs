@@ -233,6 +233,12 @@ inline link destinations, and Unicode e-mail autolinks stay clickable, while
 inline `(@label)` references render as visible example numbers. The WordPress
 fixture uses this path for multilingual source audit contacts and numbered
 reviewer handoff steps without shelling out to Pandoc.
+The adjacent line-block case from `test/markdown-reader-more.txt` is now
+represented as well: pipe-prefixed line blocks become `line_block` AST nodes,
+leading spaces after `|` become nonbreaking indentation, blank line-block
+entries are preserved, and indented continuation lines fold into the previous
+line. The WordPress fixture uses this path for source stanzas and reviewer
+handoff text where line boundaries must survive block conversion.
 The bounded Images section is now mapped for import-safe media preservation:
 standalone reference images become WordPress image blocks with caption/title
 metadata, and inline image spans remain inside paragraph text with escaped alt
@@ -301,6 +307,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes multilingual Markdown source audit links and
   Pandoc-style numbered examples, exercising Unicode URI/e-mail autolinks plus
   `(@label)` example references in WordPress reviewer handoff text.
+- The fixture now includes a Pandoc-style line block, exercising source stanza
+  boundaries, nonbreaking indentation, and continuation-line preservation in
+  WordPress paragraph output.
 - The fixture now includes empty legacy HTML table shells, documenting the
   upstream-aligned import policy to omit tables with no cells.
 - The fixture now includes a nested legacy HTML audit table to exercise nested
@@ -532,4 +541,4 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 Map another bounded Markdown reader fixture shard from
 `test/markdown-reader-more.txt/native`, with priority on raw TeX
-environment/macros or line blocks before broadening into grid tables.
+environment/macros before broadening into grid tables.

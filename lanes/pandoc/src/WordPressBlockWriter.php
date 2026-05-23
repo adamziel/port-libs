@@ -52,6 +52,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderFigureBlock($node);
             } elseif ($node->type === 'blockquote') {
                 $blocks[] = $this->renderBlockQuote($node);
+            } elseif ($node->type === 'line_block') {
+                $blocks[] = $this->renderLineBlockBlock($node);
             } elseif ($node->type === 'div') {
                 $blocks[] = $this->renderDivBlock($node);
             } elseif ($node->type === 'horizontal_rule') {
@@ -651,6 +653,27 @@ final class WordPressBlockWriter
             . "\n" . '<!-- /wp:quote -->';
     }
 
+    private function renderLineBlockBlock(AstNode $node): string
+    {
+        return '<!-- wp:paragraph -->'
+            . "\n" . $this->renderLineBlockHtml($node)
+            . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    private function renderLineBlockHtml(AstNode $node): string
+    {
+        $lines = [];
+        foreach ($node->children as $line) {
+            if ($line->type !== 'line') {
+                continue;
+            }
+
+            $lines[] = $this->renderInlines($line);
+        }
+
+        return '<p>' . implode('<br/>', $lines) . '</p>';
+    }
+
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
@@ -760,6 +783,10 @@ final class WordPressBlockWriter
             }
             if ($block->type === 'blockquote') {
                 $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+                continue;
+            }
+            if ($block->type === 'line_block') {
+                $html .= $this->renderLineBlockHtml($block);
                 continue;
             }
             if ($block->type === 'horizontal_rule') {

@@ -116,6 +116,14 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `OrderedList (1, Example, TwoParens)` with two items, inline paragraph text
   where `(@foo)` and `(@bar)` have become `(2)` and `(3)`, and a later
   `OrderedList (3, Example, TwoParens)` with one item.
+- `test/markdown-reader-more.txt` line-block slice inspected in this run:
+  upstream lines 191-201 cover one pipe-prefixed line block with four
+  indentation levels, one empty line entry, and two continuation-line cases
+  where indented non-pipe lines fold into the previous line.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 451-516 show one `LineBlock` with
+  seven line entries, including nonbreaking-space indentation counts of 4, 8,
+  12, and 2 before the visible text.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky

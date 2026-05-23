@@ -153,6 +153,11 @@ final class MarkdownReader
                 $blocks[] = new AstNode('horizontal_rule');
                 continue;
             }
+            $lineBlock = $paragraph === [] && $listStack === [] ? $this->tryReadLineBlock($lines, $index) : null;
+            if ($lineBlock !== null) {
+                $blocks[] = $lineBlock;
+                continue;
+            }
             $markdownHeading = $this->tryParseMarkdownHeading($line);
             if ($markdownHeading !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -754,6 +759,73 @@ final class MarkdownReader
         $inner = $this->read(implode("\n", $content));
 
         return new AstNode('blockquote', [], $inner->children);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadLineBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}\|(.*)$/', $this->expandTabsToSpaces($line), $m) !== 1) {
+            return null;
+        }
+
+        $lineNodes = [];
+        $currentText = null;
+        $cursor = $index;
+        $count = count($lines);
+
+        while ($cursor < $count) {
+            $expanded = $this->expandTabsToSpaces($lines[$cursor]);
+            if (preg_match('/^ {0,3}\|(.*)$/', $expanded, $marker) === 1) {
+                if ($currentText !== null) {
+                    $lineNodes[] = $this->buildLineBlockLine($currentText);
+                }
+                $currentText = $this->normalizeLineBlockMarkerContent($marker[1]);
+                $cursor++;
+                continue;
+            }
+
+            if ($currentText !== null && trim($expanded) !== '' && preg_match('/^ +\S/', $expanded) === 1) {
+                $currentText .= ' ' . trim($expanded);
+                $cursor++;
+                continue;
+            }
+
+            break;
+        }
+
+        if ($currentText !== null) {
+            $lineNodes[] = $this->buildLineBlockLine($currentText);
+        }
+
+        if ($lineNodes === []) {
+            return null;
+        }
+
+        $index = $cursor - 1;
+
+        return new AstNode('line_block', [], $lineNodes);
+    }
+
+    private function normalizeLineBlockMarkerContent(string $content): string
+    {
+        if (($content[0] ?? '') === ' ') {
+            $content = substr($content, 1);
+        }
+
+        $leading = strspn($content, ' ');
+        if ($leading === 0) {
+            return rtrim($content);
+        }
+
+        return str_repeat("\xC2\xA0", $leading) . rtrim(substr($content, $leading));
+    }
+
+    private function buildLineBlockLine(string $text): AstNode
+    {
+        return new AstNode('line', ['text' => $text], $text === '' ? [] : $this->parseInlines($text));
     }
 
     /**

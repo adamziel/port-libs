@@ -554,6 +554,35 @@ return [
         $t->contains('<a href="#my-header">My header</a>', $blocks);
         $t->contains('<a href="/foo">My other header</a>', $blocks);
     },
+    'maps upstream markdown reader more line blocks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '| But can a bee be said to be',
+            '|     or not to be an entire bee,',
+            '|         when half the bee is not a bee,',
+            '|             due to some ancient injury?',
+            '|',
+            '| Continuation',
+            ' line',
+            '|   and',
+            '       another',
+        ]));
+        $lineBlock = $document->children[0];
+        $nbsp = "\xC2\xA0";
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('line_block', $lineBlock->type);
+        $t->same(7, count($lineBlock->children));
+        $t->same('But can a bee be said to be', $lineBlock->children[0]->attr('text'));
+        $t->same(str_repeat($nbsp, 4) . 'or not to be an entire bee,', $lineBlock->children[1]->attr('text'));
+        $t->same(str_repeat($nbsp, 8) . 'when half the bee is not a bee,', $lineBlock->children[2]->attr('text'));
+        $t->same(str_repeat($nbsp, 12) . 'due to some ancient injury?', $lineBlock->children[3]->attr('text'));
+        $t->same('', $lineBlock->children[4]->attr('text'));
+        $t->same('Continuation line', $lineBlock->children[5]->attr('text'));
+        $t->same(str_repeat($nbsp, 2) . 'and another', $lineBlock->children[6]->attr('text'));
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $lineBlock->children[5]->children));
+        $t->contains('<p>But can a bee be said to be<br/>' . str_repeat($nbsp, 4) . 'or not to be an entire bee,', $blocks);
+        $t->contains('<br/><br/>Continuation line<br/>' . str_repeat($nbsp, 2) . 'and another</p>', $blocks);
+    },
     'maps upstream testsuite ampersand links and autolinks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             "Here's a [link with an ampersand in the URL][1].",
@@ -4129,6 +4158,27 @@ XML;
 
         $t->contains('<!-- wp:code -->', $blocks);
         $t->contains('<pre class="wp-block-code"><code>    echo esc_html($title);</code></pre>', $blocks);
+    },
+    'writes wordpress markdown line block imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $lineBlock = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'paragraph' && $node->attr('text') === 'Line block handoff:') {
+                $lineBlock = $document->children[$index + 1] ?? null;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $nbsp = "\xC2\xA0";
+
+        $t->true($lineBlock instanceof AstNode && $lineBlock->type === 'line_block', 'Fixture line block should stay a line_block AST node');
+        $t->same('Reviewer import stanza', $lineBlock->children[0]->attr('text'));
+        $t->same(str_repeat($nbsp, 2) . 'preserve source indentation', $lineBlock->children[1]->attr('text'));
+        $t->same('', $lineBlock->children[2]->attr('text'));
+        $t->same('Continuation line', $lineBlock->children[3]->attr('text'));
+        $t->contains('<p>Line block handoff:</p>', $blocks);
+        $t->contains('<p>Reviewer import stanza<br/>' . str_repeat($nbsp, 2) . 'preserve source indentation<br/><br/>Continuation line</p>', $blocks);
     },
     'writes wordpress quote block markup for migration reviewer notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
