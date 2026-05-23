@@ -124,6 +124,8 @@ The `../examples/wordpress-chunked-reader-factory.php` example maps upstream `fs
 
 The `../examples/wordpress-listp-batched-manifest.php` example maps upstream `fs/list.Helper` batching for large WordPress backup catalogs. It publishes a 104-entry WXR/SQL/uploads manifest through the upstream 100-entry ListR callback threshold, leaving the final four entries to be sent by `Flush`.
 
+The `../examples/wordpress-list-filter-sort.php` example maps upstream `fs/list.filterAndSortDir` behavior for direct provider listings. It publishes only WXR, SQL, and upload-directory entries from a `site-backups` listing, prunes cache/debug entries through object and directory callbacks, ignores nested provider leaks that do not belong in the direct directory result, and sorts the remaining entries in rclone Remote order.
+
 ## Next Task
 
-Map another bounded `fs/list` contract such as `filterAndSortDir` direct-entry filtering/sorting or `Sorter` key-function behavior, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
+Map `fs/list.Sorter` identity and key-function ordering behavior, then decide whether an in-memory-only sorter is enough or a bounded external-sort error surface is worth porting.
