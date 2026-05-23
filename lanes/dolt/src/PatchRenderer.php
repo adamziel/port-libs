@@ -435,11 +435,7 @@ final class PatchRenderer
      */
     private function createTableForeignKeyDefinition(array $foreignKey): string
     {
-        return 'CONSTRAINT ' . $this->quoteIdentifier($foreignKey['name'])
-            . ' FOREIGN KEY (' . implode(',', array_map([$this, 'quoteIdentifier'], $foreignKey['columns'])) . ')'
-            . ' REFERENCES ' . $this->quoteIdentifier($foreignKey['referencedTable'])
-            . ' (' . implode(',', array_map([$this, 'quoteIdentifier'], $foreignKey['referencedColumns'])) . ')'
-            . $this->foreignKeyActions($foreignKey);
+        return $this->foreignKeyDefinition($foreignKey, true);
     }
 
     /**
@@ -448,7 +444,7 @@ final class PatchRenderer
     private function alterTableAddForeignKeyStatement(string $tableName, array $foreignKey): string
     {
         return 'ALTER TABLE ' . $this->quoteIdentifier($tableName)
-            . ' ADD ' . $this->createTableForeignKeyDefinition($foreignKey) . ';';
+            . ' ADD ' . $this->foreignKeyDefinition($foreignKey, false) . ';';
     }
 
     /**
@@ -458,6 +454,21 @@ final class PatchRenderer
     {
         return 'ALTER TABLE ' . $this->quoteIdentifier($tableName)
             . ' DROP FOREIGN KEY ' . $this->quoteIdentifier($foreignKey['name']) . ';';
+    }
+
+    /**
+     * Dolt's CREATE TABLE formatter preserves referential actions, while the
+     * patch ALTER ADD path currently emits only child/parent columns.
+     *
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null} $foreignKey
+     */
+    private function foreignKeyDefinition(array $foreignKey, bool $includeActions): string
+    {
+        return 'CONSTRAINT ' . $this->quoteIdentifier($foreignKey['name'])
+            . ' FOREIGN KEY (' . implode(',', array_map([$this, 'quoteIdentifier'], $foreignKey['columns'])) . ')'
+            . ' REFERENCES ' . $this->quoteIdentifier($foreignKey['referencedTable'])
+            . ' (' . implode(',', array_map([$this, 'quoteIdentifier'], $foreignKey['referencedColumns'])) . ')'
+            . ($includeActions ? $this->foreignKeyActions($foreignKey) : '');
     }
 
     /**

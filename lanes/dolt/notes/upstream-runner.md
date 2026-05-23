@@ -5,6 +5,68 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## Runner Tooling Refresh 2026-05-23 02:23 UTC
+
+- Cache inspection before changing/building:
+  - `git -C .upstream-cache/dolt status --short --branch`: still shows the known sparse/no-checkout out-of-cone deletions plus runner-local `.gocache/`, `.gomodcache/`, `bats-home/`, `tmp/`, and `integration-tests/bats/status-local-fixed.bats`.
+  - `git -C .upstream-cache/dolt rev-parse HEAD`: `b2274926e0dcd84aab000ee242df5b5e75689eef`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.partialclonefilter`: `blob:none`.
+  - `git -C .upstream-cache/dolt sparse-checkout list`: `go`, `integration-tests/bats`.
+  - No delete, reset, or wider sparse hydration was run.
+- Tooling check:
+  - `sudo -n dnf install -y golang bats expect libicu-devel`
+  - Result: all four packages were already installed; `Nothing to do.`
+  - `rpm -q golang golang-bin golang-src bats expect libicu-devel`: `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, `expect-5.45.4-31.fc44.x86_64`, `libicu-devel-77.1-2.fc44.x86_64`.
+  - Tool probes: `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, `expect version 5.45.4`.
+- Cache-local build:
+  - `mkdir -p /home/claude/port-libs/.upstream-cache/dolt/tmp /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin /home/claude/port-libs/.upstream-cache/dolt/bats-tmp`
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install -p 1 ./cmd/dolt ./store/cmd/noms ./utils/remotesrv`
+  - Result: exit 0; cache-local `dolt`, `noms`, and `remotesrv` rebuilt.
+  - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version`: `dolt version 2.0.5`.
+- Bounded Go evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 20m`
+  - Result: exit 0; 14 packages passed, `rowconv` and `sqle/dtables` compiled with no test files, `sqle/dtablefunctions` passed in `0.043s`, and `merge` passed in `6.287s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 30m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(DiffTableFunction|DiffTableFunctionPrepared|DiffSummaryTableFunction|DiffSummaryTableFunctionPrepared|DiffStatTableFunction|DiffStatTableFunctionPrepared|SchemaDiffTableFunction|SchemaDiffTableFunctionPrepared|PatchTableFunction|PatchTableFunctionPrepared|ColumnDiffSystemTable|ColumnDiffSystemTablePrepared|DiffSystemTable|DiffSystemTablePrepared|UnscopedDiffSystemTable|UnscopedDiffSystemTablePrepared|CommitDiffSystemTable|CommitDiffSystemTablePrepared|LogTableFunction|LogTableFunctionPrepared|DoltBranchesSystemTable|DoltBranchesSystemTablePrepared|BranchActivity|DoltDTableScripts|DoltDTableScriptsPrepared|DoltConflictsTableNameTable|DoltUserPrivileges)$' -count=1 -timeout 30m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 15.947s`; this focused batch covers diff/summary/stat/schema/patch/column/system diff, commit diff, log, branch, branch activity, status/conflict dtable, and user-privilege table-function behavior.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/integration_test -run 'Test(DoltSchemasHistoryTable|DoltSchemasDiffTable|DoltProceduresHistoryTable|DoltProceduresDiffTable|HistoryTable)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/integration_test 0.234s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test -p 1 ./libraries/doltcore/doltdb -run 'Test(ParseInstructions|SplitAncestorSpec)$' -count=1 -timeout 5m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/doltdb 0.050s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestHistorySystemTable/(can sort by dolt_log.commit|dolt_commit_ancestors table with commit_hash filter ignored for max1row optimization)$|TestDoltScripts/test has_ancestor$' -count=1 -timeout 10m -v`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.402s`.
+- Bounded BATS evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 90m bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats branch.bats sql-branch.bats keyless.bats`
+  - Result: exit 0 with plan `1..419`; 394 runnable tests passed and 25 upstream-declared skips remained. This local slice covered diff/schema/rename/primary-key/diff-stat/query-diff/column-tag/sql-diff/merge/schema-conflict/conflict-detection/commit-diff/log/status/sql-status/branch/sql-branch/keyless behavior, including the `expect`-driven sql-shell system-table test, SQL diff statement rendering, keyless multiset diffs, check-constraint regression coverage, and local branch/log/status behavior.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
+  - Result: exit 1 with plan `1..1`; pristine `status.bats` still truncates `ppt35edsir31ccrob4qbo1siovcbcmnr` to `edsir31ccrob4qbo1siovcbcmnr`, and `dolt reset` reports `branch not found`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status-local-fixed.bats`
+  - Result: exit 0 with plan `1..1`; the runner-local fixed helper passed the exact status reset repro.
+- Required repository check after this runner metadata update:
+  - `php tools/run-tests.php`
+  - Initial streamed result: exit 1 with `174` test files, `16,274` assertions, and `1` failure while the shared worktree was moving.
+  - Immediate captured rerun `php tools/run-tests.php > /tmp/dolt-root-php-20260523T0223.log 2>&1`: exit 0 with `174` test files, `16,300` assertions, and `0` failures.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
+## Runner Refresh 2026-05-23 Patch Modified/Drop Foreign-Key Slice
+
+- Focused upstream source inspection:
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: non-create/drop schema patch generation emits secondary-index diffs before foreign-key diffs; modified indexes render `DROP INDEX` then `ADD INDEX`, removed indexes render `DROP INDEX`, modified foreign keys render `DROP FOREIGN KEY` then `ADD CONSTRAINT`, and removed foreign keys render `DROP FOREIGN KEY`.
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: `AlterTableAddForeignKeyStmt` renders only child columns, referenced table, and parent columns; referential actions are not included on ALTER ADD patch rows.
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: `GenerateCreateTableForeignKeyDefinition` still delegates to the MySQL formatter with `onDelete` / `onUpdate`, so CREATE TABLE foreign-key definitions preserve referential actions.
+- Direct cache-local CLI probe:
+  - Created a temporary Dolt repo, created `parent` and `child`, committed a base where `child.fk_review` referenced `parent.legacy_id` with `ON DELETE CASCADE`, then changed the working tree so the same index/key name referenced `new_id` with `ON UPDATE CASCADE`.
+  - Command boundary: cache-local `dolt_patch('HEAD','WORKING','child')` via `dolt sql -r csv`.
+  - Result rows:
+    - ``ALTER TABLE `child` DROP INDEX `fk_review`;``
+    - ``ALTER TABLE `child` ADD INDEX `fk_review`(`new_id`);``
+    - ``ALTER TABLE `child` DROP FOREIGN KEY `fk_review`;``
+    - ``ALTER TABLE `child` ADD CONSTRAINT `fk_review` FOREIGN KEY (`new_id`) REFERENCES `parent` (`new_id`);``
+  - The direct probe confirms ALTER ADD foreign-key patch rows omit `ON UPDATE CASCADE`; native PHP now keeps that omission while preserving actions in CREATE TABLE definitions.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `16` Dolt test files, `165` behavior tests, `841` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0` with `174` test files, `16,300` assertions, and `0` failures.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
 ## Runner Refresh 2026-05-23 Patch Target Row Size Slice
 
 - Focused upstream source inspection:

@@ -325,6 +325,17 @@ return [
         $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
         $t->contains('wp_posts', $warnings[0]['message']);
     },
+    'dolt patch function call materializes modified and dropped foreign key snapshot deltas' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-foreign-key-maintenance.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same($fixture['expectedStatements'], array_column($rows, 'statement'));
+        $t->same(['schema', 'schema', 'schema', 'schema', 'schema', 'schema'], array_column($rows, 'diff_type'));
+        $t->same([1, 2, 3, 4, 5, 6], array_column($rows, 'statement_order'));
+        $t->same([], $warnings);
+    },
     'dolt patch function call materializes create-table check constraints' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/wp-patch-check-constraint-review.php';
         $warnings = [];
@@ -499,6 +510,15 @@ return [
         ], $output['statements']);
         $t->same(1, count($output['warnings']));
         $t->contains('wp_posts', $output['warnings'][0]['message']);
+    },
+    'wordpress patch foreign key maintenance example exposes modified and dropped ddl' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-foreign-key-maintenance.php';
+        $output = require __DIR__ . '/../examples/wordpress-patch-foreign-key-maintenance.php';
+
+        $t->same($fixture['expectedStatements'], $output['statements']);
+        $t->same(['schema', 'schema', 'schema', 'schema', 'schema', 'schema'], array_column($output['rows'], 'diff_type'));
+        $t->same([], $output['warnings']);
+        $t->contains('ADD CONSTRAINT `fk_import_post`', $output['statements'][4]);
     },
     'wordpress patch check constraint review example exposes import status guard' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-patch-check-constraint-review.php';

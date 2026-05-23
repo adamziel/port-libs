@@ -354,6 +354,76 @@ return [
         $t->same("CREATE TABLE `parent` (\n  `id` int NOT NULL,\n  `id_ext` int NOT NULL,\n  `v1` int,\n  `v2` text COMMENT 'tag:1',\n  PRIMARY KEY (`id`,`id_ext`),\n  KEY `v1` (`v1`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;", $createRows[1]['statement']);
         $t->same('INSERT INTO `parent` (`id`,`id_ext`,`v1`,`v2`) VALUES (0,1,2,NULL);', $createRows[2]['statement']);
     },
+    'dolt patch modifies and drops secondary indexes and foreign keys like upstream' => static function (TestRunner $t): void {
+        $from = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'legacy_id', 'tag' => 2, 'type' => 'int'],
+            ['name' => 'new_id', 'tag' => 3, 'type' => 'int'],
+            ['name' => 'term_id', 'tag' => 4, 'type' => 'int'],
+        ], [
+            'indexes' => [
+                ['name' => 'fk_review', 'columns' => ['legacy_id']],
+                ['name' => 'fk_term', 'columns' => ['term_id']],
+            ],
+            'foreignKeys' => [
+                [
+                    'name' => 'fk_review',
+                    'columns' => ['legacy_id'],
+                    'referencedTable' => 'parent',
+                    'referencedColumns' => ['legacy_id'],
+                    'onDelete' => 'CASCADE',
+                ],
+                [
+                    'name' => 'fk_term',
+                    'columns' => ['term_id'],
+                    'referencedTable' => 'terms',
+                    'referencedColumns' => ['term_id'],
+                ],
+            ],
+        ]);
+        $to = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'legacy_id', 'tag' => 2, 'type' => 'int'],
+            ['name' => 'new_id', 'tag' => 3, 'type' => 'int'],
+            ['name' => 'term_id', 'tag' => 4, 'type' => 'int'],
+        ], [
+            'indexes' => [
+                ['name' => 'fk_review', 'columns' => ['new_id']],
+            ],
+            'foreignKeys' => [
+                [
+                    'name' => 'fk_review',
+                    'columns' => ['new_id'],
+                    'referencedTable' => 'parent',
+                    'referencedColumns' => ['new_id'],
+                    'onUpdate' => 'CASCADE',
+                ],
+            ],
+        ]);
+
+        $rows = (new PatchRenderer())->rows([[
+            'tableName' => 'child',
+            'fromSchema' => $from,
+            'toSchema' => $to,
+        ]], ['fromCommit' => 'HEAD', 'toCommit' => 'WORKING']);
+        $createRows = (new PatchRenderer())->rows([[
+            'tableName' => 'child',
+            'fromSchema' => null,
+            'toSchema' => $from,
+        ]], ['fromCommit' => 'EMPTY', 'toCommit' => 'HEAD']);
+
+        $t->same([
+            'ALTER TABLE `child` DROP INDEX `fk_review`;',
+            'ALTER TABLE `child` ADD INDEX `fk_review`(`new_id`);',
+            'ALTER TABLE `child` DROP INDEX `fk_term`;',
+            'ALTER TABLE `child` DROP FOREIGN KEY `fk_review`;',
+            'ALTER TABLE `child` ADD CONSTRAINT `fk_review` FOREIGN KEY (`new_id`) REFERENCES `parent` (`new_id`);',
+            'ALTER TABLE `child` DROP FOREIGN KEY `fk_term`;',
+        ], array_column($rows, 'statement'));
+        $t->same(['schema', 'schema', 'schema', 'schema', 'schema', 'schema'], array_column($rows, 'diff_type'));
+        $t->contains('ON DELETE CASCADE', $createRows[0]['statement']);
+        $t->true(!str_contains($rows[4]['statement'], 'ON UPDATE CASCADE'), 'ALTER ADD foreign key patch statement should omit referential actions.');
+    },
     'wordpress patch review example separates schema and data queues' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-patch-review.php';
 
