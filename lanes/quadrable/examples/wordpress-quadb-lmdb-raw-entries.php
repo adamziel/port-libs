@@ -60,7 +60,18 @@ $entrySummary = static function (array $entries, int $limit = 3) use ($uint64le)
     return $summary;
 };
 
+$stringSummary = static function (string $value): array {
+    return [
+        'hex' => bin2hex($value),
+        'text' => ctype_print($value) ? $value : null,
+    ];
+};
+
 try {
+    $binaryKey = "wp_options:serialized-\xff";
+    $binaryValue = "autoload\0\xffserialized:site-option\x80";
+    $previewBinaryValue = "preview\0\xffpost-bytes\x81";
+
     $repo = QuadbStore::init($sourceDir);
     $repo->importLines(
         "wp_options:siteurl|https://example.test\n"
@@ -69,23 +80,34 @@ try {
         . "wp_postmeta:1:_thumbnail_id|42\n",
         '|'
     );
+    $repo->put($binaryKey, $binaryValue);
+    $repo->fork('2');
+    $repo->put('wp_posts:2', $previewBinaryValue);
+    $repo->fork('10', 'master');
+    $repo->fork('a-preview', '2');
 
     $fullRaw = $repo->lmdbRawEntrySnapshot();
     $trustedRoot = $repo->tree()->rootHash();
     $proofHex = $repo->exportProofHex([
-        'wp_options:siteurl',
+        $binaryKey,
         'wp_posts:404',
     ], Proof::ENCODING_FULL_KEYS);
 
     $proofRepo = QuadbStore::init($proofDir);
     $proofRepo->checkout('delegated-preview');
     $proofRepo->importProofHex($proofHex, $trustedRoot);
+    $proofRepo->put($binaryKey, "delegated\0\xffpreview-update\x82");
     $proofRaw = $proofRepo->lmdbRawEntrySnapshot();
 
     echo json_encode([
         'scenario' => 'export raw Quadrable LMDB entry bytes for a WordPress snapshot backup manifest',
+        'binaryFixture' => [
+            'keyHex' => bin2hex($binaryKey),
+            'valueHex' => bin2hex($binaryValue),
+            'previewValueHex' => bin2hex($previewBinaryValue),
+        ],
         'fullHead' => [
-            'headKey' => $fullRaw['quadrable_head'][0]['key'] ?? null,
+            'headCursorOrder' => array_column($fullRaw['quadrable_head'], 'key'),
             'headNodeId' => isset($fullRaw['quadrable_head'][0])
                 ? $uint64le($fullRaw['quadrable_head'][0]['value'])
                 : null,
@@ -106,7 +128,7 @@ try {
             'trackedKeyEntryKeys' => array_map(
                 static fn (array $entry): array => [
                     'nodeId' => $uint64le($entry['key']),
-                    'key' => $entry['value'],
+                    'key' => $stringSummary($entry['value']),
                 ],
                 $fullRaw['quadrable_key']
             ),
@@ -129,7 +151,7 @@ try {
             'trackedKeyEntryKeys' => array_map(
                 static fn (array $entry): array => [
                     'nodeId' => $uint64le($entry['key']),
-                    'key' => $entry['value'],
+                    'key' => $stringSummary($entry['value']),
                 ],
                 $proofRaw['quadrable_key']
             ),

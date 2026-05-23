@@ -1201,6 +1201,81 @@ return [
             quadrableQuadbRemoveDir($proofDir);
         }
     },
+    'native quadb store preserves binary LMDB values and raw cursor ordering' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $proofDir = quadrableQuadbTempDir();
+
+        $leafValues = static function (array $rawEntries): array {
+            $values = [];
+            foreach ($rawEntries as $entry) {
+                $nodeType = quadrableQuadbUnpackUint64Le(substr($entry['value'], 0, 8)) % 16;
+                if ($nodeType === 4) {
+                    $values[] = substr($entry['value'], 72);
+                }
+            }
+
+            return $values;
+        };
+
+        try {
+            $binaryKey = "wp_options:serialized-\xff";
+            $binaryValue = "autoload\0\xffserialized:site-option\x80";
+            $previewValue = "preview\0\xffpost-bytes\x81";
+
+            $repo = QuadbStore::init($dir);
+            $repo->put('wp_options:plain', 'plain');
+            $repo->put($binaryKey, $binaryValue);
+            $repo->fork('2');
+            $repo->put('wp_posts:2', $previewValue);
+            $repo->fork('10', 'master');
+            $repo->fork('a-preview', '2');
+
+            $raw = $repo->lmdbRawEntrySnapshot();
+            $t->same(['10', '2', 'a-preview', 'master'], array_column($raw['quadrable_head'], 'key'));
+            $t->true(in_array($binaryValue, $leafValues($raw['quadrable_nodesLeaf']), true));
+            $t->true(in_array($previewValue, $leafValues($raw['quadrable_nodesLeaf']), true));
+            $t->true(in_array(
+                bin2hex($binaryKey),
+                array_map(static fn (array $entry): string => bin2hex($entry['value']), $raw['quadrable_key']),
+                true
+            ));
+
+            $stateJson = (string) file_get_contents($dir . '/quadb-state.json');
+            $t->contains(base64_encode($binaryKey), $stateJson);
+            $t->contains(base64_encode($binaryValue), $stateJson);
+
+            $reopened = QuadbStore::open($dir);
+            $t->same('a-preview', $reopened->currentHeadName());
+            $t->same($binaryValue, $reopened->get($binaryKey));
+            $t->same($previewValue, $reopened->get('wp_posts:2'));
+            $t->same(['10', '2', 'a-preview', 'master'], array_column($reopened->lmdbRawEntrySnapshot()['quadrable_head'], 'key'));
+
+            $reopened->checkout('master');
+            $trustedRoot = $reopened->tree()->rootHash();
+            $proofHex = $reopened->exportProofHex([$binaryKey], Proof::ENCODING_FULL_KEYS);
+
+            $proofRepo = QuadbStore::init($proofDir);
+            $proofRepo->checkout('binary-proof');
+            $proofRepo->importProofHex($proofHex, $trustedRoot);
+            $updatedBinaryValue = "delegated\0\xffpreview-update\x82";
+            $proofRepo->put($binaryKey, $updatedBinaryValue);
+
+            $proofStateJson = (string) file_get_contents($proofDir . '/quadb-state.json');
+            $t->contains(base64_encode($binaryKey), $proofStateJson);
+            $t->contains(base64_encode($updatedBinaryValue), $proofStateJson);
+
+            $proofReopened = QuadbStore::open($proofDir);
+            $t->same($updatedBinaryValue, $proofReopened->get($binaryKey));
+            $t->true(in_array(
+                $updatedBinaryValue,
+                $leafValues($proofReopened->lmdbRawEntrySnapshot()['quadrable_nodesLeaf']),
+                true
+            ));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($proofDir);
+        }
+    },
     'native quadb store preserves numeric head names as LMDB string keys' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $proofDir = quadrableQuadbTempDir();

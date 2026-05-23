@@ -83,16 +83,19 @@ final class QuadbStore
             'detached head node id'
         );
 
-        $nodeStore = TrackedNodeStore::fromSnapshot($decoded['trackedNodeStore']);
+        $nodeStore = TrackedNodeStore::fromSnapshot(
+            self::decodeTrackedNodeStoreSnapshot($decoded['trackedNodeStore'])
+        );
         if ($detachedHeadNodeId !== 0) {
             $nodeStore->nodeHash($detachedHeadNodeId);
         }
 
         $trackedKeys = [];
-        foreach (($quadbState['trackedKeys'] ?? []) as $keyHashHex => $key) {
+        foreach (($quadbState['trackedKeys'] ?? []) as $keyHashHex => $keyRaw) {
             if (!is_string($keyHashHex) || !preg_match('/^[0-9a-f]{64}$/', $keyHashHex)) {
                 throw new \InvalidArgumentException('tracked key hash must be lowercase 32-byte hex');
             }
+            $key = self::decodeStoredString($keyRaw, 'tracked key');
             if (!is_string($key) || $key === '') {
                 throw new \InvalidArgumentException('tracked key must be a non-empty string');
             }
@@ -136,13 +139,19 @@ final class QuadbStore
             }
             $headName = (string) $head;
             self::assertHeadNameValue($headName);
-            $partialProofHeads[$headName] = self::parsePartialProofState($partialState, 'partial proof head');
+            $partialProofHeads[$headName] = self::parsePartialProofState(
+                self::decodePartialProofState($partialState, 'partial proof head'),
+                'partial proof head'
+            );
         }
         ksort($partialProofHeads, SORT_STRING);
 
         $partialDetachedHead = null;
         if (array_key_exists('partialDetachedHead', $quadbState) && $quadbState['partialDetachedHead'] !== null) {
-            $partialDetachedHead = self::parsePartialProofState($quadbState['partialDetachedHead'], 'partial detached head');
+            $partialDetachedHead = self::parsePartialProofState(
+                self::decodePartialProofState($quadbState['partialDetachedHead'], 'partial detached head'),
+                'partial detached head'
+            );
         }
 
         return new self(
@@ -237,7 +246,7 @@ final class QuadbStore
         ): int {
             $stateKey = hash(
                 'sha256',
-                json_encode($state, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+                self::jsonEncodeBinarySafe($state)
             );
             if (isset($partialProjectionRoots[$stateKey])) {
                 return $partialProjectionRoots[$stateKey];
@@ -1346,16 +1355,22 @@ final class QuadbStore
         $compositeKeys = $this->compositeKeys;
         ksort($compositeKeys, SORT_STRING);
 
+        $partialProofHeads = [];
+        foreach ($this->partialProofHeads as $head => $state) {
+            $partialProofHeads[(string) $head] = self::encodePartialProofState($state);
+        }
+        ksort($partialProofHeads, SORT_STRING);
+
         $encoded = json_encode([
             'schemaVersion' => 1,
-            'trackedNodeStore' => $this->nodeStore->exportSnapshot(),
+            'trackedNodeStore' => self::encodeTrackedNodeStoreSnapshot($this->nodeStore->exportSnapshot()),
             'quadbState' => [
                 'currentHead' => $this->currentHead,
                 'detachedHeadNodeId' => $this->detachedHeadNodeId,
-                'trackedKeys' => $trackedKeys,
+                'trackedKeys' => self::encodeStoredStringMap($trackedKeys),
                 'compositeKeys' => $compositeKeys,
-                'partialProofHeads' => $this->partialProofHeads,
-                'partialDetachedHead' => $this->partialDetachedHead,
+                'partialProofHeads' => $partialProofHeads,
+                'partialDetachedHead' => self::encodePartialProofState($this->partialDetachedHead),
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 
@@ -1368,6 +1383,215 @@ final class QuadbStore
             @unlink($tmpPath);
             throw new \RuntimeException("Unable to replace Quadrable store state '{$statePath}'");
         }
+    }
+
+    /**
+     * @param array<string, mixed> $snapshot
+     *
+     * @return array<string, mixed>
+     */
+    private static function encodeTrackedNodeStoreSnapshot(array $snapshot): array
+    {
+        $encoded = $snapshot;
+        if (!isset($encoded['leaves']) || !is_array($encoded['leaves'])) {
+            return $encoded;
+        }
+
+        foreach ($encoded['leaves'] as $nodeId => $leaf) {
+            if (!is_array($leaf) || !array_key_exists('value', $leaf) || !is_string($leaf['value'])) {
+                continue;
+            }
+
+            $leaf['value'] = self::encodeStoredString($leaf['value']);
+            $encoded['leaves'][$nodeId] = $leaf;
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param mixed $snapshot
+     *
+     * @return array<string, mixed>
+     */
+    private static function decodeTrackedNodeStoreSnapshot(mixed $snapshot): array
+    {
+        if (!is_array($snapshot)) {
+            throw new \InvalidArgumentException('tracked node store snapshot is malformed');
+        }
+
+        $decoded = $snapshot;
+        if (!isset($decoded['leaves']) || !is_array($decoded['leaves'])) {
+            return $decoded;
+        }
+
+        foreach ($decoded['leaves'] as $nodeId => $leaf) {
+            if (!is_array($leaf) || !array_key_exists('value', $leaf)) {
+                continue;
+            }
+
+            $leaf['value'] = self::decodeStoredString($leaf['value'], 'tracked node leaf value');
+            $decoded['leaves'][$nodeId] = $leaf;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<string, string> $values
+     *
+     * @return array<string, mixed>
+     */
+    private static function encodeStoredStringMap(array $values): array
+    {
+        $encoded = [];
+        foreach ($values as $key => $value) {
+            $encoded[$key] = self::encodeStoredString($value);
+        }
+
+        return $encoded;
+    }
+
+    private static function encodeStoredString(string $value): string|array
+    {
+        if (@preg_match('//u', $value) === 1) {
+            return $value;
+        }
+
+        return [
+            '__quadrableEncoding' => 'base64',
+            'data' => base64_encode($value),
+        ];
+    }
+
+    private static function decodeStoredString(mixed $value, string $label): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_array($value)
+            && ($value['__quadrableEncoding'] ?? null) === 'base64'
+            && isset($value['data'])
+            && is_string($value['data'])
+        ) {
+            $decoded = base64_decode($value['data'], true);
+            if ($decoded === false) {
+                throw new \InvalidArgumentException($label . ' has malformed base64 storage');
+            }
+
+            return $decoded;
+        }
+
+        throw new \InvalidArgumentException($label . ' must be a string');
+    }
+
+    /**
+     * @param array<string, mixed>|null $state
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function encodePartialProofState(?array $state): ?array
+    {
+        if ($state === null) {
+            return null;
+        }
+
+        $encoded = $state;
+        if (isset($encoded['updates']) && is_array($encoded['updates'])) {
+            foreach ($encoded['updates'] as $index => $update) {
+                $encoded['updates'][$index] = self::encodePartialProofUpdate($update);
+            }
+        }
+        if (isset($encoded['events']) && is_array($encoded['events'])) {
+            foreach ($encoded['events'] as $index => $event) {
+                $encoded['events'][$index] = self::encodePartialProofUpdate($event);
+            }
+        }
+
+        return $encoded;
+    }
+
+    private static function encodePartialProofUpdate(mixed $update): mixed
+    {
+        if (!is_array($update)) {
+            return $update;
+        }
+
+        if (array_key_exists('value', $update) && is_string($update['value'])) {
+            $update['value'] = self::encodeStoredString($update['value']);
+        }
+        if (array_key_exists('key', $update) && is_string($update['key'])) {
+            $update['key'] = self::encodeStoredString($update['key']);
+        }
+
+        return $update;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function decodePartialProofState(mixed $state, string $label): array
+    {
+        if (!is_array($state)) {
+            throw new \InvalidArgumentException($label . ' is malformed');
+        }
+
+        $decoded = $state;
+        if (isset($decoded['updates']) && is_array($decoded['updates'])) {
+            foreach ($decoded['updates'] as $index => $update) {
+                $decoded['updates'][$index] = self::decodePartialProofUpdate($update, $label);
+            }
+        }
+        if (isset($decoded['events']) && is_array($decoded['events'])) {
+            foreach ($decoded['events'] as $index => $event) {
+                $decoded['events'][$index] = self::decodePartialProofUpdate($event, $label);
+            }
+        }
+
+        return $decoded;
+    }
+
+    private static function decodePartialProofUpdate(mixed $update, string $label): mixed
+    {
+        if (!is_array($update)) {
+            return $update;
+        }
+
+        if (array_key_exists('value', $update)) {
+            $update['value'] = self::decodeStoredString($update['value'], $label . ' value');
+        }
+        if (array_key_exists('key', $update)) {
+            $update['key'] = self::decodeStoredString($update['key'], $label . ' key');
+        }
+
+        return $update;
+    }
+
+    private static function jsonEncodeBinarySafe(mixed $value): string
+    {
+        return json_encode(
+            self::encodeBinaryStringsForJson($value),
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
+    }
+
+    private static function encodeBinaryStringsForJson(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return self::encodeStoredString($value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $encoded = [];
+        foreach ($value as $key => $nested) {
+            $encoded[$key] = self::encodeBinaryStringsForJson($nested);
+        }
+
+        return $encoded;
     }
 
     private static function statePath(string $directory): string
@@ -1883,7 +2107,7 @@ final class QuadbStore
         ): int {
             $stateKey = hash(
                 'sha256',
-                json_encode($state, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+                self::jsonEncodeBinarySafe($state)
             );
             if (isset($partialProjectionRoots[$stateKey])) {
                 return $partialProjectionRoots[$stateKey];
@@ -2355,10 +2579,7 @@ final class QuadbStore
             . ':' . $eventCount
             . ':' . hash(
                 'sha256',
-                json_encode(
-                    array_slice($state['events'], 0, $eventCount),
-                    JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-                )
+                self::jsonEncodeBinarySafe(array_slice($state['events'], 0, $eventCount))
             );
     }
 
@@ -2371,12 +2592,12 @@ final class QuadbStore
     {
         return 'legacy-' . hash(
             'sha256',
-            json_encode([
+            self::jsonEncodeBinarySafe([
                 'proofRootHash' => $proofRootHash,
                 'proofs' => $proofs,
                 'updates' => $updates,
                 'events' => $events,
-            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+            ])
         );
     }
 
