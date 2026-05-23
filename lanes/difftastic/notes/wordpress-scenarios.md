@@ -124,6 +124,10 @@ TypeScript module mode now maps export-star declarations, namespace re-exports, 
 
 TypeScript module metadata mode now maps dynamic `import()` option objects for block asset loading. The WordPress dynamic metadata fixture compares `import("./block.json", { assert: { type: "json" } })` moving to `with`, a retained `view.js` dynamic import changing from `javascript` to `module`, and an inserted `supports.json` metadata import. Syntax-list output reports retained dynamic import option changes under `$ts.import.dynamic.attributes[...]` instead of only as generic `$js.call["import"]` argument churn, and JSON display output emits machine-readable TypeScript review chunks for the same `assets.ts` fixture.
 
+Compact JSON display now maps upstream `src/display/json.rs` keyword/type highlight variants for common language atoms. The WordPress TypeScript metadata example emits `keyword` spans for inserted `type` and `const` declarations and `type` spans for primitive `string`, `number`, and `boolean` annotations, so a block-review UI can style code semantics without reparsing the file in JavaScript.
+
+Compact JSON display now also maps upstream `src/display/json.rs` `tree_sitter_error` highlight output for parser-error atoms. The WordPress parser-error display example compares block registration JavaScript with an extra `}` and, when the parse-error budget allows structural display, exposes that delimiter as a `tree_sitter_error` span for editor review tools instead of treating it as ordinary punctuation.
+
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
 
 TSX mode now maps the upstream `sample_files/whitespace_*.tsx` formatting shape. The WordPress block editor whitespace fixture applies this to editor controls where Prettier or manual formatting moves `{" "}` spacer expressions around retained text. The renderer reports no syntactic changes, keeping retained `ToolbarButton` markup and screen-reader copy out of the review stream.
@@ -155,6 +159,8 @@ php lanes/difftastic/examples/wordpress-block-module-imports-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-module-assets-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-import-attributes-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-dynamic-metadata-ts-display.php
+php lanes/difftastic/examples/wordpress-typescript-highlight-display.php
+php lanes/difftastic/examples/wordpress-tree-sitter-error-display.php
 php lanes/difftastic/examples/wordpress-block-edit-jsx-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-whitespace-tsx-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php

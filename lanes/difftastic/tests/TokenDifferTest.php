@@ -1208,6 +1208,59 @@ return [
         $t->same([['start' => 14, 'end' => 19, 'content' => '"Old"', 'highlight' => 'string']], $decoded['chunks'][0][0]['lhs']['changes']);
         $t->same([['start' => 14, 'end' => 19, 'content' => '"New"', 'highlight' => 'string']], $decoded['chunks'][0][0]['rhs']['changes']);
     },
+    'json display renderer maps upstream keyword and type highlight variants' => static function (TestRunner $t): void {
+        $before = "export { save } from './save';\n";
+        $after = "const supports: Record<string, boolean> = {};\nexport { save } from './save';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/typescript_highlight.ts',
+            'TypeScript',
+            ['language' => 'typescript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->contains('const:keyword', $encoded);
+        $t->contains('Record:type', $encoded);
+        $t->contains('string:type', $encoded);
+        $t->contains('boolean:type', $encoded);
+    },
+    'json display renderer maps upstream tree sitter error highlight variant' => static function (TestRunner $t): void {
+        $before = "const settings = { title: \"Card\" };\n";
+        $after = "const settings = { title: \"Card\" }};\n";
+        $differ = new TokenDiffer();
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/tree_sitter_error.js',
+            'JavaScript',
+            ['language' => 'javascript', 'parseErrorLimit' => 1],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same(null, $differ->syntaxErrorFallbackReason($before, $after, ['language' => 'javascript', 'parseErrorLimit' => 1]));
+        $t->same([['start' => 34, 'end' => 35, 'text' => '}']], $differ->syntaxErrorSpans($after, ['language' => 'javascript']));
+        $t->same('JavaScript', $decoded['language']);
+        $t->contains('}:tree_sitter_error', $encoded);
+    },
     'json display renderer maps upstream json sample with line chunks' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-2.json');
@@ -1376,11 +1429,64 @@ return [
             }
         }
         $encoded = implode("\n", $changes);
-        $t->contains('lhs line 0 assert:normal', $encoded);
-        $t->contains('rhs line 0 with:normal', $encoded);
+        $t->contains('lhs line 0 assert:keyword', $encoded);
+        $t->contains('rhs line 0 with:keyword', $encoded);
         $t->contains('lhs line 1 "javascript":string', $encoded);
         $t->contains('rhs line 1 "module":string', $encoded);
         $t->contains('rhs line 2 "./supports.json":string', $encoded);
+    },
+    'wordpress typescript metadata display highlights inserted keywords and primitive types' => static function (TestRunner $t): void {
+        $before = "export { save } from './save';\n";
+        $after = "type BlockAttributes = { title: string; columns: number };\nconst supports: Record<string, boolean> = {};\nexport { save } from './save';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/index.ts',
+            'TypeScript',
+            ['language' => 'typescript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/index.ts', $decoded['path']);
+        $t->contains('type:keyword', $encoded);
+        $t->contains('const:keyword', $encoded);
+        $t->contains('string:type', $encoded);
+        $t->contains('number:type', $encoded);
+        $t->contains('boolean:type', $encoded);
+    },
+    'wordpress block editor json display can expose parser error spans when fallback budget allows' => static function (TestRunner $t): void {
+        $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";
+        $after = "wp.blocks.registerBlockType('acme/card', { title: 'Card' }});\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/index.js',
+            'JavaScript',
+            ['language' => 'javascript', 'parseErrorLimit' => 1],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/index.js', $decoded['path']);
+        $t->same('JavaScript', $decoded['language']);
+        $t->contains('}:tree_sitter_error', $encoded);
     },
     'json display labels wordpress javascript parse fallback as text' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-syntax-error-before.js');

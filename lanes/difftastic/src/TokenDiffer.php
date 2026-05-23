@@ -466,14 +466,23 @@ final class TokenDiffer
      */
     public function syntaxErrorCount(string $source, array $options = []): int
     {
+        return count($this->syntaxErrorSpans($source, $options));
+    }
+
+    /**
+     * @param array{language?: string} $options
+     * @return list<array{start:int, end:int, text:string}>
+     */
+    public function syntaxErrorSpans(string $source, array $options = []): array
+    {
         if (!$this->usesParseErrorFallback($options)) {
-            return 0;
+            return [];
         }
 
         $delimiterPairs = $this->delimiterPairs($options);
         $closeToOpen = array_flip($delimiterPairs);
         $stack = [];
-        $errors = 0;
+        $errors = [];
 
         foreach ($this->tokenize($source, $options) as $token) {
             if ($token->kind === 'comment' || $token->kind === 'string') {
@@ -481,22 +490,41 @@ final class TokenDiffer
             }
 
             if (isset($delimiterPairs[$token->text])) {
-                $stack[] = $token->text;
+                $stack[] = $token;
                 continue;
             }
 
             if (isset($closeToOpen[$token->text])) {
                 $expectedOpen = $closeToOpen[$token->text];
-                if ($stack !== [] && $stack[array_key_last($stack)] === $expectedOpen) {
+                $lastOpen = $stack[array_key_last($stack)] ?? null;
+                if ($lastOpen instanceof Token && $lastOpen->text === $expectedOpen) {
                     array_pop($stack);
                     continue;
                 }
 
-                $errors++;
+                $errors[] = [
+                    'start' => $token->start,
+                    'end' => $token->end,
+                    'text' => $token->text,
+                ];
             }
         }
 
-        return $errors + count($stack);
+        foreach ($stack as $token) {
+            if (!$token instanceof Token) {
+                continue;
+            }
+
+            $errors[] = [
+                'start' => $token->start,
+                'end' => $token->end,
+                'text' => $token->text,
+            ];
+        }
+
+        usort($errors, static fn (array $a, array $b): int => [$a['start'], $a['end']] <=> [$b['start'], $b['end']]);
+
+        return $errors;
     }
 
     /**
