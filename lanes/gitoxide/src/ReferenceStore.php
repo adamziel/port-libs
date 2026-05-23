@@ -54,13 +54,20 @@ final class ReferenceStore
      *
      * @param array<string, ReferenceTarget> $updates
      */
-    public function prepareLooseUpdateTransaction(array $updates, string $algorithm = 'sha1'): PreparedReferenceTransaction
+    public function prepareLooseUpdateTransaction(
+        array $updates,
+        string $algorithm = 'sha1',
+        ?CommitSignature $committer = null,
+        string $reflogMessage = '',
+        bool $forceCreateReflog = false,
+    ): PreparedReferenceTransaction
     {
         if (is_file($this->packedRefsLockPath()) || is_dir($this->packedRefsLockPath())) {
             throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
         }
 
         $locks = [];
+        $writeReflog = $committer !== null || $reflogMessage !== '' || $forceCreateReflog;
 
         try {
             foreach ($updates as $name => $target) {
@@ -96,7 +103,101 @@ final class ReferenceStore
                         ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
                         true,
                     ),
+                    'reflog' => $writeReflog ? [
+                        'physicalName' => $physicalName,
+                        'previousTarget' => $existing?->target,
+                        'newTarget' => $physicalTarget,
+                        'committer' => $committer,
+                        'message' => $reflogMessage,
+                        'forceCreate' => $forceCreateReflog,
+                        'algorithm' => $algorithm,
+                    ] : null,
                 ];
+            }
+        } catch (\Throwable $throwable) {
+            (new PreparedReferenceTransaction($this->gitDirectory, $locks))->rollback();
+
+            throw $throwable;
+        }
+
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks);
+    }
+
+    /**
+     * Prepare loose-reference deletions behind lock files that can be rolled
+     * back before commit.
+     *
+     * @param list<string> $names
+     */
+    public function prepareLooseDeleteTransaction(
+        array $names,
+        string $previous = self::PREVIOUS_ANY,
+        ?ReferenceTarget $expectedTarget = null,
+        bool $deref = false,
+        string $algorithm = 'sha1',
+        string $reflogMode = ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+    ): PreparedReferenceTransaction
+    {
+        if ($previous === self::PREVIOUS_MUST_NOT_EXIST) {
+            throw new \InvalidArgumentException('Must-not-exist constraints are invalid for reference deletion');
+        }
+        if (!in_array($reflogMode, [
+            ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+            ReferenceTransactionEdit::REFLOG_ONLY,
+        ], true)) {
+            throw new \InvalidArgumentException("Unknown reference deletion reflog mode: {$reflogMode}");
+        }
+        if (is_file($this->packedRefsLockPath()) || is_dir($this->packedRefsLockPath())) {
+            throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
+        }
+
+        $locks = [];
+        $preparedNames = [];
+
+        try {
+            foreach ($names as $name) {
+                if (!is_string($name)) {
+                    throw new \InvalidArgumentException('Prepared reference deletions must be a list of reference names');
+                }
+
+                [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
+                $existing = $this->tryFindPhysical($physicalName, $algorithm);
+                $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget);
+
+                foreach ($this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode) as $edit) {
+                    $editPhysicalName = $this->physicalName($edit->name);
+                    if (isset($preparedNames[$editPhysicalName])) {
+                        throw new \RuntimeException("A reference named \"{$edit->name}\" has multiple prepared edits");
+                    }
+                    $preparedNames[$editPhysicalName] = true;
+
+                    $targetPath = $this->referencePath($editPhysicalName);
+                    $lockPath = $targetPath . '.lock';
+
+                    if (is_file($lockPath) || is_dir($lockPath)) {
+                        throw new \RuntimeException("A lock could not be obtained for reference \"{$edit->name}\"");
+                    }
+
+                    $directory = dirname($lockPath);
+                    if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                        throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                    }
+
+                    if (file_put_contents($lockPath, '', LOCK_EX) === false) {
+                        throw new \RuntimeException("Unable to write prepared reference deletion lock: {$editPhysicalName}");
+                    }
+
+                    $locks[] = [
+                        'action' => PreparedReferenceTransaction::ACTION_DELETE,
+                        'lockPath' => $lockPath,
+                        'edit' => $edit,
+                        'delete' => [
+                            'physicalName' => $editPhysicalName,
+                            'deleteReference' => $edit->updatesReference,
+                            'deleteReflog' => true,
+                        ],
+                    ];
+                }
             }
         } catch (\Throwable $throwable) {
             (new PreparedReferenceTransaction($this->gitDirectory, $locks))->rollback();
@@ -764,6 +865,9 @@ final class ReferenceStore
     private function deleteReflog(string $physicalName): void
     {
         $path = $this->reflogPath($physicalName);
+        if (is_dir($path)) {
+            throw new \RuntimeException("Unable to delete reflog: {$physicalName}");
+        }
         if (!is_file($path)) {
             return;
         }
@@ -784,11 +888,28 @@ final class ReferenceStore
 
     private function shouldAutoCreateReflog(string $physicalName): bool
     {
+        $physicalName = $this->reflogAutoCreateName($physicalName);
+
         return $physicalName === 'HEAD'
             || str_starts_with($physicalName, 'refs/heads/')
             || str_starts_with($physicalName, 'refs/remotes/')
             || str_starts_with($physicalName, 'refs/notes/')
             || str_starts_with($physicalName, 'refs/worktree/');
+    }
+
+    private function reflogAutoCreateName(string $physicalName): string
+    {
+        $name = $physicalName;
+        while (str_starts_with($name, 'refs/namespaces/')) {
+            $rest = substr($name, strlen('refs/namespaces/'));
+            $slash = strpos($rest, '/');
+            if ($slash === false) {
+                return $physicalName;
+            }
+            $name = substr($rest, $slash + 1);
+        }
+
+        return $name;
     }
 
     /**

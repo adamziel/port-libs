@@ -1,5 +1,24 @@
 # Gitoxide Lane Root Harness Verification Note - 2026-05-23
 
+Current verification after the prepared loose-reference delete slice:
+
+- Focused gitoxide run: `32` test files, `2,646` assertions, `0` failures.
+- Required root run: `php tools/run-tests.php` exited `0` with `183` test files, `18,198` assertions, and `0` failures.
+- No current Gitoxide PHP blocker. Full upstream Cargo workspace parity remains unexecuted because the workspace is large and feature-heavy enough to hydrate/build beyond the current VM cap.
+
+This Gitoxide slice maps prepared delete locks for loose references: no-deref symbolic reflog-only deletion, dereferenced reflog-only deletion, and reflog-delete failure before reference deletion. The WordPress reference transaction example now prunes a stale tenant review ref through a prepared delete lock.
+
+Current verification after the prepared loose-reference reflog slice:
+
+- Focused gitoxide run: `32` test files, `2,619` assertions, `0` failures.
+- Required root run: `php tools/run-tests.php` exited `1` with `183` test files, `17,951` assertions, and `7` failures outside Gitoxide.
+- Root failures observed outside this lane:
+  - `lanes/lightningcss/tests/CssMinifierTest.php`: no-target nested parent-reference spaces, implicit nested selectors, attached nested selectors, and WordPress conditional block stylesheet imports.
+  - `lanes/lightningcss/tests/NestingTransformerTest.php`: namespace-attached selector lowering and explicit nesting include/exclude targets.
+  - `lanes/quadrable/tests/QuadbStoreTest.php`: upstream full-head LMDB cursor slice restore witness rejection.
+
+This Gitoxide slice maps prepared transaction reflog behavior: object-update reflogs are appended before prepared locks are published, missing committers fail before lock publication when a reflog would be written, same-object updates do not append a new reflog entry, empty reflog directory blockers are recovered, and namespaced tenant branch refs auto-create audit reflogs. The WordPress reference transaction example now commits prepared tenant review refs with audit reflog lines.
+
 Current verification after the loose-reference directory blocker recovery slice:
 
 - Focused gitoxide run: `32` test files, `2,537` assertions, `0` failures.

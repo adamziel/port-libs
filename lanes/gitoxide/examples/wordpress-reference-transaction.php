@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
+use PortLibs\Gitoxide\CommitSignature;
 use PortLibs\Gitoxide\ReferenceName;
 use PortLibs\Gitoxide\ReferenceStore;
 use PortLibs\Gitoxide\ReferenceTarget;
@@ -43,6 +44,35 @@ $preparedHadLocks = is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-b/c
     && is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-b/assets.lock');
 $preparedRollbackEdits = $prepared->rollback();
 $preparedRollbackCleaned = !is_dir($dir . '/' . $prefix . 'refs/heads/review/plugin-b');
+$preparedCommit = $store->prepareLooseUpdateTransaction([
+    'refs/heads/review/plugin-c/content' => ReferenceTarget::object($fixture['reviewCommit']),
+    'refs/heads/review/plugin-c/assets' => ReferenceTarget::object($fixture['productionCommit']),
+], 'sha1', new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'), $fixture['preparedReflogMessage']);
+$preparedCommitHadLocks = is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-c/content.lock')
+    && is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-c/assets.lock');
+$preparedCommitEdits = $preparedCommit->commit();
+$preparedCommitCleanedLocks = !is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-c/content.lock')
+    && !is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-c/assets.lock');
+$preparedDeleteRef = $fixture['preparedDeleteRef'];
+$store->update(
+    $preparedDeleteRef,
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+    null,
+    false,
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    'stale tenant review ref',
+    true,
+);
+$preparedDelete = $store->prepareLooseDeleteTransaction(
+    [$preparedDeleteRef],
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['reviewCommit']),
+);
+$preparedDeleteHadLock = is_file($dir . '/' . $prefix . $preparedDeleteRef . '.lock');
+$preparedDeleteEdits = $preparedDelete->commit();
+$preparedDeleteCleanedLock = !is_file($dir . '/' . $prefix . $preparedDeleteRef . '.lock');
 
 return [
     'namespace' => $fixture['namespace'],
@@ -56,5 +86,18 @@ return [
     'preparedRollbackEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedRollbackEdits),
     'preparedRollbackHadLocks' => $preparedHadLocks,
     'preparedRollbackCleaned' => $preparedRollbackCleaned,
+    'preparedCommitEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedCommitEdits),
+    'preparedCommitHadLocks' => $preparedCommitHadLocks,
+    'preparedCommitCleanedLocks' => $preparedCommitCleanedLocks,
+    'preparedCommitOpenAfterCommit' => $preparedCommit->isOpen(),
+    'preparedContentCommit' => $store->find('refs/heads/review/plugin-c/content')->targetObjectId(),
+    'preparedAssetsCommit' => $store->find('refs/heads/review/plugin-c/assets')->targetObjectId(),
+    'preparedContentReflog' => $store->reflogContents('refs/heads/review/plugin-c/content'),
+    'preparedAssetsReflog' => $store->reflogContents('refs/heads/review/plugin-c/assets'),
+    'preparedDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedDeleteEdits),
+    'preparedDeleteHadLock' => $preparedDeleteHadLock,
+    'preparedDeleteCleanedLock' => $preparedDeleteCleanedLock,
+    'preparedDeleteRefStillExists' => $store->tryFind($preparedDeleteRef) !== null,
+    'preparedDeleteReflogExists' => $store->reflogExists($preparedDeleteRef),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

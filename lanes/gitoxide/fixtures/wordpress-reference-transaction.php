@@ -16,6 +16,8 @@ return [
     'headTarget' => $headTarget,
     'expectedVisibleRefs' => [
         'refs/heads/production',
+        'refs/heads/review/plugin-c/assets',
+        'refs/heads/review/plugin-c/content',
     ],
     'expectedPhysicalHead' => "ref: refs/namespaces/{$namespace}/{$headTarget}\n",
     'expectedHeadDirectoryRecovered' => true,
@@ -25,5 +27,22 @@ return [
     ],
     'expectedPreparedRollbackHadLocks' => true,
     'expectedPreparedRollbackCleaned' => true,
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, prune the review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
+    'expectedPreparedCommitEditNames' => [
+        'refs/heads/review/plugin-c/content',
+        'refs/heads/review/plugin-c/assets',
+    ],
+    'expectedPreparedCommitHadLocks' => true,
+    'expectedPreparedCommitCleanedLocks' => true,
+    'expectedPreparedCommitOpenAfterCommit' => false,
+    'preparedDeleteRef' => 'refs/heads/review/plugin-d/stale',
+    'expectedPreparedDeleteEditNames' => [
+        'refs/heads/review/plugin-d/stale',
+    ],
+    'expectedPreparedDeleteHadLock' => true,
+    'expectedPreparedDeleteCleanedLock' => true,
+    'expectedPreparedDeleteRefStillExists' => false,
+    'expectedPreparedDeleteReflogExists' => false,
+    'preparedReflogMessage' => 'prepared tenant review refs',
+    'preparedReflogCommitter' => 'Deploy Bot <deploy@example.com> 1234 +0000',
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, prune stale review refs through prepared delete locks, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];

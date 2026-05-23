@@ -635,6 +635,234 @@ return [
             $t->same(false, is_dir($dir . '/refs'), 'rollback prunes the empty refs directory like upstream gix-ref');
         }
     },
+    'prepared reference transaction commit publishes lock files like upstream gix ref' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-commit-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $transaction = $store->prepareLooseUpdateTransaction([
+            'refs/heads/review/plugin-a' => ReferenceTarget::object($old),
+            'refs/heads/review/plugin-b' => ReferenceTarget::object($new),
+        ]);
+
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b.lock'));
+
+        $edits = $transaction->commit();
+        $t->same(false, $transaction->isOpen());
+        $t->same(
+            ['refs/heads/review/plugin-a', 'refs/heads/review/plugin-b'],
+            array_map(static fn ($edit): string => $edit->name, $edits),
+        );
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-b.lock'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/review/plugin-b'));
+
+        unset($transaction);
+
+        $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
+        $t->same($new, $store->find('refs/heads/review/plugin-b')->targetObjectId());
+    },
+    'prepared reference transaction commit recovers empty directory blockers' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-commit-empty-dir-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $transaction = $store->prepareLooseUpdateTransaction([
+            'HEAD' => ReferenceTarget::symbolic('refs/heads/main'),
+        ]);
+        mkdir($dir . '/HEAD/interrupted-deploy/empty', 0777, true);
+
+        $edits = $transaction->commit();
+
+        $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same(false, is_dir($dir . '/HEAD/interrupted-deploy'));
+        $t->same('refs/heads/main', $store->find('HEAD')->target->value);
+    },
+    'prepared reference transaction commit is non atomic after a later lock failure' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-commit-partial-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $transaction = $store->prepareLooseUpdateTransaction([
+            'refs/heads/review/plugin-a' => ReferenceTarget::object($old),
+            'refs/heads/review/plugin-b' => ReferenceTarget::object($new),
+        ]);
+        mkdir($dir . '/refs/heads/review/plugin-b', 0777, true);
+        file_put_contents($dir . '/refs/heads/review/plugin-b/blocker.txt', 'not empty');
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $transaction->commit(),
+        );
+
+        $t->same(false, $transaction->isOpen());
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b/blocker.txt'));
+        $t->same(null, $store->tryFind('refs/heads/review/plugin-b'));
+
+        unset($transaction);
+
+        $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b.lock'));
+    },
+    'prepared reference transaction commit writes object reflogs before publishing locks' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature(' Deploy Bot ', ' deploy@example.com ', '1234 +0000');
+        $store->looseStore()->writeDirect('refs/heads/review/plugin-a', $old);
+        $transaction = $store->prepareLooseUpdateTransaction(
+            [
+                'refs/heads/review/plugin-a' => ReferenceTarget::object($new),
+                'refs/heads/review/plugin-b' => ReferenceTarget::object($old),
+            ],
+            'sha1',
+            $committer,
+            'prepared review publish',
+        );
+
+        $transaction->commit();
+
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared review publish\n",
+            (string) $store->reflogContents('refs/heads/review/plugin-a'),
+        );
+        $t->contains(
+            str_repeat('0', 40) . " {$old} Deploy Bot <deploy@example.com> 1234 +0000\tprepared review publish\n",
+            (string) $store->reflogContents('refs/heads/review/plugin-b'),
+        );
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-b'));
+    },
+    'prepared reference transaction commit needs a committer only when a reflog would be written' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-missing-committer-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $transaction = $store->prepareLooseUpdateTransaction(
+            [
+                'refs/heads/review/plugin-a' => ReferenceTarget::object($old),
+                'refs/internal/no-auto-log' => ReferenceTarget::object($new),
+            ],
+            'sha1',
+            null,
+            'message requires a committer',
+        );
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $transaction->commit(),
+        );
+
+        $t->same(false, $transaction->isOpen());
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-a'));
+        $t->same(null, $store->reflogContents('refs/heads/review/plugin-a'));
+
+        $nonAutoDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-non-auto-' . bin2hex(random_bytes(4));
+        $nonAuto = new ReferenceStore($nonAutoDir);
+        $noLogTransaction = $nonAuto->prepareLooseUpdateTransaction(
+            ['refs/internal/no-auto-log' => ReferenceTarget::object($new)],
+            'sha1',
+            null,
+            'not auto-created',
+            false,
+        );
+        $noLogTransaction->commit();
+        $t->same("{$new}\n", file_get_contents($nonAutoDir . '/refs/internal/no-auto-log'));
+        $t->same(null, $nonAuto->reflogContents('refs/internal/no-auto-log'));
+    },
+    'prepared reference transaction commit recovers empty reflog directory blockers' => static function (TestRunner $t) use ($old): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-dir-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['refs/heads/review/plugin-a' => ReferenceTarget::object($old)],
+            'sha1',
+            $committer,
+            'prepared from empty directory',
+            true,
+        );
+        mkdir($dir . '/logs/refs/heads/review/plugin-a/empty/recovered', 0777, true);
+
+        $transaction->commit();
+
+        $t->same(true, is_file($dir . '/logs/refs/heads/review/plugin-a'));
+        $t->contains('prepared from empty directory', (string) $store->reflogContents('refs/heads/review/plugin-a'));
+        $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
+    },
+    'prepared reference transaction deletes symbolic reflog without deref like upstream gix ref' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-log-only-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+        $store->appendReflog('HEAD', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'head audit', true);
+        $store->appendReflog('refs/heads/main', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'branch audit', true);
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['HEAD'],
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::symbolic('refs/heads/main'),
+            false,
+            'sha1',
+            ReferenceTransactionEdit::REFLOG_ONLY,
+        );
+        $t->same(true, is_file($dir . '/HEAD.lock'));
+
+        $edits = $transaction->commit();
+
+        $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(false, is_file($dir . '/HEAD.lock'));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(false, $store->reflogExists('HEAD'));
+        $t->same(true, $store->reflogExists('refs/heads/main'));
+    },
+    'prepared reference transaction deletes dereferenced reflogs while preserving refs' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-deref-log-only-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+        $store->appendReflog('HEAD', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'head audit', true);
+        $store->appendReflog('refs/heads/main', ReferenceTarget::object($old), ReferenceTarget::object($new), $committer, 'branch audit', true);
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['HEAD'],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+            null,
+            true,
+            'sha1',
+            ReferenceTransactionEdit::REFLOG_ONLY,
+        );
+        $edits = $transaction->commit();
+
+        $t->same(['HEAD', 'refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([ReferenceTransactionEdit::REFLOG_ONLY, ReferenceTransactionEdit::REFLOG_ONLY], array_map(static fn ($edit): string => $edit->reflogMode, $edits));
+        $t->same([false, false], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+        $t->same(false, is_file($dir . '/HEAD.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main.lock'));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(false, $store->reflogExists('HEAD'));
+        $t->same(false, $store->reflogExists('refs/heads/main'));
+    },
+    'prepared reference transaction stops on reflog delete failure before deleting ref' => static function (TestRunner $t) use ($old): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-reflog-failure-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $store->looseStore()->writeDirect('refs/heads/review/plugin-a', $old);
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['refs/heads/review/plugin-a'],
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+        );
+        mkdir($dir . '/logs/refs/heads/review/plugin-a', 0777, true);
+
+        $t->throws(RuntimeException::class, static fn () => $transaction->commit());
+
+        $t->same(false, $transaction->isOpen());
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(true, is_dir($dir . '/logs/refs/heads/review/plugin-a'));
+        $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
+    },
     'prepared reference transaction lock collision rolls back already prepared locks' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-collision-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -721,6 +949,25 @@ return [
         $t->same($fixture['expectedPreparedRollbackEditNames'], $summary['preparedRollbackEditNames']);
         $t->same($fixture['expectedPreparedRollbackHadLocks'], $summary['preparedRollbackHadLocks']);
         $t->same($fixture['expectedPreparedRollbackCleaned'], $summary['preparedRollbackCleaned']);
+        $t->same($fixture['expectedPreparedCommitEditNames'], $summary['preparedCommitEditNames']);
+        $t->same($fixture['expectedPreparedCommitHadLocks'], $summary['preparedCommitHadLocks']);
+        $t->same($fixture['expectedPreparedCommitCleanedLocks'], $summary['preparedCommitCleanedLocks']);
+        $t->same($fixture['expectedPreparedCommitOpenAfterCommit'], $summary['preparedCommitOpenAfterCommit']);
+        $t->same($fixture['reviewCommit'], $summary['preparedContentCommit']);
+        $t->same($fixture['productionCommit'], $summary['preparedAssetsCommit']);
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedReflogMessage'],
+            (string) $summary['preparedContentReflog'],
+        );
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedReflogMessage'],
+            (string) $summary['preparedAssetsReflog'],
+        );
+        $t->same($fixture['expectedPreparedDeleteEditNames'], $summary['preparedDeleteEditNames']);
+        $t->same($fixture['expectedPreparedDeleteHadLock'], $summary['preparedDeleteHadLock']);
+        $t->same($fixture['expectedPreparedDeleteCleanedLock'], $summary['preparedDeleteCleanedLock']);
+        $t->same($fixture['expectedPreparedDeleteRefStillExists'], $summary['preparedDeleteRefStillExists']);
+        $t->same($fixture['expectedPreparedDeleteReflogExists'], $summary['preparedDeleteReflogExists']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';
