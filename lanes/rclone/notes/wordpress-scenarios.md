@@ -14,6 +14,8 @@ The parallel chunkedreader slice adds native restore-side prefetch behavior for 
 
 The parallel cleanup slice adds the remaining provider-failure boundaries needed for robust WXR restores: failed prefetch reads close the failed stream plus already-open ranges, `Close` reports the first provider close failure after closing every prefetched range, and seeks past abandoned ranges ignore close cleanup errors like upstream rclone.
 
+The chunkedreader factory slice adds upstream `New` selection behavior for restore strategy choice: unknown-size streamed WXR exports stay on the sequential reader even when multiple streams are requested, while known-size large WXR/media bundles use the parallel reader with 1 MiB-prefetched provider ranges.
+
 ## Filtered Backup Example
 
 The fixture in `../fixtures/wordpress-backup-tree.php` models a small WordPress backup set with uploads, cache files, logs, WXR export data, and a SQL dump. The example in `../examples/wordpress-filtered-backup.php` includes uploads plus export/database artifacts while excluding cache, debug logs, and heavyweight design source files before planning changed paths. The current copy-changed test then copies only the included missing/changed artifacts and verifies the next filtered sync is empty.
@@ -118,6 +120,8 @@ The `../examples/wordpress-chunked-wxr-restore.php` example maps upstream sequen
 
 The `../examples/wordpress-parallel-chunked-wxr-restore.php` example maps upstream parallel `fs/chunkedreader` behavior for larger WXR restores. It opens two provider ranges up front, reads across the 1 MiB boundary using the prefetched second range, then seeks to the closing `</rss>` tail without another provider open. The cleanup tests cover the provider-failure side of that same restore path without shelling out to rclone.
 
+The `../examples/wordpress-chunked-reader-factory.php` example maps upstream `fs/chunkedreader.New` selection for WordPress restores. It routes an unknown-size streamed WXR import to sequential range reads and routes a known-size larger WXR/media bundle to parallel range prefetching.
+
 ## Next Task
 
-Map a small chunkedreader factory wrapper that chooses sequential versus parallel from upstream `New`, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
+Validate provider-ID duplicate-directory merge against live-provider fixture evidence, or map another bounded fstest provider contract that does not require live remotes.
