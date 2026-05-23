@@ -594,9 +594,22 @@ the zero-block/receive-encrypted branches rather than a new upstream runner.
 The WordPress example `wordpress-block-pull-retry.php` shows a stale CDN peer
 failing validation before an editor laptop supplies verified media bytes, with
 both peer activity counters returning to zero after the request attempts.
+The temporary-finalization slice now maps the adjacent upstream
+`sharedPullerState.tempFile`, `copyDone`, `pullDone`, `finalClose`,
+`performFinish`, and sparse all-zero block boundaries: verified copied and
+pulled blocks are written into Syncthing temporary names, sparse zero blocks are
+marked available without a network request, final close waits until every target
+block is accounted for, successful close renames the temp file into place and
+emits the `dbUpdateHandleFile` update type, second close attempts are no-ops,
+and failed pulls close while leaving the temporary file for a later retry. This
+is a static targeted mapping from upstream `sharedpullerstate.go` and
+`folder_sendrecv.go`, not a new full upstream runner. The WordPress example
+`wordpress-pull-temporary-finalize.php` shows a media file assembled from one
+origin copy, one sparse zero block, and one pulled block before final promotion.
 
 ## Next Task
 
-Connect successful pullBlock results to temporary-file writes, final close, and
-database update accounting, then broaden upstream `folder_sendrecv`
-unavailable-peer and receive-encrypted puller behavior.
+Broaden upstream `folder_sendrecv` behavior around unavailable peers,
+receive-encrypted finalization, conflict/versioner replacement during
+`performFinish`, and database update side effects after the native final file
+promotion succeeds.
