@@ -21,6 +21,7 @@ $ambientExportsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . 
 $classDeclareTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-declare-settings.ts');
 $constructorPropertiesTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-constructor-properties.ts');
 $classFieldsAssignTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-fields-assign.ts');
+$privateStaticCacheTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-static-cache.ts');
 $computedClassFieldsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-class-fields.ts');
 $computedSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-super-controller.ts');
 $conditionalSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-conditional-super-controller.ts');
@@ -71,6 +72,7 @@ $classDeclareLowered = (new TypeScriptModuleLowerer())->lower($classDeclareTypeS
 $constructorPropertiesLowered = (new TypeScriptModuleLowerer())->lower($constructorPropertiesTypeScriptSource);
 $classFieldsAssignLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false);
 $classFieldsAssignLegacyLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false, targetYear: 2021);
+$privateStaticCacheLegacyLowered = (new TypeScriptModuleLowerer())->lower($privateStaticCacheTypeScriptSource, false, targetYear: 2021);
 $computedClassFieldsLowered = (new TypeScriptModuleLowerer())->lower($computedClassFieldsTypeScriptSource, false);
 $computedSuperLowered = (new TypeScriptModuleLowerer())->lower($computedSuperTypeScriptSource, false);
 $conditionalSuperLowered = (new TypeScriptModuleLowerer())->lower($conditionalSuperTypeScriptSource, false);
@@ -137,6 +139,7 @@ printf("WordPress TypeScript declared class field bytes: %d\n", strlen($classDec
 printf("WordPress TypeScript constructor property bytes: %d\n", strlen($constructorPropertiesLowered));
 printf("WordPress TypeScript class field assign-semantics bytes: %d\n", strlen($classFieldsAssignLowered));
 printf("WordPress TypeScript ES2021 static field bytes: %d\n", strlen($classFieldsAssignLegacyLowered));
+printf("WordPress TypeScript private static cache bytes: %d\n", strlen($privateStaticCacheLegacyLowered));
 printf("WordPress TypeScript computed class field bytes: %d\n", strlen($computedClassFieldsLowered));
 printf("WordPress TypeScript computed super controller bytes: %d\n", strlen($computedSuperLowered));
 printf("WordPress TypeScript conditional super controller bytes: %d\n", strlen($conditionalSuperLowered));

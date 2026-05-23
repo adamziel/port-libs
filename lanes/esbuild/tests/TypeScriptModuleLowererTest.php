@@ -1749,6 +1749,27 @@ class A extends B {
 }
 JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { super() } }', false));
     },
+    'keeps upstream private static fields inside assign semantics classes' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  static #foo = 1;
+  static #bar;
+}
+JS . "\n", $lowerer->lower('class Foo { static #foo: number = 1; static #bar: number }', false));
+
+        $t->same(<<<'JS'
+class Foo {
+  static #foo = 1;
+}
+Foo.bar = 2;
+JS . "\n", $lowerer->lower('class Foo { static #foo: number = 1; static bar: number = 2 }', false, targetYear: 2021));
+
+        $legacy = $lowerer->lower('class Foo { static #foo: number = 1; static bar: number = 2 }', false, targetYear: 2021);
+        $t->true(!str_contains($legacy, 'Foo.#foo'));
+        $t->true(strpos($legacy, 'static #foo = 1;') < strpos($legacy, 'Foo.bar = 2;'));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1893,6 +1914,18 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $legacyLowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
         $t->contains('CardBlockController.metadata = metadata;', $legacyLowered);
         $t->true(!str_contains($legacyLowered, 'static {'));
+    },
+    'keeps wordpress private static block settings inside legacy target classes without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-private-static-cache.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
+
+        $t->contains('static #settings = {supports:{html:false}};', $lowered);
+        $t->contains('CachedBlockController.metadata = metadata;', $lowered);
+        $t->contains('CachedBlockController.#settings', $lowered);
+        $t->true(!str_contains($lowered, 'CachedBlockController.#settings ='));
+        $t->true(strpos($lowered, 'static #settings =') < strpos($lowered, 'CachedBlockController.metadata ='));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
     'lowers wordpress computed class field asset keys without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-computed-class-fields.ts');

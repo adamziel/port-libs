@@ -1164,9 +1164,25 @@ final class TypeScriptModuleLowerer
             $cursor = $this->skipTypeExpression($cursor + 1, $effectiveEnd, ['=', ';']);
         }
 
-        $declaration = in_array('static', $modifiers, true)
-            ? 'static ' . $name->text . ';'
-            : $name->text . ';';
+        if (in_array('static', $modifiers, true)) {
+            $declaration = 'static ' . $name->text;
+            if (($this->tokens[$cursor] ?? null)?->text === '=') {
+                if ($cursor + 1 > $effectiveEnd) {
+                    throw new \InvalidArgumentException('Expected initializer after TypeScript private class field');
+                }
+
+                $value = $this->printTokenRange($cursor + 1, $effectiveEnd);
+                if ($value === '') {
+                    throw new \InvalidArgumentException('Expected initializer after TypeScript private class field');
+                }
+
+                return [[$declaration . ' = ' . $value . ';'], true, [], [], []];
+            }
+
+            return [[$declaration . ';'], $cursor !== $start + 1, [], [], []];
+        }
+
+        $declaration = $name->text . ';';
 
         if (($this->tokens[$cursor] ?? null)?->text !== '=') {
             return [[$declaration], $cursor !== $start + 1, [], [], []];
