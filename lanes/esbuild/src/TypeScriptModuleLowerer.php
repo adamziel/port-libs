@@ -963,7 +963,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @param list<array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool, instanceInitializer:?string, staticInitializer:?string, extraDeclarations?:list<string>, beforeDecorateStatements?:list<string>, decorateExtraArgument?:string, decorateTarget?:string, memberNameExpression?:string, memberNameTemp?:string, memberNameInitializer?:string, decoratorArrayInitializedInMemberKey?:bool}> $memberDecorators
+     * @param list<array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool, instanceInitializer:?string, staticInitializer:?string, extraDeclarations?:list<string>, beforeDecorateStatements?:list<string>, afterDecorateStatements?:list<string>, decorateExtraArgument?:string, decorateTarget?:string, memberNameExpression?:string, memberNameTemp?:string, memberNameInitializer?:string, decoratorArrayInitializedInMemberKey?:bool, decorateResultTemp?:string, decorateResultGet?:string, decorateResultSet?:string, instanceInitializers?:list<string>}> $memberDecorators
      */
     private function lowerClassMemberDecoratorStatements(
         string $classOutput,
@@ -1010,9 +1010,22 @@ final class TypeScriptModuleLowerer
                 '%%CLASS%%' => $className,
                 '_INIT_' => $initName,
             ]);
-            $suffix[] = '__decorateElement(' . $initName . ', ' . $decorator['flags'] . ', '
+            $decorateCall = '__decorateElement(' . $initName . ', ' . $decorator['flags'] . ', '
                 . $this->memberDecoratorNameExpression($decorator) . ', '
-                . $decorator['decoratorName'] . ', ' . $decorateTarget . $extraArgument . ');';
+                . $decorator['decoratorName'] . ', ' . $decorateTarget . $extraArgument . ')';
+            if (isset($decorator['decorateResultTemp'], $decorator['decorateResultGet'], $decorator['decorateResultSet'])) {
+                $suffix[] = $decorator['decorateResultTemp'] . ' = ' . $decorateCall
+                    . ', ' . $decorator['decorateResultGet'] . ' = ' . $decorator['decorateResultTemp'] . '.get'
+                    . ', ' . $decorator['decorateResultSet'] . ' = ' . $decorator['decorateResultTemp'] . '.set;';
+            } else {
+                $suffix[] = $decorateCall . ';';
+            }
+            foreach (($decorator['afterDecorateStatements'] ?? []) as $statement) {
+                $suffix[] = strtr($statement, [
+                    '%%CLASS%%' => $className,
+                    '_INIT_' => $initName,
+                ]);
+            }
         }
         $suffix[] = '__decoratorMetadata(' . $initName . ', ' . $className . ');';
         if ($this->memberDecoratorsNeedStaticInitializer($memberDecorators)) {
@@ -1076,7 +1089,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @param list<array{needsInstanceInitializer:bool, instanceInitializer:?string}> $memberDecorators
+     * @param list<array{needsInstanceInitializer:bool, instanceInitializer:?string, instanceInitializers?:list<string>}> $memberDecorators
      * @return list<string>
      */
     private function memberDecoratorInstanceInitializers(array $memberDecorators, string $initName): array
@@ -1084,6 +1097,13 @@ final class TypeScriptModuleLowerer
         $initializers = [];
         foreach ($memberDecorators as $decorator) {
             if (!$decorator['needsInstanceInitializer']) {
+                continue;
+            }
+
+            if (isset($decorator['instanceInitializers'])) {
+                foreach ($decorator['instanceInitializers'] as $initializer) {
+                    $initializers[] = str_replace('_INIT_', $initName, $initializer);
+                }
                 continue;
             }
 
@@ -1596,11 +1616,12 @@ final class TypeScriptModuleLowerer
 
         $effectiveEnd = ($this->tokens[$end] ?? null)?->text === ';' ? $end - 1 : $end;
         $name = $this->decoratedPublicMemberName($memberNameIndex, $effectiveEnd);
-        if ($name === null || $name['text'] === 'constructor') {
+        $privateName = $name === null ? $this->decoratedPrivateMemberName($memberNameIndex) : null;
+        if (($name === null && $privateName === null) || ($name !== null && $name['text'] === 'constructor')) {
             return null;
         }
 
-        $cursor = $name['end'] + 1;
+        $cursor = ($name ?? $privateName)['end'] + 1;
         if (($this->tokens[$cursor] ?? null)?->text === '?' || ($this->tokens[$cursor] ?? null)?->text === '!') {
             $cursor++;
         }
@@ -1628,12 +1649,14 @@ final class TypeScriptModuleLowerer
         }
 
         $isStatic = in_array('static', $modifiers, true);
-        $storageName = $this->allocateGeneratedIdentifier($name['expression'] === null ? '_' . $name['text'] : '__a');
+        $storageName = $privateName !== null
+            ? $privateName['storageName']
+            : $this->allocateGeneratedIdentifier($name['expression'] === null ? '_' . $name['text'] : '__a');
         $decorator = [
-            'memberName' => $name['text'],
-            'decoratorName' => $this->allocateGeneratedIdentifier($name['decoratorBase']),
+            'memberName' => $name['text'] ?? $privateName['text'],
+            'decoratorName' => $this->allocateGeneratedIdentifier($name['decoratorBase'] ?? $privateName['decoratorBase']),
             'decorators' => array_map(fn (string $decorator): string => $this->decoratorExpression($decorator), $decoratorTexts),
-            'flags' => $isStatic ? 12 : 4,
+            'flags' => $privateName === null ? ($isStatic ? 12 : 4) : ($isStatic ? 28 : 20),
             'needsInstanceInitializer' => !$isStatic,
             'needsStaticInitializer' => false,
             'instanceInitializer' => null,
@@ -1642,7 +1665,29 @@ final class TypeScriptModuleLowerer
             'beforeDecorateStatements' => [$storageName . ' = new WeakMap();'],
             'decorateExtraArgument' => $storageName,
         ];
-        if ($name['expression'] !== null && $name['temp'] !== null) {
+        if ($privateName !== null) {
+            $brandName = $this->allocateGeneratedIdentifier($isStatic ? '_' . $privateName['plain'] . '_static' : '_' . $privateName['plain'] . '_instances');
+            $resultName = $this->allocateGeneratedIdentifier('_a');
+            $getterName = $this->allocateGeneratedIdentifier($privateName['plain'] . '_get');
+            $setterName = $this->allocateGeneratedIdentifier($privateName['plain'] . '_set');
+            $decorator['extraDeclarations'] = [$storageName, $resultName, $getterName, $setterName, $brandName];
+            $decorator['beforeDecorateStatements'] = [
+                $storageName . ' = new WeakMap();',
+                $brandName . ' = new WeakSet();',
+            ];
+            $decorator['decorateTarget'] = $brandName;
+            $decorator['decorateResultTemp'] = $resultName;
+            $decorator['decorateResultGet'] = $getterName;
+            $decorator['decorateResultSet'] = $setterName;
+            if ($isStatic) {
+                $decorator['afterDecorateStatements'] = ['__privateAdd(%%CLASS%%, ' . $brandName . ');'];
+            } else {
+                $decorator['instanceInitializers'] = [
+                    '__privateAdd(this, ' . $brandName . ');',
+                ];
+            }
+        }
+        if ($name !== null && $name['expression'] !== null && $name['temp'] !== null) {
             $decorator['memberNameExpression'] = $name['temp'];
             $decorator['memberNameTemp'] = $name['temp'];
             $decorator['memberNameInitializer'] = $name['expression'];
@@ -1658,7 +1703,11 @@ final class TypeScriptModuleLowerer
         if ($isStatic) {
             $decorator['staticInitializer'] = $accessorInitialization;
         } else {
-            $decorator['instanceInitializer'] = $accessorInitialization;
+            if (isset($decorator['instanceInitializers'])) {
+                $decorator['instanceInitializers'][] = $accessorInitialization;
+            } else {
+                $decorator['instanceInitializer'] = $accessorInitialization;
+            }
         }
 
         return [[], true, [], [], [], $decorator];

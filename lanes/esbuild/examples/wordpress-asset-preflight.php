@@ -44,6 +44,7 @@ $derivedMethodDecoratorLegacyControllerTypeScriptSource = (string) file_get_cont
 $staticMethodDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-static-method-decorator-legacy-controller.ts');
 $staticFieldDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-static-field-decorator-legacy-controller.ts');
 $privateFieldDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-field-decorator-legacy-controller.ts');
+$privateAccessorDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-accessor-decorator-legacy-controller.ts');
 $accessorDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-accessor-decorator-legacy-controller.ts');
 $computedFieldDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-field-decorator-legacy-controller.ts');
 $computedMethodDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-method-decorator-legacy-controller.ts');
@@ -113,6 +114,7 @@ $derivedMethodDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())
 $staticMethodDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($staticMethodDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $staticFieldDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($staticFieldDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $privateFieldDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($privateFieldDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
+$privateAccessorDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($privateAccessorDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $accessorDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($accessorDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $computedFieldDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($computedFieldDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $computedMethodDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($computedMethodDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
@@ -221,6 +223,7 @@ printf("WordPress TypeScript derived method decorator helper bytes: %d\n", strle
 printf("WordPress TypeScript static method legacy decorator helper bytes: %d\n", strlen($staticMethodDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript static field legacy decorator helper bytes: %d\n", strlen($staticFieldDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript private field legacy decorator helper bytes: %d\n", strlen($privateFieldDecoratorLegacyControllerLowered));
+printf("WordPress TypeScript private accessor legacy decorator helper bytes: %d\n", strlen($privateAccessorDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript accessor legacy decorator helper bytes: %d\n", strlen($accessorDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript computed field legacy decorator helper bytes: %d\n", strlen($computedFieldDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript computed method legacy decorator helper bytes: %d\n", strlen($computedMethodDecoratorLegacyControllerLowered));

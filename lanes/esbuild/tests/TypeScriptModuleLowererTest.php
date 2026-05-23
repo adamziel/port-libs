@@ -1613,6 +1613,46 @@ JS . "\n", $lowerer->lower('class Foo { @dec static #x: any = y }', lowerDecorat
         $t->contains('__decorateElement(_init, 21, "#x", _x_dec, _x);', $derived);
         $t->contains('_init = __decoratorStart(_a);', $derived);
     },
+    'lowers upstream private auto accessor decorators through helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _x_dec, _init, _x, _a, x_get, x_set, _x_instances;
+_x_dec = [dec];
+class Foo {
+  constructor() {
+    __privateAdd(this, _x_instances);
+    __privateAdd(this, _x, __runInitializers(_init, 8, this, y)), __runInitializers(_init, 11, this);
+  }
+}
+_init = __decoratorStart(null);
+_x = new WeakMap();
+_x_instances = new WeakSet();
+_a = __decorateElement(_init, 20, "#x", _x_dec, _x_instances, _x), x_get = _a.get, x_set = _a.set;
+__decoratorMetadata(_init, Foo);
+JS . "\n", $lowerer->lower('class Foo { @dec accessor #x: any = y }', lowerDecorators: true));
+
+        $t->same(<<<'JS'
+var _x_dec, _init, _x, _a, x_get, x_set, _x_static;
+_x_dec = [dec];
+class Foo {
+}
+_init = __decoratorStart(null);
+_x = new WeakMap();
+_x_static = new WeakSet();
+_a = __decorateElement(_init, 28, "#x", _x_dec, _x_static, _x), x_get = _a.get, x_set = _a.set;
+__privateAdd(Foo, _x_static);
+__decoratorMetadata(_init, Foo);
+__privateAdd(Foo, _x, __runInitializers(_init, 8, Foo, y)), __runInitializers(_init, 11, Foo);
+JS . "\n", $lowerer->lower('class Foo { @dec static accessor #x: any = y }', lowerDecorators: true));
+
+        $derived = $lowerer->lower('class Foo extends Bar { @dec accessor #x: any = y }', lowerDecorators: true);
+        $t->contains('class Foo extends (_a2 = Bar, _x_dec = [dec], _a2) {', $derived);
+        $t->contains('__privateAdd(this, _x_instances);', $derived);
+        $t->contains('__privateAdd(this, _x, __runInitializers(_init, 8, this, y)), __runInitializers(_init, 11, this);', $derived);
+        $t->contains('_a = __decorateElement(_init, 20, "#x", _x_dec, _x_instances, _x), x_get = _a.get, x_set = _a.set;', $derived);
+        $t->contains('_init = __decoratorStart(_a2);', $derived);
+    },
     'lowers upstream auto accessor decorators through helper calls' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -2897,6 +2937,22 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->contains('__decoratorMetadata(_init, PrivateFieldDecoratedRegistration);', $lowered);
         $t->contains('new PrivateFieldDecoratedRegistration().register();', $lowered);
         $t->true(!str_contains($lowered, '@privateFieldController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress private accessor decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-private-accessor-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('_settings_dec = [privateAccessorController(metadata)];', $lowered);
+        $t->contains('class PrivateAccessorDecoratedRegistration {', $lowered);
+        $t->contains('__privateAdd(this, _settings_instances);', $lowered);
+        $t->contains('__privateAdd(this, _settings, __runInitializers(_init, 8, this, metadata)), __runInitializers(_init, 11, this);', $lowered);
+        $t->contains('_settings_instances = new WeakSet();', $lowered);
+        $t->contains('_a = __decorateElement(_init, 20, "#settings", _settings_dec, _settings_instances, _settings), settings_get = _a.get, settings_set = _a.set;', $lowered);
+        $t->contains('__decoratorMetadata(_init, PrivateAccessorDecoratedRegistration);', $lowered);
+        $t->contains('new PrivateAccessorDecoratedRegistration().register();', $lowered);
+        $t->true(!str_contains($lowered, '@privateAccessorController'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
