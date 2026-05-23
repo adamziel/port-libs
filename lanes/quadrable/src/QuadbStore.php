@@ -464,6 +464,44 @@ final class QuadbStore
         return $store;
     }
 
+    /**
+     * Restores a store from upstream-shaped LMDB cursor entries alone. This
+     * first slice supports full tracked/noTrack heads and detached full heads;
+     * proof-backed witness records are rejected until their event history can
+     * be reconstructed from raw buckets.
+     *
+     * @param array<string, list<array{keyHex: string, valueHex: string}>> $rawEntries
+     */
+    public static function restoreRawEntryDump(string $directory, array $rawEntries, bool $trackKeys = true): self
+    {
+        if (is_dir($directory) && self::directoryHasEntries($directory)) {
+            throw new \RuntimeException('restore target directory must be empty');
+        }
+        if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new \RuntimeException("Unable to create directory '{$directory}'");
+        }
+
+        $expectedRawEntries = self::normalizeRawEntrySnapshotHex($rawEntries);
+        $parsed = self::parseFullHeadRawEntryDump($expectedRawEntries);
+
+        $store = new self(
+            $directory,
+            TrackedNodeStore::fromSnapshot($parsed['trackedNodeStore']),
+            $parsed['currentHead'],
+            $parsed['detachedHeadNodeId'],
+            $parsed['trackedKeys'],
+            trackKeys: $trackKeys
+        );
+        $store->persist();
+
+        $restoredRawEntries = self::rawEntrySnapshotHex($store->lmdbRawEntrySnapshot());
+        if ($expectedRawEntries !== $restoredRawEntries) {
+            throw new \RuntimeException('restored raw LMDB entries did not match the dump');
+        }
+
+        return $store;
+    }
+
     public function currentHeadName(): ?string
     {
         return $this->currentHead;
@@ -1849,6 +1887,265 @@ final class QuadbStore
             'rootHash' => $current['rootHash'],
             'headNodeId' => self::parseNonNegativeNodeId($current['headNodeId'], 'portable dump current head node id'),
         ];
+    }
+
+    /**
+     * @param array<string, list<array{keyHex: string, valueHex: string}>> $rawEntries
+     *
+     * @return array{
+     *     trackedNodeStore: array<string, mixed>,
+     *     trackedKeys: array<string, string>,
+     *     currentHead: ?string,
+     *     detachedHeadNodeId: int
+     * }
+     */
+    private static function parseFullHeadRawEntryDump(array $rawEntries): array
+    {
+        $heads = [];
+        foreach ($rawEntries['quadrable_head'] as $entry) {
+            $head = self::decodeRawEntryHexBytes($entry['keyHex'], 'raw LMDB head key');
+            self::assertHeadNameValue($head);
+            if (array_key_exists($head, $heads)) {
+                throw new \InvalidArgumentException('raw LMDB head bucket contains a duplicate key');
+            }
+
+            $heads[$head] = self::unpackUInt64Le(
+                self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB head value'),
+                'raw LMDB head node id'
+            );
+        }
+        ksort($heads, SORT_STRING);
+
+        $leaves = [];
+        foreach ($rawEntries['quadrable_nodesLeaf'] as $entry) {
+            $nodeId = self::parseRawUInt64EntryKey($entry['keyHex'], 'raw LMDB leaf node id');
+            if (isset($leaves[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB leaf bucket contains a duplicate node id');
+            }
+
+            $leaves[$nodeId] = self::decodeRawLmdbLeafNode(
+                self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB leaf value')
+            );
+        }
+        ksort($leaves, SORT_NUMERIC);
+
+        $branches = [];
+        foreach ($rawEntries['quadrable_nodesInterior'] as $entry) {
+            $nodeId = self::parseRawUInt64EntryKey($entry['keyHex'], 'raw LMDB branch node id');
+            if (isset($branches[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB interior bucket contains a duplicate node id');
+            }
+
+            $branches[$nodeId] = self::decodeRawLmdbBranchNode(
+                self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB branch value')
+            );
+        }
+        ksort($branches, SORT_NUMERIC);
+
+        $trackedKeys = [];
+        foreach ($rawEntries['quadrable_key'] as $entry) {
+            $nodeId = self::parseRawUInt64EntryKey($entry['keyHex'], 'raw LMDB tracked-key node id');
+            if (!isset($leaves[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB tracked-key bucket references an unknown leaf');
+            }
+
+            $trackedKey = self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB tracked key');
+            SparseTree::assertNonEmptyKey($trackedKey);
+            $keyHash = (new HashTree())->keyHash($trackedKey);
+            if ($keyHash !== $leaves[$nodeId]['keyHash']) {
+                throw new \InvalidArgumentException('raw LMDB tracked key does not match leaf key hash');
+            }
+            if (isset($trackedKeys[$keyHash]) && $trackedKeys[$keyHash] !== $trackedKey) {
+                throw new \InvalidArgumentException('raw LMDB tracked keys contain a hash collision');
+            }
+
+            $trackedKeys[$keyHash] = $trackedKey;
+        }
+        ksort($trackedKeys, SORT_STRING);
+
+        [$currentHead, $detachedHeadNodeId] = self::parseRawQuadbState($rawEntries['quadrable_quadb_state']);
+
+        $snapshot = [
+            'leaves' => $leaves,
+            'branches' => $branches,
+            'heads' => $heads,
+            'nextLeafNodeId' => self::nextLmdbLeafNodeId($leaves),
+            'nextBranchNodeId' => self::nextLmdbInteriorNodeId($branches),
+            'nextMemStoreNodeId' => TrackedNodeStore::FIRST_MEMSTORE_NODE_ID,
+        ];
+
+        $nodeStore = TrackedNodeStore::fromSnapshot($snapshot);
+        $hashTree = new HashTree();
+        foreach ($leaves as $leaf) {
+            if ($leaf['hash'] !== $hashTree->leafHashForKeyHash($leaf['keyHash'], $leaf['value'])) {
+                throw new \InvalidArgumentException('raw LMDB leaf hash does not match key/value bytes');
+            }
+        }
+        foreach ($branches as $branch) {
+            if ($branch['hash'] !== $hashTree->branchHash(
+                $nodeStore->nodeHash($branch['leftNodeId']),
+                $nodeStore->nodeHash($branch['rightNodeId'])
+            )) {
+                throw new \InvalidArgumentException('raw LMDB branch hash does not match child nodes');
+            }
+        }
+
+        if ($detachedHeadNodeId !== 0) {
+            $nodeStore->nodeHash($detachedHeadNodeId);
+        }
+
+        return [
+            'trackedNodeStore' => $snapshot,
+            'trackedKeys' => $trackedKeys,
+            'currentHead' => $currentHead,
+            'detachedHeadNodeId' => $detachedHeadNodeId,
+        ];
+    }
+
+    /**
+     * @param list<array{keyHex: string, valueHex: string}> $entries
+     *
+     * @return array{?string, int}
+     */
+    private static function parseRawQuadbState(array $entries): array
+    {
+        if ($entries === []) {
+            throw new \InvalidArgumentException('raw LMDB quadb state bucket is empty');
+        }
+
+        $currentHead = 'master';
+        $detachedHeadNodeId = 0;
+        $seenCurrent = false;
+        $seenDetached = false;
+        $seenKeys = [];
+
+        foreach ($entries as $entry) {
+            $key = self::decodeRawEntryHexBytes($entry['keyHex'], 'raw LMDB quadb state key');
+            if (isset($seenKeys[$key])) {
+                throw new \InvalidArgumentException('raw LMDB quadb state bucket contains a duplicate key');
+            }
+            $seenKeys[$key] = true;
+
+            if ($key === 'currHead') {
+                $currentHead = self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB current head');
+                self::assertHeadNameValue($currentHead);
+                $seenCurrent = true;
+                continue;
+            }
+
+            if ($key === 'detachedHead') {
+                $detachedHeadNodeId = self::unpackUInt64Le(
+                    self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB detached head value'),
+                    'raw LMDB detached head node id'
+                );
+                $currentHead = null;
+                $seenDetached = true;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('raw LMDB quadb state bucket contains an unknown key');
+        }
+
+        if ($seenCurrent && $seenDetached) {
+            throw new \InvalidArgumentException('raw LMDB quadb state cannot contain both currHead and detachedHead');
+        }
+
+        return [$currentHead, $detachedHeadNodeId];
+    }
+
+    /**
+     * @return array{keyHash: string, value: string, hash: string}
+     */
+    private static function decodeRawLmdbLeafNode(string $value): array
+    {
+        if (strlen($value) < 72) {
+            throw new \InvalidArgumentException('raw LMDB leaf value is too short');
+        }
+
+        $nodeType = self::unpackUInt64Le(substr($value, 0, 8), 'raw LMDB leaf node type');
+        if ($nodeType === self::NODE_TYPE_WITNESS_LEAF) {
+            throw new \RuntimeException('raw LMDB restore does not yet support proof-backed witness leaves');
+        }
+        if ($nodeType !== self::NODE_TYPE_LEAF) {
+            throw new \InvalidArgumentException('raw LMDB leaf bucket contains a non-leaf node');
+        }
+
+        return [
+            'hash' => self::parseRawHashBytes(substr($value, 8, 32), 'raw LMDB leaf hash'),
+            'keyHash' => self::parseRawHashBytes(substr($value, 40, 32), 'raw LMDB leaf key hash'),
+            'value' => substr($value, 72),
+        ];
+    }
+
+    /**
+     * @return array{leftNodeId: int, rightNodeId: int, hash: string}
+     */
+    private static function decodeRawLmdbBranchNode(string $value): array
+    {
+        if (strlen($value) !== 48) {
+            throw new \InvalidArgumentException('raw LMDB branch value must be exactly 48 bytes');
+        }
+
+        $firstWord = self::unpackUInt64Le(substr($value, 0, 8), 'raw LMDB branch reference word');
+        if ($firstWord === self::NODE_TYPE_WITNESS) {
+            throw new \RuntimeException('raw LMDB restore does not yet support proof-backed witness branches');
+        }
+
+        $nodeType = $firstWord & 0xf;
+        $firstNodeId = intdiv($firstWord, 16);
+        $secondNodeId = self::unpackUInt64Le(substr($value, 40, 8), 'raw LMDB branch second child');
+
+        if ($nodeType === self::NODE_TYPE_BRANCH_LEFT) {
+            if ($firstNodeId === 0 || $secondNodeId !== 0) {
+                throw new \InvalidArgumentException('raw LMDB left-branch record is malformed');
+            }
+            $leftNodeId = $firstNodeId;
+            $rightNodeId = 0;
+        } elseif ($nodeType === self::NODE_TYPE_BRANCH_RIGHT) {
+            if ($firstNodeId === 0 || $secondNodeId !== 0) {
+                throw new \InvalidArgumentException('raw LMDB right-branch record is malformed');
+            }
+            $leftNodeId = 0;
+            $rightNodeId = $firstNodeId;
+        } elseif ($nodeType === self::NODE_TYPE_BRANCH_BOTH) {
+            if ($firstNodeId === 0 || $secondNodeId === 0) {
+                throw new \InvalidArgumentException('raw LMDB two-child branch record is malformed');
+            }
+            $leftNodeId = $firstNodeId;
+            $rightNodeId = $secondNodeId;
+        } else {
+            throw new \InvalidArgumentException('raw LMDB interior bucket contains an unknown branch type');
+        }
+
+        return [
+            'leftNodeId' => $leftNodeId,
+            'rightNodeId' => $rightNodeId,
+            'hash' => self::parseRawHashBytes(substr($value, 8, 32), 'raw LMDB branch hash'),
+        ];
+    }
+
+    private static function parseRawUInt64EntryKey(string $keyHex, string $label): int
+    {
+        return self::unpackUInt64Le(self::decodeRawEntryHexBytes($keyHex, $label), $label);
+    }
+
+    private static function decodeRawEntryHexBytes(string $hex, string $label): string
+    {
+        $bytes = hex2bin($hex);
+        if ($bytes === false) {
+            throw new \InvalidArgumentException($label . ' must be lowercase byte hex');
+        }
+
+        return $bytes;
+    }
+
+    private static function parseRawHashBytes(string $bytes, string $label): string
+    {
+        if (strlen($bytes) !== 32) {
+            throw new \InvalidArgumentException($label . ' must be exactly 32 bytes');
+        }
+
+        return bin2hex($bytes);
     }
 
     private function assertHeadName(string $head): void
@@ -3600,6 +3897,28 @@ final class QuadbStore
         }
 
         return pack('V2', $value % 4294967296, intdiv($value, 4294967296));
+    }
+
+    private static function unpackUInt64Le(string $bytes, string $label): int
+    {
+        if (strlen($bytes) !== 8) {
+            throw new \InvalidArgumentException($label . ' must be exactly eight bytes');
+        }
+
+        $parts = unpack('Vlow/Vhigh', $bytes);
+        if (!is_array($parts)) {
+            throw new \InvalidArgumentException($label . ' could not be decoded');
+        }
+
+        $value = $parts['low'] + ($parts['high'] * 4294967296);
+        if (!is_int($value) && (!is_float($value) || $value > PHP_INT_MAX || floor($value) !== $value)) {
+            throw new \InvalidArgumentException($label . ' exceeds PHP integer range');
+        }
+        if ($value > PHP_INT_MAX) {
+            throw new \InvalidArgumentException($label . ' exceeds PHP integer range');
+        }
+
+        return (int) $value;
     }
 
     private static function hashBytes(string $hashHex): string

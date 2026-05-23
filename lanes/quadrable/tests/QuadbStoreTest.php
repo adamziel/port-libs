@@ -1536,6 +1536,113 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store restores full-head raw LMDB cursor dumps without portable state' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $restoreDir = quadrableQuadbTempDir();
+        $corruptDir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $masterRoot = $repo->tree()->rootHash();
+
+            $repo->fork('wp-preview', 'master');
+            $repo->put('wp_posts:1', 'Preview post');
+            $repo->put('wp_posts:2', "Preview page\0serialized");
+            $previewRoot = $repo->tree()->rootHash();
+
+            $repo->checkout();
+            $repo->put('wp_posts:2', "Detached page\0serialized");
+            $repo->put('wp_postmeta:2:_edit_lock', '1716400000:1');
+            $detachedRoot = $repo->tree()->rootHash();
+
+            $rawEntries = quadrableQuadbRawSnapshotHex($repo->lmdbRawEntrySnapshot());
+            $t->same('detachedHead', hex2bin($rawEntries['quadrable_quadb_state'][0]['keyHex']));
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $rawEntries);
+            $t->same($rawEntries, quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->true($restored->isDetachedHead());
+            $t->same($detachedRoot, $restored->status()['rootHash']);
+            $t->same("Detached page\0serialized", $restored->get('wp_posts:2'));
+            $t->same('1716400000:1', $restored->get('wp_postmeta:2:_edit_lock'));
+
+            $restored->checkout('wp-preview');
+            $t->same($previewRoot, $restored->status()['rootHash']);
+            $t->same('Preview post', $restored->get('wp_posts:1'));
+            $t->same("Preview page\0serialized", $restored->get('wp_posts:2'));
+
+            $restored->checkout('master');
+            $t->same($masterRoot, $restored->status()['rootHash']);
+            $t->same('Published post', $restored->get('wp_posts:1'));
+            $t->same('https://example.test', $restored->get('wp_options:home'));
+
+            $corrupt = $rawEntries;
+            $corrupt['quadrable_nodesLeaf'][0]['valueHex'] .= '00';
+            $t->throws(InvalidArgumentException::class, static fn () => QuadbStore::restoreRawEntryDump($corruptDir, $corrupt));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($restoreDir);
+            quadrableQuadbRemoveDir($corruptDir);
+        }
+    },
+    'native quadb store restores upstream full-head LMDB cursor slices and rejects proof witnesses' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+        $rejectDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-dump-restore-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset($oracle['fixtureValues'], $oracle['restored']['entries'])
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['restored']['entries'])
+            ) {
+                throw new RuntimeException('malformed upstream LMDB dump/restore oracle fixture');
+            }
+
+            $fullRawEntries = quadrableQuadbFullHeadRawEntries(
+                $oracle['restored']['entries'],
+                ['10', '2', 'a-preview', 'master', 'private-full'],
+                'a-preview'
+            );
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $fullRawEntries);
+            $t->same($fullRawEntries, quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same(64, strlen(QuadbStore::portableRawEntryDigest($fullRawEntries)));
+
+            $values = $oracle['fixtureValues'];
+            $binaryKey = quadrableQuadbOracleBytes($values['binaryKeyHex']);
+            $binaryValue = quadrableQuadbOracleBytes($values['binaryValueHex']);
+            $previewValue = quadrableQuadbOracleBytes($values['previewValueHex']);
+            $privateValue = quadrableQuadbOracleBytes($values['privateValueHex']);
+            $privatePostValue = quadrableQuadbOracleBytes($values['privatePostValueHex']);
+
+            $t->same('a-preview', $restored->currentHeadName());
+            $t->same($previewValue, $restored->get('wp_posts:2'));
+            $t->same('1716400000:1', $restored->get('wp_postmeta:2:_edit_lock'));
+
+            $restored->checkout('master');
+            $t->same('plain', $restored->get('wp_options:plain'));
+            $t->same($binaryValue, $restored->get($binaryKey));
+            $t->same('Published post', $restored->get('wp_posts:1'));
+
+            $restored->checkout('private-full');
+            $t->same($privateValue, $restored->get('wp_options:private'));
+            $t->same($privatePostValue, $restored->get('wp_posts:private'));
+
+            $t->throws(RuntimeException::class, static fn () => QuadbStore::restoreRawEntryDump(
+                $rejectDir,
+                $oracle['restored']['entries']
+            ));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+            quadrableQuadbRemoveDir($rejectDir);
+        }
+    },
     'native quadb store restores portable dumps for mixed full proof detached and noTrack heads' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $restoreDir = quadrableQuadbTempDir();
@@ -2222,6 +2329,140 @@ function quadrableQuadbRawSnapshotHex(array $snapshot): array
     }
 
     return $out;
+}
+
+/**
+ * Extracts a full-head-only raw cursor slice from the mixed upstream LMDB
+ * oracle. The selected heads, reachable full nodes, tracked keys, and a
+ * synthetic `currHead` state entry remain byte-for-byte upstream bucket values.
+ *
+ * @param array<string, list<array{keyHex: string, valueHex: string}>> $entries
+ * @param list<string> $heads
+ *
+ * @return array<string, list<array{keyHex: string, valueHex: string}>>
+ */
+function quadrableQuadbFullHeadRawEntries(array $entries, array $heads, string $currentHead): array
+{
+    $headSet = array_fill_keys($heads, true);
+    if (!isset($headSet[$currentHead])) {
+        throw new RuntimeException('current head must be included in full-head raw entry slice');
+    }
+
+    $headNodeIds = [];
+    $selectedHeads = [];
+    foreach ($entries['quadrable_head'] as $entry) {
+        $head = (string) hex2bin($entry['keyHex']);
+        if (!isset($headSet[$head])) {
+            continue;
+        }
+
+        $selectedHeads[] = $entry;
+        $headNodeIds[$head] = quadrableQuadbUnpackUint64Le((string) hex2bin($entry['valueHex']));
+    }
+    if (count($selectedHeads) !== count($headSet)) {
+        throw new RuntimeException('upstream full-head raw entry slice is missing a requested head');
+    }
+
+    $leavesById = [];
+    foreach ($entries['quadrable_nodesLeaf'] as $entry) {
+        $leavesById[quadrableQuadbUnpackUint64Le((string) hex2bin($entry['keyHex']))] = $entry;
+    }
+
+    $branchesById = [];
+    foreach ($entries['quadrable_nodesInterior'] as $entry) {
+        $branchesById[quadrableQuadbUnpackUint64Le((string) hex2bin($entry['keyHex']))] = $entry;
+    }
+
+    $reachableLeaves = [];
+    $reachableBranches = [];
+    $walk = static function (int $nodeId) use (&$walk, &$reachableLeaves, &$reachableBranches, $leavesById, $branchesById): void {
+        if ($nodeId === 0) {
+            return;
+        }
+        if (isset($reachableLeaves[$nodeId]) || isset($reachableBranches[$nodeId])) {
+            return;
+        }
+        if (isset($leavesById[$nodeId])) {
+            $leafValue = (string) hex2bin($leavesById[$nodeId]['valueHex']);
+            if (quadrableQuadbUnpackUint64Le(substr($leafValue, 0, 8)) !== 4) {
+                throw new RuntimeException('selected upstream raw slice includes a proof-backed leaf');
+            }
+            $reachableLeaves[$nodeId] = true;
+            return;
+        }
+        if (!isset($branchesById[$nodeId])) {
+            throw new RuntimeException('selected upstream raw slice references an unknown node');
+        }
+
+        $branchValue = (string) hex2bin($branchesById[$nodeId]['valueHex']);
+        [$leftNodeId, $rightNodeId] = quadrableQuadbRawBranchChildren($branchValue);
+        $reachableBranches[$nodeId] = true;
+        $walk($leftNodeId);
+        $walk($rightNodeId);
+    };
+
+    foreach ($headNodeIds as $nodeId) {
+        $walk($nodeId);
+    }
+
+    $selectedLeaves = [];
+    foreach ($entries['quadrable_nodesLeaf'] as $entry) {
+        if (isset($reachableLeaves[quadrableQuadbUnpackUint64Le((string) hex2bin($entry['keyHex']))])) {
+            $selectedLeaves[] = $entry;
+        }
+    }
+
+    $selectedBranches = [];
+    foreach ($entries['quadrable_nodesInterior'] as $entry) {
+        if (isset($reachableBranches[quadrableQuadbUnpackUint64Le((string) hex2bin($entry['keyHex']))])) {
+            $selectedBranches[] = $entry;
+        }
+    }
+
+    $selectedKeys = [];
+    foreach ($entries['quadrable_key'] as $entry) {
+        if (isset($reachableLeaves[quadrableQuadbUnpackUint64Le((string) hex2bin($entry['keyHex']))])) {
+            $selectedKeys[] = $entry;
+        }
+    }
+
+    return [
+        'quadrable_head' => $selectedHeads,
+        'quadrable_nodesLeaf' => $selectedLeaves,
+        'quadrable_nodesInterior' => $selectedBranches,
+        'quadrable_key' => $selectedKeys,
+        'quadrable_quadb_state' => [[
+            'keyHex' => bin2hex('currHead'),
+            'valueHex' => bin2hex($currentHead),
+        ]],
+    ];
+}
+
+/**
+ * @return array{int, int}
+ */
+function quadrableQuadbRawBranchChildren(string $branchValue): array
+{
+    if (strlen($branchValue) !== 48) {
+        throw new RuntimeException('expected a 48-byte raw branch value');
+    }
+
+    $firstWord = quadrableQuadbUnpackUint64Le(substr($branchValue, 0, 8));
+    $nodeType = $firstWord & 0xf;
+    $firstNodeId = intdiv($firstWord, 16);
+    $secondNodeId = quadrableQuadbUnpackUint64Le(substr($branchValue, 40, 8));
+
+    if ($nodeType === 1) {
+        return [$firstNodeId, 0];
+    }
+    if ($nodeType === 2) {
+        return [0, $firstNodeId];
+    }
+    if ($nodeType === 3) {
+        return [$firstNodeId, $secondNodeId];
+    }
+
+    throw new RuntimeException('selected upstream raw slice includes a proof-backed or unknown branch');
 }
 
 /**
