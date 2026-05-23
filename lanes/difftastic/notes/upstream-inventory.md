@@ -156,7 +156,7 @@ php tools/run-tests.php
 The latest exact required root run for this batch is green:
 
 ```text
-165 test files, 15318 assertions, 0 failures
+166 test files, 15350 assertions, 0 failures
 ```
 
 The difftastic-focused test file remains green with 120 tests, 621 assertions, and 0 failures via a direct `TestRunner` invocation.
