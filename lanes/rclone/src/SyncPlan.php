@@ -23,7 +23,7 @@ final class SyncPlan
             if ($filter !== null && !$filter->includes($sourceInfo->path)) {
                 continue;
             }
-            if ($this->skipCaseFoldedDuplicate($sourceInfo->path, $seenSourceKeys, $ignoreCaseSync)) {
+            if ($this->skipMarchDuplicateObject($sourceInfo->path, $seenSourceKeys, $ignoreCaseSync)) {
                 continue;
             }
 
@@ -227,7 +227,7 @@ final class SyncPlan
             if ($filter !== null && !$filter->includes($path)) {
                 continue;
             }
-            if ($this->skipCaseFoldedDuplicate($path, $seenSourceKeys, $ignoreCaseSync)) {
+            if ($this->skipMarchDuplicateObject($path, $seenSourceKeys, $ignoreCaseSync)) {
                 continue;
             }
 
@@ -2327,13 +2327,9 @@ final class SyncPlan
     /**
      * @param array<string, true> $seen
      */
-    private function skipCaseFoldedDuplicate(string $path, array &$seen, bool $ignoreCaseSync): bool
+    private function skipMarchDuplicateObject(string $path, array &$seen, bool $ignoreCaseSync): bool
     {
-        if (!$ignoreCaseSync) {
-            return false;
-        }
-
-        $key = $this->syncPathKey($path);
+        $key = $ignoreCaseSync ? $this->syncPathKey($path) : self::normalizePath($path);
         if (isset($seen[$key])) {
             return true;
         }

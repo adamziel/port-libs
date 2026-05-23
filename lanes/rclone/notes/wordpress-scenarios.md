@@ -146,6 +146,8 @@ The `../examples/wordpress-no-traverse-copy.php` example maps upstream `fs/march
 
 The `../examples/wordpress-files-from-no-traverse-restore.php` example maps upstream `fs/walk.NewDirTree` under `--no-traverse` plus `--files-from`. It looks up only selected WXR, SQL, and media remotes, skips a missing WXR entry, avoids provider `List` and provider `ListR` traversal entirely, synthesizes upload parent directories, and publishes a restore-priority manifest without scanning unrelated cache artifacts.
 
+The `../examples/wordpress-duplicate-source-listing.php` example maps upstream `fs/march.matchListings` duplicate-source behavior. It models a provider returning two WXR export objects at the same remote path, keeps the first listed export as the canonical sync comparison, suppresses the stale duplicate entry, and still copies the missing SQL artifact.
+
 ## Next Task
 
-Map `fs/march.matchListings` duplicate source/destination handling or the no-traverse disable boundaries for sync delete modes and `--track-renames`.
+Map the no-traverse disable boundaries for sync delete modes and `--track-renames`, or add a focused destination-duplicate `matchListings` diagnostic surface.

@@ -121,6 +121,31 @@ return [
         $t->same('old', $target->get('old.txt'));
         $t->same(['old.txt'], $plan->deletePaths($source, $target));
     },
+    'match listings ignores duplicate source objects after the first provider entry' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('exports/site.wxr', '<rss>current export</rss>');
+        $source->putUnchecked('exports/site.wxr', '<rss>stale duplicate export</rss>');
+        $target->put('exports/site.wxr', '<rss>current export</rss>');
+
+        $plan = new SyncPlan();
+        $t->same([], $plan->changedPaths($source, $target));
+        $t->same([], array_map(static fn ($info) => $info->path, $plan->copyChanged($source, $target)));
+        $t->same('<rss>current export</rss>', $target->get('exports/site.wxr'));
+
+        $target = new MemoryProvider();
+        $copied = $plan->copyChanged($source, $target);
+        $t->same(['exports/site.wxr'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('<rss>current export</rss>', $target->get('exports/site.wxr'));
+    },
+    'wordpress duplicate source listing example preserves first export entry' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-duplicate-source-listing.php';
+
+        $t->same(['database/site.sql'], $example['changedBeforeCopy']);
+        $t->same(['database/site.sql'], $example['copied']);
+        $t->same('<rss version="2.0"></rss>', $example['targetExportBytes']);
+        $t->same('insert into wp_posts values (...)', $example['targetDatabaseBytes']);
+    },
     'ignore existing skips changed destination objects like upstream sync' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
