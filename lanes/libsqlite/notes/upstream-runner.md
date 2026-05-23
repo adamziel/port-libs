@@ -3322,3 +3322,38 @@ ps -o pid,user,etime,cmd -p 1076399,1076696
 Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
+
+## Focused Native Mapping: Composite Parent-Root Replacement Split
+
+For the bounded composite `autoload, option_name` parent-root replacement
+split slice on 2026-05-23, the focused upstream runner passed `update.test`,
+`index.test`, `where.test`, `whereH.test`, and `btree01.test` with 0 errors
+out of 1096 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test where.test whereH.test btree01.test
+```
+
+This maps SQLite UPDATE row rewrite behavior, composite index key ordering,
+equality-prefix planner coverage, root-interior balancing after replacement
+leaf splits, and b-tree cell/page assembly used by the native bounded
+`wp_options(autoload, option_name)` replacement planner when an `autoload`
+change moves an entry into a full destination leaf and the index-interior root
+also has to grow.
+
+The direct libsqlite harness passed 192 PHP tests with 1340 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-composite-index-parent-root-split-option-replacement-plan.php`
+script ran successfully, reporting updated page images
+`[1,2,3,4,10,11,12,13]`, a grown `index-interior` root with one divider, two
+new interior pages with three cells each, split destination composite leaves,
+and the rewritten option reachable through
+`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.

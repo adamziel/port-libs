@@ -133,3 +133,49 @@ php tools/run-tests.php
 ```
 
 Result observed by this worker: 199 test files, 22444 assertions, 0 failures.
+
+## Composite Parent-Root Replacement Split Slice
+
+Focused lane verification for the composite parent-root replacement split
+slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1340 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-composite-index-parent-root-split-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,3,4,10,11,12,13]`, database page count
+`13`, split destination composite-index leaf pages 4 and 11, source leaf page
+10 with 5 remaining cells, two new interior pages, and a rewritten option
+with `autoload='no'`.
+
+The required duplicate-root preflight was run before the aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned no active exact root process. The first aggregate run completed
+red with the failure detail outside the captured output:
+
+```sh
+php tools/run-tests.php
+```
+
+Result observed by this worker: 199 test files, 22652 assertions, 1 failure.
+
+A second duplicate-root preflight was also clear, so this worker reran the
+full aggregate harness with bounded output:
+
+```sh
+php tools/run-tests.php 2>&1 | awk '/^FAIL / || /^[0-9]+ test files,/'
+```
+
+Result observed by this worker: 199 test files, 22669 assertions, 0 failures.

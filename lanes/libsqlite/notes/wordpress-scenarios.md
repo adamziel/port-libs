@@ -874,6 +874,18 @@ replaced option is reachable through
 WordPress repair flows that disable autoload for a heavy option while keeping
 a preload-oriented composite index consistent through a same-depth leaf split.
 
+`examples/wordpress-composite-index-parent-root-split-option-replacement-plan.php`
+starts from a larger `wp_options` table with a full two-level
+`autoload, option_name` secondary index. It rewrites an existing option from
+`autoload='yes'` to `autoload='no'`, where the destination composite-index
+leaf and the index-interior root both have to split. The example applies the
+returned header/table/source-leaf/destination-leaf/root/new-interior page
+images and verifies that the rewritten option is reachable through
+`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`. This maps
+preload repair tools that must turn off autoload for a heavy option in a
+larger SQLite-backed WordPress database without leaving the composite index
+stale and without invoking the SQLite extension.
+
 `examples/wordpress-multipage-table-option-replacement-plan.php` starts from
 a `wp_options` table whose root is a table-interior page over two table leaf
 pages. It asks `planWordPressOptionReplace()` to rewrite the `blogname`
@@ -921,6 +933,5 @@ free-old update order.
 
 ## Next Task
 
-Extend replacement moves through index parent-root split cases or add non-root
-table/index parent split propagation before pointer-map/auto-vacuum,
-journaling, or WAL work.
+Add non-root table/index parent split propagation or replacement source-leaf
+rebalancing before pointer-map/auto-vacuum, journaling, or WAL work.
