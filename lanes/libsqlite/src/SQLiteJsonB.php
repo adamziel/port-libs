@@ -81,6 +81,11 @@ final class SQLiteJsonB
         return self::mutate($bytes, 'replace', $path, $value, $pathValuePairs);
     }
 
+    public static function arrayInsert(string $bytes, string $path, mixed $value, mixed ...$pathValuePairs): string
+    {
+        return self::mutate($bytes, 'arrayInsert', $path, $value, $pathValuePairs);
+    }
+
     public static function patch(string $targetBytes, string $patchBytes): string
     {
         $target = self::decodeForEdit($targetBytes);
@@ -684,7 +689,7 @@ final class SQLiteJsonB
     {
         self::encode($replacement);
         if ($segments === []) {
-            if ($operation !== 'insert') {
+            if ($operation !== 'insert' && $operation !== 'arrayInsert') {
                 $document = $replacement;
             }
 
@@ -711,6 +716,9 @@ final class SQLiteJsonB
             if (is_array($target) && !array_is_list($target)) {
                 $exists = array_key_exists($name, $target);
                 if ($last) {
+                    if ($operation === 'arrayInsert') {
+                        self::throwArrayInsertPathError();
+                    }
                     self::mutateObjectMember($target, $name, $exists, $operation, $replacement);
 
                     return;
@@ -729,6 +737,9 @@ final class SQLiteJsonB
             if ($target instanceof \stdClass) {
                 $exists = property_exists($target, $name);
                 if ($last) {
+                    if ($operation === 'arrayInsert') {
+                        self::throwArrayInsertPathError();
+                    }
                     if ($exists) {
                         if ($operation !== 'insert') {
                             $target->{$name} = $replacement;
@@ -747,6 +758,9 @@ final class SQLiteJsonB
 
                 if ($operation === 'replace') {
                     return;
+                }
+                if ($operation === 'arrayInsert' && !self::segmentsEndWithArrayIndex(array_slice($segments, $offset + 1))) {
+                    self::throwArrayInsertPathError();
                 }
                 [$created, $substructure] = self::createSubstructure(array_slice($segments, $offset + 1), $replacement);
                 if ($created) {
@@ -768,6 +782,11 @@ final class SQLiteJsonB
 
         if ($arrayIndex < count($target)) {
             if ($last) {
+                if ($operation === 'arrayInsert') {
+                    array_splice($target, $arrayIndex, 0, [$replacement]);
+
+                    return;
+                }
                 if ($operation !== 'insert') {
                     $target[$arrayIndex] = $replacement;
                 }
@@ -790,6 +809,9 @@ final class SQLiteJsonB
             return;
         }
 
+        if ($operation === 'arrayInsert' && !self::segmentsEndWithArrayIndex(array_slice($segments, $offset + 1))) {
+            self::throwArrayInsertPathError();
+        }
         [$created, $substructure] = self::createSubstructure(array_slice($segments, $offset + 1), $replacement);
         if ($created) {
             $target[] = $substructure;
@@ -818,6 +840,9 @@ final class SQLiteJsonB
     {
         if ($operation === 'replace') {
             return;
+        }
+        if ($operation === 'arrayInsert' && !self::segmentsEndWithArrayIndex($tail)) {
+            self::throwArrayInsertPathError();
         }
 
         [$created, $substructure] = self::createSubstructure($tail, $replacement);
@@ -857,6 +882,21 @@ final class SQLiteJsonB
         [$created, $value] = self::createSubstructure($tail, $replacement);
 
         return $created ? [true, [$value]] : [false, null];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $segments
+     */
+    private static function segmentsEndWithArrayIndex(array $segments): bool
+    {
+        $last = $segments[array_key_last($segments)] ?? null;
+
+        return is_array($last) && ($last['type'] ?? null) === 'index';
+    }
+
+    private static function throwArrayInsertPathError(): never
+    {
+        throw new \InvalidArgumentException('SQLite JSON array_insert path must identify an array element');
     }
 
     /**

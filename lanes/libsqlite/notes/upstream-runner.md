@@ -1775,6 +1775,52 @@ recovery or fixture-generation tooling apply SQLite-style JSONB path edits to
 strict JSON, supported JSON5, or JSONB `wp_options.option_value` blobs without
 requiring the SQLite extension.
 
+## Focused Native Mapping: JSONB Array Insert Paths
+
+This slice maps SQLite's new `json_array_insert()`/`jsonb_array_insert()`
+path behavior for native SQLite JSONB fixture and preflight tooling. It
+inserts before existing array elements, appends at `[N]` where `N` is the
+array length, appends through `[#]` and `[#-0]`, uses reverse indexes such as
+`[#-1]` as insertion points, treats out-of-range and non-array traversal as
+no-ops, creates missing object/array substructure only when the path tail ends
+in an array element, and rejects paths such as `$.a` that resolve to a value
+rather than an array element.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json109.test json102.test jsonb01.test
+```
+
+Result on 2026-05-23: 3 Tcl scripts, 0 errors out of 374 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json109.test` covers `json_array_insert()` index insertion, prepend,
+  append, reverse-index insertion, missing-path substructure creation,
+  non-array target no-ops, non-array-element errors, and multiple path/value
+  argument order.
+- `test/json102.test` keeps adjacent JSONB mutation path and malformed input
+  behavior in scope.
+- `test/jsonb01.test` keeps malformed JSONB rejection boundaries in scope.
+
+Additional focused upstream SQL probes confirmed `jsonb_array_insert()`
+produces `CB121331BC476B696E6457636163686513321333` for inserting
+`{"kind":"cache"}` at `$[1]` in `[1,2,3]`, and creates a missing
+`$.b[0]` array path as `{"a":[1,2,3],"b":[{"kind":"cache"}]}`.
+
+The native PHP tests now cover `SQLiteJsonB::arrayInsert()` for repeated
+prepend order, append indexes, reverse indexes, root no-op behavior, missing
+object/array substructures, non-array traversal no-ops, invalid and
+non-array-element paths, odd path/value argument rejection, JSONB hex
+roundtrip parity, and a WordPress option/meta migration preflight fixture.
+The new `examples/wordpress-jsonb-array-insert-option-field.php` script lets
+WordPress recovery or fixture-generation tooling insert migration queue
+entries into JSON/JSON5/JSONB option or meta arrays without requiring the
+SQLite extension.
+
 ## Focused Native Mapping: JSONB Merge Patch
 
 This slice maps a bounded `jsonb_patch()`/`json_patch()` family for native

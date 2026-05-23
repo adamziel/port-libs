@@ -556,6 +556,14 @@ migration markers, append rule objects, replace stale plugin settings, or
 leave existing fields untouched according to SQLite's
 `jsonb_insert`/`jsonb_set`/`jsonb_replace` path semantics.
 
+`examples/wordpress-jsonb-array-insert-option-field.php` applies SQLite-style
+`jsonb_array_insert` edits to strict JSON, supported SQLite JSON5, or SQLite
+JSONB option/meta fixtures and prints the resulting JSONB bytes. This maps
+WordPress import preflight workflows that need to insert a migration queue
+entry before an existing option-array item or append postmeta migration keys
+while preserving SQLite's array-index, reverse-index, missing-path, and
+non-array no-op boundaries.
+
 `examples/wordpress-jsonb-patch-option-field.php` applies SQLite-style
 RFC-7396 merge patches to strict JSON, supported SQLite JSON5, or SQLite JSONB
 option-value fixtures and prints the resulting JSONB bytes. This maps
@@ -623,10 +631,9 @@ slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `trim/ltrim/rtrim(column[, literal characters])` point lookups, literal-start
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and the
 named `json_extract(column,path)`, `column ->> path`, and `column -> path`
-JSON scalar/fragment buckets; broader JSON path/value semantics such as
-`json_array_insert`, broader JSONB output/edit behavior beyond the current
-value encoder, remove-path slice, focused insert/set/replace path edits, and
-focused merge-patch behavior, and full JSON5 numeric/string edge parity;
+JSON scalar/fragment buckets; broader JSON path/value semantics beyond the
+current value encoder and focused remove, insert/set/replace, array-insert,
+and merge-patch slices, plus full JSON5 numeric/string edge parity;
 custom collation
 coverage across automatic indexes, additional composite planner shapes, and
 expression-index families beyond the explicit first-column, custom-collated

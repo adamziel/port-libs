@@ -1797,6 +1797,75 @@ return [
         $t->same([0, 1, 2, 'AAA', 'BBB'], $decode(SQLiteJsonB::insert($array, '$[#]', 'AAA', '$[#]', 'BBB')));
         $t->same([0, 1, 2], $decode(SQLiteJsonB::set($array, '$[4].a', 9)));
     },
+    'array-inserts focused sqlite jsonb array elements' => static function (TestRunner $t): void {
+        $array = SQLiteJsonB::encode([1, 2, 3]);
+        $decode = static fn (string $bytes): mixed => SQLiteJsonB::decode($bytes);
+
+        $t->same([888, 999, 1, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[0]', 999, '$[0]', 888)));
+        $t->same([999, 1, 2, 3, 888], $decode(SQLiteJsonB::arrayInsert($array, '$[0]', 999, '$[#]', 888)));
+        $t->same([1, 888, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[1]', 888)));
+        $t->same([1, 2, 888, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[2]', 888)));
+        $t->same([1, 2, 3, 888], $decode(SQLiteJsonB::arrayInsert($array, '$[3]', 888)));
+        $t->same([1, 2, 3, 888], $decode(SQLiteJsonB::arrayInsert($array, '$[#-0]', 888)));
+        $t->same([1, 2, 888, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[#-1]', 888)));
+        $t->same([1, 888, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[#-2]', 888)));
+        $t->same([888, 1, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[#-3]', 888)));
+        $t->same([1, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[#-4]', 888)));
+        $t->same([1, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$[4]', 888)));
+        $t->same([1, 2, 3], $decode(SQLiteJsonB::arrayInsert($array, '$', 888)));
+    },
+    'array-inserts focused sqlite jsonb substructures and non-array targets' => static function (TestRunner $t): void {
+        $object = SQLiteJsonB::encode(['a' => [1, 2, 3]]);
+        $decode = static fn (string $bytes): mixed => SQLiteJsonB::decode($bytes);
+
+        $t->same(['a' => [888, 1, 2, 3]], $decode(SQLiteJsonB::arrayInsert($object, '$.a[0]', 888)));
+        $t->same(['a' => [1, 2, 3], 'b' => [888]], $decode(SQLiteJsonB::arrayInsert($object, '$.b[0]', 888)));
+        $t->same(['a' => [1, 2, 3], 'b' => ['c' => ['d' => [888]]]], $decode(SQLiteJsonB::arrayInsert($object, '$.b.c.d[0]', 888)));
+        $t->same(['a' => [1, 2, 3]], $decode(SQLiteJsonB::arrayInsert($object, '$[0]', 888)));
+        $t->same(['a' => 7], $decode(SQLiteJsonB::arrayInsert(SQLiteJsonB::encode(['a' => 7]), '$.a[0]', 888)));
+        $t->same([1, ['a' => [999]]], $decode(SQLiteJsonB::arrayInsert(SQLiteJsonB::encode([1]), '$[1].a[0]', 999)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($object, '$.a', 888));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($object, '$.b.c.d', 888));
+    },
+    'rejects malformed sqlite jsonb array insert paths and roundtrips jsonb output' => static function (TestRunner $t): void {
+        $array = SQLiteJsonB::encode([1, 2, 3]);
+        $inserted = SQLiteJsonB::arrayInsert($array, '$[1]', ['kind' => 'cache']);
+
+        $t->same([1, ['kind' => 'cache'], 2, 3], SQLiteJsonB::decode($inserted));
+        $t->same('cb121331bc476b696e6457636163686513321333', bin2hex($inserted));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($array, '$[a]', 9));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($array, '$[0', 9));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($array, 'x[0]', 9));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($array, '$[#-]', 9));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($array, '$[0]', 9, '$[1]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayInsert($array, '$[0]', new ArrayObject()));
+    },
+    'array-inserts sqlite jsonb wordpress option migration lists' => static function (TestRunner $t): void {
+        $settings = SQLiteJsonB::encode([
+            'optionMigrations' => [
+                ['name' => 'core', 'status' => 'done'],
+                ['name' => 'cache', 'status' => 'queued'],
+            ],
+            'metaKeys' => ['_legacy_flag'],
+        ]);
+
+        $mutated = SQLiteJsonB::arrayInsert(
+            $settings,
+            '$.optionMigrations[1]',
+            ['name' => 'permalink', 'status' => 'queued'],
+            '$.metaKeys[#]',
+            '_generated_css',
+        );
+
+        $t->same([
+            'optionMigrations' => [
+                ['name' => 'core', 'status' => 'done'],
+                ['name' => 'permalink', 'status' => 'queued'],
+                ['name' => 'cache', 'status' => 'queued'],
+            ],
+            'metaKeys' => ['_legacy_flag', '_generated_css'],
+        ], SQLiteJsonB::decode($mutated));
+    },
     'patches focused sqlite jsonb objects with merge patch semantics' => static function (TestRunner $t): void {
         $decode = static fn (string $bytes): mixed => SQLiteJsonB::decode($bytes);
         $target = SQLiteJsonB::encode([
