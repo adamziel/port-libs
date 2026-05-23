@@ -23,6 +23,115 @@ return [
             ['table' => 'child', 'num_violations' => 1],
         ], $rows);
     },
+    'constraint violations merge error groups upstream descriptions with row counts' => static function (TestRunner $t): void {
+        $table = new ConstraintViolationsTable();
+        $violationsByTable = [
+            't' => [
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                    'violation_info' => ['Name' => 'col1', 'Columns' => ['col1']],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                    'violation_info' => ['Name' => 'col1', 'Columns' => ['col1']],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                    'violation_info' => ['Name' => 'col2', 'Columns' => ['col2']],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                    'violation_info' => ['Name' => 'col2', 'Columns' => ['col2']],
+                ],
+            ],
+        ];
+
+        $expectedSummary = "\nType: Unique Key Constraint Violation,\n"
+            . "\tName: col1,\n"
+            . "\tColumns: [col1] (2 row(s))"
+            . "\nType: Unique Key Constraint Violation,\n"
+            . "\tName: col2,\n"
+            . "\tColumns: [col2] (2 row(s))";
+
+        $t->same($expectedSummary, $table->mergeViolationSummaryText($violationsByTable));
+        $t->same(
+            ConstraintViolationsTable::UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR
+                . ConstraintViolationsTable::CONSTRAINT_VIOLATIONS_LIST_PREFIX
+                . $expectedSummary,
+            $table->unresolvedMergeError($violationsByTable)
+        );
+    },
+    'constraint violations merge error renders foreign key null and check summaries' => static function (TestRunner $t): void {
+        $summary = (new ConstraintViolationsTable())->mergeViolationSummaryText([
+            'child' => [
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_FOREIGN_KEY,
+                    'violation_info' => [
+                        'ForeignKey' => 'child_ibfk_1',
+                        'Table' => 'child',
+                        'ReferencedTable' => 'parent',
+                        'Index' => 'fk',
+                        'ReferencedIndex' => '',
+                    ],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_FOREIGN_KEY,
+                    'violation_info' => [
+                        'ForeignKey' => 'child_ibfk_1',
+                        'Table' => 'child',
+                        'ReferencedTable' => 'parent',
+                        'Index' => 'fk',
+                        'ReferencedIndex' => '',
+                    ],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_FOREIGN_KEY,
+                    'violation_info' => [
+                        'ForeignKey' => 'child_ibfk_1',
+                        'Table' => 'child',
+                        'ReferencedTable' => 'parent',
+                        'Index' => 'fk',
+                        'ReferencedIndex' => '',
+                    ],
+                ],
+            ],
+            't' => [
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_NOT_NULL,
+                    'violation_info' => ['Columns' => ['c']],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_NOT_NULL,
+                    'violation_info' => ['Columns' => ['c']],
+                ],
+            ],
+            'checks' => [
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_CHECK_CONSTRAINT,
+                    'violation_info' => ['Name' => 'chk_positive', 'Expression' => '(`col` > 0)'],
+                ],
+                [
+                    'violation_type' => ConstraintViolationsTable::TYPE_CHECK_CONSTRAINT,
+                    'violation_info' => ['Name' => 'chk_positive', 'Expression' => '(`col` > 0)'],
+                ],
+            ],
+        ]);
+
+        $t->same(
+            "\nType: Foreign Key Constraint Violation\n"
+                . "\tForeignKey: child_ibfk_1,\n"
+                . "\tTable: child,\n"
+                . "\tReferencedTable: parent,\n"
+                . "\tIndex: fk,\n"
+                . "\tReferencedIndex:  (3 row(s)), "
+                . "\nType: Null Constraint Violation,\n"
+                . "\tColumns: [c] (2 row(s)), "
+                . "\nType: Check Constraint Violation,\n"
+                . "\tName: chk_positive,\n"
+                . "\tExpression: (`col` > 0) (2 row(s))",
+            $summary
+        );
+    },
     'constraint violations table projects unique index rows with from rootish and metadata' => static function (TestRunner $t): void {
         $schema = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true],

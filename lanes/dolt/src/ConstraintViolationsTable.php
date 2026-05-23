@@ -6,6 +6,8 @@ namespace PortLibs\Dolt;
 
 final class ConstraintViolationsTable
 {
+    public const UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR = 'Committing this transaction resulted in a working set with constraint violations, transaction rolled back. This constraint violation may be the result of a previous merge or the result of transaction sequencing. Constraint violations from a merge can be resolved using the dolt_constraint_violations table before committing the transaction. To allow transactions to be committed with constraint violations from a merge or transaction sequencing set @@dolt_force_transaction_commit=1.';
+    public const CONSTRAINT_VIOLATIONS_LIST_PREFIX = "\nConstraint violations: ";
     public const TYPE_FOREIGN_KEY = 'foreign key';
     public const TYPE_UNIQUE_INDEX = 'unique index';
     public const TYPE_CHECK_CONSTRAINT = 'check constraint';
@@ -46,6 +48,66 @@ final class ConstraintViolationsTable
         }
 
         return $rows;
+    }
+
+    /**
+     * Render the transaction error Dolt returns when a merge creates unresolved
+     * constraint violations while autocommit is active.
+     *
+     * @param array<string, list<array<string, mixed>>> $violationsByTable
+     */
+    public function unresolvedMergeError(array $violationsByTable): string
+    {
+        return self::UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR
+            . self::CONSTRAINT_VIOLATIONS_LIST_PREFIX
+            . $this->mergeViolationSummaryText($violationsByTable);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $violationsByTable
+     */
+    public function mergeViolationSummaryText(array $violationsByTable): string
+    {
+        $chunks = [];
+        foreach ($violationsByTable as $tableName => $violations) {
+            if (!is_string($tableName) || $tableName === '') {
+                throw new \InvalidArgumentException('Dolt constraint violation table names must be non-empty strings.');
+            }
+            if (!is_array($violations)) {
+                throw new \InvalidArgumentException("Dolt constraint violations for {$tableName} must be a list.");
+            }
+            if ($violations === []) {
+                continue;
+            }
+
+            $countByDescription = [];
+            foreach (array_values($violations) as $violation) {
+                if (!is_array($violation)) {
+                    throw new \InvalidArgumentException('Dolt constraint violations must contain row arrays.');
+                }
+
+                $description = $this->mergeViolationDescription($violation);
+                $countByDescription[$description] = ($countByDescription[$description] ?? 0) + 1;
+            }
+
+            $descriptions = array_keys($countByDescription);
+            sort($descriptions, SORT_STRING);
+
+            $chunk = '';
+            foreach ($descriptions as $description) {
+                $chunk .= $description;
+                $rowCount = $countByDescription[$description];
+                if ($rowCount > 1) {
+                    $chunk .= " ({$rowCount} row(s))";
+                }
+            }
+
+            if ($chunk !== '') {
+                $chunks[] = $chunk;
+            }
+        }
+
+        return implode(', ', $chunks);
     }
 
     /**
@@ -210,6 +272,78 @@ final class ConstraintViolationsTable
 
     /**
      * @param array<string, mixed> $violation
+     */
+    private function mergeViolationDescription(array $violation): string
+    {
+        $type = $this->violationType($violation);
+        $info = $this->violationInfo($type, $violation);
+
+        return match ($type) {
+            self::TYPE_FOREIGN_KEY => $this->foreignKeyMergeDescription($info),
+            self::TYPE_UNIQUE_INDEX => $this->uniqueIndexMergeDescription($info),
+            self::TYPE_CHECK_CONSTRAINT => $this->checkConstraintMergeDescription($info),
+            self::TYPE_NOT_NULL => $this->notNullMergeDescription($info),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $info
+     */
+    private function foreignKeyMergeDescription(array $info): string
+    {
+        $foreignKey = $this->requiredStringField($info, ['ForeignKey'], 'Dolt foreign key violation_info must include ForeignKey.');
+        $table = $this->requiredStringField($info, ['Table'], 'Dolt foreign key violation_info must include Table.');
+        $referencedTable = $this->requiredStringField($info, ['ReferencedTable'], 'Dolt foreign key violation_info must include ReferencedTable.');
+        $index = $this->requiredStringField($info, ['Index'], 'Dolt foreign key violation_info must include Index.');
+        $referencedIndex = $this->optionalStringField($info, ['ReferencedIndex'], true) ?? '';
+
+        return "\nType: Foreign Key Constraint Violation\n"
+            . "\tForeignKey: {$foreignKey},\n"
+            . "\tTable: {$table},\n"
+            . "\tReferencedTable: {$referencedTable},\n"
+            . "\tIndex: {$index},\n"
+            . "\tReferencedIndex: {$referencedIndex}";
+    }
+
+    /**
+     * @param array<string, mixed> $info
+     */
+    private function uniqueIndexMergeDescription(array $info): string
+    {
+        $name = $this->requiredStringField($info, ['Name'], 'Dolt unique index violation_info must include Name.');
+        $columns = $this->goStringList($this->stringList($info['Columns'] ?? null, 'Dolt unique index violation_info Columns'));
+
+        return "\nType: Unique Key Constraint Violation,\n"
+            . "\tName: {$name},\n"
+            . "\tColumns: {$columns}";
+    }
+
+    /**
+     * @param array<string, mixed> $info
+     */
+    private function checkConstraintMergeDescription(array $info): string
+    {
+        $name = $this->requiredStringField($info, ['Name'], 'Dolt check constraint violation_info must include Name.');
+        $expression = $this->requiredStringField($info, ['Expression'], 'Dolt check constraint violation_info must include Expression.');
+
+        return "\nType: Check Constraint Violation,\n"
+            . "\tName: {$name},\n"
+            . "\tExpression: {$expression}";
+    }
+
+    /**
+     * @param array<string, mixed> $info
+     */
+    private function notNullMergeDescription(array $info): string
+    {
+        $columns = $this->goStringList($this->stringList($info['Columns'] ?? null, 'Dolt not-null violation_info Columns'));
+
+        return "\nType: Null Constraint Violation,\n"
+            . "\tColumns: {$columns}";
+    }
+
+    /**
+     * @param array<string, mixed> $violation
      * @return array{Index:string, Table:string, Columns:list<string>, OnDelete:string, OnUpdate:string, ForeignKey:string, ReferencedIndex:string, ReferencedTable:string, ReferencedColumns:list<string>}
      */
     private function foreignKeyInfo(array $violation): array
@@ -341,6 +475,16 @@ final class ConstraintViolationsTable
         }
 
         return $strings;
+    }
+
+    /**
+     * Match Go's `%v` formatting for []string in upstream merge errors.
+     *
+     * @param list<string> $items
+     */
+    private function goStringList(array $items): string
+    {
+        return '[' . implode(' ', $items) . ']';
     }
 
     /**

@@ -121,8 +121,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-primary-key-warning.php` returns summary/stat warnings for that blocked table while still showing unaffected `wp_posts` review rows.
 - `fixtures/wp-status-review.php` models a migration review queue with staged post changes, unstaged option edits, a term relationship conflict, a visible import-review table, and a generated cache table ignored by `dolt_ignore`.
 - `examples/wordpress-status-review.php` returns both `dolt_status` rows and `dolt_status_ignored` rows, so a WordPress UI can show reviewable work while still explaining hidden generated tables.
-- `fixtures/wp-merge-review.php` models an active import-branch merge where `wp_posts` has row conflicts, `wp_postmeta` has a constraint violation, `wp_options` has a schema conflict, and a preview view has a root-object conflict.
-- `examples/wordpress-merge-status-review.php` returns the `dolt_merge_status` row plus `dolt_conflicts` table/count rows, so a WordPress migration UI can display unresolved merge state without shelling out to Dolt.
+- `fixtures/wp-merge-review.php` models an active import-branch merge where `wp_posts` has row conflicts plus not-null blockers, `wp_postmeta` has foreign-key violations, `wp_import_audit` has CHECK violations, `wp_options` has a schema conflict plus duplicate unique-index blockers, and a preview view has a root-object conflict.
+- `examples/wordpress-merge-status-review.php` returns the `dolt_merge_status` row, `dolt_conflicts` table/count rows, upstream-shaped unresolved constraint-violation error text with duplicate row counts, and Dolt-style status/commit guidance strings for fixed versus unresolved merge states, so a WordPress migration UI can display unresolved merge state without shelling out to Dolt.
 - `fixtures/wp-schema-history.php` models versioned WordPress migration views, an import cleanup trigger, and working changes that add review/checkpoint schema objects while removing the trigger.
 - `examples/wordpress-schema-history-review.php` returns `dolt_history_dolt_schemas` rows plus working `dolt_diff_dolt_schemas` rows, so a migration UI can audit schema-object history without shelling out to Dolt.
 - `fixtures/wp-procedure-history.php` models versioned WordPress import/review stored procedures, including a modified post-prep routine, a new review cursor, and a removed media queue routine.
@@ -142,4 +142,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: add merge-error summary text for unresolved constraint violations, including table row counts for unique, foreign-key, not-null, and CHECK violations.
+Next best slice: add native `dolt merge` failure summary text for conflict-only, constraint-only, and mixed conflict/constraint-violation merges.
