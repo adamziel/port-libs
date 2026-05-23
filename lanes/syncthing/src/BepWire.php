@@ -762,6 +762,7 @@ final class BepWire
             unixGid: $platform['unixGid'],
             modifiedBy: self::lastInt($fields, 12),
             encryptedPayload: self::lastBytes($fields, 19),
+            xattrs: $platform['xattrs'],
         );
     }
 
@@ -833,11 +834,19 @@ final class BepWire
 
     private static function encodePlatformDataPayload(FileInfo $file): string
     {
-        if ($file->unixUid === null || $file->unixGid === null) {
+        if (($file->unixUid === null || $file->unixGid === null) && $file->xattrs === []) {
             return '';
         }
 
-        return self::fieldBytes(1, self::encodeUnixDataPayload($file));
+        $payload = '';
+        if ($file->unixUid !== null && $file->unixGid !== null) {
+            $payload .= self::fieldBytes(1, self::encodeUnixDataPayload($file));
+        }
+        if ($file->xattrs !== []) {
+            $payload .= self::fieldBytes(3, self::encodeXattrDataPayload($file->xattrs));
+        }
+
+        return $payload;
     }
 
     private static function encodeUnixDataPayload(FileInfo $file): string
@@ -852,7 +861,7 @@ final class BepWire
     }
 
     /**
-     * @return array{unixOwnerName:?string, unixGroupName:?string, unixUid:?int, unixGid:?int}
+     * @return array{unixOwnerName:?string, unixGroupName:?string, unixUid:?int, unixGid:?int, xattrs:array<string, string>}
      */
     private static function decodePlatformDataPayload(string $payload): array
     {
@@ -862,16 +871,19 @@ final class BepWire
                 'unixGroupName' => null,
                 'unixUid' => null,
                 'unixGid' => null,
+                'xattrs' => [],
             ];
         }
 
         $fields = self::decodeFields($payload);
+        $xattrs = isset($fields[3]) ? self::decodeXattrDataPayload(self::lastBytes($fields, 3)) : [];
         if (!isset($fields[1])) {
             return [
                 'unixOwnerName' => null,
                 'unixGroupName' => null,
                 'unixUid' => null,
                 'unixGid' => null,
+                'xattrs' => $xattrs,
             ];
         }
 
@@ -882,6 +894,53 @@ final class BepWire
             'unixGroupName' => $unix['groupName'],
             'unixUid' => $unix['uid'],
             'unixGid' => $unix['gid'],
+            'xattrs' => $xattrs,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $xattrs
+     */
+    private static function encodeXattrDataPayload(array $xattrs): string
+    {
+        $payload = '';
+        foreach ($xattrs as $name => $value) {
+            $payload .= self::fieldBytes(1, self::encodeXattrPayload((string) $name, $value));
+        }
+
+        return $payload;
+    }
+
+    private static function encodeXattrPayload(string $name, string $value): string
+    {
+        return self::fieldBytes(1, $name) . self::fieldBytes(2, $value);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function decodeXattrDataPayload(string $payload): array
+    {
+        $fields = self::decodeFields($payload);
+        $xattrs = [];
+        foreach (self::allBytes($fields, 1) as $xattrPayload) {
+            $xattr = self::decodeXattrPayload($xattrPayload);
+            $xattrs[$xattr['name']] = $xattr['value'];
+        }
+
+        return $xattrs;
+    }
+
+    /**
+     * @return array{name:string, value:string}
+     */
+    private static function decodeXattrPayload(string $payload): array
+    {
+        $fields = self::decodeFields($payload);
+
+        return [
+            'name' => self::lastBytes($fields, 1),
+            'value' => self::lastBytes($fields, 2),
         ];
     }
 

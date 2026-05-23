@@ -54,6 +54,8 @@ final class FileInfo
         public readonly ?int $unixGid = null,
         public readonly int $modifiedBy = 0,
         public readonly string $encryptedPayload = '',
+        /** @var array<string, string> */
+        public readonly array $xattrs = [],
     ) {
         if (
             $this->modifiedS < 0
@@ -79,6 +81,11 @@ final class FileInfo
         foreach ($this->blocks as $block) {
             if (!$block instanceof Block) {
                 throw new \InvalidArgumentException('Expected only Block instances');
+            }
+        }
+        foreach ($this->xattrs as $name => $value) {
+            if (!is_string($name) || $name === '' || str_contains($name, "\0") || !is_string($value)) {
+                throw new \InvalidArgumentException('Extended attributes must be a string map with non-empty names');
             }
         }
         if (($this->unixUid === null) !== ($this->unixGid === null)) {
@@ -118,6 +125,7 @@ final class FileInfo
             unixGid: $this->unixGid,
             modifiedBy: $this->modifiedBy,
             encryptedPayload: $this->encryptedPayload,
+            xattrs: $this->xattrs,
         );
     }
 
@@ -146,6 +154,7 @@ final class FileInfo
             unixGid: $this->unixGid,
             modifiedBy: $this->modifiedBy,
             encryptedPayload: $this->encryptedPayload,
+            xattrs: $this->xattrs,
         );
     }
 
@@ -174,6 +183,7 @@ final class FileInfo
             unixGid: $this->unixGid,
             modifiedBy: $this->modifiedBy,
             encryptedPayload: $this->encryptedPayload,
+            xattrs: $this->xattrs,
         );
     }
 
@@ -281,6 +291,9 @@ final class FileInfo
         if (!$comparison->ignoreOwnership && !$this->unixOwnershipEqual($other)) {
             return false;
         }
+        if (!$comparison->ignoreXattrs && $this->xattrs !== $other->xattrs) {
+            return false;
+        }
 
         if (
             !$comparison->ignorePerms
@@ -338,6 +351,8 @@ final class FileInfo
             unixUid: $this->unixUid,
             unixGid: $this->unixGid,
             modifiedBy: $deviceId,
+            encryptedPayload: $this->encryptedPayload,
+            xattrs: $this->xattrs,
         );
     }
 

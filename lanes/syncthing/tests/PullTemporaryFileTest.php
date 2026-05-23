@@ -8,6 +8,7 @@ use PortLibs\Syncthing\BlockPullResult;
 use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\IgnoreMatcher;
+use PortLibs\Syncthing\PlatformMetadataApplier;
 use PortLibs\Syncthing\PullFinalizationResult;
 use PortLibs\Syncthing\PullTemporaryFile;
 use PortLibs\Syncthing\ReceiveEncrypted;
@@ -102,6 +103,86 @@ return [
             $t->true($result->finalized);
             $t->same(0400, syncthing_pull_temp_mode($assembler->finalPath()));
             $t->same($bytes, (string) file_get_contents($assembler->finalPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish applies platform metadata to temp file before promotion' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $bytes = str_repeat('platform metadata media ', 4000);
+            $base = syncthing_pull_temp_file('wp-content/uploads/2026/platform-owned.jpg', $bytes, 0644, 1_700_000_410);
+            $uid = (int) fileowner($root);
+            $gid = (int) filegroup($root);
+            $file = new FileInfo(
+                name: $base->name,
+                modifiedS: $base->modifiedS,
+                version: $base->version,
+                size: $base->size,
+                rawBlockSize: $base->rawBlockSize,
+                permissions: $base->permissions,
+                blocks: $base->blocks,
+                unixUid: $uid,
+                unixGid: $gid,
+                modifiedBy: $base->modifiedBy,
+                xattrs: ['user.wordpress.source' => 'playground'],
+            );
+            $appliedXattrs = [];
+            $platform = new PlatformMetadataApplier(
+                syncOwnership: true,
+                syncXattrs: true,
+                xattrSetter: static function (string $xattrPath, string $xattrName, string $xattrValue) use (&$appliedXattrs): bool {
+                    $appliedXattrs[] = [basename($xattrPath), $xattrName, $xattrValue];
+                    return true;
+                },
+            );
+            $assembler = new PullTemporaryFile($file, $root, platformMetadata: $platform);
+
+            $assembler->writeBlock($file->blocks[0], $bytes, source: 'pulledWithPlatformMetadata');
+            $result = $assembler->finalize();
+
+            clearstatcache(true, $assembler->finalPath());
+            $t->true($result->finalized);
+            $t->same($uid, (int) fileowner($assembler->finalPath()));
+            $t->same($gid, (int) filegroup($assembler->finalPath()));
+            $t->same([[basename($assembler->tempName()), 'user.wordpress.source', 'playground']], $appliedXattrs);
+            $t->same($bytes, (string) file_get_contents($assembler->finalPath()));
+            $t->same(PullFinalizationResult::DB_UPDATE_HANDLE_FILE, $result->dbUpdateType);
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish keeps temp file when platform metadata fails' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $bytes = str_repeat('retry platform metadata ', 4000);
+            $base = syncthing_pull_temp_file('wp-content/uploads/2026/platform-retry.jpg', $bytes, 0644, 1_700_000_420);
+            $file = new FileInfo(
+                name: $base->name,
+                modifiedS: $base->modifiedS,
+                version: $base->version,
+                size: $base->size,
+                rawBlockSize: $base->rawBlockSize,
+                permissions: $base->permissions,
+                blocks: $base->blocks,
+                modifiedBy: $base->modifiedBy,
+                xattrs: ['user.wordpress.source' => 'playground'],
+            );
+            $platform = new PlatformMetadataApplier(
+                syncXattrs: true,
+                xattrSetter: static fn (): bool => false,
+            );
+            $assembler = new PullTemporaryFile($file, $root, platformMetadata: $platform);
+
+            $assembler->writeBlock($file->blocks[0], $bytes, source: 'pulledRetryableMetadata');
+            $result = $assembler->finalize();
+
+            $t->true($result->closed);
+            $t->true(!$result->finalized);
+            $t->same('setting metadata: setting xattrs: user.wordpress.source failed', $result->error);
+            $t->same('', $result->dbUpdateType);
+            $t->true(file_exists($assembler->tempPath()));
+            $t->true(!file_exists($assembler->finalPath()));
         } finally {
             syncthing_pull_temp_rm($root);
         }

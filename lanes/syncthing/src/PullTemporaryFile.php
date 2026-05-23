@@ -20,6 +20,8 @@ final class PullTemporaryFile
 
     private string $rootPath;
 
+    private PlatformMetadataApplier $platformMetadata;
+
     private string $tempName;
 
     private ?string $error = null;
@@ -65,6 +67,7 @@ final class PullTemporaryFile
         private readonly ?IgnoreMatcher $ignoreMatcher = null,
         private readonly bool $receiveOnlyFolder = false,
         private readonly bool $detectCaseConflicts = false,
+        ?PlatformMetadataApplier $platformMetadata = null,
     ) {
         if ($this->file->type !== FileInfo::TYPE_FILE || $this->file->deleted || $this->file->isInvalid()) {
             throw new \InvalidArgumentException('Pull temporary files can only assemble valid regular files');
@@ -93,6 +96,7 @@ final class PullTemporaryFile
             throw new \InvalidArgumentException('Pull root path must be an existing directory');
         }
         $this->rootPath = rtrim($realRoot, DIRECTORY_SEPARATOR);
+        $this->platformMetadata = $platformMetadata ?? new PlatformMetadataApplier();
 
         $this->tempName = $tempName ?? RequestServer::temporaryName($this->file->name);
         ProtocolValidation::checkFilename($this->tempName);
@@ -201,7 +205,16 @@ final class PullTemporaryFile
         }
 
         if (!$this->ignorePerms && !$this->file->noPermissions) {
-            @chmod($this->tempPath(), $this->file->permissions & 0777);
+            if (!@chmod($this->tempPath(), $this->file->permissions & 0777)) {
+                $this->error = 'setting permissions: chmod failed';
+                return $this->result(closed: true, finalized: false, error: $this->error);
+            }
+        }
+
+        $metadataError = $this->platformMetadata->apply($this->file, $this->tempPath());
+        if ($metadataError !== null) {
+            $this->error = 'setting metadata: ' . $metadataError;
+            return $this->result(closed: true, finalized: false, error: $this->error);
         }
 
         $finalPath = $this->finalPath();
@@ -807,6 +820,7 @@ final class PullTemporaryFile
             ignoreBlocks: true,
             ignoreFlags: self::ALL_LOCAL_FLAGS,
             ignoreOwnership: true,
+            ignoreXattrs: true,
         ));
     }
 

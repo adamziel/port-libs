@@ -852,21 +852,95 @@ found for this exact branch. `wordpress-receive-encrypted-retry-loop.php` shows
 a private WordPress media metadata pull where a transient trailer-write error is
 cleared before the next bounded iteration succeeds, so no persistent folder
 error is emitted.
+The platform metadata slice now maps upstream `setPlatformData` at the
+metadata-only shortcut and `performFinish` boundaries: native FileInfo
+PlatformData carries Unix owner/group IDs plus Linux xattr name/value pairs,
+`shortcutFile` applies ownership and xattrs before `dbUpdateShortcutFile`,
+`performFinish` applies the same metadata to the Syncthing temp file before
+promotion and `dbUpdateHandleFile`, unsupported PHP xattr APIs are treated like
+upstream unsupported xattr filesystems, and explicit xattr failures leave the
+file retryable without a database update. This is backed by targeted reads of
+`lib/model/folder_sendrecv.go` around `shortcutFile`, `performFinish`,
+`setPlatformData`, `lib/model/folder_sendrecv_unix.go` around `syncOwnership`,
+and `proto/bep/bep.proto` PlatformData/XattrData fields, plus focused upstream
+runner evidence:
+`go test ./lib/model -run '^TestCopyOwner$' -count=1`.
+`wordpress-platform-metadata-shortcut.php` shows an existing WordPress media
+file receiving permissions, mtime, ownership, and import-source xattrs without
+retransferring the media bytes.
+The SetXattr replacement slice now maps upstream
+`BasicFilesystem.SetXattr`: current permitted xattrs are listed/read through the
+configured filter, stale permitted xattrs absent from the desired FileInfo
+PlatformData are removed, unchanged values are skipped, changed and new values
+are set, filter-denied host attributes are preserved, and an empty desired
+xattr set removes only permitted current attributes. Removal failures abort
+before new xattrs are set, leaving the item retryable like upstream
+`setPlatformData` errors. This is backed by targeted reads of
+`lib/fs/basicfs_xattr_unix.go` around `SetXattr` and
+`lib/fs/basicfs_test.go` around `TestXattr`, plus focused upstream runner
+evidence: `go test ./lib/fs -run '^TestXattr$' -count=1` passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/fs 0.013s`.
+`wordpress-xattr-replacement.php` shows a WordPress media file dropping stale
+Syncthing-managed import metadata, preserving a host-managed security xattr,
+skipping an unchanged import-source value, and setting changed/new media
+identity metadata.
+The xattr no-follow and unsupported-filesystem slice now maps adjacent upstream
+boundaries from `BasicFilesystem` and `setPlatformData`: Linux/BSD paths use
+`Llistxattr`, `Lgetxattr`, `Lremovexattr`, and `Lsetxattr` so symlink xattrs
+belong to the link rather than the target, unsupported-platform `GetXattr` and
+`SetXattr` return the upstream `ErrXattrsNotSupported` sentinel, and
+`setPlatformData` ignores that sentinel while still surfacing ordinary
+list/get/set/remove failures as retryable metadata errors. This is backed by
+targeted reads of `lib/fs/basicfs_xattr_unix.go`,
+`lib/fs/basicfs_xattr_linuxish.go`, `lib/fs/basicfs_xattr_unsupported.go`,
+`lib/model/folder_sendrecv.go`, `lib/scanner/walk.go`, and
+`lib/fs/platform_common.go`, plus a refreshed focused upstream
+`go test ./lib/fs -run '^TestXattr$' -count=1` run in the hydrated
+local-capacity worktree. `wordpress-xattr-unsupported.php` shows a WordPress
+media file on a shared-hosting/no-xattr filesystem continuing sync without
+attempting metadata writes.
+The scanner platform metadata slice now maps upstream `scanner.CreateFileInfo`
+and `filesystem.PlatformData`: native `FileInfoScanner` validates canonical
+relative paths, reads lstat ownership for files, directories, and symlinks,
+preserves symlink targets without following them, filters xattrs before reading
+values from the link path for symlinks, applies upstream-style per-entry and
+total xattr size caps, propagates platform-data read failures, and can hash file
+blocks for a complete WordPress media `FileInfo`. This is backed by targeted
+reads of `lib/scanner/walk.go`
+around `CreateFileInfo`, `lib/fs/platform_common.go`, and
+`lib/fs/basicfs_xattr_unix.go`, plus focused upstream runner evidence:
+`go test ./lib/scanner -run '^TestScanOwnershipPOSIX$' -count=1` and
+`go test ./lib/fs -run '^TestXattr$' -count=1` both passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`.
+`wordpress-scanner-platform-metadata.php` shows a local-first WordPress media
+file scanned with owner/group IDs, filtered `user.wordpress.*` xattrs, block
+hashing, and xattr-ignored equivalence for hosts that cannot scan xattrs.
 
 ## Test Run Notes
 
-On 2026-05-23, the focused Syncthing lane suite passed 37 files, 242 tests, and
-1945 assertions with 0 failures. `FolderErrorTrackerTest.php` alone passed 1
-file, 7 tests, and 43 assertions; `PullItemUpdaterTest.php` passed 1 file, 22
-tests, and 163 assertions. `wordpress-receive-encrypted-metadata-shortcut.php`,
-`wordpress-receive-encrypted-shortcut-retry.php`, and
-`wordpress-receive-encrypted-retry-loop.php` ran successfully. Before starting a
-root harness, this worker ran `pgrep -af '^php tools/run-tests\.php( |$)'` and
-found no active root process, then ran `php tools/run-tests.php`; the root
-harness passed 183 test files, 18901 assertions, and 0 failures.
+On 2026-05-23, the focused xattr metadata tests
+`php tools/run-tests.php lanes/syncthing/tests/PlatformMetadataApplierTest.php`
+passed 1 file, 14 assertions, and 0 failures, and
+`php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed 1
+file, 32 assertions, and 0 failures. The full Syncthing lane suite
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2017
+assertions, and 0 failures. The WordPress example
+`php lanes/syncthing/examples/wordpress-xattr-unsupported.php` ran
+successfully. Focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1`
+passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`
+with `ok github.com/syncthing/syncthing/lib/fs 0.009s`. Static upstream
+inventory remains 610 Test functions, 48 Benchmark functions, and 0 Fuzz
+functions across 141 `_test.go` files; the full upstream runner remains
+unexecuted because the primary cache is blob-filtered/no-checkout and broad
+`go test ./...` would require full hydration and dependency work. Before the
+root PHP harness, this worker ran the required
+`pgrep -af '^php tools/run-tests\.php( |$)'` check; it returned no active root
+harness, so `php tools/run-tests.php` was run and passed 185 test files, 19815
+assertions, and 0 failures.
 
 ## Next Task
 
-Map platform metadata application/failure for `shortcutFile` and
-`performFinish`, including ownership/xattr error paths and any focused upstream
-`TestCopyOwner`-adjacent evidence that can be run cheaply.
+Map xattr list/get/set/remove hard-error propagation from PHP callbacks and
+default host-extension absence, or move to upstream scanner walk ignore/error
+edge cases if the metadata xattr slice is accepted.

@@ -6,6 +6,7 @@ use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\IgnoreMatcher;
+use PortLibs\Syncthing\PlatformMetadataApplier;
 use PortLibs\Syncthing\PullDbUpdater;
 use PortLibs\Syncthing\PullItemUpdater;
 use PortLibs\Syncthing\ReceiveEncrypted;
@@ -476,6 +477,96 @@ return [
             $t->same(PullDbUpdater::DB_UPDATE_SHORTCUT_FILE, $updater->dbUpdates()[0]['type']);
             $t->same('metadata', $updater->itemFinishedEvents()[0]['action']);
             $t->same([], $updater->pullErrors());
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'shortcutFile applies synced ownership and xattrs before database update' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/platform-metadata.jpg';
+            $bytes = 'platform metadata bytes';
+            $blocksHash = hash('sha256', 'platform metadata shortcut blocks');
+            $path = syncthing_item_write($root, $name, $bytes, 1_700_004_805);
+            $uid = (int) fileowner($path);
+            $gid = (int) filegroup($path);
+            $appliedXattrs = [];
+            $target = new FileInfo(
+                name: $name,
+                modifiedS: 1_700_004_806,
+                version: VersionVector::fromCounters([202 => 74]),
+                size: strlen($bytes),
+                blocksHash: $blocksHash,
+                permissions: 0644,
+                rawBlockSize: strlen($bytes),
+                unixUid: $uid,
+                unixGid: $gid,
+                modifiedBy: 202,
+                xattrs: ['user.wordpress.source' => 'playground'],
+            );
+            $current = syncthing_item_file_info($name, $bytes, 1_700_004_805, [101 => 73], $blocksHash);
+            $platform = new PlatformMetadataApplier(
+                syncOwnership: true,
+                syncXattrs: true,
+                xattrSetter: static function (string $xattrPath, string $xattrName, string $xattrValue) use (&$appliedXattrs): bool {
+                    $appliedXattrs[] = [basename($xattrPath), $xattrName, $xattrValue];
+                    return true;
+                },
+            );
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media', platformMetadata: $platform);
+
+            $updated = $updater->shortcutFile($target, $current);
+
+            clearstatcache(true, $path);
+            $t->true($updated);
+            $t->same($uid, (int) fileowner($path));
+            $t->same($gid, (int) filegroup($path));
+            $t->same([['platform-metadata.jpg', 'user.wordpress.source', 'playground']], $appliedXattrs);
+            $t->same(1_700_004_806, filemtime($path));
+            $t->same(PullDbUpdater::DB_UPDATE_SHORTCUT_FILE, $updater->dbUpdates()[0]['type']);
+            $t->same($target->xattrs, $updater->dbUpdates()[0]['file']->xattrs);
+            $t->same([], $updater->pullErrors());
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'shortcutFile keeps xattr metadata failure retryable without database update' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/retry-platform-metadata.jpg';
+            $bytes = 'retryable metadata bytes';
+            $blocksHash = hash('sha256', 'retry metadata shortcut blocks');
+            $path = syncthing_item_write($root, $name, $bytes, 1_700_004_807);
+            $target = new FileInfo(
+                name: $name,
+                modifiedS: 1_700_004_808,
+                version: VersionVector::fromCounters([202 => 75]),
+                size: strlen($bytes),
+                blocksHash: $blocksHash,
+                permissions: 0644,
+                rawBlockSize: strlen($bytes),
+                modifiedBy: 202,
+                xattrs: ['user.wordpress.source' => 'playground'],
+            );
+            $current = syncthing_item_file_info($name, $bytes, 1_700_004_807, [101 => 74], $blocksHash);
+            $platform = new PlatformMetadataApplier(
+                syncXattrs: true,
+                xattrSetter: static fn (): bool => false,
+            );
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media', platformMetadata: $platform);
+
+            $updated = $updater->shortcutFile($target, $current);
+
+            $t->true(!$updated);
+            $t->same(1_700_004_807, filemtime($path));
+            $t->same([], $updater->dbUpdates());
+            $t->same([
+                [
+                    'path' => $name,
+                    'error' => 'shortcut file (setting metadata): setting xattrs: user.wordpress.source failed',
+                ],
+            ], $updater->pullErrors());
+            $t->same('shortcut file (setting metadata): setting xattrs: user.wordpress.source failed', $updater->itemFinishedEvents()[0]['error']);
         } finally {
             syncthing_item_rm($root);
         }

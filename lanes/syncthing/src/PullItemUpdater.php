@@ -23,6 +23,8 @@ final class PullItemUpdater
 
     private string $rootPath;
 
+    private PlatformMetadataApplier $platformMetadata;
+
     /**
      * @var list<array{folder:string, item:string, type:string, action:string}>
      */
@@ -58,6 +60,7 @@ final class PullItemUpdater
         private readonly bool $receiveOnlyFolder = false,
         private readonly bool $receiveEncryptedFolder = false,
         private readonly string $directorySeparator = DIRECTORY_SEPARATOR,
+        ?PlatformMetadataApplier $platformMetadata = null,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -68,6 +71,7 @@ final class PullItemUpdater
         }
 
         $this->rootPath = rtrim($realRoot, DIRECTORY_SEPARATOR);
+        $this->platformMetadata = $platformMetadata ?? new PlatformMetadataApplier();
     }
 
     public function handleDirectory(FileInfo $file, ?FileInfo $current = null): void
@@ -104,7 +108,13 @@ final class PullItemUpdater
             }
 
             if (!$this->ignorePerms && !$file->noPermissions) {
-                @chmod($path, ($file->permissions & 0777) | (fileperms($path) & 07000));
+                if (!@chmod($path, ($file->permissions & 0777) | (fileperms($path) & 07000))) {
+                    return $this->fail($file->name, 'handling dir (setting permissions): chmod failed');
+                }
+            }
+            $metadataError = $this->platformMetadata->apply($file, $path);
+            if ($metadataError !== null) {
+                return $this->fail($file->name, 'handling dir (setting metadata): ' . $metadataError);
             }
 
             $this->scheduleDbUpdate($file, PullDbUpdater::DB_UPDATE_HANDLE_DIR);
@@ -144,6 +154,10 @@ final class PullItemUpdater
 
             if (!symlink($file->symlinkTarget, $path)) {
                 return $this->fail($file->name, 'symlink create failed');
+            }
+            $metadataError = $this->platformMetadata->apply($file, $path);
+            if ($metadataError !== null) {
+                return $this->fail($file->name, 'symlink create: setting metadata: ' . $metadataError);
             }
 
             $this->scheduleDbUpdate($file, PullDbUpdater::DB_UPDATE_HANDLE_SYMLINK);
@@ -562,6 +576,10 @@ final class PullItemUpdater
         if (!$this->ignorePerms && !$file->noPermissions && !@chmod($path, $file->permissions & 0777)) {
             return $this->fail($file->name, 'shortcut file (setting permissions): chmod failed');
         }
+        $metadataError = $this->platformMetadata->apply($file, $path);
+        if ($metadataError !== null) {
+            return $this->fail($file->name, 'shortcut file (setting metadata): ' . $metadataError);
+        }
         $dbFile = $file;
         if ($this->receiveEncryptedFolder) {
             $trailerSize = $this->rewriteEncryptionTrailer($path, $file);
@@ -680,7 +698,10 @@ final class PullItemUpdater
             return 'rename temporary target into place failed';
         }
 
-        $this->applyFileMetadata($targetPath, $target);
+        $metadataError = $this->applyFileMetadata($targetPath, $target);
+        if ($metadataError !== null) {
+            return 'rename target: ' . $metadataError;
+        }
         $this->scheduleDbUpdate($target, PullDbUpdater::DB_UPDATE_HANDLE_FILE);
         $this->scheduleDbUpdate($sourceDeletion, PullDbUpdater::DB_UPDATE_DELETE_FILE);
 
@@ -957,6 +978,7 @@ final class PullItemUpdater
             ignoreBlocks: true,
             ignoreFlags: self::ALL_LOCAL_FLAGS,
             ignoreOwnership: true,
+            ignoreXattrs: true,
         ));
     }
 
@@ -1047,14 +1069,24 @@ final class PullItemUpdater
         @rename($tempPath, $sourcePath);
     }
 
-    private function applyFileMetadata(string $path, FileInfo $file): void
+    private function applyFileMetadata(string $path, FileInfo $file): ?string
     {
         if (!$this->ignorePerms && !$file->noPermissions) {
-            @chmod($path, $file->permissions & 0777);
+            if (!@chmod($path, $file->permissions & 0777)) {
+                return 'setting permissions: chmod failed';
+            }
+        }
+        $metadataError = $this->platformMetadata->apply($file, $path);
+        if ($metadataError !== null) {
+            return 'setting metadata: ' . $metadataError;
         }
         if ($file->modifiedS > 0) {
-            @touch($path, $file->modifiedS);
+            if (!@touch($path, $file->modifiedS)) {
+                return 'setting metadata: chtimes failed';
+            }
         }
+
+        return null;
     }
 
     private function moveForConflict(string $path, FileInfo $file): ?string

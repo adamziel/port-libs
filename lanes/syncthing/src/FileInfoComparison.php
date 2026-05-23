@@ -12,6 +12,7 @@ final class FileInfoComparison
         public readonly bool $ignoreBlocks = false,
         public readonly int $ignoreFlags = 0,
         public readonly bool $ignoreOwnership = false,
+        public readonly bool $ignoreXattrs = false,
     ) {
         if ($this->modTimeWindowNs < 0 || $this->ignoreFlags < 0) {
             throw new \InvalidArgumentException('Comparison options must not be negative');

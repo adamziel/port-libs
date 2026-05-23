@@ -290,6 +290,10 @@ return [
             unixUid: 33,
             unixGid: 33,
             modifiedBy: 11,
+            xattrs: [
+                'user.wordpress.source' => 'playground',
+                'user.wordpress.media-id' => '451',
+            ],
         );
 
         $payload = BepWire::encodeFileInfoPayload($file);
@@ -317,6 +321,10 @@ return [
         $t->same('www-data', $decoded->unixGroupName);
         $t->same(33, $decoded->unixUid);
         $t->same(33, $decoded->unixGid);
+        $t->same([
+            'user.wordpress.source' => 'playground',
+            'user.wordpress.media-id' => '451',
+        ], $decoded->xattrs);
     },
     'maps index and index update protobuf payloads and frame types' => static function (TestRunner $t): void {
         $blockList = new BlockList();
