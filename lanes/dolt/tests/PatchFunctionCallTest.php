@@ -354,6 +354,20 @@ return [
         $t->same(['schema'], array_column($rows, 'diff_type'));
         $t->same([], $warnings);
     },
+    'dolt patch function call omits existing-table check constraint maintenance rows' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-check-constraint-maintenance.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same($fixture['expectedCheckDiffTypes'], array_column(
+            TableSchema::diffChecks($fixture['baseSchema'], $fixture['workingSchema']),
+            'diff_type'
+        ));
+        $t->same($fixture['expectedStatements'], array_column($rows, 'statement'));
+        $t->same([], $rows);
+        $t->same([], $warnings);
+    },
     'dolt patch function call materializes table collation snapshot deltas' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/wp-patch-collation-review.php';
         $warnings = [];
@@ -389,6 +403,17 @@ return [
         $t->same($fixture['expectedStatements'], array_column($rows, 'statement'));
         $t->same(['schema', 'schema', 'schema', 'data'], array_column($rows, 'diff_type'));
         $t->same([1, 2, 3, 4], array_column($rows, 'statement_order'));
+        $t->same([], $warnings);
+    },
+    'dolt patch function call materializes auto increment wp_posts creation' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-autoincrement-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same($fixture['expectedStatements'], array_column($rows, 'statement'));
+        $t->same($fixture['expectedDiffTypes'], array_column($rows, 'diff_type'));
+        $t->same([1, 2, 3], array_column($rows, 'statement_order'));
         $t->same([], $warnings);
     },
     'dolt patch function call omits metadata-only column snapshot deltas' => static function (TestRunner $t): void {
@@ -548,6 +573,15 @@ return [
         $t->contains('CONSTRAINT `wp_import_audit_chk_status` CHECK', $output['statements'][0]);
         $t->same([], $output['warnings']);
     },
+    'wordpress patch check constraint maintenance example stays empty like upstream' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-check-constraint-maintenance.php';
+        $output = require __DIR__ . '/../examples/wordpress-patch-check-constraint-maintenance.php';
+
+        $t->same($fixture['expectedCheckDiffTypes'], $output['checkDiffTypes']);
+        $t->same($fixture['expectedStatements'], $output['statements']);
+        $t->same([], $output['rows']);
+        $t->same([], $output['warnings']);
+    },
     'wordpress patch collation review example exposes option comparison drift' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-patch-collation-review.php';
 
@@ -572,6 +606,16 @@ return [
         $t->same(['schema', 'schema', 'schema', 'data'], array_column($output['rows'], 'diff_type'));
         $t->contains('GENERATED ALWAYS AS', $output['statements'][1]);
         $t->contains("DEFAULT 'draft'", $output['statements'][2]);
+        $t->same([], $output['warnings']);
+    },
+    'wordpress patch auto increment review example exposes imported post ids' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-autoincrement-review.php';
+        $output = require __DIR__ . '/../examples/wordpress-patch-autoincrement-review.php';
+
+        $t->same($fixture['expectedStatements'], $output['statements']);
+        $t->same($fixture['expectedDiffTypes'], array_column($output['rows'], 'diff_type'));
+        $t->contains('AUTO_INCREMENT', $output['statements'][0]);
+        $t->contains('Imported launch', $output['statements'][1]);
         $t->same([], $output['warnings']);
     },
     'wordpress patch metadata-only column review example stays empty like upstream' => static function (TestRunner $t): void {

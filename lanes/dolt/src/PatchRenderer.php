@@ -221,7 +221,7 @@ final class PatchRenderer
             }
         }
 
-        if ($this->primaryKeyNames($fromSchema) !== $this->primaryKeyNames($toSchema)) {
+        if ($this->primaryKeySignature($fromSchema) !== $this->primaryKeySignature($toSchema)) {
             $statements[] = 'ALTER TABLE ' . $this->quoteIdentifier($toTableName) . ' DROP PRIMARY KEY;';
             $toPrimaryKeys = $this->primaryKeyNames($toSchema);
             if ($toPrimaryKeys !== []) {
@@ -260,6 +260,10 @@ final class PatchRenderer
             }
         }
 
+        foreach ($this->checkConstraintStatements($fromSchema, $toSchema) as $statement) {
+            $statements[] = $statement;
+        }
+
         if ($fromSchema->collation() !== $toSchema->collation()) {
             $statements[] = 'ALTER TABLE ' . $this->quoteIdentifier($toTableName)
                 . ' COLLATE=' . $this->quoteSqlString($toSchema->collation()) . ';';
@@ -274,13 +278,16 @@ final class PatchRenderer
     }
 
     /**
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $column
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool} $column
      */
     private function columnDefinition(array $column): string
     {
         $parts = [$this->quoteIdentifier($column['name']), $column['type']];
         if ($column['primaryKey'] || in_array('not_null', $column['constraints'], true)) {
             $parts[] = 'NOT NULL';
+        }
+        if ($column['autoIncrement']) {
+            $parts[] = 'AUTO_INCREMENT';
         }
         foreach ($column['constraints'] as $constraint) {
             if ($constraint === 'not_null') {
@@ -305,8 +312,8 @@ final class PatchRenderer
     }
 
     /**
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $fromColumn
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $toColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool} $fromColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool} $toColumn
      */
     private function columnDefinitionChanged(array $fromColumn, array $toColumn): bool
     {
@@ -368,6 +375,24 @@ final class PatchRenderer
     }
 
     /**
+     * Dolt's non-create/drop schema patch path reprints primary-key DDL when
+     * the primary-key column collection changes, including type/tag changes.
+     *
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string}>
+     */
+    private function primaryKeySignature(TableSchema $schema): array
+    {
+        return array_map(
+            static fn (array $column): array => [
+                'name' => $column['name'],
+                'tag' => $column['tag'],
+                'type' => $column['type'],
+            ],
+            $schema->primaryKeyColumns()
+        );
+    }
+
+    /**
      * @return list<array{diff_type:string, from:array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}|null, to:array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}|null}>
      */
     private function diffIndexes(TableSchema $fromSchema, TableSchema $toSchema): array
@@ -381,6 +406,20 @@ final class PatchRenderer
     private function diffForeignKeys(TableSchema $fromSchema, TableSchema $toSchema): array
     {
         return $this->diffNamedObjects($fromSchema->foreignKeys(), $toSchema->foreignKeys());
+    }
+
+    /**
+     * Upstream `dolt_patch()` currently renders check constraints only in
+     * CREATE TABLE statements; existing-table add/drop/modify check changes
+     * are classified as schema metadata deltas but emit no ALTER rows.
+     *
+     * @return list<string>
+     */
+    private function checkConstraintStatements(TableSchema $fromSchema, TableSchema $toSchema): array
+    {
+        TableSchema::diffChecks($fromSchema, $toSchema);
+
+        return [];
     }
 
     /**

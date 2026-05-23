@@ -5,6 +5,22 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## Runner Refresh 2026-05-23 Check Constraint Information Schema Slice
+
+- Focused upstream source/test inspection:
+  - `integration-tests/bats/sql-check-constraints.bats`: the `basic tests for check constraints` case accepts valid rows, rejects `a > 3` and `b > a` violations, allows a `NULL` comparison result, and proves dropped checks stop enforcing while checks on another table remain active.
+  - `integration-tests/bats/sql-check-constraints.bats`: the `check constraints survive adding a new column` case confirms `information_schema.CHECK_CONSTRAINTS` exposes `constraint_catalog`, `constraint_name`, and `check_clause` as `def,foo_chk_rvgogafi,(`c1` > 3)`.
+  - `integration-tests/bats/sql-create-tables.bats`: the `tables should not reuse constraint names` case confirms copied-table CHECK constraints surface as distinct names in `information_schema.table_constraints` with `CONSTRAINT_TYPE="CHECK"`.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 20m bats --filter 'sql-check-constraints: (basic tests for check constraints|check constraints survive adding a new column)' sql-check-constraints.bats`
+  - Result: exit `0`, plan `1..2`, `2` passed, `0` failed, `0` skipped.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 10m bats --filter 'sql-create-tables: tables should not reuse constraint names' sql-create-tables.bats`
+  - Result: exit `0`, plan `1..1`, `1` passed, `0` failed, `0` skipped.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `17` Dolt test files, `180` behavior tests, `901` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0` with `180` test files, `17,431` assertions, and `0` failures.
+- Boundary unchanged: this maps a bounded CHECK validation and `information_schema` metadata surface; it does not claim a general SQL expression engine, SQL server compatibility, full BATS, or full `go test ./...` parity.
+
 ## Runner Refresh 2026-05-23 Patch Generated/Default Column Slice
 
 - Focused upstream source inspection:
@@ -25,6 +41,61 @@
 - Native PHP verification after this slice:
   - Dolt lane-only PHP: `16` Dolt test files, `168` behavior tests, `853` assertions, and `0` failures.
   - Required root `php tools/run-tests.php`: exit `0` with `174` test files, `16,538` assertions, and `0` failures after lane-status correction.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
+## Runner Tooling Refresh 2026-05-23 03:08 UTC
+
+- Cache inspection before changing/building:
+  - `git -C .upstream-cache/dolt rev-parse HEAD`: `b2274926e0dcd84aab000ee242df5b5e75689eef`.
+  - `git -C .upstream-cache/dolt rev-parse --is-shallow-repository`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.partialclonefilter`: `blob:none`.
+  - `git -C .upstream-cache/dolt sparse-checkout list`: `go`, `integration-tests/bats`.
+  - `git -C .upstream-cache/dolt status --short --branch`: known sparse/no-checkout out-of-cone deletions plus runner-local `.gocache/`, `.gomodcache/`, `bats-home/`, `tmp/`, and `integration-tests/bats/status-local-fixed.bats`.
+  - No delete, reset, or wider sparse hydration was run.
+- Tooling check:
+  - `sudo -n dnf install -y golang bats expect libicu-devel`
+  - Result: all four packages were already installed; `Nothing to do.`
+  - `go version && bats --version && expect -v && rpm -q golang golang-bin golang-src bats expect libicu-devel`: `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, `expect version 5.45.4`, `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, `expect-5.45.4-31.fc44.x86_64`, `libicu-devel-77.1-2.fc44.x86_64`.
+- Cache-local build:
+  - `mkdir -p tmp bats-home/go/bin bats-tmp && env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install -p 1 ./cmd/dolt ./store/cmd/noms ./utils/remotesrv && env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version`
+  - Result: exit 0; cache-local `dolt`, `noms`, and `remotesrv` rebuilt; `dolt version 2.0.5`.
+- Bounded Go evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 20m`
+  - Result: exit 0; 14 packages with tests passed, `rowconv` and `sqle/dtables` compiled with no test files, `sqle/dtablefunctions` passed in `0.048s`, and `merge` passed in `6.260s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 30m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(DiffTableFunction|DiffTableFunctionPrepared|DiffSummaryTableFunction|DiffSummaryTableFunctionPrepared|DiffStatTableFunction|DiffStatTableFunctionPrepared|SchemaDiffTableFunction|SchemaDiffTableFunctionPrepared|PatchTableFunction|PatchTableFunctionPrepared|ColumnDiffSystemTable|ColumnDiffSystemTablePrepared|DiffSystemTable|DiffSystemTablePrepared|UnscopedDiffSystemTable|UnscopedDiffSystemTablePrepared|CommitDiffSystemTable|CommitDiffSystemTablePrepared|LogTableFunction|LogTableFunctionPrepared|DoltBranchesSystemTable|DoltBranchesSystemTablePrepared|BranchActivity|DoltDTableScripts|DoltDTableScriptsPrepared|DoltConflictsTableNameTable|DoltUserPrivileges)$' -count=1 -timeout 30m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 15.633s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/integration_test -run 'Test(DoltSchemasHistoryTable|DoltSchemasDiffTable|DoltProceduresHistoryTable|DoltProceduresDiffTable|HistoryTable)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/integration_test 0.248s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 5m go test -p 1 ./libraries/doltcore/doltdb -run 'Test(ParseInstructions|SplitAncestorSpec)$' -count=1 -timeout 5m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/doltdb 0.048s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestHistorySystemTable/(can sort by dolt_log.commit|dolt_commit_ancestors table with commit_hash filter ignored for max1row optimization)$|TestDoltScripts/test has_ancestor$' -count=1 -timeout 10m -v`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.422s`.
+- Bounded BATS evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 90m bats diff.bats rename-tables.bats primary-key-changes.bats diff-stat.bats query-diff.bats schema-changes.bats column_tags.bats sql-diff.bats merge.bats schema-conflicts.bats conflict-detection.bats sql-commit-diff.bats log.bats status-local-fixed.bats sql-status.bats branch.bats sql-branch.bats keyless.bats`
+  - Result: exit 0 with plan `1..419`; 394 runnable tests passed and 25 upstream-declared skips remained across diff/schema/rename/primary-key/diff-stat/query-diff/column-tag/sql-diff/merge/schema-conflict/conflict-detection/commit-diff/log/status/sql-status/branch/sql-branch/keyless behavior.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
+  - Result: exit 1 with plan `1..1`; pristine `status.bats` still truncates `vb2dcuqqpd8u5u02kpparc87g0g7oqk3` to `uqqpd8u5u02kpparc87g0g7oqk3`, and `dolt reset` reports `branch not found`.
+- Direct cache-local `dolt_patch()` generated/default probe:
+  - A temporary repo under `.upstream-cache/dolt/tmp/patch-generated-default.ae7kJo` was initialized with `create table t (pk int primary key, c int);`, committed, then altered with `ADD cdef int not null default 42`, `ADD gv int generated always as (c + 1) virtual`, `ADD gs int generated always as (c + 2) stored`, and `MODIFY c bigint default 9`.
+  - Probe command: `dolt sql -r csv -q "select statement_order,diff_type,statement from dolt_patch('HEAD','WORKING','t') where diff_type='schema' order by statement_order;"`
+  - Result rows: `ALTER TABLE t MODIFY COLUMN c bigint DEFAULT '9';`, `ALTER TABLE t ADD cdef int NOT NULL DEFAULT '42';`, `ALTER TABLE t ADD gv int GENERATED ALWAYS AS (((c + 1)));`, and `ALTER TABLE t ADD gs int GENERATED ALWAYS AS (((c + 2))) STORED;` with upstream quoting around identifiers in the raw CSV output.
+- Direct cache-local `dolt_patch()` auto-increment probes:
+  - A temporary repo under `.upstream-cache/dolt/tmp/autoinc-create.*` created `wp_posts (ID bigint primary key auto_increment, post_title varchar(255))` and inserted two rows before any commit. `dolt_patch('HEAD','WORKING','wp_posts')` returned a `CREATE TABLE` row with `` `ID` bigint NOT NULL AUTO_INCREMENT`` followed by two explicit `INSERT` rows; `SHOW CREATE TABLE` separately displayed table-level `AUTO_INCREMENT=3`, which `dolt_patch()` did not include.
+  - A temporary repo under `.upstream-cache/dolt/tmp/autoinc-alter.*` changed `ID bigint primary key` to `ID bigint auto_increment`; `dolt_patch()` returned only the CSV header, confirming the metadata-only no-row boundary.
+  - A temporary repo under `.upstream-cache/dolt/tmp/autoinc-modify.*` changed `ID bigint primary key` to `ID int auto_increment`; `dolt_patch()` returned `ALTER TABLE ... MODIFY COLUMN ... int NOT NULL AUTO_INCREMENT;`, `DROP PRIMARY KEY;`, and `ADD PRIMARY KEY (ID);`.
+- Required repository check before this metadata edit:
+  - `php tools/run-tests.php`
+  - Result: exit 0 with `176` test files, `16,810` assertions, and `0` failures.
+- Required repository check after this metadata edit:
+  - `php tools/run-tests.php`
+  - Result: exit 1 with `177` test files, `16,002` assertions, and `118` failures outside Dolt. The failures are in `lanes/pandoc/tests/MarkdownReaderTest.php` and share the same root cause: `Call to undefined method PortLibs\Pandoc\MarkdownReader::collectSpannedGridTableLines()`.
+  - Final captured rerun `php tools/run-tests.php > /tmp/dolt-final-root-php.log 2>&1`: exit 0 with `177` test files, `16,958` assertions, and `0` failures.
+- Dolt lane-only verification after the red root check:
+  - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $r=new TestRunner(); foreach (glob("lanes/dolt/tests/*Test.php") as $f) { $r->runTests(require $f, $f); } fwrite(STDOUT, "\nDolt: " . count(glob("lanes/dolt/tests/*Test.php")) . " test files, " . $r->assertions() . " assertions, " . $r->failures() . " failures\n"); exit($r->failures() === 0 ? 0 : 1);'`
+  - Result: exit 0 with `16` Dolt test files, `874` assertions, and `0` failures.
+- Current native auto-increment verification:
+  - Dolt lane-only PHP: exit 0 with `16` Dolt test files, `176` behavior tests, `890` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php`: exit 1 with `178` test files, `17,196` assertions, and `1` failure outside Dolt in `lanes/markerpdf/tests/SuppliedDocumentConverterTest.php` (`rejects malformed supplied document options before benchmark import`: expected `InvalidArgumentException` was not thrown).
 - Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
 
 ## Runner Tooling Refresh 2026-05-23 02:23 UTC
@@ -1287,6 +1358,8 @@
   - Final post-metadata rerun failed outside Dolt: 140 test files, 12,435 assertions, 1 failure in `lanes/syncthing/tests/RequestServerTest.php` (`maps upstream temporary file prefix recognition`) because that uncommitted Syncthing test calls missing `TestRunner::false()`. Dolt tests reached by this root run passed.
   - Initial required rerun after native tabular diff-mode rendering failed outside Dolt: 141 test files, 12,572 assertions, 2 failures in `lanes/readability/tests/ArticleExtractorTest.php`. Dolt tests reached by this root run passed.
   - Final captured rerun after native tabular diff-mode rendering passed: 142 test files, 12,668 assertions, 0 failures.
+  - Early required reruns during the check-constraint maintenance slice invoked the root runner and failed outside Dolt: 176 test files, 16,798 assertions, 5 failures in `lanes/difftastic/tests/TokenDifferTest.php` tab/display wrapping expectations. Dolt tests reached by those root runs passed.
+  - Final required rerun after concurrent lane fixes passed: 177 test files, 16,954 assertions, 0 failures.
 - Lane-only Dolt PHP test command:
   - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $runner=new TestRunner(); foreach (glob("lanes/dolt/tests/*Test.php") as $file) { $runner->runTests(require $file, $file); } fwrite(STDOUT, "\nDolt: " . count(glob("lanes/dolt/tests/*Test.php")) . " test files, " . $runner->assertions() . " assertions, " . $runner->failures() . " failures\n"); exit($runner->failures() === 0 ? 0 : 1);'`
   - Previous result before the commit-log slice: pass with 6 Dolt test files, 64 behavior tests, 273 assertions, and 0 failures.
@@ -1307,6 +1380,11 @@
   - Current result after native row SQL diff-filter rendering: pass with 12 Dolt test files, 107 behavior tests, 566 assertions, and 0 failures.
   - Current result after native row-mode tabular diff-filter rendering: pass with 13 Dolt test files, 111 behavior tests, 582 assertions, and 0 failures.
   - Current result after native tabular diff-mode rendering: pass with 13 Dolt test files, 113 behavior tests, 594 assertions, and 0 failures.
+  - Current result after native check-constraint maintenance classification: pass with 16 Dolt test files, 173 behavior tests, 874 assertions, and 0 failures.
+  - Current result after native auto-increment patch rendering: pass with 16 Dolt test files, 176 behavior tests, 890 assertions, and 0 failures.
+
+- Focused upstream local command:
+  - Fresh direct cache-local Dolt CLI probe in a throwaway `/tmp` repo confirmed `dolt_patch('HEAD','WORKING','wp_import_audit')` returns no rows for existing-table `ALTER TABLE ... ADD CONSTRAINT`, `ALTER TABLE ... DROP CONSTRAINT`, and drop-plus-add check-constraint modification; each CSV query printed only the header.
 
 ## Skipped Suites
 

@@ -115,6 +115,72 @@ return [
             ['name' => 'id', 'tag' => 1, 'type' => 'int', 'generatedStored' => true],
         ]));
     },
+    'dolt patch renders auto increment columns and primary key type changes like upstream' => static function (TestRunner $t): void {
+        $postsSchema = TableSchema::fromColumns([
+            ['name' => 'ID', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true, 'autoIncrement' => true],
+            ['name' => 'post_title', 'tag' => 2, 'type' => 'varchar(255)'],
+        ]);
+        $fromPk = TableSchema::fromColumns([
+            ['name' => 'ID', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'post_title', 'tag' => 2, 'type' => 'varchar(255)'],
+        ]);
+        $toPk = TableSchema::fromColumns([
+            ['name' => 'ID', 'tag' => 1, 'type' => 'int', 'primaryKey' => true, 'autoIncrement' => true],
+            ['name' => 'post_title', 'tag' => 2, 'type' => 'varchar(255)'],
+        ]);
+        $metadataOnlyAutoIncrement = TableSchema::fromColumns([
+            ['name' => 'ID', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true, 'autoIncrement' => true],
+            ['name' => 'post_title', 'tag' => 2, 'type' => 'varchar(255)'],
+        ]);
+        $renderer = new PatchRenderer();
+
+        $createRows = $renderer->rows([[
+            'tableName' => 'wp_posts',
+            'fromSchema' => null,
+            'toSchema' => $postsSchema,
+            'primaryKey' => 'ID',
+            'toRows' => [
+                ['ID' => 1, 'post_title' => 'First'],
+                ['ID' => 2, 'post_title' => 'Second'],
+            ],
+        ]], ['fromCommit' => 'HEAD', 'toCommit' => 'WORKING']);
+        $warnings = [];
+        $typeChangeRows = $renderer->rows([[
+            'tableName' => 'wp_posts',
+            'fromSchema' => $fromPk,
+            'toSchema' => $toPk,
+            'primaryKey' => 'ID',
+            'fromRows' => [['ID' => 1, 'post_title' => 'First']],
+            'toRows' => [['ID' => 1, 'post_title' => 'First']],
+        ]], ['fromCommit' => 'HEAD', 'toCommit' => 'WORKING'], $warnings);
+        $metadataOnlyRows = $renderer->rows([[
+            'tableName' => 'wp_posts',
+            'fromSchema' => $fromPk,
+            'toSchema' => $metadataOnlyAutoIncrement,
+        ]], ['filter' => 'schema']);
+
+        $t->same([
+            "CREATE TABLE `wp_posts` (\n"
+            . "  `ID` bigint NOT NULL AUTO_INCREMENT,\n"
+            . "  `post_title` varchar(255),\n"
+            . "  PRIMARY KEY (`ID`)\n"
+            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;',
+            "INSERT INTO `wp_posts` (`ID`,`post_title`) VALUES (1,'First');",
+            "INSERT INTO `wp_posts` (`ID`,`post_title`) VALUES (2,'Second');",
+        ], array_column($createRows, 'statement'));
+        $t->same([
+            'ALTER TABLE `wp_posts` MODIFY COLUMN `ID` int NOT NULL AUTO_INCREMENT;',
+            'ALTER TABLE `wp_posts` DROP PRIMARY KEY;',
+            'ALTER TABLE `wp_posts` ADD PRIMARY KEY (ID);',
+        ], array_column($typeChangeRows, 'statement'));
+        $t->same(['schema', 'schema', 'schema'], array_column($typeChangeRows, 'diff_type'));
+        $t->same([], $metadataOnlyRows);
+        $t->same(1, count($warnings));
+        $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
+        $t->throws(InvalidArgumentException::class, static fn () => TableSchema::fromColumns([
+            ['name' => 'ID', 'tag' => 1, 'type' => 'bigint', 'autoIncrement' => 'yes'],
+        ]));
+    },
     'dolt patch omits metadata-only column and check constraint patch rows like upstream' => static function (TestRunner $t): void {
         $fromColumns = TableSchema::fromColumns([
             ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
@@ -176,6 +242,9 @@ return [
             'toSchema' => $withoutCheck,
         ]], ['filter' => 'schema']);
 
+        $t->same(['added'], array_column(TableSchema::diffChecks($withoutCheck, $withCheck), 'diff_type'));
+        $t->same(['modified'], array_column(TableSchema::diffChecks($withCheck, $modifiedCheck), 'diff_type'));
+        $t->same(['removed'], array_column(TableSchema::diffChecks($withCheck, $withoutCheck), 'diff_type'));
         $t->same([], $metadataRows);
         $t->same([], $addCheckRows);
         $t->same([], $modifyCheckRows);

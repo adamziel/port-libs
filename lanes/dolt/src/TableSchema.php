@@ -16,7 +16,7 @@ final class TableSchema
     public const DATATYPE_COERCION_FAILURE_WARNING = "unable to coerce value from field '%s' into latest column schema";
     public const DEFAULT_TARGET_ROW_SIZE = 2048;
 
-    /** @var list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}> */
+    /** @var list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}> */
     private array $columns;
 
     /** @var list<array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}> */
@@ -33,7 +33,7 @@ final class TableSchema
     private int $targetRowSize;
 
     /**
-     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null}> $columns
+     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null, autoIncrement?:bool}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
      *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
@@ -53,7 +53,7 @@ final class TableSchema
     }
 
     /**
-     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null}> $columns
+     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null, autoIncrement?:bool}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
      *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
@@ -73,7 +73,7 @@ final class TableSchema
      * constraints, default, generated expression, or on-update expression
      * changed.
      *
-     * @return list<array{diff_type:string, tag:int, from:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null, to:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null}>
+     * @return list<array{diff_type:string, tag:int, from:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null, to:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null}>
      */
     public static function diffColumns(self $from, self $to): array
     {
@@ -103,6 +103,43 @@ final class TableSchema
                 'tag' => $tag,
                 'from' => $fromColumn,
                 'to' => $toColumn,
+            ];
+        }
+
+        return $diffs;
+    }
+
+    /**
+     * @return list<array{diff_type:string, from:array{name:non-empty-string, expression:non-empty-string, enforced:bool}|null, to:array{name:non-empty-string, expression:non-empty-string, enforced:bool}|null}>
+     */
+    public static function diffChecks(self $from, self $to): array
+    {
+        $fromByName = self::checkConstraintsByLowerName($from->checks);
+        $toByName = self::checkConstraintsByLowerName($to->checks);
+        $names = array_keys($fromByName + $toByName);
+        sort($names, SORT_STRING);
+
+        $diffs = [];
+        foreach ($names as $name) {
+            $fromCheck = $fromByName[$name] ?? null;
+            $toCheck = $toByName[$name] ?? null;
+            if ($fromCheck === null) {
+                $diffType = self::DIFF_ADDED;
+            } elseif ($toCheck === null) {
+                $diffType = self::DIFF_REMOVED;
+            } elseif ($fromCheck !== $toCheck) {
+                $diffType = self::DIFF_MODIFIED;
+            } else {
+                $diffType = self::DIFF_NONE;
+            }
+            if ($diffType === self::DIFF_NONE) {
+                continue;
+            }
+
+            $diffs[] = [
+                'diff_type' => $diffType,
+                'from' => $fromCheck,
+                'to' => $toCheck,
             ];
         }
 
@@ -228,7 +265,7 @@ final class TableSchema
     }
 
     /**
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}>
      */
     public function columns(): array
     {
@@ -284,7 +321,7 @@ final class TableSchema
     }
 
     /**
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}>
      */
     public function primaryKeyColumns(): array
     {
@@ -308,7 +345,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null
      */
     public function columnByTag(int $tag): ?array
     {
@@ -322,7 +359,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null
      */
     public function columnByName(string $name): ?array
     {
@@ -389,8 +426,8 @@ final class TableSchema
     }
 
     /**
-     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null}> $columns
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
+     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null, autoIncrement?:bool}> $columns
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}>
      */
     private function normalizeColumns(array $columns): array
     {
@@ -433,6 +470,10 @@ final class TableSchema
             if ($generated === null && $generatedStored) {
                 throw new \InvalidArgumentException("Column {$name} generatedStored requires a generated expression.");
             }
+            $autoIncrement = $column['autoIncrement'] ?? false;
+            if (!is_bool($autoIncrement)) {
+                throw new \InvalidArgumentException("Column {$name} autoIncrement must be a boolean.");
+            }
 
             $tags[$tag] = true;
             $names[$lowerName] = true;
@@ -446,6 +487,7 @@ final class TableSchema
                 'generated' => $generated,
                 'generatedStored' => $generatedStored,
                 'onUpdate' => $this->nullableString($column['onUpdate'] ?? null, "Column {$name} onUpdate"),
+                'autoIncrement' => $autoIncrement,
             ];
         }
 
@@ -629,7 +671,21 @@ final class TableSchema
     }
 
     /**
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
+     * @param list<array{name:non-empty-string, expression:non-empty-string, enforced:bool}> $checks
+     * @return array<string, array{name:non-empty-string, expression:non-empty-string, enforced:bool}>
+     */
+    private static function checkConstraintsByLowerName(array $checks): array
+    {
+        $byName = [];
+        foreach ($checks as $check) {
+            $byName[strtolower($check['name'])] = $check;
+        }
+
+        return $byName;
+    }
+
+    /**
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}>
      */
     private function nonPrimaryKeyColumns(): array
     {
@@ -640,7 +696,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null
      */
     private function primaryKeyColumnByTag(int $tag): ?array
     {
@@ -654,7 +710,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null
      */
     private function primaryKeyColumnByNameCaseInsensitive(string $name, string $type): ?array
     {
@@ -668,7 +724,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool}|null
      */
     private function nonPrimaryKeyColumnByName(string $name): ?array
     {
@@ -682,8 +738,8 @@ final class TableSchema
     }
 
     /**
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $fromColumn
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $toColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool} $fromColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null, autoIncrement:bool} $toColumn
      * @param list<array{code:int, message:string}> $warnings
      */
     private static function coerceValue(mixed $value, array $fromColumn, array $toColumn, array &$warnings): int|float|string|bool|null

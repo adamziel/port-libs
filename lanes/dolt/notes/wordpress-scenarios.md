@@ -31,6 +31,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` target-row-size rendering, including upstream `ALTER TABLE ... TARGET_ROW_SIZE=<bytes>` rows after collation DDL and before data patches.
 - Native `dolt_patch()` default, generated, stored generated, and `ON UPDATE` column rendering, including upstream-shaped quoted default literals, generated expression wrapping, and timestamp update clauses in CREATE/ADD/MODIFY column patch rows.
 - Native `dolt_patch()` metadata-only column and existing-table check-constraint boundaries, including upstream's no-row behavior for default/generated/on-update/not-null changes without a type change and for add/modify/drop check constraints outside `CREATE TABLE`.
+- Native `dolt_patch()` auto-increment rendering for WordPress-style primary keys, including create-table `AUTO_INCREMENT` columns, metadata-only no-row boundaries, and primary-key type-change DDL replacement.
+- Native check-constraint validation and `information_schema` projection for migration schema review, including SQL-style `NULL` unknown pass behavior, skipped `NOT ENFORCED` checks, `CHECK_CONSTRAINTS` rows, and `TABLE_CONSTRAINTS` CHECK/PRIMARY/FOREIGN rows.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -87,12 +89,18 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-patch-foreign-key-maintenance.php` returns modified and dropped index/foreign-key `dolt_patch()` rows, so a migration UI can review relation-maintenance DDL without shelling out to Dolt.
 - `fixtures/wp-patch-check-constraint-review.php` models a WordPress import audit table that guards allowed migration statuses with a check constraint.
 - `examples/wordpress-patch-check-constraint-review.php` returns the `CREATE TABLE` patch statement with the native Dolt-style check clause, so a migration UI can review status guards before creating the audit table.
+- `fixtures/wp-patch-check-constraint-maintenance.php` models a later `wp_import_audit` maintenance pass where one check is added, one is modified, and one is dropped.
+- `examples/wordpress-patch-check-constraint-maintenance.php` returns an empty upstream-compatible patch statement list while exposing the classified check diff types, so a migration UI does not invent unsupported ALTER CHECK DDL.
+- `fixtures/wp-check-constraint-information-schema.php` models `wp_import_audit` status checks plus candidate import rows that violate status and failed-note guards.
+- `examples/wordpress-check-constraint-information-schema.php` returns native `information_schema.CHECK_CONSTRAINTS` / `TABLE_CONSTRAINTS` rows plus check-violation rows, so a migration UI can surface schema guards and invalid plugin statuses before promotion.
 - `fixtures/wp-patch-collation-review.php` models a `wp_options` review where legacy `utf8mb4_unicode_ci` comparison semantics are normalized to Dolt's default binary collation while the site URL changes.
 - `examples/wordpress-patch-collation-review.php` returns the collation DDL before the `wp_options` data update, so a migration UI can flag comparison/sort drift separately from option-value changes.
 - `fixtures/wp-patch-target-row-size-review.php` models a `wp_postmeta` review where large page-builder metadata moves to a wider target row size while the serialized meta payload changes.
 - `examples/wordpress-patch-target-row-size-review.php` returns the target-row-size DDL before the `wp_postmeta` data update, so a migration UI can flag storage-layout drift separately from large meta-value changes.
 - `fixtures/wp-patch-generated-default-review.php` models a `wp_import_queue` review where default post names, generated import slugs, stored generated metadata, and review-status defaults change before import promotion.
 - `examples/wordpress-patch-generated-default-review.php` returns the default/generated column DDL plus the generated slug data update, so a migration UI can review import queue automation without shelling out to Dolt.
+- `fixtures/wp-patch-autoincrement-review.php` models a new `wp_posts` snapshot with imported rows and a Dolt/MySQL-style `ID` auto-increment primary key.
+- `examples/wordpress-patch-autoincrement-review.php` returns the `CREATE TABLE` patch row with `AUTO_INCREMENT` plus explicit imported post inserts, so migration tooling can review restored post IDs without shelling out to Dolt.
 - `fixtures/wp-patch-metadata-only-column-review.php` models a `wp_import_queue` review where only default/generated/not-null metadata changes without supported type-changing patch DDL.
 - `examples/wordpress-patch-metadata-only-column-review.php` returns the upstream-compatible empty patch statement list, so a migration UI does not invent unsupported DDL for metadata-only changes.
 - `examples/wordpress-patch-privilege-review.php` returns a revision-database patch review where a limited reviewer can inspect `wp_posts` changes but an unscoped patch fails until the reviewer has database-wide SELECT over `wp_import_log` and the other database tables.
@@ -125,4 +133,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map upstream SQL check-constraint validation and information_schema exposure, or broaden native schema formatter parity for unsupported ALTER CHECK DDL once upstream emits patch rows.
+Next best slice: broaden native schema formatter/schema metadata parity around `dolt schema show` check preservation across rename/drop/modify operations, or continue into constraint-violation merge/reporting surfaces.
