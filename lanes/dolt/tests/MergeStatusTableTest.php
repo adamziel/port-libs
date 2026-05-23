@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Dolt\MergeStatusTable;
 use PortLibs\Dolt\ConstraintViolationsTable;
+use PortLibs\Dolt\PreviewMergeConflictsTable;
 
 return [
     'dolt merge status emits inactive row with null merge metadata' => static function (TestRunner $t): void {
@@ -405,6 +406,7 @@ return [
     'wordpress merge status fixture surfaces unresolved migration tables' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/wp-merge-review.php';
         $table = new MergeStatusTable();
+        $previewConflicts = new PreviewMergeConflictsTable();
 
         $mergeStatus = $table->statusRow(
             $fixture['isMerging'],
@@ -420,6 +422,22 @@ return [
             $fixture['schemaConflictRows'],
             $fixture['rootObjectConflicts'],
         );
+        $previewConflictSummaryRows = $previewConflicts->summaryRows(
+            $fixture['previewDataConflictTables'],
+            $fixture['previewSchemaConflictTables'],
+        );
+        $previewConflictRows = $previewConflicts->conflictRows(
+            $fixture['previewMergeBaseRows'],
+            $fixture['previewMergeOurRows'],
+            $fixture['previewMergeTheirRows'],
+            $fixture['previewMergePrimaryKey'],
+            $fixture['previewMergeColumns'],
+            $fixture['previewMergeRightRootish'],
+        );
+        $previewConflictRowsWithoutIds = array_map(static function (array $row): array {
+            unset($row['dolt_conflict_id']);
+            return $row;
+        }, $previewConflictRows);
         $statusGuidance = $table->statusGuidance(
             $fixture['isMerging'],
             $fixture['conflictTables'],
@@ -462,9 +480,15 @@ return [
         $abortProcedureRow = $table->mergeProcedureRow($fixture['abortProcedureOptions']);
         $mergeConstraintError = (new ConstraintViolationsTable())->unresolvedMergeError($fixture['constraintViolationsByTable']);
         $example = (static fn (): array => require __DIR__ . '/../examples/wordpress-merge-status-review.php')();
+        $examplePreviewConflictRowsWithoutIds = array_map(static function (array $row): array {
+            unset($row['dolt_conflict_id']);
+            return $row;
+        }, $example['previewConflictRows']);
 
         $t->same($fixture['expectedMergeStatusRow'], $mergeStatus);
         $t->same($fixture['expectedConflictRows'], $conflictRows);
+        $t->same($fixture['expectedPreviewConflictSummaryRows'], $previewConflictSummaryRows);
+        $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $previewConflictRowsWithoutIds);
         $t->same($fixture['expectedStatusGuidance'], $statusGuidance);
         $t->same($fixture['expectedCommitGuidance'], $commitGuidance);
         $t->same($fixture['expectedMergeArtifactPrelude'], $mergeArtifactPrelude);
@@ -487,6 +511,10 @@ return [
         $t->same($fixture['expectedAheadProcedureRow'], $aheadProcedureRow);
         $t->same($fixture['expectedAbortProcedureRow'], $abortProcedureRow);
         $t->same($fixture['expectedMergeConstraintError'], $mergeConstraintError);
+        $t->same($fixture['expectedPreviewConflictSummaryRows'], $example['previewConflictSummaryRows']);
+        $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $examplePreviewConflictRowsWithoutIds);
+        $t->same([], $example['previewSchemaConflictRows']);
+        $t->same($fixture['expectedPreviewSchemaConflictError'], $example['previewSchemaConflictError']);
         $t->same($fixture['expectedMergeConstraintError'], $example['mergeConstraintError']);
         $t->same($fixture['expectedStatusGuidance'], $example['statusGuidance']);
         $t->same($fixture['expectedCommitGuidance'], $example['commitGuidance']);
@@ -513,6 +541,7 @@ return [
             'abort' => $fixture['expectedAbortProcedureRow'],
         ], $example['mergeProcedureRows']);
         $t->contains('wp_postmeta', $mergeStatus['unmerged_tables']);
+        $t->same(22, strlen((string) $example['previewConflictRows'][0]['dolt_conflict_id']));
         $t->contains('Constraint violations:', $example['mergeConstraintError']);
         $t->contains('wp_import_audit', $mergeStatus['unmerged_tables']);
         $t->contains('fix conflicts and constraint violations', $example['statusGuidance']);

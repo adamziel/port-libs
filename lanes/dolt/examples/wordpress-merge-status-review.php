@@ -6,10 +6,28 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Dolt\MergeStatusTable;
 use PortLibs\Dolt\ConstraintViolationsTable;
+use PortLibs\Dolt\PreviewMergeConflictsTable;
 
 $fixture = require dirname(__DIR__) . '/fixtures/wp-merge-review.php';
 $mergeStatus = new MergeStatusTable();
 $constraintViolations = new ConstraintViolationsTable();
+$previewConflicts = new PreviewMergeConflictsTable();
+
+try {
+    $previewSchemaConflictRows = $previewConflicts->conflictRows(
+        $fixture['previewMergeBaseRows'],
+        $fixture['previewMergeOurRows'],
+        $fixture['previewMergeTheirRows'],
+        $fixture['previewMergePrimaryKey'],
+        $fixture['previewMergeColumns'],
+        $fixture['previewMergeRightRootish'],
+        $fixture['previewSchemaConflictCount'],
+    );
+    $previewSchemaConflictError = null;
+} catch (InvalidArgumentException $exception) {
+    $previewSchemaConflictRows = [];
+    $previewSchemaConflictError = $exception->getMessage();
+}
 
 return [
     'mergeStatus' => $mergeStatus->statusRow(
@@ -26,6 +44,20 @@ return [
         $fixture['schemaConflictRows'],
         $fixture['rootObjectConflicts'],
     ),
+    'previewConflictSummaryRows' => $previewConflicts->summaryRows(
+        $fixture['previewDataConflictTables'],
+        $fixture['previewSchemaConflictTables'],
+    ),
+    'previewConflictRows' => $previewConflicts->conflictRows(
+        $fixture['previewMergeBaseRows'],
+        $fixture['previewMergeOurRows'],
+        $fixture['previewMergeTheirRows'],
+        $fixture['previewMergePrimaryKey'],
+        $fixture['previewMergeColumns'],
+        $fixture['previewMergeRightRootish'],
+    ),
+    'previewSchemaConflictRows' => $previewSchemaConflictRows,
+    'previewSchemaConflictError' => $previewSchemaConflictError,
     'statusGuidance' => $mergeStatus->statusGuidance(
         $fixture['isMerging'],
         $fixture['conflictTables'],

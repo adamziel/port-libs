@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Dolt\ConstraintViolationsTable;
 use PortLibs\Dolt\MergeStatusTable;
+use PortLibs\Dolt\PreviewMergeConflictsTable;
 
 $constraintViolationsByTable = [
     'wp_postmeta' => [
@@ -94,6 +95,27 @@ return [
     'rootObjectConflicts' => [
         ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
     ],
+    'previewDataConflictTables' => [
+        ['table' => 'wp_posts', 'num_data_conflicts' => 2],
+    ],
+    'previewSchemaConflictTables' => [
+        ['table' => 'wp_options', 'num_schema_conflicts' => 1],
+    ],
+    'previewMergeBaseRows' => [
+        ['ID' => 42, 'post_title' => 'Imported draft', 'post_status' => 'draft'],
+    ],
+    'previewMergeOurRows' => [
+        ['ID' => 42, 'post_title' => 'Reviewed local title', 'post_status' => 'publish'],
+        ['ID' => 951, 'post_title' => 'Local media import', 'post_status' => 'inherit'],
+    ],
+    'previewMergeTheirRows' => [
+        ['ID' => 42, 'post_title' => 'Imported branch title', 'post_status' => 'future'],
+        ['ID' => 951, 'post_title' => 'Remote media import', 'post_status' => 'inherit'],
+    ],
+    'previewMergePrimaryKey' => 'ID',
+    'previewMergeColumns' => ['ID', 'post_title', 'post_status'],
+    'previewMergeRightRootish' => 'wp-import-branch-head',
+    'previewSchemaConflictCount' => 1,
     'successfulMergeStats' => [
         [
             'table' => 'wp_posts',
@@ -181,6 +203,41 @@ return [
         ['table' => 'wp_options', 'num_conflicts' => 0],
         ['table' => 'wp_import_preview_view', 'num_conflicts' => 1],
     ],
+    'expectedPreviewConflictSummaryRows' => [
+        ['table' => 'wp_posts', 'num_data_conflicts' => 2, 'num_schema_conflicts' => 0],
+        ['table' => 'wp_options', 'num_data_conflicts' => null, 'num_schema_conflicts' => 1],
+    ],
+    'expectedPreviewConflictRowsWithoutIds' => [
+        [
+            'from_root_ish' => 'wp-import-branch-head',
+            'base_ID' => 42,
+            'base_post_title' => 'Imported draft',
+            'base_post_status' => 'draft',
+            'our_ID' => 42,
+            'our_post_title' => 'Reviewed local title',
+            'our_post_status' => 'publish',
+            'our_diff_type' => PreviewMergeConflictsTable::DIFF_MODIFIED,
+            'their_ID' => 42,
+            'their_post_title' => 'Imported branch title',
+            'their_post_status' => 'future',
+            'their_diff_type' => PreviewMergeConflictsTable::DIFF_MODIFIED,
+        ],
+        [
+            'from_root_ish' => 'wp-import-branch-head',
+            'base_ID' => null,
+            'base_post_title' => null,
+            'base_post_status' => null,
+            'our_ID' => 951,
+            'our_post_title' => 'Local media import',
+            'our_post_status' => 'inherit',
+            'our_diff_type' => PreviewMergeConflictsTable::DIFF_ADDED,
+            'their_ID' => 951,
+            'their_post_title' => 'Remote media import',
+            'their_post_status' => 'inherit',
+            'their_diff_type' => PreviewMergeConflictsTable::DIFF_ADDED,
+        ],
+    ],
+    'expectedPreviewSchemaConflictError' => 'schema conflicts found: 1',
     'expectedStatusGuidance' => "You have unmerged tables.\n"
         . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"
         . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
