@@ -15,14 +15,17 @@ final class QuadbStore
         private int $detachedHeadNodeId,
         /** @var array<string, string> */
         private array $trackedKeys = [],
+        /** @var array<string, array{integer: int, suffixHex: string}> */
+        private array $compositeKeys = [],
         /** @var array<string, array<string, mixed>> */
         private array $partialProofHeads = [],
         /** @var array<string, mixed>|null */
-        private ?array $partialDetachedHead = null
+        private ?array $partialDetachedHead = null,
+        private readonly bool $trackKeys = true
     ) {
     }
 
-    public static function init(string $directory): self
+    public static function init(string $directory, bool $trackKeys = true): self
     {
         if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
             throw new \RuntimeException("Unable to create directory '{$directory}'");
@@ -30,16 +33,16 @@ final class QuadbStore
 
         $statePath = self::statePath($directory);
         if (is_file($statePath)) {
-            return self::open($directory);
+            return self::open($directory, $trackKeys);
         }
 
-        $store = new self($directory, new TrackedNodeStore(), 'master', 0);
+        $store = new self($directory, new TrackedNodeStore(), 'master', 0, trackKeys: $trackKeys);
         $store->persist();
 
         return $store;
     }
 
-    public static function open(string $directory): self
+    public static function open(string $directory, bool $trackKeys = true): self
     {
         if (!is_dir($directory)) {
             throw new \RuntimeException("Could not access directory '{$directory}'");
@@ -91,6 +94,30 @@ final class QuadbStore
             $trackedKeys[$keyHashHex] = $key;
         }
 
+        $compositeKeysRaw = $quadbState['compositeKeys'] ?? [];
+        if (!is_array($compositeKeysRaw)) {
+            throw new \InvalidArgumentException('composite keys must be an object');
+        }
+
+        $compositeKeys = [];
+        foreach ($compositeKeysRaw as $keyHex => $composite) {
+            if (!is_string($keyHex) || !preg_match('/^[0-9a-f]{64}$/', $keyHex) || !is_array($composite)) {
+                throw new \InvalidArgumentException('composite key metadata is malformed');
+            }
+
+            $integer = self::parseCompositeIntegerValue($composite['integer'] ?? null, 'composite integer key');
+            $suffixHex = self::normalizeCompositeSuffixHex($composite['suffixHex'] ?? null);
+            if (self::compositeKey($integer, $suffixHex)->hex() !== $keyHex) {
+                throw new \InvalidArgumentException('composite key metadata does not match key hash');
+            }
+
+            $compositeKeys[$keyHex] = [
+                'integer' => $integer,
+                'suffixHex' => $suffixHex,
+            ];
+        }
+        ksort($compositeKeys, SORT_STRING);
+
         $partialProofHeadsRaw = $quadbState['partialProofHeads'] ?? [];
         if (!is_array($partialProofHeadsRaw)) {
             throw new \InvalidArgumentException('partial proof heads must be an object');
@@ -117,8 +144,10 @@ final class QuadbStore
             $currentHead,
             $detachedHeadNodeId,
             $trackedKeys,
+            $compositeKeys,
             $partialProofHeads,
-            $partialDetachedHead
+            $partialDetachedHead,
+            $trackKeys
         );
     }
 
@@ -239,7 +268,7 @@ final class QuadbStore
 
         $tree = $this->tree();
         $tree->put($key, $value);
-        $this->trackedKeys[$this->keyHash($key)] = $key;
+        $this->recordStringKeyWrite($key);
         $this->save($tree);
     }
 
@@ -264,6 +293,28 @@ final class QuadbStore
     public function putInteger(int $key, string $value): void
     {
         $this->putKey(Key::fromInteger($key), $value);
+    }
+
+    public function putCompositeKey(int $integer, string $hashSuffixHex, string $value): void
+    {
+        $key = self::compositeKey($integer, $hashSuffixHex);
+
+        if ($this->currentPartialProofState() !== null) {
+            $this->applyPartialRawUpdates([
+                $key->hex() => [
+                    'delete' => false,
+                    'value' => $value,
+                ],
+            ]);
+            $this->recordCompositeKeyWrite($key, $integer, $hashSuffixHex);
+
+            return;
+        }
+
+        $tree = $this->tree();
+        $tree->putKey($key, $value);
+        $this->recordCompositeKeyWrite($key, $integer, $hashSuffixHex);
+        $this->save($tree);
     }
 
     public function delete(string $key): void
@@ -304,6 +355,28 @@ final class QuadbStore
         $this->deleteKey(Key::fromInteger($key));
     }
 
+    public function deleteCompositeKey(int $integer, string $hashSuffixHex): void
+    {
+        $key = self::compositeKey($integer, $hashSuffixHex);
+
+        if ($this->currentPartialProofState() !== null) {
+            $this->applyPartialRawUpdates([
+                $key->hex() => [
+                    'delete' => true,
+                    'value' => '',
+                ],
+            ]);
+            $this->forgetCompositeKey($key);
+
+            return;
+        }
+
+        $tree = $this->tree();
+        $tree->deleteKey($key);
+        $this->forgetCompositeKey($key);
+        $this->save($tree);
+    }
+
     public function get(string $key): string
     {
         SparseTree::assertNonEmptyKey($key);
@@ -339,6 +412,11 @@ final class QuadbStore
     public function getInteger(int $key): string
     {
         return $this->getKey(Key::fromInteger($key));
+    }
+
+    public function getCompositeKey(int $integer, string $hashSuffixHex): string
+    {
+        return $this->getKey(self::compositeKey($integer, $hashSuffixHex));
     }
 
     public function rootText(): string
@@ -511,19 +589,31 @@ final class QuadbStore
         $tree = $this->tree();
         $changes = $tree->change();
         $trackedKeys = [];
+        $untrackedKeyHashes = [];
         $count = 0;
 
         foreach ($this->splitInputLines($input) as $line) {
             [$key, $value] = $this->splitSeparatedLine($line, $separator);
             SparseTree::assertNonEmptyKey($key);
             $changes->put($key, $value);
-            $trackedKeys[$this->keyHash($key)] = $key;
+            $keyHash = $this->keyHash($key);
+            if ($this->trackKeys) {
+                $trackedKeys[$keyHash] = $key;
+            } else {
+                $untrackedKeyHashes[$keyHash] = true;
+            }
             $count++;
         }
 
         if ($count > 0) {
             $changes->apply();
-            $this->trackedKeys = array_replace($this->trackedKeys, $trackedKeys);
+            if ($this->trackKeys) {
+                $this->trackedKeys = array_replace($this->trackedKeys, $trackedKeys);
+            } else {
+                foreach (array_keys($untrackedKeyHashes) as $keyHash) {
+                    unset($this->trackedKeys[$keyHash]);
+                }
+            }
             $this->save($tree);
         }
 
@@ -599,6 +689,7 @@ final class QuadbStore
         $tree = $this->tree();
         $changes = $tree->change();
         $trackedKeys = [];
+        $untrackedKeyHashes = [];
         $count = 0;
 
         foreach ($this->splitInputLines($input) as $line) {
@@ -615,7 +706,12 @@ final class QuadbStore
             if ($operation === '+') {
                 SparseTree::assertNonEmptyKey($key);
                 $changes->put($key, $value);
-                $trackedKeys[$this->keyHash($key)] = $key;
+                $keyHash = $this->keyHash($key);
+                if ($this->trackKeys) {
+                    $trackedKeys[$keyHash] = $key;
+                } else {
+                    $untrackedKeyHashes[$keyHash] = true;
+                }
             } elseif ($operation === '-') {
                 SparseTree::assertNonEmptyKey($key);
                 $changes->delete($key);
@@ -628,7 +724,13 @@ final class QuadbStore
 
         if ($count > 0) {
             $changes->apply();
-            $this->trackedKeys = array_replace($this->trackedKeys, $trackedKeys);
+            if ($this->trackKeys) {
+                $this->trackedKeys = array_replace($this->trackedKeys, $trackedKeys);
+            } else {
+                foreach (array_keys($untrackedKeyHashes) as $keyHash) {
+                    unset($this->trackedKeys[$keyHash]);
+                }
+            }
             $this->save($tree);
         }
 
@@ -708,6 +810,77 @@ final class QuadbStore
         return $output;
     }
 
+    public function importCompositeLines(string $input, string $separator = ','): int
+    {
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+
+        $updates = [];
+        $metadata = [];
+        $count = 0;
+
+        foreach ($this->splitInputLines($input) as $line) {
+            [$integerText, $suffixHex, $value] = $this->splitCompositeValueLine($line, $separator);
+            $integer = self::parseCompositeIntegerText($integerText, 'composite integer key');
+            $key = self::compositeKey($integer, $suffixHex);
+            $suffixHex = self::normalizeCompositeSuffixHex($suffixHex);
+            $updates[$key->hex()] = [
+                'delete' => false,
+                'value' => $value,
+            ];
+            $metadata[$key->hex()] = [
+                'integer' => $integer,
+                'suffixHex' => $suffixHex,
+            ];
+            $count++;
+        }
+
+        if ($count > 0) {
+            $partial = $this->currentPartialProofState();
+            if ($partial !== null) {
+                $this->applyPartialRawUpdates($updates);
+            } else {
+                $tree = $this->tree();
+                $changes = $tree->change();
+                foreach ($updates as $keyHex => $update) {
+                    $changes->putKey(Key::fromHex($keyHex), $update['value']);
+                }
+                $changes->apply();
+                $this->save($tree);
+            }
+
+            foreach ($metadata as $keyHex => $record) {
+                $this->recordCompositeKeyWrite(Key::fromHex($keyHex), $record['integer'], $record['suffixHex']);
+            }
+            $this->persist();
+        }
+
+        return $count;
+    }
+
+    public function exportCompositeLines(string $separator = ','): string
+    {
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+        if ($this->currentPartialProofState() !== null) {
+            throw new \RuntimeException('cannot export all records from a proof-backed partial tree');
+        }
+
+        $output = '';
+        foreach ($this->tree()->orderedEntries() as $entry) {
+            $metadata = $this->compositeKeys[$entry->keyHex()] ?? null;
+            if ($metadata === null) {
+                throw new \RuntimeException('composite key metadata unavailable for ' . $entry->keyHex());
+            }
+
+            $output .= $metadata['integer'] . $separator . $metadata['suffixHex'] . $separator . $entry->value() . "\n";
+        }
+
+        return $output;
+    }
+
     /**
      * @param list<string> $keys
      */
@@ -722,6 +895,27 @@ final class QuadbStore
     public function exportProofBytes(array $keys, int $encodingType = Proof::ENCODING_HASHED_KEYS): string
     {
         return $this->exportProof($keys)->encode($encodingType);
+    }
+
+    public function exportProofFromKeyLines(string $input): Proof
+    {
+        return $this->exportProof($this->splitProofStdinLines($input));
+    }
+
+    public function exportProofBytesFromKeyLines(
+        string $input,
+        int $encodingType = Proof::ENCODING_HASHED_KEYS
+    ): string
+    {
+        return $this->exportProofFromKeyLines($input)->encode($encodingType);
+    }
+
+    public function exportProofHexFromKeyLines(
+        string $input,
+        int $encodingType = Proof::ENCODING_HASHED_KEYS
+    ): string
+    {
+        return '0x' . bin2hex($this->exportProofBytesFromKeyLines($input, $encodingType)) . "\n";
     }
 
     /**
@@ -757,6 +951,32 @@ final class QuadbStore
         return $this->sparseTreeForProofs()->exportRawProof($keys);
     }
 
+    public function exportIntegerProofFromKeyLines(string $input): Proof
+    {
+        $integers = [];
+        foreach ($this->splitProofStdinLines($input) as $line) {
+            $integers[] = self::parseProofIntegerLine($line);
+        }
+
+        return $this->exportIntegerProof($integers);
+    }
+
+    public function exportIntegerProofBytesFromKeyLines(
+        string $input,
+        int $encodingType = Proof::ENCODING_HASHED_KEYS
+    ): string
+    {
+        return $this->exportIntegerProofFromKeyLines($input)->encode($encodingType);
+    }
+
+    public function exportIntegerProofHexFromKeyLines(
+        string $input,
+        int $encodingType = Proof::ENCODING_HASHED_KEYS
+    ): string
+    {
+        return '0x' . bin2hex($this->exportIntegerProofBytesFromKeyLines($input, $encodingType)) . "\n";
+    }
+
     /**
      * @param list<int> $integers
      */
@@ -779,6 +999,35 @@ final class QuadbStore
     public function exportIntegerProofDumpText(array $integers): string
     {
         return $this->exportIntegerProof($integers)->dumpText();
+    }
+
+    public function exportCompositeProofFromKeyLines(string $input, string $separator = ','): Proof
+    {
+        $keys = [];
+        foreach ($this->splitProofStdinLines($input) as $line) {
+            [$integerText, $suffixHex] = $this->splitCompositeKeyLine($line, $separator);
+            $keys[] = self::compositeKey(self::parseCompositeIntegerText($integerText, 'composite proof integer key'), $suffixHex);
+        }
+
+        return $this->sparseTreeForProofs()->exportRawProof($keys);
+    }
+
+    public function exportCompositeProofBytesFromKeyLines(
+        string $input,
+        string $separator = ',',
+        int $encodingType = Proof::ENCODING_HASHED_KEYS
+    ): string
+    {
+        return $this->exportCompositeProofFromKeyLines($input, $separator)->encode($encodingType);
+    }
+
+    public function exportCompositeProofHexFromKeyLines(
+        string $input,
+        string $separator = ',',
+        int $encodingType = Proof::ENCODING_HASHED_KEYS
+    ): string
+    {
+        return '0x' . bin2hex($this->exportCompositeProofBytesFromKeyLines($input, $separator, $encodingType)) . "\n";
     }
 
     public function importProofHex(string $proofHex, ?string $expectedRoot = null): string
@@ -891,7 +1140,7 @@ final class QuadbStore
         $changes = $sparse->change();
 
         foreach ($this->tree()->orderedEntries() as $entry) {
-            $trackedKey = $this->trackedKeys[$entry->keyHex()] ?? null;
+            $trackedKey = $this->trackKeys ? ($this->trackedKeys[$entry->keyHex()] ?? null) : null;
             if ($trackedKey !== null) {
                 $changes->put($trackedKey, $entry->value());
             } else {
@@ -908,6 +1157,8 @@ final class QuadbStore
     {
         $trackedKeys = $this->trackedKeys;
         ksort($trackedKeys, SORT_STRING);
+        $compositeKeys = $this->compositeKeys;
+        ksort($compositeKeys, SORT_STRING);
 
         $encoded = json_encode([
             'schemaVersion' => 1,
@@ -916,6 +1167,7 @@ final class QuadbStore
                 'currentHead' => $this->currentHead,
                 'detachedHeadNodeId' => $this->detachedHeadNodeId,
                 'trackedKeys' => $trackedKeys,
+                'compositeKeys' => $compositeKeys,
                 'partialProofHeads' => $this->partialProofHeads,
                 'partialDetachedHead' => $this->partialDetachedHead,
             ],
@@ -1010,6 +1262,12 @@ final class QuadbStore
         foreach (array_keys($this->trackedKeys) as $keyHash) {
             if (!isset($liveKeyHashes[$keyHash])) {
                 unset($this->trackedKeys[$keyHash]);
+            }
+        }
+
+        foreach (array_keys($this->compositeKeys) as $keyHash) {
+            if (!isset($liveKeyHashes[$keyHash])) {
+                unset($this->compositeKeys[$keyHash]);
             }
         }
     }
@@ -1129,21 +1387,21 @@ final class QuadbStore
         ]);
 
         $state['rootHash'] = $partial->rootHash();
-        $state['updates'][] = [
+        $update = [
             'delete' => $delete,
             'keyHash' => $keyHash,
             'value' => $value,
-            'key' => $key,
         ];
+        if ($this->trackKeys) {
+            $update['key'] = $key;
+        }
+
+        $state['updates'][] = $update;
         $state['events'][] = [
             'type' => 'update',
-            'delete' => $delete,
-            'keyHash' => $keyHash,
-            'value' => $value,
-            'key' => $key,
-        ];
+        ] + $update;
         if (!$delete) {
-            $this->trackedKeys[$keyHash] = $key;
+            $this->recordStringKeyWrite($key);
         }
 
         $this->storeCurrentPartialProofState($state);
@@ -1422,6 +1680,121 @@ final class QuadbStore
     }
 
     /**
+     * @return list<string>
+     */
+    private function splitProofStdinLines(string $input): array
+    {
+        if ($input === '') {
+            return [];
+        }
+
+        $lines = explode("\n", $input);
+        if (str_ends_with($input, "\n")) {
+            array_pop($lines);
+        }
+
+        return $lines;
+    }
+
+    private static function parseProofIntegerLine(string $line): int
+    {
+        if (!preg_match('/^(0|[1-9][0-9]*)$/', $line)) {
+            throw new \InvalidArgumentException('exportProof --int stdin key must be a non-negative integer');
+        }
+
+        $max = (string) Key::MAX_INTEGER;
+        if (strlen($line) > strlen($max) || (strlen($line) === strlen($max) && strcmp($line, $max) > 0)) {
+            throw new \InvalidArgumentException('int range exceeded');
+        }
+
+        return (int) $line;
+    }
+
+    private static function parseCompositeIntegerText(string $line, string $label): int
+    {
+        if (!preg_match('/^(0|[1-9][0-9]*)$/', $line)) {
+            throw new \InvalidArgumentException($label . ' must be a non-negative integer');
+        }
+
+        return self::parseCompositeIntegerValue($line, $label);
+    }
+
+    private static function parseCompositeIntegerValue(mixed $value, string $label): int
+    {
+        $integer = self::parseNonNegativeNodeId($value, $label);
+        if ($integer > Key::MAX_INTEGER) {
+            throw new \InvalidArgumentException('int range exceeded');
+        }
+
+        return $integer;
+    }
+
+    private static function normalizeCompositeSuffixHex(mixed $suffixHex): string
+    {
+        if (!is_string($suffixHex)) {
+            throw new \InvalidArgumentException('composite hash suffix must be hexadecimal text');
+        }
+
+        if (str_starts_with($suffixHex, '0x') || str_starts_with($suffixHex, '0X')) {
+            $suffixHex = substr($suffixHex, 2);
+        }
+        $suffixHex = strtolower($suffixHex);
+        if (strlen($suffixHex) < 46
+            || strlen($suffixHex) > 62
+            || strlen($suffixHex) % 2 !== 0
+            || !preg_match('/^[0-9a-f]+$/', $suffixHex)
+        ) {
+            throw new \InvalidArgumentException('truncated hash should be 23-31 bytes');
+        }
+
+        return $suffixHex;
+    }
+
+    private static function compositeKey(int $integer, string $suffixHex): Key
+    {
+        return Key::fromIntegerAndHash($integer, hex2bin(self::normalizeCompositeSuffixHex($suffixHex)));
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function splitCompositeValueLine(string $line, string $separator): array
+    {
+        $first = strpos($line, $separator);
+        if ($first === false) {
+            throw new \RuntimeException("couldn't find separator in input line");
+        }
+
+        $second = strpos($line, $separator, $first + strlen($separator));
+        if ($second === false) {
+            throw new \RuntimeException("couldn't find separator in input line");
+        }
+
+        return [
+            substr($line, 0, $first),
+            substr($line, $first + strlen($separator), $second - $first - strlen($separator)),
+            substr($line, $second + strlen($separator)),
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitCompositeKeyLine(string $line, string $separator): array
+    {
+        if ($separator === '') {
+            throw new \InvalidArgumentException('separator must be non-empty');
+        }
+
+        [$integer, $suffixHex, $extra] = $this->splitCompositeValueLine($line . $separator, $separator);
+        if ($extra !== '') {
+            throw new \RuntimeException('unexpected composite proof key line payload');
+        }
+
+        return [$integer, $suffixHex];
+    }
+
+    /**
      * @return array<string, array{value: string}>
      */
     private function entriesByKeyHex(TrackedSparseTree $tree): array
@@ -1438,7 +1811,43 @@ final class QuadbStore
 
     private function renderTrackedKey(string $keyHex): string
     {
+        if (!$this->trackKeys) {
+            return self::renderUnknownKey($keyHex);
+        }
+
         return $this->trackedKeys[$keyHex] ?? self::renderUnknownKey($keyHex);
+    }
+
+    private function recordStringKeyWrite(string $key): void
+    {
+        $keyHash = $this->keyHash($key);
+        if ($this->trackKeys) {
+            $this->trackedKeys[$keyHash] = $key;
+
+            return;
+        }
+
+        unset($this->trackedKeys[$keyHash]);
+    }
+
+    private function recordCompositeKeyWrite(Key $key, int $integer, string $hashSuffixHex): void
+    {
+        $keyHex = $key->hex();
+        if ($this->trackKeys) {
+            $this->compositeKeys[$keyHex] = [
+                'integer' => $integer,
+                'suffixHex' => self::normalizeCompositeSuffixHex($hashSuffixHex),
+            ];
+
+            return;
+        }
+
+        unset($this->compositeKeys[$keyHex]);
+    }
+
+    private function forgetCompositeKey(Key $key): void
+    {
+        unset($this->compositeKeys[$key->hex()]);
     }
 
     private static function renderUnknownKey(string $keyHex): string

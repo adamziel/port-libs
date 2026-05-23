@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Quadrable\Blake2s;
 use PortLibs\Quadrable\HashTree;
 use PortLibs\Quadrable\Key;
 use PortLibs\Quadrable\Proof;
@@ -176,6 +177,80 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store honors noTrackKeys for export diff dump and full-key proofs' => static function (TestRunner $t): void {
+        $privateDir = quadrableQuadbTempDir();
+        $trackedDir = quadrableQuadbTempDir();
+
+        try {
+            $siteUrlUnknown = quadrableQuadbUnknownStringKey('wp_options:siteurl');
+            $homeUnknown = quadrableQuadbUnknownStringKey('wp_options:home');
+            $postUnknown = quadrableQuadbUnknownStringKey('wp_posts:1');
+
+            $private = QuadbStore::init($privateDir, false);
+            $private->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $t->same([
+                $postUnknown . '|Published post',
+                $homeUnknown . '|https://example.test',
+                $siteUrlUnknown . '|https://example.test',
+            ], quadrableQuadbSortedLines($private->exportLines('|')));
+
+            $root = $private->tree()->rootHash();
+            $proofBytes = $private->exportProofBytes(['wp_options:siteurl']);
+            $partial = SparseTree::importProof(Proof::decode($proofBytes), $root);
+
+            $t->same('https://example.test', $partial->get('wp_options:siteurl'));
+            $t->throws(RuntimeException::class, static fn () => $private->exportProofBytes(
+                ['wp_options:siteurl'],
+                Proof::ENCODING_FULL_KEYS
+            ));
+
+            $private->fork('preview');
+            $private->put('wp_posts:1', 'Preview edit');
+            $t->same([
+                '+' . $postUnknown . '|Preview edit',
+                '-' . $postUnknown . '|Published post',
+            ], quadrableQuadbSortedLines($private->diffLines('master', '|')));
+            $t->contains('leaf: ' . $postUnknown . " = Preview edit\n", $private->dumpTreeText());
+            $t->contains('leaf: ' . $postUnknown . " = Preview edit\n", QuadbStore::open($privateDir)->dumpTreeText());
+
+            $tracked = QuadbStore::init($trackedDir);
+            $tracked->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n",
+                '|'
+            );
+            $t->same([
+                'wp_options:home|https://example.test',
+                'wp_options:siteurl|https://example.test',
+            ], quadrableQuadbSortedLines($tracked->exportLines('|')));
+
+            $masked = QuadbStore::open($trackedDir, false);
+            $t->same([
+                $homeUnknown . '|https://example.test',
+                $siteUrlUnknown . '|https://example.test',
+            ], quadrableQuadbSortedLines($masked->exportLines('|')));
+            $t->throws(RuntimeException::class, static fn () => $masked->exportProofBytes(
+                ['wp_options:siteurl'],
+                Proof::ENCODING_FULL_KEYS
+            ));
+
+            $masked->put('wp_options:siteurl', 'https://private.example.test');
+            $visibleAgain = QuadbStore::open($trackedDir);
+            $t->same([
+                $siteUrlUnknown . '|https://private.example.test',
+                'wp_options:home|https://example.test',
+            ], quadrableQuadbSortedLines($visibleAgain->exportLines('|')));
+        } finally {
+            quadrableQuadbRemoveDir($privateDir);
+            quadrableQuadbRemoveDir($trackedDir);
+        }
+    },
     'native quadb store exports hex full-key proofs like quadb exportProof' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
 
@@ -252,6 +327,134 @@ return [
             $t->throws(InvalidArgumentException::class, static fn () => $repo->exportIntegerProof([2, '3']));
         } finally {
             quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store imports exports and proves composite integer hash keys' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $thumbnail = quadrableQuadbCompositeSuffix('_thumbnail_id');
+            $editLock = quadrableQuadbCompositeSuffix('_edit_lock');
+            $template = quadrableQuadbCompositeSuffix('_wp_page_template');
+            $missing = quadrableQuadbCompositeSuffix('_missing_meta');
+
+            $repo = QuadbStore::init($sourceDir);
+            $t->same(3, $repo->importCompositeLines(
+                "42|{$thumbnail}|wp_postmeta:42:_thumbnail_id=7\n"
+                . "42|{$editLock}|wp_postmeta:42:_edit_lock=1716400000\n"
+                . "42|{$template}|wp_postmeta:42:_wp_page_template=templates/full-width.html\n",
+                '|'
+            ));
+
+            $root = $repo->tree()->rootHash();
+            $t->same('wp_postmeta:42:_thumbnail_id=7', $repo->getCompositeKey(42, $thumbnail));
+            $t->same('wp_postmeta:42:_edit_lock=1716400000', $repo->getCompositeKey(42, '0x' . strtoupper($editLock)));
+
+            $reopened = QuadbStore::open($sourceDir);
+            $t->same([
+                "42|{$editLock}|wp_postmeta:42:_edit_lock=1716400000",
+                "42|{$thumbnail}|wp_postmeta:42:_thumbnail_id=7",
+                "42|{$template}|wp_postmeta:42:_wp_page_template=templates/full-width.html",
+            ], quadrableQuadbSortedLines($reopened->exportCompositeLines('|')));
+
+            $reopened->putCompositeKey(43, $thumbnail, 'wp_postmeta:43:_thumbnail_id=8');
+            $t->same('wp_postmeta:43:_thumbnail_id=8', QuadbStore::open($sourceDir)->getCompositeKey(43, $thumbnail));
+            $reopened->deleteCompositeKey(43, $thumbnail);
+            $t->throws(RuntimeException::class, static fn () => $reopened->getCompositeKey(43, $thumbnail));
+
+            $proofKeys = "42|{$thumbnail}\n42|{$missing}\n";
+            $proofBytes = $reopened->exportCompositeProofBytesFromKeyLines($proofKeys, '|');
+            $proofHex = $reopened->exportCompositeProofHexFromKeyLines($proofKeys, '|');
+            $t->same($proofBytes, quadrableQuadbDecodeHexProof($proofHex));
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('postmeta-proof');
+            $t->same('', $target->importProofBytesOutputText($proofBytes, $root));
+            $t->same('wp_postmeta:42:_thumbnail_id=7', $target->getCompositeKey(42, $thumbnail));
+            $t->throws(RuntimeException::class, static fn () => $target->getCompositeKey(42, $missing));
+
+            $t->throws(InvalidArgumentException::class, static fn () => $repo->importCompositeLines("42|bad|value\n", '|'));
+            $t->throws(InvalidArgumentException::class, static fn () => $repo->importCompositeLines(((string) (Key::MAX_INTEGER + 1)) . "|{$thumbnail}|value\n", '|'));
+            $t->throws(RuntimeException::class, static fn () => $repo->exportCompositeProofBytesFromKeyLines("42|{$thumbnail}|extra\n", '|'));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
+    'native quadb store exports stdin key proofs and imports binary proof input like quadb' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+        $integerSourceDir = quadrableQuadbTempDir();
+        $integerTargetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $keyInput = "wp_options:siteurl\nwp_posts:1\nwp_posts:404\n";
+            $proofBytes = $source->exportProofBytesFromKeyLines($keyInput, Proof::ENCODING_FULL_KEYS);
+
+            $t->same(
+                $source->exportProofBytes([
+                    'wp_options:siteurl',
+                    'wp_posts:1',
+                    'wp_posts:404',
+                ], Proof::ENCODING_FULL_KEYS),
+                $proofBytes
+            );
+            $t->same(
+                $source->exportProofHex([
+                    'wp_options:siteurl',
+                    'wp_posts:1',
+                    'wp_posts:404',
+                ], Proof::ENCODING_FULL_KEYS),
+                $source->exportProofHexFromKeyLines($keyInput, Proof::ENCODING_FULL_KEYS)
+            );
+            $t->same(Proof::ENCODING_FULL_KEYS, ord($proofBytes[0]));
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-binary-proof');
+            $t->same('', $target->importProofBytesOutputText($proofBytes, $trustedRoot));
+            $t->same('https://example.test', $target->get('wp_options:siteurl'));
+            $t->same('Published post', $target->get('wp_posts:1'));
+            $t->throws(RuntimeException::class, static fn () => $target->get('wp_options:home'));
+            $t->throws(RuntimeException::class, static fn () => $target->get('wp_posts:404'));
+
+            $homeProofBytes = $source->exportProofBytesFromKeyLines("wp_options:home\n", Proof::ENCODING_FULL_KEYS);
+            $t->same($trustedRoot, $target->mergeProofBytes($homeProofBytes));
+            $t->same('https://example.test', $target->get('wp_options:home'));
+
+            $integerSource = QuadbStore::init($integerSourceDir);
+            $integerSource->importIntegerLines(
+                "2,wp_options:home=https://example.test\n"
+                . "4,wp_posts:1=Published post\n"
+            );
+
+            $integerRoot = $integerSource->tree()->rootHash();
+            $integerKeyInput = "2\n4\n99";
+            $integerProofBytes = $integerSource->exportIntegerProofBytesFromKeyLines($integerKeyInput);
+            $t->same($integerSource->exportIntegerProofBytes([2, 4, 99]), $integerProofBytes);
+
+            $integerTarget = QuadbStore::init($integerTargetDir);
+            $integerTarget->checkout('wp-integer-binary-proof');
+            $integerTarget->importProofBytes($integerProofBytes, $integerRoot);
+            $t->same('wp_options:home=https://example.test', $integerTarget->getInteger(2));
+            $t->same('wp_posts:1=Published post', $integerTarget->getInteger(4));
+            $t->throws(RuntimeException::class, static fn () => $integerTarget->getInteger(99));
+            $t->throws(InvalidArgumentException::class, static fn () => $integerSource->exportIntegerProofBytesFromKeyLines("2\nnot-an-int\n"));
+            $t->throws(InvalidArgumentException::class, static fn () => $integerSource->exportIntegerProofBytesFromKeyLines(((string) PHP_INT_MAX) . "\n"));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+            quadrableQuadbRemoveDir($integerSourceDir);
+            quadrableQuadbRemoveDir($integerTargetDir);
         }
     },
     'native quadb store dumps proofs and reports unauthenticated proof imports like quadb' => static function (TestRunner $t): void {
@@ -997,6 +1200,16 @@ function quadrableQuadbDecodeHexProof(string $proofHex): string
     }
 
     return $decoded;
+}
+
+function quadrableQuadbUnknownStringKey(string $key): string
+{
+    return 'H(?)=0x' . substr((new HashTree())->keyHash($key), 0, 12) . '...';
+}
+
+function quadrableQuadbCompositeSuffix(string $label): string
+{
+    return bin2hex(substr(Blake2s::hash($label), -23));
 }
 
 function quadrableQuadbStoredNodeCount(QuadbStore $repo): int
