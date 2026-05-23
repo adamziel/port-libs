@@ -1094,6 +1094,47 @@ return [
         $t->contains("   \033[1;32m1 \033[0mlabel:    modern", $display);
         $t->true(!str_contains($display, "\t"), 'Inline display replaces tabs before rendering lines.');
     },
+    'maps upstream binary changed cli removed status' => static function (TestRunner $t): void {
+        $binary = "\x89PNG\r\n\x1a\n" . str_repeat("\0", 2048);
+        $display = (new InlineDiffRenderer())->renderBinaryDiff($binary, '', [
+            'path' => 'img/logo.png',
+        ]);
+
+        $t->contains('img/logo.png --- Binary', $display);
+        $t->contains('Binary file removed', $display);
+        $t->true(!str_contains($display, 'No syntactic changes'), 'Binary inline output should use the upstream binary status message, not the text no-change message.');
+    },
+    'maps upstream binary override cli modified status' => static function (TestRunner $t): void {
+        $before = "console.log('legacy');\n";
+        $after = "console.log('modern');\n";
+        $display = (new InlineDiffRenderer())->renderBinaryDiff($before, $after, [
+            'path' => 'sample_files/simple_1.js',
+        ]);
+        $decoded = (new JsonDiffRenderer())->fileBytesDiff(
+            $before,
+            $after,
+            'sample_files/simple_1.js',
+            'JavaScript',
+            ['forceBinary' => true],
+        );
+
+        $t->contains('sample_files/simple_1.js --- Binary', $display);
+        $t->contains('Binary file modified (old: 23 B, new: 23 B).', $display);
+        $t->same(['language' => 'Binary', 'path' => 'sample_files/simple_1.js', 'status' => 'changed'], $decoded);
+    },
+    'wordpress binary asset inline display reports modified plugin media' => static function (TestRunner $t): void {
+        $pngHeader = "\x89PNG\r\n\x1a\n";
+        $before = $pngHeader . str_repeat("\0", 16) . 'legacy-logo-bytes';
+        $after = $pngHeader . str_repeat("\0", 16) . 'modern-logo-bytes-with-retina-metadata';
+        $display = (new InlineDiffRenderer())->renderBinaryDiff($before, $after, [
+            'path' => 'wp-content/plugins/acme-card/assets/logo.png',
+            'extraInfo' => 'Binary asset changed during block branding update.',
+        ]);
+
+        $t->contains('wp-content/plugins/acme-card/assets/logo.png --- Binary', $display);
+        $t->contains('Binary asset changed during block branding update.', $display);
+        $t->contains('Binary file modified', $display);
+    },
     'wordpress readme inline display keeps path header and compact context' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-after.txt');
@@ -2483,6 +2524,20 @@ return [
         $t->contains('lhs ☃:string', $encoded);
         $t->contains('rhs no:string', $encoded);
         $t->contains('rhs "こんにちは世界":string', $encoded);
+    },
+    'maps upstream png magic bytes as binary content' => static function (TestRunner $t): void {
+        $before = "\x89PNG\r\n\x1a\nIHDRlegacy";
+        $after = "\x89PNG\r\n\x1a\nIHDRmodern";
+        $decoder = new FileContentDecoder();
+        $decoded = (new JsonDiffRenderer())->fileBytesDiff(
+            $before,
+            $after,
+            'img/logo.png',
+            'PNG',
+        );
+
+        $t->same(null, $decoder->guessTextContent($before));
+        $t->same(['language' => 'Binary', 'path' => 'img/logo.png', 'status' => 'changed'], $decoded);
     },
     'maps upstream windows1251 sample bytes as windows 1252 text content' => static function (TestRunner $t): void {
         $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-windows1251-1.hex')));

@@ -38,6 +38,10 @@ final class FileContentDecoder
 
     public function guessTextContent(string $bytes): ?string
     {
+        if ($this->hasCommonBinarySignature($bytes)) {
+            return null;
+        }
+
         if ($this->isValidUtf8($bytes)) {
             return $bytes;
         }
@@ -67,6 +71,29 @@ final class FileContentDecoder
     private function hasUtf16ByteOrderMark(string $bytes): bool
     {
         return str_starts_with($bytes, "\xfe\xff") || str_starts_with($bytes, "\xff\xfe");
+    }
+
+    private function hasCommonBinarySignature(string $bytes): bool
+    {
+        foreach ([
+            "\x89PNG\r\n\x1a\n",
+            "\x1f\x8b",
+            "\xff\xd8\xff",
+            "PK\x03\x04",
+            "PK\x05\x06",
+            "PK\x07\x08",
+            "dex\n035\0",
+            "dex\n036\0",
+            "dex\n037\0",
+            "dex\n038\0",
+            "dex\n039\0",
+        ] as $signature) {
+            if (str_starts_with($bytes, $signature)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decodeMostlyValidUtf8(string $bytes): ?string

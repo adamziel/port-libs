@@ -83,6 +83,37 @@ final class InlineDiffRenderer
         return $output;
     }
 
+    /**
+     * @param array{path?: string, extraInfo?: string, useColor?: bool} $options
+     */
+    public function renderBinaryDiff(string $oldBytes, string $newBytes, array $options = []): string
+    {
+        $path = (string) ($options['path'] ?? '(stdin)');
+        $extraInfo = isset($options['extraInfo']) ? (string) $options['extraInfo'] : null;
+        $useColor = (bool) ($options['useColor'] ?? false);
+        $output = $this->formatHeader($path, 'Binary', 1, 1, $extraInfo, $useColor) . "\n";
+
+        if ($oldBytes === $newBytes) {
+            return $output . "No changes.\n\n";
+        }
+
+        $oldSize = strlen($oldBytes);
+        $newSize = strlen($newBytes);
+        if ($oldSize === 0) {
+            return $output . 'Binary file added (' . $this->formatBinarySize($newSize) . ").\n\n";
+        }
+        if ($newSize === 0) {
+            return $output . 'Binary file removed (' . $this->formatBinarySize($oldSize) . ").\n\n";
+        }
+
+        return $output
+            . 'Binary file modified (old: '
+            . $this->formatBinarySize($oldSize)
+            . ', new: '
+            . $this->formatBinarySize($newSize)
+            . ").\n\n";
+    }
+
     public function formatHeader(
         string $path,
         string $language,
@@ -106,6 +137,23 @@ final class InlineDiffRenderer
         }
 
         return $header;
+    }
+
+    private function formatBinarySize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+
+        $value = (float) $bytes;
+        foreach (['KiB', 'MiB', 'GiB', 'TiB'] as $unit) {
+            $value /= 1024;
+            if ($value < 1024 || $unit === 'TiB') {
+                return number_format($value, 1, '.', '') . ' ' . $unit;
+            }
+        }
+
+        return $bytes . ' B';
     }
 
     /**

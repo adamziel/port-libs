@@ -25,7 +25,7 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool, forceBinary?: bool} $options
      */
     public function renderFileBytesDiff(string $oldBytes, string $newBytes, string $path, string $language, array $options = []): string
     {
@@ -58,11 +58,15 @@ final class JsonDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool, forceBinary?: bool} $options
      * @return array<string, mixed>
      */
     public function fileBytesDiff(string $oldBytes, string $newBytes, string $path, string $language, array $options = []): array
     {
+        if (($options['forceBinary'] ?? false) === true) {
+            return $this->statusFile('Binary', $path, $oldBytes === $newBytes ? 'unchanged' : 'changed');
+        }
+
         $decoder = new FileContentDecoder();
         $old = $decoder->guessTextContent($oldBytes);
         $new = $decoder->guessTextContent($newBytes);

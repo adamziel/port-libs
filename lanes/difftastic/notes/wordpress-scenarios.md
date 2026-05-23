@@ -58,6 +58,8 @@ Unified inline display now maps upstream `src/display/inline.rs` and header styl
 
 The WordPress readme inline example applies that to plugin release notes. A compact terminal or browser review can keep `wp-content/plugins/acme-review-tools/readme.txt` visible in the header, show a `legacy` to `modern` copy change and nearby FAQ footer context, and omit distant stable metadata.
 
+Inline binary display now maps upstream `tests/cli.rs` `binary_changed` / `binary_override` and the binary branch in `src/main.rs`. The WordPress binary asset example applies this to `wp-content/plugins/acme-card/assets/logo.png`, showing a path/language header plus `Binary file modified` size metadata for changed plugin media instead of attempting a misleading text diff.
+
 Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
 
 The WordPress large asset manifest example applies that to generated block asset metadata. A one-line JSON manifest that gains a `view.js` asset and changes its version remains bounded to the configured side-by-side column width instead of producing an unreadable or prohibitively slow review line.
@@ -213,6 +215,7 @@ php lanes/difftastic/examples/wordpress-pattern-context-side-by-side.php
 php lanes/difftastic/examples/wordpress-created-import-report-side-by-side.php
 php lanes/difftastic/examples/wordpress-highlighted-side-by-side.php
 php lanes/difftastic/examples/wordpress-readme-inline-diff.php
+php lanes/difftastic/examples/wordpress-binary-asset-inline-diff.php
 php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
 php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -263,4 +266,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream CLI/display boundary such as binary modified/removed status output or Git rename/permission metadata in inline output.
+Map Git rename and permission metadata in inline output, including upstream `git_style_arguments_rename` and `git_style_arguments_new_file` boundaries.
