@@ -22,6 +22,8 @@ $classDeclareTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/
 $constructorPropertiesTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-constructor-properties.ts');
 $classFieldsAssignTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-fields-assign.ts');
 $privateStaticCacheTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-static-cache.ts');
+$defaultStaticControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-default-static-controller.ts');
+$classExpressionControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-expression-controller.ts');
 $computedClassFieldsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-class-fields.ts');
 $computedSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-super-controller.ts');
 $conditionalSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-conditional-super-controller.ts');
@@ -30,6 +32,7 @@ $commaSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fi
 $returnSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-return-super-controller.ts');
 $controlSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-control-super-controller.ts');
 $privateSettingsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-settings-controller.ts');
+$privateAccessorTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-accessor-controller.ts');
 $autoAccessorTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-auto-accessor-controller.ts');
 $usingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-disposable.ts');
 $usingImportHoistTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-import-hoist.ts');
@@ -73,6 +76,8 @@ $constructorPropertiesLowered = (new TypeScriptModuleLowerer())->lower($construc
 $classFieldsAssignLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false);
 $classFieldsAssignLegacyLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false, targetYear: 2021);
 $privateStaticCacheLegacyLowered = (new TypeScriptModuleLowerer())->lower($privateStaticCacheTypeScriptSource, false, targetYear: 2021);
+$defaultStaticControllerLegacyLowered = (new TypeScriptModuleLowerer())->lower($defaultStaticControllerTypeScriptSource, false, targetYear: 2021);
+$classExpressionControllerLegacyLowered = (new TypeScriptModuleLowerer())->lower($classExpressionControllerTypeScriptSource, false, targetYear: 2021);
 $computedClassFieldsLowered = (new TypeScriptModuleLowerer())->lower($computedClassFieldsTypeScriptSource, false);
 $computedSuperLowered = (new TypeScriptModuleLowerer())->lower($computedSuperTypeScriptSource, false);
 $conditionalSuperLowered = (new TypeScriptModuleLowerer())->lower($conditionalSuperTypeScriptSource, false);
@@ -81,6 +86,7 @@ $commaSuperLowered = (new TypeScriptModuleLowerer())->lower($commaSuperTypeScrip
 $returnSuperLowered = (new TypeScriptModuleLowerer())->lower($returnSuperTypeScriptSource, false);
 $controlSuperLowered = (new TypeScriptModuleLowerer())->lower($controlSuperTypeScriptSource, false);
 $privateSettingsLowered = (new TypeScriptModuleLowerer())->lower($privateSettingsTypeScriptSource, false);
+$privateAccessorLowered = (new TypeScriptModuleLowerer())->lower($privateAccessorTypeScriptSource, false);
 $autoAccessorLowered = (new TypeScriptModuleLowerer())->lower($autoAccessorTypeScriptSource);
 $usingDisposableLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource);
 $usingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource, lowerUsingDeclarations: true);
@@ -140,6 +146,8 @@ printf("WordPress TypeScript constructor property bytes: %d\n", strlen($construc
 printf("WordPress TypeScript class field assign-semantics bytes: %d\n", strlen($classFieldsAssignLowered));
 printf("WordPress TypeScript ES2021 static field bytes: %d\n", strlen($classFieldsAssignLegacyLowered));
 printf("WordPress TypeScript private static cache bytes: %d\n", strlen($privateStaticCacheLegacyLowered));
+printf("WordPress TypeScript default static controller bytes: %d\n", strlen($defaultStaticControllerLegacyLowered));
+printf("WordPress TypeScript class expression controller bytes: %d\n", strlen($classExpressionControllerLegacyLowered));
 printf("WordPress TypeScript computed class field bytes: %d\n", strlen($computedClassFieldsLowered));
 printf("WordPress TypeScript computed super controller bytes: %d\n", strlen($computedSuperLowered));
 printf("WordPress TypeScript conditional super controller bytes: %d\n", strlen($conditionalSuperLowered));
@@ -148,6 +156,7 @@ printf("WordPress TypeScript comma super controller bytes: %d\n", strlen($commaS
 printf("WordPress TypeScript return super controller bytes: %d\n", strlen($returnSuperLowered));
 printf("WordPress TypeScript control super controller bytes: %d\n", strlen($controlSuperLowered));
 printf("WordPress TypeScript private settings controller bytes: %d\n", strlen($privateSettingsLowered));
+printf("WordPress TypeScript private accessor controller bytes: %d\n", strlen($privateAccessorLowered));
 printf("WordPress TypeScript auto accessor controller bytes: %d\n", strlen($autoAccessorLowered));
 printf("WordPress TypeScript using disposable asset bytes: %d\n", strlen($usingDisposableLowered));
 printf("WordPress TypeScript legacy using helper bytes: %d\n", strlen($usingDisposableLegacyLowered));

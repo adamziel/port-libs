@@ -149,6 +149,14 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $classExpressionStatement = $this->lowerClassExpressionStatementAt($i, $effectiveEnd);
+            if ($classExpressionStatement !== null) {
+                [$classExpressionOutput, $classExpressionEnd] = $classExpressionStatement;
+                $lines[] = $classExpressionOutput;
+                $i = $classExpressionEnd;
+                continue;
+            }
+
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === '=') {
                 if ($i + 2 > $effectiveEnd) {
                     throw new \InvalidArgumentException('Expected expression after TypeScript export equals');
@@ -554,7 +562,31 @@ final class TypeScriptModuleLowerer
             $fieldKeyPrelude = [];
         }
 
-        $header = $this->classHeaderText($start, $bodyOpen, $fieldKeyExtendsPrelude, $extendsTemp);
+        $exportDefaultWithAfterClassAssignments = false;
+        $defaultClassName = null;
+        $afterClassStaticAssignmentClassName = null;
+        if ($afterClassStaticAssignments !== []) {
+            $className = $this->classDeclarationName($cursor, $bodyOpen);
+            if ($this->isExportDefaultClassStatement($start)) {
+                $exportDefaultWithAfterClassAssignments = true;
+                if ($className === null) {
+                    $className = $this->allocateDefaultExportName();
+                    $defaultClassName = $className;
+                }
+            }
+            if ($className === null) {
+                throw new \InvalidArgumentException('Cannot lower static class fields for an anonymous class');
+            }
+            $afterClassStaticAssignmentClassName = $className;
+        }
+
+        $header = $this->classHeaderText(
+            $exportDefaultWithAfterClassAssignments ? $cursor : $start,
+            $bodyOpen,
+            $fieldKeyExtendsPrelude,
+            $extendsTemp,
+            $defaultClassName,
+        );
         $lines = [$header . ' {'];
         foreach ($members as $member) {
             foreach (explode("\n", $member) as $line) {
@@ -573,18 +605,26 @@ final class TypeScriptModuleLowerer
         }
 
         if ($afterClassStaticAssignments !== []) {
-            $className = $this->classDeclarationName($cursor, $bodyOpen);
-            if ($className === null) {
-                throw new \InvalidArgumentException('Cannot lower static class fields outside an anonymous class');
+            if ($afterClassStaticAssignmentClassName === null) {
+                throw new \LogicException('Expected a class name for static field assignments');
             }
-
             $classOutput .= "\n" . implode("\n", $this->staticFieldAssignmentStatements(
-                $className,
+                $afterClassStaticAssignmentClassName,
                 $afterClassStaticAssignments,
             ));
+            if ($exportDefaultWithAfterClassAssignments) {
+                $classOutput .= "\n" . $this->exportDefaultClauseStatement($afterClassStaticAssignmentClassName);
+            }
         }
 
         return [$classOutput, $bodyClose];
+    }
+
+    private function isExportDefaultClassStatement(int $start): bool
+    {
+        return ($this->tokens[$start] ?? null)?->text === 'export'
+            && ($this->tokens[$start + 1] ?? null)?->text === 'default'
+            && !$this->hasLineBreakBetween($start, $start + 1);
     }
 
     private function classHeaderContainsTypeScriptSyntax(int $classIndex, int $bodyOpen): bool
@@ -626,13 +666,13 @@ final class TypeScriptModuleLowerer
     /**
      * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<string>}
      */
-    private function lowerClassMembers(int $start, int $end, bool $hasExtends): array
+    private function lowerClassMembers(int $start, int $end, bool $hasExtends, ?array &$fieldKeyTemps = null): array
     {
+        $fieldKeyTemps ??= [];
         $members = [];
         $instanceAssignments = [];
         $staticAssignments = [];
         $afterClassStaticAssignments = [];
-        $fieldKeyTemps = [];
         $fieldKeyPrelude = [];
         $pendingFieldKeyEffects = [];
         $lastComputedMethod = null;
@@ -2579,7 +2619,10 @@ final class TypeScriptModuleLowerer
             if ($token === null) {
                 continue;
             }
-            if ($token->text === ':' && $this->isClassMemberTypeColon($i, $start, $end)) {
+            if ($token->text === ':' && (
+                $this->isClassMemberTypeColon($i, $start, $end)
+                || $this->isClassMethodParameterTypeColon($i, $start, $end)
+            )) {
                 return true;
             }
             if (($token->text === '?' || $token->text === '!')
@@ -2661,7 +2704,13 @@ final class TypeScriptModuleLowerer
     /**
      * @param list<string> $extendsPrelude
      */
-    private function classHeaderText(int $start, int $bodyOpen, array $extendsPrelude = [], ?string $extendsTemp = null): string
+    private function classHeaderText(
+        int $start,
+        int $bodyOpen,
+        array $extendsPrelude = [],
+        ?string $extendsTemp = null,
+        ?string $anonymousClassName = null,
+    ): string
     {
         $parts = [];
         $previous = null;
@@ -2703,6 +2752,14 @@ final class TypeScriptModuleLowerer
             }
 
             $text = $token->text;
+            if ($text === 'class' && $anonymousClassName !== null) {
+                if ($previous !== null && $this->needsSpace($previous, $text)) {
+                    $parts[] = ' ';
+                }
+                $parts[] = 'class ' . $anonymousClassName;
+                $previous = $anonymousClassName;
+                continue;
+            }
             if ($previous !== null && $this->needsSpace($previous, $text)) {
                 $parts[] = ' ';
             }
@@ -3739,6 +3796,146 @@ final class TypeScriptModuleLowerer
             || ($firstText === 'export' && in_array($secondText, ['let', 'const', 'var'], true));
 
         return ($isVariableDeclaration || $last?->text !== '}') && !str_ends_with($statement, ';');
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function lowerClassExpressionStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        $output = '';
+        $cursor = $start;
+        $matched = false;
+        $fieldKeyTemps = [];
+
+        for ($classIndex = $start; $classIndex <= $effectiveEnd; $classIndex++) {
+            $classExpression = $this->lowerClassExpressionAt($classIndex, $effectiveEnd, $fieldKeyTemps);
+            if ($classExpression === null) {
+                continue;
+            }
+
+            if ($cursor <= $classIndex - 1) {
+                $output .= $this->printRuntimeTokenRange($cursor, $classIndex - 1, $start);
+            }
+            $output .= $this->classExpressionSeparator(rtrim($output)) . $classExpression['expression'];
+            $cursor = $classExpression['bodyClose'] + 1;
+            $matched = true;
+            $classIndex = $classExpression['bodyClose'];
+        }
+
+        if (!$matched) {
+            return null;
+        }
+
+        if ($cursor <= $effectiveEnd) {
+            $output .= $this->printRuntimeTokenRange($cursor, $effectiveEnd, $start);
+        }
+
+        if ($output !== '' && $this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $output)) {
+            $output .= ';';
+        }
+
+        if ($fieldKeyTemps !== []) {
+            $output = 'var ' . implode(', ', $fieldKeyTemps) . ";\n" . $output;
+        }
+
+        return [$output, $effectiveEnd];
+    }
+
+    /**
+     * @param list<string> $fieldKeyTemps
+     * @return array{expression:string, bodyClose:int}|null
+     */
+    private function lowerClassExpressionAt(int $classIndex, int $effectiveEnd, array &$fieldKeyTemps): ?array
+    {
+        if (($this->tokens[$classIndex] ?? null)?->text !== 'class') {
+            return null;
+        }
+
+        $bodyOpen = $this->classExpressionBodyOpen($classIndex, $effectiveEnd);
+        if ($bodyOpen === null) {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd) {
+            return null;
+        }
+
+        $hasTypeScriptClassSyntax = $this->classHeaderContainsTypeScriptSyntax($classIndex, $bodyOpen);
+        [$members, $hasTypeScriptMemberSyntax, , $fieldKeyPrelude, $afterClassStaticAssignments] = $this->lowerClassMembers(
+            $bodyOpen + 1,
+            $bodyClose,
+            $this->classHeaderHasExtends($classIndex, $bodyOpen),
+            $fieldKeyTemps,
+        );
+        if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax) {
+            return null;
+        }
+
+        $fieldKeyExtendsPrelude = [];
+        $extendsTemp = null;
+        if ($this->useDefineForClassFields === false && $fieldKeyPrelude !== [] && $this->classHeaderHasExtends($classIndex, $bodyOpen)) {
+            $extendsTemp = $this->allocateClassFieldTemp($fieldKeyTemps);
+            $fieldKeyExtendsPrelude = $fieldKeyPrelude;
+            $fieldKeyPrelude = [];
+        }
+
+        $header = $this->classHeaderText($classIndex, $bodyOpen, $fieldKeyExtendsPrelude, $extendsTemp);
+        $lines = [$header . ' {'];
+        foreach ($members as $member) {
+            foreach (explode("\n", $member) as $line) {
+                $lines[] = '  ' . $line;
+            }
+        }
+        $lines[] = '}';
+        $classExpression = implode("\n", $lines);
+
+        $expressions = $this->statementLinesToExpressions($fieldKeyPrelude);
+        if ($afterClassStaticAssignments !== []) {
+            $classTemp = $this->allocateClassFieldTemp($fieldKeyTemps);
+            $expressions[] = $classTemp . ' = ' . $classExpression;
+            array_push($expressions, ...$this->statementLinesToExpressions(
+                $this->staticFieldAssignmentStatements($classTemp, $afterClassStaticAssignments),
+            ));
+            $expressions[] = $classTemp;
+        } elseif ($expressions !== []) {
+            $expressions[] = $classExpression;
+        }
+
+        return [
+            'expression' => $expressions === [] ? $classExpression : '(' . implode(', ', $expressions) . ')',
+            'bodyClose' => $bodyClose,
+        ];
+    }
+
+    private function classExpressionBodyOpen(int $classIndex, int $effectiveEnd): ?int
+    {
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $classIndex + 1; $i <= $effectiveEnd; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+            } elseif ($text === ')') {
+                $parenDepth--;
+            } elseif ($text === '[') {
+                $bracketDepth++;
+            } elseif ($text === ']') {
+                $bracketDepth--;
+            } elseif ($parenDepth === 0 && $bracketDepth === 0 && $text === '{') {
+                return $i;
+            } elseif ($parenDepth === 0 && $bracketDepth === 0 && $text === ';') {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private function classExpressionSeparator(string $prefix): string
+    {
+        return $prefix === '' || preg_match('/[\(\[,:]$/', $prefix) === 1 ? '' : ' ';
     }
 
     /**
@@ -6792,7 +6989,7 @@ JS, [
         if (in_array($previous, ['=', '=>', '&&=', '||=', '??='], true) || in_array($current, ['=', '=>', '&&=', '||=', '??='], true)) {
             return true;
         }
-        if (in_array($previous, ['accessor', 'static'], true) && ($current === '[' || str_starts_with($current, '#'))) {
+        if (in_array($previous, ['accessor', 'static', 'get', 'set'], true) && ($current === '[' || str_starts_with($current, '#'))) {
             return true;
         }
         if ($previous === ')' && $current === '{') {

@@ -1405,6 +1405,82 @@ class Foo {
 }
 TS, false, targetYear: 2021));
     },
+    'lowers upstream default static class fields after class for es2021 targets' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+}
+Foo.foo = 1;
+export {
+  Foo as default
+};
+JS . "\n", $lowerer->lower('export default class Foo { static foo: number = 1 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a;
+_a = x();
+class defaultExport {
+}
+defaultExport[_a] = 1;
+export {
+  defaultExport as default
+};
+JS . "\n", $lowerer->lower('export default class { static [x()] = 1 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+const defaultExport = 0;
+class defaultExport2 {
+}
+defaultExport2.foo = 1;
+export {
+  defaultExport2 as default
+};
+JS . "\n", $lowerer->lower('const defaultExport = 0; export default class { static foo = 1 }', false, targetYear: 2021));
+    },
+    'lowers upstream class expression static fields after class for es2021 targets' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _a;
+const Foo = (_a = class {
+}, _a.foo = 1, _a);
+JS . "\n", $lowerer->lower('const Foo = class { static foo: number = 1 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a, _b;
+const Foo = (_a = x(), _b = class Bar {
+}, _b.foo = 1, _b[_a] = 2, _b);
+JS . "\n", $lowerer->lower('const Foo = class Bar { static foo: number = 1; static [x()] = 2 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a;
+foo((_a = class {
+}, _a.x = 1, _a));
+JS . "\n", $lowerer->lower('foo(class { static x: number = 1 })', false, targetYear: 2021));
+    },
+    'lowers upstream class expression field key ordering in assign semantics mode' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _a;
+const Foo = (_a = x(), class {
+  constructor() {
+    this[_a] = 1;
+  }
+});
+JS . "\n", $lowerer->lower('const Foo = class { [x()] = 1 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a, _b;
+const Foo = class extends (_b = Base, _a = x(), _b) {
+  constructor() {
+    super(...arguments);
+    this[_a] = 1;
+  }
+};
+JS . "\n", $lowerer->lower('const Foo = class extends Base { [x()] = 1 }', false, targetYear: 2021));
+    },
     'caches upstream computed class field keys in assign semantics mode' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1770,6 +1846,26 @@ JS . "\n", $lowerer->lower('class Foo { static #foo: number = 1; static bar: num
         $t->true(!str_contains($legacy, 'Foo.#foo'));
         $t->true(strpos($legacy, 'static #foo = 1;') < strpos($legacy, 'Foo.bar = 2;'));
     },
+    'erases upstream private method and accessor type annotations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  get #foo() {}
+  set #foo(x) {x}
+  static get #bar() {}
+  static set #bar(x) {x}
+  #baz(x) {return x}
+}
+JS . "\n", $lowerer->lower('class Foo { get #foo(): any {} set #foo(x: any) {x} static get #bar(): any {} static set #bar(x: any) {x} #baz(x: any): any { return x } }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  get [foo]() {}
+  set [foo](value) {this.value = value}
+}
+JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any) { this.value = value } }'));
+    },
     'keeps non ambient declare line breaks and rejects malformed export as namespace' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1927,6 +2023,41 @@ JS . "\n", $lowerer->lower('class Foo { static #foo: number = 1; static bar: num
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
+    'lowers wordpress anonymous default static controller fields without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-default-static-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
+
+        $t->contains('var _a;', $lowered);
+        $t->contains('_a = assetKey("worker");', $lowered);
+        $t->contains('class defaultExport {', $lowered);
+        $t->contains('defaultExport.settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
+        $t->contains('defaultExport[_a] = "file:./card-worker.js";', $lowered);
+        $t->contains("export {\n  defaultExport as default\n};", $lowered);
+        $t->true(strpos($lowered, 'class defaultExport') < strpos($lowered, 'defaultExport.settings ='));
+        $t->true(strpos($lowered, 'defaultExport[_a]') < strpos($lowered, "export {\n  defaultExport as default"));
+        $t->true(!str_contains($lowered, 'export default class'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress class expression controller static fields without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-class-expression-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
+
+        $t->contains('var _a, _b, _c;', $lowered);
+        $t->contains('const Controller = (_c = class extends (_b = BaseController, _a = assetKey("worker"), _b) {', $lowered);
+        $t->contains('super(metadata);', $lowered);
+        $t->contains('this.blockName = metadata.name;', $lowered);
+        $t->contains('Controller.settings', $lowered);
+        $t->contains('_c.settings = {supports:{html:false}, viewScript:"file:./view.js",}', $lowered);
+        $t->contains('_c[_a] = "file:./card-worker.js"', $lowered);
+        $t->contains('export { Controller as CardBlockController };', $lowered);
+        $t->true(strpos($lowered, '_b = BaseController') < strpos($lowered, '_a = assetKey("worker")'));
+        $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this.blockName = metadata.name;'));
+        $t->true(strpos($lowered, '_c[_a]') < strpos($lowered, 'export { Controller as CardBlockController };'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, 'static {'));
+    },
     'lowers wordpress computed class field asset keys without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-computed-class-fields.ts');
         $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
@@ -2036,6 +2167,19 @@ JS . "\n", $lowerer->lower('class Foo { static #foo: number = 1; static bar: num
         $t->contains('this.blocks.registerBlockType(this.blockName, this.#settings);', $lowered);
         $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this.#settings ='));
         $t->true(strpos($lowered, 'this.#settings =') < strpos($lowered, 'this.blockName = blockName;'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress private accessor block settings without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-private-accessor-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false);
+
+        $t->contains('class PrivateAccessorBlockController {', $lowered);
+        $t->contains('#settings;', $lowered);
+        $t->contains('get #blockSettings() {return this.#settings;}', $lowered);
+        $t->contains('set #blockSettings(value) {this.#settings = value;}', $lowered);
+        $t->contains('this.#blockSettings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, this.#blockSettings);', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
