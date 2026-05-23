@@ -565,9 +565,25 @@ throwaway worktree at commit `3962a237232473c20a44945a6c8ce8c930375360` with
 runner parity. The WordPress example `wordpress-block-diff-planner.php` shows a
 changed media block being selected for a native BEP request while unchanged
 block ranges are reused locally.
+The pull-work planning slice now connects that diff boundary to focused
+upstream `handleFile`, `reuseBlocks`, `copierRoutine`, `sharedPullerState`, and
+`BlockInfo.IsEmpty` semantics: target blocks already present in a
+`.syncthing.<name>.tmp` file are removed from copy/pull work, receive-encrypted
+folders do not reuse temporary blocks, sparse all-zero blocks are skipped only
+when no temporary file is being reused, current-file hash matches are counted as
+origin copies, other local indexed hash matches are counted as elsewhere
+copies, and remaining blocks become pending pulls with upstream-style progress
+and temporary-availability indexes. A bounded upstream runner was executed for
+this focused slice only: `go test ./lib/model -run
+'^(TestHandleFile|TestHandleFileWithTemp|TestCopierFinder|TestPullEmptyBlock)$'
+-count=1` passed in a throwaway worktree at the same commit with `ok
+github.com/syncthing/syncthing/lib/model 0.093s`; this is not full upstream
+runner parity. The WordPress example now shows a partially downloaded media
+temporary file preserving an already-correct block, copying an unchanged local
+block, and requesting only the changed media block.
 
 ## Next Task
 
-Connect BlockDiff output to temporary-file reuse/copy accounting, then broaden
-upstream `folder_sendrecv` puller handling for zero blocks, unavailable peers,
-or receive-encrypted request behavior.
+Connect PullWorkPlan output to real Request scheduling and temporary-file
+write/finalization accounting, then broaden upstream `folder_sendrecv`
+unavailable-peer or receive-encrypted puller behavior.
