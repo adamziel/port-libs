@@ -15,7 +15,7 @@ agents or tmux sessions, or push.
 1. **Critical - the current tree is a green but unaccepted dirty aggregate, not a stable integration checkpoint.**
    - Paths: worktree-wide; `progress.md:237`-`245`; `goal.md:29`,
      `goal.md:44`, `goal.md:48`-`49`.
-   - Evidence: current `HEAD` is
+   - Evidence: the audited implementation head before this audit commit was
      `8c21737 Stamp Pandoc grid table span status`. After the required root
      test run and latest status refresh, `git status --short` reported `428`
      entries, tracked-only status reported `75` modified entries, and
@@ -37,8 +37,9 @@ agents or tmux sessions, or push.
      `porting-summary.json:168`-`171`, `porting-summary.json:185`-`188`,
      `porting-summary.json:202`-`205`.
    - Evidence: the dashboard claims a verified snapshot of source commit
-     `3f4ea3cda693`, while current `HEAD` is `8c21737` and the worktree is
-     dirty. Stale count examples: Difftastic dashboard `139 / 417` while its
+     `3f4ea3cda693`, while the audited implementation head was `8c21737` and
+     the worktree was dirty. Stale count examples: Difftastic dashboard
+     `139 / 417` while its
      manifest says `143`; Gitoxide dashboard `1358 / 2877` and `2511 pass`
      while status/manifest say `1361` mapped and `2529 pass`; libsqlite
      dashboard `129 / 1454` and `129 pass` while manifest/status say `133`;
