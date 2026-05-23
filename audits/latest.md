@@ -1,14 +1,14 @@
 # Independent Audit - 2026-05-23
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate dashboard/status drift, bridge/shell-out usage, and recent Git history through latest observed `HEAD` `06f028d` (`Port pandoc HTML reader image slice`). During this audit, `HEAD` advanced from initially observed `ea74f78` through `203f97f`, `32114c1`, `6e1a108`, `6b37511`, `2100b41`, and `06f028d`. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate dashboard/status drift, bridge/shell-out usage, and recent Git history through audit-sampled `HEAD` `2e16477` (`Stamp pandoc footnote lane status`). During this audit, `HEAD` advanced from initially observed `ea74f78` through `203f97f`, `32114c1`, `6e1a108`, `6b37511`, `2100b41`, `06f028d`, `baea8a3`, `b4a8d6f`, audit commit `2ed1c68`, `4978a39`, `d26771a`, `e78a8cf`, `1607ff7`, `0be5c07`, `980fbba`, `e6fb3a5`, `40a6772`, `919744e`, `eadbd0d`, `938d8d3`, `a532be9`, and `2e16477`; additional commits continued landing during finalization. I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Current audit boundary: the checkout is still a dirty moving aggregate, not a clean integration checkpoint. Latest observed `git status --short` reported `223` entries, `git status --short --untracked-files=no` reported `38` tracked modified files, and `git diff --shortstat` reported `38 files changed, 6085 insertions(+), 255 deletions(-)`. The latest direct root PHP harness rerun is green, but earlier root runs during the same audit were red while concurrent lane/status changes landed.
+Current audit boundary: the checkout is still a dirty moving aggregate, not a clean integration checkpoint. Excluding this audit/progress update, the last non-audit status sample reported `224` `git status --short` entries, `39` tracked modified files, and `git diff --shortstat` reported `39 files changed, 6245 insertions(+), 205 deletions(-)`. Direct root PHP harness runs changed from red to green to red while concurrent lane/status changes landed; an immediate full diagnostic rerun after the latest red run passed, then additional commits landed. This remains evidence of an unstable integration boundary rather than an accepted checkpoint.
 
 ## Findings
 
 1. **Critical - the repository is still a moving dirty aggregate, so green root output is not yet a reviewable integration checkpoint.**
    - Paths: `.tmux-team/prompts/dashboard-updater.md`, `audits/integration-status.md`, `lanes/dolt/src/PatchFunctionCall.php`, `lanes/esbuild/src/TypeScriptModuleLowerer.php`, `lanes/gitoxide/src/BlobMerge.php`, `lanes/libsqlite/src/SQLiteDatabase.php`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/quadrable/src/QuadbStore.php`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/lane-status.json`, `porting.html`, `porting-summary.json`, `progress.md`.
-   - Evidence: `HEAD` moved multiple times during the audit, and the root harness changed from red (`161` files / `14658` assertions / `2` failures) to green (`161` files / `14699` assertions / `0` failures). There are still 38 tracked modified files and 223 total status entries, including multiple lane implementation files, status files, dashboard artifacts, and untracked evidence/example files.
+   - Evidence: `HEAD` moved multiple times during the audit, and root harness evidence changed from red (`161` files / `14658` assertions / `2` failures) to green (`162` files / `14841` assertions / `0` failures), then red again (`162` files / `14837` assertions / `2` failures), with an immediate diagnostic rerun later reporting green (`162` files / `14874` assertions / `0` failures`). Outside this audit/progress update, there are still 39 tracked modified files and 224 total status entries, including multiple lane implementation files, status files, dashboard artifacts, and untracked evidence/example files.
    - Goal requirement at risk: `goal.md:29` requires small reviewable slices with passing tests; `goal.md:48` requires verified finished agent work to be committed and cleaned up; `goal.md:49` requires honest repo-wide verification.
    - Audit judgment: do not accept the aggregate as one batch. Freeze or explicitly coordinate writers, then accept/reject one lane batch at a time from a stable root rerun.
 
@@ -24,9 +24,9 @@ Current audit boundary: the checkout is still a dirty moving aggregate, not a cl
    - Goal requirement at risk: `goal.md:44` requires `progress.md` to include current active lanes, blockers, owner/session, next task per lane, and percentage estimates.
    - Audit judgment: update only the latest audit/next-intervention text now; defer full table refresh until dirty lane batches are accepted or rejected.
 
-4. **High - lane status and manifest root-test claims contradict the latest root rerun.**
+4. **High - lane status and manifest root-test claims are stale against observed root-run evidence.**
    - Paths: `lanes/esbuild/lane-status.json:10`-`13`, `lanes/rclone/lane-status.json:10`-`13`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:200`, `lanes/readability/lane-status.json:5`, `lanes/readability/lane-status.json:10`-`12`, `lanes/quadrable/lane-status.json:10`-`13`, `lanes/gitoxide/lane-status.json:10`-`13`.
-   - Evidence: esbuild status says the root suite fails because a Dolt example is missing; rclone status says the root suite fails in esbuild; readability manifest/status says the root suite fails in esbuild; quadrable status still says root is red from an older rclone failure; Gitoxide cites an older `160` file / `14582` assertion root run. The latest direct root rerun in this audit passes with `161` test files, `14699` assertions, and `0` failures.
+   - Evidence: esbuild status still says the root suite failed because a Dolt example was missing; rclone status says the root suite failed in esbuild; readability manifest/status says the root suite failed in esbuild; quadrable status still says root was red from an older rclone failure; Gitoxide cites an older `160` file / `14582` assertion root run. This audit observed both red and green root harness runs after those stamps, including a direct `162` file / `14837` assertion / `2` failure run followed by a full rerun that reported `162` files / `14874` assertions / `0` failures.
    - Goal requirement at risk: `goal.md:31` requires precise blockers; `goal.md:44`-`45` require current blocker/audit/latest-commit status; `goal.md:48` requires verified committed slices.
    - Audit judgment: root-test status should be centralized or stamped from one accepted run, not copied as stale prose across lane files.
 
@@ -74,11 +74,14 @@ Direct required runs during this audit:
 Earlier direct run exit status: 1
 161 test files, 14658 assertions, 2 failures
 
-Final direct run exit status: 0
-161 test files, 14699 assertions, 0 failures
+Latest direct run exit status: 1
+162 test files, 14837 assertions, 2 failures
+
+Immediate diagnostic rerun exit status: 0
+162 test files, 14874 assertions, 0 failures
 ```
 
-Diagnostic follow-up after the red run filtered failure names and reported `161 test files, 14661 assertions, 2 failures` in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php`; a focused rerun of that esbuild test file later passed with `541` assertions and `0` failures, and the final direct root rerun passed. Treat this as evidence that the worktree moved during verification.
+Diagnostic follow-up after the first red run filtered failure names and reported `161 test files, 14661 assertions, 2 failures` in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php`; a focused rerun of that esbuild test file later passed with `541` assertions and `0` failures, and later direct root reruns passed. After `HEAD` advanced to Difftastic work, a direct rerun failed with `2` failures, but an immediate full rerun used to narrow failures reported `0` failures, so those latest failures were not reproducible in the follow-up command. Additional commits landed after that verification. One green run emitted repeated PHP warnings from `lanes/rclone/src/MemoryProvider.php:778` about missing `closeError`; treat those warnings as a follow-up quality issue.
 
 ## Recommended Next Intervention
 

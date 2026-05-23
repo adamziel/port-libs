@@ -468,6 +468,35 @@ final class SparseTree
     }
 
     /**
+     * Returns the imported partial tree as structured nodes suitable for
+     * upstream-shaped storage projections.
+     *
+     * @return array{
+     *     rootNodeId: int,
+     *     leaves: array<int, array<string, mixed>>,
+     *     branches: array<int, array<string, mixed>>
+     * }
+     */
+    public function partialStorageSnapshot(): array
+    {
+        if ($this->partialRoot === null) {
+            throw new \RuntimeException('partial tree storage snapshot is unavailable');
+        }
+
+        $leaves = [];
+        $branches = [];
+        $this->collectPartialStorageNodes($this->partialRoot, $leaves, $branches);
+        ksort($leaves, SORT_NUMERIC);
+        ksort($branches, SORT_NUMERIC);
+
+        return [
+            'rootNodeId' => $this->nodeIdFromPartialNode($this->partialRoot),
+            'leaves' => $leaves,
+            'branches' => $branches,
+        ];
+    }
+
+    /**
      * @return array{numNodes: int, numLeafNodes: int, numBranchNodes: int, numWitnessNodes: int, maxDepth: int, numBytes: int}
      */
     public function stats(): array
@@ -1795,6 +1824,68 @@ final class SparseTree
             $this->collectPartialNodeIds($node['left'], $nodeIds);
             $this->collectPartialNodeIds($node['right'], $nodeIds);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array<string, mixed>> $leaves
+     * @param array<int, array<string, mixed>> $branches
+     */
+    private function collectPartialStorageNodes(array $node, array &$leaves, array &$branches): void
+    {
+        $nodeId = $this->nodeIdFromPartialNode($node);
+
+        if ($node['type'] === 'empty') {
+            return;
+        }
+
+        if ($node['type'] === 'leaf') {
+            $record = [
+                'type' => 'leaf',
+                'keyHash' => $node['keyHash'],
+                'value' => $node['value'],
+                'hash' => $node['hash'],
+            ];
+            if (($node['key'] ?? '') !== '') {
+                $record['key'] = $node['key'];
+            }
+            $leaves[$nodeId] = $record;
+
+            return;
+        }
+
+        if ($node['type'] === 'witnessLeaf') {
+            $leaves[$nodeId] = [
+                'type' => 'witnessLeaf',
+                'keyHash' => $node['keyHash'],
+                'valueHash' => $node['valueHash'],
+                'hash' => $node['hash'],
+            ];
+
+            return;
+        }
+
+        if ($node['type'] === 'witness') {
+            $branches[$nodeId] = [
+                'type' => 'witness',
+                'hash' => $node['hash'],
+            ];
+
+            return;
+        }
+
+        if ($node['type'] !== 'branch') {
+            throw new \RuntimeException('unrecognized partial tree node type');
+        }
+
+        $this->collectPartialStorageNodes($node['left'], $leaves, $branches);
+        $this->collectPartialStorageNodes($node['right'], $leaves, $branches);
+        $branches[$nodeId] = [
+            'type' => 'branch',
+            'leftNodeId' => $this->nodeIdFromPartialNode($node['left']),
+            'rightNodeId' => $this->nodeIdFromPartialNode($node['right']),
+            'hash' => $node['hash'],
+        ];
     }
 
     private static function estimateSizeProof(Proof $proof): int

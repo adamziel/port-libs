@@ -917,6 +917,204 @@ return [
             quadrableQuadbRemoveDir($targetDir);
         }
     },
+    'native quadb store exposes full-head LMDB bucket layout like upstream storage' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $tree = $repo->tree();
+            $headNodeId = $tree->headNodeId();
+            $storeSnapshot = $repo->nodeStore()->exportSnapshot();
+            $lmdb = $repo->lmdbBucketSnapshot();
+
+            $t->same(['master'], array_keys($lmdb['quadrable_head']));
+            $t->same($headNodeId, quadrableQuadbUnpackUint64Le($lmdb['quadrable_head']['master']));
+            $t->same('master', $lmdb['quadrable_quadb_state']['currHead']);
+            $t->same(count($storeSnapshot['leaves']), count($lmdb['quadrable_nodesLeaf']));
+            $t->same(count($storeSnapshot['branches']), count($lmdb['quadrable_nodesInterior']));
+            $t->same(count($storeSnapshot['leaves']), count($lmdb['quadrable_key']));
+            $t->same($repo->stats()['numBytes'], quadrableQuadbRawBucketBytes($lmdb));
+
+            $leafNodeId = array_key_first($lmdb['quadrable_nodesLeaf']);
+            $leaf = $storeSnapshot['leaves'][$leafNodeId];
+            $leafRaw = $lmdb['quadrable_nodesLeaf'][$leafNodeId];
+            $t->same(72 + strlen($leaf['value']), strlen($leafRaw));
+            $t->same(4, quadrableQuadbUnpackUint64Le(substr($leafRaw, 0, 8)));
+            $t->same($leaf['hash'], bin2hex(substr($leafRaw, 8, 32)));
+            $t->same($leaf['keyHash'], bin2hex(substr($leafRaw, 40, 32)));
+            $t->same($leaf['value'], substr($leafRaw, 72));
+            $t->true(in_array($lmdb['quadrable_key'][$leafNodeId], [
+                'wp_options:siteurl',
+                'wp_options:home',
+                'wp_posts:1',
+            ], true));
+
+            $branchNodeId = array_key_first($lmdb['quadrable_nodesInterior']);
+            $branch = $storeSnapshot['branches'][$branchNodeId];
+            $branchRaw = $lmdb['quadrable_nodesInterior'][$branchNodeId];
+            $branchWord = quadrableQuadbUnpackUint64Le(substr($branchRaw, 0, 8));
+            $branchType = $branchWord % 16;
+            $firstChild = intdiv($branchWord, 16);
+            $t->same(48, strlen($branchRaw));
+            $t->same($branch['hash'], bin2hex(substr($branchRaw, 8, 32)));
+
+            if ($branch['rightNodeId'] === 0) {
+                $t->same(1, $branchType);
+                $t->same($branch['leftNodeId'], $firstChild);
+                $t->same(0, quadrableQuadbUnpackUint64Le(substr($branchRaw, 40, 8)));
+            } elseif ($branch['leftNodeId'] === 0) {
+                $t->same(2, $branchType);
+                $t->same($branch['rightNodeId'], $firstChild);
+                $t->same(0, quadrableQuadbUnpackUint64Le(substr($branchRaw, 40, 8)));
+            } else {
+                $t->same(3, $branchType);
+                $t->same($branch['leftNodeId'], $firstChild);
+                $t->same($branch['rightNodeId'], quadrableQuadbUnpackUint64Le(substr($branchRaw, 40, 8)));
+            }
+
+            $detached = $repo->fork();
+            $detachedBuckets = $repo->lmdbBucketSnapshot();
+            $t->true(!isset($detachedBuckets['quadrable_quadb_state']['currHead']));
+            $t->same($detached->headNodeId(), quadrableQuadbUnpackUint64Le($detachedBuckets['quadrable_quadb_state']['detachedHead']));
+            $t->same($lmdb['quadrable_nodesLeaf'], $detachedBuckets['quadrable_nodesLeaf']);
+            $t->same($lmdb['quadrable_nodesInterior'], $detachedBuckets['quadrable_nodesInterior']);
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store exposes proof-backed LMDB bucket layout like upstream importProof' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated-layout');
+            $target->importProofHex($proofHex, $trustedRoot);
+
+            $status = $target->status();
+            $lmdb = $target->lmdbBucketSnapshot();
+            $projectedHeadNodeId = quadrableQuadbUnpackUint64Le($lmdb['quadrable_head']['wp-delegated-layout']);
+
+            $t->same('wp-delegated-layout', $lmdb['quadrable_quadb_state']['currHead']);
+            $t->same($target->stats()['numBytes'], quadrableQuadbRawBucketBytes($lmdb));
+            $t->true($status['headNodeId'] >= 576460752303423488);
+            $t->true($projectedHeadNodeId >= 288230376151711744);
+            $t->true($projectedHeadNodeId < 576460752303423488);
+            $t->contains('wp_options:siteurl', implode("\n", $lmdb['quadrable_key']));
+
+            $leafTypes = [];
+            foreach ($lmdb['quadrable_nodesLeaf'] as $nodeId => $raw) {
+                $t->true($nodeId > 0);
+                $t->true($nodeId < 288230376151711744);
+
+                $type = quadrableQuadbUnpackUint64Le(substr($raw, 0, 8)) % 16;
+                $leafTypes[] = $type;
+
+                if ($type === 4) {
+                    $t->true(strlen($raw) > 72);
+                    $t->same(64, strlen(bin2hex(substr($raw, 8, 32))));
+                    $t->same(64, strlen(bin2hex(substr($raw, 40, 32))));
+                } elseif ($type === 6) {
+                    $t->same(104, strlen($raw));
+                    $t->same(64, strlen(bin2hex(substr($raw, 72, 32))));
+                }
+            }
+
+            $interiorTypes = [];
+            foreach ($lmdb['quadrable_nodesInterior'] as $nodeId => $raw) {
+                $t->true($nodeId >= 288230376151711744);
+                $t->true($nodeId < 576460752303423488);
+                $t->same(48, strlen($raw));
+
+                $word = quadrableQuadbUnpackUint64Le(substr($raw, 0, 8));
+                $type = $word % 16;
+                $interiorTypes[] = $type;
+
+                if ($type === 5) {
+                    $t->same(0, quadrableQuadbUnpackUint64Le(substr($raw, 40, 8)));
+                } else {
+                    $t->true(in_array($type, [1, 2, 3], true));
+                }
+            }
+
+            $t->true(in_array(4, $leafTypes, true));
+            $t->true(in_array(6, $leafTypes, true));
+            $t->true(in_array(5, $interiorTypes, true));
+            $t->true(count(array_intersect([1, 2, 3], $interiorTypes)) > 0);
+            $t->same($lmdb, QuadbStore::open($targetDir)->lmdbBucketSnapshot());
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
+    'native quadb store projects independent proof imports in upstream LMDB allocation order' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('z-first-import');
+            $target->importProofHex($proofHex, $trustedRoot);
+            $target->checkout('a-second-import');
+            $target->importProofHex($proofHex, $trustedRoot);
+            $target->checkout('z-first-import');
+            $target->fork('z-first-fork');
+
+            $lmdb = $target->lmdbBucketSnapshot();
+            $heads = [];
+            foreach ($lmdb['quadrable_head'] as $head => $rawNodeId) {
+                $heads[$head] = quadrableQuadbUnpackUint64Le($rawNodeId);
+            }
+
+            $t->true($heads['z-first-import'] < $heads['a-second-import']);
+            $t->same($heads['z-first-import'], $heads['z-first-fork']);
+            $t->true($heads['a-second-import'] !== $heads['z-first-import']);
+
+            $leafIds = array_keys($lmdb['quadrable_nodesLeaf']);
+            $interiorIds = array_keys($lmdb['quadrable_nodesInterior']);
+            $t->same(range(min($leafIds), max($leafIds)), $leafIds);
+            $t->same(range(min($interiorIds), max($interiorIds)), $interiorIds);
+            $t->same($lmdb, QuadbStore::open($targetDir)->lmdbBucketSnapshot());
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
     'native quadb store dumps full and proof-backed trees like quadb dumpTree' => static function (TestRunner $t): void {
         $sourceDir = quadrableQuadbTempDir();
         $targetDir = quadrableQuadbTempDir();
@@ -1217,6 +1415,39 @@ function quadrableQuadbStoredNodeCount(QuadbStore $repo): int
     $snapshot = $repo->nodeStore()->exportSnapshot();
 
     return count($snapshot['leaves']) + count($snapshot['branches']);
+}
+
+function quadrableQuadbUnpackUint64Le(string $bytes): int
+{
+    if (strlen($bytes) !== 8) {
+        throw new RuntimeException('expected exactly eight bytes');
+    }
+
+    $parts = unpack('Vlow/Vhigh', $bytes);
+    if (!is_array($parts)) {
+        throw new RuntimeException('unable to unpack uint64');
+    }
+
+    return $parts['low'] + ($parts['high'] * 4294967296);
+}
+
+/**
+ * @param array{
+ *     quadrable_nodesLeaf: array<int, string>,
+ *     quadrable_nodesInterior: array<int, string>
+ * } $lmdb
+ */
+function quadrableQuadbRawBucketBytes(array $lmdb): int
+{
+    $bytes = 0;
+    foreach ($lmdb['quadrable_nodesLeaf'] as $raw) {
+        $bytes += strlen($raw);
+    }
+    foreach ($lmdb['quadrable_nodesInterior'] as $raw) {
+        $bytes += strlen($raw);
+    }
+
+    return $bytes;
 }
 
 /**

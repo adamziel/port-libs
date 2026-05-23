@@ -22,6 +22,10 @@ final class TypeScriptModuleLowerer
     private bool $hasLoweredAwaitUsingDeclarations = false;
     private bool $needsUsingHelperRuntime = false;
     private int $usingScopeCounter = 0;
+    private string $usingHelperKnownSymbolName = '__knownSymbol';
+    private string $usingHelperTypeErrorName = '__typeError';
+    private string $usingHelperUsingName = '__using';
+    private string $usingHelperCallDisposeName = '__callDispose';
 
     public function lower(
         string $source,
@@ -40,6 +44,7 @@ final class TypeScriptModuleLowerer
         $this->hasLoweredAwaitUsingDeclarations = false;
         $this->needsUsingHelperRuntime = false;
         $this->usingScopeCounter = 0;
+        $this->configureHelperNames();
 
         $lines = [];
         $exportAssignments = [];
@@ -4516,7 +4521,7 @@ final class TypeScriptModuleLowerer
                 if ($isAwaitUsing) {
                     $args .= ', true';
                 }
-                $value = '__using(' . $args . ')';
+                $value = $this->usingHelperUsingName . '(' . $args . ')';
             }
             $parts[] = $declaration['name'] . ' = ' . $value;
         }
@@ -4657,10 +4662,10 @@ final class TypeScriptModuleLowerer
         $lines[] = '  var ' . $error . ' = ' . $catch . ', ' . $hasError . ' = true;';
         $lines[] = '} finally {';
         if ($hasAwaitUsing) {
-            $lines[] = '  var ' . $promise . ' = __callDispose(' . $stack . ', ' . $error . ', ' . $hasError . ');';
+            $lines[] = '  var ' . $promise . ' = ' . $this->usingHelperCallDisposeName . '(' . $stack . ', ' . $error . ', ' . $hasError . ');';
             $lines[] = '  ' . $promise . ' && await ' . $promise . ';';
         } else {
-            $lines[] = '  __callDispose(' . $stack . ', ' . $error . ', ' . $hasError . ');';
+            $lines[] = '  ' . $this->usingHelperCallDisposeName . '(' . $stack . ', ' . $error . ', ' . $hasError . ');';
         }
         $lines[] = '}';
 
@@ -4718,8 +4723,8 @@ final class TypeScriptModuleLowerer
         }
 
         $finally = $this->hasLoweredAwaitUsingDeclarations
-            ? "  var _promise = __callDispose(_stack, _error, _hasError);\n  _promise && await _promise;"
-            : '  __callDispose(_stack, _error, _hasError);';
+            ? '  var _promise = ' . $this->usingHelperCallDisposeName . "(_stack, _error, _hasError);\n  _promise && await _promise;"
+            : '  ' . $this->usingHelperCallDisposeName . '(_stack, _error, _hasError);';
 
         $prefixText = $this->joinTopLevelUsingHelperStatements($prefix);
         $suffixText = $this->joinTopLevelUsingHelperStatements($suffix);
@@ -4787,12 +4792,132 @@ final class TypeScriptModuleLowerer
             }
 
             return [
-                'body' => ['var ' . $name . ' = class' . $tail . (str_ends_with($tail, ';') ? '' : ';')],
+                'body' => ['var ' . $name . ' = ' . $this->hoistedClassExpression($name, $tail)],
                 'suffix' => [$this->exportClauseStatement([$name])],
             ];
         }
 
+        if (preg_match('/^export\s+default\s+class(?:\s+([A-Za-z_$][A-Za-z0-9_$]*))?([\s\S]*)$/', $trimmed, $match) === 1) {
+            $name = $match[1] !== '' ? $match[1] : $this->allocateDefaultExportName();
+            $tail = rtrim($match[2]);
+            if ($tail === '' || !str_contains($tail, '{')) {
+                return null;
+            }
+
+            $classExpression = $match[1] !== ''
+                ? $this->hoistedClassExpression($name, $tail)
+                : 'class' . $tail . (str_ends_with($tail, ';') ? '' : ';');
+
+            return [
+                'body' => ['var ' . $name . ' = ' . $classExpression],
+                'suffix' => [$this->exportDefaultClauseStatement($name)],
+            ];
+        }
+
+        if (preg_match('/^export\s+default\s+([\s\S]*?);?$/', $trimmed, $match) === 1
+            && preg_match('/^export\s+default\s+(?:class|(?:async\s+)?function)\b/', $trimmed) !== 1
+        ) {
+            $name = $this->allocateDefaultExportName();
+            $expression = rtrim($match[1]);
+            if ($expression === '') {
+                return null;
+            }
+
+            return [
+                'body' => ['var ' . $name . ' = ' . $expression . ';'],
+                'suffix' => [$this->exportDefaultClauseStatement($name)],
+            ];
+        }
+
         return null;
+    }
+
+    private function hoistedClassExpression(string $name, string $tail): string
+    {
+        [$hasSelfReference, $rewrittenTail] = $this->rewriteHoistedClassSelfReferences($name, $tail);
+        $className = $hasSelfReference ? ' ' . $this->hoistedClassInternalName($name, $tail) : '';
+
+        if ($hasSelfReference) {
+            [, $rewrittenTail] = $this->rewriteHoistedClassSelfReferences($name, $tail, trim($className));
+        }
+
+        return 'class' . $className . $rewrittenTail . (str_ends_with($rewrittenTail, ';') ? '' : ';');
+    }
+
+    /**
+     * @return array{0:bool, 1:string}
+     */
+    private function rewriteHoistedClassSelfReferences(string $name, string $tail, ?string $replacement = null): array
+    {
+        $tokens = (new JsLexer())->tokenize($tail);
+        $referenceIndexes = [];
+        foreach ($tokens as $index => $token) {
+            if ($token->kind === 'identifier'
+                && $token->text === $name
+                && $this->isHoistedClassSelfReference($tokens, $index)
+            ) {
+                $referenceIndexes[$index] = true;
+            }
+        }
+
+        if ($referenceIndexes === []) {
+            return [false, $tail];
+        }
+
+        if ($replacement === null) {
+            return [true, $tail];
+        }
+
+        $output = '';
+        $cursor = 0;
+        foreach ($tokens as $index => $token) {
+            if (!isset($referenceIndexes[$index])) {
+                continue;
+            }
+
+            $output .= substr($tail, $cursor, $token->offset - $cursor) . $replacement;
+            $cursor = $token->offset + strlen($token->text);
+        }
+
+        return [true, $output . substr($tail, $cursor)];
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function isHoistedClassSelfReference(array $tokens, int $index): bool
+    {
+        $previous = $tokens[$index - 1] ?? null;
+        $next = $tokens[$index + 1] ?? null;
+        if ($previous?->text === '.') {
+            return false;
+        }
+
+        if ($next?->text === ':') {
+            return false;
+        }
+
+        if ($previous !== null
+            && in_array($previous->text, ['{', ';'], true)
+            && $next !== null
+            && in_array($next->text, ['=', '(', ';'], true)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function hoistedClassInternalName(string $name, string $tail): string
+    {
+        $used = $this->sourceIdentifierMap();
+        foreach ((new JsLexer())->tokenize($tail) as $token) {
+            if ($token->kind === 'identifier') {
+                $used[$token->text] = true;
+            }
+        }
+
+        return $this->allocateUniqueIdentifier('_' . $name, $used);
     }
 
     /**
@@ -5035,6 +5160,18 @@ final class TypeScriptModuleLowerer
         return implode("\n", $lines);
     }
 
+    private function exportDefaultClauseStatement(string $name): string
+    {
+        return "export {\n  " . $name . " as default\n};";
+    }
+
+    private function allocateDefaultExportName(): string
+    {
+        $used = $this->sourceIdentifierMap();
+
+        return $this->allocateUniqueIdentifier('defaultExport', $used);
+    }
+
     private function isStringDirectiveStatement(string $line): bool
     {
         return preg_match('/^(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\');?$/', trim($line)) === 1;
@@ -5057,21 +5194,21 @@ final class TypeScriptModuleLowerer
 
     private function usingHelperRuntime(): string
     {
-        return <<<'JS'
-var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
-var __typeError = (msg) => {
+        return strtr(<<<'JS'
+var %%knownSymbol%% = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
+var %%typeError%% = (msg) => {
   throw TypeError(msg);
 };
-var __using = (stack, value, async) => {
+var %%using%% = (stack, value, async) => {
   if (value != null) {
-    if (typeof value !== "object" && typeof value !== "function") __typeError("Object expected");
+    if (typeof value !== "object" && typeof value !== "function") %%typeError%%("Object expected");
     var dispose, inner;
-    if (async) dispose = value[__knownSymbol("asyncDispose")];
+    if (async) dispose = value[%%knownSymbol%%("asyncDispose")];
     if (dispose === void 0) {
-      dispose = value[__knownSymbol("dispose")];
+      dispose = value[%%knownSymbol%%("dispose")];
       if (async) inner = dispose;
     }
-    if (typeof dispose !== "function") __typeError("Object not disposable");
+    if (typeof dispose !== "function") %%typeError%%("Object not disposable");
     if (inner) dispose = function() {
       try {
         inner.call(this);
@@ -5085,7 +5222,7 @@ var __using = (stack, value, async) => {
   }
   return value;
 };
-var __callDispose = (stack, error, hasError) => {
+var %%callDispose%% = (stack, error, hasError) => {
   var E = typeof SuppressedError === "function" ? SuppressedError : function(e, s, m, _2) {
     return _2 = Error(m), _2.name = "SuppressedError", _2.error = e, _2.suppressed = s, _2;
   };
@@ -5103,7 +5240,57 @@ var __callDispose = (stack, error, hasError) => {
   };
   return next();
 };
-JS . "\n";
+JS, [
+            '%%knownSymbol%%' => $this->usingHelperKnownSymbolName,
+            '%%typeError%%' => $this->usingHelperTypeErrorName,
+            '%%using%%' => $this->usingHelperUsingName,
+            '%%callDispose%%' => $this->usingHelperCallDisposeName,
+        ]) . "\n";
+    }
+
+    private function configureHelperNames(): void
+    {
+        $used = $this->sourceIdentifierMap();
+        $this->usingHelperKnownSymbolName = $this->allocateUniqueIdentifier('__knownSymbol', $used);
+        $this->usingHelperTypeErrorName = $this->allocateUniqueIdentifier('__typeError', $used);
+        $this->usingHelperUsingName = $this->allocateUniqueIdentifier('__using', $used);
+        $this->usingHelperCallDisposeName = $this->allocateUniqueIdentifier('__callDispose', $used);
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function sourceIdentifierMap(): array
+    {
+        $used = [];
+        foreach ($this->tokens as $token) {
+            if ($token->kind === 'identifier') {
+                $used[$token->text] = true;
+            }
+        }
+
+        return $used;
+    }
+
+    /**
+     * @param array<string, true> $used
+     */
+    private function allocateUniqueIdentifier(string $base, array &$used): string
+    {
+        if (!isset($used[$base])) {
+            $used[$base] = true;
+
+            return $base;
+        }
+
+        for ($suffix = 2; ; $suffix++) {
+            $candidate = $base . $suffix;
+            if (!isset($used[$candidate])) {
+                $used[$candidate] = true;
+
+                return $candidate;
+            }
+        }
     }
 
     private function usingInitializerEnd(int $start, int $end): int

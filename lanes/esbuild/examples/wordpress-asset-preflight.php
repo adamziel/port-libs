@@ -35,6 +35,7 @@ $usingImportHoistTypeScriptSource = (string) file_get_contents(dirname(__DIR__) 
 $usingExportLocalTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-export-local.ts');
 $usingDestructuredExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-destructured-export.ts');
 $usingExportFunctionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-export-function.ts');
+$usingDefaultControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-default-controller.ts');
 $functionUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-function-using-disposable.ts');
 $blockUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-block-using-disposable.ts');
 $forUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-assets.ts');
@@ -72,6 +73,7 @@ $usingImportHoistLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingIm
 $usingExportLocalLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingExportLocalTypeScriptSource, lowerUsingDeclarations: true);
 $usingDestructuredExportLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingDestructuredExportTypeScriptSource, lowerUsingDeclarations: true);
 $usingExportFunctionLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingExportFunctionTypeScriptSource, lowerUsingDeclarations: true);
+$usingDefaultControllerLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingDefaultControllerTypeScriptSource, lowerUsingDeclarations: true);
 $functionUsingDisposableLowered = (new TypeScriptModuleLowerer())->lower($functionUsingDisposableTypeScriptSource);
 $functionUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($functionUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $blockUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($blockUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
@@ -124,6 +126,7 @@ printf("WordPress TypeScript imported using helper bytes: %d\n", strlen($usingIm
 printf("WordPress TypeScript exported using helper bytes: %d\n", strlen($usingExportLocalLegacyLowered));
 printf("WordPress TypeScript destructured exported using helper bytes: %d\n", strlen($usingDestructuredExportLegacyLowered));
 printf("WordPress TypeScript exported function using helper bytes: %d\n", strlen($usingExportFunctionLegacyLowered));
+printf("WordPress TypeScript default controller using helper bytes: %d\n", strlen($usingDefaultControllerLegacyLowered));
 printf("WordPress TypeScript function scoped using bytes: %d\n", strlen($functionUsingDisposableLowered));
 printf("WordPress TypeScript function scoped using helper bytes: %d\n", strlen($functionUsingDisposableLegacyLowered));
 printf("WordPress TypeScript block scoped using helper bytes: %d\n", strlen($blockUsingDisposableLegacyLowered));

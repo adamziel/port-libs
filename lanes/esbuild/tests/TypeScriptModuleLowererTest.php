@@ -275,6 +275,32 @@ TS,
         $t->true(!str_contains($lowered, 'export const settings'));
         $t->true(!str_contains($lowered, 'export class PreviewRegistration'));
     },
+    'keeps upstream exported class self references inside hoisted class expressions' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+using a: Disposable = b;
+export class Foo {
+  ac = [a, c]
+}
+export class Bar {
+  ac = [a, c, Bar]
+}
+using c: Disposable = d;
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var Foo = class {', $lowered);
+        $t->contains('ac = [a, c]', $lowered);
+        $t->contains('var Bar = class _Bar {', $lowered);
+        $t->contains('ac = [a, c, _Bar]', $lowered);
+        $t->contains("export {\n  Foo\n};", $lowered);
+        $t->contains("export {\n  Bar\n};", $lowered);
+        $t->true(strpos($lowered, 'var Foo = class') < strpos($lowered, '__callDispose(_stack'));
+        $t->true(strpos($lowered, 'var Bar = class _Bar') < strpos($lowered, '__callDispose(_stack'));
+        $t->true(!str_contains($lowered, 'class Bar {'));
+        $t->true(!str_contains($lowered, '[a, c, Bar]'));
+    },
     'keeps upstream destructured local exports outside top level using helper scopes' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             <<<'TS'
@@ -318,6 +344,80 @@ TS,
         $t->contains("try {\n  var a = __using(_stack, b);\n  var c = __using(_stack, d);\n}", $lowered);
         $t->true(!str_contains($lowered, "try {\n  export function"));
         $t->true(!str_contains($lowered, "try {\n  function helper"));
+    },
+    'keeps upstream default class and expression exports outside top level using helper scopes' => static function (TestRunner $t): void {
+        $unusedClassLowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+using a: Disposable = b;
+export default class Foo {
+  ac = [a, c]
+}
+using c: Disposable = d;
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var Foo = class {', $unusedClassLowered);
+        $t->contains('ac = [a, c]', $unusedClassLowered);
+        $t->contains("export {\n  Foo as default\n};", $unusedClassLowered);
+        $t->true(!str_contains($unusedClassLowered, 'class Foo {'));
+
+        $usedClassLowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+using a: Disposable = b;
+export default class Foo {
+  ac = [a, c, Foo]
+}
+using c: Disposable = d;
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var Foo = class _Foo {', $usedClassLowered);
+        $t->contains('ac = [a, c, _Foo]', $usedClassLowered);
+        $t->contains("export {\n  Foo as default\n};", $usedClassLowered);
+        $t->true(strpos($usedClassLowered, 'var Foo = class _Foo') < strpos($usedClassLowered, '__callDispose(_stack'));
+        $t->true(strpos($usedClassLowered, '__callDispose(_stack') < strpos($usedClassLowered, "export {\n  Foo as default"));
+        $t->true(!str_contains($usedClassLowered, "try {\n  export default class"));
+        $t->true(!str_contains($usedClassLowered, '[a, c, Foo]'));
+
+        $expressionLowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+const defaultExport = "occupied";
+using a: Disposable = b;
+export default [a, c]
+using c: Disposable = d;
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var defaultExport2 = [a, c];', $expressionLowered);
+        $t->contains("export {\n  defaultExport2 as default\n};", $expressionLowered);
+        $t->true(strpos($expressionLowered, 'var defaultExport2 = [a, c];') < strpos($expressionLowered, '__callDispose(_stack'));
+        $t->true(strpos($expressionLowered, '__callDispose(_stack') < strpos($expressionLowered, "export {\n  defaultExport2 as default"));
+        $t->true(!str_contains($expressionLowered, "try {\n  export default"));
+    },
+    'renames upstream using helper symbols when source names collide' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+const __knownSymbol = "source-known";
+const __typeError = "source-error";
+const __using = "source-using";
+const __callDispose = "source-dispose";
+using asset: Disposable = acquire();
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __knownSymbol2 = (name, symbol) =>', $lowered);
+        $t->contains('var __typeError2 = (msg) => {', $lowered);
+        $t->contains('var __using2 = (stack, value, async) => {', $lowered);
+        $t->contains('var __callDispose2 = (stack, error, hasError) => {', $lowered);
+        $t->contains('var asset = __using2(_stack, acquire());', $lowered);
+        $t->contains('__callDispose2(_stack, _error, _hasError);', $lowered);
+        $t->contains('value[__knownSymbol2("dispose")]', $lowered);
+        $t->true(!str_contains($lowered, 'var __using = (stack, value, async) => {'));
+        $t->true(!str_contains($lowered, '__using(_stack, acquire())'));
     },
     'lowers upstream block scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
@@ -1324,6 +1424,26 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('__callDispose(_stack, _error, _hasError);', $lowered);
         $t->true(strpos($lowered, 'export function registerPreviewBlock()') < strpos($lowered, 'var previewAsset = __using'));
         $t->true(!str_contains($lowered, "try {\n  export function"));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress default exported using asset controller without trapping exports' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-default-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->true(strpos($lowered, 'import metadata from "./block.json" with { type: "json" };') < strpos($lowered, 'var __knownSymbol'));
+        $t->contains('var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('var PreviewBlockController = class _PreviewBlockController {', $lowered);
+        $t->contains('static controller = _PreviewBlockController;', $lowered);
+        $t->contains('register() {', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, {', $lowered);
+        $t->contains('viewScript: previewAsset.url,', $lowered);
+        $t->contains("export {\n  PreviewBlockController as default\n};", $lowered);
+        $t->true(strpos($lowered, 'var PreviewBlockController = class _PreviewBlockController') < strpos($lowered, '__callDispose(_stack'));
+        $t->true(strpos($lowered, '__callDispose(_stack') < strpos($lowered, "export {\n  PreviewBlockController as default"));
+        $t->true(!str_contains($lowered, "try {\n  export default class"));
+        $t->true(!str_contains($lowered, 'static controller = PreviewBlockController'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));

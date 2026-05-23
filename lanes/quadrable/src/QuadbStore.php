@@ -7,6 +7,12 @@ namespace PortLibs\Quadrable;
 final class QuadbStore
 {
     private const STATE_FILE = 'quadb-state.json';
+    private const NODE_TYPE_BRANCH_LEFT = 1;
+    private const NODE_TYPE_BRANCH_RIGHT = 2;
+    private const NODE_TYPE_BRANCH_BOTH = 3;
+    private const NODE_TYPE_LEAF = 4;
+    private const NODE_TYPE_WITNESS = 5;
+    private const NODE_TYPE_WITNESS_LEAF = 6;
 
     private function __construct(
         private readonly string $directory,
@@ -159,6 +165,208 @@ final class QuadbStore
     public function nodeStore(): TrackedNodeStore
     {
         return $this->nodeStore;
+    }
+
+    /**
+     * Returns a native, upstream-shaped view of the file-backed store split into
+     * Quadrable's LMDB database buckets. Values that are binary in upstream LMDB
+     * are returned as raw PHP strings. Proof-backed heads are reconstructed from
+     * their persisted proof/update event history and projected into regular LMDB
+     * leaf/interior id ranges.
+     *
+     * @return array{
+     *     quadrable_head: array<string, string>,
+     *     quadrable_nodesLeaf: array<int, string>,
+     *     quadrable_nodesInterior: array<int, string>,
+     *     quadrable_key: array<int, string>,
+     *     quadrable_quadb_state: array<string, string>
+     * }
+     */
+    public function lmdbBucketSnapshot(): array
+    {
+        $snapshot = $this->nodeStore->exportSnapshot();
+
+        $heads = [];
+        foreach ($snapshot['heads'] as $head => $nodeId) {
+            $heads[$head] = self::packUInt64Le((int) $nodeId);
+        }
+        ksort($heads, SORT_STRING);
+
+        $leaves = [];
+        $leafKeys = [];
+        foreach ($snapshot['leaves'] as $nodeIdRaw => $leaf) {
+            $nodeId = (int) $nodeIdRaw;
+            if ($nodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID) {
+                continue;
+            }
+
+            $leaves[$nodeId] = self::encodeLmdbLeafNode($leaf);
+            if ($this->trackKeys && isset($this->trackedKeys[$leaf['keyHash']])) {
+                $leafKeys[$nodeId] = $this->trackedKeys[$leaf['keyHash']];
+            }
+        }
+        ksort($leaves, SORT_NUMERIC);
+        ksort($leafKeys, SORT_NUMERIC);
+
+        $branches = [];
+        foreach ($snapshot['branches'] as $nodeIdRaw => $branch) {
+            $nodeId = (int) $nodeIdRaw;
+            if ($nodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID) {
+                continue;
+            }
+
+            $branches[$nodeId] = self::encodeLmdbBranchNode($branch);
+        }
+        ksort($branches, SORT_NUMERIC);
+
+        $nextLeafNodeId = self::nextLmdbLeafNodeId($leaves);
+        $nextInteriorNodeId = self::nextLmdbInteriorNodeId($branches);
+        $partialProjectionRoots = [];
+        $projectPartialState = function (array $state) use (
+            &$leaves,
+            &$leafKeys,
+            &$branches,
+            &$nextLeafNodeId,
+            &$nextInteriorNodeId,
+            &$partialProjectionRoots
+        ): int {
+            $stateKey = hash(
+                'sha256',
+                json_encode($state, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+            );
+            if (isset($partialProjectionRoots[$stateKey])) {
+                return $partialProjectionRoots[$stateKey];
+            }
+
+            $partialSnapshot = $this->partialTreeFromState($state)->partialStorageSnapshot();
+            $idMap = [0 => 0];
+            $pending = [];
+
+            foreach ($partialSnapshot['leaves'] as $nativeNodeId => $leaf) {
+                $pending[(int) $nativeNodeId] = [
+                    'kind' => 'leaf',
+                    'record' => $leaf,
+                ];
+            }
+            foreach ($partialSnapshot['branches'] as $nativeNodeId => $branch) {
+                $pending[(int) $nativeNodeId] = [
+                    'kind' => $branch['type'] === 'witness' ? 'witness' : 'branch',
+                    'record' => $branch,
+                ];
+            }
+            ksort($pending, SORT_NUMERIC);
+
+            while ($pending !== []) {
+                $progress = false;
+
+                foreach ($pending as $nativeNodeId => $entry) {
+                    $record = $entry['record'];
+
+                    if ($entry['kind'] === 'leaf') {
+                        $mappedNodeId = $nextLeafNodeId++;
+                        $idMap[$nativeNodeId] = $mappedNodeId;
+                        $leaves[$mappedNodeId] = self::encodeLmdbPartialLeafNode($record);
+                        if ($this->trackKeys && isset($record['key']) && $record['key'] !== '') {
+                            $leafKeys[$mappedNodeId] = $record['key'];
+                        }
+                        unset($pending[$nativeNodeId]);
+                        $progress = true;
+
+                        continue;
+                    }
+
+                    if ($entry['kind'] === 'witness') {
+                        $mappedNodeId = $nextInteriorNodeId++;
+                        $idMap[$nativeNodeId] = $mappedNodeId;
+                        $branches[$mappedNodeId] = self::encodeLmdbWitnessNode($record);
+                        unset($pending[$nativeNodeId]);
+                        $progress = true;
+
+                        continue;
+                    }
+
+                    $leftNativeNodeId = (int) $record['leftNodeId'];
+                    $rightNativeNodeId = (int) $record['rightNodeId'];
+                    if (!array_key_exists($leftNativeNodeId, $idMap) || !array_key_exists($rightNativeNodeId, $idMap)) {
+                        continue;
+                    }
+
+                    $mappedNodeId = $nextInteriorNodeId++;
+                    $idMap[$nativeNodeId] = $mappedNodeId;
+                    $branches[$mappedNodeId] = self::encodeLmdbBranchNode([
+                        'leftNodeId' => $idMap[$leftNativeNodeId],
+                        'rightNodeId' => $idMap[$rightNativeNodeId],
+                        'hash' => $record['hash'],
+                    ]);
+                    unset($pending[$nativeNodeId]);
+                    $progress = true;
+                }
+
+                if (!$progress) {
+                    throw new \RuntimeException('partial proof storage projection contains unresolved child nodes');
+                }
+            }
+
+            ksort($leaves, SORT_NUMERIC);
+            ksort($leafKeys, SORT_NUMERIC);
+            ksort($branches, SORT_NUMERIC);
+
+            $rootNodeId = (int) $partialSnapshot['rootNodeId'];
+            $partialProjectionRoots[$stateKey] = $idMap[$rootNodeId] ?? 0;
+
+            return $partialProjectionRoots[$stateKey];
+        };
+
+        $partialEntries = [];
+        foreach ($this->partialProofHeads as $head => $partialState) {
+            $partialEntries[] = [
+                'head' => $head,
+                'state' => $partialState,
+                'ordinal' => self::partialStorageOrdinal($partialState),
+            ];
+        }
+        if ($this->partialDetachedHead !== null) {
+            $partialEntries[] = [
+                'head' => null,
+                'state' => $this->partialDetachedHead,
+                'ordinal' => self::partialStorageOrdinal($this->partialDetachedHead),
+            ];
+        }
+
+        usort($partialEntries, static function (array $a, array $b): int {
+            if ($a['ordinal'] !== $b['ordinal']) {
+                return $a['ordinal'] <=> $b['ordinal'];
+            }
+
+            return (string) ($a['head'] ?? "\xff") <=> (string) ($b['head'] ?? "\xff");
+        });
+
+        $partialDetachedNodeId = null;
+        foreach ($partialEntries as $entry) {
+            $projectedNodeId = $projectPartialState($entry['state']);
+            if ($entry['head'] === null) {
+                $partialDetachedNodeId = $projectedNodeId;
+                continue;
+            }
+
+            $heads[$entry['head']] = self::packUInt64Le($projectedNodeId);
+        }
+        ksort($heads, SORT_STRING);
+
+        $state = [];
+        if ($this->currentHead === null) {
+            $state['detachedHead'] = self::packUInt64Le($partialDetachedNodeId ?? $this->detachedHeadNodeId);
+        } else {
+            $state['currHead'] = $this->currentHead;
+        }
+
+        return [
+            'quadrable_head' => $heads,
+            'quadrable_nodesLeaf' => $leaves,
+            'quadrable_nodesInterior' => $branches,
+            'quadrable_key' => $leafKeys,
+            'quadrable_quadb_state' => $state,
+        ];
     }
 
     public function currentHeadName(): ?string
@@ -1049,9 +1257,12 @@ final class QuadbStore
         $root = $this->normalizeOptionalRoot($expectedRoot);
         $proof = Proof::decode($encodedProof);
         $partial = SparseTree::importProof($proof, $root ?? '');
+        $storageOrdinal = $this->nextPartialStorageOrdinal();
         $state = [
             'rootHash' => $partial->rootHash(),
             'proofRootHash' => $partial->rootHash(),
+            'storageId' => self::partialStorageId($this->currentHead, $storageOrdinal, $encodedProof),
+            'storageOrdinal' => $storageOrdinal,
             'proofs' => [bin2hex($encodedProof)],
             'updates' => [],
             'events' => [
@@ -1282,6 +1493,19 @@ final class QuadbStore
         }
 
         return $this->partialProofHeads[$this->currentHead] ?? null;
+    }
+
+    private function nextPartialStorageOrdinal(): int
+    {
+        $max = 0;
+        foreach ($this->partialProofHeads as $state) {
+            $max = max($max, self::partialStorageOrdinal($state));
+        }
+        if ($this->partialDetachedHead !== null) {
+            $max = max($max, self::partialStorageOrdinal($this->partialDetachedHead));
+        }
+
+        return $max + 1;
     }
 
     /**
@@ -1589,13 +1813,57 @@ final class QuadbStore
             }
         }
 
+        $storageOrdinal = 0;
+        if (array_key_exists('storageOrdinal', $state)) {
+            $storageOrdinal = self::parseNonNegativeNodeId($state['storageOrdinal'], $label . ' storage ordinal');
+        }
+
+        $storageId = $state['storageId'] ?? null;
+        if ($storageId !== null && (!is_string($storageId) || $storageId === '')) {
+            throw new \InvalidArgumentException($label . ' has malformed storage id');
+        }
+        if ($storageId === null) {
+            $storageId = self::legacyPartialStorageId($proofRootHash, $proofs, $updates, $events);
+        }
+
         return [
             'rootHash' => $state['rootHash'],
             'proofRootHash' => $proofRootHash,
+            'storageId' => $storageId,
+            'storageOrdinal' => $storageOrdinal,
             'proofs' => $proofs,
             'updates' => $updates,
             'events' => $events,
         ];
+    }
+
+    private static function partialStorageOrdinal(array $state): int
+    {
+        return self::parseNonNegativeNodeId($state['storageOrdinal'] ?? 0, 'partial proof storage ordinal');
+    }
+
+    private static function partialStorageId(?string $head, int $storageOrdinal, string $encodedProof): string
+    {
+        return 'proof-' . $storageOrdinal . '-'
+            . substr(hash('sha256', ($head ?? '[detached]') . "\0" . $storageOrdinal . "\0" . $encodedProof), 0, 24);
+    }
+
+    /**
+     * @param list<string> $proofs
+     * @param list<array{delete: bool, keyHash: string, value: string, key?: string}> $updates
+     * @param list<array<string, mixed>> $events
+     */
+    private static function legacyPartialStorageId(string $proofRootHash, array $proofs, array $updates, array $events): string
+    {
+        return 'legacy-' . hash(
+            'sha256',
+            json_encode([
+                'proofRootHash' => $proofRootHash,
+                'proofs' => $proofs,
+                'updates' => $updates,
+                'events' => $events,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+        );
     }
 
     private static function parsePartialProofHex(mixed $proofHex, string $message): string
@@ -1853,6 +2121,142 @@ final class QuadbStore
     private static function renderUnknownKey(string $keyHex): string
     {
         return 'H(?)=0x' . substr($keyHex, 0, 12) . '...';
+    }
+
+    /**
+     * @param array{keyHash: string, value: string, hash: string} $leaf
+     */
+    private static function encodeLmdbLeafNode(array $leaf): string
+    {
+        return self::packUInt64Le(self::NODE_TYPE_LEAF)
+            . self::hashBytes($leaf['hash'])
+            . self::hashBytes($leaf['keyHash'])
+            . $leaf['value'];
+    }
+
+    /**
+     * @param array<string, mixed> $leaf
+     */
+    private static function encodeLmdbPartialLeafNode(array $leaf): string
+    {
+        if (($leaf['type'] ?? null) === 'leaf') {
+            return self::packUInt64Le(self::NODE_TYPE_LEAF)
+                . self::hashBytes((string) $leaf['hash'])
+                . self::hashBytes((string) $leaf['keyHash'])
+                . (string) $leaf['value'];
+        }
+
+        if (($leaf['type'] ?? null) === 'witnessLeaf') {
+            return self::packUInt64Le(self::NODE_TYPE_WITNESS_LEAF)
+                . self::hashBytes((string) $leaf['hash'])
+                . self::hashBytes((string) $leaf['keyHash'])
+                . self::hashBytes((string) $leaf['valueHash']);
+        }
+
+        throw new \RuntimeException('unrecognized partial leaf storage type');
+    }
+
+    /**
+     * @param array{leftNodeId: int, rightNodeId: int, hash: string} $branch
+     */
+    private static function encodeLmdbBranchNode(array $branch): string
+    {
+        $leftNodeId = $branch['leftNodeId'];
+        $rightNodeId = $branch['rightNodeId'];
+
+        if ($rightNodeId === 0) {
+            $firstWord = self::packNodeRefWord($leftNodeId, self::NODE_TYPE_BRANCH_LEFT);
+            $rightWord = self::packUInt64Le(0);
+        } elseif ($leftNodeId === 0) {
+            $firstWord = self::packNodeRefWord($rightNodeId, self::NODE_TYPE_BRANCH_RIGHT);
+            $rightWord = self::packUInt64Le(0);
+        } else {
+            $firstWord = self::packNodeRefWord($leftNodeId, self::NODE_TYPE_BRANCH_BOTH);
+            $rightWord = self::packUInt64Le($rightNodeId);
+        }
+
+        return $firstWord . self::hashBytes($branch['hash']) . $rightWord;
+    }
+
+    /**
+     * @param array<string, mixed> $witness
+     */
+    private static function encodeLmdbWitnessNode(array $witness): string
+    {
+        return self::packUInt64Le(self::NODE_TYPE_WITNESS)
+            . self::hashBytes((string) $witness['hash'])
+            . self::packUInt64Le(0);
+    }
+
+    /**
+     * @param array<int, string> $leaves
+     */
+    private static function nextLmdbLeafNodeId(array $leaves): int
+    {
+        $maxNodeId = 0;
+        foreach (array_keys($leaves) as $nodeId) {
+            if (is_int($nodeId) && $nodeId < TrackedNodeStore::FIRST_INTERIOR_NODE_ID) {
+                $maxNodeId = max($maxNodeId, $nodeId);
+            }
+        }
+
+        return $maxNodeId + 1;
+    }
+
+    /**
+     * @param array<int, string> $branches
+     */
+    private static function nextLmdbInteriorNodeId(array $branches): int
+    {
+        $maxNodeId = TrackedNodeStore::FIRST_INTERIOR_NODE_ID - 1;
+        foreach (array_keys($branches) as $nodeId) {
+            if (is_int($nodeId)
+                && $nodeId >= TrackedNodeStore::FIRST_INTERIOR_NODE_ID
+                && $nodeId < TrackedNodeStore::FIRST_MEMSTORE_NODE_ID
+            ) {
+                $maxNodeId = max($maxNodeId, $nodeId);
+            }
+        }
+
+        return $maxNodeId + 1;
+    }
+
+    private static function packNodeRefWord(int $nodeId, int $nodeType): string
+    {
+        if ($nodeId < 0 || $nodeType < 0 || $nodeType > 15) {
+            throw new \InvalidArgumentException('invalid Quadrable node reference word');
+        }
+
+        $low = (($nodeId % 268435456) * 16) + $nodeType;
+        $high = intdiv($nodeId, 268435456);
+        if ($high > 0xffffffff) {
+            throw new \InvalidArgumentException('Quadrable node id exceeds uint64 storage range');
+        }
+
+        return pack('V2', $low, $high);
+    }
+
+    private static function packUInt64Le(int $value): string
+    {
+        if ($value < 0) {
+            throw new \InvalidArgumentException('uint64 value must be non-negative');
+        }
+
+        return pack('V2', $value % 4294967296, intdiv($value, 4294967296));
+    }
+
+    private static function hashBytes(string $hashHex): string
+    {
+        if (!preg_match('/^[0-9a-f]{64}$/', $hashHex)) {
+            throw new \InvalidArgumentException('Expected lowercase 32-byte hash hex');
+        }
+
+        $bytes = hex2bin($hashHex);
+        if ($bytes === false) {
+            throw new \InvalidArgumentException('Expected lowercase 32-byte hash hex');
+        }
+
+        return $bytes;
     }
 
     private function dumpTrackedNodeText(int $nodeId, int $depth): string
