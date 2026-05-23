@@ -18,6 +18,13 @@ Spaced source links: [legacy media file](https://example.test/uploads/legacy med
 
 Contact importer: <importer@example.test>.
 
+Multilingual source audit: <http://测.com?测=测> and [translated media](/bar/测?x=测 "Translated media") plus <测@foo.测.baz>.
+
+(@) Capture source metadata.
+(@media-review) Review multilingual media URLs.
+
+Example cross-reference: follow step (@media-review) before publishing.
+
 Footnote audit: migration source[^source-note] and inline editor note.^[Inline note keeps [audit link](https://example.test/audit-footnote) and `]` marker visible.]
 
 [checklist]: </wp-admin/post.php?post=42&action=edit> "Edit imported post"

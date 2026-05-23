@@ -12,6 +12,12 @@ final class MarkdownReader
     /** @var array<string, string> */
     private array $footnoteDefinitions = [];
 
+    /** @var array<string, int> */
+    private array $exampleReferences = [];
+
+    /** @var array<int, int> */
+    private array $exampleNumbersByLine = [];
+
     private bool $resolveFootnoteReferences = true;
 
     public function read(string $markdown): AstNode
@@ -22,12 +28,17 @@ final class MarkdownReader
         $lines = preg_split('/\R/', rtrim($markdown, "\r\n")) ?: [];
         $previousReferenceLinks = $this->referenceLinks;
         $previousFootnoteDefinitions = $this->footnoteDefinitions;
+        $previousExampleReferences = $this->exampleReferences;
+        $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $documentAttrs = [];
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
+        [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
         [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
+        $this->exampleReferences = array_replace($previousExampleReferences, $exampleReferences);
+        $this->exampleNumbersByLine = $exampleNumbersByLine;
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
@@ -199,6 +210,8 @@ final class MarkdownReader
         $document = new AstNode('document', $documentAttrs, $blocks);
         $this->referenceLinks = $previousReferenceLinks;
         $this->footnoteDefinitions = $previousFootnoteDefinitions;
+        $this->exampleReferences = $previousExampleReferences;
+        $this->exampleNumbersByLine = $previousExampleNumbersByLine;
 
         return $document;
     }
@@ -325,6 +338,48 @@ final class MarkdownReader
     private function normalizeReferenceLabel(string $label): string
     {
         return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:array<string, int>, 1:array<int, int>}
+     */
+    private function collectNumberedExampleReferences(array $lines): array
+    {
+        $references = [];
+        $numbersByLine = [];
+        $nextNumber = 1;
+        $fenceChar = null;
+        $fenceLength = 0;
+
+        foreach ($lines as $index => $line) {
+            if ($fenceChar !== null) {
+                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
+                    $fenceChar = null;
+                    $fenceLength = 0;
+                }
+                continue;
+            }
+
+            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
+                $fenceChar = $fence[1][0];
+                $fenceLength = strlen($fence[1]);
+                continue;
+            }
+
+            $marker = $this->matchNumberedExampleMarker($line);
+            if ($marker === null || $marker['indent'] > 3) {
+                continue;
+            }
+
+            $numbersByLine[$index] = $nextNumber;
+            if ($marker['label'] !== '') {
+                $references[$marker['label']] = $nextNumber;
+            }
+            $nextNumber++;
+        }
+
+        return [$references, $numbersByLine];
     }
 
     /**
@@ -4110,7 +4165,7 @@ final class MarkdownReader
      */
     private function tryReadListBlock(array $lines, int &$index): ?AstNode
     {
-        $marker = $this->matchListMarker($lines[$index] ?? '');
+        $marker = $this->matchListMarker($lines[$index] ?? '', $index);
         if ($marker === null || $marker['indent'] > 3) {
             return null;
         }
@@ -4142,7 +4197,7 @@ final class MarkdownReader
         $delimiter = $firstMarker['delimiter'];
 
         while ($cursor < $count) {
-            $marker = $this->matchListMarker($lines[$cursor]);
+            $marker = $this->matchListMarker($lines[$cursor], $cursor);
             if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter)) {
                 break;
             }
@@ -4159,7 +4214,7 @@ final class MarkdownReader
             }
 
             if ($blankCursor > $cursor) {
-                $nextMarker = $blankCursor < $count ? $this->matchListMarker($lines[$blankCursor]) : null;
+                $nextMarker = $blankCursor < $count ? $this->matchListMarker($lines[$blankCursor], $blankCursor) : null;
                 if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter)) {
                     $listLoose = true;
                     $cursor = $blankCursor;
@@ -4232,7 +4287,7 @@ final class MarkdownReader
                     break;
                 }
 
-                $nextMarker = $this->matchListMarker($lines[$next]);
+                $nextMarker = $this->matchListMarker($lines[$next], $next);
                 if ($nextMarker !== null && $nextMarker['indent'] <= $baseIndent) {
                     break;
                 }
@@ -4252,7 +4307,7 @@ final class MarkdownReader
                 break;
             }
 
-            $lineMarker = $this->matchListMarker($line);
+            $lineMarker = $this->matchListMarker($line, $cursor);
             if ($lineMarker !== null) {
                 if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter)) {
                     break;
@@ -4365,13 +4420,26 @@ final class MarkdownReader
     /**
      * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null}|null
      */
-    private function matchListMarker(string $line): ?array
+    private function matchListMarker(string $line, ?int $lineIndex = null): ?array
     {
         if ($this->isHorizontalRule($line)) {
             return null;
         }
 
         $expanded = $this->expandTabsToSpaces($line);
+        $example = $this->matchNumberedExampleMarker($expanded);
+        if ($example !== null) {
+            return [
+                'indent' => $example['indent'],
+                'ordered' => true,
+                'start' => $lineIndex !== null ? ($this->exampleNumbersByLine[$lineIndex] ?? 1) : 1,
+                'text' => $example['text'],
+                'contentIndent' => $example['contentIndent'],
+                'style' => 'example',
+                'delimiter' => 'two_parens',
+            ];
+        }
+
         if (preg_match('/^( *)([-*+])( +)(.*)$/', $expanded, $m) === 1) {
             return [
                 'indent' => strlen($m[1]),
@@ -4444,6 +4512,24 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{indent:int, label:string, text:string, contentIndent:int}|null
+     */
+    private function matchNumberedExampleMarker(string $line): ?array
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (preg_match('/^( *)\(@([A-Za-z0-9_-]*)\)( +)(.*)$/', $expanded, $m) !== 1) {
+            return null;
+        }
+
+        return [
+            'indent' => strlen($m[1]),
+            'label' => $m[2],
+            'text' => $m[4],
+            'contentIndent' => strlen($m[1]) + strlen($m[2]) + 3 + strlen($m[3]),
+        ];
     }
 
     private function isSameListMarker(
@@ -5195,6 +5281,13 @@ final class MarkdownReader
                 continue;
             }
 
+            $exampleReference = $this->tryParseNumberedExampleReference($text, $offset);
+            if ($exampleReference !== null) {
+                $buffer .= $exampleReference['text'];
+                $offset = $exampleReference['next'];
+                continue;
+            }
+
             $replacement = $this->tryReadSmartTextReplacement($text, $offset);
             if ($replacement !== null) {
                 $buffer .= $replacement['text'];
@@ -5497,7 +5590,7 @@ final class MarkdownReader
 
         if (
             preg_match(
-                '/\G<([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})>/i',
+                '/\G<([^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)>/u',
                 $text,
                 $m,
                 0,
@@ -5515,6 +5608,30 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{text:string, next:int}|null
+     */
+    private function tryParseNumberedExampleReference(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '(' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (preg_match('/\G\(@([A-Za-z0-9_-]+)\)/', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $number = $this->exampleReferences[$m[1]] ?? null;
+        if ($number === null) {
+            return null;
+        }
+
+        return [
+            'text' => '(' . $number . ')',
+            'next' => $offset + strlen($m[0]),
+        ];
     }
 
     /**

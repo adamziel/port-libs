@@ -226,6 +226,13 @@ space, longer backtick delimiters can contain literal backtick runs, and blank
 lines terminate an otherwise unterminated code span as ordinary paragraph text.
 The WordPress fixture uses that path for reviewer handoff text that needs a
 visible `<br/>` plus a normalized inline source token.
+The next adjacent `test/markdown-reader-more.txt` multilingual URL and
+numbered-example cases are now represented too: Unicode URI autolinks, Unicode
+inline link destinations, and Unicode e-mail autolinks stay clickable, while
+`(@)`/`(@label)` example markers become Pandoc Example-style ordered lists and
+inline `(@label)` references render as visible example numbers. The WordPress
+fixture uses this path for multilingual source audit contacts and numbered
+reviewer handoff steps without shelling out to Pandoc.
 The bounded Images section is now mapped for import-safe media preservation:
 standalone reference images become WordPress image blocks with caption/title
 metadata, and inline image spans remain inside paragraph text with escaped alt
@@ -291,6 +298,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
+- The fixture now includes multilingual Markdown source audit links and
+  Pandoc-style numbered examples, exercising Unicode URI/e-mail autolinks plus
+  `(@label)` example references in WordPress reviewer handoff text.
 - The fixture now includes empty legacy HTML table shells, documenting the
   upstream-aligned import policy to omit tables with no cells.
 - The fixture now includes a nested legacy HTML audit table to exercise nested
@@ -521,6 +531,5 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map another bounded Markdown reader fixture shard from
-`test/markdown-reader-more.txt/native`, with priority on multilingual
-URL/email handling or numbered example lists before broadening into grid
-tables.
+`test/markdown-reader-more.txt/native`, with priority on raw TeX
+environment/macros or line blocks before broadening into grid tables.

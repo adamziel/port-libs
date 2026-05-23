@@ -464,6 +464,54 @@ return [
         $t->contains('<p><code>hi there</code></p>', $blocks);
         $t->contains('<p><code>hi````there</code></p>', $blocks);
     },
+    'maps upstream markdown reader more multilingual urls and numbered examples' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<http://测.com?测=测>',
+            '',
+            '[foo](/bar/测?x=测 "title")',
+            '',
+            '<测@foo.测.baz>',
+            '',
+            '(@) First example.',
+            '(@foo) Second example.',
+            '',
+            'Explanation of examples (@foo) and (@bar).',
+            '',
+            '(@bar) Third example.',
+        ]));
+        $uri = $document->children[0]->children[0];
+        $inline = $document->children[1]->children[0];
+        $email = $document->children[2]->children[0];
+        $firstExamples = $document->children[3];
+        $explanation = $document->children[4];
+        $thirdExample = $document->children[5];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $uri->type);
+        $t->same('http://测.com?测=测', $uri->attr('url'));
+        $t->same(['uri'], $uri->attr('classes'));
+        $t->same('http://测.com?测=测', $uri->children[0]->attr('text'));
+        $t->same('/bar/测?x=测', $inline->attr('url'));
+        $t->same('title', $inline->attr('title'));
+        $t->same('link', $email->type);
+        $t->same('mailto:测@foo.测.baz', $email->attr('url'));
+        $t->same(['email'], $email->attr('classes'));
+        $t->same('ordered_list', $firstExamples->type);
+        $t->same(1, $firstExamples->attr('start'));
+        $t->same('example', $firstExamples->attr('style'));
+        $t->same('two_parens', $firstExamples->attr('delimiter'));
+        $t->same(1, $firstExamples->children[0]->attr('number'));
+        $t->same(2, $firstExamples->children[1]->attr('number'));
+        $t->same('Explanation of examples (2) and (3).', $explanation->children[0]->attr('text'));
+        $t->same('ordered_list', $thirdExample->type);
+        $t->same(3, $thirdExample->attr('start'));
+        $t->same(3, $thirdExample->children[0]->attr('number'));
+        $t->contains('<a href="http://测.com?测=测">http://测.com?测=测</a>', $blocks);
+        $t->contains('<a href="mailto:测@foo.测.baz">测@foo.测.baz</a>', $blocks);
+        $t->contains('<ol><li>First example.</li><li>Second example.</li></ol>', $blocks);
+        $t->contains('<p>Explanation of examples (2) and (3).</p>', $blocks);
+        $t->contains('<ol start="3"><li>Third example.</li></ol>', $blocks);
+    },
     'maps upstream markdown reader more implicit header references' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '### my header',
@@ -3422,6 +3470,11 @@ XML;
         $t->contains('<a href="/wp-content/uploads/import%20batch%2042.csv" title="Batch manifest">spaced batch manifest</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
+        $t->contains('<a href="http://测.com?测=测">http://测.com?测=测</a>', $blocks);
+        $t->contains('<a href="/bar/测?x=测" title="Translated media">translated media</a>', $blocks);
+        $t->contains('<a href="mailto:测@foo.测.baz">测@foo.测.baz</a>', $blocks);
+        $t->contains('<ol><li>Capture source metadata.</li><li>Review multilingual media URLs.</li></ol>', $blocks);
+        $t->contains('<p>Example cross-reference: follow step (2) before publishing.</p>', $blocks);
     },
     'writes wordpress markdown hard breaks and multiline code spans from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

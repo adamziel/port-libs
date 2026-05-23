@@ -106,6 +106,16 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   inspected in this run: upstream lines 235-249 show `LineBreak`, three
   `Code` nodes with normalized code text, and two literal paragraph strings for
   the blank-line-terminated unterminated code span.
+- `test/markdown-reader-more.txt` multilingual URL and numbered-example slice
+  inspected in this run: upstream lines 119-135 cover one Unicode URI
+  autolink, one inline link whose destination and title include Unicode source
+  text, one Unicode e-mail autolink, two initial numbered examples, two inline
+  references to example labels, and a later labeled example.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 249-295 show three `Link` nodes, an
+  `OrderedList (1, Example, TwoParens)` with two items, inline paragraph text
+  where `(@foo)` and `(@bar)` have become `(2)` and `(3)`, and a later
+  `OrderedList (3, Example, TwoParens)` with one item.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky
@@ -397,6 +407,14 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   a trailing backslash is literal inside code, embedded newlines normalize to
   spaces, longer backtick delimiters permit literal backticks, and a blank line
   terminates an otherwise unterminated code span into ordinary paragraphs.
+- Multilingual URI/e-mail links from `test/markdown-reader-more.txt`: Unicode
+  URI autolinks keep the URL as both text and destination, inline links keep
+  Unicode destination text plus title metadata, and Unicode e-mail autolinks
+  become `mailto:` links.
+- Numbered examples from `test/markdown-reader-more.txt`: `(@)` and
+  `(@label)` markers become Pandoc Example-style ordered lists with
+  two-parentheses delimiters, and inline `(@label)` references render as the
+  visible example numbers.
 - Inline links with `[label](url)`
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
   Pandoc's opening-fence indentation stripping and both bare language and
@@ -687,6 +705,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 148 behavior tests, 1,400 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command passed with 171 test files,
-15,819 assertions, and 0 failures.
+with 149 behavior tests, 1,429 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command passed after the lane
+edits with 172 test files, 16,029 assertions, and 0 failures.
