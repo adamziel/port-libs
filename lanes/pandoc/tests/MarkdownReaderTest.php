@@ -605,6 +605,42 @@ return [
         $t->contains('<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> [@mapreduce] as its', $blocks);
         $t->contains('<p><a href="">foo2</a></p>', $blocks);
     },
+    'maps upstream markdown reader more wrapping and bracketed spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            "## Wrapping shouldn't introduce new list items",
+            '',
+            '- blah blah blah blah blah blah blah blah blah blah blah blah blah blah 2015.',
+            '',
+            '## Bracketed spans',
+            '',
+            '[*foo* bar baz [link](url)]{.class #id key=val}',
+        ]));
+        $list = $document->children[1];
+        $spanHeading = $document->children[2];
+        $spanParagraph = $document->children[3];
+        $span = $spanParagraph->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('wrapping-shouldnt-introduce-new-list-items', $document->children[0]->attr('id'));
+        $t->same('bullet_list', $list->type);
+        $t->same(1, count($list->children));
+        $t->same(false, (bool) $list->attr('loose'));
+        $t->same('blah blah blah blah blah blah blah blah blah blah blah blah blah blah 2015.', $list->children[0]->attr('text'));
+        $t->same('text', $list->children[0]->children[0]->type);
+        $t->same('bracketed-spans', $spanHeading->attr('id'));
+        $t->same('span', $span->type);
+        $t->same('id', $span->attr('id'));
+        $t->same(['class'], $span->attr('classes'));
+        $t->same(['key' => 'val'], $span->attr('attributes'));
+        $t->same(['emph', 'text', 'link'], array_map(static fn (AstNode $node): string => $node->type, $span->children));
+        $t->same('foo', $span->children[0]->children[0]->attr('text'));
+        $t->same(' bar baz ', $span->children[1]->attr('text'));
+        $t->same('url', $span->children[2]->attr('url'));
+        $t->contains('<h2 id="wrapping-shouldnt-introduce-new-list-items">Wrapping shouldn’t introduce new list items</h2>', $blocks);
+        $t->contains('<ul><li>blah blah blah blah blah blah blah blah blah blah blah blah blah blah 2015.</li></ul>', $blocks);
+        $t->contains('<span id="id" class="class"><em>foo</em> bar baz <a href="url">link</a></span>', $blocks);
+    },
     'maps upstream markdown reader more backslash newline and code spans' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("hi\\\nthere\n\n`hi\\`\n\n`hi\nthere`\n\n`` hi````there ``\n\n`hi\n\nthere`");
         $hardBreak = $document->children[0];
@@ -631,6 +667,32 @@ return [
         $t->contains('<p><code>hi\</code></p>', $blocks);
         $t->contains('<p><code>hi there</code></p>', $blocks);
         $t->contains('<p><code>hi````there</code></p>', $blocks);
+    },
+    'maps upstream markdown reader inline code attributes and spaced literals' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '`document.write("Hello");`{.javascript}',
+            '`*` {.haskell .special x="7"}',
+            'Reviewer token: `wp_enqueue_script`{#enqueue .php data-source=batch-42 title="Import source"}.',
+        ]));
+        $attributed = $document->children[0]->children[0];
+        $spaced = $document->children[1];
+        $reviewerCode = $document->children[2]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('code', $attributed->type);
+        $t->same('document.write("Hello");', $attributed->attr('text'));
+        $t->same(['javascript'], $attributed->attr('classes'));
+        $t->same(2, count($spaced->children));
+        $t->same('code', $spaced->children[0]->type);
+        $t->same('*', $spaced->children[0]->attr('text'));
+        $t->same([], $spaced->children[0]->attr('classes', []));
+        $t->same(' {.haskell .special x="7"}', $spaced->children[1]->attr('text'));
+        $t->same('enqueue', $reviewerCode->attr('id'));
+        $t->same(['php'], $reviewerCode->attr('classes'));
+        $t->same(['data-source' => 'batch-42', 'title' => 'Import source'], $reviewerCode->attr('attributes'));
+        $t->contains('<p><code class="javascript">document.write(&quot;Hello&quot;);</code></p>', $blocks);
+        $t->contains('<p><code>*</code> {.haskell .special x=&quot;7&quot;}</p>', $blocks);
+        $t->contains('<p>Reviewer token: <code id="enqueue" class="php" data-source="batch-42" title="Import source">wp_enqueue_script</code>.</p>', $blocks);
     },
     'maps upstream markdown reader more multilingual urls and numbered examples' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -3896,9 +3958,11 @@ XML;
         $t->contains('<a href="mailto:me@exämple.com">me@exämple.com</a>', $blocks);
         $t->contains('<a href="/hi(there)">campaign landing</a>', $blocks);
         $t->contains('<a href="hi_(there_(nested))">nested reference</a>', $blocks);
+        $t->contains('<p>Inline code attribute audit: <code id="enqueue-call" class="php" data-source="batch-42" title="Import source token">wp_enqueue_script</code> stays tagged for reviewer tooling.</p>', $blocks);
         $t->contains('<p>Backslash link label audit: <a href="b">*<span class="pandoc-raw-tex">\a</span></a> keeps escaped import markers visible.</p>', $blocks);
         $t->contains('<p>Fallback source markers: [<em>not a migration link</em>] [<em>no source</em>]…</p>', $blocks);
         $t->contains('<p>Citation-adjacent source link: MapReduce was popularized by <a href="https://example.test/source/mapreduce">Google</a> [@mapreduce] during source review.</p>', $blocks);
+        $t->contains('<p>Bracketed review span: <span id="migration-span" class="review-span" data-source="batch-42" title="Migration span"><em>urgent</em> source flag <a href="/wp-admin/post.php?post=42&amp;action=edit">edit</a></span>.</p>', $blocks);
         $t->contains('<p>Review the empty import target before publishing.</p>', $blocks);
         $t->contains('<p><a href="">empty-target</a></p>', $blocks);
         $t->contains('<ol><li>Capture source metadata.</li><li>Review multilingual media URLs.</li></ol>', $blocks);

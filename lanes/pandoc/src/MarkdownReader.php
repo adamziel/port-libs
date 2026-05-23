@@ -512,6 +512,7 @@ final class MarkdownReader
     {
         $plain = $this->plainMarkdownHeadingText($text);
         $plain = function_exists('mb_strtolower') ? mb_strtolower($plain, 'UTF-8') : strtolower($plain);
+        $plain = str_replace(["'", "\u{2019}"], '', $plain);
         $slug = preg_replace('/[^\pL\pN]+/u', '-', $plain) ?? $plain;
 
         return trim($slug, '-');
@@ -6068,9 +6069,25 @@ final class MarkdownReader
                     if (strlen($code) >= 2 && $code[0] === ' ' && $code[strlen($code) - 1] === ' ' && trim($code) !== '') {
                         $code = substr($code, 1, -1);
                     }
+                    $next = $end + $tickCount;
+                    $attrs = ['text' => $code];
+                    $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+                    $literalAttribute = null;
+                    if ($attribute !== null) {
+                        $attrs = array_replace($attrs, $attribute['attrs']);
+                        $next = $attribute['next'];
+                    } else {
+                        $literalAttribute = $this->tryParseSpacedInlineAttributeLiteral($text, $next);
+                        if ($literalAttribute !== null) {
+                            $next = $literalAttribute['next'];
+                        }
+                    }
                     $this->flushText($buffer, $nodes);
-                    $nodes[] = new AstNode('code', ['text' => $code]);
-                    $offset = $end + $tickCount;
+                    $nodes[] = new AstNode('code', $attrs);
+                    if ($literalAttribute !== null) {
+                        $nodes[] = new AstNode('text', ['text' => $literalAttribute['text']]);
+                    }
+                    $offset = $next;
                     continue;
                 }
             }
@@ -6160,6 +6177,14 @@ final class MarkdownReader
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineLink['node'];
                 $offset = $inlineLink['next'];
+                continue;
+            }
+
+            $span = $this->tryParseBracketedSpan($text, $offset);
+            if ($span !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $span['node'];
+                $offset = $span['next'];
                 continue;
             }
 
@@ -6486,6 +6511,117 @@ final class MarkdownReader
         return [
             'node' => new AstNode('link', $attrs, $this->parseInlines($label['text'], false)),
             'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseBracketedSpan(string $text, int $offset): ?array
+    {
+        $label = $this->parseBracketedLabel($text, $offset);
+        if ($label === null || ($text[$label['next']] ?? '') !== '{') {
+            return null;
+        }
+
+        $end = $this->findUnescapedCharacter($text, '}', $label['next'] + 1);
+        if ($end === null) {
+            return null;
+        }
+
+        [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($text, $label['next'] + 1, $end - $label['next'] - 1));
+        if ($id === null && $classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode(
+                'span',
+                $this->markdownAttributeAstAttrs($id, $classes, $attributes),
+                $this->parseInlines($label['text'])
+            ),
+            'next' => $end + 1,
+        ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private function markdownAttributeAstAttrs(?string $id, array $classes, array $attributes): array
+    {
+        $attrs = [];
+        $htmlAttributes = [];
+        if ($id !== null && $id !== '') {
+            $attrs['id'] = $id;
+            $htmlAttributes['id'] = $id;
+        }
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+            $htmlAttributes['class'] = implode(' ', $classes);
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+            foreach ($attributes as $name => $value) {
+                $htmlAttributes[$name] = $value;
+            }
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{attrs: array<string, mixed>, next: int}|null
+     */
+    private function tryParseInlineAttributeSpec(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $end = $this->findUnescapedCharacter($text, '}', $offset + 1);
+        if ($end === null) {
+            return null;
+        }
+
+        [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($text, $offset + 1, $end - $offset - 1));
+        if ($id === null && $classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'attrs' => $this->markdownAttributeAstAttrs($id, $classes, $attributes),
+            'next' => $end + 1,
+        ];
+    }
+
+    /**
+     * @return array{text: string, next: int}|null
+     */
+    private function tryParseSpacedInlineAttributeLiteral(string $text, int $offset): ?array
+    {
+        if (preg_match('/\G[ \t]+\{/', $text, $space, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $start = $offset + strlen($space[0]) - 1;
+        $end = $this->findUnescapedCharacter($text, '}', $start + 1);
+        if ($end === null) {
+            return null;
+        }
+
+        [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($text, $start + 1, $end - $start - 1));
+        if ($id === null && $classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'text' => substr($text, $offset, $end - $offset + 1),
+            'next' => $end + 1,
         ];
     }
 

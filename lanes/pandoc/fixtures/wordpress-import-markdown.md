@@ -14,6 +14,8 @@ Line break handoff: keep source line\
 attached to reviewer continuation with `hi
 there` code span.
 
+Inline code attribute audit: `wp_enqueue_script`{#enqueue-call .php data-source=batch-42 title="Import source token"} stays tagged for reviewer tooling.
+
 Spaced source links: [legacy media file](https://example.test/uploads/legacy media file.jpg "Legacy media file") and [spaced batch manifest][spaced-batch].
 
 Contact importer: <importer@example.test>.
@@ -33,6 +35,8 @@ Fallback source markers: [*not a migration link*] [*no source*]...
 Citation-adjacent source link: MapReduce was popularized by [Google] [@mapreduce] during source review.
 
 [Google]: https://example.test/source/mapreduce
+
+Bracketed review span: [*urgent* source flag [edit](/wp-admin/post.php?post=42&action=edit)]{.review-span #migration-span data-source=batch-42 title="Migration span"}.
 
 Empty reference placeholder:
 

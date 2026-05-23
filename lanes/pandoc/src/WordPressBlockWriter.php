@@ -841,7 +841,7 @@ final class WordPressBlockWriter
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
             'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
-            'code' => '<code>' . $this->esc((string) $node->attr('text', '')) . '</code>',
+            'code' => '<code' . $this->renderInlineCodeAttrs($node) . '>' . $this->esc((string) $node->attr('text', '')) . '</code>',
             'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
@@ -890,8 +890,32 @@ final class WordPressBlockWriter
     private function renderInlineSpanAttrs(AstNode $node): string
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
-            return '';
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        $id = (string) $node->attr('id', '');
+        if ($id !== '' && !isset($htmlAttributes['id'])) {
+            $htmlAttributes['id'] = $id;
+        }
+
+        if (!isset($htmlAttributes['class'])) {
+            $classes = $node->attr('classes', []);
+            if (is_array($classes) && $classes !== []) {
+                $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
+                if ($class !== '') {
+                    $htmlAttributes['class'] = $class;
+                }
+            }
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes)) {
+            foreach ($attributes as $name => $value) {
+                if (!isset($htmlAttributes[$name])) {
+                    $htmlAttributes[$name] = $value;
+                }
+            }
         }
 
         $attrs = '';
@@ -905,6 +929,11 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function renderInlineCodeAttrs(AstNode $node): string
+    {
+        return $this->renderInlineSpanAttrs($node);
     }
 
     private function isAllowedInlineHtmlAttr(string $name): bool

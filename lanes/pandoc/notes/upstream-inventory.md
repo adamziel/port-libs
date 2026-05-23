@@ -173,6 +173,15 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `Str "*"` plus `RawInline "\\a"`, bracketed fallback text retaining emphasized
   contents, a `Link` immediately followed by a `Cite`, and an empty-destination
   `Link` after the intervening `bar` paragraph.
+- `test/markdown-reader-more.txt` wrapping/bracketed-span tail slice inspected
+  in this run: upstream lines 360-366 cover one long bullet item ending in
+  `2015.` and one bracketed span with `.class`, `#id`, and `key=val`
+  attributes.
+- `test/markdown-reader-more.native` corresponding rendered AST slice inspected
+  in this run: upstream lines 1650-1715 show the heading id
+  `wrapping-shouldnt-introduce-new-list-items`, one tight `BulletList` item
+  whose `2015.` suffix remains plain text, and one `Span` containing nested
+  `Emph` plus a `Link`.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky
@@ -406,6 +415,9 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   PHP tests for whitespace-only indented separator termination, indented
   continuation after a blank line, and recursive references left literal inside
   note bodies
+- `Tests.Readers.Markdown` inline-code attribute cases: 2 focused cases, now
+  mapped by PHP tests for immediate attribute attachment and spaced
+  attribute-looking text remaining literal
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
   checks covering parenthesized decimal starts, lower/upper roman numerals,
   upper/lower alphabetic markers, and Pandoc autonumbering
@@ -464,6 +476,10 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   a trailing backslash is literal inside code, embedded newlines normalize to
   spaces, longer backtick delimiters permit literal backticks, and a blank line
   terminates an otherwise unterminated code span into ordinary paragraphs.
+- Inline code attributes from `Tests.Readers.Markdown`: immediate
+  `{.javascript}` after a closing backtick run attaches class metadata to the
+  Code node, while a space before `{.haskell .special x="7"}` keeps that
+  attribute-looking text literal.
 - Multilingual URI/e-mail links from `test/markdown-reader-more.txt`: Unicode
   URI autolinks keep the URL as both text and destination, inline links keep
   Unicode destination text plus title metadata, and Unicode e-mail autolinks
@@ -775,13 +791,24 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   preserves the `[@mapreduce]` marker as a citation inline adjacent to the
   resolved `Google` link, and leaves the paragraph after `[foo2]:` intact
   before emitting the later empty-destination shortcut link.
+- The final `test/markdown-reader-more.txt` tail slice is now mapped too:
+  upstream lines 360-366 and native AST lines 1650-1715 cover the wrapping
+  regression and bracketed-span extension. The native PHP reader now generates
+  Pandoc's apostrophe-free heading id for `shouldn't`, keeps the long bullet
+  item as one tight list item instead of treating `2015.` as an ordered marker,
+  and builds a `span` AST node preserving id, class, and key/value attributes
+  around parsed emphasis and link children. The WordPress writer emits safe
+  span id/class/data/title attrs for the fixture's migration-review marker.
+- The `Tests.Readers.Markdown` inline-code attribute slice is now mapped too:
+  immediate inline code attributes become AST id/class/key-value metadata, and
+  the spaced attribute-looking form stays literal text instead of being parsed
+  or smart-quoted. The WordPress writer emits safe inline `<code>` attributes
+  for reviewer/source tokens.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 159 behavior tests, 1,610 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command was also run and failed
-with 178 test files, 17,162 assertions, and 1 failure outside this lane:
-`lanes/markerpdf/tests/SuppliedDocumentConverterTest.php` expected an
-`InvalidArgumentException` that was not thrown.
+with 161 behavior tests, 1,645 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command was also run and passed
+with 183 test files, 17,781 assertions, and 0 failures.

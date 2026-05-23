@@ -226,6 +226,11 @@ space, longer backtick delimiters can contain literal backtick runs, and blank
 lines terminate an otherwise unterminated code span as ordinary paragraph text.
 The WordPress fixture uses that path for reviewer handoff text that needs a
 visible `<br/>` plus a normalized inline source token.
+The focused `Tests.Readers.Markdown` inline-code attribute cases are now
+represented too: immediate attributes attach to code nodes, while spaced
+attribute-looking text remains literal. The WordPress fixture uses this path for
+reviewer/source tokens such as `wp_enqueue_script` that need stable id, class,
+data, and title metadata without shelling out to Pandoc.
 The next adjacent `test/markdown-reader-more.txt` multilingual URL and
 numbered-example cases are now represented too: Unicode URI autolinks, Unicode
 inline link destinations, and Unicode e-mail autolinks stay clickable, while
@@ -307,6 +312,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes multilingual Markdown source audit links and
   Pandoc-style numbered examples, exercising Unicode URI/e-mail autolinks plus
   `(@label)` example references in WordPress reviewer handoff text.
+- The fixture now includes an attributed inline code source token, exercising
+  Pandoc-compatible code attrs and WordPress-safe inline `<code>` id/class/data
+  attributes for migration review tooling.
 - The fixture now includes a Pandoc-style line block, exercising source stanza
   boundaries, nonbreaking indentation, and continuation-line preservation in
   WordPress paragraph output.
@@ -530,6 +538,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   citation-adjacent shortcut links keep the source link clickable while leaving
   the citation marker visible, and empty reference placeholders render as empty
   `href` links without swallowing the following review paragraph.
+- Bracketed review spans now preserve Pandoc-style id/class/key-value metadata
+  in the AST while the WordPress output emits safe span attributes for migration
+  review markers around emphasized edit links.
+- Attributed inline code spans now preserve Pandoc-style id/class/key-value
+  metadata in the AST while the WordPress output emits safe code attributes for
+  migration review markers around source tokens.
 - Implicit intra-document reviewer links render as WordPress anchor links, and
   attributed Markdown headings preserve stable ids/classes for migration review
   without shelling out to Pandoc.
@@ -571,6 +585,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded Markdown reader fixture shard from
-`test/markdown-reader-more.txt/native`, starting with wrapping that should not
-introduce new list items and the adjacent bracketed span case.
+Map the bounded `Tests.Readers.Markdown` autolink attribute cases, starting
+with immediate attributes on `<http://foo.bar>{#i .j .z k=v}` and the spaced
+attribute form that should remain literal text.
