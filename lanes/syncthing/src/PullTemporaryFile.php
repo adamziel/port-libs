@@ -234,12 +234,19 @@ final class PullTemporaryFile
             throw new \RuntimeException('Failed to create pull temporary directory');
         }
 
+        if (!$this->ignorePerms && is_file($path)) {
+            @chmod($path, $this->temporaryMode());
+        }
+
         $handle = @fopen($path, 'c+b');
         if ($handle === false) {
             throw new \RuntimeException('Failed to open pull temporary file');
         }
 
         try {
+            if (!$this->ignorePerms) {
+                @chmod($path, $this->temporaryMode());
+            }
             if ($this->sparse && !ftruncate($handle, $this->file->size)) {
                 throw new \RuntimeException('Failed to size pull temporary file');
             }
@@ -349,6 +356,11 @@ final class PullTemporaryFile
 
         $this->encryptionTrailerSize = strlen($trailer);
         $this->finalSize = $this->file->size + $this->encryptionTrailerSize;
+    }
+
+    private function temporaryMode(): int
+    {
+        return ($this->file->permissions & 0777) | 0600;
     }
 
     private function result(bool $closed, bool $finalized, ?string $error, string $dbUpdateType = ''): PullFinalizationResult

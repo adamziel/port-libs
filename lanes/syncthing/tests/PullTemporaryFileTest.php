@@ -86,6 +86,55 @@ return [
             syncthing_pull_temp_rm($root);
         }
     },
+    'temporary files keep upstream provisional owner write permissions' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $bytes = str_repeat('private-media-draft', 6000);
+            $file = syncthing_pull_temp_file('wp-content/uploads/private/draft.jpg', $bytes, 0400, 1700000400);
+            $assembler = new PullTemporaryFile($file, $root);
+
+            $assembler->writeBlock($file->blocks[0], $bytes, source: 'pulled');
+            $t->same(0600, syncthing_pull_temp_mode($assembler->tempPath()));
+
+            $result = $assembler->finalize();
+
+            $t->true($result->finalized);
+            $t->same(0400, syncthing_pull_temp_mode($assembler->finalPath()));
+            $t->same($bytes, (string) file_get_contents($assembler->finalPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'reused read-only temporary files are made writable before block writes' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $bytes = str_repeat('correct-private-block', 6000);
+            $file = syncthing_pull_temp_file('wp-content/uploads/private/resumed.jpg', $bytes, 0400, 1700000500);
+            $tempName = RequestServer::temporaryName($file->name);
+            $tempPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $tempName);
+            if (!mkdir(dirname($tempPath), 0777, true) && !is_dir(dirname($tempPath))) {
+                throw new RuntimeException('Failed to create temporary test directory');
+            }
+            file_put_contents($tempPath, str_repeat('stale', 100));
+            chmod($tempPath, 0400);
+
+            $assembler = new PullTemporaryFile($file, $root, $tempName);
+            $assembler->writeBlock($file->blocks[0], $bytes, source: 'pulledAfterRestart');
+
+            $t->same(0600, syncthing_pull_temp_mode($tempPath));
+            $t->same($bytes, (string) file_get_contents($tempPath));
+
+            $result = $assembler->finalize();
+
+            $t->true($result->finalized);
+            $t->same([0 => 'pulledAfterRestart'], $assembler->sourcesByBlockIndex());
+            $t->true(!file_exists($tempPath));
+            $t->same($bytes, (string) file_get_contents($assembler->finalPath()));
+            $t->same(0400, syncthing_pull_temp_mode($assembler->finalPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
     'failed block pulls close but leave temporary file reusable' => static function (TestRunner $t): void {
         $root = syncthing_pull_temp_root();
         try {
@@ -207,4 +256,11 @@ function syncthing_pull_temp_rm(string $path): void
         }
     }
     rmdir($path);
+}
+
+function syncthing_pull_temp_mode(string $path): int
+{
+    clearstatcache(true, $path);
+
+    return fileperms($path) & 0777;
 }

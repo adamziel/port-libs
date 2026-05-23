@@ -601,18 +601,24 @@ failing validation before an editor laptop supplies verified media bytes, with
 both peer activity counters returning to zero after the request attempts.
 The temporary-finalization slice now maps the adjacent upstream
 `sharedPullerState.tempFile`, `copyDone`, `pullDone`, `finalClose`,
-`finalizeEncrypted`, `writeEncryptionTrailer`, `performFinish`, and sparse
-all-zero block boundaries: verified copied and pulled blocks are written into
-Syncthing temporary names, sparse zero blocks are marked available without a
-network request, final close waits until every target block is accounted for,
+`tempFileInWritableDir`, `finalizeEncrypted`, `writeEncryptionTrailer`,
+`performFinish`, and sparse all-zero block boundaries: verified copied and
+pulled blocks are written into Syncthing temporary names, temporary files are
+created or reopened with final permissions OR `0600` so read-only private media
+can still be assembled after a restart, sparse zero blocks are marked available
+without a network request, final close waits until every target block is accounted for,
 receive-encrypted temporary files append the FileInfo trailer before promotion,
 successful close renames the temp file into place and emits the
 `dbUpdateHandleFile` update type, second close attempts are no-ops, and failed
 pulls close while leaving the temporary file for a later retry. This is a
-static targeted mapping from upstream `sharedpullerstate.go` and
-`folder_sendrecv.go`, not a new full upstream runner. The WordPress example
-`wordpress-pull-temporary-finalize.php` shows a media file assembled from one
-origin copy, one sparse zero block, and one pulled block before final promotion.
+static targeted mapping from upstream `sharedpullerstate.go`,
+`sharedpullerstate_test.go`, and `folder_sendrecv.go`, not a new full upstream
+runner. The WordPress example `wordpress-pull-temporary-finalize.php` shows a
+media file assembled from one origin copy, one sparse zero block, and one
+pulled block before final promotion. `wordpress-pull-temp-permissions.php`
+shows a private media draft resuming from a read-only `.syncthing` temp file,
+temporarily restoring owner write access, and finalizing back to restricted
+WordPress permissions.
 The receive-encrypted variant
 `wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
 during native temporary-file promotion, with local finalized size and remote
