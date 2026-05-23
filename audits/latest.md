@@ -39,10 +39,11 @@ it as temporary fixture/oracle evidence.
      `94 files changed, 21696 insertions(+), 626 deletions(-)` to
      `94 files changed, 21808 insertions(+), 626 deletions(-)`.
    - Evidence: a mid-audit process sample included
-     `1471784 php tools/run-tests.php`; the PID exited before owner sampling,
-     and the final exact duplicate-root gate was clear. I still did not run a
-     root harness because active writers and dirty-tree movement make a new
-     aggregate result non-acceptance-grade evidence.
+     `1471784 php tools/run-tests.php`; the PID exited before owner sampling.
+     Before finishing, the exact duplicate-root gate returned
+     `1495111 php tools/run-tests.php`, with owner evidence
+     `1495111 claude 1462628 00:13 Rs php tools/run-tests.php`. I did not run
+     a duplicate root harness.
    - Audit judgment: freeze active writers before accepting any root harness,
      dashboard, lane-status, or percentage evidence.
 
@@ -198,8 +199,22 @@ Mid-audit process sample included an active root harness:
 ```
 
 Immediate owner sampling for that PID returned only the header because the
-process had already exited. The final exact duplicate-root gate was clear, but
-the tree was still not stable enough for a trustworthy accepted root run.
+process had already exited.
+
+Before finishing, the exact duplicate-root gate returned another active root
+harness:
+
+```text
+1495111 php tools/run-tests.php
+```
+
+Owner evidence:
+
+```text
+1495111 claude 1462628 00:13 Rs php tools/run-tests.php
+```
+
+No duplicate root run was started.
 
 Latest dirty-tree samples before this update:
 

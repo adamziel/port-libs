@@ -1333,7 +1333,8 @@ final class ArticleExtractor
                 && preg_match(self::OK_MAYBE_CANDIDATE_PATTERN, $matchString) !== 1;
             $isShareWidget = preg_match(self::SHARE_ELEMENT_PATTERN, $matchString) === 1;
             $isWordPressSocialChrome = preg_match(self::WORDPRESS_SOCIAL_CHROME_PATTERN, $matchString) === 1;
-            if ($isUnlikely || $isShareWidget || $isWordPressSocialChrome || in_array($role, self::UNLIKELY_ROLES, true)) {
+            $isContentEnvelope = $isUnlikely && $this->hasStrongArticleContentDescendant($node);
+            if (($isUnlikely && !$isContentEnvelope) || $isShareWidget || $isWordPressSocialChrome || in_array($role, self::UNLIKELY_ROLES, true)) {
                 $remove[] = $node;
             }
         }
@@ -1771,9 +1772,37 @@ final class ArticleExtractor
             }
         }
 
+        foreach ($xpath->query('.//ul[.//a]|.//ol[.//a]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement && $this->isAuthorFeedList($node)) {
+                $remove[] = $node;
+            }
+        }
+
         foreach (array_reverse($this->uniqueElements($remove)) as $node) {
             $node->parentNode?->removeChild($node);
         }
+    }
+
+    private function isAuthorFeedList(\DOMElement $list): bool
+    {
+        if ($this->normalizeWhitespace($list->textContent) !== 'Feed') {
+            return false;
+        }
+
+        foreach ($list->getElementsByTagName('a') as $link) {
+            if (!$link instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = strtolower(trim($link->getAttribute('href')));
+            if (str_contains($href, '/feeds/author/')
+                || str_contains($href, '/feed/author/')
+                || str_contains($href, '/rss/author/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function removeNytCollectionChrome(\DOMElement $scope): void
@@ -1984,6 +2013,10 @@ final class ArticleExtractor
             return true;
         }
 
+        if ($this->isTrailingMozillaSyncCallToAction($node, $text)) {
+            return true;
+        }
+
         if (strcasecmp($text, 'Advertisement') === 0) {
             return true;
         }
@@ -2004,6 +2037,15 @@ final class ArticleExtractor
         }
 
         return $imageCount > 0 && $linkCount > 0 && $this->linkDensity($node) >= 0.5;
+    }
+
+    private function isTrailingMozillaSyncCallToAction(\DOMElement $node, string $text): bool
+    {
+        return strtolower($node->tagName) === 'div'
+            && trim($node->getAttribute('id')) === 'sync'
+            && mb_strlen($text) <= 220
+            && $node->getElementsByTagName('a')->length >= 2
+            && str_contains($text, 'Keep your Firefox in Sync');
     }
 
     private function isTrailingSyndicationSourceNote(string $text): bool
@@ -3828,6 +3870,10 @@ final class ArticleExtractor
             $weight += 10000;
         }
 
+        if (preg_match('/\b(pane-aclu-components-description|field-name-body|node__content)\b/', $matchString) === 1) {
+            $weight += 12000;
+        }
+
         if (preg_match('/\bparagraph\b/', $matchString) === 1
             && $this->hasDescendantWithClass($node, 'ynDetailText')) {
             $weight += 12000;
@@ -3857,6 +3903,28 @@ final class ArticleExtractor
     {
         return str_contains(strtolower($node->getAttribute('itemprop')), 'articlebody')
             || str_contains(strtolower($node->getAttribute('property')), 'articlebody');
+    }
+
+    private function hasStrongArticleContentDescendant(\DOMElement $node): bool
+    {
+        foreach ($node->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->hasArticleBodyAttribute($descendant)) {
+                return true;
+            }
+
+            $matchString = strtolower($descendant->getAttribute('class') . ' ' . $descendant->getAttribute('id'));
+            if (preg_match('/\b(article-body|article__body|entry-content|post-content|article-content|pane-aclu-components-description|field-name-body|node__content)\b/', $matchString) === 1
+                && $descendant->getElementsByTagName('p')->length >= 3
+                && mb_strlen($this->normalizeWhitespace($descendant->textContent)) >= 500) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasDescendantWithClass(\DOMElement $node, string $class): bool
@@ -3901,7 +3969,15 @@ final class ArticleExtractor
         $wrapper->setAttribute('class', 'page');
 
         if ($this->shouldPreserveReadabilityPageRoot($node)) {
-            $wrapper->appendChild($node->cloneNode(true));
+            $clone = $node->cloneNode(true);
+            if ($clone instanceof \DOMElement) {
+                $wrapper->appendChild($clone);
+                if ($this->shouldSerializeMainContentRootAsDiv($clone)) {
+                    $this->replaceElementTag($clone, 'div');
+                }
+            } elseif ($clone instanceof \DOMNode) {
+                $wrapper->appendChild($clone);
+            }
         } else {
             foreach ($node->childNodes as $child) {
                 $wrapper->appendChild($child->cloneNode(true));
@@ -3928,6 +4004,18 @@ final class ArticleExtractor
             return true;
         }
 
+        if (strtolower($node->tagName) === 'div'
+            && trim($node->getAttribute('id')) === 'main-content'
+            && strtolower(trim($node->getAttribute('role'))) === 'main') {
+            return true;
+        }
+
+        if (strtolower($node->tagName) === 'main'
+            && trim($node->getAttribute('id')) === 'main-content'
+            && strtolower(trim($node->getAttribute('role'))) === 'main') {
+            return true;
+        }
+
         if (strtolower($node->tagName) === 'div' && $this->hasArticleBodyAttribute($node)) {
             return true;
         }
@@ -3935,5 +4023,12 @@ final class ArticleExtractor
         return strtolower($node->tagName) === 'div'
             && trim($node->getAttribute('data-test-id')) === 'article-review-body'
             && $this->hasArticleBodyAttribute($node);
+    }
+
+    private function shouldSerializeMainContentRootAsDiv(\DOMElement $node): bool
+    {
+        return strtolower($node->tagName) === 'main'
+            && trim($node->getAttribute('id')) === 'main-content'
+            && strtolower(trim($node->getAttribute('role'))) === 'main';
     }
 }

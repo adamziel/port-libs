@@ -980,6 +980,72 @@ return [
             $t->same(false, str_contains($blocks, $fragment), 'CNN widget or masthead chrome should not enter WordPress blocks: ' . $fragment);
         }
     },
+    'maps Mozilla citylab-1 fixture by pruning author RSS feed chrome' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/citylab-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://www.citylab.com/design/2019/04/neon-signage-20th-century-history/588400/', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'https://www.citylab.com/design/2019/04/neon-signage-20th-century-history/588400/'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//source/@srcset'), $attributeValues($article->contentHtml, '//source/@srcset'));
+        $t->same(20, substr_count($blocks, '<!-- wp:paragraph -->'), 'CityLab article paragraphs, captions, and author bio should serialize without author feed chrome');
+        $t->same(4, substr_count($blocks, '<!-- wp:heading'), 'CityLab section and author headings should remain reviewable');
+        $t->same(3, substr_count($blocks, '<!-- wp:image -->'), 'CityLab editorial figures should serialize as image blocks');
+        $t->contains('The Midcentury Kitchen', $blocks);
+        foreach (['/feeds/author/sarah-archer/', '>Feed<'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'CityLab author RSS feed chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'CityLab author RSS feed chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla aclu fixture through Drupal panel sidebar wrappers' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/aclu';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $url = 'https://www.aclu.org/blog/privacy-technology/internet-privacy/facebook-tracking-me-even-though-im-not-facebook';
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, $url, true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, $url));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h3')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h3')),
+        );
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same([], $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same(33, substr_count($blocks, '<!-- wp:paragraph -->'), 'ACLU Drupal body paragraphs should serialize without panel/sidebar chrome');
+        $t->same(7, substr_count($blocks, '<!-- wp:heading'), 'ACLU section headings should remain reviewable as heading blocks');
+        $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'ACLU channel hero and theme images should not become article image blocks');
+        foreach (['ACLU Conference', 'Tags', 'Facebook Twitter Reddit', 'View comments', 'Read the Terms of Use', 'WEB18-Facebook-1160x768.jpg', 'Donate'] as $fragment) {
+            $t->same(false, str_contains($article->text, $fragment), 'ACLU Drupal panel or comment chrome should not enter article text: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'ACLU Drupal panel or comment chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
     'maps Mozilla wapo-1 fixture with inline gallery and graphic chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/wapo-1';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1977,6 +2043,38 @@ return [
         $t->contains('Get to know the features that make it the most complete browser for building the Web.', $contentText);
         $t->contains('Features and tools', $contentText);
         $t->true(!str_contains($contentText, 'Interested in having a direct impact'), 'head comment text should not enter content');
+    },
+    'maps Mozilla mozilla-1 fixture with main content wrapper and sync CTA cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/mozilla-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(['main-content'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/@id'));
+        $t->same(['main'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/@role'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h2|//h3|//li')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h2|//h3|//li')),
+        );
+        $t->contains('Firefox', $blocks);
+        $t->same(false, str_contains($article->text, 'Keep your Firefox in Sync'), 'trailing Mozilla Sync CTA should not enter article text');
+        $t->same(false, str_contains($article->contentHtml, 'id="sync"'), 'trailing Mozilla Sync CTA wrapper should not survive upstream fixture extraction');
+        $t->same(false, str_contains($blocks, 'sync-button'), 'trailing Mozilla Sync CTA should not become WordPress block output');
     },
     'maps Mozilla embedded-videos fixture allowed iframe preservation' => static function (TestRunner $t) use ($fixtureText, $iframeSources, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/embedded-videos';
