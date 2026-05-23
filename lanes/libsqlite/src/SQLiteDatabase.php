@@ -383,9 +383,6 @@ final class SQLiteDatabase
         if ($rowId < 1) {
             throw new \InvalidArgumentException('SQLite wp_options insert rowid must be positive');
         }
-        if ($this->indexRecordsForTable('wp_options') !== []) {
-            throw new \InvalidArgumentException('SQLite wp_options insert planning currently requires index-free fixtures');
-        }
 
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
@@ -405,6 +402,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options insert planning currently requires a single table leaf root page');
         }
 
+        $insertIndexes = $this->supportedWordPressOptionIndexesForInsert($optionName, $autoload);
         $existingCells = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
@@ -484,7 +482,7 @@ final class SQLiteDatabase
             $overflowPageNumbers,
             $localPayloadLength,
             $allocationPlan?->databasePageCount ?? max($this->pageCount(), $this->header->databaseSizePages),
-            $pageImages,
+            $this->withWordPressOptionIndexInsertPages($pageImages, $insertIndexes, $rowId),
         );
     }
 
@@ -494,10 +492,6 @@ final class SQLiteDatabase
         ?string $autoload = null,
         bool $allowAppend = true,
     ): SQLiteWordPressOptionReplacementPlan {
-        if ($this->indexRecordsForTable('wp_options') !== []) {
-            throw new \InvalidArgumentException('SQLite wp_options replacement planning currently requires index-free fixtures');
-        }
-
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
             throw new \InvalidArgumentException('SQLite wp_options table is not present');
@@ -517,8 +511,10 @@ final class SQLiteDatabase
         }
 
         $usableSize = $this->usablePageSize();
+        $replacementIndexes = $this->supportedWordPressOptionIndexesForReplacement();
         $existingCells = [];
         $matchedRowId = null;
+        $matchedAutoload = null;
         $replacementAutoload = null;
         $replacementLocalPayloadLength = 0;
         $replacementOverflowPayload = '';
@@ -541,6 +537,7 @@ final class SQLiteDatabase
             }
 
             $values = $row->values();
+            $matchedAutoload = $option->autoload;
             $replacementAutoload = $autoload ?? $option->autoload;
             $values[0] = $values[0] ?? null;
             $values[1] = $optionName;
@@ -630,6 +627,14 @@ final class SQLiteDatabase
             }
         }
         ksort($pageImages);
+        $pageImages = $this->withWordPressOptionIndexReplacementPages(
+            $pageImages,
+            $replacementIndexes,
+            $matchedRowId,
+            $optionName,
+            $matchedAutoload,
+            $replacementAutoload,
+        );
 
         return new SQLiteWordPressOptionReplacementPlan(
             $tableRootPage,
@@ -645,6 +650,400 @@ final class SQLiteDatabase
                 ?? max($this->pageCount(), $this->header->databaseSizePages),
             $pageImages,
         );
+    }
+
+    /**
+     * @return list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>,values:list<mixed>}>
+     */
+    private function supportedWordPressOptionIndexesForInsert(string $optionName, ?string $autoload): array
+    {
+        $indexes = [];
+        foreach ($this->indexRecordsForTable('wp_options') as $record) {
+            if ($record->sql === null) {
+                throw new \InvalidArgumentException('SQLite wp_options insert planning currently supports only explicit option_name or autoload, option_name indexes');
+            }
+
+            $columns = SQLiteCreateIndex::columns($record->sql);
+            if ($columns === null) {
+                throw new \InvalidArgumentException('SQLite wp_options insert planning currently supports only ordinary column indexes');
+            }
+
+            if (
+                count($columns) === 1
+                && strcasecmp($columns[0]->columnName, 'option_name') === 0
+            ) {
+                $indexValues = [$optionName];
+            } elseif (
+                count($columns) === 2
+                && strcasecmp($columns[0]->columnName, 'autoload') === 0
+                && strcasecmp($columns[1]->columnName, 'option_name') === 0
+            ) {
+                $indexValues = [$autoload, $optionName];
+            } else {
+                throw new \InvalidArgumentException('SQLite wp_options insert planning currently supports only option_name or autoload, option_name indexes');
+            }
+
+            self::assertSupportedWordPressWriteIndexColumns($columns);
+            self::assertSupportedWordPressWriteIndexPartialPredicate($columns[0]);
+
+            $this->singleLeafIndexHeaderForWrite($record->rootPage);
+            $indexes[] = [
+                'record' => $record,
+                'columns' => $columns,
+                'values' => $indexValues,
+            ];
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @return list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>}>
+     */
+    private function supportedWordPressOptionIndexesForReplacement(): array
+    {
+        $indexes = [];
+        foreach ($this->indexRecordsForTable('wp_options') as $record) {
+            if ($record->sql === null) {
+                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports only explicit option_name or autoload, option_name indexes');
+            }
+
+            $columns = SQLiteCreateIndex::columns($record->sql);
+            if ($columns === null) {
+                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports only ordinary column indexes');
+            }
+
+            $isSupported = (
+                count($columns) === 1
+                && strcasecmp($columns[0]->columnName, 'option_name') === 0
+            ) || (
+                count($columns) === 2
+                && strcasecmp($columns[0]->columnName, 'autoload') === 0
+                && strcasecmp($columns[1]->columnName, 'option_name') === 0
+            );
+            if (!$isSupported) {
+                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports only option_name or autoload, option_name indexes');
+            }
+
+            self::assertSupportedWordPressWriteIndexColumns($columns);
+            self::assertSupportedWordPressWriteIndexPartialPredicate($columns[0]);
+
+            $this->singleLeafIndexHeaderForWrite($record->rootPage);
+            $indexes[] = [
+                'record' => $record,
+                'columns' => $columns,
+            ];
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     */
+    private static function assertSupportedWordPressWriteIndexColumns(array $columns): void
+    {
+        foreach ($columns as $column) {
+            if (!in_array(strtoupper($column->collation), ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                throw new \InvalidArgumentException('SQLite wp_options write planning does not yet maintain custom-collation indexes');
+            }
+        }
+    }
+
+    private static function assertSupportedWordPressWriteIndexPartialPredicate(SQLiteIndexColumn $column): void
+    {
+        if (
+            $column->partial
+            && (
+                $column->partialPredicate === null
+                || !self::partialPredicateCoversAllWordPressOptionNameRows($column->partialPredicate)
+            )
+        ) {
+            throw new \InvalidArgumentException('SQLite wp_options write planning currently supports only option_name IS NOT NULL partial indexes');
+        }
+    }
+
+    private static function partialPredicateCoversAllWordPressOptionNameRows(SQLiteIndexPredicate $predicate): bool
+    {
+        if ($predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL) {
+            return strcasecmp($predicate->columnName, 'option_name') === 0;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if ($subPredicate instanceof SQLiteIndexPredicate && self::partialPredicateCoversAllWordPressOptionNameRows($subPredicate)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>,values:list<mixed>}> $indexes
+     * @param array<int, string> $pageImages
+     * @return array<int, string>
+     */
+    private function withWordPressOptionIndexInsertPages(
+        array $pageImages,
+        array $indexes,
+        int $rowId,
+    ): array {
+        foreach ($indexes as $index) {
+            $record = $index['record'];
+            $columns = $index['columns'];
+            $indexValues = $index['values'];
+            $keyColumnCount = count($columns);
+            $rootPage = $record->rootPage;
+            if ($rootPage === null) {
+                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
+            }
+
+            [$indexPage, $indexHeader, $headerOffset] = $this->singleLeafIndexHeaderForWrite($rootPage);
+            $entries = [];
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            foreach (SQLiteIndexCell::parsePageCells($indexPage, $indexHeader, $this->usablePageSize(), $overflowReader) as $cell) {
+                $recordValues = $cell->record($this->header->textEncoding)->values;
+                if (count($recordValues) < $keyColumnCount + 1) {
+                    throw new \InvalidArgumentException('SQLite wp_options index record must contain all keys and rowid');
+                }
+                $indexRowId = $this->rowIdFromIndexCell($cell);
+                if ($indexRowId === $rowId) {
+                    throw new \InvalidArgumentException("SQLite wp_options index already contains rowid {$rowId}");
+                }
+                $entries[] = [
+                    'values' => array_merge(array_slice($recordValues, 0, $keyColumnCount), [$indexRowId]),
+                    'cell' => substr($indexPage, $cell->offset, $cell->bytesRead),
+                ];
+            }
+
+            $newEntryValues = array_merge($indexValues, [$rowId]);
+            $newPayload = SQLiteRecord::encode($newEntryValues, $this->header->textEncoding);
+            if (SQLiteIndexCell::localPayloadLength(strlen($newPayload), $this->usablePageSize()) !== strlen($newPayload)) {
+                throw new \InvalidArgumentException('SQLite wp_options indexed insert planning does not yet allocate index overflow pages');
+            }
+            $entries[] = [
+                'values' => $newEntryValues,
+                'cell' => SQLiteIndexCell::encode($newPayload, $this->usablePageSize()),
+            ];
+
+            usort(
+                $entries,
+                fn (array $left, array $right): int => $this->compareWordPressIndexEntryValues(
+                    $left['values'],
+                    $right['values'],
+                    $columns,
+                ),
+            );
+
+            $pageImages[$rootPage] = SQLiteIndexLeafPage::assemble(
+                array_map(static fn (array $entry): string => $entry['cell'], $entries),
+                $this->header->pageSize,
+                $headerOffset,
+                $indexPage,
+                $this->usablePageSize(),
+            );
+        }
+
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @param list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>}> $indexes
+     * @param array<int, string> $pageImages
+     * @return array<int, string>
+     */
+    private function withWordPressOptionIndexReplacementPages(
+        array $pageImages,
+        array $indexes,
+        int $rowId,
+        string $optionName,
+        ?string $oldAutoload,
+        ?string $newAutoload,
+    ): array
+    {
+        foreach ($indexes as $index) {
+            $rootPage = $index['record']->rootPage;
+            if ($rootPage === null) {
+                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
+            }
+
+            $columns = $index['columns'];
+            $oldValues = self::wordPressOptionIndexValuesForColumns($columns, $optionName, $oldAutoload);
+            $newValues = self::wordPressOptionIndexValuesForColumns($columns, $optionName, $newAutoload);
+            $keyColumnCount = count($columns);
+            $mutatesKey = $oldValues !== $newValues;
+
+            [$indexPage, $indexHeader, $headerOffset] = $this->singleLeafIndexHeaderForWrite($rootPage);
+            $entries = [];
+            $found = false;
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            foreach (SQLiteIndexCell::parsePageCells($indexPage, $indexHeader, $this->usablePageSize(), $overflowReader) as $cell) {
+                $recordValues = $cell->record($this->header->textEncoding)->values;
+                if (count($recordValues) < $keyColumnCount + 1) {
+                    throw new \InvalidArgumentException('SQLite wp_options index record must contain all keys and rowid');
+                }
+                $indexRowId = $this->rowIdFromIndexCell($cell);
+                $entryValues = array_merge(array_slice($recordValues, 0, $keyColumnCount), [$indexRowId]);
+                if (
+                    $indexRowId === $rowId
+                    && self::wordPressOptionIndexValuesMatchColumns(
+                        array_slice($recordValues, 0, $keyColumnCount),
+                        $oldValues,
+                        $columns,
+                    )
+                ) {
+                    $found = true;
+                    if ($mutatesKey) {
+                        continue;
+                    }
+                } elseif ($indexRowId === $rowId) {
+                    throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId} with the expected key");
+                }
+
+                $entries[] = [
+                    'values' => $entryValues,
+                    'cell' => substr($indexPage, $cell->offset, $cell->bytesRead),
+                ];
+            }
+
+            if (!$found) {
+                throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId}");
+            }
+
+            if (!$mutatesKey) {
+                continue;
+            }
+
+            $newEntryValues = array_merge($newValues, [$rowId]);
+            $newPayload = SQLiteRecord::encode($newEntryValues, $this->header->textEncoding);
+            if (SQLiteIndexCell::localPayloadLength(strlen($newPayload), $this->usablePageSize()) !== strlen($newPayload)) {
+                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet allocate index overflow pages');
+            }
+
+            $entries[] = [
+                'values' => $newEntryValues,
+                'cell' => SQLiteIndexCell::encode($newPayload, $this->usablePageSize()),
+            ];
+
+            usort(
+                $entries,
+                fn (array $left, array $right): int => $this->compareWordPressIndexEntryValues(
+                    $left['values'],
+                    $right['values'],
+                    $columns,
+                ),
+            );
+
+            $pageImages[$rootPage] = SQLiteIndexLeafPage::assemble(
+                array_map(static fn (array $entry): string => $entry['cell'], $entries),
+                $this->header->pageSize,
+                $headerOffset,
+                $indexPage,
+                $this->usablePageSize(),
+            );
+        }
+
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return list<mixed>
+     */
+    private static function wordPressOptionIndexValuesForColumns(
+        array $columns,
+        string $optionName,
+        ?string $autoload,
+    ): array {
+        $values = [];
+        foreach ($columns as $column) {
+            if (strcasecmp($column->columnName, 'option_name') === 0) {
+                $values[] = $optionName;
+                continue;
+            }
+            if (strcasecmp($column->columnName, 'autoload') === 0) {
+                $values[] = $autoload;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite wp_options write planning supports only option_name and autoload index columns');
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<mixed> $leftValues
+     * @param list<mixed> $rightValues
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     */
+    private static function wordPressOptionIndexValuesMatchColumns(
+        array $leftValues,
+        array $rightValues,
+        array $columns,
+    ): bool {
+        foreach ($columns as $index => $column) {
+            if (
+                !array_key_exists($index, $leftValues)
+                || !array_key_exists($index, $rightValues)
+                || self::compareSQLiteScalarForIndexColumn($leftValues[$index], $rightValues[$index], $column, []) !== 0
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array{0:string,1:SQLiteBTreePageHeader,2:int}
+     */
+    private function singleLeafIndexHeaderForWrite(int $rootPage): array
+    {
+        $page = $this->page($rootPage);
+        $headerOffset = $rootPage === 1 ? 100 : 0;
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $headerOffset,
+        );
+        if ($header->pageType !== 'index-leaf') {
+            throw new \InvalidArgumentException('SQLite wp_options write planning currently requires single-leaf indexes');
+        }
+
+        return [$page, $header, $headerOffset];
+    }
+
+    /**
+     * @param list<mixed> $leftValues
+     * @param list<mixed> $rightValues
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     */
+    private function compareWordPressIndexEntryValues(
+        array $leftValues,
+        array $rightValues,
+        array $columns,
+    ): int {
+        foreach ($columns as $index => $column) {
+            $keyComparison = self::compareSQLiteScalarForIndexColumn($leftValues[$index] ?? null, $rightValues[$index] ?? null, $column, []);
+            if ($keyComparison !== 0) {
+                return $column->descending ? -$keyComparison : $keyComparison;
+            }
+        }
+
+        $rowIdIndex = count($columns);
+
+        return ($leftValues[$rowIdIndex] ?? null) <=> ($rightValues[$rowIdIndex] ?? null);
     }
 
     /**

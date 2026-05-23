@@ -2671,3 +2671,154 @@ php tools/run-tests.php
 ```
 
 Result on 2026-05-23: 185 test files, 19593 assertions, 0 failures.
+
+For the bounded single-leaf `option_name` index maintenance slice on
+2026-05-23, the focused upstream runner passed `insert.test`, `index.test`,
+`update.test`, and `btree01.test` with 0 errors out of 1084 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test update.test btree01.test
+```
+
+This maps rowid table INSERT persistence, UPDATE row rewrite behavior, index
+b-tree payload ordering, and b-tree cell assembly boundaries used by the
+native bounded `wp_options` option-name index page-image planner. The direct
+libsqlite harness passed 169 tests with 1112 assertions and 0 failures, and
+`examples/wordpress-indexed-generated-option-insert-plan.php` ran
+successfully, reporting updated table/index page images `[2,3]` and indexed
+records `home -> 2`, `siteurl -> 1`.
+
+Before starting a root harness for this slice, the required preflight found an
+active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 926388 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 926388
+# 926388 claude 00:24 php tools/run-tests.php
+```
+
+Per lane instructions, this worker did not start a duplicate root harness. The
+post-change root result is pending supervisor/integrator acceptance of the
+active run.
+
+For the bounded composite `autoload, option_name` replacement maintenance
+slice on 2026-05-23, the focused upstream runner passed `update.test`,
+`index.test`, `where.test`, `whereH.test`, and `btree01.test` with 0 errors
+out of 1096 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test where.test whereH.test btree01.test
+```
+
+This maps UPDATE row rewrite behavior, composite index key ordering,
+equality-prefix planner coverage, and b-tree cell assembly boundaries used by
+the native bounded `wp_options(autoload, option_name)` replacement planner
+when an `autoload` change moves the secondary-index entry. The direct
+libsqlite harness passed 173 PHP tests with 1138 assertions and 0 failures,
+and `examples/wordpress-composite-indexed-option-replacement-plan.php` ran
+successfully, reporting updated table/index page images `[2,3]`, composite
+index records `[no, siteurl, 1]` and `[no, cron_lock, 2]`, and indexed lookup
+of `siteurl` through `wordpressOptionByIndexedAutoloadAndName('no',
+'SITEURL')`.
+
+Before starting a root harness for this slice, the required preflight returned
+no active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+This worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 188 test files, 20303 assertions, 0 failures.
+
+For the bounded composite `autoload, option_name` index maintenance slice on
+2026-05-23, the focused upstream runner passed `insert.test`, `index.test`,
+`index7.test`, `where.test`, `whereH.test`, `update.test`, and `btree01.test`
+with 0 errors out of 1479 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test index7.test where.test whereH.test update.test btree01.test
+```
+
+This maps rowid INSERT persistence, composite index key ordering,
+partial-index boundaries, equality-prefix planner coverage, UPDATE row rewrite
+behavior, and b-tree cell assembly boundaries used by the native bounded
+`wp_options(autoload, option_name)` insert page-image planner. The direct
+libsqlite harness passed 172 PHP tests with 1131 assertions and 0 failures,
+and `examples/wordpress-composite-indexed-generated-option-insert-plan.php`
+ran successfully, reporting updated table/index page images `[2,3]`,
+composite index records `[no, cron_lock, 2]`, `[yes, siteurl, 1]`,
+`[yes, home, 3]`, and indexed lookup of `home` through
+`wordpressOptionByIndexedAutoloadAndName('yes', 'HOME')`.
+
+Before starting a root harness for this slice, the required preflight first
+found a short-lived active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 1181706 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 1181706
+# process exited before owner details could be read
+```
+
+A second preflight immediately afterward returned no active root harness, so
+this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 186 test files, 20114 assertions, 2 failures. The
+captured visible failure was unrelated to this lane, in
+`lanes/difftastic/tests/TokenDifferTest.php` for
+`wordpress command env display options wrap tabbed block metadata`. The full
+root run output exceeded the tool capture before the second failure context,
+so the aggregate result is recorded as a repo integration blocker rather than
+a libsqlite implementation blocker.
+
+For the bounded safe partial `option_name` index maintenance slice on
+2026-05-23, the focused upstream runner passed `insert.test`, `index.test`,
+`index7.test`, `update.test`, and `btree01.test` with 0 errors out of 1144
+tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test index7.test update.test btree01.test
+```
+
+This maps SQLite partial-index usability boundaries from `index7.test`, rowid
+table INSERT persistence, UPDATE row rewrite behavior, index b-tree payload
+ordering, and b-tree cell assembly boundaries. The direct libsqlite harness
+passed 171 tests with 1124 assertions and 0 failures, and
+`examples/wordpress-partial-indexed-generated-option-insert-plan.php` ran
+successfully, reporting updated table/index page images `[2,3]` and partial
+index records `home -> 2`, `siteurl -> 1`.
+
+Before starting a root harness for this slice, the required preflight found an
+active aggregate run plus a focused Syncthing run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 1076399 php tools/run-tests.php
+# 1076696 php tools/run-tests.php lanes/syncthing/tests
+ps -o pid,user,etime,cmd -p 1076399,1076696
+# 1076399 claude 00:06 php tools/run-tests.php
+# 1076696 claude 00:05 php tools/run-tests.php lanes/syncthing/tests
+```
+
+Per lane instructions, this worker did not start a duplicate root harness. The
+post-change root result is pending supervisor/integrator acceptance of the
+active run.
