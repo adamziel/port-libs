@@ -32,5 +32,5 @@ return [
         'other' => "oversized-avif-binary-placeholder",
         'threshold' => 13,
     ],
-    'wordpressUse' => 'A PHP deployment tool can prepare a configured WordPress JSON merge driver command, treat deleted theme.json bases as empty driver tempfiles, reject too-large media-like resources before driver execution, let an approved driver overwrite the current tempfile, and read the merged theme.json buffer back without invoking Git.',
+    'wordpressUse' => 'A PHP deployment tool can prepare a configured WordPress JSON merge driver command, treat deleted theme.json bases as empty driver tempfiles, reject too-large media-like resources before any approved runner is called, let a caller-injected approved runner overwrite the current tempfile, and read the merged theme.json buffer back without invoking Git or launching a shell.',
 ];

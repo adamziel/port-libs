@@ -1,9 +1,15 @@
 # Gitoxide Lane Root Harness Verification Note - 2026-05-23
 
-Current verification after the external merge-driver missing/too-large resource slice is green:
+Current verification after the loose-reference directory blocker recovery slice:
 
-- Focused gitoxide run: `32` test files, `2,511` assertions, `0` failures.
-- Required root run: `php tools/run-tests.php` passed with `175` test files, `16,568` assertions, and `0` failures.
+- Focused gitoxide run: `32` test files, `2,537` assertions, `0` failures.
+- Required root run: `php tools/run-tests.php` passed with `178` test files, `17,211` assertions, and `0` failures.
+
+This slice maps the exact upstream gix-ref directory-blocker recovery test: an empty directory tree at the loose-ref path is removed before the ref file is written, while non-empty directory blockers remain errors. The WordPress reference transaction example now covers an interrupted tenant deploy that left an empty `HEAD` directory before the symbolic HEAD update.
+
+Historical multi-head merge-base context is retained below. That slice added `MergeBaseFinder::mergeBasesMany()` and `mergeBaseMany()` for upstream-shaped multi-head/octopus merge-base selection, plus a WordPress plugin/theme/content review-branch release-baseline example. Its root run was red because of unrelated Pandoc lane failures from missing `PortLibs\Pandoc\MarkdownReader::collectSpannedGridTableLines()`.
+
+Prior external merge-driver shell-demotion context is retained below. That slice removed the default `proc_open()` execution fallback from `ExternalMergeDriverCommand::run()`. Native progress covers command preparation, caller-injected runner status handling, and `%A` readback only; shell-backed process launch remains outside the native lane and is not counted.
 
 Historical failure sample from the previous external merge-driver readback slice is retained below for audit context.
 

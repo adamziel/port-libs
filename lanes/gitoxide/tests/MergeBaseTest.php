@@ -64,6 +64,56 @@ return [
 
         $t->same([$leftBase, $rightBase], $mergeBase->mergeBases($leftMerge, $rightMerge));
     },
+    'maps upstream octopus merge-base for three sequential heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
+        $first = $oid('1');
+        $second = $oid('2');
+        $third = $oid('3');
+
+        $mergeBase = $finder([
+            $first => $commit(),
+            $second => $commit([$first]),
+            $third => $commit([$second]),
+        ]);
+
+        $t->same([$first], $mergeBase->mergeBasesMany([$third, $second, $first]));
+        $t->same($first, $mergeBase->mergeBaseMany([$second, $third, $first]));
+    },
+    'maps upstream octopus merge-base for three parallel heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
+        $base = $oid('1');
+        $left = $oid('2');
+        $middle = $oid('3');
+        $right = $oid('4');
+
+        $mergeBase = $finder([
+            $base => $commit(),
+            $left => $commit([$base]),
+            $middle => $commit([$base]),
+            $right => $commit([$base]),
+        ]);
+
+        $t->same([$base], $mergeBase->mergeBasesMany([$left, $middle, $right]));
+        $t->same($base, $mergeBase->mergeBaseMany([$right, $middle, $left]));
+    },
+    'maps upstream octopus merge-base for forked and criss-cross heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
+        $root = $oid('1');
+        $leftBase = $oid('2');
+        $rightBase = $oid('3');
+        $leftMerge = $oid('4');
+        $rightMerge = $oid('5');
+
+        $mergeBase = $finder([
+            $root => $commit(),
+            $leftBase => $commit([$root]),
+            $rightBase => $commit([$root]),
+            $leftMerge => $commit([$leftBase, $rightBase]),
+            $rightMerge => $commit([$rightBase, $leftBase]),
+        ]);
+
+        $t->same([$leftBase, $rightBase], $mergeBase->mergeBasesMany([$leftMerge, $rightMerge]));
+        $t->same([$rightBase], $mergeBase->mergeBasesMany([$leftMerge, $rightMerge, $rightBase]));
+        $t->same([$leftMerge], $mergeBase->mergeBasesMany([$leftMerge]));
+        $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBasesMany([]));
+    },
     'returns null when histories are unrelated' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
         $left = $oid('a');
         $right = $oid('b');
@@ -74,6 +124,24 @@ return [
 
         $t->same([], $mergeBase->mergeBases($left, $right));
         $t->same(null, $mergeBase->mergeBase($left, $right));
+    },
+    'wordpress fixture finds shared release baseline for multiple review branches' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-merge-base.php';
+        $example = require dirname(__DIR__) . '/examples/wordpress-merge-base.php';
+        $finder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
+            if (!isset($fixture['commits'][$oid])) {
+                throw new RuntimeException("Missing commit fixture: {$oid}");
+            }
+
+            return $fixture['commits'][$oid];
+        });
+
+        $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
+        $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
+        $t->same($fixture['releaseBaseline'], $example['reviewBase']);
+        $t->same([$fixture['releaseBaseline']], $example['reviewBases']);
+        $t->same(true, $example['reviewBaseIsReleaseBaseline']);
+        $t->same(true, $example['deploymentBaseIsReleaseBaseline']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

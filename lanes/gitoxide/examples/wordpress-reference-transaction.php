@@ -11,6 +11,8 @@ use PortLibs\Gitoxide\ReferenceTarget;
 $fixture = require __DIR__ . '/../fixtures/wordpress-reference-transaction.php';
 $dir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-' . bin2hex(random_bytes(4));
 $store = new ReferenceStore($dir, null, $fixture['namespace']);
+$prefix = ReferenceName::expandNamespace($fixture['namespace']);
+$physicalHead = $dir . '/' . $prefix . 'HEAD';
 
 $store->update(
     $fixture['reviewRef'],
@@ -27,13 +29,12 @@ $deleted = $store->deleteReference(
     ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
     ReferenceTarget::object($fixture['reviewCommit']),
 );
+mkdir($physicalHead . '/interrupted-deploy/empty', 0777, true);
 $head = $store->update(
     'HEAD',
     ReferenceTarget::symbolic($fixture['headTarget']),
     ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
 );
-
-$prefix = ReferenceName::expandNamespace($fixture['namespace']);
 
 return [
     'namespace' => $fixture['namespace'],
@@ -41,7 +42,8 @@ return [
     'deletedReviewCommit' => $deleted?->targetObjectId(),
     'headTarget' => $head->target->value,
     'visibleRefs' => array_map(static fn ($reference): string => $reference->name, $store->all()),
-    'physicalHead' => file_get_contents($dir . '/' . $prefix . 'HEAD'),
+    'physicalHead' => file_get_contents($physicalHead),
     'reviewRefStillExists' => $store->tryFind($fixture['reviewRef']) !== null,
+    'headDirectoryRecovered' => is_file($physicalHead) && !is_dir($physicalHead . '/interrupted-deploy'),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

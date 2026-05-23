@@ -13,6 +13,10 @@ final class LooseReferenceStore
     public function write(LooseReference $reference): void
     {
         $path = $this->pathFor($reference->name);
+        if (is_dir($path) && !$this->removeEmptyDirectoryTree($path)) {
+            throw new \RuntimeException("Unable to replace directory blocker with loose reference: {$reference->name}");
+        }
+
         $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
             throw new \RuntimeException("Unable to create reference directory: {$directory}");
@@ -144,5 +148,27 @@ final class LooseReferenceStore
             @rmdir($current);
             $current = str_replace('\\', '/', dirname($current));
         }
+    }
+
+    private function removeEmptyDirectoryTree(string $directory): bool
+    {
+        $entries = @scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException("Unable to inspect loose reference directory blocker: {$directory}");
+        }
+
+        foreach (array_diff($entries, ['.', '..']) as $entry) {
+            $path = $directory . '/' . $entry;
+            if (is_dir($path) && !is_link($path)) {
+                if (!$this->removeEmptyDirectoryTree($path)) {
+                    return false;
+                }
+                continue;
+            }
+
+            return false;
+        }
+
+        return @rmdir($directory) || !is_dir($directory);
     }
 }

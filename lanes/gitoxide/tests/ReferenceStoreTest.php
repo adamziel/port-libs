@@ -578,6 +578,39 @@ return [
         $t->same(null, $plainStore->tryFind('HEAD'));
         $t->same($prefix . 'HEAD', $plainStore->find($prefix . 'HEAD')->name);
     },
+    'reference store recovers empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-empty-dir-blocker-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        mkdir($dir . '/HEAD/a/b/also-empty', 0777, true);
+
+        $head = $store->update(
+            'HEAD',
+            ReferenceTarget::symbolic('refs/heads/main'),
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+        );
+
+        $t->same('HEAD', $head->name);
+        $t->same('refs/heads/main', $head->target->value);
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same(false, is_dir($dir . '/HEAD/a'));
+    },
+    'reference store refuses non-empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-non-empty-dir-blocker-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        mkdir($dir . '/HEAD/a/b/also-empty', 0777, true);
+        file_put_contents($dir . '/HEAD/file.ext', '');
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->update(
+                'HEAD',
+                ReferenceTarget::symbolic('refs/heads/main'),
+                ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+            ),
+        );
+        $t->same(true, is_file($dir . '/HEAD/file.ext'));
+        $t->same(true, is_dir($dir . '/HEAD'));
+    },
     'wordpress reference transaction example promotes and prunes review refs without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-reference-transaction.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-reference-transaction.php';
@@ -589,6 +622,7 @@ return [
         $t->same($fixture['expectedVisibleRefs'], $summary['visibleRefs']);
         $t->same($fixture['expectedPhysicalHead'], $summary['physicalHead']);
         $t->same(false, $summary['reviewRefStillExists']);
+        $t->same($fixture['expectedHeadDirectoryRecovered'], $summary['headDirectoryRecovered']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

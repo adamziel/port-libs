@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\BlobMerge;
 use PortLibs\Gitoxide\BuiltinDriver;
 use PortLibs\Gitoxide\ExternalMergeDriver;
+use PortLibs\Gitoxide\ExternalMergeDriverCommand;
 use PortLibs\Gitoxide\MergeDriverChoice;
 
 $tempDir = static function (): string {
@@ -101,7 +102,16 @@ return [
             @rmdir($worktree);
         }
     },
-    'external merge driver reads back current tempfile after successful execution' => static function (TestRunner $t) use ($tempDir): void {
+    'external merge driver command requires an injected runner for native readback' => static function (TestRunner $t): void {
+        $method = new ReflectionMethod(ExternalMergeDriverCommand::class, 'run');
+        $parameters = $method->getParameters();
+
+        $t->same(1, count($parameters));
+        $t->same('runner', $parameters[0]->getName());
+        $t->same(false, $parameters[0]->isOptional());
+        $t->same('callable', (string) $parameters[0]->getType());
+    },
+    'external merge driver reads back current tempfile after successful injected runner' => static function (TestRunner $t) use ($tempDir): void {
         $driver = new ExternalMergeDriver(
             'wp-json',
             'merge-driver %O %A %B %L %P %S %X %Y',

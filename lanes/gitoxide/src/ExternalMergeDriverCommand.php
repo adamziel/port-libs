@@ -19,11 +19,11 @@ final class ExternalMergeDriverCommand
     }
 
     /**
-     * @param null|callable(self): int $runner
+     * @param callable(self): int $runner
      */
-    public function run(?callable $runner = null): BlobMergeResult
+    public function run(callable $runner): BlobMergeResult
     {
-        $exitCode = $runner === null ? self::runShellCommand($this->command) : $runner($this);
+        $exitCode = $runner($this);
 
         return $this->readResultFromExitCode($exitCode);
     }
@@ -56,22 +56,4 @@ final class ExternalMergeDriverCommand
         $this->cleanup();
     }
 
-    private static function runShellCommand(string $command): int
-    {
-        $null = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
-        $process = proc_open(
-            $command,
-            [
-                0 => ['file', $null, 'r'],
-                1 => ['file', $null, 'w'],
-                2 => ['file', $null, 'w'],
-            ],
-            $pipes,
-        );
-        if (!is_resource($process)) {
-            throw new \RuntimeException("Failed to launch external merge driver: {$command}");
-        }
-
-        return proc_close($process);
-    }
 }

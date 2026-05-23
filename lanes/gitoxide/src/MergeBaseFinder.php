@@ -97,6 +97,84 @@ final class MergeBaseFinder
     }
 
     /**
+     * @param list<string> $heads
+     * @return list<string>
+     */
+    public function mergeBasesMany(array $heads): array
+    {
+        if ($heads === []) {
+            throw new \InvalidArgumentException('At least one merge-base head is required');
+        }
+
+        $normalized = [];
+        foreach ($heads as $head) {
+            if (!is_string($head)) {
+                throw new \InvalidArgumentException('Merge-base heads must be object id strings');
+            }
+            self::assertObjectId($head);
+            $normalized[] = strtolower($head);
+        }
+
+        if (count($normalized) === 1) {
+            return [$normalized[0]];
+        }
+
+        $ancestorSets = [];
+        foreach ($normalized as $head) {
+            $ancestorSets[] = $this->ancestorsWithDistance($head);
+        }
+
+        $candidates = $ancestorSets[0];
+        foreach (array_slice($ancestorSets, 1) as $ancestors) {
+            $candidates = array_intersect_key($candidates, $ancestors);
+            if ($candidates === []) {
+                return [];
+            }
+        }
+
+        $best = [];
+        foreach (array_keys($candidates) as $candidate) {
+            $redundant = false;
+            foreach (array_keys($candidates) as $other) {
+                if ($candidate === $other) {
+                    continue;
+                }
+                if (isset($this->ancestorsWithDistance($other)[$candidate])) {
+                    $redundant = true;
+                    break;
+                }
+            }
+            if ($redundant) {
+                continue;
+            }
+
+            $best[$candidate] = array_map(
+                static fn (array $ancestors): int => $ancestors[$candidate],
+                $ancestorSets,
+            );
+        }
+
+        uksort($best, static function (string $left, string $right) use ($best): int {
+            $leftDistances = $best[$left];
+            $rightDistances = $best[$right];
+
+            return max($leftDistances) <=> max($rightDistances)
+                ?: array_sum($leftDistances) <=> array_sum($rightDistances)
+                ?: strcmp($left, $right);
+        });
+
+        return array_keys($best);
+    }
+
+    /**
+     * @param list<string> $heads
+     */
+    public function mergeBaseMany(array $heads): ?string
+    {
+        return $this->mergeBasesMany($heads)[0] ?? null;
+    }
+
+    /**
      * @return array<string, int>
      */
     private function ancestorsWithDistance(string $oid): array

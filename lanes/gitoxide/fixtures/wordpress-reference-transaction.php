@@ -18,5 +18,6 @@ return [
         'refs/heads/production',
     ],
     'expectedPhysicalHead' => "ref: refs/namespaces/{$namespace}/{$headTarget}\n",
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot and prune the review ref inside a tenant namespace without invoking git update-ref.',
+    'expectedHeadDirectoryRecovered' => true,
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, prune the review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];
