@@ -37,6 +37,10 @@ final class PatchFunctionCall
     public function rows(array $tables, array $arguments, array $options = []): array
     {
         [$fromCommit, $toCommit, $tableName] = $this->parseArguments($arguments, $options);
+        if ($fromCommit === $toCommit) {
+            return [];
+        }
+
         $selectedTables = $tableName === null
             ? $tables
             : $this->selectTableDelta($tables, $tableName, $options['knownTables'] ?? null);

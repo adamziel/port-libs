@@ -115,6 +115,28 @@ return [
         $t->contains("INSERT INTO `wp_import_log` (`event_type`,`message`,`created_gmt`) VALUES ('post','queued post 501'", $rows[1]['statement']);
         $t->contains("INSERT INTO `wp_import_log` (`event_type`,`message`,`created_gmt`) VALUES ('media','finished media scan'", $rows[2]['statement']);
     },
+    'dolt patch rows hex encode binary data statements' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'varbinary(16)', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 2, 'type' => 'binary(16)'],
+        ]);
+        $rows = (new PatchRenderer())->rows([[
+            'tableName' => 't',
+            'fromSchema' => $schema,
+            'toSchema' => $schema,
+            'diffRows' => [
+                ['diff_type' => 'added', 'to_pk' => "\x01\x23\x45", 'to_c1' => null],
+                ['diff_type' => 'modified', 'from_pk' => "\x42", 'from_c1' => null, 'to_pk' => "\x42", 'to_c1' => str_pad("\xee\xee", 16, "\0")],
+            ],
+        ]], ['fromCommit' => 'HEAD~', 'toCommit' => 'HEAD', 'filter' => 'data']);
+
+        $t->same(['data', 'data'], array_column($rows, 'diff_type'));
+        $t->same(['HEAD~', 'HEAD'], [$rows[0]['from_commit_hash'], $rows[0]['to_commit_hash']]);
+        $t->same([
+            'INSERT INTO `t` (`pk`,`c1`) VALUES (0x012345,NULL);',
+            'UPDATE `t` SET `c1`=0xeeee0000000000000000000000000000 WHERE `pk`=0x42;',
+        ], array_column($rows, 'statement'));
+    },
     'wordpress patch review example separates schema and data queues' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-patch-review.php';
 
@@ -127,5 +149,14 @@ return [
         $t->contains('UPDATE `wp_posts` SET', $output['data'][1]['statement']);
         $t->contains('INSERT INTO `wp_posts`', $output['data'][2]['statement']);
         $t->same(5, count($output['all']));
+    },
+    'wordpress binary patch review example exposes media hash SQL literals' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-binary-patch-review.php';
+        $output = require __DIR__ . '/../examples/wordpress-binary-patch-review.php';
+
+        $t->same($fixture['expectedStatements'], $output['statements']);
+        $t->same(['data', 'data'], array_column($output['rows'], 'diff_type'));
+        $t->contains('0x77700001', $output['statements'][0]);
+        $t->contains('0x696d6700', $output['statements'][1]);
     },
 ];

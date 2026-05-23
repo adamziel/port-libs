@@ -5,6 +5,28 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## Runner Refresh 2026-05-23 Binary Patch Slice
+
+- Static denominator refresh:
+  - `git -C .upstream-cache/dolt ls-tree -r --name-only HEAD | rg '_test\.go$' | wc -l`: `399`.
+  - `git -C .upstream-cache/dolt ls-tree -r --name-only HEAD | rg '\.bats$' | wc -l`: `214`.
+  - `rg -n '^func (Test|Benchmark|Fuzz)[A-Za-z0-9_]*\(' .upstream-cache/dolt/go -g '*_test.go' | wc -l`: `1,420` inspected Go test/benchmark functions in the hydrated sparse `go` tree.
+  - Breakdown: `1,369` `Test*` functions, `51` `Benchmark*` functions, `0` `Fuzz*` functions across `377` checked-out Go test files.
+  - `rg -n '^@test ' .upstream-cache/dolt -g '*.bats' | wc -l`: `3,630` BATS cases currently present in the hydrated sparse checkout (`203` BATS files). The manifest keeps the broader static BATS denominator at `214` files and the earlier targeted total at `3,808` cases.
+- Focused upstream source inspection:
+  - `go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go`: `binary data in patch statements is hex encoded` expects `dolt_patch()` statements such as `0x012345`, fixed `binary(16)` padding as `0x6566675f213400000000000000000000`, and an update predicate `WHERE \`pk\`=0x42`.
+  - `go/libraries/doltcore/sqle/sqlfmt/row_fmt.go`: `interfaceValueAsSqlString` emits `0x` hex for `BINARY`, `VARBINARY`, and `VECTOR` values, while text-like values remain quoted.
+  - The same patch table-function suite includes same-ref `WORKING`/`STAGED` no-row assertions.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(PatchTableFunction|PatchTableFunctionPrepared)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.676s`.
+- Native PHP lane-only verification before root run:
+  - `php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; ... lanes/dolt/tests/*Test.php ...'`
+  - Result: `16` Dolt test files, `140` behavior tests, `721` assertions, `0` failures.
+- Required root verification after lane code, notes, manifest, and status updates:
+  - `php tools/run-tests.php`
+  - Result: exit `0` with `159` test files, `14,515` assertions, and `0` failures.
+
 ## Runner Tooling Refresh 2026-05-23 00:00-00:07 UTC
 
 - Cache inspection before running evidence:

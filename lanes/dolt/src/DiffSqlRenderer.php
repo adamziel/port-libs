@@ -98,7 +98,7 @@ final class DiffSqlRenderer
         $values = [];
         foreach ($columns as $column) {
             $names[] = $this->quoteIdentifier($column['name']);
-            $values[] = $this->sqlValue($row['to_' . $column['name']] ?? null);
+            $values[] = $this->sqlValue($row['to_' . $column['name']] ?? null, $column);
         }
 
         return 'INSERT INTO ' . $this->quoteIdentifier($tableName)
@@ -136,7 +136,7 @@ final class DiffSqlRenderer
                 continue;
             }
 
-            $set[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($toValue);
+            $set[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($toValue, $column);
         }
 
         if ($set === []) {
@@ -162,7 +162,7 @@ final class DiffSqlRenderer
                 throw new \InvalidArgumentException("Diff SQL row is missing primary key column {$key}.");
             }
 
-            $predicates[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($row[$key]);
+            $predicates[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($row[$key], $column);
         }
 
         if ($predicates === []) {
@@ -189,7 +189,7 @@ final class DiffSqlRenderer
             if (!array_key_exists($key, $row)) {
                 throw new \InvalidArgumentException("Diff SQL row is missing keyless column {$key}.");
             }
-            $predicates[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($row[$key]);
+            $predicates[] = $this->quoteIdentifier($name) . '=' . $this->sqlValue($row[$key], $column);
         }
 
         if ($predicates === []) {
@@ -199,10 +199,20 @@ final class DiffSqlRenderer
         return $predicates;
     }
 
-    private function sqlValue(mixed $value): string
+    /**
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>} $column
+     */
+    private function sqlValue(mixed $value, array $column): string
     {
         if ($value === null) {
             return 'NULL';
+        }
+        if ($this->isBinaryColumn($column)) {
+            if (!is_string($value)) {
+                throw new \InvalidArgumentException("Binary SQL column {$column['name']} values must be strings or null.");
+            }
+
+            return '0x' . bin2hex($value);
         }
         if (is_bool($value)) {
             return $value ? '1' : '0';
@@ -215,6 +225,14 @@ final class DiffSqlRenderer
         }
 
         return "'" . str_replace(["\\", "'"], ["\\\\", "\\'"], $value) . "'";
+    }
+
+    /**
+     * @param array{type:non-empty-string} $column
+     */
+    private function isBinaryColumn(array $column): bool
+    {
+        return preg_match('/\b(varbinary|binary|vector)\b/i', $column['type']) === 1;
     }
 
     private function quoteIdentifier(string $identifier): string

@@ -58,6 +58,43 @@ return [
             "INSERT INTO `wp_posts` (`pk`,`name`,`published`) VALUES (3,'Add me',0);",
         ]), (new DiffSqlRenderer())->render('wp_posts', $schema, $rows));
     },
+    'dolt diff sql renderer hex encodes binary and varbinary values like upstream patches' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'varbinary(16)', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 2, 'type' => 'binary(16)'],
+        ]);
+        $rows = [
+            [
+                'diff_type' => TableDiff::DIFF_ADDED,
+                'to_pk' => "\x01\x23\x45",
+                'to_c1' => null,
+            ],
+            [
+                'diff_type' => TableDiff::DIFF_ADDED,
+                'to_pk' => "\x05\x43\x21",
+                'to_c1' => str_pad('efg_!4', 16, "\0"),
+            ],
+            [
+                'diff_type' => TableDiff::DIFF_MODIFIED,
+                'from_pk' => "\x42",
+                'from_c1' => null,
+                'to_pk' => "\x42",
+                'to_c1' => str_pad("\xee\xee", 16, "\0"),
+            ],
+        ];
+
+        $t->same(implode("\n", [
+            'INSERT INTO `t` (`pk`,`c1`) VALUES (0x012345,NULL);',
+            'INSERT INTO `t` (`pk`,`c1`) VALUES (0x054321,0x6566675f213400000000000000000000);',
+            'UPDATE `t` SET `c1`=0xeeee0000000000000000000000000000 WHERE `pk`=0x42;',
+        ]), (new DiffSqlRenderer())->render('t', $schema, $rows));
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new DiffSqlRenderer())->render('t', $schema, [[
+            'diff_type' => TableDiff::DIFF_ADDED,
+            'to_pk' => 1,
+            'to_c1' => null,
+        ]]));
+    },
     'wordpress filtered diff sql example separates migration row review queues' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-filtered-diff-sql.php';
 

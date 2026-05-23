@@ -87,6 +87,16 @@ return [
             'knownTables' => ['t', 'newtable', 'unchanged'],
         ]));
     },
+    'dolt patch function call returns no rows for same working or staged refs' => static function (TestRunner $t) use ($patchTables): void {
+        $call = new PatchFunctionCall();
+
+        $t->same([], $call->rows($patchTables(), ['WORKING', 'WORKING', 't'], [
+            'knownTables' => ['t', 'newtable'],
+        ]));
+        $t->same([], $call->rows($patchTables(), ['STAGED..STAGED', 't'], [
+            'knownTables' => ['t', 'newtable'],
+        ]));
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
