@@ -301,6 +301,31 @@ TS,
         $t->true(!str_contains($lowered, 'class Bar {'));
         $t->true(!str_contains($lowered, '[a, c, Bar]'));
     },
+    'keeps upstream local classes inside top level using helper scopes as class expressions' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+using a: Disposable = b;
+class Foo {
+  ac = [a, c]
+}
+class Bar {
+  ac = [a, c, Bar]
+}
+using c: Disposable = d;
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var Foo = class {', $lowered);
+        $t->contains('ac = [a, c]', $lowered);
+        $t->contains('var Bar = class _Bar {', $lowered);
+        $t->contains('ac = [a, c, _Bar]', $lowered);
+        $t->true(strpos($lowered, 'var Foo = class') < strpos($lowered, '__callDispose(_stack'));
+        $t->true(strpos($lowered, 'var Bar = class _Bar') < strpos($lowered, '__callDispose(_stack'));
+        $t->true(!str_contains($lowered, "try {\n  class Foo"));
+        $t->true(!str_contains($lowered, "try {\n  class Bar"));
+        $t->true(!str_contains($lowered, '[a, c, Bar]'));
+    },
     'keeps upstream destructured local exports outside top level using helper scopes' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             <<<'TS'
@@ -1434,7 +1459,7 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
 
         $t->true(strpos($lowered, 'import metadata from "./block.json" with { type: "json" };') < strpos($lowered, 'var __knownSymbol'));
         $t->contains('var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript));', $lowered);
-        $t->contains('var PreviewBlockController = class _PreviewBlockController {', $lowered);
+        $t->contains('var PreviewBlockController = class _PreviewBlockController', $lowered);
         $t->contains('static controller = _PreviewBlockController;', $lowered);
         $t->contains('register() {', $lowered);
         $t->contains('wp.blocks.registerBlockType(metadata.name, {', $lowered);
@@ -1443,6 +1468,24 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(strpos($lowered, 'var PreviewBlockController = class _PreviewBlockController') < strpos($lowered, '__callDispose(_stack'));
         $t->true(strpos($lowered, '__callDispose(_stack') < strpos($lowered, "export {\n  PreviewBlockController as default"));
         $t->true(!str_contains($lowered, "try {\n  export default class"));
+        $t->true(!str_contains($lowered, 'static controller = PreviewBlockController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress local using asset controller without trapping exports' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-local-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->true(strpos($lowered, 'import metadata from "./block.json" with { type: "json" };') < strpos($lowered, 'var __knownSymbol'));
+        $t->contains('var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('var PreviewBlockController = class _PreviewBlockController', $lowered);
+        $t->contains('static controller = _PreviewBlockController;', $lowered);
+        $t->contains('new PreviewBlockController().register();', $lowered);
+        $t->contains('export { PreviewBlockController };', $lowered);
+        $t->true(strpos($lowered, 'var PreviewBlockController = class _PreviewBlockController') < strpos($lowered, '__callDispose(_stack'));
+        $t->true(strpos($lowered, '__callDispose(_stack') < strpos($lowered, 'export { PreviewBlockController };'));
+        $t->true(!str_contains($lowered, "try {\n  class PreviewBlockController"));
         $t->true(!str_contains($lowered, 'static controller = PreviewBlockController'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, ': Disposable'));

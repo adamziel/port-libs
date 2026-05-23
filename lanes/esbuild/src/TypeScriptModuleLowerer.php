@@ -4714,6 +4714,17 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $localClass = $this->rewriteTopLevelUsingHelperLocalClass($line);
+            if ($localClass !== null) {
+                foreach (explode("\n", $localClass) as $part) {
+                    if ($part === '') {
+                        continue;
+                    }
+                    $body[] = '  ' . $part;
+                }
+                continue;
+            }
+
             foreach (explode("\n", $line) as $part) {
                 if ($part === '') {
                     continue;
@@ -4830,6 +4841,22 @@ final class TypeScriptModuleLowerer
         }
 
         return null;
+    }
+
+    private function rewriteTopLevelUsingHelperLocalClass(string $line): ?string
+    {
+        $trimmed = trim($line);
+        if (preg_match('/^class\s+([A-Za-z_$][A-Za-z0-9_$]*)([\s\S]*)$/', $trimmed, $match) !== 1) {
+            return null;
+        }
+
+        $name = $match[1];
+        $tail = rtrim($match[2]);
+        if ($tail === '' || !str_contains($tail, '{')) {
+            return null;
+        }
+
+        return 'var ' . $name . ' = ' . $this->hoistedClassExpression($name, $tail);
     }
 
     private function hoistedClassExpression(string $name, string $tail): string

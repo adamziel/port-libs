@@ -11,11 +11,13 @@ final class TypeScriptNamespaceLowerer
      */
     private array $tokens = [];
     private string $source = '';
+    private bool $needsUsingHelperRuntime = false;
 
     public function lower(string $source): string
     {
         $this->source = $source;
         $this->tokens = (new JsLexer())->tokenize($source);
+        $this->needsUsingHelperRuntime = false;
 
         $output = '';
         $declaredValues = [];
@@ -49,7 +51,7 @@ final class TypeScriptNamespaceLowerer
             }
         }
 
-        return $output;
+        return $this->needsUsingHelperRuntime ? $this->usingHelperRuntime() . $output : $output;
     }
 
     /**
@@ -236,6 +238,7 @@ final class TypeScriptNamespaceLowerer
         $exportedLocalBindings = [];
         $ordered = [];
         $hasRuntimeNamespaceStatement = false;
+        $hasUsingHelperScope = false;
 
         foreach ($statements as [$start, $end]) {
             $first = $this->tokens[$start] ?? null;
@@ -245,6 +248,18 @@ final class TypeScriptNamespaceLowerer
 
             if ($first->text === 'export' && ($this->tokens[$start + 1] ?? null)?->text === 'using') {
                 throw new \InvalidArgumentException('Unexpected "using"');
+            }
+            if ($first->text === 'export'
+                && ($this->tokens[$start + 1] ?? null)?->text === 'await'
+                && ($this->tokens[$start + 2] ?? null)?->text === 'using'
+            ) {
+                throw new \InvalidArgumentException('Unexpected "await"');
+            }
+
+            if ($this->isNamespaceUsingStatement($start)) {
+                $ordered[] = ['kind' => 'using', 'start' => $start, 'end' => $end];
+                $hasRuntimeNamespaceStatement = true;
+                continue;
             }
 
             $nestedNamespace = $this->namespaceStatementAt($start);
@@ -342,6 +357,15 @@ final class TypeScriptNamespaceLowerer
                 ];
             } elseif ($item['kind'] === 'enum') {
                 $rendered[$index] = $this->printNamespaceEnum($item['enum'], $parameter);
+            } elseif ($item['kind'] === 'using') {
+                $rendered[$index] = $this->printNamespaceUsingDeclaration(
+                    (int) $item['start'],
+                    (int) $item['end'],
+                    $parameter,
+                    $imports,
+                    $exportedValues,
+                );
+                $hasUsingHelperScope = true;
             }
         }
 
@@ -378,6 +402,10 @@ final class TypeScriptNamespaceLowerer
 
         if ($lines === [] && !$hasRuntimeNamespaceStatement) {
             return '';
+        }
+
+        if ($hasUsingHelperScope) {
+            $lines = $this->namespaceUsingHelperScopeLines($lines);
         }
 
         return $this->renderNamespaceIife($name, $parameter, $exported, $parentNamespace, $lines);
@@ -1461,6 +1489,194 @@ final class TypeScriptNamespaceLowerer
         $lines[] = '})(' . $initializer . ');';
 
         return ['lines' => $lines, 'uses' => []];
+    }
+
+    private function isNamespaceUsingStatement(int $start): bool
+    {
+        if (($this->tokens[$start] ?? null)?->text === 'using') {
+            return true;
+        }
+
+        return ($this->tokens[$start] ?? null)?->text === 'await'
+            && ($this->tokens[$start + 1] ?? null)?->text === 'using'
+            && !$this->hasLineBreakBetween($start, $start + 1);
+    }
+
+    /**
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     * @return array{lines:list<string>, uses:list<string>}
+     */
+    private function printNamespaceUsingDeclaration(int $start, int $end, string $namespace, array $imports, array $exportedValues): array
+    {
+        $cursor = $start;
+        if (($this->tokens[$cursor] ?? null)?->text === 'await') {
+            throw new \InvalidArgumentException('TypeScript namespace await using lowering is not supported');
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== 'using') {
+            throw new \InvalidArgumentException('Expected TypeScript namespace using declaration');
+        }
+
+        $cursor++;
+        $declarators = [];
+        $uses = [];
+        while ($cursor <= $end) {
+            $name = $this->tokens[$cursor] ?? null;
+            if ($name?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier in TypeScript namespace using declaration');
+            }
+            if ($this->hasLineBreakBetween($cursor - 1, $cursor)) {
+                throw new \InvalidArgumentException('Expected identifier in TypeScript namespace using declaration');
+            }
+
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === ':') {
+                $cursor = $this->skipNamespaceUsingTypeExpression($cursor + 1, $end);
+            }
+            if (($this->tokens[$cursor] ?? null)?->text !== '=') {
+                throw new \InvalidArgumentException('The declaration "' . $name->text . '" must be initialized');
+            }
+
+            $valueStart = $cursor + 1;
+            if ($valueStart > $end) {
+                throw new \InvalidArgumentException('Expected initializer after TypeScript namespace using declaration');
+            }
+
+            $cursor = $this->namespaceUsingInitializerEnd($valueStart, $end);
+            $valueEnd = ($this->tokens[$cursor] ?? null)?->text === ',' ? $cursor - 1 : $end;
+            if ($valueEnd < $valueStart) {
+                throw new \InvalidArgumentException('Expected initializer after TypeScript namespace using declaration');
+            }
+
+            $value = $this->printTokenRange($valueStart, $valueEnd, $namespace, $imports, $exportedValues, $uses);
+            $declarators[] = $name->text . ' = __using(_stack, ' . $value . ')';
+
+            if (($this->tokens[$cursor] ?? null)?->text !== ',') {
+                break;
+            }
+            $cursor++;
+        }
+
+        return [
+            'lines' => ['const ' . implode(', ', $declarators) . ';'],
+            'uses' => array_values(array_unique($uses)),
+        ];
+    }
+
+    private function skipNamespaceUsingTypeExpression(int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '[', '<'], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']', '>'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && ($text === '=' || $text === ',')) {
+                return $i;
+            }
+        }
+
+        return $end + 1;
+    }
+
+    private function namespaceUsingInitializerEnd(int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($text === ',' && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return $end + 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function namespaceUsingHelperScopeLines(array $lines): array
+    {
+        $this->needsUsingHelperRuntime = true;
+        $wrapped = [
+            'var _stack = [];',
+            'try {',
+        ];
+        foreach ($lines as $line) {
+            $wrapped[] = '  ' . $line;
+        }
+        $wrapped[] = '} catch (_) {';
+        $wrapped[] = '  var _error = _, _hasError = true;';
+        $wrapped[] = '} finally {';
+        $wrapped[] = '  __callDispose(_stack, _error, _hasError);';
+        $wrapped[] = '}';
+
+        return $wrapped;
+    }
+
+    private function usingHelperRuntime(): string
+    {
+        return <<<'JS'
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __using = (stack, value, async) => {
+  if (value != null) {
+    if (typeof value !== "object" && typeof value !== "function") __typeError("Object expected");
+    var dispose, inner;
+    if (async) dispose = value[__knownSymbol("asyncDispose")];
+    if (dispose === void 0) {
+      dispose = value[__knownSymbol("dispose")];
+      if (async) inner = dispose;
+    }
+    if (typeof dispose !== "function") __typeError("Object not disposable");
+    if (inner) dispose = function() {
+      try {
+        inner.call(this);
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    };
+    stack.push([async, dispose, value]);
+  } else if (async) {
+    stack.push([async]);
+  }
+  return value;
+};
+var __callDispose = (stack, error, hasError) => {
+  var E = typeof SuppressedError === "function" ? SuppressedError : function(e, s, m, _2) {
+    return _2 = Error(m), _2.name = "SuppressedError", _2.error = e, _2.suppressed = s, _2;
+  };
+  var fail = (e) => error = hasError ? new E(e, error, "An error was suppressed during disposal") : (hasError = true, e);
+  var next = (it) => {
+    while (it = stack.pop()) {
+      try {
+        var result = it[1] && it[1].call(it[2]);
+        if (it[0]) return Promise.resolve(result).then(next, (e) => (fail(e), next()));
+      } catch (e) {
+        fail(e);
+      }
+    }
+    if (hasError) throw error;
+  };
+  return next();
+};
+JS . "\n";
     }
 
     private function isTypeOnlyNamespaceStatement(int $start): bool
