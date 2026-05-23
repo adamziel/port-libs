@@ -37166,6 +37166,78 @@ coherent owner-free lane batch with focused inspection, focused lane tests, the
 serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
 dashboard regeneration from that same accepted snapshot.
 
+## Integration worker hold - 2026-05-23 20:35 UTC
+
+No worker output was integrated in this pass. No lane files were staged or
+committed, `php tools/generate-dashboard.php` was not run, and no upstream
+parity claim is accepted from this snapshot.
+
+Current snapshot:
+
+- `HEAD`: `cda272740108` on `main`; branch status
+  `main...origin/main [ahead 520, behind 68]`.
+- Tracked dirty count: `252` rows from
+  `git status --short --untracked-files=no`.
+- Untracked-inclusive status count: `3416` rows from
+  `git status --short --untracked-files=all`.
+- `git diff --shortstat`: `252 files changed, 100052 insertions(+), 12818
+  deletions(-)`.
+- Dirty tracked lane scope spans every lane: Difftastic, Dolt, esbuild,
+  Gitoxide, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone,
+  Readability, and Syncthing. Non-lane tracked scope includes `.tmux-team`
+  prompts, `audits/latest.md`, `progress.md`, `porting.html`,
+  `porting-summary.json`, and loop scripts.
+
+Active-lane risk:
+
+- Active lane or runner agents were present for Quadrable, Dolt runner,
+  rclone, LightningCSS, Gitoxide, markerPDF, Syncthing, Dolt, libsqlite,
+  auditor, Pandoc, integrator, Readability, and esbuild. Dashboard updater,
+  team watchdog, evaluator, capacity controller, and capacity executor loops
+  were also active.
+- Dolt remains skipped despite reauthorization because `port-dolt` and
+  `port-dolt-runner` were active while dirty Dolt metadata, notes, examples,
+  fixtures, source, and tests were present. A Dolt local BATS shard was still
+  running under `timeout 90m bats ... diff.bats ... keyless-foreign-keys.bats`
+  and had reached `diff.bats` cases in the sampled tail.
+- The latest primary worker tails show in-progress source/test edits, including
+  Gitoxide sideband-all fetch response work and markerPDF image embedding work.
+  These are not completed, owner-free handoffs.
+
+Root and hygiene:
+
+- The exact duplicate-root gate
+  `pgrep -af '^php tools/run-tests\.php( |$)'` returned no rows in the
+  `2026-05-23T20:35:18Z` sample, so this worker did not wait on
+  `.upstream-cache/run-tests.lock`.
+- This worker did not start `php tools/run-tests.php` because `HEAD`, status
+  files, and lane agents were active. Starting a root run here would create
+  another moving-tree anecdote instead of an accepted integration snapshot.
+- A clean-root diagnostic in
+  `audits/capacity-clean-root-e5e1cf1c56de-20260523T2025Z.md` records
+  `php tools/run-tests.php` passing at committed `HEAD`
+  `e5e1cf1c56de8453b50ea71b51c0e1505f421a7a` with `204` files, `23682`
+  assertions, and `0` failures. That is clean-head evidence for that commit
+  only, not acceptance of the current dirty tree.
+- A dirty-root diagnostic in
+  `audits/capacity-dirty-root-e5e1cf1c56de-20260523T2029Z.md` records
+  `php tools/run-tests.php` passing at launched `HEAD`
+  `7b6005d22e220dcd6122174f562c133d8c156d89` with `272` files, `37268`
+  assertions, and `0` failures. It is explicitly moving dirty-worktree
+  diagnostic evidence only, not lane acceptance.
+- `audits/latest.md` and `progress.md` were already dirty from the active
+  auditor/status path, so this worker did not edit them.
+- `porting.html` and `porting-summary.json` were dirty before this hold and
+  were not regenerated because no lane or status batch was accepted.
+
+Next safe integration point: wait for or freeze active lane, Dolt runner,
+capacity, dashboard, evaluator, auditor, and integrator loops; confirm `HEAD`,
+tracked status, untracked-inclusive status, `git diff --shortstat`, exact PHP
+test PIDs, and relevant log mtimes are unchanged across two polls; then accept
+one coherent owner-free lane batch with focused inspection, focused lane tests,
+the serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
+dashboard regeneration from that same snapshot.
+
 ## Integration worker hold - 2026-05-23 19:10 UTC
 
 No worker output was integrated in this pass. No lane files were staged, no
