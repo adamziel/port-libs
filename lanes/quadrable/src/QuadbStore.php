@@ -512,32 +512,41 @@ USAGE;
                 ];
             }
 
-            if ($expectedRoot !== null) {
-                $rootBytes = self::decodeCommandHexText($expectedRoot);
-                if ($rootBytes !== '' && strlen($rootBytes) !== 32) {
-                    if ($store->currentPartialProofState() !== null
-                        || $store->tree()->rootHash() !== HashTree::EMPTY_HASH
-                    ) {
-                        throw new \RuntimeException('current head must be empty before importing a proof');
-                    }
-                    SparseTree::importProof($decodedProof);
-                    throw new \RuntimeException('proof invalid');
-                }
+            return self::importProofDecodedCommandOutput($store, $encodedProof, $decodedProof, $expectedRoot);
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
 
-                $store->importProofBytes($encodedProof, $rootBytes === '' ? null : bin2hex($rootBytes));
+    /**
+     * Native stdout/stderr/exit-code shape for binary `quadb importProof`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function importProofCommandOutput(
+        string $directory,
+        string $encodedProof,
+        ?string $expectedRoot = null,
+        bool $dump = false,
+        bool $trackKeys = true
+    ): array {
+        try {
+            $store = self::openForCommand($directory, $trackKeys);
+            $decodedProof = Proof::decode($encodedProof);
 
+            if ($dump) {
                 return [
                     'exitCode' => 0,
-                    'stdout' => '',
+                    'stdout' => $decodedProof->dumpText(),
                     'stderr' => '',
                 ];
             }
 
-            return [
-                'exitCode' => 0,
-                'stdout' => $store->importProofBytesOutputText($encodedProof, $expectedRoot),
-                'stderr' => '',
-            ];
+            return self::importProofDecodedCommandOutput($store, $encodedProof, $decodedProof, $expectedRoot);
         } catch (\Throwable $throwable) {
             return [
                 'exitCode' => 1,
@@ -579,6 +588,79 @@ USAGE;
                 'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
             ];
         }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for binary `quadb mergeProof`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function mergeProofCommandOutput(
+        string $directory,
+        string $encodedProof,
+        bool $trackKeys = true
+    ): array {
+        try {
+            $store = self::openForCommand($directory, $trackKeys);
+            $proof = Proof::decode($encodedProof);
+            if ($proof->strands === []) {
+                throw new \RuntimeException('empty proof');
+            }
+            if ($store->currentPartialProofState() === null) {
+                throw new \RuntimeException('different roots, unable to merge proofs');
+            }
+
+            $store->mergeProofBytes($encodedProof);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    private static function importProofDecodedCommandOutput(
+        self $store,
+        string $encodedProof,
+        Proof $decodedProof,
+        ?string $expectedRoot
+    ): array {
+        if ($expectedRoot !== null) {
+            $rootBytes = self::decodeCommandHexText($expectedRoot);
+            if ($rootBytes !== '' && strlen($rootBytes) !== 32) {
+                if ($store->currentPartialProofState() !== null
+                    || $store->tree()->rootHash() !== HashTree::EMPTY_HASH
+                ) {
+                    throw new \RuntimeException('current head must be empty before importing a proof');
+                }
+                SparseTree::importProof($decodedProof);
+                throw new \RuntimeException('proof invalid');
+            }
+
+            $store->importProofBytes($encodedProof, $rootBytes === '' ? null : bin2hex($rootBytes));
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        }
+
+        return [
+            'exitCode' => 0,
+            'stdout' => $store->importProofBytesOutputText($encodedProof, $expectedRoot),
+            'stderr' => '',
+        ];
     }
 
     public function directory(): string

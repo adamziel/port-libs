@@ -12,6 +12,9 @@ $sourceDir = sys_get_temp_dir() . '/quadrable-wp-proof-source-' . bin2hex(random
 $targetDir = sys_get_temp_dir() . '/quadrable-wp-proof-target-' . bin2hex(random_bytes(6));
 $uppercaseRootDir = sys_get_temp_dir() . '/quadrable-wp-proof-uppercase-root-' . bin2hex(random_bytes(6));
 $emptyRootDir = sys_get_temp_dir() . '/quadrable-wp-proof-empty-root-' . bin2hex(random_bytes(6));
+$binaryDumpDir = sys_get_temp_dir() . '/quadrable-wp-proof-binary-dump-' . bin2hex(random_bytes(6));
+$binaryTrustedDir = sys_get_temp_dir() . '/quadrable-wp-proof-binary-trusted-' . bin2hex(random_bytes(6));
+$binaryMergeDir = sys_get_temp_dir() . '/quadrable-wp-proof-binary-merge-' . bin2hex(random_bytes(6));
 
 $cleanup = static function (string $dir): void {
     if (!is_dir($dir)) {
@@ -37,8 +40,11 @@ try {
 
     $source = QuadbStore::init($sourceDir);
     $source->put('wp_options:siteurl', 'https://example.test');
+    $source->put('wp_options:home', 'https://example.test');
     $trustedRoot = $source->tree()->rootHash();
     $proofHex = $source->exportProofHex(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+    $proofBytes = $source->exportProofBytes(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+    $mergeProofBytes = $source->exportProofBytes(['wp_options:home'], Proof::ENCODING_FULL_KEYS);
     $badFormat = QuadbStore::exportProofCommandOutput(
         $sourceDir,
         ['wp_options:siteurl'],
@@ -74,6 +80,31 @@ try {
     }
     $emptyRoot = QuadbStore::importProofHexCommandOutput($emptyRootDir, $proofHex, '0x');
 
+    if (!mkdir($binaryDumpDir, 0755, true) && !is_dir($binaryDumpDir)) {
+        throw new RuntimeException('unable to create WordPress binary-dump proof target directory');
+    }
+    $binaryDumpWithInvalidRoot = QuadbStore::importProofCommandOutput(
+        $binaryDumpDir,
+        $proofBytes,
+        '0X' . $trustedRoot,
+        true
+    );
+
+    if (!mkdir($binaryTrustedDir, 0755, true) && !is_dir($binaryTrustedDir)) {
+        throw new RuntimeException('unable to create WordPress binary proof target directory');
+    }
+    $binaryTrustedImport = QuadbStore::importProofCommandOutput(
+        $binaryTrustedDir,
+        $proofBytes,
+        $trustedRoot
+    );
+
+    if (!mkdir($binaryMergeDir, 0755, true) && !is_dir($binaryMergeDir)) {
+        throw new RuntimeException('unable to create WordPress binary mergeProof target directory');
+    }
+    QuadbStore::init($binaryMergeDir)->importProofBytes($proofBytes, $trustedRoot);
+    $binaryMerge = QuadbStore::mergeProofCommandOutput($binaryMergeDir, $mergeProofBytes);
+
     $trustedImport = QuadbStore::importProofHexCommandOutput($targetDir, $proofHex, $trustedRoot);
 
     echo json_encode([
@@ -88,6 +119,13 @@ try {
         'shortRootStderr' => rtrim($shortRoot['stderr'], "\r\n"),
         'uppercaseRootImportExitCode' => $uppercaseRoot['exitCode'],
         'emptyRootImportHasNoWarning' => $emptyRoot['stdout'] === '' && $emptyRoot['stderr'] === '',
+        'binaryDumpIgnoresInvalidRoot' => $binaryDumpWithInvalidRoot['exitCode'] === 0
+            && str_starts_with($binaryDumpWithInvalidRoot['stdout'], 'ITEMS (')
+            && $binaryDumpWithInvalidRoot['stderr'] === '',
+        'binaryTrustedImportExitCode' => $binaryTrustedImport['exitCode'],
+        'binaryTrustedSiteUrl' => QuadbStore::open($binaryTrustedDir)->get('wp_options:siteurl'),
+        'binaryMergeExitCode' => $binaryMerge['exitCode'],
+        'binaryMergedHome' => QuadbStore::open($binaryMergeDir)->get('wp_options:home'),
         'trustedImportExitCode' => $trustedImport['exitCode'],
         'trustedSiteUrl' => QuadbStore::open($targetDir)->get('wp_options:siteurl'),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
@@ -97,4 +135,7 @@ try {
     $cleanup($targetDir);
     $cleanup($uppercaseRootDir);
     $cleanup($emptyRootDir);
+    $cleanup($binaryDumpDir);
+    $cleanup($binaryTrustedDir);
+    $cleanup($binaryMergeDir);
 }

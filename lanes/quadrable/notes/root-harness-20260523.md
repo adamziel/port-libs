@@ -280,3 +280,64 @@ Repo-wide root harness final sample passed:
 - The final root log path was `/tmp/quadrable-root-final.Oe8LOt.log`.
 
 Lane commit was made after the green root sample.
+
+## 2026-05-23T09:30Z binary importProof command-root/dump slice
+
+Focused lane verification passed for this batch:
+
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`
+- 1 selected test file, 801 assertions, 0 failures.
+- `php tools/run-tests.php lanes/quadrable/tests`
+- 10 selected test files, 126 behavior tests, 2,976 assertions, 0 failures.
+
+WordPress example verification passed:
+
+- `php lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php`
+- Reported upstream-shaped invalid proof/root input, binary `importProof --dump` ignoring an invalid uppercase `0X` root prefix, trusted binary proof import, accepted uppercase hex root import, accepted empty root values with no unauthenticated warning text, and a trusted delegated `siteurl` proof import.
+
+Upstream verification passed for this batch:
+
+- `make -r quadb` built the upstream command for targeted binary proof-root probes.
+- Targeted upstream binary `quadb importProof --root=0X<root>` failed with `quadb error: unexpected character in from_hex: 88`.
+- Targeted upstream binary `quadb importProof --dump --root=0X<root>` exited 0, printed proof dump text starting with `ITEMS (1):`, and emitted no stderr.
+- `make -r test` in `.upstream-cache/quadrable` passed all 34 upstream `check.cpp` scenarios and reported `All tests OK`.
+
+The required duplicate-root gate was checked before the repo-wide harness:
+
+- `pgrep -af '^php tools/run-tests\.php( |$)'`
+- Active root harness was reported: PID 2656523, owner `claude`, command `php tools/run-tests.php`.
+
+No duplicate repo-wide root harness was started for this slice; root result is pending for the supervisor/integrator.
+
+## 2026-05-23T09:41Z binary mergeProof command-output slice
+
+Focused lane verification passed for this batch:
+
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`
+- 1 selected test file, 810 assertions, 0 failures.
+- `php tools/run-tests.php lanes/quadrable/tests`
+- 10 selected test files, 127 behavior tests, 2,985 assertions, 0 failures.
+
+WordPress example verification passed:
+
+- `php lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php`
+- Reported upstream-shaped invalid proof/root input, binary `importProof --dump` precedence, trusted binary import, and binary `mergeProof` expansion for a delegated `home` option proof.
+
+Upstream verification passed for this batch:
+
+- `make -r quadb` built the upstream command for targeted binary `mergeProof` probes.
+- Targeted upstream binary `quadb mergeProof` against a missing store failed before proof decoding with `quadb error: Could not access directory '<dir>/': No such file or directory`.
+- Targeted upstream binary `quadb mergeProof` with `not a proof` failed with `quadb error: unexpected proof encoding type: 110`.
+- Targeted upstream binary `quadb mergeProof` with a valid proof against an empty full head failed with `quadb error: different roots, unable to merge proofs`.
+- Targeted upstream binary `quadb mergeProof` with a second FullKeys proof against an imported proof-backed head exited 0 with empty stdout/stderr and made the delegated key readable.
+- `make -r test` in `.upstream-cache/quadrable` passed all 34 upstream `check.cpp` scenarios and reported `All tests OK`.
+
+The required duplicate-root gate was checked before the repo-wide harness:
+
+- Initial `pgrep -af '^php tools/run-tests\.php( |$)'` returned transient focused lane PID `2689226 php tools/run-tests.php lanes/readability/tests`.
+- A later duplicate-root gate was clear, so this worker started one repo-wide run.
+
+Repo-wide root harness passed:
+
+- `php tools/run-tests.php`
+- 202 test files, 23,334 assertions, 0 failures.

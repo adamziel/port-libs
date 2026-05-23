@@ -340,6 +340,144 @@ return [
             quadrableQuadbRemoveDir($emptyPrefixedRootDir);
         }
     },
+    'native quadb store maps binary importProof command root and dump precedence' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+        $dumpDir = quadrableQuadbTempDir();
+        $trustedDir = quadrableQuadbTempDir();
+        $emptyRootDir = quadrableQuadbTempDir();
+        $unauthenticatedDir = quadrableQuadbTempDir();
+
+        try {
+            $missingImport = QuadbStore::importProofCommandOutput($missingDir, 'not a proof');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingImport);
+            $t->true(!is_dir($missingDir), 'missing binary importProof command should not create the database directory');
+
+            $source = QuadbStore::init($sourceDir);
+            $source->put('wp_options:siteurl', 'https://example.test');
+            $proofBytes = $source->exportProofBytes(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+            $root = $source->tree()->rootHash();
+            $expectedDump = Proof::decode($proofBytes)->dumpText();
+
+            if (!mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: unexpected character in from_hex: 88\n",
+            ], QuadbStore::importProofCommandOutput($targetDir, $proofBytes, '0X' . $root));
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($targetDir)->rootText());
+
+            if (!mkdir($dumpDir, 0755, true) && !is_dir($dumpDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $dumpWithInvalidRoot = QuadbStore::importProofCommandOutput($dumpDir, $proofBytes, '0X' . $root, true);
+            $t->same(0, $dumpWithInvalidRoot['exitCode']);
+            $t->same($expectedDump, $dumpWithInvalidRoot['stdout']);
+            $t->same('', $dumpWithInvalidRoot['stderr']);
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($dumpDir)->rootText());
+
+            if (!mkdir($trustedDir, 0755, true) && !is_dir($trustedDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $trustedImport = QuadbStore::importProofCommandOutput($trustedDir, $proofBytes, $root);
+            $t->same(0, $trustedImport['exitCode']);
+            $t->same('', $trustedImport['stdout']);
+            $t->same('', $trustedImport['stderr']);
+            $t->same('https://example.test', QuadbStore::open($trustedDir)->get('wp_options:siteurl'));
+
+            if (!mkdir($emptyRootDir, 0755, true) && !is_dir($emptyRootDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $emptyRootImport = QuadbStore::importProofCommandOutput($emptyRootDir, $proofBytes, '0x');
+            $t->same(0, $emptyRootImport['exitCode']);
+            $t->same('', $emptyRootImport['stdout']);
+            $t->same('', $emptyRootImport['stderr']);
+            $t->same('https://example.test', QuadbStore::open($emptyRootDir)->get('wp_options:siteurl'));
+
+            if (!mkdir($unauthenticatedDir, 0755, true) && !is_dir($unauthenticatedDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $unauthenticatedImport = QuadbStore::importProofCommandOutput($unauthenticatedDir, $proofBytes);
+            $t->same(0, $unauthenticatedImport['exitCode']);
+            $t->same('Imported UNAUTHENTICATED proof. Root: 0x' . $root . "\n", $unauthenticatedImport['stdout']);
+            $t->same('', $unauthenticatedImport['stderr']);
+            $t->same('https://example.test', QuadbStore::open($unauthenticatedDir)->get('wp_options:siteurl'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+            quadrableQuadbRemoveDir($dumpDir);
+            quadrableQuadbRemoveDir($trustedDir);
+            quadrableQuadbRemoveDir($emptyRootDir);
+            quadrableQuadbRemoveDir($unauthenticatedDir);
+        }
+    },
+    'native quadb store maps binary mergeProof command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $sourceDir = quadrableQuadbTempDir();
+        $invalidDir = quadrableQuadbTempDir();
+        $fullDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $missingMerge = QuadbStore::mergeProofCommandOutput($missingDir, 'not a proof');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingMerge);
+            $t->true(!is_dir($missingDir), 'missing binary mergeProof command should not create the database directory');
+
+            if (!mkdir($invalidDir, 0755, true) && !is_dir($invalidDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: unexpected proof encoding type: 110\n",
+            ], QuadbStore::mergeProofCommandOutput($invalidDir, 'not a proof'));
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($invalidDir)->rootText());
+
+            $source = QuadbStore::init($sourceDir);
+            $source->put('wp_options:siteurl', 'https://example.test');
+            $source->put('wp_options:home', 'https://example.test');
+            $root = $source->tree()->rootHash();
+            $siteProofBytes = $source->exportProofBytes(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+            $homeProofBytes = $source->exportProofBytes(['wp_options:home'], Proof::ENCODING_FULL_KEYS);
+
+            QuadbStore::init($fullDir);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: different roots, unable to merge proofs\n",
+            ], QuadbStore::mergeProofCommandOutput($fullDir, $siteProofBytes));
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($fullDir)->rootText());
+
+            $target = QuadbStore::init($targetDir);
+            $target->importProofBytes($siteProofBytes, $root);
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::mergeProofCommandOutput($targetDir, $homeProofBytes));
+            $merged = QuadbStore::open($targetDir);
+            $t->same('https://example.test', $merged->get('wp_options:siteurl'));
+            $t->same('https://example.test', $merged->get('wp_options:home'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($invalidDir);
+            quadrableQuadbRemoveDir($fullDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
     'native quadb store maps init streams and advertised length no-op output' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
 
