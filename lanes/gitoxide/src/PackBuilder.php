@@ -85,6 +85,98 @@ final class PackBuilder
     }
 
     /**
+     * Rebuild a pack from objects that already exist in a source pack/index.
+     *
+     * The output follows the upstream pack-copy boundary: whole entries keep their compressed payloads, OFS_DELTA
+     * entries keep their compressed delta payloads when their base is selected, and missing delta bases are only kept
+     * as REF_DELTA entries when the caller explicitly asks for a thin transit pack.
+     *
+     * @param list<string> $oids
+     */
+    public static function buildFromExistingPack(PackData $sourcePack, PackIndex $sourceIndex, array $oids, bool $allowThinPack = false): PackBuildResult
+    {
+        if ($sourceIndex->packChecksum() !== $sourcePack->checksum()) {
+            throw new \RuntimeException('Source pack index checksum does not match source pack data checksum');
+        }
+
+        $sourceEntries = [];
+        $seen = [];
+        foreach ($oids as $oid) {
+            self::assertObjectId($oid);
+            $oid = strtolower((string) $oid);
+            if (isset($seen[$oid])) {
+                throw new \InvalidArgumentException("PackBuilder cannot copy duplicate object id {$oid}");
+            }
+            $seen[$oid] = true;
+
+            $entry = $sourceIndex->lookup($oid);
+            if ($entry === null) {
+                throw new \RuntimeException("Object id not found in source pack index: {$oid}");
+            }
+            $sourceEntries[] = $entry;
+        }
+
+        usort(
+            $sourceEntries,
+            static fn (PackIndexEntry $a, PackIndexEntry $b): int => $a->packOffset <=> $b->packOffset ?: strcmp($a->oid, $b->oid)
+        );
+
+        $selectedSourceOffsets = [];
+        foreach ($sourceEntries as $sourceEntry) {
+            $selectedSourceOffsets[$sourceEntry->packOffset] = $sourceEntry->oid;
+        }
+
+        $pack = 'PACK' . pack('N2', self::VERSION, count($sourceEntries));
+        $entries = [];
+        $writtenSourceOffsets = [];
+
+        foreach ($sourceEntries as $sourceIndexEntry) {
+            $offset = strlen($pack);
+            $sourceEntry = $sourcePack->entryAtIndexOffset($sourceIndex, $sourceIndexEntry->packOffset);
+            $object = $sourcePack->readObject($sourceIndex, $sourceIndexEntry->oid);
+            $compressedData = $sourcePack->compressedDataAtIndexOffset($sourceIndex, $sourceIndexEntry->packOffset);
+            $encoded = self::encodeCopiedPackEntry(
+                $sourceEntry,
+                $compressedData,
+                $object,
+                $sourcePack,
+                $sourceIndex,
+                $selectedSourceOffsets,
+                $writtenSourceOffsets,
+                $offset,
+                $allowThinPack
+            );
+            $entryBytes = $encoded['bytes'];
+            $pack .= $entryBytes;
+
+            $entry = [
+                'oid' => $object->oid(),
+                'type' => $object->type,
+                'size' => strlen($object->body),
+                'offset' => $offset,
+                'crc32' => hexdec(hash('crc32b', $entryBytes)),
+                'storage' => $encoded['storage'],
+                'reused' => $encoded['reused'],
+                'sourceOffset' => $sourceIndexEntry->packOffset,
+            ];
+            if ($encoded['baseOid'] !== null) {
+                $entry['baseOid'] = $encoded['baseOid'];
+            }
+            if ($encoded['baseOffset'] !== null) {
+                $entry['baseOffset'] = $encoded['baseOffset'];
+            }
+            if ($encoded['baseDistance'] !== null) {
+                $entry['baseDistance'] = $encoded['baseDistance'];
+            }
+
+            $entries[] = $entry;
+            $writtenSourceOffsets[$sourceIndexEntry->packOffset] = $offset;
+        }
+
+        return self::finalizePack($pack, $entries);
+    }
+
+    /**
      * @param list<GitObject> $objects
      * @param list<GitObject> $baseObjects
      */
@@ -140,6 +232,13 @@ final class PackBuilder
     {
         if ($maxBaseCandidates !== null && $maxBaseCandidates < 0) {
             throw new \InvalidArgumentException('Pack delta base candidate limit cannot be negative');
+        }
+    }
+
+    private static function assertObjectId(mixed $oid): void
+    {
+        if (!is_string($oid) || preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException('PackBuilder object ids must be 40-character SHA-1 hex strings');
         }
     }
 
@@ -211,6 +310,84 @@ final class PackBuilder
         }
 
         return $best;
+    }
+
+    /**
+     * @param array<int,string> $selectedSourceOffsets
+     * @param array<int,int> $writtenSourceOffsets
+     * @return array{bytes:string,storage:string,baseOid:?string,baseOffset:?int,baseDistance:?int,reused:bool}
+     */
+    private static function encodeCopiedPackEntry(
+        PackDataEntry $sourceEntry,
+        string $compressedData,
+        GitObject $object,
+        PackData $sourcePack,
+        PackIndex $sourceIndex,
+        array $selectedSourceOffsets,
+        array $writtenSourceOffsets,
+        int $offset,
+        bool $allowThinPack
+    ): array {
+        if (isset(self::TYPE_IDS[$sourceEntry->kind])) {
+            return [
+                'bytes' => self::encodeEntryHeader(self::TYPE_IDS[$sourceEntry->kind], $sourceEntry->decompressedSize) . $compressedData,
+                'storage' => 'whole',
+                'baseOid' => null,
+                'baseOffset' => null,
+                'baseDistance' => null,
+                'reused' => true,
+            ];
+        }
+
+        if ($sourceEntry->kind !== 'ofs-delta' || $sourceEntry->baseDistance === null) {
+            return self::encodeWholeEntry($object) + [
+                'baseOffset' => null,
+                'baseDistance' => null,
+                'reused' => false,
+            ];
+        }
+
+        $sourceBaseOffset = $sourceEntry->packOffset - $sourceEntry->baseDistance;
+        $baseOid = $selectedSourceOffsets[$sourceBaseOffset] ?? $sourcePack->objectIdForOffset($sourceIndex, $sourceBaseOffset);
+        if ($baseOid !== null && isset($writtenSourceOffsets[$sourceBaseOffset])) {
+            $baseOffset = $writtenSourceOffsets[$sourceBaseOffset];
+            $baseDistance = $offset - $baseOffset;
+
+            return [
+                'bytes' => self::encodeEntryHeader(self::OFS_DELTA_TYPE_ID, $sourceEntry->decompressedSize)
+                    . self::encodeOffsetDeltaDistance($baseDistance)
+                    . $compressedData,
+                'storage' => 'ofs-delta',
+                'baseOid' => $baseOid,
+                'baseOffset' => $baseOffset,
+                'baseDistance' => $baseDistance,
+                'reused' => true,
+            ];
+        }
+
+        if ($allowThinPack && $baseOid !== null) {
+            $baseOidBytes = hex2bin($baseOid);
+            if ($baseOidBytes === false) {
+                throw new \RuntimeException('PackBuilder could not decode copied delta base object id');
+            }
+
+            return [
+                'bytes' => self::encodeEntryHeader(self::REF_DELTA_TYPE_ID, $sourceEntry->decompressedSize)
+                    . $baseOidBytes
+                    . $compressedData,
+                'storage' => 'ref-delta',
+                'baseOid' => $baseOid,
+                'baseOffset' => null,
+                'baseDistance' => null,
+                'reused' => true,
+            ];
+        }
+
+        return self::encodeWholeEntry($object) + [
+            'baseOffset' => null,
+            'baseDistance' => null,
+            'reused' => false,
+        ];
     }
 
     /**

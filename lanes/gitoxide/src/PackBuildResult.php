@@ -7,7 +7,7 @@ namespace PortLibs\Gitoxide;
 final class PackBuildResult
 {
     /**
-     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int}> $entries
+     * @param list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int,reused?:bool,sourceOffset?:int}> $entries
      */
     public function __construct(
         private readonly string $packBytes,
@@ -37,6 +37,8 @@ final class PackBuildResult
                 || (isset($entry['baseOid']) && preg_match('/^[0-9a-f]{40}$/', $entry['baseOid']) !== 1)
                 || (isset($entry['baseOffset']) && $entry['baseOffset'] < 0)
                 || (isset($entry['baseDistance']) && $entry['baseDistance'] <= 0)
+                || (isset($entry['sourceOffset']) && $entry['sourceOffset'] < 0)
+                || (isset($entry['reused']) && !is_bool($entry['reused']))
             ) {
                 throw new \InvalidArgumentException('Pack build entries must contain valid object metadata');
             }
@@ -70,7 +72,7 @@ final class PackBuildResult
     }
 
     /**
-     * @return list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int}>
+     * @return list<array{oid:string,type:string,size:int,offset:int,crc32:int,storage?:string,baseOid?:string,baseOffset?:int,baseDistance?:int,reused?:bool,sourceOffset?:int}>
      */
     public function entries(): array
     {

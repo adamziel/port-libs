@@ -134,6 +134,30 @@ final class PackData
         return new PackDataEntry($kind, $size, $packOffset, $cursor, $cursor - $packOffset, $data, $baseDistance, $baseObjectId);
     }
 
+    public function entryAtIndexOffset(PackIndex $index, int $packOffset): PackDataEntry
+    {
+        return $this->entryAtOffset($packOffset, $this->nextOffset($index, $packOffset));
+    }
+
+    public function compressedDataAtIndexOffset(PackIndex $index, int $packOffset): string
+    {
+        $nextOffset = $this->nextOffset($index, $packOffset);
+        $entry = $this->entryAtOffset($packOffset, $nextOffset);
+
+        return substr($this->bytes, $entry->dataOffset, $nextOffset - $entry->dataOffset);
+    }
+
+    public function objectIdForOffset(PackIndex $index, int $packOffset): ?string
+    {
+        foreach ($index->entries() as $entry) {
+            if ($entry->packOffset === $packOffset) {
+                return $entry->oid;
+            }
+        }
+
+        return null;
+    }
+
     public function readObject(PackIndex $index, string $oid): GitObject
     {
         $entry = $index->lookup($oid);

@@ -204,6 +204,72 @@ return [
         $t->same(false, $windowOne->hasDeltaEntries());
         $t->same(true, $windowTwo->hasDeltaEntries());
     },
+    'reuses existing whole and ofs-delta pack entries in source offset order' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $source = PackBuilder::buildWithOffsetDeltas([$base, $target]);
+        $sourcePack = PackData::fromBytes($source->packBytes());
+        $sourceIndex = PackIndex::fromBytes($source->indexBytes());
+
+        $rebuilt = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$target->oid(), $base->oid()]);
+        $rebuiltPack = PackData::fromBytes($rebuilt->packBytes());
+        $rebuiltIndex = PackIndex::fromBytes($rebuilt->indexBytes());
+        $entries = $rebuilt->entries();
+        $sourceTargetEntry = $sourceIndex->lookup($target->oid());
+
+        $t->same([$base->oid(), $target->oid()], array_column($entries, 'oid'));
+        $t->same(['whole', 'ofs-delta'], array_column($entries, 'storage'));
+        $t->same([true, true], array_column($entries, 'reused'));
+        $t->same($base->oid(), $entries[1]['baseOid']);
+        $t->same($entries[0]['offset'], $entries[1]['baseOffset']);
+        $t->same($entries[1]['offset'] - $entries[0]['offset'], $entries[1]['baseDistance']);
+        $t->same($target->body, $rebuiltPack->readObject($rebuiltIndex, $target->oid())->body);
+        $t->same(
+            $sourcePack->compressedDataAtIndexOffset($sourceIndex, $sourceTargetEntry->packOffset),
+            $rebuiltPack->compressedDataAtIndexOffset($rebuiltIndex, $entries[1]['offset'])
+        );
+    },
+    'recompresses existing deltas as whole objects when omitted bases cannot make a resting pack' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $source = PackBuilder::buildWithOffsetDeltas([$base, $target]);
+        $sourcePack = PackData::fromBytes($source->packBytes());
+        $sourceIndex = PackIndex::fromBytes($source->indexBytes());
+
+        $rebuilt = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$target->oid()]);
+        $rebuiltPack = PackData::fromBytes($rebuilt->packBytes());
+        $rebuiltIndex = PackIndex::fromBytes($rebuilt->indexBytes());
+        $entry = $rebuilt->entries()[0];
+
+        $t->same(false, $rebuilt->isThin());
+        $t->same(false, $rebuilt->hasDeltaEntries());
+        $t->same('whole', $entry['storage']);
+        $t->same(false, $entry['reused']);
+        $t->same($target->body, $rebuiltPack->readObject($rebuiltIndex, $target->oid())->body);
+    },
+    'reuses existing ofs-delta payloads as thin ref-deltas when explicitly allowed' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $source = PackBuilder::buildWithOffsetDeltas([$base, $target]);
+        $sourcePack = PackData::fromBytes($source->packBytes());
+        $sourceIndex = PackIndex::fromBytes($source->indexBytes());
+
+        $thin = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$target->oid()], true);
+        $thinPack = PackData::fromBytes($thin->packBytes());
+        $thinIndex = PackIndex::fromBytes($thin->indexBytes());
+        $entry = $thin->entries()[0];
+        $sourceTargetEntry = $sourceIndex->lookup($target->oid());
+
+        $t->same(true, $thin->isThin());
+        $t->same(true, $thin->hasDeltaEntries());
+        $t->same('ref-delta', $entry['storage']);
+        $t->same(true, $entry['reused']);
+        $t->same($base->oid(), $entry['baseOid']);
+        $t->same(
+            $sourcePack->compressedDataAtIndexOffset($sourceIndex, $sourceTargetEntry->packOffset),
+            $thinPack->compressedDataAtIndexOffset($thinIndex, $entry['offset'])
+        );
+        $t->throws(RuntimeException::class, static fn () => $thinPack->readObject($thinIndex, $target->oid()));
+        $read = $thinPack->readObjectWithExternalBases($thinIndex, $target->oid(), [$base->oid() => $base]);
+        $t->same($target->body, $read->body);
+    },
     'guards invalid pack builder inputs and result metadata' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::build(['not an object']));
         $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::buildWithRefDeltas([], [], -1));
@@ -276,5 +342,23 @@ return [
         $t->contains('post_status=publish', $updated->body);
         $t->same($fixture['boundedPackChecksum'], $summary['boundedPackChecksum']);
         $t->same($fixture['boundedTargetEntry']['storage'], $summary['boundedTargetStorage']);
+    },
+    'wordpress fixture reuses existing packed export deltas for repacks and thin transit packs' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-reuse.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-pack-reuse.php';
+        $reusedPack = PackData::fromBytes($fixture['reusedPackBytes']);
+        $reusedIndex = PackIndex::fromBytes($fixture['reusedIndexBytes']);
+        $thinPack = PackData::fromBytes($fixture['thinPackBytes']);
+        $thinIndex = PackIndex::fromBytes($fixture['thinIndexBytes']);
+
+        $t->same(['whole', 'ofs-delta'], array_column($fixture['reusedEntries'], 'storage'));
+        $t->same([true, true], array_column($fixture['reusedEntries'], 'reused'));
+        $t->same($fixture['oldExport'], $fixture['reusedTargetEntry']['baseOid']);
+        $t->same('ref-delta', $fixture['thinEntry']['storage']);
+        $t->same($fixture['oldExport'], $fixture['thinEntry']['baseOid']);
+        $t->same($fixture['newExport'], $reusedPack->readObject($reusedIndex, $fixture['newExport'])->oid());
+        $t->throws(RuntimeException::class, static fn () => $thinPack->readObject($thinIndex, $fixture['newExport']));
+        $t->same($fixture['reusedPackChecksum'], $summary['reusedPackChecksum']);
+        $t->same($fixture['thinEntry']['storage'], $summary['thinEntryStorage']);
     },
 ];
