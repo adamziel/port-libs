@@ -56,6 +56,13 @@ PID      USER    PPID     ELAPSED STAT COMMAND
 Because an active no-argument root harness was present, I did not start
 `php tools/run-tests.php`.
 
+A post-commit sanity gate still matched active no-argument root harnesses:
+
+```text
+2414167 claude  2367559  30  Rs  php tools/run-tests.php
+2416261 claude  2416019  22  R+  php tools/run-tests.php
+```
+
 ## Findings
 
 1. **Critical - there is still no trustworthy integration baseline.**
