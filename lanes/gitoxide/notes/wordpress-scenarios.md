@@ -100,7 +100,7 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## WordPress Pack Reuse Example
 
-`examples/wordpress-pack-reuse.php` starts from an already-stored WordPress export pack and builds a new pack from selected object IDs. The native builder copies compressed whole-object payloads, reuses an existing OFS_DELTA payload while rewriting its new base distance when the base object is selected, and can explicitly emit a thin REF_DELTA transit pack when the receiver already has the omitted base object. This models shared-hosting deployment tooling repacking local Git objects for push or transfer without decompressing every object or invoking `git pack-objects`.
+`examples/wordpress-pack-reuse.php` starts from an already-stored WordPress export pack and builds a new pack from selected object IDs. The native builder copies compressed whole-object payloads, reuses an existing OFS_DELTA payload while rewriting its new base distance when the base object is selected, and can explicitly emit a thin REF_DELTA transit pack when the receiver already has the omitted base object. It also starts from a legacy in-pack REF_DELTA export pack and proves those source deltas are decoded and emitted as complete whole-object entries, even if thin output is allowed. This models shared-hosting deployment tooling repacking local Git objects for push, transfer, or resting storage without invoking `git pack-objects`.
 
 ## WordPress Receive-Pack Transport Example
 
@@ -188,4 +188,4 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## Next Task
 
-Add deeper delta reuse/search heuristics from existing pack entries, map another focused `gix-merge` fixture, or broaden protocol/transport runner evidence with a controlled focused crate probe.
+Map another focused `gix-merge` fixture, broaden protocol/transport runner evidence with a controlled focused crate probe, or add deeper existing-pack delta search heuristics beyond output-entry reuse.

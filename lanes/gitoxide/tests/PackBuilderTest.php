@@ -270,6 +270,34 @@ return [
         $read = $thinPack->readObjectWithExternalBases($thinIndex, $target->oid(), [$base->oid() => $base]);
         $t->same($target->body, $read->body);
     },
+    'recompresses existing legacy ref-delta pack entries instead of copying them' => static function (TestRunner $t) use ($buildSimilarBlobs): void {
+        [$base, $target] = $buildSimilarBlobs();
+        $source = PackBuilder::buildWithRefDeltas([$base, $target]);
+        $sourcePack = PackData::fromBytes($source->packBytes());
+        $sourceIndex = PackIndex::fromBytes($source->indexBytes());
+        $sourceEntries = $source->entries();
+
+        $selectedBase = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$target->oid(), $base->oid()], true);
+        $selectedBasePack = PackData::fromBytes($selectedBase->packBytes());
+        $selectedBaseIndex = PackIndex::fromBytes($selectedBase->indexBytes());
+        $thinAttempt = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$target->oid()], true);
+        $thinAttemptPack = PackData::fromBytes($thinAttempt->packBytes());
+        $thinAttemptIndex = PackIndex::fromBytes($thinAttempt->indexBytes());
+
+        $t->same('ref-delta', $sourceEntries[1]['storage']);
+        $t->same('ref-delta', $sourcePack->entryAtOffset($sourceEntries[1]['offset'])->kind);
+        $t->same([$base->oid(), $target->oid()], array_column($selectedBase->entries(), 'oid'));
+        $t->same(['whole', 'whole'], array_column($selectedBase->entries(), 'storage'));
+        $t->same([true, false], array_column($selectedBase->entries(), 'reused'));
+        $t->same(false, $selectedBase->hasDeltaEntries());
+        $t->same(false, $selectedBase->isThin());
+        $t->same($target->body, $selectedBasePack->readObject($selectedBaseIndex, $target->oid())->body);
+        $t->same('whole', $thinAttempt->entries()[0]['storage']);
+        $t->same(false, $thinAttempt->entries()[0]['reused']);
+        $t->same(false, $thinAttempt->hasDeltaEntries());
+        $t->same(false, $thinAttempt->isThin());
+        $t->same($target->body, $thinAttemptPack->readObject($thinAttemptIndex, $target->oid())->body);
+    },
     'guards invalid pack builder inputs and result metadata' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::build(['not an object']));
         $t->throws(InvalidArgumentException::class, static fn () => PackBuilder::buildWithRefDeltas([], [], -1));
@@ -356,9 +384,14 @@ return [
         $t->same($fixture['oldExport'], $fixture['reusedTargetEntry']['baseOid']);
         $t->same('ref-delta', $fixture['thinEntry']['storage']);
         $t->same($fixture['oldExport'], $fixture['thinEntry']['baseOid']);
+        $t->same('ref-delta', $fixture['legacySourceTargetEntry']['storage']);
+        $t->same(['whole', 'whole'], array_column($fixture['legacyRepackedEntries'], 'storage'));
+        $t->same([true, false], array_column($fixture['legacyRepackedEntries'], 'reused'));
+        $t->same(false, $fixture['legacyRepackedHasDelta']);
         $t->same($fixture['newExport'], $reusedPack->readObject($reusedIndex, $fixture['newExport'])->oid());
         $t->throws(RuntimeException::class, static fn () => $thinPack->readObject($thinIndex, $fixture['newExport']));
         $t->same($fixture['reusedPackChecksum'], $summary['reusedPackChecksum']);
         $t->same($fixture['thinEntry']['storage'], $summary['thinEntryStorage']);
+        $t->same(array_column($fixture['legacyRepackedEntries'], 'storage'), $summary['legacyRepackedStorage']);
     },
 ];

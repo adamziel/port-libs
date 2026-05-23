@@ -22,6 +22,11 @@ $sourceIndex = PackIndex::fromBytes($source->indexBytes());
 $reused = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$newExport->oid(), $oldExport->oid()]);
 $thin = PackBuilder::buildFromExistingPack($sourcePack, $sourceIndex, [$newExport->oid()], true);
 
+$legacySource = PackBuilder::buildWithRefDeltas([$oldExport, $newExport]);
+$legacySourcePack = PackData::fromBytes($legacySource->packBytes());
+$legacySourceIndex = PackIndex::fromBytes($legacySource->indexBytes());
+$legacyRepacked = PackBuilder::buildFromExistingPack($legacySourcePack, $legacySourceIndex, [$newExport->oid(), $oldExport->oid()], true);
+
 $findEntry = static function (PackBuildResult $result, string $oid): array {
     foreach ($result->entries() as $entry) {
         if ($entry['oid'] === $oid) {
@@ -47,5 +52,14 @@ return [
     'thinIndexBytes' => $thin->indexBytes(),
     'thinPackChecksum' => $thin->packChecksum(),
     'thinEntry' => $thin->entries()[0],
-    'wordpressUse' => 'A PHP deployment tool can repack already-stored WordPress export objects by copying existing compressed entries and can intentionally emit a thin transit pack when the remote already has the base object.',
+    'legacySourcePackBytes' => $legacySource->packBytes(),
+    'legacySourceIndexBytes' => $legacySource->indexBytes(),
+    'legacySourceTargetEntry' => $findEntry($legacySource, $newExport->oid()),
+    'legacyRepackedPackBytes' => $legacyRepacked->packBytes(),
+    'legacyRepackedIndexBytes' => $legacyRepacked->indexBytes(),
+    'legacyRepackedPackChecksum' => $legacyRepacked->packChecksum(),
+    'legacyRepackedEntries' => $legacyRepacked->entries(),
+    'legacyRepackedTargetEntry' => $findEntry($legacyRepacked, $newExport->oid()),
+    'legacyRepackedHasDelta' => $legacyRepacked->hasDeltaEntries(),
+    'wordpressUse' => 'A PHP deployment tool can repack already-stored WordPress export objects by copying existing compressed entries, can intentionally emit a thin transit pack when the remote already has the base object, and can normalize legacy in-pack REF_DELTA entries into complete whole-object output for resting packs.',
 ];

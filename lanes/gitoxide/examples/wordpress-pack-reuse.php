@@ -14,5 +14,9 @@ return [
     'reusedEntrySourceOffsets' => array_column($fixture['reusedEntries'], 'sourceOffset'),
     'thinEntryStorage' => $fixture['thinEntry']['storage'],
     'thinBaseOid' => $fixture['thinEntry']['baseOid'],
+    'legacySourceTargetStorage' => $fixture['legacySourceTargetEntry']['storage'],
+    'legacyRepackedStorage' => array_column($fixture['legacyRepackedEntries'], 'storage'),
+    'legacyRepackedReused' => array_column($fixture['legacyRepackedEntries'], 'reused'),
+    'legacyRepackedHasDelta' => $fixture['legacyRepackedHasDelta'],
     'wordpressUse' => $fixture['wordpressUse'],
 ];

@@ -339,6 +339,14 @@ final class PackBuilder
             ];
         }
 
+        if ($sourceEntry->kind === 'ref-delta') {
+            return self::encodeWholeEntry($object) + [
+                'baseOffset' => null,
+                'baseDistance' => null,
+                'reused' => false,
+            ];
+        }
+
         if ($sourceEntry->kind !== 'ofs-delta' || $sourceEntry->baseDistance === null) {
             return self::encodeWholeEntry($object) + [
                 'baseOffset' => null,
