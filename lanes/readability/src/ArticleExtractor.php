@@ -83,7 +83,10 @@ final class ArticleExtractor
         'dialog',
     ];
 
-    public function extract(string $html, ?string $url = null, bool $includeReadabilityPage = false): Article
+    /**
+     * @param list<string> $classesToPreserve
+     */
+    public function extract(string $html, ?string $url = null, bool $includeReadabilityPage = false, array $classesToPreserve = []): Article
     {
         $dom = $this->loadHtmlDocument($html);
         $this->replaceBreakChains($dom);
@@ -124,7 +127,7 @@ final class ArticleExtractor
             $this->removeLeadingBylineActionBar($best);
             $this->removeTrailingArticleChrome($best);
             $this->demoteHeadingOnes($best);
-            $best = $this->postProcessContent($best, $effectiveBaseUri, $url);
+            $best = $this->postProcessContent($best, $effectiveBaseUri, $url, $classesToPreserve);
         }
         $contentHtml = $best instanceof \DOMElement && $includeReadabilityPage
             ? $this->readabilityPageHtml($best)
@@ -1860,7 +1863,10 @@ final class ArticleExtractor
         }
     }
 
-    private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri): \DOMElement
+    /**
+     * @param list<string> $classesToPreserve
+     */
+    private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri, array $classesToPreserve): \DOMElement
     {
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
         $this->removeCommentNodes($scope);
@@ -1878,7 +1884,7 @@ final class ArticleExtractor
         $scope = $this->unwrapSingleCellTables($scope);
         $this->removeCommentNodes($scope);
         $this->cleanPresentationalAttributes($scope);
-        $this->cleanClasses($scope);
+        $this->cleanClasses($scope, $this->classPreservationMap($classesToPreserve));
         $this->unwrapTransparentSectionWrappers($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $this->insertTextBoundaryWhitespace($scope);
@@ -2947,11 +2953,31 @@ final class ArticleExtractor
         }
     }
 
-    private function cleanClasses(\DOMElement $node): void
+    /**
+     * @param list<string> $classesToPreserve
+     * @return array<string, true>
+     */
+    private function classPreservationMap(array $classesToPreserve): array
+    {
+        $map = ['page' => true];
+        foreach ($classesToPreserve as $class) {
+            $class = trim($class);
+            if ($class !== '') {
+                $map[$class] = true;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string, true> $classesToPreserve
+     */
+    private function cleanClasses(\DOMElement $node, array $classesToPreserve): void
     {
         $classes = array_values(array_filter(
             preg_split('/\s+/', $node->getAttribute('class')) ?: [],
-            static fn (string $class): bool => $class === 'page',
+            static fn (string $class): bool => isset($classesToPreserve[$class]),
         ));
         if ($classes === []) {
             $node->removeAttribute('class');
@@ -2961,7 +2987,7 @@ final class ArticleExtractor
 
         foreach ($node->childNodes as $child) {
             if ($child instanceof \DOMElement) {
-                $this->cleanClasses($child);
+                $this->cleanClasses($child, $classesToPreserve);
             }
         }
     }

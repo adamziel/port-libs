@@ -571,6 +571,42 @@ return [
         $t->contains('id="lead"', $article->contentHtml);
         $t->contains('src="/uploads/import-cleanup.jpg"', $article->contentHtml);
     },
+    'preserves configured classes like upstream cleanClasses options' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Configured Class Preservation</title></head><body><article>'
+            . '<h1>Configured Class Preservation</h1>'
+            . '<p>' . str_repeat('Mozilla Readability strips source classes unless the caller explicitly preserves a focused class list. ', 3) . '</p>'
+            . '<figure class="source-frame"><img src="/uploads/preserved-caption.jpg" alt="Preserved caption"><figcaption class="caption source-caption">Preserved editorial caption.</figcaption></figure>'
+            . '<p class="theme-copy">' . str_repeat('The configured class survives while unrelated source theme classes are still removed. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $defaultArticle = $extractor->extract($source);
+        $preservedArticle = $extractor->extract($source, null, false, ['caption']);
+
+        $t->same(false, str_contains($defaultArticle->contentHtml, 'class="caption"'), 'classes should still be stripped by default');
+        $t->contains('<figcaption class="caption">Preserved editorial caption.</figcaption>', $preservedArticle->contentHtml);
+        foreach (['source-caption', 'source-frame', 'theme-copy'] as $className) {
+            $t->same(false, str_contains($preservedArticle->contentHtml, $className), 'unconfigured source class should be stripped: ' . $className);
+        }
+    },
+    'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
+            . '<h1>Caption Class Import</h1>'
+            . '<p>' . str_repeat('Some WordPress migration pipelines need caption classes for media review while still dropping source theme classes. ', 3) . '</p>'
+            . '<figure class="wp-caption aligncenter theme-frame"><img src="/uploads/captioned.jpg" alt="Captioned import"><figcaption class="wp-caption-text legacy-caption">Imported media caption</figcaption></figure>'
+            . '<p>' . str_repeat('The native extractor should preserve the requested WordPress caption contract only. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, null, false, ['wp-caption', 'aligncenter', 'wp-caption-text']);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->contains('<figure class="wp-caption aligncenter">', $article->contentHtml);
+        $t->contains('<figcaption class="wp-caption-text">Imported media caption</figcaption>', $article->contentHtml);
+        $t->contains('class="wp-caption aligncenter"', $blocks);
+        $t->same(false, str_contains($article->contentHtml, 'theme-frame'), 'source theme figure class should not be preserved');
+        $t->same(false, str_contains($article->contentHtml, 'legacy-caption'), 'source theme caption class should not be preserved');
+    },
     'collapses single paragraph div wrappers like upstream scoring cleanup' => static function (TestRunner $t) use ($elementChildTags): void {
         $html = '<html><head><title>Quote Cleanup</title></head><body><article>'
             . '<p>' . str_repeat('Legacy WordPress imports often wrap editorial pull quotes with layout divs from the source theme. ', 3) . '</p>'

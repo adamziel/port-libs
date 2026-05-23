@@ -24,6 +24,8 @@ The current visible-date metadata slice maps Mozilla `v8-blog` behavior: a visib
 
 The current Medium page-break slice maps Mozilla `medium-3` behavior: source `<hr>` separators between Medium page sections are removed while the content sections remain separate for oracle output, preventing synthetic page rules from becoming migrated WordPress paragraph blocks.
 
+The current class-preservation slice maps Mozilla `_cleanClasses` option behavior: source classes are stripped by default, while callers can explicitly preserve class tokens such as `wp-caption`, `aligncenter`, and `wp-caption-text` for WordPress media review workflows.
+
 ## Scenario Fixture
 
 - `lanes/readability/fixtures/wordpress-page-builder.html` models a legacy WordPress page-builder article with sidebar navigation, in-article ad slots, comments, share widgets, retained media, and article paragraphs.
@@ -100,6 +102,7 @@ The current Medium page-break slice maps Mozilla `medium-3` behavior: source `<h
 - `lanes/readability/examples/wordpress-visible-time-metadata-boundary.php` demonstrates leaving visible template dates out of trusted publishedTime metadata unless upstream-supported metadata fields supply a date.
 - `lanes/readability/examples/wordpress-syndication-footer-cleanup.php` demonstrates removing a trailing `Originally published at` source note before WordPress block serialization.
 - `lanes/readability/examples/wordpress-medium-page-break-cleanup.php` demonstrates removing Medium page-break `<hr>` separators before WordPress block serialization while keeping each editorial section as paragraph content.
+- `lanes/readability/examples/wordpress-caption-class-preservation.php` demonstrates opt-in preservation of WordPress caption classes while unrelated source theme classes are still stripped.
 - The focused WordPress test covers migration output where `post_title` stores the article title separately: duplicate source `h1` content is removed, while real body section headings remain as `h2` block headings.
 - The focused WordPress full-width media test covers imports where a theme/page builder emits a layout-only crop outside the paragraph column: the decorative wrapper is removed while the editorial figure remains available for image block serialization.
 - The focused WordPress editorial media test covers imports where a Medium-style `postField--fillWidthImage` figure is editorial content: the figure and caption remain available for block output while the source class is stripped after the keep decision.
@@ -141,7 +144,8 @@ The current Medium page-break slice maps Mozilla `medium-3` behavior: source `<h
 - The focused visible-date metadata test covers WordPress themes that expose a visible `<time datetime>` in article chrome: the date does not become trusted published metadata without upstream-supported JSON-LD, `article:published_time`, or `parsely-pub-date` evidence.
 - The focused syndication footer cleanup test covers syndicated WordPress imports where a source platform appends an `Originally published at` note after the article body: the source note and link are removed before paragraph block serialization.
 - The focused Medium page-break cleanup test covers source exports that split a long Medium article with `<hr>` separators: editorial sections remain in order, but separator rules are not emitted as WordPress paragraph blocks.
+- The focused caption class preservation test covers migration pipelines that need selected WordPress media classes for review: configured class tokens survive, while unconfigured source theme classes are removed like upstream Readability default cleanup.
 
 ## Next Task
 
-Continue exact Medium image/avatar wrapper parity and default/root wrapper strategy, using `lazy-image-1` and `medium-1` as the next fixture pair.
+Map a real caption-heavy copied fixture such as `heise` or `ars-1` for exact `classesToPreserve` parity, then continue exact Medium image/avatar wrapper parity and default/root wrapper strategy using `lazy-image-1` and `medium-1`.
