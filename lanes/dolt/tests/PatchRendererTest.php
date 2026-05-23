@@ -37,6 +37,33 @@ return [
         $t->same([1], array_column($schemaOnly, 'statement_order'));
         $t->same(['schema'], array_column($schemaOnly, 'diff_type'));
     },
+    'dolt patch create table includes upstream check constraints' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'c1', 'tag' => 2, 'type' => 'int'],
+        ], [
+            'checks' => [[
+                'name' => 'foo_chk_rvgogafi',
+                'expression' => '(`c1` > 3)',
+            ]],
+        ]);
+
+        $rows = (new PatchRenderer())->rows([[
+            'tableName' => 'foo',
+            'fromSchema' => null,
+            'toSchema' => $schema,
+        ]], ['fromCommit' => 'HEAD', 'toCommit' => 'WORKING']);
+
+        $t->same([
+            "CREATE TABLE `foo` (\n"
+            . "  `pk` int NOT NULL,\n"
+            . "  `c1` int,\n"
+            . "  PRIMARY KEY (`pk`),\n"
+            . "  CONSTRAINT `foo_chk_rvgogafi` CHECK ((`c1` > 3))\n"
+            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;',
+        ], array_column($rows, 'statement'));
+        $t->same(['schema'], array_column($rows, 'diff_type'));
+    },
     'dolt patch ddl changes follow upstream column diff ordering' => static function (TestRunner $t): void {
         $from = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],

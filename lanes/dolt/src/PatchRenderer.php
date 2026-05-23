@@ -302,6 +302,10 @@ final class PatchRenderer
             $lines[] = '  ' . $this->createTableForeignKeyDefinition($foreignKey);
         }
 
+        foreach ($schema->checks() as $check) {
+            $lines[] = '  ' . $this->createTableCheckDefinition($check);
+        }
+
         return 'CREATE TABLE ' . $this->quoteIdentifier($tableName) . " (\n"
             . implode(",\n", $lines)
             . "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;";
@@ -460,6 +464,16 @@ final class PatchRenderer
         }
 
         return $actions === [] ? '' : ' ' . implode(' ', $actions);
+    }
+
+    /**
+     * @param array{name:non-empty-string, expression:non-empty-string, enforced:bool} $check
+     */
+    private function createTableCheckDefinition(array $check): string
+    {
+        return 'CONSTRAINT ' . $this->quoteIdentifier($check['name'])
+            . ' CHECK (' . $check['expression'] . ')'
+            . ($check['enforced'] ? '' : ' /*!80016 NOT ENFORCED */');
     }
 
     /**

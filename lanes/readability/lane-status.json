@@ -10,6 +10,6 @@
     "audit": "verified 2026-05-23: focused readability PHP coverage passes 94 tests / 871 assertions / 0 failures; upstream targeted `npm test -- --grep ars-1` passes 15/15 checks for the ARS figure-caption credit cleanup fixture; required root `php tools/run-tests.php` passes 170 test files / 15703 assertions / 0 failures.",
     "currentWork": "Native figure-caption cleanup now removes short link-heavy credit wrappers inside figcaptions, maps the copied Mozilla ars-1 fixture for metadata/readerable/image/caption-credit parity, and adds `wordpress-figure-credit-cleanup.php` for a WordPress media-caption import boundary. The default WordPress migration path still strips source classes unless callers request caption class preservation.",
     "blocker": "No readability-local, upstream targeted, or required root-test blocker is active.",
-    "latestCommit": "current batch: Add Readability ars-1 figure credit cleanup parity",
+    "latestCommit": "1e3ffae",
     "nextTask": "Map another caption/media-heavy copied fixture such as guardian-1, or continue exact ARS article/header wrapper parity and Medium image/avatar wrapper parity using ars-1, lazy-image-1, and medium-1."
 }

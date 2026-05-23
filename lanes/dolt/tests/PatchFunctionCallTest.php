@@ -325,6 +325,24 @@ return [
         $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
         $t->contains('wp_posts', $warnings[0]['message']);
     },
+    'dolt patch function call materializes create-table check constraints' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-check-constraint-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same([
+            "CREATE TABLE `wp_import_audit` (\n"
+            . "  `id` bigint NOT NULL,\n"
+            . "  `status` varchar(20),\n"
+            . "  `note` text,\n"
+            . "  PRIMARY KEY (`id`),\n"
+            . "  CONSTRAINT `wp_import_audit_chk_status` CHECK ((`status` in ('queued','ready','failed')))\n"
+            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;',
+        ], array_column($rows, 'statement'));
+        $t->same(['schema'], array_column($rows, 'diff_type'));
+        $t->same([], $warnings);
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
@@ -455,5 +473,12 @@ return [
         ], $output['statements']);
         $t->same(1, count($output['warnings']));
         $t->contains('wp_posts', $output['warnings'][0]['message']);
+    },
+    'wordpress patch check constraint review example exposes import status guard' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-check-constraint-review.php';
+
+        $t->same(['schema'], array_column($output['rows'], 'diff_type'));
+        $t->contains('CONSTRAINT `wp_import_audit_chk_status` CHECK', $output['statements'][0]);
+        $t->same([], $output['warnings']);
     },
 ];

@@ -24,11 +24,15 @@ final class TableSchema
     /** @var list<array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null}> */
     private array $foreignKeys;
 
+    /** @var list<array{name:non-empty-string, expression:non-empty-string, enforced:bool}> */
+    private array $checks;
+
     /**
      * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
-     *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>
+     *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
+     *   checks?:list<array{name:string, expression:string, enforced?:bool}>
      * } $options
      */
     public function __construct(array $columns, array $options = [])
@@ -36,13 +40,15 @@ final class TableSchema
         $this->columns = $this->normalizeColumns($columns);
         $this->indexes = $this->normalizeIndexes($options['indexes'] ?? []);
         $this->foreignKeys = $this->normalizeForeignKeys($options['foreignKeys'] ?? []);
+        $this->checks = $this->normalizeChecks($options['checks'] ?? []);
     }
 
     /**
      * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
-     *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>
+     *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
+     *   checks?:list<array{name:string, expression:string, enforced?:bool}>
      * } $options
      */
     public static function fromColumns(array $columns, array $options = []): self
@@ -233,10 +239,19 @@ final class TableSchema
         return $this->foreignKeys;
     }
 
+    /**
+     * @return list<array{name:non-empty-string, expression:non-empty-string, enforced:bool}>
+     */
+    public function checks(): array
+    {
+        return $this->checks;
+    }
+
     public function hasSameSchemaMetadata(self $other): bool
     {
         return $this->indexes === $other->indexes
-            && $this->foreignKeys === $other->foreignKeys;
+            && $this->foreignKeys === $other->foreignKeys
+            && $this->checks === $other->checks;
     }
 
     /**
@@ -306,6 +321,7 @@ final class TableSchema
             )), [
                 'indexes' => $this->indexes,
                 'foreignKeys' => $this->foreignKeys,
+                'checks' => $this->checks,
             ]);
     }
 
@@ -463,6 +479,45 @@ final class TableSchema
                 'referencedColumns' => $this->normalizeNameList($foreignKey['referencedColumns'] ?? null, "Schema foreign key {$name} referencedColumns"),
                 'onDelete' => $this->nullableString($foreignKey['onDelete'] ?? null, "Schema foreign key {$name} onDelete"),
                 'onUpdate' => $this->nullableString($foreignKey['onUpdate'] ?? null, "Schema foreign key {$name} onUpdate"),
+            ];
+            $names[$lowerName] = true;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<array{name:non-empty-string, expression:non-empty-string, enforced:bool}>
+     */
+    private function normalizeChecks(mixed $checks): array
+    {
+        if (!is_array($checks)) {
+            throw new \InvalidArgumentException('Schema check constraints must be a list.');
+        }
+
+        $normalized = [];
+        $names = [];
+        foreach (array_values($checks) as $check) {
+            if (!is_array($check)) {
+                throw new \InvalidArgumentException('Schema check constraints must contain arrays.');
+            }
+            $name = $check['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('Schema check constraint names must be non-empty strings.');
+            }
+            $lowerName = strtolower($name);
+            if (isset($names[$lowerName])) {
+                throw new \InvalidArgumentException("Duplicate schema check constraint name: {$name}");
+            }
+            $expression = $check['expression'] ?? null;
+            if (!is_string($expression) || $expression === '') {
+                throw new \InvalidArgumentException("Schema check constraint {$name} expression must be a non-empty string.");
+            }
+
+            $normalized[] = [
+                'name' => $name,
+                'expression' => $expression,
+                'enforced' => (bool) ($check['enforced'] ?? true),
             ];
             $names[$lowerName] = true;
         }

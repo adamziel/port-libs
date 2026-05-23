@@ -242,6 +242,30 @@ return [
 
         $t->same([], $summaries);
     },
+    'table delta matcher treats check constraints as schema metadata' => static function (TestRunner $t): void {
+        $from = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'rating', 'tag' => 2, 'type' => 'int'],
+        ]);
+        $to = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'rating', 'tag' => 2, 'type' => 'int'],
+        ], [
+            'checks' => [[
+                'name' => 'wp_review_rating_chk',
+                'expression' => '(`rating` >= 0)',
+            ]],
+        ]);
+
+        $summaries = (new TableDeltaMatcher())->summaries(
+            [['name' => 'wp_review_scores', 'schema' => $from, 'rowHash' => 'same', 'rowCount' => 1]],
+            [['name' => 'wp_review_scores', 'schema' => $to, 'rowHash' => 'same', 'rowCount' => 1]],
+        );
+
+        $t->same(1, count($summaries));
+        $t->true($summaries[0]['schema_change']);
+        $t->true(!$summaries[0]['data_change']);
+    },
     'row change types map to table diff filter names' => static function (TestRunner $t): void {
         $t->same(TableDeltaMatcher::DIFF_ADDED, TableDeltaMatcher::changeTypeToDiffType('added'));
         $t->same(TableDeltaMatcher::DIFF_DROPPED, TableDeltaMatcher::changeTypeToDiffType('removed'));

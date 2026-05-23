@@ -25,6 +25,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` binary SQL rendering for media-library hashes and fingerprints stored in `binary` / `varbinary` columns, matching upstream `0x...` patch literals instead of quoted text.
 - Native `dolt_patch()` primary-key-change warning collection for staged/worktree snapshots, preserving schema patch rows while skipping unsafe data SQL and recording upstream warning code `1235`.
 - Native `dolt_patch()` secondary-index and foreign-key DDL rendering for staged/worktree snapshots, including `CREATE TABLE` KEY/CONSTRAINT clauses, index/foreign-key-only schema deltas, and upstream ordering of `ADD INDEX` before `ADD CONSTRAINT`.
+- Native `dolt_patch()` create-table check-constraint rendering, including upstream `CONSTRAINT ... CHECK (...)` clause placement after keys and foreign keys.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -77,6 +78,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-patch-primary-key-warning.php` returns schema-only `dolt_patch()` rows plus warning code `1235`, so a migration UI can show DDL while blocking unsafe data SQL when primary-key sets differ.
 - `fixtures/wp-patch-foreign-key-review.php` models a staged WordPress relational review where `wp_postmeta.post_id` gains an index and foreign key to `wp_posts.ID` while `wp_posts` moves to a composite import primary key.
 - `examples/wordpress-patch-foreign-key-review.php` returns the index, foreign-key, and parent primary-key `dolt_patch()` rows plus warning code `1235`, so a migration UI can apply safe DDL ordering while blocking unsafe data SQL.
+- `fixtures/wp-patch-check-constraint-review.php` models a WordPress import audit table that guards allowed migration statuses with a check constraint.
+- `examples/wordpress-patch-check-constraint-review.php` returns the `CREATE TABLE` patch statement with the native Dolt-style check clause, so a migration UI can review status guards before creating the audit table.
 - `examples/wordpress-patch-privilege-review.php` returns a revision-database patch review where a limited reviewer can inspect `wp_posts` changes but an unscoped patch fails until the reviewer has database-wide SELECT over `wp_import_log` and the other database tables.
 - `fixtures/wp-ignore-summary.php` models a migration workspace with generated scratch/cache tables that should be hidden by `dolt_ignore`, while `dolt_ignore`, review tables, and explicit false-pattern exceptions remain visible.
 - `examples/wordpress-ignore-summary.php` returns ignore-aware `dolt_diff_summary()` rows for that workspace, so a WordPress migration UI can focus on reviewable data changes instead of generated scratch tables.
@@ -107,4 +110,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map `dolt_patch()` check constraint and modified/drop secondary-index or foreign-key DDL boundaries for staged/worktree comparisons.
+Next best slice: map modified/drop secondary-index or foreign-key DDL boundaries for staged/worktree comparisons beyond the current add-only WordPress foreign-key scenario.
