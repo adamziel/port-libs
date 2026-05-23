@@ -3129,6 +3129,59 @@ return [
         $t->contains('PanelBody:type', $encoded);
         $t->contains('"Modern":string', $encoded);
     },
+    'json display renderer maps upstream keywordish constants and operators' => static function (TestRunner $t): void {
+        $before = "export { save } from './save';\n";
+        $after = "const enabled = true && false || null;\nexport { save } from './save';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/keywordish_highlight.ts',
+            'TypeScript',
+            ['language' => 'typescript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->contains('true:keyword', $encoded);
+        $t->contains('&&:keyword', $encoded);
+        $t->contains('false:keyword', $encoded);
+        $t->contains('||:keyword', $encoded);
+        $t->contains('null:keyword', $encoded);
+    },
+    'json display renderer leaves unsupported attribute and property captures normal' => static function (TestRunner $t): void {
+        $before = ".old { color: red; }\n";
+        $after = "@supports (display: grid) { .card { opacity: 1 !important; } }\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/css_property_highlight.css',
+            'CSS',
+            ['language' => 'css'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->contains('supports:keyword', $encoded);
+        $t->contains('important:keyword', $encoded);
+        $t->contains('display:normal', $encoded);
+        $t->contains('opacity:normal', $encoded);
+    },
     'json display renderer maps upstream tree sitter error highlight variant' => static function (TestRunner $t): void {
         $before = "const settings = { title: \"Card\" };\n";
         $after = "const settings = { title: \"Card\" }};\n";
@@ -3186,6 +3239,15 @@ return [
         $t->true(in_array(['start' => 52, 'end' => 61, 'style' => '1'], $cssSpans, true), 'CSS !important should follow upstream keyword-style capture handling.');
         $t->true(in_array(['start' => 1, 'end' => 8, 'style' => '1'], $htmlSpans, true), 'HTML tag names should follow upstream tag-as-type capture handling.');
         $t->true(in_array(['start' => 27, 'end' => 29, 'style' => '1'], $htmlSpans, true), 'Nested HTML tag names should also be styled as type captures.');
+    },
+    'ansi highlighter maps upstream keywordish constants and operators' => static function (TestRunner $t): void {
+        $line = 'const enabled = true && false || null;';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'typescript']);
+
+        $t->true(in_array(['start' => 16, 'end' => 20, 'style' => '1'], $spans, true), 'Boolean captures should follow upstream keyword-style handling.');
+        $t->true(in_array(['start' => 21, 'end' => 23, 'style' => '1'], $spans, true), 'Operator captures should follow upstream keyword-style handling.');
+        $t->true(in_array(['start' => 24, 'end' => 29, 'style' => '1'], $spans, true), 'Boolean captures should follow upstream keyword-style handling.');
+        $t->true(in_array(['start' => 33, 'end' => 37, 'style' => '1'], $spans, true), 'Constant captures should follow upstream keyword-style handling.');
     },
     'wordpress parser error ansi command honors syntax highlight control' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";
@@ -3449,6 +3511,9 @@ return [
         $t->same('wp-content/plugins/acme-card/src/edit.tsx', $decoded['path']);
         $t->contains('PanelBody:type', $encoded);
         $t->contains('TextControl:type', $encoded);
+        $t->contains('&&:keyword', $encoded);
+        $t->contains('true:keyword', $encoded);
+        $t->contains('false:keyword', $encoded);
         $t->contains('"Modern card":string', $encoded);
     },
     'wordpress block editor json display can expose parser error spans when fallback budget allows' => static function (TestRunner $t): void {

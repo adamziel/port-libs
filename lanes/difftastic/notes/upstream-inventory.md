@@ -233,9 +233,9 @@ Targeted `src/options.rs` resource-limit environment parsing now maps `DFT_BYTE_
 
 The WordPress env resource-limits example applies that slice to block render metadata. A caller-provided `DFT_BYTE_LIMIT=80` forces a bounded text fallback for `wp-content/plugins/acme-card/render-metadata.php`, keeping render callback and support changes reviewable without reading live process environment values.
 
-Targeted parser-specific syntax highlighting now maps a narrow upstream `tree_highlights` slice from `src/parse/tree_sitter_parser.rs` plus `src/display/style.rs` and `src/display/json.rs`: markup tag names captured as `tag`/`constructor` become `type`, CSS at-keyword and `!important` contexts become `keyword`, existing strings/comments keep their upstream categories, and the shared native classifier feeds both ANSI display and compact JSON display. The WordPress TSX tag-highlight example applies that to `wp-content/plugins/acme-card/src/edit.tsx`, exposing inserted `PanelBody` and `TextControl` component tags as `type` spans while leaving JSX attributes normal and values string-highlighted.
+Targeted parser-specific syntax highlighting now maps a narrow upstream `tree_highlights` slice from `src/parse/tree_sitter_parser.rs` plus `src/display/style.rs` and `src/display/json.rs`: markup tag names captured as `tag`/`constructor` become `type`, keyword-ish `keyword`/`boolean`/`constant`/`operator` captures become `keyword`, CSS at-keyword and `!important` contexts become `keyword`, existing strings/comments keep their upstream categories, and field/property/attribute-style captures remain normal because upstream does not promote them into the serialized highlight enum. The shared native classifier feeds both ANSI display and compact JSON display, while JSON text-fallback chunks suppress the extra semantic pass so existing fallback text expectations stay stable. The WordPress TSX tag-highlight example applies that to `wp-content/plugins/acme-card/src/edit.tsx`, exposing inserted `PanelBody` and `TextControl` component tags as `type` spans and inserted `&&`, `true`, and `false` as `keyword` spans while leaving JSX attributes normal and values string-highlighted.
 
-The focused PHP lane test now passes 208 tests and 1129 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, parser-specific tag/CSS keyword highlighting in ANSI and JSON output, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
+The focused PHP lane test now passes 211 tests and 1145 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, parser-specific tag/CSS keyword highlighting in ANSI and JSON output, keyword-ish boolean/constant/operator highlighting, normal attribute/property boundaries, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -243,14 +243,14 @@ Before the required root test runner, this lane checked for an active root harne
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-A first post-focused check briefly returned active PID `2107158` running `php tools/run-tests.php`, but that process exited before `ps` could identify an owner. A second `pgrep` returned no active root harness, so this lane ran the aggregate root harness. It completed green:
+That command returned no output, so this lane ran the aggregate root harness. It completed green:
 
 ```text
 php tools/run-tests.php
-198 test files, 21891 assertions, 0 failures
+198 test files, 22151 assertions, 0 failures
 ```
 
-The difftastic-focused test file is green with 208 named tests, 1129 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness result is recorded in `lanes/difftastic/lane-status.json`.
+The difftastic-focused test file is green with 211 named tests, 1145 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness result is recorded in `lanes/difftastic/lane-status.json`.
 
 The touched WordPress examples also run:
 
@@ -319,12 +319,34 @@ wp-content/plugins/acme-card/render-metadata.php --- Text (127 B exceeded DFT_BY
 exit_code=1
 php lanes/difftastic/examples/wordpress-tsx-tag-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n"; foreach ($decoded["chunks"] as $chunk) { foreach ($chunk as $line) { foreach (($line["rhs"]["changes"] ?? []) as $change) { if ($change["highlight"] !== "normal") { echo $change["content"] . ":" . $change["highlight"] . "\n"; } } } }'
 wp-content/plugins/acme-card/src/edit.tsx TSX changed
+{:delimiter
+}:delimiter
+<:delimiter
 PanelBody:type
+=:keyword
 "Modern card":string
+=:keyword
+{:delimiter
+&&:keyword
+true:keyword
+}:delimiter
+>:delimiter
+<:delimiter
 TextControl:type
+=:keyword
 "Title":string
+=:keyword
+{:delimiter
+false:keyword
+}:delimiter
+/:keyword
+>:delimiter
+<:delimiter
+/:keyword
+PanelBody:type
+>:delimiter
 ```
 
 ## Next Task
 
-Map broader upstream highlight capture categories such as attribute/property/boolean handling without changing text-fallback expectations, then decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata-only JSON.
+Decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata-only JSON, then map another parser/display edge such as decorator captures or command JSON directory output.

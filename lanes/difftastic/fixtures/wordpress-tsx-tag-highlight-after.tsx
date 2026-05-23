@@ -1,1 +1,1 @@
-export const Sidebar = () => <PanelBody title="Modern card"><TextControl label="Title" /></PanelBody>;
+export const Sidebar = ({ attributes }) => <PanelBody title="Modern card" initialOpen={ attributes.enabled && true }><TextControl label="Title" help={ false } /></PanelBody>;

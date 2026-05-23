@@ -105,7 +105,11 @@ final class JsonDiffRenderer
         }
 
         $displayLanguage = $fallbackReason === null ? $language : 'Text (' . $fallbackReason . ')';
-        [$alignedLines, $chunks] = $this->changedSections($old, $new, $options);
+        $displayOptions = $options;
+        if ($fallbackReason !== null) {
+            $displayOptions['semanticHighlights'] = false;
+        }
+        [$alignedLines, $chunks] = $this->changedSections($old, $new, $displayOptions);
 
         $file = [];
         if ($alignedLines !== []) {

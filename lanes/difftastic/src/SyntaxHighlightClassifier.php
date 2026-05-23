@@ -7,13 +7,15 @@ namespace PortLibs\Difftastic;
 final class SyntaxHighlightClassifier
 {
     /**
-     * @param array{language?: string} $options
+     * @param array{language?: string, semanticHighlights?: bool} $options
      */
     public function highlightForToken(string $source, Token $token, array $options = []): string
     {
-        $semanticHighlight = $this->semanticHighlightFor($source, $token, $options);
-        if ($semanticHighlight !== null) {
-            return $semanticHighlight;
+        if (($options['semanticHighlights'] ?? true) !== false) {
+            $semanticHighlight = $this->semanticHighlightFor($source, $token, $options);
+            if ($semanticHighlight !== null) {
+                return $semanticHighlight;
+            }
         }
 
         return match ($token->kind) {
@@ -39,11 +41,14 @@ final class SyntaxHighlightClassifier
      */
     private function semanticHighlightFor(string $source, Token $token, array $options): ?string
     {
+        $language = strtolower((string) ($options['language'] ?? ''));
+        if ($token->kind === 'punctuation' && $this->isKeywordishOperator($language, $token->text)) {
+            return 'keyword';
+        }
         if ($token->kind !== 'identifier') {
             return null;
         }
 
-        $language = strtolower((string) ($options['language'] ?? ''));
         $lower = strtolower($token->text);
 
         if ($this->isMarkupLanguage($language) && $this->isMarkupTagName($source, $token->start)) {
@@ -63,6 +68,40 @@ final class SyntaxHighlightClassifier
         }
 
         return null;
+    }
+
+    private function isKeywordishOperator(string $language, string $text): bool
+    {
+        if (!$this->isKeywordishOperatorLanguage($language)) {
+            return false;
+        }
+
+        return in_array($text, [
+            '!', '!=', '!==', '%', '&', '&&', '*', '+', '-', '/', '::', '->',
+            '<', '<=', '=', '==', '===', '=>', '>', '>=', '??', '?:', '^', '|',
+            '||', '~',
+        ], true);
+    }
+
+    private function isKeywordishOperatorLanguage(string $language): bool
+    {
+        return in_array($language, [
+            'hack',
+            'hh',
+            'javascript',
+            'js',
+            'json',
+            'php',
+            'python',
+            'py',
+            'rs',
+            'rust',
+            'ts',
+            'tsx',
+            'typescript',
+            'yaml',
+            'yml',
+        ], true);
     }
 
     private function isMarkupLanguage(string $language): bool
@@ -121,29 +160,33 @@ final class SyntaxHighlightClassifier
             'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx' => [
                 'as', 'assert', 'async', 'await', 'break', 'case', 'catch', 'class',
                 'const', 'default', 'delete', 'do', 'else', 'export', 'extends',
-                'finally', 'for', 'from', 'function', 'if', 'import', 'in',
-                'instanceof', 'let', 'new', 'of', 'return', 'static', 'switch',
-                'throw', 'try', 'type', 'typeof', 'var', 'while', 'with', 'yield',
+                'false', 'finally', 'for', 'from', 'function', 'if', 'import', 'in',
+                'instanceof', 'let', 'new', 'null', 'of', 'return', 'static',
+                'switch', 'throw', 'true', 'try', 'type', 'typeof', 'undefined',
+                'var', 'while', 'with', 'yield',
             ],
+            'json' => ['false', 'null', 'true'],
             'php', 'hack', 'hh' => [
                 'case', 'catch', 'class', 'declare', 'default', 'else', 'extends',
-                'finally', 'for', 'foreach', 'function', 'if', 'implements',
-                'interface', 'match', 'namespace', 'new', 'private', 'protected',
-                'public', 'return', 'static', 'switch', 'throw', 'trait', 'try', 'use',
-                'while', 'yield',
+                'false', 'finally', 'for', 'foreach', 'function', 'if', 'implements',
+                'interface', 'match', 'namespace', 'new', 'null', 'private',
+                'protected', 'public', 'return', 'static', 'switch', 'throw',
+                'trait', 'true', 'try', 'use', 'while', 'yield',
             ],
             'python', 'py' => [
                 'and', 'as', 'assert', 'async', 'await', 'break', 'class',
                 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally',
-                'for', 'from', 'if', 'import', 'in', 'is', 'lambda', 'not', 'or',
-                'pass', 'raise', 'return', 'try', 'while', 'with', 'yield',
+                'false', 'for', 'from', 'if', 'import', 'in', 'is', 'lambda',
+                'none', 'not', 'or', 'pass', 'raise', 'return', 'true', 'try',
+                'while', 'with', 'yield',
             ],
             'rust', 'rs' => [
                 'async', 'await', 'const', 'crate', 'else', 'enum', 'extern',
-                'fn', 'for', 'if', 'impl', 'let', 'loop', 'match', 'mod', 'mut',
-                'pub', 'return', 'self', 'static', 'struct', 'super', 'trait',
-                'type', 'unsafe', 'use', 'where', 'while',
+                'false', 'fn', 'for', 'if', 'impl', 'let', 'loop', 'match', 'mod',
+                'mut', 'pub', 'return', 'self', 'static', 'struct', 'super',
+                'trait', 'true', 'type', 'unsafe', 'use', 'where', 'while',
             ],
+            'yaml', 'yml' => ['false', 'null', 'true'],
             default => [],
         };
     }
