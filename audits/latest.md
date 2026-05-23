@@ -1,9 +1,10 @@
-# Independent Audit - 2026-05-23T02:27:00Z
+# Independent Audit - 2026-05-23T02:38:00Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane
 status files needed to check dashboard/status drift, bridge/shell-out usage in
-PHP files, and recent Git history through observed `HEAD` `d570464`.
+PHP files, and recent Git history through observed implementation `HEAD`
+`cefd368` before this audit update.
 
 I did not edit lane implementation files, launch agents or tmux sessions, or
 push. The only intended writes from this pass are this audit and the
@@ -16,14 +17,16 @@ audit-status/next-intervention section in `progress.md`.
      `lanes/*/lane-status.json`, and the dirty lane files listed by
      `git status`.
    - Evidence: `php tools/run-tests.php` exits `0` with `170 test files,
-     15649 assertions, 0 failures`, but the worktree remains a broad dirty
-     aggregate. During this audit, observed `HEAD` advanced from `fb8810e` to
-     `d570464`. The final status sample reported `275` `git status --short`
-     entries, including `44` tracked modified entries, and
-     `git diff --shortstat` reported `44 files changed, 7471 insertions(+),
-     212 deletions(-)`. Tracked dirt spans Difftastic, Gitoxide, libsqlite,
-     LightningCSS, markerPDF status, Pandoc, Quadrable, rclone, Syncthing,
-     generated dashboard files, and audit/status files.
+     15671 assertions, 0 failures`, but the worktree remains a broad dirty
+     aggregate. During this audit, observed `HEAD` advanced from `fb8810e`
+     through `d570464`, `53fafba`, `ffffb68`, `362ce29`, and `cefd368`.
+     The final status sample reported `282` `git status --short` entries,
+     including `53` tracked modified entries, and `git diff --shortstat`
+     reported `53 files changed, 7308 insertions(+), 231 deletions(-)`.
+     Tracked dirt spans Dolt, Gitoxide, libsqlite, LightningCSS, markerPDF,
+     Pandoc, Quadrable, rclone, Readability, Syncthing, generated dashboard
+     files, and audit/status files. Some markerPDF lane files were already
+     staged by another writer during this audit window.
    - Goal requirement at risk: `goal.md:29` requires small reviewable slices
      with passing tests; `goal.md:48` requires verification, commit, progress
      update, and cleanup before assigning the next slice; `goal.md:49` requires
@@ -41,10 +44,10 @@ audit-status/next-intervention section in `progress.md`.
      `19 / 1979`, rclone `20 / 327`, Readability `89 / 1984`, and Syncthing
      `27 / 264`. Current manifests report materially different values:
      Difftastic `124 / 415`, Dolt `178 / 613`, Esbuild `138 / 2,567`,
-     Gitoxide `1254 / 2877`, libsqlite `118 / 1454`, LightningCSS
+     Gitoxide `1259 / 2877`, libsqlite `118 / 1454`, LightningCSS
      `680 / 3532`, markerPDF `78 / 78` with only `2` actual benchmark pairs,
      Pandoc `363 / 2028`, Quadrable `55 / 55`, rclone `239 / 327`,
-     Readability `848 / 1984`, and Syncthing `191 / 658`.
+     Readability `848 / 1984`, and Syncthing `193 / 658`.
    - Goal requirement at risk: `goal.md:3` requires durable current tracking;
      `goal.md:45` requires the dashboard to show current denominator, mapped
      tests, PHP pass/fail, audit, blocker, and commit; `goal.md:52` requires
@@ -57,10 +60,10 @@ audit-status/next-intervention section in `progress.md`.
    - Evidence: `progress.md` still says every lane is `stopped` and carries old
      estimates such as Gitoxide `66%`, LightningCSS `14%`, markerPDF `10%`,
      Pandoc `10%`, Quadrable `8%`, rclone `9%`, Dolt `5%`, and Esbuild `8%`.
-     Current lane statuses claim very different estimates: Gitoxide `91%`,
-     LightningCSS `60%`, markerPDF `54%`, libsqlite `63%`, Pandoc `60%`,
-     Quadrable `66%`, rclone `63%`, Dolt `46%`, Readability `51%`, Syncthing
-     `60%`, and Esbuild `43%`.
+     Current lane statuses claim very different estimates: Difftastic `45%`,
+     Gitoxide `91%`, LightningCSS `60%`, markerPDF `54%`, libsqlite `64%`,
+     Pandoc `60%`, Quadrable `66%`, rclone `63%`, Dolt `46%`, Readability
+     `51%`, Syncthing `61%`, and Esbuild `43%`.
    - Goal requirement at risk: `goal.md:44` requires `progress.md` to include
      current active lanes, blockers, owner/session, next task per lane, and
      percentage estimates.
@@ -78,10 +81,11 @@ audit-status/next-intervention section in `progress.md`.
      `lanes/quadrable/lane-status.json:10`, and `lanes/readability/lane-status.json:10`.
    - Evidence: LightningCSS still says the required root harness fails in
      Difftastic, Pandoc, and rclone. markerPDF still says root fails outside
-     markerPDF. Pandoc and rclone still cite a Syncthing failure. Syncthing
-     still cites a markerPDF failure. Other lanes cite older green root totals
-     such as `167`, `168`, or `169` test files. The latest required run is
-     green with `170 / 15649 / 0`.
+     markerPDF. Pandoc and rclone still cite a Syncthing failure. Gitoxide and
+     Quadrable cite an unrelated Syncthing red root despite the latest green
+     run. Syncthing now reports root green before commit, while other lanes cite
+     older green root totals such as `167`, `168`, or `169` test files. The
+     latest required run is green with `170 / 15671 / 0`.
    - Goal requirement at risk: `goal.md:31` requires blockers to be precise;
      `goal.md:49` requires failures to be recorded honestly.
    - Audit judgment: root-test status should be stamped centrally from the
@@ -98,8 +102,9 @@ audit-status/next-intervention section in `progress.md`.
    - Evidence: lane status values include prose such as `pending current batch`,
      `pending local commit`, `not committed`, and `current batch`, while the
      dashboard still shows old or truncated values such as `pending`, `uncommi`,
-     `2e1fcb0`, and `a184e4a`. The current observed `HEAD` is `d570464`, and
-     several pending/prose fields cannot be machine-checked against it.
+     `2e1fcb0`, and `a184e4a`. The current observed implementation `HEAD` is
+     `cefd368`, and several pending/prose fields cannot be machine-checked
+     against it.
    - Goal requirement at risk: `goal.md:3` and `goal.md:45` require tracking
      latest commit per lane.
    - Audit judgment: require a real accepted SHA plus a separate human note.
@@ -141,7 +146,7 @@ audit-status/next-intervention section in `progress.md`.
    - Evidence: Gitoxide reports `91%` while full Cargo workspace tests remain
      unexecuted. Pandoc reports `60%` without Haskell runner parity. rclone
      reports `63%` from a bounded runner excluding live providers and mount/FUSE.
-     Syncthing reports `60%` without full `go test ./...`. markerPDF reports
+     Syncthing reports `61%` without full `go test ./...`. markerPDF reports
      `54%` while full benchmark/model execution remains unexecuted and much
      work is at supplied model/PDF boundaries.
    - Goal requirement at risk: `goal.md:35` says passing tests are not enough;
@@ -194,12 +199,12 @@ Exact result from this audit:
 
 ```text
 exit status: 0
-170 test files, 15649 assertions, 0 failures
+170 test files, 15671 assertions, 0 failures
 ```
 
-This result was collected against the final observed `HEAD` `d570464` and the
-dirty worktree described above. It is diagnostic until the supervisor accepts a
-frozen integration snapshot.
+This result was collected while `HEAD` was moving through the implementation
+commits listed above and against the dirty worktree described above. It is
+diagnostic until the supervisor accepts a frozen integration snapshot.
 
 ## Recommended Next Intervention
 
