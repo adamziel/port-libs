@@ -518,6 +518,54 @@ TS,
         $t->true(!str_contains($lowered, ': AsyncDisposable'));
         $t->true(!str_contains($lowered, ': Disposable'));
     },
+    'erases upstream class async generator method await using types' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  async *bar() {
+    await using x = y;
+    yield x;
+  }
+}
+JS . "\n", $lowerer->lower('class Foo { async *bar(): AsyncGenerator<string> { await using x: AsyncDisposable = y; yield x; } }'));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): string => $lowerer->lower('class Foo { bar() { await using x: AsyncDisposable = y; } }')
+        );
+    },
+    'lowers upstream class async generator method await using cleanup' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+class Foo {
+  async *bar(): AsyncGenerator<string> {
+    await using x: AsyncDisposable = y;
+    yield x;
+    for await (await using asset: AsyncDisposable of assets) {
+      yield asset;
+    }
+  }
+}
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains('class Foo {', $lowered);
+        $t->contains('async *bar() {', $lowered);
+        $t->contains('const x = __using(_stack2, y, true);', $lowered);
+        $t->contains('for await (var _asset of assets) {', $lowered);
+        $t->contains('const asset = __using(_stack3, _asset, true);', $lowered);
+        $t->contains('yield asset;', $lowered);
+        $t->contains('var _promise3 = __callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('_promise2 && await _promise2;', $lowered);
+        $t->true(strpos($lowered, 'const x = __using(_stack2') < strpos($lowered, 'yield x;'));
+        $t->true(strpos($lowered, 'yield asset;') < strpos($lowered, 'var _promise3 = __callDispose'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
     'lowers upstream function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'function foo() { using a: Disposable = b; if (nested) { using x: Disposable = y; bar(x); } done(a); }',
@@ -1648,6 +1696,28 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $lowered);
         $t->contains('_promise2 && await _promise2;', $lowered);
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress async generator asset queue class cleanup without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-async-generator-assets.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('import metadata from "./block.json" with { type: "json" };', $lowered);
+        $t->contains('export class PreviewAssetQueue {', $lowered);
+        $t->contains('async *assets(queue) {', $lowered);
+        $t->contains('const asset = __using(_stack2, await queue.openNext(metadata.viewScript), true);', $lowered);
+        $t->contains('yield { handle: asset.handle, url: asset.url };', $lowered);
+        $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('const settings = {name:metadata.name, viewScript:metadata.viewScript,};', $lowered);
+        $t->contains('export async function registerQueuedAssets(queue) {', $lowered);
+        $t->contains('const previews = new PreviewAssetQueue();', $lowered);
+        $t->contains('for await (const asset of previews.assets(queue)) {', $lowered);
+        $t->contains('registerAsset(asset.handle, asset.url);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(strpos($lowered, 'const asset = __using') < strpos($lowered, 'yield { handle: asset.handle'));
+        $t->true(strpos($lowered, 'yield { handle: asset.handle') < strpos($lowered, 'var _promise2 = __callDispose'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, ': AsyncDisposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));

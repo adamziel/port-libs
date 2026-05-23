@@ -692,6 +692,11 @@ final class TypeScriptModuleLowerer
                 }
             }
 
+            $methodUsing = $this->lowerClassMethodUsingMember($start, $end);
+            if ($methodUsing !== null) {
+                return [[$methodUsing], true, [], [], []];
+            }
+
             $constructor = $this->lowerConstructorParameterPropertyMember($start, $end, $cursor, $hasExtends);
             if ($constructor !== null) {
                 return [$constructor[0], $constructor[1], [], [], []];
@@ -800,6 +805,106 @@ final class TypeScriptModuleLowerer
         return $transformed
             ? [[$this->printClassMemberRuntimeRange($start, $end)], true, [], [], []]
             : null;
+    }
+
+    private function lowerClassMethodUsingMember(int $start, int $end): ?string
+    {
+        $bodyOpen = $this->classMethodBodyOpen($start, $end);
+        if ($bodyOpen === null) {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $end) {
+            return null;
+        }
+
+        [$bodyLines, $changed] = $this->lowerFunctionBodyUsingStatements(
+            $bodyOpen + 1,
+            $bodyClose,
+            $this->isAsyncClassMethodHeader($start, $bodyOpen),
+        );
+        if (!$changed) {
+            return null;
+        }
+
+        $header = $this->printClassMethodHeaderRuntimeRange($start, $bodyOpen - 1);
+        $lines = [$header . ' {'];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
+        }
+        $lines[] = '}';
+
+        return implode("\n", $lines);
+    }
+
+    private function classMethodBodyOpen(int $start, int $end): ?int
+    {
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                if ($parenDepth === 0
+                    && $bracketDepth === 0
+                    && $this->findTopLevelTokenInRange('=', $start, $i - 1) === null
+                ) {
+                    $paramsClose = $this->findMatchingPunctuator($i, '(', ')');
+                    if ($paramsClose <= $end) {
+                        $cursor = $paramsClose + 1;
+                        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+                            $cursor = $this->skipTypeExpression($cursor + 1, $end, ['{']);
+                        }
+                        if (($this->tokens[$cursor] ?? null)?->text === '{') {
+                            return $cursor;
+                        }
+                    }
+                }
+                $parenDepth++;
+                continue;
+            }
+            if ($text === ')') {
+                $parenDepth--;
+                continue;
+            }
+            if ($text === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($text === ']') {
+                $bracketDepth--;
+            }
+        }
+
+        return null;
+    }
+
+    private function isAsyncClassMethodHeader(int $start, int $bodyOpen): bool
+    {
+        for ($i = $start; $i < $bodyOpen; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null || $token->text !== 'async' || !$this->isTopLevelInRange($start, $i)) {
+                continue;
+            }
+
+            $next = $this->tokens[$i + 1] ?? null;
+
+            return $next !== null && $next->text !== '(';
+        }
+
+        return false;
+    }
+
+    private function printClassMethodHeaderRuntimeRange(int $start, int $end): string
+    {
+        $header = rtrim($this->printClassMemberRuntimeRange($start, $end), ';');
+
+        return preg_replace('/\basync\*/', 'async *', $header) ?? $header;
     }
 
     /**
