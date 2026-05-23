@@ -111,6 +111,82 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $tracker->availability('wordpress-media', $file, $block, ['']));
         $t->throws(InvalidArgumentException::class, static fn () => $tracker->requestForBlock('wordpress-media', $file, new Block(-1, 1, $block->hashHex), true));
     },
+    'maps upstream disconnected device availability and temporary state cleanup' => static function (TestRunner $t): void {
+        $version = VersionVector::fromCounters([101 => 6]);
+        $file = remoteProgressFile('wp-content/uploads/2026/disconnect.jpg', $version, 2);
+        $block = $file->blocks[1];
+        $tracker = new RemoteDownloadProgressTracker([
+            'wordpress-media' => ['peer-a', 'peer-b'],
+        ]);
+        $tracker->connectDevice('peer-a');
+        $tracker->connectDevice('peer-b');
+
+        $tracker->receiveDownloadProgress('peer-a', new DownloadProgress('wordpress-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: $file->name,
+                version: $version,
+                blockIndexes: [1],
+                blockSize: $file->blockSize(),
+            ),
+        ]));
+
+        $t->same([
+            ['device' => 'peer-a', 'fromTemporary' => true],
+        ], array_map(static fn (Availability $item): array => $item->toArray(), $tracker->availability('wordpress-media', $file, $block)));
+
+        $tracker->disconnectDevice('peer-a');
+
+        $t->same(['peer-b'], $tracker->connectedDeviceIds());
+        $t->same([], $tracker->remoteBlockCounts('peer-a', 'wordpress-media'));
+        $t->same(0, $tracker->bytesDownloaded('peer-a', 'wordpress-media'));
+        $t->same([
+            ['device' => 'peer-b', 'fromTemporary' => false],
+        ], array_map(static fn (Availability $item): array => $item->toArray(), $tracker->availability('wordpress-media', $file, $block, ['peer-a', 'peer-b'])));
+        $t->same(null, $tracker->receiveDownloadProgress('peer-a', new DownloadProgress('wordpress-media', [
+            new FileDownloadProgressUpdate(
+                updateType: FileDownloadProgressUpdate::TYPE_APPEND,
+                name: $file->name,
+                version: $version,
+                blockIndexes: [0],
+                blockSize: $file->blockSize(),
+            ),
+        ])));
+    },
+    'fails pullBlock before requesting unavailable connected-device candidates' => static function (TestRunner $t): void {
+        $bytes = 'connected-peer-block';
+        $block = new Block(0, strlen($bytes), hash('sha256', $bytes));
+        $file = new FileInfo(
+            name: 'wp-content/uploads/2026/offline.jpg',
+            version: VersionVector::fromCounters([101 => 7]),
+            size: strlen($bytes),
+            rawBlockSize: strlen($bytes),
+            blocks: [$block],
+        );
+        $tracker = new RemoteDownloadProgressTracker([
+            'wordpress-media' => ['offline-peer'],
+        ]);
+        $tracker->connectDevice('offline-peer');
+        $tracker->disconnectDevice('offline-peer');
+        $called = false;
+
+        $result = $tracker->pullBlock(
+            'wordpress-media',
+            $file,
+            $block,
+            ['offline-peer'],
+            static function () use (&$called): string {
+                $called = true;
+
+                return 'should-not-request';
+            },
+        );
+
+        $t->true(!$result->successful());
+        $t->same('no connected device has the required version of this file', $result->error);
+        $t->same([], $result->attempts);
+        $t->true(!$called);
+    },
     'maps pullBlock retry activity and response hash validation' => static function (TestRunner $t): void {
         $activity = new DeviceActivity();
         $tracker = new RemoteDownloadProgressTracker([

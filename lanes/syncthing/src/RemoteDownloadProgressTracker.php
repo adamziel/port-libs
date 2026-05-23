@@ -17,6 +17,13 @@ final class RemoteDownloadProgressTracker
     private array $deviceDownloads = [];
 
     /**
+     * @var array<string, true>
+     */
+    private array $connectedDevices = [];
+
+    private bool $connectionFilteringEnabled = false;
+
+    /**
      * @var list<array{device:string, folder:string, state:array<string, int>}>
      */
     private array $events = [];
@@ -51,6 +58,31 @@ final class RemoteDownloadProgressTracker
         $this->folderDevices[$folder] = $shared;
     }
 
+    public function connectDevice(string $deviceId): void
+    {
+        $this->assertDeviceId($deviceId, 'Device ID');
+        $this->connectionFilteringEnabled = true;
+        $this->connectedDevices[$deviceId] = true;
+    }
+
+    public function disconnectDevice(string $deviceId): void
+    {
+        $this->assertDeviceId($deviceId, 'Device ID');
+        $this->connectionFilteringEnabled = true;
+        unset($this->connectedDevices[$deviceId], $this->deviceDownloads[$deviceId]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function connectedDeviceIds(): array
+    {
+        $deviceIds = array_keys($this->connectedDevices);
+        sort($deviceIds);
+
+        return $deviceIds;
+    }
+
     /**
      * Mirrors `model.DownloadProgress`: ignore unknown folders and devices the
      * folder is not shared with, otherwise update the peer's temporary state
@@ -60,7 +92,7 @@ final class RemoteDownloadProgressTracker
      */
     public function receiveDownloadProgress(string $deviceId, DownloadProgress $progress): ?array
     {
-        if (!$this->isShared($progress->folder, $deviceId)) {
+        if (!$this->isShared($progress->folder, $deviceId) || !$this->isConnected($deviceId)) {
             return null;
         }
 
@@ -115,16 +147,17 @@ final class RemoteDownloadProgressTracker
 
         $availabilities = [];
         foreach ($completeDeviceIds as $deviceId) {
-            if (!is_string($deviceId) || $deviceId === '') {
-                throw new \InvalidArgumentException('Complete device IDs must be non-empty strings');
-            }
-            if ($this->isShared($folder, $deviceId)) {
+            $this->assertDeviceId($deviceId, 'Complete device IDs');
+            if ($this->isShared($folder, $deviceId) && $this->isConnected($deviceId)) {
                 $availabilities[] = new Availability($deviceId, fromTemporary: false);
             }
         }
 
         $blockIndex = $this->blockIndex($file, $block);
         foreach (array_keys($this->folderDevices[$folder]) as $deviceId) {
+            if (!$this->isConnected($deviceId)) {
+                continue;
+            }
             $downloads = $this->deviceDownloads[$deviceId] ?? null;
             if ($downloads !== null && $downloads->has($folder, $file->name, $file->version, $blockIndex)) {
                 $availabilities[] = new Availability($deviceId, fromTemporary: true);
@@ -280,6 +313,18 @@ final class RemoteDownloadProgressTracker
     private function isShared(string $folder, string $deviceId): bool
     {
         return isset($this->folderDevices[$folder][$deviceId]);
+    }
+
+    private function isConnected(string $deviceId): bool
+    {
+        return !$this->connectionFilteringEnabled || isset($this->connectedDevices[$deviceId]);
+    }
+
+    private function assertDeviceId(mixed $deviceId, string $label): void
+    {
+        if (!is_string($deviceId) || $deviceId === '') {
+            throw new \InvalidArgumentException($label . ' must be a non-empty string');
+        }
     }
 
     private function blockIndex(FileInfo $file, Block $block): int

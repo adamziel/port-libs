@@ -122,6 +122,13 @@ per-file block-count summaries, availability includes `fromTemporary`
 candidates from shared devices with matching advertised file versions, and a
 planned WordPress media block request sets `Request.fromTemporary` when the
 only source is a peer's temporary file.
+The unavailable-peer boundary now maps adjacent upstream `model.Closed`,
+`fileAvailabilityRLocked`, `blockAvailabilityFromTemporaryRLocked`, and
+`RequestGlobal` behavior: once native connection tracking is enabled,
+disconnected devices are removed from full-file availability, their temporary
+download state is dropped, later DownloadProgress updates from that device are
+ignored until it reconnects, and pullBlock fails before issuing a request when
+no connected peer has the required version.
 The device-activity slice now maps focused upstream `deviceactivity.go` and
 `deviceactivity_test.go` behavior: least-busy selection returns the first
 candidate with the lowest outstanding request count, repeated selection checks
@@ -428,6 +435,10 @@ contains only the newly available block.
 temporary-block advertisement to a shared WordPress media folder, emits the
 same event summary the model would expose, and plans a native BEP Request frame
 with `fromTemporary` set for the advertised media block.
+`examples/wordpress-temporary-peer-disconnect.php` shows a WordPress editor
+peer advertising a temporary media block, then disconnecting before the pull;
+the native tracker drops the editor's temporary availability and falls back to
+a still-connected CDN peer for the same media block.
 `examples/wordpress-temporary-request-server.php` serves the other side of that
 flow: a WordPress media restore request arrives with `fromTemporary` set, stale
 temporary bytes are rejected by the block hash, the finalized media file is
@@ -669,6 +680,6 @@ index size reported separately.
 
 ## Next Task
 
-Broaden upstream `folder_sendrecv` behavior around unavailable peers,
-case-conflict replacement, receive-only changed children, and post-promotion database update/fsync/event
+Broaden upstream `folder_sendrecv` behavior around case-conflict replacement,
+receive-only changed children, and post-promotion database update/fsync/event
 side effects after native final file promotion succeeds.
