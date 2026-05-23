@@ -2548,11 +2548,14 @@ Focused upstream fixture boundary:
   trunk and later allocation can reuse the freed chain.
 
 The native PHP tests now cover large-to-small `wp_options` replacement where
-the old overflow chain becomes freelist metadata, page-image application
-followed by native option reads, and guardrails for missing, duplicate,
-indexed, and too-large replacement plans. The new
-`examples/wordpress-replace-obsolete-overflow-option.php` script shows the
-repair workflow end to end without requiring the PHP SQLite extension.
+the old overflow chain becomes freelist metadata, inline-to-large replacement
+with appended overflow pages, large-to-larger replacement where the new
+overflow chain is allocated before the obsolete chain is freed, page-image
+application followed by native option reads, and guardrails for missing,
+duplicate, indexed, and no-append replacement plans. The
+`examples/wordpress-replace-obsolete-overflow-option.php` and
+`examples/wordpress-replace-large-overflow-option.php` scripts show both
+repair workflows end to end without requiring the PHP SQLite extension.
 
 ## Root Harness Coordination
 
@@ -2648,3 +2651,23 @@ php tools/run-tests.php
 ```
 
 Result on 2026-05-23: 184 test files, 19365 assertions, 0 failures.
+
+For the large wp_options replacement overflow slice on 2026-05-23, the
+focused upstream runner re-ran `update.test`, `btree01.test`, and
+`pageropt.test` with 0 errors out of 491 tests. The direct libsqlite harness
+passed 167 tests with 1099 assertions and 0 failures, and
+`examples/wordpress-replace-large-overflow-option.php` ran successfully.
+Before starting the root harness, the required preflight returned no active
+process:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+This worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 185 test files, 19593 assertions, 0 failures.

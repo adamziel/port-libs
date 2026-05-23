@@ -4595,6 +4595,7 @@ return [
             'rowid' => 2,
             'option_name' => 'obsolete_large_cache',
             'autoload' => 'no',
+            'overflow_page_numbers' => [],
             'obsolete_overflow_page_numbers' => [3, 4],
             'local_payload_length' => strlen(SQLiteRecord::encode([null, 'obsolete_large_cache', 'small-cache-value', 'no'])),
             'database_page_count' => 4,
@@ -4607,6 +4608,119 @@ return [
         $t->same('small-cache-value', $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
         $t->same(2, $options[1]->rowId);
+    },
+    'plans wordpress wp_options replacement with appended overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 2));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'theme_mods_twentyfive', 'inline-cache', 'no'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
+
+        $largeValue = str_repeat('theme-mod-fragment:', 70) . 'done';
+        $payload = SQLiteRecord::encode([null, 'theme_mods_twentyfive', $largeValue, 'yes']);
+        $localLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $pageSize);
+        $overflowPayload = substr($payload, $localLength);
+        $expectedOverflowPages = range(
+            3,
+            2 + SQLiteOverflowPage::requiredPageCount(strlen($overflowPayload), $pageSize),
+        );
+
+        $plan = $database->planWordPressOptionReplace('theme_mods_twentyfive', $largeValue, 'yes');
+        $postPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+        ];
+        for ($pageNumber = 3; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $emptyPage;
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->tableRowByRowIdByName('wp_options', 2);
+
+        $t->same($expectedOverflowPages, $plan->overflowPageNumbers);
+        $t->same([], $plan->obsoleteOverflowPageNumbers);
+        $t->same(array_merge([1, 2], $expectedOverflowPages), array_keys($plan->pageImages()));
+        $t->same(2 + count($expectedOverflowPages), $plan->databasePageCount);
+        $t->same($localLength, $plan->localPayloadLength);
+        $t->true($option !== null);
+        $t->same([null, 'theme_mods_twentyfive', $largeValue, 'yes'], $option?->values());
+    },
+    'plans wordpress wp_options replacement allocation before freeing old overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 4));
+
+        $oldValue = str_repeat('old-cache-fragment:', 70) . 'done';
+        $oldPayload = SQLiteRecord::encode([null, 'rewrite_large_cache', $oldValue, 'yes']);
+        $oldLocalLength = SQLiteTableLeafCell::localPayloadLength(strlen($oldPayload), $pageSize);
+        $oldOverflowPayload = substr($oldPayload, $oldLocalLength);
+        $oldOverflowPages = SQLiteOverflowPage::encodeChainAtPages($oldOverflowPayload, [3, 4], $pageSize);
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, $oldPayload, $pageSize, 3),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $oldOverflowPages[3]
+            . $oldOverflowPages[4],
+        );
+
+        $newValue = str_repeat('new-cache-fragment:', 78) . 'done';
+        $newPayload = SQLiteRecord::encode([null, 'rewrite_large_cache', $newValue, 'no']);
+        $newLocalLength = SQLiteTableLeafCell::localPayloadLength(strlen($newPayload), $pageSize);
+        $newOverflowPayload = substr($newPayload, $newLocalLength);
+        $expectedOverflowPages = range(
+            5,
+            4 + SQLiteOverflowPage::requiredPageCount(strlen($newOverflowPayload), $pageSize),
+        );
+
+        $plan = $database->planWordPressOptionReplace('rewrite_large_cache', $newValue, 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount() ? $database->page($pageNumber) : $emptyPage;
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->tableRowByRowIdByName('wp_options', 2);
+
+        $t->same($expectedOverflowPages, $plan->overflowPageNumbers);
+        $t->same([3, 4], $plan->obsoleteOverflowPageNumbers);
+        $t->same(array_merge([1, 2, 3], $expectedOverflowPages), array_keys($plan->pageImages()));
+        $t->same($newLocalLength, $plan->localPayloadLength);
+        $t->same(4 + count($expectedOverflowPages), $plan->databasePageCount);
+        $t->same([3, 4], $postDatabase->freelistPageNumbers());
+        $t->same([4, 3], $postDatabase->freelistAllocationOrder());
+        $t->true($option !== null);
+        $t->same([null, 'rewrite_large_cache', $newValue, 'no'], $option?->values());
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionReplace('rewrite_large_cache', $newValue, 'no', false),
+        );
     },
     'rejects bounded wordpress replacement plans that would be ambiguous or leave indexes stale' => static function (TestRunner $t) use ($makeFirstPage): void {
         $schemaPage = SQLiteTableLeafPage::assemble([
@@ -4624,7 +4738,10 @@ return [
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
 
         $t->throws(InvalidArgumentException::class, static fn () => $database->planWordPressOptionReplace('home', 'https://example.test/blog'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->planWordPressOptionReplace('siteurl', str_repeat('too-large:', 80)));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionReplace('siteurl', str_repeat('too-large:', 80), null, false),
+        );
 
         $duplicateTablePage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),

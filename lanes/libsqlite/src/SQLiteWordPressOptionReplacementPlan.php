@@ -7,6 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteWordPressOptionReplacementPlan
 {
     /**
+     * @param list<int> $overflowPageNumbers
      * @param list<int> $obsoleteOverflowPageNumbers
      * @param array<int, string> $pageImages
      */
@@ -16,6 +17,7 @@ final class SQLiteWordPressOptionReplacementPlan
         public readonly string $optionName,
         public readonly string $optionValue,
         public readonly ?string $autoload,
+        public readonly array $overflowPageNumbers,
         public readonly array $obsoleteOverflowPageNumbers,
         public readonly int $localPayloadLength,
         public readonly int $databasePageCount,
@@ -32,7 +34,7 @@ final class SQLiteWordPressOptionReplacementPlan
     }
 
     /**
-     * @return array{table_root_page:int,rowid:int,option_name:string,autoload:?string,obsolete_overflow_page_numbers:list<int>,local_payload_length:int,database_page_count:int,updated_page_numbers:list<int>}
+     * @return array{table_root_page:int,rowid:int,option_name:string,autoload:?string,overflow_page_numbers:list<int>,obsolete_overflow_page_numbers:list<int>,local_payload_length:int,database_page_count:int,updated_page_numbers:list<int>}
      */
     public function toArray(): array
     {
@@ -41,6 +43,7 @@ final class SQLiteWordPressOptionReplacementPlan
             'rowid' => $this->rowId,
             'option_name' => $this->optionName,
             'autoload' => $this->autoload,
+            'overflow_page_numbers' => $this->overflowPageNumbers,
             'obsolete_overflow_page_numbers' => $this->obsoleteOverflowPageNumbers,
             'local_payload_length' => $this->localPayloadLength,
             'database_page_count' => $this->databasePageCount,

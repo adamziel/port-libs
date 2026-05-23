@@ -61,6 +61,33 @@ final class SQLiteDatabase
         return substr($this->bytes, $offset, $this->header->pageSize);
     }
 
+    /**
+     * @param array<int, string> $pageImages
+     */
+    private function withPageImages(array $pageImages): self
+    {
+        $pageCount = $this->pageCount();
+        foreach ($pageImages as $pageNumber => $page) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite replacement page images must use one-based page numbers');
+            }
+            if (!is_string($page) || strlen($page) !== $this->header->pageSize) {
+                throw new \InvalidArgumentException('SQLite replacement page image length does not match page size');
+            }
+            if ($pageNumber > $pageCount) {
+                $pageCount = $pageNumber;
+            }
+        }
+
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $pageCount; $pageNumber++) {
+            $pages[] = $pageImages[$pageNumber]
+                ?? ($pageNumber <= $this->pageCount() ? $this->page($pageNumber) : str_repeat("\0", $this->header->pageSize));
+        }
+
+        return self::fromBytes(implode('', $pages));
+    }
+
     public function pageHeader(int $pageNumber): SQLiteBTreePageHeader
     {
         return SQLiteBTreePageHeader::parsePage(
@@ -465,6 +492,7 @@ final class SQLiteDatabase
         string $optionName,
         string $optionValue,
         ?string $autoload = null,
+        bool $allowAppend = true,
     ): SQLiteWordPressOptionReplacementPlan {
         if ($this->indexRecordsForTable('wp_options') !== []) {
             throw new \InvalidArgumentException('SQLite wp_options replacement planning currently requires index-free fixtures');
@@ -493,6 +521,8 @@ final class SQLiteDatabase
         $matchedRowId = null;
         $replacementAutoload = null;
         $replacementLocalPayloadLength = 0;
+        $replacementOverflowPayload = '';
+        $overflowPageNumbers = [];
         $obsoleteOverflowPageNumbers = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $usableSize, $overflowReader) as $cell) {
@@ -521,9 +551,7 @@ final class SQLiteDatabase
 
             $payload = SQLiteRecord::encode(array_values($values), $this->header->textEncoding);
             $replacementLocalPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
-            if ($replacementLocalPayloadLength < strlen($payload)) {
-                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports inline replacement payloads only');
-            }
+            $replacementOverflowPayload = substr($payload, $replacementLocalPayloadLength);
 
             if ($cell->firstOverflowPage !== null) {
                 $obsoleteOverflowPageNumbers = $this->overflowPageNumbers(
@@ -535,7 +563,10 @@ final class SQLiteDatabase
             $matchedRowId = $cell->rowId;
             $existingCells[] = [
                 'rowid' => $cell->rowId,
-                'cell' => SQLiteTableLeafCell::encode($cell->rowId, $payload, $usableSize),
+                'cell' => [
+                    'rowid' => $cell->rowId,
+                    'payload' => $payload,
+                ],
             ];
         }
 
@@ -543,13 +574,42 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not present");
         }
 
+        $allocationPlan = null;
+        if ($replacementOverflowPayload !== '') {
+            $overflowPageCount = SQLiteOverflowPage::requiredPageCount(
+                strlen($replacementOverflowPayload),
+                $this->header->pageSize,
+                $usableSize,
+            );
+            $allocationPlan = $this->planPageAllocation($overflowPageCount, $allowAppend);
+            $overflowPageNumbers = $allocationPlan->allocatedPageNumbers;
+        }
+
+        foreach ($existingCells as $index => $entry) {
+            if (is_array($entry['cell'])) {
+                $existingCells[$index]['cell'] = SQLiteTableLeafCell::encode(
+                    $entry['cell']['rowid'],
+                    $entry['cell']['payload'],
+                    $usableSize,
+                    $overflowPageNumbers[0] ?? null,
+                );
+            }
+        }
+
         usort(
             $existingCells,
             static fn (array $left, array $right): int => $left['rowid'] <=> $right['rowid'],
         );
 
-        $freePlan = $obsoleteOverflowPageNumbers === [] ? null : $this->planPageFreeList($obsoleteOverflowPageNumbers);
-        $pageImages = $freePlan?->pageImages() ?? [];
+        $freeSource = $allocationPlan === null ? $this : $this->withPageImages($allocationPlan->pageImages());
+        $freePlan = $obsoleteOverflowPageNumbers === [] ? null : $freeSource->planPageFreeList($obsoleteOverflowPageNumbers);
+        $pageImages = [];
+        foreach ($allocationPlan?->pageImages() ?? [] as $pageNumber => $page) {
+            $pageImages[$pageNumber] = $page;
+        }
+        foreach ($freePlan?->pageImages() ?? [] as $pageNumber => $page) {
+            $pageImages[$pageNumber] = $page;
+        }
         $pageImages[$tableRootPage] = SQLiteTableLeafPage::assemble(
             array_map(static fn (array $entry): string => $entry['cell'], $existingCells),
             $this->header->pageSize,
@@ -557,6 +617,18 @@ final class SQLiteDatabase
             $tablePage,
             $usableSize,
         );
+        if ($replacementOverflowPayload !== '') {
+            foreach (
+                SQLiteOverflowPage::encodeChainAtPages(
+                    $replacementOverflowPayload,
+                    $overflowPageNumbers,
+                    $this->header->pageSize,
+                    $usableSize,
+                ) as $pageNumber => $page
+            ) {
+                $pageImages[$pageNumber] = $page;
+            }
+        }
         ksort($pageImages);
 
         return new SQLiteWordPressOptionReplacementPlan(
@@ -565,9 +637,12 @@ final class SQLiteDatabase
             $optionName,
             $optionValue,
             $replacementAutoload,
+            $overflowPageNumbers,
             $obsoleteOverflowPageNumbers,
             $replacementLocalPayloadLength,
-            $freePlan?->databasePageCount ?? max($this->pageCount(), $this->header->databaseSizePages),
+            $freePlan?->databasePageCount
+                ?? $allocationPlan?->databasePageCount
+                ?? max($this->pageCount(), $this->header->databaseSizePages),
             $pageImages,
         );
     }

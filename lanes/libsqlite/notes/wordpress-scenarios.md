@@ -34,6 +34,11 @@ whose root is a single table leaf page: the planner returns first-page,
 table-page, overflow-page, and freelist-trunk page images for a new option
 row, rejects duplicate rowids or option names, and refuses indexed fixtures
 instead of leaving stale secondary indexes behind.
+Bounded replacement planning now handles the same index-free, single-leaf
+`wp_options` fixtures for both shrink and large-value rewrites. Large
+replacement payloads allocate their new overflow chain before obsolete
+overflow pages are returned to freelist metadata, matching SQLite's b-tree
+update ordering and avoiding accidental same-operation reuse of the old chain.
 Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
@@ -728,8 +733,16 @@ allocation. This maps cache/transient cleanup and migration repair tools that
 need to shrink option rows safely before broader pager, index, or WAL support
 exists.
 
+`examples/wordpress-replace-large-overflow-option.php` starts from a large
+`wp_options` value, replaces it with a larger overflow-backed value, applies
+the returned page images, and verifies both the new overflow chain and the
+freelist containing the obsolete pages. This maps WordPress migration and
+preload repair tools that need to rewrite large serialized/JSON option
+payloads without the SQLite extension while preserving SQLite's allocate-new,
+free-old update order.
+
 ## Next Task
 
-Extend the bounded replacement planner to allocate a new overflow chain for
-large replacement values, then add index-maintenance preflight before broader
-b-tree defragmentation, pointer-map/auto-vacuum, journaling, or WAL work.
+Add index-maintenance preflight for bounded generated inserts and replacements
+before broader b-tree defragmentation, pointer-map/auto-vacuum, journaling, or
+WAL work.
