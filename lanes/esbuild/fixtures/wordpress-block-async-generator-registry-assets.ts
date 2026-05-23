@@ -7,6 +7,11 @@ const previewStreams = [
     yield { handle: asset.handle, url: asset.url };
     yield* queue.extraAssets(metadata.name);
   },
+  async function* (queue): AsyncGenerator<any> {
+    await using fallback: AsyncDisposable = await queue.openNext(metadata.editorScript);
+    yield { handle: fallback.handle, url: fallback.url };
+    yield* queue.fallbackAssets(metadata.name);
+  },
 ];
 
 const previewStreamMap = {

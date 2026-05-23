@@ -3570,67 +3570,84 @@ final class TypeScriptModuleLowerer
             return null;
         }
 
+        $output = '';
+        $cursor = $start;
+        $matched = false;
+        $needsAssignmentSemicolon = false;
         for ($async = $start; $async <= $effectiveEnd; $async++) {
-            if (($this->tokens[$async] ?? null)?->text !== 'async') {
-                continue;
-            }
-
-            $isParenthesizedDefaultExport = false;
-            $isParenthesizedExpression = false;
-            $isNestedExpression = false;
-            if (!$this->isTopLevelInRange($start, $async)) {
-                $isParenthesizedDefaultExport = $this->isParenthesizedDefaultExportAsyncGeneratorExpression($start, $async);
-                $isParenthesizedExpression = $this->isParenthesizedAsyncGeneratorExpression($start, $async);
-                $isNestedExpression = $this->isNestedAsyncGeneratorExpression($start, $async);
-                if (!$isParenthesizedDefaultExport && !$isParenthesizedExpression && !$isNestedExpression) {
-                    continue;
-                }
-            }
-
-            $previous = $this->previousSignificantTokenIndex($async - 1);
-            $previousText = $previous === null ? null : ($this->tokens[$previous] ?? null)?->text;
-            if ($previousText !== null
-                && !in_array($previousText, ['=', 'export', 'default'], true)
-                && !($isParenthesizedDefaultExport && $previousText === '(')
-                && !($isParenthesizedExpression && $previousText === '(')
-                && !$isNestedExpression
-            ) {
-                continue;
-            }
-
-            $function = $this->asyncGeneratorFunctionAt($async, $effectiveEnd);
+            $function = $this->asyncGeneratorFunctionCandidateAt($start, $async, $effectiveEnd);
             if ($function === null) {
                 continue;
             }
 
-            $prefix = $async > $start ? $this->printRuntimeTokenRange($start, $async - 1, $start) : '';
+            if ($cursor <= $async - 1) {
+                $output .= $this->printRuntimeTokenRange($cursor, $async - 1, $start);
+            }
+
             $header = $this->asyncGeneratorFunctionRuntimeHeader($function);
             $replacement = $this->printAsyncGeneratorFunctionLike($header, $function['bodyOpen'] + 1, $function['bodyClose']);
-            $prefix = rtrim($prefix);
-            $output = $prefix === ''
-                ? $replacement
-                : $prefix . $this->asyncGeneratorExpressionSeparator($prefix) . $replacement;
+            $output .= $this->asyncGeneratorExpressionSeparator(rtrim($output)) . $replacement;
+            $cursor = $function['bodyClose'] + 1;
+            $matched = true;
 
-            if ($function['bodyClose'] + 1 <= $effectiveEnd) {
-                $suffix = $this->printRuntimeTokenRange($function['bodyClose'] + 1, $effectiveEnd, $start);
-                if ($suffix !== '') {
-                    $output .= $suffix;
-                }
-            }
-
+            $previous = $this->previousSignificantTokenIndex($async - 1);
             if ($previous !== null && ($this->tokens[$previous] ?? null)?->text === '=') {
-                $output .= ';';
-            }
-            if (($isParenthesizedDefaultExport || $isParenthesizedExpression || $this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $output))
-                && !str_ends_with($output, ';')
-            ) {
-                $output .= ';';
+                $needsAssignmentSemicolon = true;
             }
 
-            return [$output, $effectiveEnd];
+            $async = $function['bodyClose'];
         }
 
-        return null;
+        if (!$matched) {
+            return null;
+        }
+
+        if ($cursor <= $effectiveEnd) {
+            $output .= $this->printRuntimeTokenRange($cursor, $effectiveEnd, $start);
+        }
+
+        if (($needsAssignmentSemicolon || $this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $output))
+            && !str_ends_with($output, ';')
+        ) {
+            $output .= ';';
+        }
+
+        return [$output, $effectiveEnd];
+    }
+
+    /**
+     * @return array{async:int, star:int, paramsOpen:int, paramsClose:int, bodyOpen:int, bodyClose:int}|null
+     */
+    private function asyncGeneratorFunctionCandidateAt(int $start, int $async, int $effectiveEnd): ?array
+    {
+        if (($this->tokens[$async] ?? null)?->text !== 'async') {
+            return null;
+        }
+
+        $isParenthesizedDefaultExport = false;
+        $isParenthesizedExpression = false;
+        $isNestedExpression = false;
+        if (!$this->isTopLevelInRange($start, $async)) {
+            $isParenthesizedDefaultExport = $this->isParenthesizedDefaultExportAsyncGeneratorExpression($start, $async);
+            $isParenthesizedExpression = $this->isParenthesizedAsyncGeneratorExpression($start, $async);
+            $isNestedExpression = $this->isNestedAsyncGeneratorExpression($start, $async);
+            if (!$isParenthesizedDefaultExport && !$isParenthesizedExpression && !$isNestedExpression) {
+                return null;
+            }
+        }
+
+        $previous = $this->previousSignificantTokenIndex($async - 1);
+        $previousText = $previous === null ? null : ($this->tokens[$previous] ?? null)?->text;
+        if ($previousText !== null
+            && !in_array($previousText, ['=', 'export', 'default'], true)
+            && !($isParenthesizedDefaultExport && $previousText === '(')
+            && !($isParenthesizedExpression && $previousText === '(')
+            && !$isNestedExpression
+        ) {
+            return null;
+        }
+
+        return $this->asyncGeneratorFunctionAt($async, $effectiveEnd);
     }
 
     private function isParenthesizedDefaultExportAsyncGeneratorExpression(int $start, int $async): bool

@@ -817,6 +817,55 @@ TS,
         $t->true(!str_contains($lowered, 'async function*'));
         $t->true(!str_contains($lowered, ': AsyncGenerator'));
     },
+    'lowers multiple upstream async generator expressions in one statement' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+const streams = [
+  async function* (): AsyncGenerator<string> {
+    yield *firstAssets;
+  },
+  async function* (): AsyncGenerator<string> {
+    await using asset: AsyncDisposable = await openSecond();
+    yield asset;
+    yield *secondAssets;
+  },
+];
+consume(first, async function* (): AsyncGenerator<string> {
+  yield *thirdAssets;
+}, async function* (): AsyncGenerator<string> {
+  yield *fourthAssets;
+});
+const registry = {
+  first: async function* (): AsyncGenerator<string> {
+    yield *objectOne;
+  },
+  second: async function* (): AsyncGenerator<string> {
+    yield *objectTwo;
+  },
+};
+TS,
+            lowerUsingDeclarations: true,
+            lowerAsyncGenerators: true
+        );
+
+        $t->same(6, substr_count($lowered, 'return __asyncGenerator(this, null, function* () {'));
+        $t->contains('const streams = [function() {', $lowered);
+        $t->contains('yield* __yieldStar(firstAssets);', $lowered);
+        $t->contains('}, function() {', $lowered);
+        $t->contains('const asset = __using(_stack2, yield new __await(openSecond()), true);', $lowered);
+        $t->contains('yield* __yieldStar(secondAssets);', $lowered);
+        $t->contains('consume(first, function() {', $lowered);
+        $t->contains('yield* __yieldStar(thirdAssets);', $lowered);
+        $t->contains('yield* __yieldStar(fourthAssets);', $lowered);
+        $t->contains('const registry = {first:function() {', $lowered);
+        $t->contains('yield* __yieldStar(objectOne);', $lowered);
+        $t->contains('second:function() {', $lowered);
+        $t->contains('yield* __yieldStar(objectTwo);', $lowered);
+        $t->true(!str_contains($lowered, 'async function*'));
+        $t->true(!str_contains($lowered, 'await using'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+    },
     'lowers upstream function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'function foo() { using a: Disposable = b; if (nested) { using x: Disposable = y; bar(x); } done(a); }',
@@ -2017,8 +2066,11 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(metadata.viewScript)), true);', $lowered);
         $t->contains('yield {handle:asset.handle, url:asset.url};', $lowered);
         $t->contains('yield* __yieldStar(queue.extraAssets(metadata.name));', $lowered);
+        $t->contains('const fallback = __using(_stack3, yield new __await(queue.openNext(metadata.editorScript)), true);', $lowered);
+        $t->contains('yield {handle:fallback.handle, url:fallback.url};', $lowered);
+        $t->contains('yield* __yieldStar(queue.fallbackAssets(metadata.name));', $lowered);
         $t->contains('const previewStreamMap = {[metadata.name]:function(queue) {', $lowered);
-        $t->contains('const asset = __using(_stack3, yield new __await(queue.openNext(metadata.editorScript)), true);', $lowered);
+        $t->contains('const asset = __using(_stack4, yield new __await(queue.openNext(metadata.editorScript)), true);', $lowered);
         $t->contains('consumePreviewStream(metadata.name, function() {', $lowered);
         $t->contains('yield* __yieldStar(stream(queue));', $lowered);
         $t->contains('consumePreviewStream(metadata.name, previewStreamMap[metadata.name]);', $lowered);
