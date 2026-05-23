@@ -357,12 +357,14 @@ final class QuadbStore
      *     trackKeys: bool,
      *     state: array<string, mixed>,
      *     current: array{detached: bool, head: ?string, rootHash: string, headNodeId: int},
+     *     rawEntryDigest: string,
      *     rawEntries: array<string, list<array{keyHex: string, valueHex: string}>>
      * }
      */
     public function exportPortableDump(): array
     {
         $this->persist();
+        $rawEntries = self::rawEntrySnapshotHex($this->lmdbRawEntrySnapshot());
 
         return [
             'schemaVersion' => 1,
@@ -370,8 +372,33 @@ final class QuadbStore
             'trackKeys' => $this->trackKeys,
             'state' => self::readStateFile($this->directory),
             'current' => $this->status(),
-            'rawEntries' => self::rawEntrySnapshotHex($this->lmdbRawEntrySnapshot()),
+            'rawEntryDigest' => self::portableRawEntryDigest($rawEntries),
+            'rawEntries' => $rawEntries,
         ];
+    }
+
+    /**
+     * Returns a stable BLAKE2s-256 digest over upstream-shaped LMDB cursor
+     * entries, preserving bucket order, cursor order, and raw byte lengths.
+     *
+     * @param array<string, list<array{keyHex: string, valueHex: string}>> $rawEntries
+     */
+    public static function portableRawEntryDigest(array $rawEntries): string
+    {
+        $normalized = self::normalizeRawEntrySnapshotHex($rawEntries);
+        $input = "quadrable-quadb-raw-entry-digest-v1\0";
+
+        foreach (self::lmdbBucketNames() as $bucket) {
+            $input .= $bucket . "\0" . self::packUInt64Le(count($normalized[$bucket]));
+            foreach ($normalized[$bucket] as $entry) {
+                $key = (string) hex2bin($entry['keyHex']);
+                $value = (string) hex2bin($entry['valueHex']);
+                $input .= self::packUInt64Le(strlen($key)) . $key;
+                $input .= self::packUInt64Le(strlen($value)) . $value;
+            }
+        }
+
+        return Blake2s::hashHex($input);
     }
 
     /**
@@ -397,6 +424,14 @@ final class QuadbStore
         }
 
         $expectedRawEntries = self::normalizeRawEntrySnapshotHex($dump['rawEntries']);
+        if (array_key_exists('rawEntryDigest', $dump)) {
+            if (!is_string($dump['rawEntryDigest']) || !preg_match('/^[0-9a-f]{64}$/', $dump['rawEntryDigest'])) {
+                throw new \InvalidArgumentException('portable dump raw entry digest is malformed');
+            }
+            if ($dump['rawEntryDigest'] !== self::portableRawEntryDigest($expectedRawEntries)) {
+                throw new \RuntimeException('portable dump raw entry digest did not match the raw entries');
+            }
+        }
 
         $statePath = self::statePath($directory);
         $tmpPath = $statePath . '.tmp.' . bin2hex(random_bytes(4));

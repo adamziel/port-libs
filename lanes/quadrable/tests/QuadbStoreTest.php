@@ -1449,10 +1449,98 @@ return [
             quadrableQuadbRemoveDir($noTrackProofDir);
         }
     },
+    'native quadb store matches upstream LMDB dump load oracle for a mixed WordPress store' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-dump-restore-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset($oracle['fixtureValues'], $oracle['source'], $oracle['restored'], $oracle['dumpLoad'])
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['source'])
+                || !is_array($oracle['restored'])
+                || !is_array($oracle['dumpLoad'])
+                || !isset($oracle['source']['entries'], $oracle['restored']['entries'])
+                || !is_array($oracle['source']['entries'])
+                || !is_array($oracle['restored']['entries'])
+            ) {
+                throw new RuntimeException('malformed upstream LMDB dump/restore oracle fixture');
+            }
+
+            $t->true($oracle['dumpLoad']['entriesMatch']);
+            $t->same($oracle['source']['entries'], $oracle['restored']['entries']);
+            $t->same($oracle['source']['rawEntryDigest'], QuadbStore::portableRawEntryDigest($oracle['source']['entries']));
+            $t->same($oracle['restored']['rawEntryDigest'], QuadbStore::portableRawEntryDigest($oracle['restored']['entries']));
+
+            $values = $oracle['fixtureValues'];
+            $binaryKey = quadrableQuadbOracleBytes($values['binaryKeyHex']);
+            $binaryValue = quadrableQuadbOracleBytes($values['binaryValueHex']);
+            $previewValue = quadrableQuadbOracleBytes($values['previewValueHex']);
+            $delegatedValue = quadrableQuadbOracleBytes($values['delegatedValueHex']);
+            $detachedValue = quadrableQuadbOracleBytes($values['detachedValueHex']);
+            $privateValue = quadrableQuadbOracleBytes($values['privateValueHex']);
+            $privatePostValue = quadrableQuadbOracleBytes($values['privatePostValueHex']);
+            $privateDelegatedValue = quadrableQuadbOracleBytes($values['privateDelegatedValueHex']);
+
+            $repo = QuadbStore::init($dir);
+            $repo->put('wp_options:plain', 'plain');
+            $repo->put($binaryKey, $binaryValue);
+            $repo->put('wp_posts:1', 'Published post');
+            $repo->put('wp_postmeta:1:_thumbnail_id', '42');
+            $masterRoot = $repo->tree()->rootHash();
+            $binaryProofHex = $repo->exportProofHex([
+                $binaryKey,
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $repo->fork('2');
+            $repo->put('wp_posts:2', $previewValue);
+            $repo->put('wp_postmeta:2:_edit_lock', '1716400000:1');
+            $repo->fork('10', 'master');
+            $repo->fork('a-preview', '2');
+
+            $private = QuadbStore::open($dir, false);
+            $private->checkout('private-full');
+            $private->put('wp_options:private', $privateValue);
+            $private->put('wp_posts:private', $privatePostValue);
+            $privateRoot = $private->tree()->rootHash();
+            $privateProofHex = $private->exportProofHex([
+                'wp_options:private',
+                'wp_posts:missing',
+            ]);
+
+            $repo = QuadbStore::open($dir);
+            $repo->checkout('binary-proof');
+            $repo->importProofHex($binaryProofHex, $masterRoot);
+            $repo->put($binaryKey, $delegatedValue);
+
+            $private = QuadbStore::open($dir, false);
+            $private->checkout('private-proof');
+            $private->importProofHex($privateProofHex, $privateRoot);
+            $private->put('wp_options:private', $privateDelegatedValue);
+
+            $repo = QuadbStore::open($dir);
+            $repo->checkout();
+            $repo->importProofHex($binaryProofHex, $masterRoot);
+            $repo->put($binaryKey, $detachedValue);
+
+            $actualEntries = quadrableQuadbRawSnapshotHex($repo->lmdbRawEntrySnapshot());
+            $t->same($oracle['restored']['entries'], $actualEntries);
+
+            $dump = $repo->exportPortableDump();
+            $t->same($oracle['restored']['rawEntryDigest'], $dump['rawEntryDigest']);
+            $t->same($oracle['restored']['entries'], $dump['rawEntries']);
+            $t->same($dump['rawEntryDigest'], QuadbStore::portableRawEntryDigest($dump['rawEntries']));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
     'native quadb store restores portable dumps for mixed full proof detached and noTrack heads' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $restoreDir = quadrableQuadbTempDir();
         $corruptRestoreDir = quadrableQuadbTempDir();
+        $corruptDigestRestoreDir = quadrableQuadbTempDir();
         $noTrackDir = quadrableQuadbTempDir();
         $noTrackRestoreDir = quadrableQuadbTempDir();
 
@@ -1491,6 +1579,8 @@ return [
             $t->true($dump['current']['detached']);
             $t->same($detachedRoot, $dump['current']['rootHash']);
             $t->same($dump['rawEntries'], quadrableQuadbRawSnapshotHex($repo->lmdbRawEntrySnapshot()));
+            $t->same($dump['rawEntryDigest'], QuadbStore::portableRawEntryDigest($dump['rawEntries']));
+            $t->same(64, strlen($dump['rawEntryDigest']));
             $t->true(count($dump['rawEntries']['quadrable_head']) >= 3);
             $t->true(count($dump['rawEntries']['quadrable_key']) >= 2);
 
@@ -1517,6 +1607,10 @@ return [
             $corrupt = $dump;
             $corrupt['rawEntries']['quadrable_quadb_state'][0]['valueHex'] = '00';
             $t->throws(RuntimeException::class, static fn () => QuadbStore::restorePortableDump($corruptRestoreDir, $corrupt));
+
+            $corruptDigest = $dump;
+            $corruptDigest['rawEntryDigest'] = str_repeat('0', 64);
+            $t->throws(RuntimeException::class, static fn () => QuadbStore::restorePortableDump($corruptDigestRestoreDir, $corruptDigest));
 
             $private = QuadbStore::init($noTrackDir, false);
             $private->put('wp_options:private', "secret\0value");
@@ -1547,6 +1641,7 @@ return [
             quadrableQuadbRemoveDir($dir);
             quadrableQuadbRemoveDir($restoreDir);
             quadrableQuadbRemoveDir($corruptRestoreDir);
+            quadrableQuadbRemoveDir($corruptDigestRestoreDir);
             quadrableQuadbRemoveDir($noTrackDir);
             quadrableQuadbRemoveDir($noTrackRestoreDir);
         }
