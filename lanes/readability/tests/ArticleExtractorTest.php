@@ -909,6 +909,46 @@ return [
         $t->same(false, str_contains($article->text, 'Related Topics'), 'related-topic chrome should not enter article text');
         $t->same(false, str_contains($article->text, 'Show comments'), 'comment chrome should not enter article text');
     },
+    'maps Mozilla bbc-1 fixture with RDFa articleBody and unsupported video placeholders' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/bbc-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(['articleBody'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/div/@property'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h2')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
+        );
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//img/@datasrc'), $attributeValues($article->contentHtml, '//img/@datasrc'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//figcaption')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//figcaption')),
+        );
+        $t->same(5, substr_count($blocks, '<!-- wp:image -->'), 'BBC retained figures should serialize as image blocks for migration review');
+        $t->contains('President Barack Obama has admitted', $blocks);
+        $t->same(false, str_contains($article->text, 'News navigation'), 'BBC navigation chrome should not enter article text');
+        $t->same(false, str_contains($article->text, 'Media caption Mr Obama told'), 'unsupported BBC video placeholder captions should not enter article text');
+        $t->same(false, str_contains($article->contentHtml, 'lead-video-placeholder'), 'BBC video placeholder shell should be removed after unsupported iframe cleanup');
+        $t->same(false, str_contains($article->contentHtml, '<iframe'), 'unsupported BBC player iframes should not survive extraction');
+    },
     'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
             . '<h1>Caption Class Import</h1>'

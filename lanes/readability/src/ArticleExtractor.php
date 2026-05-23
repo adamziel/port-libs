@@ -162,6 +162,7 @@ final class ArticleExtractor
             $this->removePlatformArticleChrome($best);
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeInteractiveArticleChrome($best);
+            $this->removeUnsupportedPublisherVideoPlaceholders($best);
             $this->removeNytCollectionChrome($best);
             $this->removeDuplicateTitleHeader($best, $title);
             $this->removeSectionScaffoldHeadings($best);
@@ -1630,6 +1631,27 @@ final class ArticleExtractor
                 || str_contains($href, 'module=relatedlinks')) {
                 $remove[] = $node;
             }
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function removeUnsupportedPublisherVideoPlaceholders(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        $remove = [];
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " media-placeholder ") and @data-media-type="video"]', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if (($xpath->query('.//img|.//picture|.//iframe|.//embed|.//object|.//video', $node)?->length ?? 0) > 0) {
+                continue;
+            }
+
+            $remove[] = $node;
         }
 
         foreach ($remove as $node) {
@@ -3657,7 +3679,7 @@ final class ArticleExtractor
             $weight += 10000;
         }
 
-        if (str_contains(strtolower($node->getAttribute('itemprop')), 'articlebody')) {
+        if ($this->hasArticleBodyAttribute($node)) {
             $weight += 3000;
         }
 
@@ -3675,6 +3697,12 @@ final class ArticleExtractor
         }
 
         return $weight;
+    }
+
+    private function hasArticleBodyAttribute(\DOMElement $node): bool
+    {
+        return str_contains(strtolower($node->getAttribute('itemprop')), 'articlebody')
+            || str_contains(strtolower($node->getAttribute('property')), 'articlebody');
     }
 
     private function innerHtml(\DOMNode $node): string
@@ -3725,8 +3753,12 @@ final class ArticleExtractor
             return true;
         }
 
+        if (strtolower($node->tagName) === 'div' && $this->hasArticleBodyAttribute($node)) {
+            return true;
+        }
+
         return strtolower($node->tagName) === 'div'
             && trim($node->getAttribute('data-test-id')) === 'article-review-body'
-            && preg_match('/(?:^|\s)articleBody(?:\s|$)/', $node->getAttribute('itemprop')) === 1;
+            && $this->hasArticleBodyAttribute($node);
     }
 }
