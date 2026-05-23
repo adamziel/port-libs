@@ -1175,11 +1175,13 @@ final class CssMinifier
 
     private function minifyTransformValue(string $property, string $value): string
     {
-        if (!in_array(strtolower($property), ['transform', '-webkit-transform', '-moz-transform'], true)) {
-            return $value;
-        }
-
-        return $this->minifyTransformFunctionList($value);
+        return match (strtolower($property)) {
+            'transform', '-webkit-transform', '-moz-transform' => $this->minifyTransformFunctionList($value),
+            'translate' => $this->minifyTransformTranslateLonghand($value),
+            'rotate' => $this->minifyTransformRotateLonghand($value),
+            'scale' => $this->minifyTransformScaleLonghand($value),
+            default => $value,
+        };
     }
 
     private function minifyTransformFunctionList(string $value): string
@@ -1230,8 +1232,131 @@ final class CssMinifier
             'scaley' => $this->minifyTransformScaleAxis('scaleY', $args),
             'scalez' => $this->minifyTransformScaleAxis('scaleZ', $args),
             'scale3d' => $this->minifyTransformScale3d($args),
+            'rotate' => $this->minifyTransformRotateAxis('rotate', $args),
+            'rotatex' => $this->minifyTransformRotateAxis('rotateX', $args),
+            'rotatey' => $this->minifyTransformRotateAxis('rotateY', $args),
+            'rotatez' => $this->minifyTransformRotateAxis('rotate', $args),
+            'rotate3d' => $this->minifyTransformRotate3d($args),
+            'skew' => $this->minifyTransformSkew($args),
+            'skewx' => $this->minifyTransformSkewAxis('skew', $args),
+            'skewy' => $this->minifyTransformSkewAxis('skewY', $args),
+            'perspective' => $this->minifyTransformPerspective($args),
+            'matrix' => $this->minifyTransformGenericFunction('matrix', $args),
+            'matrix3d' => $this->minifyTransformGenericFunction('matrix3d', $args),
             default => $matches[1] . '(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformGenericArgument($arg), $args)) . ')',
         };
+    }
+
+    private function minifyTransformTranslateLonghand(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 1 && strtolower($tokens[0]) === 'none') {
+            return 'none';
+        }
+        if ($tokens === [] || count($tokens) > 3) {
+            return trim($value);
+        }
+
+        $tokens = array_map(fn (string $token): string => $this->normalizeTransformLengthArgument($token), $tokens);
+        while (count($tokens) > 1 && $this->isTransformZeroLength($tokens[count($tokens) - 1])) {
+            array_pop($tokens);
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    private function minifyTransformScaleLonghand(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 1 && strtolower($tokens[0]) === 'none') {
+            return 'none';
+        }
+        if ($tokens === [] || count($tokens) > 3) {
+            return trim($value);
+        }
+
+        $tokens = array_map(fn (string $token): string => $this->normalizeTransformScaleArgument($token), $tokens);
+        if (count($tokens) === 3 && $this->isTransformScaleIdentity($tokens[2])) {
+            array_pop($tokens);
+        }
+        if (count($tokens) === 2 && $this->transformNumbersEqual($tokens[0], $tokens[1])) {
+            return $tokens[0];
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    private function minifyTransformRotateLonghand(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 1 && strtolower($tokens[0]) === 'none') {
+            return 'none';
+        }
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $angleIndexes = [];
+        $allowUnitlessZeroAngle = count($tokens) === 1;
+        foreach ($tokens as $index => $token) {
+            if ($this->isTransformAngleToken($token, $allowUnitlessZeroAngle)) {
+                $angleIndexes[] = $index;
+            }
+        }
+        if (count($angleIndexes) !== 1) {
+            return trim($value);
+        }
+
+        $angleIndex = $angleIndexes[0];
+        $angle = $this->normalizeTransformLonghandAngleArgument($tokens[$angleIndex]);
+        $axisTokens = [];
+        foreach ($tokens as $index => $token) {
+            if ($index !== $angleIndex) {
+                $axisTokens[] = $token;
+            }
+        }
+
+        if ($axisTokens === []) {
+            return $angle;
+        }
+        if (count($axisTokens) === 1) {
+            $axis = strtolower($axisTokens[0]);
+            if ($axis === 'z') {
+                return $angle;
+            }
+            if ($axis === 'x' || $axis === 'y') {
+                return $axis . ' ' . $angle;
+            }
+
+            return trim($value);
+        }
+        if (count($axisTokens) !== 3) {
+            return trim($value);
+        }
+
+        $numbers = [];
+        $serialized = [];
+        foreach ($axisTokens as $token) {
+            $axis = $this->normalizeTransformAxisNumberArgument($token);
+            $number = $this->unitlessMathNumber($axis);
+            if ($number === null) {
+                return trim($value);
+            }
+            $numbers[] = $number;
+            $serialized[] = $axis;
+        }
+
+        $axis = $this->singleTransformAxis($numbers);
+        if ($axis !== null) {
+            $axisAngle = $axis['sign'] < 0 ? $this->negateTransformLonghandAngle($angle) : $angle;
+            if ($axis['axis'] === 'z') {
+                return $axisAngle;
+            }
+
+            return $axis['axis'] . ' ' . $axisAngle;
+        }
+
+        return implode(' ', [...$serialized, $angle]);
     }
 
     /**
@@ -1391,9 +1516,120 @@ final class CssMinifier
         return 'scale3d(' . $x . ',' . $y . ',' . $z . ')';
     }
 
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformRotateAxis(string $name, array $args): string
+    {
+        if (count($args) !== 1) {
+            return $name . '(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformGenericArgument($arg), $args)) . ')';
+        }
+
+        return $name . '(' . $this->normalizeTransformFunctionAngleArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformRotate3d(array $args): string
+    {
+        if (count($args) !== 4) {
+            return 'rotate3d(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformGenericArgument($arg), $args)) . ')';
+        }
+
+        $axes = [
+            $this->normalizeTransformAxisNumberArgument($args[0]),
+            $this->normalizeTransformAxisNumberArgument($args[1]),
+            $this->normalizeTransformAxisNumberArgument($args[2]),
+        ];
+        $numbers = [];
+        foreach ($axes as $axis) {
+            $number = $this->unitlessMathNumber($axis);
+            if ($number === null) {
+                $angle = $this->normalizeTransformFunctionAngleArgument($args[3]);
+
+                return 'rotate3d(' . implode(',', [...$axes, $angle]) . ')';
+            }
+            $numbers[] = $number;
+        }
+
+        $angle = $this->normalizeTransformFunctionAngleArgument($args[3]);
+        $axis = $this->singleTransformAxis($numbers);
+        if ($axis !== null) {
+            $axisAngle = $axis['sign'] < 0 ? $this->negateTransformFunctionAngle($angle) : $angle;
+
+            return match ($axis['axis']) {
+                'x' => 'rotateX(' . $axisAngle . ')',
+                'y' => 'rotateY(' . $axisAngle . ')',
+                default => 'rotate(' . $axisAngle . ')',
+            };
+        }
+
+        return 'rotate3d(' . implode(',', [...$axes, $angle]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformSkew(array $args): string
+    {
+        if (count($args) < 1 || count($args) > 2) {
+            return 'skew(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformFunctionAngleArgument($arg), $args)) . ')';
+        }
+
+        $x = $this->normalizeTransformFunctionAngleArgument($args[0]);
+        $y = isset($args[1]) ? $this->normalizeTransformFunctionAngleArgument($args[1]) : '0';
+        if ($this->isTransformZeroAngle($y)) {
+            return 'skew(' . $x . ')';
+        }
+        if ($this->isTransformZeroAngle($x)) {
+            return 'skewY(' . $y . ')';
+        }
+
+        return 'skew(' . $x . ',' . $y . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformSkewAxis(string $name, array $args): string
+    {
+        if (count($args) !== 1) {
+            return $name . '(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformFunctionAngleArgument($arg), $args)) . ')';
+        }
+
+        return $name . '(' . $this->normalizeTransformFunctionAngleArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformPerspective(array $args): string
+    {
+        if (count($args) !== 1) {
+            return 'perspective(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformLengthArgument($arg), $args)) . ')';
+        }
+
+        return 'perspective(' . $this->normalizeTransformLengthArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformGenericFunction(string $name, array $args): string
+    {
+        return $name . '(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformGenericArgument($arg), $args)) . ')';
+    }
+
     private function normalizeTransformLengthArgument(string $arg): string
     {
-        $normalized = $this->normalizeMathArgument($arg);
+        $arg = trim($this->minifyMathFunctions($arg));
+        $linear = $this->parseLinearMathArgument($arg);
+        if ($linear !== null && $this->linearMathUnitsAllInGroup($linear, 'length:absolute') && count($this->nonZeroLinearCalcUnits($linear)) > 1) {
+            return $this->serializeTransformCanonicalLength($this->canonicalLinearMathValue($arg, 'length:absolute') ?? 0.0);
+        }
+
+        $normalized = $linear === null ? $this->normalizeMathArgument($arg) : $this->serializeTransformLinearArgument($linear);
         $value = $this->comparableMathValue($normalized);
         if ($value !== null && abs($value['canonical']) < 0.0000001) {
             return '0';
@@ -1422,6 +1658,193 @@ final class CssMinifier
     private function normalizeTransformGenericArgument(string $arg): string
     {
         return $this->normalizeMathArgument($arg);
+    }
+
+    private function normalizeTransformAxisNumberArgument(string $arg): string
+    {
+        $normalized = $this->normalizeMathArgument($arg);
+        $number = $this->unitlessMathNumber($normalized);
+
+        return $number === null ? $normalized : $this->serializeMathNumberWithUnit($number, '');
+    }
+
+    private function normalizeTransformFunctionAngleArgument(string $arg): string
+    {
+        $degrees = $this->canonicalLinearMathValue($arg, 'angle');
+        if ($degrees !== null) {
+            return $this->serializeTransformDegrees($degrees, false);
+        }
+
+        return $this->normalizeMathArgument($arg);
+    }
+
+    private function normalizeTransformLonghandAngleArgument(string $arg): string
+    {
+        $degrees = $this->canonicalLinearMathValue($arg, 'angle');
+        if ($degrees !== null) {
+            return $this->serializeTransformDegrees($degrees, true);
+        }
+
+        $normalized = $this->normalizeMathArgument($arg);
+        $number = $this->unitlessMathNumber($normalized);
+        if ($number !== null && abs($number) < 0.0000001) {
+            return '0deg';
+        }
+
+        return $normalized;
+    }
+
+    private function isTransformAngleToken(string $token, bool $allowUnitlessZero): bool
+    {
+        if ($this->canonicalLinearMathValue($token, 'angle') !== null) {
+            return true;
+        }
+
+        if (!$allowUnitlessZero) {
+            return false;
+        }
+
+        $number = $this->unitlessMathNumber($this->normalizeMathArgument($token));
+
+        return $number !== null && abs($number) < 0.0000001;
+    }
+
+    private function isTransformZeroAngle(string $value): bool
+    {
+        $degrees = $this->canonicalLinearMathValue($value, 'angle');
+        if ($degrees !== null) {
+            return abs($degrees) < 0.0000001;
+        }
+
+        $number = $this->unitlessMathNumber($value);
+
+        return $number !== null && abs($number) < 0.0000001;
+    }
+
+    private function negateTransformFunctionAngle(string $angle): string
+    {
+        $degrees = $this->canonicalLinearMathValue($angle, 'angle');
+        if ($degrees !== null) {
+            return $this->serializeTransformDegrees(-$degrees, false);
+        }
+
+        $number = $this->unitlessMathNumber($angle);
+        if ($number !== null) {
+            return $this->serializeMathNumberWithUnit(-$number, '');
+        }
+
+        return str_starts_with($angle, '-') ? substr($angle, 1) : '-' . $angle;
+    }
+
+    private function negateTransformLonghandAngle(string $angle): string
+    {
+        $degrees = $this->canonicalLinearMathValue($angle, 'angle');
+        if ($degrees !== null) {
+            return $this->serializeTransformDegrees(-$degrees, true);
+        }
+
+        return str_starts_with($angle, '-') ? substr($angle, 1) : '-' . $angle;
+    }
+
+    /**
+     * @param list<float> $numbers
+     * @return array{axis:string,sign:int}|null
+     */
+    private function singleTransformAxis(array $numbers): ?array
+    {
+        $nonZero = [];
+        foreach (['x', 'y', 'z'] as $index => $axis) {
+            if (abs($numbers[$index] ?? 0.0) >= 0.0000001) {
+                $nonZero[] = [
+                    'axis' => $axis,
+                    'sign' => ($numbers[$index] ?? 0.0) < 0 ? -1 : 1,
+                ];
+            }
+        }
+
+        return count($nonZero) === 1 ? $nonZero[0] : null;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $linear
+     */
+    private function serializeTransformLinearArgument(array $linear): string
+    {
+        $units = $this->nonZeroLinearCalcUnits($linear);
+        if (count($units) <= 1) {
+            return $this->serializeLinearCalcArgument($linear);
+        }
+
+        return 'calc(' . $this->serializeLinearCalcArgument($linear) . ')';
+    }
+
+    private function canonicalLinearMathValue(string $arg, string $group): ?float
+    {
+        $linear = $this->parseLinearMathArgument(trim($this->minifyMathFunctions($arg)));
+        if ($linear === null) {
+            return null;
+        }
+
+        $units = $this->nonZeroLinearCalcUnits($linear);
+        if ($units === []) {
+            $zeroUnit = $this->zeroLinearCalcUnit($linear);
+            if ($zeroUnit === null) {
+                return null;
+            }
+            $comparison = $this->mathComparison(0.0, $zeroUnit);
+
+            return $comparison !== null && $comparison['group'] === $group ? 0.0 : null;
+        }
+
+        $canonical = 0.0;
+        foreach ($units as $unit) {
+            $comparison = $this->mathComparison($linear['terms'][$unit], $unit);
+            if ($comparison === null || $comparison['group'] !== $group) {
+                return null;
+            }
+            $canonical += $comparison['canonical'];
+        }
+
+        return $canonical;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $linear
+     */
+    private function linearMathUnitsAllInGroup(array $linear, string $group): bool
+    {
+        $units = $this->nonZeroLinearCalcUnits($linear);
+        if ($units === []) {
+            return true;
+        }
+
+        foreach ($units as $unit) {
+            $comparison = $this->mathComparison($linear['terms'][$unit], $unit);
+            if ($comparison === null || $comparison['group'] !== $group) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function serializeTransformCanonicalLength(float $px): string
+    {
+        return $this->serializeMathNumberWithUnit($px, 'px');
+    }
+
+    private function serializeTransformDegrees(float $degrees, bool $keepZeroUnit): string
+    {
+        $rounded = round($degrees);
+        if (abs($degrees - $rounded) < 0.0001) {
+            $degrees = (float) $rounded;
+        }
+
+        if (abs($degrees) < 0.0000001) {
+            return $keepZeroUnit ? '0deg' : '0';
+        }
+
+        return $this->minifyNumber($degrees) . 'deg';
     }
 
     private function isTransformZeroLength(string $value): bool

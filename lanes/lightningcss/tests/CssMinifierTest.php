@@ -345,6 +345,130 @@ CSS;
         $t->same('.foo{transform:scale(.333333)}', $minifier->minify('.foo { transform: scale(calc(100% / 3)) }'));
         $t->same('.foo{-webkit-transform:scale(.3)}', $minifier->minify('.foo { -webkit-transform: scale(calc(10% + 20%)) }'));
     },
+    'css minifier maps upstream transform rotate skew matrix normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{transform:rotate(20deg)}', $minifier->minify('.foo { transform: rotate(20deg) }'));
+        $t->same('.foo{transform:rotateX(20deg)}', $minifier->minify('.foo { transform: rotateX(20deg) }'));
+        $t->same('.foo{transform:rotateY(20deg)}', $minifier->minify('.foo { transform: rotateY(20deg) }'));
+        $t->same('.foo{transform:rotate(20deg)}', $minifier->minify('.foo { transform: rotateZ(20deg) }'));
+        $t->same('.foo{transform:rotate(360deg)}', $minifier->minify('.foo { transform: rotate(360deg) }'));
+        $t->same('.foo{transform:rotate3d(2,3,4,20deg)}', $minifier->minify('.foo { transform: rotate3d(2, 3, 4, 20deg) }'));
+        $t->same('.foo{transform:rotateX(20deg)}', $minifier->minify('.foo { transform: rotate3d(1, 0, 0, 20deg) }'));
+        $t->same('.foo{transform:rotateY(20deg)}', $minifier->minify('.foo { transform: rotate3d(0, 1, 0, 20deg) }'));
+        $t->same('.foo{transform:rotate(20deg)}', $minifier->minify('.foo { transform: rotate3d(0, 0, 1, 20deg) }'));
+        $t->same('.foo{transform:rotate(405deg)}', $minifier->minify('.foo { transform: rotate(405deg) }'));
+        $t->same('.foo{transform:rotateX(405deg)}', $minifier->minify('.foo { transform: rotateX(405deg) }'));
+        $t->same('.foo{transform:rotateY(405deg)}', $minifier->minify('.foo { transform: rotateY(405deg) }'));
+        $t->same('.foo{transform:rotate(-200deg)}', $minifier->minify('.foo { transform: rotate(-200deg) }'));
+        $t->same('.foo{transform:rotate(0)}', $minifier->minify('.foo { transform: rotate(0) }'));
+        $t->same('.foo{transform:rotate(0)}', $minifier->minify('.foo { transform: rotate(0deg) }'));
+        $t->same('.foo{transform:rotateX(-200deg)}', $minifier->minify('.foo { transform: rotateX(-200deg) }'));
+        $t->same('.foo{transform:rotateY(-200deg)}', $minifier->minify('.foo { transform: rotateY(-200deg) }'));
+        $t->same('.foo{transform:rotate3d(1,1,0,-200deg)}', $minifier->minify('.foo { transform: rotate3d(1, 1, 0, -200deg) }'));
+        $t->same('.foo{transform:skew(20deg)}', $minifier->minify('.foo { transform: skew(20deg) }'));
+        $t->same('.foo{transform:skew(20deg)}', $minifier->minify('.foo { transform: skew(20deg, 0deg) }'));
+        $t->same('.foo{transform:skewY(20deg)}', $minifier->minify('.foo { transform: skew(0deg, 20deg) }'));
+        $t->same('.foo{transform:skew(20deg)}', $minifier->minify('.foo { transform: skewX(20deg) }'));
+        $t->same('.foo{transform:skewY(20deg)}', $minifier->minify('.foo { transform: skewY(20deg) }'));
+        $t->same('.foo{transform:perspective(10px)}', $minifier->minify('.foo { transform: perspective(10px) }'));
+        $t->same('.foo{transform:matrix(1,2,-1,1,80,80)}', $minifier->minify('.foo { transform: matrix(1, 2, -1, 1, 80, 80) }'));
+        $t->same(
+            '.foo{transform:matrix3d(1,0,0,0,0,1,6,0,0,0,1,0,50,100,0,1.1)}',
+            $minifier->minify('.foo { transform: matrix3d(1, 0, 0, 0, 0, 1, 6, 0, 0, 0, 1, 0, 50, 100, 0, 1.1) }')
+        );
+        $t->same(
+            '.foo{transform:translate(100px,200px)rotate(45deg)}',
+            $minifier->minify('.foo{transform:translate(100px,200px) rotate(45deg)}')
+        );
+        $t->same(
+            '.foo{transform:rotate3d(1,1,1,45deg)translate3d(100px,100px,10px)}',
+            $minifier->minify('.foo{transform:rotate3d(1, 1, 1, 45deg) translate3d(100px, 100px, 10px)}')
+        );
+        $t->same('.foo{transform:translate(242px)}', $minifier->minify('.foo{transform:translateX(calc(2in + 50px))}'));
+        $t->same('.foo{transform:translate(50%)}', $minifier->minify('.foo{transform:translateX(50%)}'));
+        $t->same(
+            '.foo{transform:translate(calc(50% - 80px))}',
+            $minifier->minify('.foo{transform:translateX(calc(50% - 100px + 20px))}')
+        );
+        $t->same('.foo{transform:rotate(30deg)}', $minifier->minify('.foo{transform:rotate(calc(10deg + 20deg))}'));
+        $t->same('.foo{transform:rotate(30deg)}', $minifier->minify('.foo{transform:rotate(calc(10deg + 0.349066rad))}'));
+        $t->same('.foo{transform:rotate(550deg)}', $minifier->minify('.foo{transform:rotate(calc(10deg + 1.5turn))}'));
+        $t->same('.foo{transform:rotate(20deg)}', $minifier->minify('.foo{transform:rotate(calc(10deg * 2))}'));
+        $t->same('.foo{transform:rotate(-20deg)}', $minifier->minify('.foo{transform:rotate(calc(-10deg * 2))}'));
+        $t->same(
+            '.foo{transform:rotate(calc(10deg + var(--test)))}',
+            $minifier->minify('.foo{transform:rotate(calc(10deg + var(--test)))}')
+        );
+    },
+    'css minifier maps upstream transform longhand normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{translate:1px 2px 3px}', $minifier->minify('.foo { translate: 1px 2px 3px }'));
+        $t->same('.foo{translate:1px}', $minifier->minify('.foo { translate: 1px 0px 0px }'));
+        $t->same('.foo{translate:1px 2px}', $minifier->minify('.foo { translate: 1px 2px 0px }'));
+        $t->same('.foo{translate:1px 0 2px}', $minifier->minify('.foo { translate: 1px 0px 2px }'));
+        $t->same('.foo{translate:none}', $minifier->minify('.foo { translate: none }'));
+
+        $t->same('.foo{rotate:none}', $minifier->minify('.foo { rotate: none }'));
+        $t->same('.foo{rotate:0deg}', $minifier->minify('.foo { rotate: 0deg }'));
+        $t->same('.foo{rotate:0deg}', $minifier->minify('.foo { rotate: -0deg }'));
+        $t->same('.foo{rotate:10deg}', $minifier->minify('.foo { rotate: 10deg }'));
+        $t->same('.foo{rotate:10deg}', $minifier->minify('.foo { rotate: z 10deg }'));
+        $t->same('.foo{rotate:10deg}', $minifier->minify('.foo { rotate: 0 0 1 10deg }'));
+        $t->same('.foo{rotate:x 10deg}', $minifier->minify('.foo { rotate: x 10deg }'));
+        $t->same('.foo{rotate:x 10deg}', $minifier->minify('.foo { rotate: 1 0 0 10deg }'));
+        $t->same('.foo{rotate:x 10deg}', $minifier->minify('.foo { rotate: 2 0 0 10deg }'));
+        $t->same('.foo{rotate:y 10deg}', $minifier->minify('.foo { rotate: 0 2 0 10deg }'));
+        $t->same('.foo{rotate:10deg}', $minifier->minify('.foo { rotate: 0 0 2 10deg }'));
+        $t->same('.foo{rotate:10deg}', $minifier->minify('.foo { rotate: 0 0 5.3 10deg }'));
+        $t->same('.foo{rotate:0deg}', $minifier->minify('.foo { rotate: 0 0 1 0deg }'));
+        $t->same('.foo{rotate:-10deg}', $minifier->minify('.foo { rotate: 10deg 0 0 -1 }'));
+        $t->same('.foo{rotate:-10deg}', $minifier->minify('.foo { rotate: 10deg 0 0 -233 }'));
+        $t->same('.foo{rotate:x 0deg}', $minifier->minify('.foo { rotate: -1 0 0 0deg }'));
+        $t->same('.foo{rotate:0deg}', $minifier->minify('.foo { rotate: 0deg 0 0 1 }'));
+        $t->same('.foo{rotate:0deg}', $minifier->minify('.foo { rotate: 0deg 0 0 -1 }'));
+        $t->same('.foo{rotate:y 10deg}', $minifier->minify('.foo { rotate: 0 1 0 10deg }'));
+        $t->same('.foo{rotate:x 0deg}', $minifier->minify('.foo { rotate: x 0rad }'));
+        $t->same('.foo{rotate:0deg}', $minifier->minify('.foo { rotate: z 0deg }'));
+        $t->same('.foo{rotate:y 10deg}', $minifier->minify('.foo { rotate: 10deg y }'));
+        $t->same('.foo{rotate:1 1 1 10deg}', $minifier->minify('.foo { rotate: 1 1 1 10deg }'));
+
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 1 }'));
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 1 1 }'));
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 1 1 1 }'));
+        $t->same('.foo{scale:none}', $minifier->minify('.foo { scale: none }'));
+        $t->same('.foo{scale:1 0}', $minifier->minify('.foo { scale: 1 0 }'));
+        $t->same('.foo{scale:1 0}', $minifier->minify('.foo { scale: 1 0 1 }'));
+        $t->same('.foo{scale:1 0 0}', $minifier->minify('.foo { scale: 1 0 0 }'));
+        $t->same('.foo{scale:.5 1 2}', $minifier->minify('.foo { scale: 50% 1 200% }'));
+        $t->same('.foo{scale:.01}', $minifier->minify('.foo { scale: 1% }'));
+        $t->same('.foo{scale:0}', $minifier->minify('.foo { scale: 0% }'));
+        $t->same('.foo{scale:0}', $minifier->minify('.foo { scale: 0.0% }'));
+        $t->same('.foo{scale:0}', $minifier->minify('.foo { scale: -0% }'));
+        $t->same('.foo{scale:0}', $minifier->minify('.foo { scale: -0 }'));
+        $t->same('.foo{scale:0}', $minifier->minify('.foo { scale: -0.0 }'));
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 100% }'));
+        $t->same('.foo{scale:-1}', $minifier->minify('.foo { scale: -100% }'));
+        $t->same('.foo{scale:.68}', $minifier->minify('.foo { scale: 68% }'));
+        $t->same('.foo{scale:.0596}', $minifier->minify('.foo { scale: 5.96% }'));
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 100% 100% }'));
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 100% 100% 1 }'));
+        $t->same('.foo{scale:-1}', $minifier->minify('.foo { scale: -100% -100% }'));
+        $t->same('.foo{scale:-1}', $minifier->minify('.foo { scale: -100% -100% 1 }'));
+        $t->same('.foo{scale:1 2}', $minifier->minify('.foo { scale: 100% 200% }'));
+        $t->same('.foo{scale:1 2}', $minifier->minify('.foo { scale: 100% 200% 1 }'));
+        $t->same('.foo{scale:1 1 0}', $minifier->minify('.foo { scale: 100% 100% 0% }'));
+        $t->same('.foo{scale:1}', $minifier->minify('.foo { scale: 100% 100% 100% }'));
+        $t->same('.foo{scale:0 0 0}', $minifier->minify('.foo { scale: -0% -0% -0% }'));
+        $t->same('.foo{scale:2 1}', $minifier->minify('.foo { scale: 2 100% }'));
+        $t->same('.foo{scale:2 -.5}', $minifier->minify('.foo { scale: 2 -50% }'));
+        $t->same('.foo{scale:-.9 -1}', $minifier->minify('.foo { scale: -90% -1 }'));
+        $t->same('.foo{scale:.3}', $minifier->minify('.foo { scale: calc(10% + 20%) }'));
+        $t->same('.foo{scale:1 2}', $minifier->minify('.foo { scale: calc(150% - 50%) 200% }'));
+        $t->same('.foo{scale:2 -.3}', $minifier->minify('.foo { scale: 200% calc(50% - 80%) }'));
+        $t->same('.foo{scale:.333333}', $minifier->minify('.foo { scale: calc(100% / 3) }'));
+    },
     'css minifier maps upstream animation longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -987,6 +1111,20 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-lift:hover{transform:translateY(12px)scaleY(1.05)}.wp-block-cover.is-style-lift:active{transform:translate(12px)scale(1)}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress gallery transform rotate and longhands minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-gallery.is-style-tilt .wp-block-image {
+  transform: translateX(calc(2in + 50px)) rotate3d(0, 1, 0, 15deg) skew(0deg, 3deg);
+  rotate: 10deg 0 0 -1;
+  scale: 100% 105% 1;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-gallery.is-style-tilt .wp-block-image{transform:translate(242px)rotateY(15deg)skewY(3deg);rotate:-10deg;scale:1 1.05}',
             (new CssMinifier())->minify($css)
         );
     },
