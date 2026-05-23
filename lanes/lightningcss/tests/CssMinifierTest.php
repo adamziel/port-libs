@@ -102,6 +102,22 @@ return [
         $t->same('.foo{color-scheme:foo bar light}', $minifier->minify('.foo { color-scheme: foo bar light; }'));
         $t->same('.foo{color-scheme:only foo dark bar}', $minifier->minify('.foo { color-scheme: only foo dark bar; }'));
     },
+    'css minifier maps upstream light-dark color function minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{color:light-dark(#ff0,red)}',
+            $minifier->minify('.foo { color: light-dark(yellow, red); }')
+        );
+        $t->same(
+            '.foo{color:light-dark(#ff0,red)}',
+            $minifier->minify('.foo { color: light-dark(light-dark(yellow, red), light-dark(yellow, red)); }')
+        );
+        $t->same(
+            '.foo{color:light-dark(#00f,#40bf40)}',
+            $minifier->minify('.foo { color: light-dark(rgb(0, 0, 255), hsl(120deg, 50%, 50%)); }')
+        );
+    },
     'css minifier maps upstream font-family string serialization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

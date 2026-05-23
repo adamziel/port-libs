@@ -168,6 +168,7 @@ final class TransitionPrefixer
 
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
+        $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -191,7 +192,8 @@ final class TransitionPrefixer
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $clampChanged || $colorChanged) {
+        $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
+        if ($transitionChanged || $colorSchemeChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -541,6 +543,8 @@ final class TransitionPrefixer
             'imageSetNeedsWebkit' => $chrome !== null && $chrome <= 95.0 && !isset($normalized['ie']),
             'imageSetNeedsUrlFallback' => isset($normalized['ie']),
             'clampNeedsMaxMinFallback' => $safari !== null && $safari <= 12.0,
+            'lightDarkNeedsFallback' => ($chrome !== null && $chrome < 123.0)
+                || ($safari !== null && $safari < 17.5),
         ];
     }
 
@@ -676,6 +680,175 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteColorSchemeFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        if (!($targetOptions['lightDarkNeedsFallback'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || $entry['property'] !== 'color-scheme') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $tokens = array_map('strtolower', $this->splitWhitespaceTopLevel($entry['value']));
+            $unknown = array_diff($tokens, ['light', 'dark', 'only']);
+            if ($unknown !== [] || (!in_array('light', $tokens, true) && !in_array('dark', $tokens, true))) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $hasLight = in_array('light', $tokens, true);
+            $hasDark = in_array('dark', $tokens, true);
+            if ($hasLight && $hasDark) {
+                $rewritten[] = $this->declarationEntry('--lightningcss-light', 'initial');
+                $rewritten[] = $this->declarationEntry('--lightningcss-dark', '');
+                $supportRules[] = '@media (prefers-color-scheme:dark){'
+                    . $selectors
+                    . '{--lightningcss-light:;--lightningcss-dark:initial}}';
+                $changed = true;
+            } elseif ($hasLight) {
+                $rewritten[] = $this->declarationEntry('--lightningcss-light', 'initial');
+                $rewritten[] = $this->declarationEntry('--lightningcss-dark', '');
+                $changed = true;
+            } else {
+                $rewritten[] = $this->declarationEntry('--lightningcss-light', '');
+                $rewritten[] = $this->declarationEntry('--lightningcss-dark', 'initial');
+                $changed = true;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteLightDarkFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['lightDarkNeedsFallback'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || stripos($entry['value'], 'light-dark(') === false) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $srgbFallback = $this->rewriteLightDarkFallbackValue(
+                $entry['value'],
+                fn (string $arm): string => $this->advancedColorFallbackValue($arm) ?? $arm
+            );
+            if ($srgbFallback === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
+            $labFallback = $this->rewriteLightDarkFallbackValue(
+                $entry['value'],
+                fn (string $arm): string => $this->advancedColorLabTargetValue($arm)
+                    ?? $this->advancedColorLabFallbackValue($arm, true)
+                    ?? $arm
+            );
+            if ($labFallback !== null && $labFallback !== $srgbFallback) {
+                $rewritten[] = $this->entryWithValue($entry, $labFallback);
+            }
+
+            $changed = true;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param callable(string): string $armMapper
+     */
+    private function rewriteLightDarkFallbackValue(string $value, callable $armMapper): ?string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $matched = false;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($parenDepth === 0 && $this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($value, $i);
+                $next = $value[$i + strlen($identifier)] ?? '';
+                if (strtolower($identifier) === 'light-dark' && $next === '(') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $arguments = substr($function, strlen($identifier) + 1, -1);
+                    $parts = $this->splitTopLevel($arguments, ',');
+                    if (count($parts) !== 2) {
+                        $output .= $function;
+                        $i = $offset;
+                        continue;
+                    }
+
+                    $output .= 'var(--lightningcss-light,' . $armMapper($parts[0]) . ') '
+                        . 'var(--lightningcss-dark,' . $armMapper($parts[1]) . ')';
+                    $matched = true;
+                    $i = $offset;
+                    continue;
+                }
+
+                $output .= $identifier;
+                $i += strlen($identifier) - 1;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            }
+
+            $output .= $char;
+        }
+
+        return $matched ? $output : null;
     }
 
     /**
@@ -3544,6 +3717,22 @@ final class TransitionPrefixer
         }
 
         return $tokens;
+    }
+
+    private function readIdentifier(string $value, int $start): string
+    {
+        $length = strlen($value);
+        $end = $start;
+        while ($end < $length && $this->isIdentifierChar($value[$end])) {
+            $end++;
+        }
+
+        return substr($value, $start, $end - $start);
+    }
+
+    private function isIdentifierStart(string $char): bool
+    {
+        return preg_match('/[-_a-zA-Z]/', $char) === 1;
     }
 
     private function isIdentifierChar(string $char): bool

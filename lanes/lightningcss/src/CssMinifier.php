@@ -1897,9 +1897,66 @@ final class CssMinifier
         $value = $this->minifyBoxLengthListValue($property, $value);
         if (!str_starts_with($property, '--') && !$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
+            $value = $this->minifyLightDarkFunctions($value);
         }
 
         return $value;
+    }
+
+    private function minifyLightDarkFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if (!$this->isIdentifierStart($char)) {
+                $output .= $char;
+                continue;
+            }
+
+            $identifier = $this->readIdentifier($value, $i);
+            if (strtolower($identifier) !== 'light-dark' || ($value[$i + strlen($identifier)] ?? '') !== '(') {
+                $output .= $identifier;
+                $i += strlen($identifier) - 1;
+                continue;
+            }
+
+            [$function, $offset] = $this->readFunctionRaw($value, $i);
+            $arguments = substr($function, strlen($identifier) + 1, -1);
+            $parts = $this->splitTopLevel($arguments, ',');
+            if (count($parts) !== 2) {
+                $output .= $function;
+                $i = $offset;
+                continue;
+            }
+
+            $light = $this->minifyLightDarkFunctions($parts[0]);
+            $dark = $this->minifyLightDarkFunctions($parts[1]);
+            $output .= $light === $dark ? $light : 'light-dark(' . $light . ',' . $dark . ')';
+            $i = $offset;
+        }
+
+        return $output;
     }
 
     private function minifyColorSchemeValue(string $property, string $value): string
