@@ -8,6 +8,7 @@ final class BlobMerge
 {
     public const STYLE_MERGE = 'merge';
     public const STYLE_DIFF3 = 'diff3';
+    public const STYLE_ZEALOUS_DIFF3 = 'zealous-diff3';
     public const STYLE_UNION = 'union';
     public const STYLE_OURS = 'ours';
     public const STYLE_THEIRS = 'theirs';
@@ -25,7 +26,7 @@ final class BlobMerge
         string $theirsLabel = 'theirs',
         int $markerSize = 7,
     ): BlobMergeResult {
-        if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3, self::STYLE_UNION, self::STYLE_OURS, self::STYLE_THEIRS], true)) {
+        if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3, self::STYLE_ZEALOUS_DIFF3, self::STYLE_UNION, self::STYLE_OURS, self::STYLE_THEIRS], true)) {
             throw new \InvalidArgumentException("Unsupported text merge style: {$style}");
         }
         if ($markerSize < 1) {
@@ -88,9 +89,10 @@ final class BlobMerge
             $start = min($ourHunk['start'], $theirHunk['start']);
             $end = max($ourHunk['end'], $theirHunk['end']);
             self::appendBase($merged, $baseLines, $basePosition, $start);
+            $ourLines = self::applyHunksInRange($baseLines, [$ourHunk], $start, $end);
+            $theirLines = self::applyHunksInRange($baseLines, [$theirHunk], $start, $end);
             if ($style === self::STYLE_OURS || $style === self::STYLE_THEIRS) {
-                $chosenHunk = $style === self::STYLE_OURS ? $ourHunk : $theirHunk;
-                array_push($merged, ...self::applyHunksInRange($baseLines, [$chosenHunk], $start, $end));
+                array_push($merged, ...($style === self::STYLE_OURS ? $ourLines : $theirLines));
                 $basePosition = $end;
                 $ourIndex++;
                 $theirIndex++;
@@ -99,26 +101,54 @@ final class BlobMerge
             }
 
             if ($style === self::STYLE_UNION) {
-                $ourLines = self::applyHunksInRange($baseLines, [$ourHunk], $start, $end);
-                array_push($merged, ...$ourLines);
+                $contracted = self::contractCommonLines($ourLines, $theirLines);
+                array_push($merged, ...$contracted['prefix'], ...$contracted['left']);
                 self::assureEndsWithNewline($merged, $newline);
-                array_push($merged, ...self::applyHunksInRange($baseLines, [$theirHunk], $start, $end));
+                array_push($merged, ...$contracted['right']);
+                if ($contracted['suffix'] !== []) {
+                    self::assureEndsWithNewline($merged, $newline);
+                    array_push($merged, ...$contracted['suffix']);
+                }
                 $basePosition = $end;
                 $ourIndex++;
                 $theirIndex++;
-                $autoResolvedConflicts++;
+                if ($contracted['left'] !== [] || $contracted['right'] !== []) {
+                    $autoResolvedConflicts++;
+                }
                 continue;
             }
 
+            if ($style === self::STYLE_MERGE || $style === self::STYLE_ZEALOUS_DIFF3) {
+                $contracted = self::contractCommonLines($ourLines, $theirLines);
+                array_push($merged, ...$contracted['prefix']);
+                $ourConflictLines = $contracted['left'];
+                $theirConflictLines = $contracted['right'];
+                $suffixLines = $contracted['suffix'];
+            } else {
+                $ourConflictLines = $ourLines;
+                $theirConflictLines = $theirLines;
+                $suffixLines = [];
+            }
+
+            if ($ourConflictLines === [] && $theirConflictLines === []) {
+                array_push($merged, ...$suffixLines);
+                $basePosition = $end;
+                $ourIndex++;
+                $theirIndex++;
+                continue;
+            }
+
+            self::assureEndsWithNewline($merged, $newline);
             $merged[] = str_repeat('<', $markerSize) . ' ' . $oursLabel . $newline;
-            array_push($merged, ...self::applyHunksInRange($baseLines, [$ourHunk], $start, $end));
-            if ($style === self::STYLE_DIFF3) {
+            array_push($merged, ...$ourConflictLines);
+            if ($style === self::STYLE_DIFF3 || $style === self::STYLE_ZEALOUS_DIFF3) {
                 $merged[] = str_repeat('|', $markerSize) . ' ' . $baseLabel . $newline;
                 self::appendBase($merged, $baseLines, $start, $end);
             }
             $merged[] = str_repeat('=', $markerSize) . $newline;
-            array_push($merged, ...self::applyHunksInRange($baseLines, [$theirHunk], $start, $end));
+            array_push($merged, ...$theirConflictLines);
             $merged[] = str_repeat('>', $markerSize) . ' ' . $theirsLabel . $newline;
+            array_push($merged, ...$suffixLines);
             $basePosition = $end;
             $ourIndex++;
             $theirIndex++;
@@ -134,6 +164,38 @@ final class BlobMerge
         };
 
         return new BlobMergeResult(implode('', $merged), $resolution, $conflicts);
+    }
+
+    /**
+     * @param list<string> $left
+     * @param list<string> $right
+     * @return array{prefix:list<string>,left:list<string>,right:list<string>,suffix:list<string>}
+     */
+    private static function contractCommonLines(array $left, array $right): array
+    {
+        $prefixLength = 0;
+        $maxPrefix = min(count($left), count($right));
+        while ($prefixLength < $maxPrefix && $left[$prefixLength] === $right[$prefixLength]) {
+            $prefixLength++;
+        }
+
+        $leftEnd = count($left);
+        $rightEnd = count($right);
+        $suffix = [];
+        while ($leftEnd > $prefixLength
+            && $rightEnd > $prefixLength
+            && $left[$leftEnd - 1] === $right[$rightEnd - 1]) {
+            array_unshift($suffix, $left[$leftEnd - 1]);
+            $leftEnd--;
+            $rightEnd--;
+        }
+
+        return [
+            'prefix' => array_slice($left, 0, $prefixLength),
+            'left' => array_slice($left, $prefixLength, $leftEnd - $prefixLength),
+            'right' => array_slice($right, $prefixLength, $rightEnd - $prefixLength),
+            'suffix' => $suffix,
+        ];
     }
 
     public static function mergeBinary(string $base, string $ours, string $theirs, ?string $resolveWith = null): BlobMergeResult

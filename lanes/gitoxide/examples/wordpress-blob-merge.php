@@ -21,6 +21,15 @@ $unionNotes = BlobMerge::mergeText(
     $fixture['blockNotes']['theirs'],
     BlobMerge::STYLE_UNION,
 );
+$zealousTheme = BlobMerge::mergeText(
+    $fixture['themeSharedDecision']['base'],
+    $fixture['themeSharedDecision']['ours'],
+    $fixture['themeSharedDecision']['theirs'],
+    BlobMerge::STYLE_ZEALOUS_DIFF3,
+    'base/theme.json',
+    'ours/theme.json',
+    'theirs/theme.json',
+);
 $theme = BlobMerge::mergeText(
     $fixture['theme']['base'],
     $fixture['theme']['ours'],
@@ -37,5 +46,7 @@ echo 'deployment-choice=' . $deploymentChoice->resolution . "\n";
 echo 'deployment-layout=' . trim($deploymentChoice->content) . "\n";
 echo 'union-notes=' . $unionNotes->resolution . "\n";
 echo 'union-notes-content=' . str_replace("\n", '|', $unionNotes->content) . "\n";
+echo 'zealous-theme=' . $zealousTheme->resolution . "\n";
+echo 'zealous-theme-content=' . str_replace("\n", '|', trim($zealousTheme->content)) . "\n";
 echo 'theme=' . $theme->resolution . "\n";
 echo 'theme-conflicts=' . $theme->conflictCount . "\n";

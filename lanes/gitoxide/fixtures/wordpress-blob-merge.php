@@ -20,6 +20,12 @@ return [
         'theirs' => 'stabilize/navigation + site_logo',
         'expectedUnion' => "stabilize/navigation + wp_search\nstabilize/navigation + site_logo",
     ],
+    'themeSharedDecision' => [
+        'base' => "layout: content\ncolor: base\nspacing: normal\n",
+        'ours' => "layout: wide\ncolor: blue\nspacing: fluid\n",
+        'theirs' => "layout: wide\ncolor: green\nspacing: fluid\n",
+        'expectedZealousDiff3' => "layout: wide\n<<<<<<< ours/theme.json\ncolor: blue\n||||||| base/theme.json\nlayout: content\ncolor: base\nspacing: normal\n=======\ncolor: green\n>>>>>>> theirs/theme.json\nspacing: fluid\n",
+    ],
     'theme' => [
         'base' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"base\"\n  }\n}\n",
         'ours' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"blue\"\n  }\n}\n",

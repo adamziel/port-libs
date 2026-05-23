@@ -85,6 +85,23 @@ return [
         $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $result->resolution);
         $t->same("A\nB\n1\n2\n3\n4\n5\n6\n7\n", $result->content);
     },
+    'text merge zealously contracts shared changed edges like upstream text driver' => static function (TestRunner $t): void {
+        $base = "layout: content\ncolor: base\nspacing: normal\n";
+        $ours = "layout: wide\ncolor: blue\nspacing: fluid\n";
+        $theirs = "layout: wide\ncolor: green\nspacing: fluid\n";
+
+        $merge = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_MERGE, 'base', 'ours', 'theirs');
+        $diff3 = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_DIFF3, 'base', 'ours', 'theirs');
+        $zealous = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_ZEALOUS_DIFF3, 'base', 'ours', 'theirs');
+        $union = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_UNION, 'base', 'ours', 'theirs');
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $merge->resolution);
+        $t->same("layout: wide\n<<<<<<< ours\ncolor: blue\n=======\ncolor: green\n>>>>>>> theirs\nspacing: fluid\n", $merge->content);
+        $t->same("<<<<<<< ours\nlayout: wide\ncolor: blue\nspacing: fluid\n||||||| base\nlayout: content\ncolor: base\nspacing: normal\n=======\nlayout: wide\ncolor: green\nspacing: fluid\n>>>>>>> theirs\n", $diff3->content);
+        $t->same("layout: wide\n<<<<<<< ours\ncolor: blue\n||||||| base\nlayout: content\ncolor: base\nspacing: normal\n=======\ncolor: green\n>>>>>>> theirs\nspacing: fluid\n", $zealous->content);
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $union->resolution);
+        $t->same("layout: wide\ncolor: blue\ncolor: green\nspacing: fluid\n", $union->content);
+    },
     'text merge auto resolves conflicts with ours theirs and newline-separated union' => static function (TestRunner $t): void {
         $ours = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_OURS);
         $theirs = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_THEIRS);
@@ -128,6 +145,15 @@ return [
             $fixture['blockNotes']['theirs'],
             BlobMerge::STYLE_UNION,
         );
+        $zealous = BlobMerge::mergeText(
+            $fixture['themeSharedDecision']['base'],
+            $fixture['themeSharedDecision']['ours'],
+            $fixture['themeSharedDecision']['theirs'],
+            BlobMerge::STYLE_ZEALOUS_DIFF3,
+            'base/theme.json',
+            'ours/theme.json',
+            'theirs/theme.json',
+        );
         $theme = BlobMerge::mergeText(
             $fixture['theme']['base'],
             $fixture['theme']['ours'],
@@ -145,6 +171,8 @@ return [
         $t->same($fixture['themeDecision']['ours'], $deploymentChoice->content);
         $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $unionNotes->resolution);
         $t->same($fixture['blockNotes']['expectedUnion'], $unionNotes->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $zealous->resolution);
+        $t->same($fixture['themeSharedDecision']['expectedZealousDiff3'], $zealous->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $theme->resolution);
         $t->contains('||||||| base/theme.json', $theme->content);
     },
