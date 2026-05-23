@@ -220,6 +220,8 @@ The `../examples/wordpress-onedrive-listp-cache-metadata-preflight.php` scenario
 
 The `../examples/wordpress-onedrive-permissions-metadata-preflight.php` scenario maps OneDrive metadata-permissions read modes for migration review manifests. It materializes OneDrive permission JSON for a review WXR export when read mode is enabled, suppresses permission metadata for a private draft when permissions are off, and defers a permission serialization failure until metadata is requested, all without OAuth or live provider credentials.
 
+The `../examples/wordpress-onedrive-permission-write-plan.php` scenario maps OneDrive metadata-permissions write planning for migration review handoffs. It upgrades a direct reviewer permission on a WXR export, replaces a Business sharing-link permission through the upstream remove-plus-add workaround, removes a stale contractor permission, preserves the owner role that Graph cannot remove, and records `failok` suppression for a simulated Graph invite error without OAuth or live provider credentials.
+
 ## Next Task
 
-Map OneDrive permission write/update/remove planning more deeply, including add-only copy behavior, owner-role removal suppression, and failok error aggregation.
+Map OneDrive permission write execution refresh and directory metadata flows, including RefreshPermissions result materialization after add/update/remove and MkdirMetadata/updateDir permission call sequencing.
