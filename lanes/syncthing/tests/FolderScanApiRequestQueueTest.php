@@ -134,6 +134,45 @@ return [
             syncthing_folder_scan_queue_rm($root);
         }
     },
+    'scan API request queue keeps distinct next delays and resets scheduled status on completion' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_queue_root();
+        try {
+            syncthing_folder_scan_queue_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder(
+                'wordpress-media',
+                new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore()),
+            );
+            $queue = new FolderScanApiRequestQueue(new FolderScanApiCoordinator($scheduler), maxPending: 4, maxCompleted: 4);
+
+            $first = $queue->enqueue(['folder' => 'wordpress-media', 'next' => '60'], now: 1300);
+            $duplicate = $queue->enqueue(['folder' => 'wordpress-media', 'delay' => 60], now: 1301);
+            $second = $queue->enqueue(['folder' => 'wordpress-media', 'nextSeconds' => 120], now: 1302);
+
+            $t->same(FolderScanApiRequestQueue::HTTP_ACCEPTED, $first->statusCode);
+            $t->same('coalesced', $duplicate->body['status']);
+            $t->same(1, $duplicate->body['requestId']);
+            $t->same(FolderScanApiRequestQueue::HTTP_ACCEPTED, $second->statusCode);
+            $t->same(2, $second->body['requestId']);
+            $t->same(2, $queue->toRestStatus()['pendingCount']);
+            $t->same(60, $queue->toRestStatus()['pending'][0]['request']['nextSeconds']);
+            $t->same(120, $queue->toRestStatus()['pending'][1]['request']['nextSeconds']);
+
+            $finishedFirst = $queue->runNext(1310);
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $finishedFirst?->statusCode);
+            $t->same(60, $finishedFirst?->body['request']['request']['nextSeconds']);
+            $t->same(1370, $scheduler->scheduledScanStatus('wordpress-media', 1310)['scheduledAt'] ?? null);
+            $t->same(60, $scheduler->scheduledScanStatus('wordpress-media', 1310)['remainingSeconds'] ?? null);
+
+            $finishedSecond = $queue->runNext(1320);
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $finishedSecond?->statusCode);
+            $t->same(120, $finishedSecond?->body['request']['request']['nextSeconds']);
+            $t->same(1440, $scheduler->scheduledScanStatus('wordpress-media', 1320)['scheduledAt'] ?? null);
+            $t->same(2, $queue->toRestStatus()['completedCount']);
+        } finally {
+            syncthing_folder_scan_queue_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_scan_queue_root(): string

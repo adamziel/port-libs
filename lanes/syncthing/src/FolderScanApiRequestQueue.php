@@ -236,6 +236,7 @@ final class FolderScanApiRequestQueue
                 'folders' => $record['request']['folders'],
                 'hashBlocks' => $record['request']['hashBlocks'],
                 'blockSize' => $record['request']['blockSize'],
+                'nextSeconds' => $record['request']['nextSeconds'],
             ],
             'enqueuedAt' => $record['enqueuedAt'],
             'lastEnqueuedAt' => $record['lastEnqueuedAt'],
@@ -252,7 +253,7 @@ final class FolderScanApiRequestQueue
     }
 
     /**
-     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int} $request
+     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int, nextSeconds:?int} $request
      */
     private static function requestKey(array $request): string
     {
@@ -269,11 +270,12 @@ final class FolderScanApiRequestQueue
             'folders' => $folders,
             'hashBlocks' => $request['hashBlocks'],
             'blockSize' => $request['blockSize'],
+            'nextSeconds' => $request['nextSeconds'],
         ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
     /**
-     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int} $request
+     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int, nextSeconds:?int} $request
      * @return array<string, mixed>
      */
     private static function payloadFromRequest(array $request): array
@@ -285,6 +287,9 @@ final class FolderScanApiRequestQueue
 
         if (!$request['allFolders']) {
             $payload['folders'] = $request['folders'];
+        }
+        if ($request['nextSeconds'] !== null) {
+            $payload['next'] = $request['nextSeconds'];
         }
 
         return $payload;

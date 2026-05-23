@@ -130,6 +130,50 @@ return [
             syncthing_folder_scan_api_rm($root);
         }
     },
+    'scan API accepts upstream next delay and exposes scheduled scan status' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_api_root();
+        try {
+            syncthing_folder_scan_api_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore(), ttlSeconds: 60);
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $api = new FolderScanApiCoordinator($scheduler);
+
+            $response = $api->postDbScan([
+                'folder' => 'wordpress-media',
+                'sub' => 'wp-content/uploads/2026/05',
+                'hashBlocks' => true,
+                'blockSize' => 4,
+                'next' => '45',
+            ], now: 1400);
+
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $response->statusCode);
+            $t->same(45, $response->body['request']['nextSeconds']);
+            $t->same(1, $response->body['result']['folders']['wordpress-media']['revision']);
+            $t->same(1445, $response->body['scheduledScans']['wordpress-media']['scheduledAt']);
+            $t->same(45, $response->body['scheduledScans']['wordpress-media']['remainingSeconds']);
+            $t->same(false, $response->body['scheduledScans']['wordpress-media']['due']);
+            $t->same(1, $service->checkpoint(1400)?->revision);
+
+            $early = $scheduler->scanDueDelayedFolders(hashBlocks: true, blockSize: 4, now: 1444);
+            $t->same([], $early->snapshots());
+            $t->same(1, $service->checkpoint(1444)?->revision);
+
+            $due = $scheduler->scanDueDelayedFolders(hashBlocks: true, blockSize: 4, now: 1445);
+            $t->same(2, $due->snapshot('wordpress-media')?->revision);
+            $t->same(null, $scheduler->scheduledScanStatus('wordpress-media', 1445));
+
+            $invalidNext = $api->postDbScan([
+                'folder' => 'wordpress-media',
+                'next' => 'later',
+            ], now: 1450);
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $invalidNext->statusCode);
+            $t->same(null, $invalidNext->body['request']['nextSeconds']);
+            $t->same([], $invalidNext->body['scheduledScans']);
+        } finally {
+            syncthing_folder_scan_api_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_scan_api_root(): string

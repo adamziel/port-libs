@@ -76,7 +76,9 @@ final class FolderScanApiCoordinator
             );
         }
 
-        return $this->resultResponse($result, $request);
+        $scheduledScans = $this->applyNextScanDelay($result, $request, $now);
+
+        return $this->resultResponse($result, $request, $scheduledScans);
     }
 
     /**
@@ -111,7 +113,7 @@ final class FolderScanApiCoordinator
 
     /**
      * @param array<string, mixed> $payload
-     * @return array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int}
+     * @return array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int, nextSeconds:?int}
      */
     public function canonicalDbScanRequest(array $payload): array
     {
@@ -121,6 +123,7 @@ final class FolderScanApiCoordinator
 
         $hashBlocks = $this->parseBool($payload['hashBlocks'] ?? null, $this->defaultHashBlocks, 'hashBlocks');
         $blockSize = $this->parseBlockSize($payload['blockSize'] ?? null);
+        $nextSeconds = $this->parseNextSeconds($this->nextPayload($payload));
 
         if (array_key_exists('folder', $payload)) {
             if (!is_string($payload['folder'])) {
@@ -138,6 +141,7 @@ final class FolderScanApiCoordinator
                     'folders' => [],
                     'hashBlocks' => $hashBlocks,
                     'blockSize' => $blockSize,
+                    'nextSeconds' => null,
                 ];
             }
 
@@ -146,6 +150,7 @@ final class FolderScanApiCoordinator
                 'folders' => [$folder => $this->parseSubdirs($this->subdirPayload($payload))],
                 'hashBlocks' => $hashBlocks,
                 'blockSize' => $blockSize,
+                'nextSeconds' => $nextSeconds,
             ];
         }
 
@@ -155,6 +160,7 @@ final class FolderScanApiCoordinator
                 'folders' => $this->parseFolderMap($payload['folders']),
                 'hashBlocks' => $hashBlocks,
                 'blockSize' => $blockSize,
+                'nextSeconds' => $nextSeconds,
             ];
         }
 
@@ -167,6 +173,7 @@ final class FolderScanApiCoordinator
             'folders' => [],
             'hashBlocks' => $hashBlocks,
             'blockSize' => $blockSize,
+            'nextSeconds' => null,
         ];
     }
 
@@ -206,6 +213,21 @@ final class FolderScanApiCoordinator
         }
 
         return $blockSize;
+    }
+
+    private function parseNextSeconds(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^[+-]?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
     }
 
     /**
@@ -259,6 +281,19 @@ final class FolderScanApiCoordinator
         }
 
         return $keys === [] ? [] : $payload[$keys[0]];
+    }
+
+    private function nextPayload(array $payload): mixed
+    {
+        $keys = array_values(array_filter(
+            ['next', 'delay', 'nextSeconds'],
+            static fn (string $key): bool => array_key_exists($key, $payload),
+        ));
+        if (count($keys) > 1) {
+            throw new \InvalidArgumentException('Folder scan request must use only one next scan delay field');
+        }
+
+        return $keys === [] ? null : $payload[$keys[0]];
     }
 
     /**
@@ -350,9 +385,39 @@ final class FolderScanApiCoordinator
     }
 
     /**
-     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int} $request
+     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int, nextSeconds:?int} $request
+     * @return array<string, array<string, mixed>>
      */
-    private function resultResponse(FolderScanSchedulerResult $result, array $request): FolderScanApiResponse
+    private function applyNextScanDelay(FolderScanSchedulerResult $result, array $request, ?int $now): array
+    {
+        if ($request['allFolders'] || $request['nextSeconds'] === null) {
+            return [];
+        }
+
+        $delayNow = $now ?? time();
+        $scheduled = [];
+        foreach (array_keys($request['folders']) as $folderId) {
+            if ($result->snapshot($folderId) === null) {
+                continue;
+            }
+
+            if ($this->scheduler->delayScan($folderId, $request['nextSeconds'], $delayNow)) {
+                $status = $this->scheduler->scheduledScanStatus($folderId, $delayNow);
+                if ($status !== null) {
+                    $scheduled[$folderId] = $status;
+                }
+            }
+        }
+        ksort($scheduled, SORT_STRING);
+
+        return $scheduled;
+    }
+
+    /**
+     * @param array{allFolders:bool, folders:array<string, list<string>>, hashBlocks:bool, blockSize:?int, nextSeconds:?int} $request
+     * @param array<string, array<string, mixed>> $scheduledScans
+     */
+    private function resultResponse(FolderScanSchedulerResult $result, array $request, array $scheduledScans): FolderScanApiResponse
     {
         $statusCode = $this->statusCodeForResult($result);
         $status = $result->successful()
@@ -367,8 +432,10 @@ final class FolderScanApiCoordinator
                 'folders' => $request['folders'],
                 'hashBlocks' => $request['hashBlocks'],
                 'blockSize' => $request['blockSize'],
+                'nextSeconds' => $request['nextSeconds'],
             ],
             'result' => $result->toRestStatus(),
+            'scheduledScans' => $scheduledScans,
         ]));
     }
 

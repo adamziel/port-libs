@@ -1803,8 +1803,112 @@ Verification for this batch:
   `3311713`; owner evidence showed
   `3311713 claude 3311710 00:23 R php tools/run-tests.php`.
 
+## 2026-05-23 Delayed Scan Scheduling
+
+Targeted upstream evidence for this slice covered `lib/api/api.go`
+`postDBScan`, where a non-empty `folder` request scans selected subdirectories
+first and then parses `next` as seconds before calling `model.DelayScan`;
+`lib/model/model.go` `DelayScan`, which silently ignores missing folder
+runners; and `lib/model/folder.go` `DelayScan`, the `scanDelay` select case,
+and `scanTimer.Reset(next)`. A targeted search of upstream `lib/api` and
+`lib/model` tests did not find a dedicated upstream test for the `next` branch,
+so this slice is backed by static source reads plus adjacent focused runner
+evidence. Refreshed focused upstream evidence passed in the hydrated local
+worktree:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/model 0.043s`. Full
+`go test ./...` remains unexecuted for the recorded blob-filter/cache/budget
+reasons.
+
+Native PHP now maps that delayed scan timing boundary. `FolderScanScheduler`
+can record a selected folder's next scan time, expose scheduled/due status,
+clear scheduled scans when a folder is paused or removed, and publish the next
+checkpoint only when `scanDueDelayedFolders()` reaches the due time.
+`FolderScanApiCoordinator` accepts parseable `next`, `delay`, or `nextSeconds`
+payloads after successful selected-folder scans and ignores malformed delay
+values like upstream `strconv.Atoi` errors. `FolderScanApiRequestQueue` now
+keeps requests with different next timings distinct while still coalescing
+equivalent pending/running requests, and a later completed request resets the
+scheduled time. `wordpress-delayed-scan-request.php` shows a WordPress REST
+media-folder scan accepting `next`, reporting the scheduled status before it is
+due, skipping early checkpoint publication, and publishing revision 2 when the
+delayed scan becomes due.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanScheduler.php` passed.
+- `php -l lanes/syncthing/src/FolderScanApiCoordinator.php` passed.
+- `php -l lanes/syncthing/src/FolderScanApiRequestQueue.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanApiCoordinatorTest.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanApiRequestQueueTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-delayed-scan-request.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanSchedulerTest.php lanes/syncthing/tests/FolderScanApiCoordinatorTest.php lanes/syncthing/tests/FolderScanApiRequestQueueTest.php`
+  passed 3 files, 157 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-delayed-scan-request.php` ran
+  successfully and reported accepted, scheduled-before-due, before-due, and
+  due-result REST payloads.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.043s`.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 47 files, 2456
+  assertions, and 0 failures.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned active root harness PID `3356750`. Owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 3356750` showed
+  `3356750 claude 3338007 01:01 Rs php tools/run-tests.php`. No duplicate root
+  run was started; root result remains pending for the supervisor/integrator.
+
+## 2026-05-23 Filesystem Watcher Scan Scheduling
+
+Targeted upstream evidence for this slice covered `lib/model/folder.go`
+`watchChan`, `startWatch`, `monitorWatch`, `scanOnWatchErr`, and the Serve
+select case that invokes `scanSubdirs(ctx, fsEvents)` when the watcher
+aggregator emits paths. The aggregation behavior is mapped from
+`lib/watchaggregator/aggregator.go` and `aggregator_test.go`, with adjacent
+filesystem watcher boundary reads from `lib/fs/basicfs_watch.go` and
+`basicfs_watch_test.go`. Focused upstream runner evidence passed in the
+hydrated local worktree:
+`go test ./lib/watchaggregator -run '^(TestAggregate|TestInProgress|TestDelay|TestNoDelay)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/watchaggregator 7.239s`.
+Full `go test ./...` remains unexecuted for the recorded blob-filter/cache and
+budget reasons.
+
+Native PHP now maps the watcher delay boundary through
+`FolderWatchEventAggregator` and `FolderWatchScanScheduler`.
+`FolderWatchEventAggregator` records non-remove, remove, and mixed filesystem
+events, ignores exact paths that Syncthing itself is currently modifying,
+rolls crowded directories and whole-folder overflow into parent scans, delays
+repeat modifications until they settle, and releases batches in upstream
+non-remove, mixed, then remove order. `FolderWatchScanScheduler` keeps
+folder-scoped watcher status, skips paused/missing folders without consuming
+pending events, and dispatches due watcher batches through
+`FolderScanScheduler::scanFolderSubdirs()` so WordPress media checkpoints
+advance only when the watcher delay has expired. The example
+`wordpress-fs-watch-scan-scheduler.php` shows two upload events coalescing into
+one `wp-content/uploads/2026/05` subdir scan, no early checkpoint publication,
+and a completed checkpoint when the watcher batch becomes due.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchEventAggregator.php` passed.
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchEventAggregatorTest.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchEventAggregatorTest.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 2 files, 35 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported pending watcher status, before-due no-op scan
+  status, dispatched batch metadata, and a completed checkpoint.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 49 files, 2491
+  assertions, and 0 failures.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active exact root harness. `php tools/run-tests.php` then passed
+  223 files, 25545 assertions, and 0 failures.
+
 ## Next Task
 
-Map Syncthing delayed scan scheduling (`DelayScan` / next rescan timing) for
-WordPress REST scan requests, including accepted delay payloads, scheduled
-status reporting, and checkpoint interaction.
+Map Syncthing watcher restart/error recovery (`restartWatchChan`,
+`scanOnWatchErr`, and exponential watcher retry) for WordPress media volumes,
+including the immediate full-scan fallback after watcher errors and status
+payloads for delayed watcher restarts.

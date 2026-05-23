@@ -152,6 +152,49 @@ return [
             syncthing_folder_scan_scheduler_rm($contentRoot);
         }
     },
+    'delayed scan timing resets next scan and only publishes checkpoints when due' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_scheduler_root();
+        try {
+            syncthing_folder_scan_scheduler_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore(), ttlSeconds: 60);
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+
+            $t->true($scheduler->delayScan('wordpress-media', 30, 1000));
+            $t->same([
+                'folder' => 'wordpress-media',
+                'requestedAt' => 1000,
+                'delaySeconds' => 30,
+                'effectiveDelaySeconds' => 30,
+                'scheduledAt' => 1030,
+                'remainingSeconds' => 25,
+                'due' => false,
+            ], $scheduler->scheduledScanStatus('wordpress-media', 1005));
+            $t->same(['wordpress-media'], array_keys($scheduler->scheduledScanStatuses(1005)));
+            $t->same([], $scheduler->dueDelayedFolderIds(1029));
+
+            $early = $scheduler->scanDueDelayedFolders(hashBlocks: true, blockSize: 4, now: 1029);
+            $t->true($early->successful());
+            $t->same([], $early->snapshots());
+            $t->same(null, $service->checkpoint(1029));
+
+            $due = $scheduler->scanDueDelayedFolders(hashBlocks: true, blockSize: 4, now: 1030);
+            $t->true($due->successful());
+            $t->same(1, $due->snapshot('wordpress-media')?->revision);
+            $t->same(1090, $due->snapshot('wordpress-media')?->expiresAt);
+            $t->same(hash('sha256', 'abcd'), $due->snapshot('wordpress-media')?->checkpoint->currentFile('wp-content/uploads/2026/05/hero.jpg')?->blocks[0]->hashHex);
+            $t->same(null, $scheduler->scheduledScanStatus('wordpress-media', 1030));
+
+            $t->true($scheduler->delayScan('wordpress-media', -5, 1040));
+            $t->same(['wordpress-media'], $scheduler->dueDelayedFolderIds(1040));
+            $t->same(1040, $scheduler->scheduledScanStatus('wordpress-media', 1040)['scheduledAt'] ?? null);
+            $scheduler->pauseFolder('wordpress-media');
+            $t->same(null, $scheduler->scheduledScanStatus('wordpress-media', 1041));
+            $t->true(!$scheduler->delayScan('missing-folder', 10, 1041));
+        } finally {
+            syncthing_folder_scan_scheduler_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_scan_scheduler_root(): string
