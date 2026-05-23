@@ -82,6 +82,35 @@ Boundary: SQLite `all` and `release` permutations were not run in this bounded
 lane pass because they cover many build configurations and higher-cost suites.
 The stale missing `tclsh`/compiler/`make`/Tcl-header blocker is resolved.
 
+## Focused Native Mapping: Varint Encoding
+
+This slice adds the write-side counterpart to the existing SQLite varint
+decoder. It maps SQLite's core 1-through-9 byte varint format from
+`src/util.c`: values below `2^56` use 7-bit continuation groups, while values
+with any high byte set use the ninth byte as a full 8-bit tail.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick varint.test
+```
+
+Result: 2 Tcl script/permutation runs, 0 errors out of 162 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/varint.test` drives `btree_varint_test`, which repeatedly writes
+  integers through `putVarint()`, reads them with `getVarint()` and
+  `getVarint32()`, and verifies round-trip byte counts and values.
+- `src/test3.c` documents the same test harness boundary and failure modes.
+- `src/util.c` documents the canonical `A`, `BA`, ... `BBBBBBBA`,
+  `BBBBBBBBC` byte shapes used by SQLite b-tree and record payload code.
+
+The native PHP tests now cover exact byte encodings at the one-, two-, three-,
+four-, eight-, and nine-byte boundaries, PHP integer maximum round-trip
+behavior, and negative-value rejection for WordPress write/preflight helpers.
+
 ## Focused Native Mapping: Table Leaf Overflow
 
 The current PHP slice maps SQLite's table leaf overflow payload placement from

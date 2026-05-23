@@ -41,20 +41,7 @@ $makeFirstPage = static function (int $pageSize = 512, int $databaseSizePages = 
 };
 
 $varint = static function (int $value): string {
-    if ($value < 0) {
-        throw new RuntimeException('Fixture varint cannot encode negative values');
-    }
-    if ($value <= 0x7f) {
-        return chr($value);
-    }
-    $groups = [$value & 0x7f];
-    $value >>= 7;
-    while ($value > 0) {
-        array_unshift($groups, 0x80 | ($value & 0x7f));
-        $value >>= 7;
-    }
-
-    return implode('', array_map(chr(...), $groups));
+    return SQLiteVarint::encode($value);
 };
 
 $recordPayload = static function (array $values) use ($varint): string {
@@ -273,6 +260,26 @@ return [
         $t->same([127, 1], SQLiteVarint::decode("\x7f"));
         $t->same([128, 2], SQLiteVarint::decode("\x81\x00"));
         $t->same([16384, 3], SQLiteVarint::decode("\x81\x80\x00"));
+    },
+    'sqlite varints encode upstream one through nine byte boundaries' => static function (TestRunner $t): void {
+        $cases = [
+            0 => '00',
+            127 => '7f',
+            128 => '8100',
+            16383 => 'ff7f',
+            16384 => '818000',
+            0x0fffffff => 'ffffff7f',
+            0x00ffffffffffffff => 'ffffffffffffff7f',
+            PHP_INT_MAX => 'bfffffffffffffffff',
+        ];
+
+        foreach ($cases as $value => $hex) {
+            $encoded = SQLiteVarint::encode($value);
+            $t->same($hex, bin2hex($encoded), "Unexpected SQLite varint bytes for {$value}");
+            $t->same([$value, strlen($encoded)], SQLiteVarint::decode($encoded), "SQLite varint did not round-trip {$value}");
+        }
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVarint::encode(-1));
     },
     'sqlite header rejects non power of two page size' => static function (TestRunner $t): void {
         $bad = str_pad("SQLite format 3\0" . pack('n', 1000), 100, "\0");

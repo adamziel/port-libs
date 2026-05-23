@@ -4,8 +4,8 @@ SQLite fallback/read-write tooling for WordPress hosts where the SQLite extensio
 
 ## Current Native Slice
 
-Native SQLite database header parser, SQLite varint decoder, b-tree page
-header parser for schema/root pages, table leaf and table interior cell
+Native SQLite database header parser, SQLite varint decoder and encoder,
+b-tree page header parser for schema/root pages, table leaf and table interior cell
 parsing, a page-backed database reader, SQLite record serial decoding, and
 `sqlite_schema` table-b-tree traversal for WordPress table discovery. The
 current slice also decodes bounded table rows and maps the standard
@@ -238,6 +238,10 @@ example `autoload='no' AND option_value='cached-feed'` plus a transient
 `option_name` range, and still avoid unrelated or damaged branches.
 
 B-tree page freeblock chains can now be inspected directly from a page header.
+The native varint encoder now gives WordPress recovery/import tools a bounded
+write-side primitive for preflighting generated `wp_options` table-leaf cell
+payload-length and rowid prefixes before broader raw b-tree page writing is
+ported.
 WordPress recovery or import diagnostics can report reclaimed/deleted-space
 regions on the schema root or `wp_options` root page, compute SQLite-style
 free-space totals, and flag overlapping, out-of-usable-space, or impossible
