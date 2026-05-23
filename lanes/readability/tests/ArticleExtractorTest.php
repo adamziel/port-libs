@@ -3285,6 +3285,33 @@ return [
         $t->same($attributeValues($expected, '//span/@size'), $attributeValues($article->contentHtml, '//span/@size'));
         $t->same([], $attributeValues($article->contentHtml, '//font'));
     },
+    'maps Mozilla tmz-1 fixture with legacy post headline envelope' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/tmz-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(array_map($normalizedText, $attributeValues($expected, '//h4')), array_map($normalizedText, $attributeValues($article->contentHtml, '//h4')));
+        $t->same(array_map($normalizedText, $attributeValues($expected, '//h5')), array_map($normalizedText, $attributeValues($article->contentHtml, '//h5')));
+        $t->same($attributeValues($expected, '//div[@itemprop="articleBody"]/@itemprop'), $attributeValues($article->contentHtml, '//div[@itemprop="articleBody"]/@itemprop'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->contains('2/26/2015 7:11 AM PST BY TMZ STAFF', $blocks);
+        $t->contains('12:00 PM PT', $blocks);
+        $t->same(false, str_contains($blocks, '<p></p>'), 'invalid source paragraph wrappers around headings should not create empty WordPress paragraph blocks');
+        $t->same(false, str_contains($blocks, '<h2>Lupita Nyong'), 'split title prefix should be removed as duplicate title chrome');
+    },
     'normalizes legacy WordPress font tags before block output' => static function (TestRunner $t): void {
         $html = '<html><head><title>Classic Editor Font Cleanup</title></head><body><article>'
             . '<h1>Classic Editor Font Cleanup</h1>'

@@ -1693,16 +1693,20 @@ final class ArticleExtractor
 
     private function promotePublisherArticleRoot(\DOMElement $candidate): \DOMElement
     {
-        if (strtolower($candidate->tagName) !== 'section'
-            || !str_contains(strtolower($candidate->getAttribute('itemprop')), 'articlebody')) {
+        if (!$this->hasArticleBodyAttribute($candidate)) {
+            return $candidate;
+        }
+
+        $legacyEnvelope = $this->legacySinglePostEnvelope($candidate);
+        if ($legacyEnvelope instanceof \DOMElement) {
+            return $legacyEnvelope;
+        }
+
+        if (strtolower($candidate->tagName) !== 'section') {
             return $candidate;
         }
 
         for ($parent = $candidate->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
-            if (strtolower($parent->tagName) !== 'article') {
-                continue;
-            }
-
             if (trim($parent->getAttribute('id')) === 'story'
                 && $parent->getElementsByTagName('header')->length > 0) {
                 return $parent;
@@ -1714,6 +1718,75 @@ final class ArticleExtractor
         }
 
         return $candidate;
+    }
+
+    private function legacySinglePostEnvelope(\DOMElement $articleBody): ?\DOMElement
+    {
+        $parent = $articleBody->parentNode;
+        if (!$parent instanceof \DOMElement || strtolower($parent->tagName) !== 'div') {
+            return null;
+        }
+
+        if (!$this->isLegacySinglePostEnvelope($parent)) {
+            return null;
+        }
+
+        $articleBodyCount = 0;
+        foreach ($parent->getElementsByTagName('*') as $node) {
+            if ($node instanceof \DOMElement && $this->hasArticleBodyAttribute($node)) {
+                $articleBodyCount++;
+            }
+        }
+
+        if ($articleBodyCount !== 1 || mb_strlen($this->normalizeWhitespace($articleBody->textContent)) < 500) {
+            return null;
+        }
+
+        return $this->hasCompactHeadingLeadBeforeArticleBody($parent, $articleBody) ? $parent : null;
+    }
+
+    private function isLegacySinglePostEnvelope(\DOMElement $node): bool
+    {
+        if (strtolower($node->tagName) !== 'div') {
+            return false;
+        }
+
+        $matchString = strtolower($node->getAttribute('id') . ' ' . $node->getAttribute('class'));
+
+        return preg_match('/\bpost-[\w-]+\b|\bsingle-post\b/', $matchString) === 1;
+    }
+
+    private function hasCompactHeadingLeadBeforeArticleBody(\DOMElement $envelope, \DOMElement $articleBody): bool
+    {
+        $leadText = '';
+        $hasHeading = false;
+        for ($node = $envelope->firstChild; $node instanceof \DOMNode; $node = $node->nextSibling) {
+            if ($node === $articleBody || $this->nodeContains($node, $articleBody)) {
+                break;
+            }
+
+            $text = $this->normalizeWhitespace($node->textContent);
+            if ($text === '') {
+                continue;
+            }
+
+            $leadText .= ' ' . $text;
+            if ($node instanceof \DOMElement) {
+                $tagName = strtolower($node->tagName);
+                if (preg_match('/^h[1-6]$/', $tagName) === 1 || $node->getElementsByTagName('h1')->length > 0
+                    || $node->getElementsByTagName('h2')->length > 0
+                    || $node->getElementsByTagName('h3')->length > 0
+                    || $node->getElementsByTagName('h4')->length > 0
+                    || $node->getElementsByTagName('h5')->length > 0
+                    || $node->getElementsByTagName('h6')->length > 0) {
+                    $hasHeading = true;
+                }
+            }
+        }
+
+        $leadLength = mb_strlen($this->normalizeWhitespace($leadText));
+
+        return $hasHeading && $leadLength > 0 && $leadLength <= 280;
     }
 
     private function shouldPromoteDescribedArticleRoot(\DOMElement $article, \DOMElement $articleBody): bool
@@ -2305,7 +2378,10 @@ final class ArticleExtractor
     private function removeLeadingBylineActionBar(\DOMElement $scope): void
     {
         $xpath = new \DOMXPath($scope->ownerDocument);
-        $firstContent = $xpath->query('.//h1|.//h2|.//h3', $scope)?->item(0);
+        $headingQuery = $this->isLegacySinglePostEnvelope($scope)
+            ? './/h1|.//h2|.//h3|.//h4|.//h5|.//h6'
+            : './/h1|.//h2|.//h3';
+        $firstContent = $xpath->query($headingQuery, $scope)?->item(0);
         if (!$firstContent instanceof \DOMElement) {
             $firstContent = $this->firstSubstantialContentParagraph($xpath, $scope);
         }
@@ -2898,6 +2974,9 @@ final class ArticleExtractor
         $this->wrapPhrasingContentInDivs($scope);
         $this->unwrapWashingtonPostInlinePhotoParagraphs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
+        if ($this->isLegacySinglePostEnvelope($scope)) {
+            $this->unwrapHeadingParagraphWrappers($scope);
+        }
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
@@ -3719,6 +3798,30 @@ final class ArticleExtractor
         } while ($changed);
 
         return $scope;
+    }
+
+    private function unwrapHeadingParagraphWrappers(\DOMElement $scope): void
+    {
+        $paragraphs = [];
+        foreach ($scope->getElementsByTagName('p') as $paragraph) {
+            if ($paragraph instanceof \DOMElement) {
+                $paragraphs[] = $paragraph;
+            }
+        }
+
+        foreach ($paragraphs as $paragraph) {
+            $heading = $this->firstElementChild($paragraph);
+            if (!$heading instanceof \DOMElement || preg_match('/^h[1-6]$/', strtolower($heading->tagName)) !== 1) {
+                continue;
+            }
+
+            if (count($this->elementChildren($paragraph)) !== 1 || trim($this->textOutsideDescendant($paragraph, $heading)) !== '') {
+                continue;
+            }
+
+            $paragraph->removeChild($heading);
+            $paragraph->parentNode?->replaceChild($heading, $paragraph);
+        }
     }
 
     /**
