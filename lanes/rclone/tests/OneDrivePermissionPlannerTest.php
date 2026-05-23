@@ -188,6 +188,188 @@ return [
             'failed to process permissions: failed to set permissions: at least one role is required to add a permission (choices: read, write, owner, member)',
         ], $failOk['suppressedErrors']);
     },
+    'onedrive write permissions refreshes remote state and clears queued permissions' => static function (TestRunner $t): void {
+        $result = OneDrivePermissionPlanner::writePermissions(
+            [
+                [
+                    'id' => 'reviewer',
+                    'roles' => ['read'],
+                    'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']],
+                ],
+                [
+                    'id' => 'stale',
+                    'roles' => ['read'],
+                    'grantedToV2' => ['user' => ['id' => 'old-reviewer@example.com']],
+                ],
+            ],
+            [
+                [
+                    'id' => 'reviewer',
+                    'roles' => ['write'],
+                    'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']],
+                ],
+                [
+                    'roles' => ['read'],
+                    'grantedToIdentitiesV2' => [
+                        ['user' => ['id' => 'auditor@example.com']],
+                    ],
+                ],
+            ],
+            [
+                'normalizedId' => 'drive#review-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'refreshedPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['write']],
+                    ['id' => 'auditor-created', 'roles' => ['read']],
+                ],
+            ],
+        );
+
+        $t->same('drive#review-wxr', $result['normalizedId']);
+        $t->same(['remove', 'add', 'update'], array_column($result['operations'], 'action'));
+        $t->same(true, $result['refreshAttempted']);
+        $t->same(true, $result['queuedPermissionsCleared']);
+        $t->same(null, $result['error']);
+        $t->same(['reviewer', 'auditor-created'], array_column($result['permissions'], 'id'));
+    },
+    'onedrive write permissions failok suppresses process or refresh errors without clearing queued permissions' => static function (TestRunner $t): void {
+        $processError = OneDrivePermissionPlanner::writePermissions(
+            [],
+            [
+                [
+                    'roles' => ['read'],
+                    'grantedTo' => ['user' => ['id' => 'reviewer@example.com']],
+                ],
+            ],
+            [
+                'normalizedId' => 'personal#review-wxr',
+                'metadataPermissions' => 'write,failok',
+                'operationErrors' => ['add:*' => 'Graph invite throttled'],
+            ],
+        );
+
+        $refreshError = OneDrivePermissionPlanner::writePermissions(
+            [],
+            [
+                [
+                    'roles' => ['read'],
+                    'grantedTo' => ['user' => ['id' => 'reviewer@example.com']],
+                ],
+            ],
+            [
+                'normalizedId' => 'personal#review-wxr',
+                'metadataPermissions' => 'write,failok',
+                'refreshError' => 'Graph permissions denied',
+            ],
+        );
+
+        $t->same(null, $processError['error']);
+        $t->same(false, $processError['refreshAttempted']);
+        $t->same(false, $processError['queuedPermissionsCleared']);
+        $t->same([
+            'failed to process permissions: failed to set permissions: Graph invite throttled',
+        ], $processError['suppressedErrors']);
+        $t->same(null, $refreshError['error']);
+        $t->same(true, $refreshError['refreshAttempted']);
+        $t->same(false, $refreshError['queuedPermissionsCleared']);
+        $t->same([
+            'failed to get permissions: failed to refresh permissions: Graph permissions denied',
+        ], $refreshError['suppressedErrors']);
+
+        $t->throws(RuntimeException::class, static fn (): array => OneDrivePermissionPlanner::writePermissions([], [], [
+            'metadataPermissions' => 'write,failok',
+        ]));
+    },
+    'onedrive directory metadata flow maps create refresh write and system metadata order' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'exists' => false,
+                'directoryId' => 'business-drive#review-dir',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'refreshBeforePermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                ],
+                'refreshedPermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                    ['id' => 'reviewer-created', 'roles' => ['read']],
+                ],
+            ],
+        );
+
+        $t->same([
+            'find-dir:missing',
+            'find-parent',
+            'create-dir',
+            'create-dir:api-metadata',
+            'refresh-permissions-before-write',
+            'write-permissions',
+            'refresh-permissions-after-write',
+            'clear-queued-permissions',
+            'write-directory-metadata-after-create',
+            'item-to-dir-entry',
+            'set-system-metadata',
+        ], $flow['sequence']);
+        $t->same(['mtime', 'permissions'], $flow['writeableMetadata']);
+        $t->same(['mtime'], $flow['apiMetadata']);
+        $t->same(['add'], array_column($flow['permissionWrite']['operations'], 'action'));
+        $t->same(true, $flow['directoryReturned']);
+        $t->same(true, $flow['systemMetadataSet']);
+        $t->same(['owner', 'reviewer-created'], array_column($flow['permissions'], 'id'));
+    },
+    'onedrive existing directory metadata flow patches metadata before permission writes' => static function (TestRunner $t): void {
+        $permissionsOnly = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review',
+            [
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'exists' => true,
+                'directoryId' => 'business-drive#review-dir',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+            ],
+        );
+        $withMetadata = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review',
+            [
+                'btime' => '2026-05-23T09:00:00Z',
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"id":"reviewer","roles":["write"],"grantedToV2":{"user":{"id":"reviewer@example.com"}}}]',
+            ],
+            [
+                'exists' => true,
+                'directoryId' => 'business-drive#review-dir',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'currentPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']]],
+                ],
+                'refreshedPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['write']],
+                ],
+            ],
+        );
+
+        $t->same('site-backups/review: no writeable metadata found', $permissionsOnly['error']);
+        $t->same(['find-dir:exists', 'update-dir'], $permissionsOnly['sequence']);
+        $t->same([
+            'find-dir:exists',
+            'update-dir',
+            'patch-directory-metadata',
+            'write-permissions',
+            'refresh-permissions-after-write',
+            'clear-queued-permissions',
+            'item-to-dir-entry',
+            'set-system-metadata',
+        ], $withMetadata['sequence']);
+        $t->same(['btime', 'mtime', 'permissions'], $withMetadata['writeableMetadata']);
+        $t->same(['btime', 'mtime'], $withMetadata['apiMetadata']);
+        $t->same(['update'], array_column($withMetadata['permissionWrite']['operations'], 'action'));
+        $t->same(true, $withMetadata['queuedPermissionsCleared']);
+    },
     'wordpress onedrive permission write plan example keeps owner and plans review changes' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-permission-write-plan.php';
 
@@ -200,5 +382,16 @@ return [
         $t->same([
             'failed to process permissions: failed to set permissions: Graph invite throttled',
         ], $example['suppressedErrors']);
+    },
+    'wordpress onedrive directory permission refresh example records create and update sequencing' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-permission-refresh-dir-metadata.php';
+
+        $t->same('onedrive-permission-refresh-dir-metadata', $example['source']);
+        $t->same('set-system-metadata', $example['createSequence'][10]);
+        $t->same(['owner', 'reviewer-created'], $example['createdPermissionIds']);
+        $t->same(['find-dir:exists', 'update-dir'], $example['permissionsOnlySequence']);
+        $t->same('site-backups/review: no writeable metadata found', $example['permissionsOnlyError']);
+        $t->same(['update'], $example['updateActions']);
+        $t->same(true, $example['updatedQueuedCleared']);
     },
 ];

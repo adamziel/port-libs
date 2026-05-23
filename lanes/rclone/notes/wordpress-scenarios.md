@@ -222,6 +222,8 @@ The `../examples/wordpress-onedrive-permissions-metadata-preflight.php` scenario
 
 The `../examples/wordpress-onedrive-permission-write-plan.php` scenario maps OneDrive metadata-permissions write planning for migration review handoffs. It upgrades a direct reviewer permission on a WXR export, replaces a Business sharing-link permission through the upstream remove-plus-add workaround, removes a stale contractor permission, preserves the owner role that Graph cannot remove, and records `failok` suppression for a simulated Graph invite error without OAuth or live provider credentials.
 
+The `../examples/wordpress-onedrive-permission-refresh-dir-metadata.php` scenario maps OneDrive permission write execution and directory metadata sequencing for a migration review folder. It creates `site-backups/review` with WXR reviewer permissions, records the pre-write permission refresh and post-write refreshed-permission materialization, shows that existing-directory permissions-only metadata cannot reach permission writing because the directory metadata PATCH has no mtime/btime payload, and then updates reviewer access after btime/mtime metadata is patched without OAuth or live provider credentials.
+
 ## Next Task
 
-Map OneDrive permission write execution refresh and directory metadata flows, including RefreshPermissions result materialization after add/update/remove and MkdirMetadata/updateDir permission call sequencing.
+Map the next OneDrive metadata edge: object `updateMetadata` permission refresh before `Set`, including permissions-only object metadata behavior versus directory `updateDir`, and `NoVersions` cleanup ordering after successful metadata writes.

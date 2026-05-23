@@ -19,6 +19,185 @@ final class OneDrivePermissionPlanner
 
     /**
      * @param list<array<string, mixed>> $currentPermissions
+     * @param list<array<string, mixed>|null> $queuedPermissions
+     * @param array{driveType?: string, metadataPermissions?: string, metadata_permissions?: string, normalizedId?: string, normalizedID?: string, id?: string, addOnly?: bool, failOk?: bool, operationErrors?: array<string, string>, refreshedPermissions?: list<array<string, mixed>>, refreshError?: string} $options
+     * @return array<string, mixed>
+     */
+    public static function writePermissions(array $currentPermissions, array $queuedPermissions, array $options = []): array
+    {
+        $mode = (string) ($options['metadataPermissions'] ?? $options['metadata_permissions'] ?? 'write');
+        if (!self::modeHas($mode, 'write')) {
+            throw new \RuntimeException("can't write permissions without --onedrive-metadata-permissions write");
+        }
+
+        $normalizedId = self::optionalString(
+            $options['normalizedId']
+                ?? $options['normalizedID']
+                ?? $options['id']
+                ?? null,
+        ) ?? '';
+        if ($normalizedId === '') {
+            throw new \RuntimeException('internal error: normalizedID is missing');
+        }
+
+        $failOk = (bool) ($options['failOk'] ?? self::modeHas($mode, 'failok'));
+        $plan = self::plan($currentPermissions, $queuedPermissions, [
+            'driveType' => $options['driveType'] ?? null,
+            'write' => true,
+            'addOnly' => (bool) ($options['addOnly'] ?? false),
+            'failOk' => false,
+            'operationErrors' => is_array($options['operationErrors'] ?? null) ? $options['operationErrors'] : [],
+        ]);
+        $plan['failOk'] = $failOk;
+
+        $result = [
+            'normalizedId' => $normalizedId,
+            'driveType' => $plan['driveType'],
+            'addOnly' => $plan['addOnly'],
+            'failOk' => $failOk,
+            'operations' => $plan['operations'],
+            'counts' => $plan['counts'],
+            'skipped' => $plan['skipped'],
+            'processError' => $plan['error'],
+            'refreshAttempted' => false,
+            'refreshError' => null,
+            'permissions' => self::normalizePermissions($currentPermissions),
+            'queuedPermissionsCleared' => false,
+            'suppressedErrors' => [],
+            'error' => null,
+        ];
+
+        if ($plan['error'] !== null) {
+            if ($failOk) {
+                $result['suppressedErrors'][] = $plan['error'];
+
+                return $result;
+            }
+
+            $result['error'] = $plan['error'];
+
+            return $result;
+        }
+
+        $result['refreshAttempted'] = true;
+        $refreshError = self::optionalString($options['refreshError'] ?? null);
+        if ($refreshError !== null && $refreshError !== '') {
+            $error = 'failed to get permissions: failed to refresh permissions: ' . $refreshError;
+            $result['refreshError'] = $error;
+            if ($failOk) {
+                $result['suppressedErrors'][] = $error;
+
+                return $result;
+            }
+
+            $result['error'] = $error;
+
+            return $result;
+        }
+
+        $refreshed = is_array($options['refreshedPermissions'] ?? null)
+            ? $options['refreshedPermissions']
+            : $queuedPermissions;
+        $result['permissions'] = self::normalizePermissions($refreshed);
+        $result['queuedPermissionsCleared'] = true;
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, string> $metadata
+     * @param array{exists?: bool, directoryId?: string, normalizedId?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @return array<string, mixed>
+     */
+    public static function directoryMetadataFlow(string $remote, array $metadata, array $options = []): array
+    {
+        $exists = (bool) ($options['exists'] ?? false);
+        $mode = (string) ($options['metadataPermissions'] ?? $options['metadata_permissions'] ?? 'write');
+        $needsPermissions = array_key_exists('permissions', $metadata) && self::modeHas($mode, 'write');
+        $writeable = self::writeableMetadataKeys($metadata, $mode);
+        $apiMetadata = array_values(array_intersect($writeable, ['mtime', 'btime']));
+        $normalizedId = self::optionalString(
+            $options['directoryId']
+                ?? $options['normalizedId']
+                ?? null,
+        ) ?? ($exists ? 'dir:' . $remote : 'created:' . $remote);
+
+        $flow = [
+            'remote' => $remote,
+            'exists' => $exists,
+            'writeableMetadata' => $writeable,
+            'apiMetadata' => $apiMetadata,
+            'needsUpdatePermissions' => $needsPermissions,
+            'sequence' => [],
+            'permissionWrite' => null,
+            'permissions' => self::normalizePermissions($options['currentPermissions'] ?? []),
+            'queuedPermissionsCleared' => false,
+            'directoryReturned' => false,
+            'systemMetadataSet' => false,
+            'error' => null,
+        ];
+
+        $flow['sequence'][] = $exists ? 'find-dir:exists' : 'find-dir:missing';
+        $queuedPermissions = [];
+        if ($needsPermissions) {
+            $queuedPermissions = self::decodePermissionsMetadata($metadata['permissions']);
+        }
+
+        if (!$exists) {
+            $flow['sequence'][] = 'find-parent';
+            $flow['sequence'][] = 'create-dir';
+            if ($apiMetadata !== []) {
+                $flow['sequence'][] = 'create-dir:api-metadata';
+            }
+            if ($needsPermissions && $writeable !== []) {
+                $flow['sequence'][] = 'refresh-permissions-before-write';
+                $refreshBeforeError = self::optionalString($options['refreshBeforeError'] ?? null);
+                if ($refreshBeforeError !== null && $refreshBeforeError !== '') {
+                    $flow['error'] = 'failed to refresh permissions: ' . $refreshBeforeError;
+
+                    return $flow;
+                }
+
+                $flow['sequence'][] = 'write-permissions';
+                $flow = self::applyDirectoryPermissionWrite($flow, $queuedPermissions, $normalizedId, $options);
+                if ($flow['error'] !== null) {
+                    return $flow;
+                }
+            }
+            $flow['sequence'][] = 'write-directory-metadata-after-create';
+            if ($apiMetadata === []) {
+                $flow['error'] = $remote . ': no writeable metadata found';
+
+                return $flow;
+            }
+        } else {
+            $flow['sequence'][] = 'update-dir';
+            if ($apiMetadata === []) {
+                $flow['error'] = $remote . ': no writeable metadata found';
+
+                return $flow;
+            }
+
+            $flow['sequence'][] = 'patch-directory-metadata';
+            if ($needsPermissions) {
+                $flow['sequence'][] = 'write-permissions';
+                $flow = self::applyDirectoryPermissionWrite($flow, $queuedPermissions, $normalizedId, $options);
+                if ($flow['error'] !== null) {
+                    return $flow;
+                }
+            }
+        }
+
+        $flow['sequence'][] = 'item-to-dir-entry';
+        $flow['sequence'][] = 'set-system-metadata';
+        $flow['directoryReturned'] = true;
+        $flow['systemMetadataSet'] = true;
+
+        return $flow;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $currentPermissions
      * @param array<string, mixed> $metadata
      * @param array{driveType?: string, metadataPermissions?: string, addOnly?: bool, operationErrors?: array<string, string>} $options
      * @return array<string, mixed>
@@ -173,6 +352,71 @@ final class OneDrivePermissionPlanner
         }
 
         return self::normalizePermissions($decoded);
+    }
+
+    /**
+     * @param array<string, mixed> $flow
+     * @param list<array<string, mixed>> $queuedPermissions
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function applyDirectoryPermissionWrite(
+        array $flow,
+        array $queuedPermissions,
+        string $normalizedId,
+        array $options
+    ): array {
+        $current = is_array($options['refreshBeforePermissions'] ?? null)
+            ? $options['refreshBeforePermissions']
+            : (is_array($options['currentPermissions'] ?? null) ? $options['currentPermissions'] : []);
+        $permissionWrite = self::writePermissions($current, $queuedPermissions, [
+            'driveType' => $options['driveType'] ?? null,
+            'metadataPermissions' => $options['metadataPermissions'] ?? $options['metadata_permissions'] ?? 'write',
+            'normalizedId' => $normalizedId,
+            'failOk' => (bool) (
+                $options['failOk']
+                    ?? self::modeHas((string) ($options['metadataPermissions'] ?? $options['metadata_permissions'] ?? 'write'), 'failok')
+            ),
+            'operationErrors' => is_array($options['operationErrors'] ?? null) ? $options['operationErrors'] : [],
+            'refreshedPermissions' => is_array($options['refreshedPermissions'] ?? null)
+                ? $options['refreshedPermissions']
+                : $queuedPermissions,
+            'refreshError' => $options['refreshError'] ?? null,
+        ]);
+
+        if ($permissionWrite['refreshAttempted']) {
+            $flow['sequence'][] = 'refresh-permissions-after-write';
+        }
+        if ($permissionWrite['queuedPermissionsCleared']) {
+            $flow['sequence'][] = 'clear-queued-permissions';
+        }
+
+        $flow['permissionWrite'] = $permissionWrite;
+        $flow['permissions'] = $permissionWrite['permissions'];
+        $flow['queuedPermissionsCleared'] = $permissionWrite['queuedPermissionsCleared'];
+        $flow['error'] = $permissionWrite['error'];
+
+        return $flow;
+    }
+
+    /**
+     * @param array<string, string> $metadata
+     * @return list<string>
+     */
+    private static function writeableMetadataKeys(array $metadata, string $mode): array
+    {
+        $keys = [];
+        foreach ($metadata as $key => $_value) {
+            if ($key === 'mtime' || $key === 'btime') {
+                $keys[] = $key;
+                continue;
+            }
+            if ($key === 'permissions' && self::modeHas($mode, 'write')) {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
     }
 
     private static function driveType(mixed $value): string
