@@ -540,6 +540,30 @@ SQLite JSON5 settings text into native SQLite JSONB bytes for WordPress
 preflight tools that need JSONB-shaped plugin settings without shelling out to
 SQLite.
 
+`examples/wordpress-jsonb-remove-option-field.php` removes one or more JSON
+paths from strict JSON, supported SQLite JSON5, or SQLite JSONB option-value
+fixtures and prints the resulting JSONB bytes. This maps WordPress recovery
+and migration preflight workflows that need to strip obsolete or sensitive
+plugin settings from `wp_options.option_value` JSONB blobs while preserving
+SQLite-style object-member, array-index, reverse-index, missing-path, and root
+removal behavior.
+
+`examples/wordpress-jsonb-mutate-option-field.php` applies SQLite-style
+`insert`, `set`, or `replace` edits to strict JSON, supported SQLite JSON5, or
+SQLite JSONB option-value fixtures and prints the resulting JSONB bytes. This
+maps WordPress recovery and migration preflight workflows that need to add
+migration markers, append rule objects, replace stale plugin settings, or
+leave existing fields untouched according to SQLite's
+`jsonb_insert`/`jsonb_set`/`jsonb_replace` path semantics.
+
+`examples/wordpress-jsonb-patch-option-field.php` applies SQLite-style
+RFC-7396 merge patches to strict JSON, supported SQLite JSON5, or SQLite JSONB
+option-value fixtures and prints the resulting JSONB bytes. This maps
+WordPress import and recovery preflight workflows that need to apply a patch
+object where `null` removes obsolete plugin settings, nested objects merge,
+and arrays such as rule lists or channel lists are replaced as complete
+values.
+
 `examples/wordpress-trimmed-option-name.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(trim(option_name))`/`ltrim`/`rtrim` expression index, and returns
@@ -599,9 +623,11 @@ slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `trim/ltrim/rtrim(column[, literal characters])` point lookups, literal-start
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and the
 named `json_extract(column,path)`, `column ->> path`, and `column -> path`
-JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
-mutation at `[#]`, broader JSONB output/edit behavior beyond the current
-value encoder, and full JSON5 numeric/string edge parity; custom collation
+JSON scalar/fragment buckets; broader JSON path/value semantics such as
+`json_array_insert`, broader JSONB output/edit behavior beyond the current
+value encoder, remove-path slice, focused insert/set/replace path edits, and
+focused merge-patch behavior, and full JSON5 numeric/string edge parity;
+custom collation
 coverage across automatic indexes, additional composite planner shapes, and
 expression-index families beyond the explicit first-column, custom-collated
 equality-prefix, `lower(option_name)` point/list/range, and autoload

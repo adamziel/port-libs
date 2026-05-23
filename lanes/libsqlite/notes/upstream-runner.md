@@ -1697,6 +1697,124 @@ WordPress-oriented JSONB option-value fixture bytes, while
 `examples/wordpress-jsonb-option-value.php` documents recovery for plugin
 settings stored by SQLite JSONB functions.
 
+## Focused Native Mapping: JSONB Remove Paths
+
+This slice maps a bounded `jsonb_remove()`/`json_remove()` family for native
+SQLite JSONB fixture and preflight tooling. It removes object members, array
+elements, reverse array indexes, and multiple paths in SQLite argument order;
+missing paths and `[#]` append positions are no-ops, and root `$` removal
+returns SQL `NULL` as a PHP `null`.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json102.test jsonb01.test
+```
+
+Result on 2026-05-23: 2 Tcl scripts, 0 errors out of 356 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json102.test` covers `json_remove()` and `jsonb_remove()` parity for
+  array deletion, missing array indexes, multiple path order, object member
+  deletion, no-path calls, and root removal to SQL `NULL`.
+- `test/jsonb01.test` covers JSONB object-member deletion, nested
+  object-member deletion, array deletion, reverse array indexes such as
+  `[#-1]`, missing reverse indexes, and malformed JSONB rejection.
+
+The native PHP tests now cover `SQLiteJsonB::remove()` for object members,
+nested object members, array indexes, reverse array indexes, missing path
+no-ops, `[#]` no-ops, root removal, multiple path argument order, large
+out-of-range indexes, and malformed path rejection. The new
+`examples/wordpress-jsonb-remove-option-field.php` script lets WordPress
+recovery or fixture-generation tooling remove obsolete plugin setting paths
+from a JSON/JSON5/JSONB `wp_options.option_value` blob and print the resulting
+SQLite JSONB bytes without requiring the SQLite extension.
+
+## Focused Native Mapping: JSONB Insert, Set, And Replace Paths
+
+This slice maps a bounded `jsonb_insert()`/`jsonb_set()`/`jsonb_replace()`
+family for native SQLite JSONB fixture and preflight tooling. It preserves the
+upstream distinction between insert, set, and replace; edits existing object
+members and array slots; creates missing object/array substructure where
+SQLite does; appends with `[#]`; treats `[#-0]` as an append for set; applies
+multiple path/value pairs in SQLite argument order; and keeps SQL string vs
+JSON value behavior represented as PHP strings vs PHP arrays/objects.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json101.test json102.test json105.test jsonb01.test
+```
+
+Result on 2026-05-23: 4 Tcl scripts, 0 errors out of 687 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json101.test` covers JSON value vs SQL text insertion, repeated
+  path/value updates, root and null-input boundaries, and created
+  substructure for paths such as `$.a.b.c` and `$[3].a[0].b`.
+- `test/json102.test` covers `jsonb_insert`, `jsonb_replace`, and
+  `jsonb_set` parity for existing and missing object members plus JSON vs
+  string value boundaries.
+- `test/json105.test` covers `[#]` appends, nested appends, reverse-index
+  replacement through `[#-1]`, and multiple append/update argument order.
+- `test/jsonb01.test` keeps the malformed JSONB rejection boundary in scope.
+
+The native PHP tests now cover `SQLiteJsonB::insert()`, `set()`, and
+`replace()` for existing vs missing members, root-object substructure
+creation, array append substructure, `[#-0]` set appends, no-op replace
+creation, multiple argument order, string-vs-array value behavior, and a
+WordPress plugin settings preflight fixture. The new
+`examples/wordpress-jsonb-mutate-option-field.php` script lets WordPress
+recovery or fixture-generation tooling apply SQLite-style JSONB path edits to
+strict JSON, supported JSON5, or JSONB `wp_options.option_value` blobs without
+requiring the SQLite extension.
+
+## Focused Native Mapping: JSONB Merge Patch
+
+This slice maps a bounded `jsonb_patch()`/`json_patch()` family for native
+SQLite JSONB fixture and preflight tooling. It applies SQLite's RFC-7396 merge
+patch behavior: object patches merge by member name, patch `null` removes
+object members, non-object patches replace the whole target, object patches
+against non-object targets first treat the target as `{}`, and arrays are
+replaced rather than merged.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json104.test json101.test json502.test
+```
+
+Result on 2026-05-23: 3 Tcl scripts, 0 errors out of 325 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json104.test` covers the RFC-7396 examples, target non-object
+  objectification, object-member deletion with `null`, nested object stripping,
+  duplicate patch member order, array replacement, and scalar/null whole-value
+  replacement.
+- `test/json101.test` covers `json_patch(NULL,...)` SQL-null propagation at
+  the broader JSON function boundary; the native `SQLiteJsonB::patch()` API
+  remains byte-oriented and models valid JSONB inputs only.
+- `test/json502.test` covers JSON5-style escaped object labels used by
+  `json_patch(...)` before downstream `->>` extraction.
+
+The native PHP tests now cover `SQLiteJsonB::patch()` for the RFC object merge
+example, member deletion, target array to object conversion, empty object
+preservation in JSONB bytes, nested object stripping, whole-array replacement,
+whole-null/scalar replacement, and a WordPress plugin settings import preflight
+fixture. The new `examples/wordpress-jsonb-patch-option-field.php` script lets
+WordPress recovery or fixture-generation tooling apply SQLite-style merge
+patches to strict JSON, supported JSON5, or JSONB `wp_options.option_value`
+blobs without requiring the SQLite extension.
+
 ## Focused Native Mapping: B-tree Freeblock Inspection
 
 This slice maps SQLite's page-local freeblock chain validation and free-space

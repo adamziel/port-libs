@@ -1736,6 +1736,175 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::decode("\x8c\xe6\xff\xff\xff\x17\x13\x33"));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::encode(INF));
     },
+    'removes focused sqlite jsonb object members and array elements' => static function (TestRunner $t): void {
+        $jsonb = SQLiteJsonB::encode(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [1, 2, 3, 4]]);
+        $decode = static function (?string $bytes): mixed {
+            if ($bytes === null) {
+                throw new RuntimeException('Expected SQLite JSONB bytes, got SQL null');
+            }
+
+            return SQLiteJsonB::decode($bytes);
+        };
+
+        $t->same(['a' => 5, 'b' => ['y' => 11], 'c' => [1, 2, 3, 4]], $decode(SQLiteJsonB::remove($jsonb, '$.b.x')));
+        $t->same('3c17620c', bin2hex(SQLiteJsonB::remove(SQLiteJsonB::encode(['b' => ['x' => 10]]), '$.b.x') ?? ''));
+        $t->same(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [1, 2, 3]], $decode(SQLiteJsonB::remove($jsonb, '$.c[#-1]')));
+        $t->same(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [2, 3, 4]], $decode(SQLiteJsonB::remove($jsonb, '$.c[#-4]')));
+        $t->same(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [1, 2, 3, 4]], $decode(SQLiteJsonB::remove($jsonb, '$.d')));
+        $t->same(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [1, 2, 3, 4]], $decode(SQLiteJsonB::remove($jsonb, '$.c[#]')));
+        $t->same(null, SQLiteJsonB::remove($jsonb, '$'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::remove($jsonb, '$.c[#-]'));
+    },
+    'removes multiple sqlite jsonb paths in sqlite argument order' => static function (TestRunner $t): void {
+        $jsonb = SQLiteJsonB::encode([0, 1, 2, 3, 4]);
+        $decode = static function (?string $bytes): mixed {
+            if ($bytes === null) {
+                throw new RuntimeException('Expected SQLite JSONB bytes, got SQL null');
+            }
+
+            return SQLiteJsonB::decode($bytes);
+        };
+
+        $t->same([0, 1, 3, 4], $decode(SQLiteJsonB::remove($jsonb, '$[2]')));
+        $t->same([1, 3, 4], $decode(SQLiteJsonB::remove($jsonb, '$[2]', '$[0]')));
+        $t->same([1, 2, 4], $decode(SQLiteJsonB::remove($jsonb, '$[0]', '$[2]')));
+        $t->same([0, 1, 2, 3, 4], $decode(SQLiteJsonB::remove($jsonb, '$[42949672960]')));
+    },
+    'mutates focused sqlite jsonb paths with insert set and replace' => static function (TestRunner $t): void {
+        $jsonb = SQLiteJsonB::encode(['a' => 2, 'c' => 4]);
+        $decode = static fn (string $bytes): mixed => SQLiteJsonB::decode($bytes);
+
+        $t->same(['a' => 2, 'c' => 4], $decode(SQLiteJsonB::insert($jsonb, '$.a', 99)));
+        $t->same(['a' => 2, 'c' => 4, 'e' => 99], $decode(SQLiteJsonB::insert($jsonb, '$.e', 99)));
+        $t->same(['a' => 99, 'c' => 4], $decode(SQLiteJsonB::replace($jsonb, '$.a', 99)));
+        $t->same(['a' => 2, 'c' => 4], $decode(SQLiteJsonB::replace($jsonb, '$.e', 99)));
+        $t->same(['a' => 99, 'c' => 4], $decode(SQLiteJsonB::set($jsonb, '$.a', 99)));
+        $t->same(['a' => 2, 'c' => 4, 'e' => 99], $decode(SQLiteJsonB::set($jsonb, '$.e', 99)));
+        $t->same(['a' => 2, 'c' => '[97,96]'], $decode(SQLiteJsonB::set($jsonb, '$.c', '[97,96]')));
+        $t->same(['a' => 2, 'c' => [97, 96]], $decode(SQLiteJsonB::set($jsonb, '$.c', [97, 96])));
+    },
+    'creates focused sqlite jsonb mutation substructures and append paths' => static function (TestRunner $t): void {
+        $emptyObject = SQLiteJsonB::encode(new stdClass());
+        $array = SQLiteJsonB::encode([0, 1, 2]);
+        $decode = static fn (string $bytes): mixed => SQLiteJsonB::decode($bytes);
+
+        $t->same(['a' => ['b' => ['c' => 9]]], $decode(SQLiteJsonB::insert($emptyObject, '$.a.b.c', 9)));
+        $t->same(['a' => ['b' => ['c' => 9]]], $decode(SQLiteJsonB::set($emptyObject, '$.a.b.c', 9)));
+        $t->same('0c', bin2hex(SQLiteJsonB::replace($emptyObject, '$.a.b.c', 9)));
+        $t->same([0, 1, 2, ['a' => [['b' => 9]]]], $decode(SQLiteJsonB::insert($array, '$[3].a[0].b', 9)));
+        $t->same([1, 2, 9], $decode(SQLiteJsonB::set(SQLiteJsonB::encode([1, 2]), '$[#-0]', 9)));
+        $t->same([1, 2], $decode(SQLiteJsonB::insert(SQLiteJsonB::encode([1, 2]), '$[#-1]', 9)));
+        $t->same([0, 1, 2, 'AAA', 'BBB'], $decode(SQLiteJsonB::insert($array, '$[#]', 'AAA', '$[#]', 'BBB')));
+        $t->same([0, 1, 2], $decode(SQLiteJsonB::set($array, '$[4].a', 9)));
+    },
+    'patches focused sqlite jsonb objects with merge patch semantics' => static function (TestRunner $t): void {
+        $decode = static fn (string $bytes): mixed => SQLiteJsonB::decode($bytes);
+        $target = SQLiteJsonB::encode([
+            'a' => 'b',
+            'c' => [
+                'd' => 'e',
+                'f' => 'g',
+            ],
+            'tags' => ['example', 'sample'],
+            'content' => 'This will be unchanged',
+        ]);
+        $patch = SQLiteJsonB::encode([
+            'a' => 'z',
+            'c' => [
+                'f' => null,
+            ],
+            'tags' => ['example'],
+            'phoneNumber' => '+01-123-456-7890',
+        ]);
+
+        $t->same([
+            'a' => 'z',
+            'c' => [
+                'd' => 'e',
+            ],
+            'tags' => ['example'],
+            'content' => 'This will be unchanged',
+            'phoneNumber' => '+01-123-456-7890',
+        ], $decode(SQLiteJsonB::patch($target, $patch)));
+        $t->same('0c', bin2hex(SQLiteJsonB::patch(SQLiteJsonB::encode(['a' => 'b']), SQLiteJsonB::encode(['a' => null]))));
+        $t->same(['b' => 'c'], $decode(SQLiteJsonB::patch(SQLiteJsonB::encode(['a' => 'b', 'b' => 'c']), SQLiteJsonB::encode(['a' => null]))));
+        $t->same('0c', bin2hex(SQLiteJsonB::patch(SQLiteJsonB::encode([1, 2, 3]), SQLiteJsonB::encode(['x' => null]))));
+        $t->same(['y' => 1], $decode(SQLiteJsonB::patch(SQLiteJsonB::encode([1, 2, 3]), SQLiteJsonB::encode(['x' => null, 'y' => 1, 'z' => null]))));
+        $t->same('7c17614c2762620c', bin2hex(SQLiteJsonB::patch(SQLiteJsonB::encode(new stdClass()), SQLiteJsonB::encode(['a' => ['bb' => ['ccc' => null]]]))));
+        $t->same(['a' => [1]], $decode(SQLiteJsonB::patch(SQLiteJsonB::encode(['a' => [['b' => 'c']]]), SQLiteJsonB::encode(['a' => [1]]))));
+        $t->same([1, 2], $decode(SQLiteJsonB::patch(SQLiteJsonB::encode(['a' => 'b']), SQLiteJsonB::encode([1, 2]))));
+        $t->same(null, $decode(SQLiteJsonB::patch(SQLiteJsonB::encode(['a' => 'foo']), SQLiteJsonB::encode(null))));
+        $t->same('bar', $decode(SQLiteJsonB::patch(SQLiteJsonB::encode(['a' => 'foo']), SQLiteJsonB::encode('bar'))));
+    },
+    'mutates sqlite jsonb wordpress plugin settings for preflight fixtures' => static function (TestRunner $t): void {
+        $settings = SQLiteJsonB::encode([
+            'enabled' => true,
+            'legacyToken' => 'secret',
+            'rules' => [
+                ['name' => 'core', 'enabled' => true],
+            ],
+        ]);
+
+        $mutated = SQLiteJsonB::set(
+            $settings,
+            '$.enabled',
+            false,
+            '$.rules[#]',
+            ['name' => 'cache', 'enabled' => false],
+        );
+        $mutated = SQLiteJsonB::replace($mutated, '$.legacyToken', 'redacted');
+        $mutated = SQLiteJsonB::insert($mutated, '$.migratedBy', 'native-libsqlite');
+
+        $t->same([
+            'enabled' => false,
+            'legacyToken' => 'redacted',
+            'rules' => [
+                ['name' => 'core', 'enabled' => true],
+                ['name' => 'cache', 'enabled' => false],
+            ],
+            'migratedBy' => 'native-libsqlite',
+        ], SQLiteJsonB::decode($mutated));
+    },
+    'patches sqlite jsonb wordpress plugin settings for import preflight fixtures' => static function (TestRunner $t): void {
+        $settings = SQLiteJsonB::encode([
+            'enabled' => true,
+            'legacyToken' => 'secret',
+            'rules' => [
+                ['name' => 'core', 'enabled' => true],
+            ],
+            'channels' => ['stable', 'beta'],
+        ]);
+        $patch = SQLiteJsonB::encode([
+            'enabled' => false,
+            'legacyToken' => null,
+            'rules' => [
+                ['name' => 'cache', 'enabled' => false],
+            ],
+            'import' => [
+                'source' => 'wp-cli',
+                'checked' => true,
+                'empty' => [
+                    'drop' => null,
+                ],
+            ],
+        ]);
+
+        $patched = SQLiteJsonB::patch($settings, $patch);
+
+        $t->same([
+            'enabled' => false,
+            'rules' => [
+                ['name' => 'cache', 'enabled' => false],
+            ],
+            'channels' => ['stable', 'beta'],
+            'import' => [
+                'source' => 'wp-cli',
+                'checked' => true,
+                'empty' => [],
+            ],
+        ], SQLiteJsonB::decode($patched));
+        $t->same('cc6577656e61626c6564025772756c6573cb16cc14476e616d6557636163686577656e61626c656402876368616e6e656c73cb0c67737461626c65476265746167696d706f7274cc1e67736f757263656777702d636c6977636865636b65640157656d7074790c', bin2hex($patched));
+    },
     'uses jsonb option_value blobs through wordpress json expression indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $blobValue): void {
         $jsonbSettings = SQLiteJsonB::encode(['a' => [2, 3.5, true, false, null, 'x']]);
 

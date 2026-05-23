@@ -51,6 +51,188 @@ final class SQLiteJsonB
         return self::encodeElement($value, 0);
     }
 
+    public static function remove(string $bytes, string ...$paths): ?string
+    {
+        $value = self::decodeForEdit($bytes);
+        foreach ($paths as $path) {
+            $segments = self::parsePath($path);
+            if ($segments === []) {
+                return null;
+            }
+
+            self::removePath($value, $segments);
+        }
+
+        return self::encode($value);
+    }
+
+    public static function insert(string $bytes, string $path, mixed $value, mixed ...$pathValuePairs): string
+    {
+        return self::mutate($bytes, 'insert', $path, $value, $pathValuePairs);
+    }
+
+    public static function set(string $bytes, string $path, mixed $value, mixed ...$pathValuePairs): string
+    {
+        return self::mutate($bytes, 'set', $path, $value, $pathValuePairs);
+    }
+
+    public static function replace(string $bytes, string $path, mixed $value, mixed ...$pathValuePairs): string
+    {
+        return self::mutate($bytes, 'replace', $path, $value, $pathValuePairs);
+    }
+
+    public static function patch(string $targetBytes, string $patchBytes): string
+    {
+        $target = self::decodeForEdit($targetBytes);
+        $patch = self::decodeForEdit($patchBytes);
+
+        return self::encode(self::mergePatch($target, $patch, 0));
+    }
+
+    private static function decodeForEdit(string $bytes): mixed
+    {
+        if ($bytes === '') {
+            throw new \InvalidArgumentException('SQLite JSONB value is empty');
+        }
+
+        [$value, $next] = self::parseElement($bytes, 0, 0, true);
+        if ($next !== strlen($bytes)) {
+            throw new \InvalidArgumentException('SQLite JSONB value has trailing bytes');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<mixed> $pathValuePairs
+     */
+    private static function mutate(string $bytes, string $operation, string $path, mixed $value, array $pathValuePairs): string
+    {
+        if (count($pathValuePairs) % 2 !== 0) {
+            throw new \InvalidArgumentException('SQLite JSONB mutation requires path/value pairs');
+        }
+
+        $document = self::decodeForEdit($bytes);
+        self::applyMutation($document, $operation, self::parsePath($path), $value);
+        for ($offset = 0; $offset < count($pathValuePairs); $offset += 2) {
+            $nextPath = $pathValuePairs[$offset];
+            if (!is_string($nextPath)) {
+                throw new \InvalidArgumentException('SQLite JSONB mutation path must be a string');
+            }
+
+            self::applyMutation($document, $operation, self::parsePath($nextPath), $pathValuePairs[$offset + 1]);
+        }
+
+        return self::encode($document);
+    }
+
+    private static function mergePatch(mixed $target, mixed $patch, int $depth): mixed
+    {
+        if ($depth > self::MAX_DEPTH) {
+            throw new \InvalidArgumentException('SQLite JSONB patch exceeds the maximum nesting depth');
+        }
+
+        if (!self::isJsonObject($patch)) {
+            return $patch;
+        }
+
+        if (!self::isJsonObject($target)) {
+            $target = new \stdClass();
+        }
+
+        foreach (self::jsonObjectMembers($patch) as $name => $patchValue) {
+            if ($patchValue === null) {
+                self::unsetJsonObjectMember($target, (string) $name);
+                continue;
+            }
+
+            $targetValue = self::jsonObjectMemberExists($target, (string) $name)
+                ? self::jsonObjectMember($target, (string) $name)
+                : new \stdClass();
+            self::setJsonObjectMember($target, (string) $name, self::mergePatch($targetValue, $patchValue, $depth + 1));
+        }
+
+        return self::jsonObjectIsEmpty($target) ? new \stdClass() : $target;
+    }
+
+    private static function isJsonObject(mixed $value): bool
+    {
+        return $value instanceof \stdClass || (is_array($value) && !array_is_list($value));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jsonObjectMembers(mixed $value): array
+    {
+        if ($value instanceof \stdClass) {
+            return get_object_vars($value);
+        }
+        if (is_array($value) && !array_is_list($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite JSONB value is not an object');
+    }
+
+    private static function jsonObjectMemberExists(mixed $value, string $name): bool
+    {
+        if ($value instanceof \stdClass) {
+            return property_exists($value, $name);
+        }
+
+        return is_array($value) && !array_is_list($value) && array_key_exists($name, $value);
+    }
+
+    private static function jsonObjectMember(mixed $value, string $name): mixed
+    {
+        if ($value instanceof \stdClass) {
+            return $value->{$name};
+        }
+        if (is_array($value) && !array_is_list($value)) {
+            return $value[$name];
+        }
+
+        throw new \InvalidArgumentException('SQLite JSONB value is not an object');
+    }
+
+    private static function setJsonObjectMember(mixed &$value, string $name, mixed $member): void
+    {
+        if ($value instanceof \stdClass) {
+            $value->{$name} = $member;
+
+            return;
+        }
+        if (is_array($value) && !array_is_list($value)) {
+            $value[$name] = $member;
+
+            return;
+        }
+
+        throw new \InvalidArgumentException('SQLite JSONB value is not an object');
+    }
+
+    private static function unsetJsonObjectMember(mixed &$value, string $name): void
+    {
+        if ($value instanceof \stdClass) {
+            unset($value->{$name});
+
+            return;
+        }
+        if (is_array($value) && !array_is_list($value)) {
+            unset($value[$name]);
+        }
+    }
+
+    private static function jsonObjectIsEmpty(mixed $value): bool
+    {
+        if ($value instanceof \stdClass) {
+            return get_object_vars($value) === [];
+        }
+
+        return is_array($value) && $value === [];
+    }
+
     private static function encodeElement(mixed $value, int $depth): string
     {
         if ($depth > self::MAX_DEPTH) {
@@ -103,6 +285,15 @@ final class SQLiteJsonB
 
             return self::encodeNode(self::OBJECT, $payload);
         }
+        if ($value instanceof \stdClass) {
+            $payload = '';
+            foreach (get_object_vars($value) as $key => $element) {
+                $payload .= self::encodeElement((string) $key, $depth + 1);
+                $payload .= self::encodeElement($element, $depth + 1);
+            }
+
+            return self::encodeNode(self::OBJECT, $payload);
+        }
 
         throw new \InvalidArgumentException('SQLite JSONB encoder supports only null, booleans, numbers, strings, arrays, and objects represented as associative arrays');
     }
@@ -149,7 +340,7 @@ final class SQLiteJsonB
     /**
      * @return array{0:mixed,1:int}
      */
-    private static function parseElement(string $bytes, int $offset, int $depth): array
+    private static function parseElement(string $bytes, int $offset, int $depth, bool $emptyObjectsAsStdClass = false): array
     {
         if ($depth > self::MAX_DEPTH) {
             throw new \InvalidArgumentException('SQLite JSONB value exceeds the maximum nesting depth');
@@ -169,8 +360,8 @@ final class SQLiteJsonB
             self::TEXT, self::TEXTRAW => [$payload, $next],
             self::TEXTJ => [self::decodeEscapedText($payload, false), $next],
             self::TEXT5 => [self::decodeEscapedText($payload, true), $next],
-            self::ARRAY => [self::decodeArrayPayload($bytes, $payloadOffset, $next, $depth + 1), $next],
-            self::OBJECT => [self::decodeObjectPayload($bytes, $payloadOffset, $next, $depth + 1), $next],
+            self::ARRAY => [self::decodeArrayPayload($bytes, $payloadOffset, $next, $depth + 1, $emptyObjectsAsStdClass), $next],
+            self::OBJECT => [self::decodeObjectPayload($bytes, $payloadOffset, $next, $depth + 1, $emptyObjectsAsStdClass), $next],
             default => throw new \InvalidArgumentException("Unsupported SQLite JSONB element type: {$type}"),
         };
     }
@@ -236,11 +427,11 @@ final class SQLiteJsonB
     /**
      * @return list<mixed>
      */
-    private static function decodeArrayPayload(string $bytes, int $offset, int $end, int $depth): array
+    private static function decodeArrayPayload(string $bytes, int $offset, int $end, int $depth, bool $emptyObjectsAsStdClass): array
     {
         $array = [];
         while ($offset < $end) {
-            [$value, $offset] = self::parseElement($bytes, $offset, $depth);
+            [$value, $offset] = self::parseElement($bytes, $offset, $depth, $emptyObjectsAsStdClass);
             $array[] = $value;
         }
         if ($offset !== $end) {
@@ -251,9 +442,9 @@ final class SQLiteJsonB
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, mixed>|\stdClass
      */
-    private static function decodeObjectPayload(string $bytes, int $offset, int $end, int $depth): array
+    private static function decodeObjectPayload(string $bytes, int $offset, int $end, int $depth, bool $emptyObjectsAsStdClass): array|\stdClass
     {
         $object = [];
         while ($offset < $end) {
@@ -262,7 +453,7 @@ final class SQLiteJsonB
                 throw new \InvalidArgumentException('SQLite JSONB object label is not text');
             }
 
-            [$key, $offset] = self::parseElement($bytes, $offset, $depth);
+            [$key, $offset] = self::parseElement($bytes, $offset, $depth, $emptyObjectsAsStdClass);
             if (!is_string($key)) {
                 throw new \InvalidArgumentException('SQLite JSONB object label decoded to a non-string value');
             }
@@ -270,14 +461,473 @@ final class SQLiteJsonB
                 throw new \InvalidArgumentException('SQLite JSONB object has an unmatched label');
             }
 
-            [$value, $offset] = self::parseElement($bytes, $offset, $depth);
+            [$value, $offset] = self::parseElement($bytes, $offset, $depth, $emptyObjectsAsStdClass);
             $object[$key] = $value;
         }
         if ($offset !== $end) {
             throw new \InvalidArgumentException('SQLite JSONB object payload is malformed');
         }
 
+        if ($object === [] && $emptyObjectsAsStdClass) {
+            return new \stdClass();
+        }
+
         return $object;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function parsePath(string $path): array
+    {
+        if ($path === '' || $path[0] !== '$') {
+            throw new \InvalidArgumentException('SQLite JSON path must start with $');
+        }
+
+        $segments = [];
+        $offset = 1;
+        $length = strlen($path);
+        while ($offset < $length) {
+            $char = $path[$offset];
+            if ($char === '.') {
+                $offset++;
+                if ($offset >= $length) {
+                    throw new \InvalidArgumentException('SQLite JSON path object label is missing');
+                }
+
+                if ($path[$offset] === '"') {
+                    $end = self::quotedPathMemberEnd($path, $offset);
+                    $label = SQLiteJson5Parser::decode(substr($path, $offset, $end - $offset + 1));
+                    if (!is_string($label)) {
+                        throw new \InvalidArgumentException('SQLite JSON path quoted label did not decode to text');
+                    }
+                    $offset = $end + 1;
+                } else {
+                    $end = $offset;
+                    while ($end < $length && $path[$end] !== '.' && $path[$end] !== '[') {
+                        $end++;
+                    }
+                    if ($end === $offset) {
+                        throw new \InvalidArgumentException('SQLite JSON path object label is missing');
+                    }
+
+                    $label = SQLiteJsonPath::decodeBareMember(substr($path, $offset, $end - $offset));
+                    if ($label === null) {
+                        throw new \InvalidArgumentException('SQLite JSON path object label is malformed');
+                    }
+                    $offset = $end;
+                }
+
+                $segments[] = [
+                    'type' => 'member',
+                    'name' => $label,
+                ];
+                continue;
+            }
+
+            if ($char === '[') {
+                $end = strpos($path, ']', $offset + 1);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('SQLite JSON path array index is unterminated');
+                }
+
+                $token = substr($path, $offset + 1, $end - $offset - 1);
+                if ($token === '#') {
+                    $segments[] = [
+                        'type' => 'index',
+                        'index' => null,
+                        'fromEnd' => false,
+                        'append' => true,
+                    ];
+                } elseif (str_starts_with($token, '#-')) {
+                    $digits = substr($token, 2);
+                    if ($digits === '' || preg_match('/^[0-9]+$/', $digits) !== 1) {
+                        throw new \InvalidArgumentException('SQLite JSON path reverse array index is malformed');
+                    }
+                    $segments[] = [
+                        'type' => 'index',
+                        'index' => self::parsePathInteger($digits),
+                        'fromEnd' => true,
+                        'append' => false,
+                    ];
+                } elseif (preg_match('/^[0-9]+$/', $token) === 1) {
+                    $segments[] = [
+                        'type' => 'index',
+                        'index' => self::parsePathInteger($token),
+                        'fromEnd' => false,
+                        'append' => false,
+                    ];
+                } else {
+                    throw new \InvalidArgumentException('SQLite JSON path array index is malformed');
+                }
+
+                $offset = $end + 1;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite JSON path segment is malformed');
+        }
+
+        return $segments;
+    }
+
+    private static function quotedPathMemberEnd(string $path, int $offset): int
+    {
+        $length = strlen($path);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            if ($path[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($path[$cursor] === '"') {
+                return $cursor;
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON path quoted object label is unterminated');
+    }
+
+    private static function parsePathInteger(string $digits): ?int
+    {
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $maximum = (string) PHP_INT_MAX;
+        if (strlen($digits) > strlen($maximum) || (strlen($digits) === strlen($maximum) && strcmp($digits, $maximum) > 0)) {
+            return null;
+        }
+
+        return (int) $digits;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $segments
+     */
+    private static function removePath(mixed &$value, array $segments): void
+    {
+        $target =& $value;
+        $last = count($segments) - 1;
+        for ($index = 0; $index < $last; $index++) {
+            $segment = $segments[$index];
+            if (($segment['type'] ?? null) === 'member') {
+                $name = $segment['name'];
+                if (!is_string($name)) {
+                    return;
+                }
+                if (is_array($target) && !array_is_list($target) && array_key_exists($name, $target)) {
+                    $target =& $target[$name];
+                    continue;
+                }
+                if ($target instanceof \stdClass && property_exists($target, $name)) {
+                    $target =& $target->{$name};
+                    continue;
+                }
+
+                return;
+            }
+
+            if ($target instanceof \stdClass) {
+                return;
+            }
+
+            if (!is_array($target) || !array_is_list($target)) {
+                return;
+            }
+
+            $arrayIndex = self::pathArrayIndex($segment, count($target));
+            if ($arrayIndex === null) {
+                return;
+            }
+
+            $target =& $target[$arrayIndex];
+        }
+
+        $segment = $segments[$last];
+        if (($segment['type'] ?? null) === 'member') {
+            $name = $segment['name'];
+            if (!is_string($name)) {
+                return;
+            }
+
+            if (is_array($target) && !array_is_list($target) && array_key_exists($name, $target)) {
+                unset($target[$name]);
+                if ($target === []) {
+                    $target = new \stdClass();
+                }
+
+                return;
+            }
+
+            if ($target instanceof \stdClass && property_exists($target, $name)) {
+                unset($target->{$name});
+            }
+
+            return;
+        }
+
+        if (!is_array($target) || !array_is_list($target)) {
+            return;
+        }
+
+        $arrayIndex = self::pathArrayIndex($segment, count($target));
+        if ($arrayIndex !== null) {
+            array_splice($target, $arrayIndex, 1);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $segments
+     */
+    private static function applyMutation(mixed &$document, string $operation, array $segments, mixed $replacement): void
+    {
+        self::encode($replacement);
+        if ($segments === []) {
+            if ($operation !== 'insert') {
+                $document = $replacement;
+            }
+
+            return;
+        }
+
+        self::mutatePath($document, $segments, 0, $operation, $replacement);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $segments
+     */
+    private static function mutatePath(mixed &$target, array $segments, int $offset, string $operation, mixed $replacement): void
+    {
+        $segment = $segments[$offset];
+        $last = $offset === count($segments) - 1;
+
+        if (($segment['type'] ?? null) === 'member') {
+            $name = $segment['name'];
+            if (!is_string($name)) {
+                return;
+            }
+
+            if (is_array($target) && !array_is_list($target)) {
+                $exists = array_key_exists($name, $target);
+                if ($last) {
+                    self::mutateObjectMember($target, $name, $exists, $operation, $replacement);
+
+                    return;
+                }
+                if ($exists) {
+                    self::mutatePath($target[$name], $segments, $offset + 1, $operation, $replacement);
+
+                    return;
+                }
+
+                self::insertMissingObjectMember($target, $name, array_slice($segments, $offset + 1), $operation, $replacement);
+
+                return;
+            }
+
+            if ($target instanceof \stdClass) {
+                $exists = property_exists($target, $name);
+                if ($last) {
+                    if ($exists) {
+                        if ($operation !== 'insert') {
+                            $target->{$name} = $replacement;
+                        }
+                    } elseif ($operation !== 'replace') {
+                        $target->{$name} = $replacement;
+                    }
+
+                    return;
+                }
+                if ($exists) {
+                    self::mutatePath($target->{$name}, $segments, $offset + 1, $operation, $replacement);
+
+                    return;
+                }
+
+                if ($operation === 'replace') {
+                    return;
+                }
+                [$created, $substructure] = self::createSubstructure(array_slice($segments, $offset + 1), $replacement);
+                if ($created) {
+                    $target->{$name} = $substructure;
+                }
+            }
+
+            return;
+        }
+
+        if (!is_array($target) || !array_is_list($target)) {
+            return;
+        }
+
+        $arrayIndex = self::pathMutationArrayIndex($segment, count($target));
+        if ($arrayIndex === null) {
+            return;
+        }
+
+        if ($arrayIndex < count($target)) {
+            if ($last) {
+                if ($operation !== 'insert') {
+                    $target[$arrayIndex] = $replacement;
+                }
+
+                return;
+            }
+
+            self::mutatePath($target[$arrayIndex], $segments, $offset + 1, $operation, $replacement);
+
+            return;
+        }
+
+        if ($operation === 'replace') {
+            return;
+        }
+
+        if ($last) {
+            $target[] = $replacement;
+
+            return;
+        }
+
+        [$created, $substructure] = self::createSubstructure(array_slice($segments, $offset + 1), $replacement);
+        if ($created) {
+            $target[] = $substructure;
+        }
+    }
+
+    private static function mutateObjectMember(array &$target, string $name, bool $exists, string $operation, mixed $replacement): void
+    {
+        if ($exists) {
+            if ($operation !== 'insert') {
+                $target[$name] = $replacement;
+            }
+
+            return;
+        }
+
+        if ($operation !== 'replace') {
+            $target[$name] = $replacement;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tail
+     */
+    private static function insertMissingObjectMember(array &$target, string $name, array $tail, string $operation, mixed $replacement): void
+    {
+        if ($operation === 'replace') {
+            return;
+        }
+
+        [$created, $substructure] = self::createSubstructure($tail, $replacement);
+        if ($created) {
+            $target[$name] = $substructure;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $segments
+     * @return array{0:bool,1:mixed}
+     */
+    private static function createSubstructure(array $segments, mixed $replacement): array
+    {
+        if ($segments === []) {
+            return [true, $replacement];
+        }
+
+        $segment = $segments[0];
+        $tail = array_slice($segments, 1);
+        if (($segment['type'] ?? null) === 'member') {
+            $name = $segment['name'];
+            if (!is_string($name)) {
+                return [false, null];
+            }
+
+            [$created, $value] = self::createSubstructure($tail, $replacement);
+
+            return $created ? [true, [$name => $value]] : [false, null];
+        }
+
+        $index = self::substructureArrayIndex($segment);
+        if ($index !== 0) {
+            return [false, null];
+        }
+
+        [$created, $value] = self::createSubstructure($tail, $replacement);
+
+        return $created ? [true, [$value]] : [false, null];
+    }
+
+    /**
+     * @param array<string, mixed> $segment
+     */
+    private static function pathMutationArrayIndex(array $segment, int $count): ?int
+    {
+        if (($segment['append'] ?? false) === true) {
+            return $count;
+        }
+
+        $index = $segment['index'] ?? null;
+        if (!is_int($index)) {
+            return null;
+        }
+
+        if (($segment['fromEnd'] ?? false) === true) {
+            $index = $count - $index;
+        }
+
+        if ($index < 0 || $index > $count) {
+            return null;
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param array<string, mixed> $segment
+     */
+    private static function substructureArrayIndex(array $segment): ?int
+    {
+        if (($segment['append'] ?? false) === true) {
+            return 0;
+        }
+
+        $index = $segment['index'] ?? null;
+        if (!is_int($index)) {
+            return null;
+        }
+
+        if (($segment['fromEnd'] ?? false) === true) {
+            return $index === 0 ? 0 : null;
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param array<string, mixed> $segment
+     */
+    private static function pathArrayIndex(array $segment, int $count): ?int
+    {
+        if (($segment['append'] ?? false) === true) {
+            return null;
+        }
+
+        $index = $segment['index'] ?? null;
+        if (!is_int($index)) {
+            return null;
+        }
+
+        if (($segment['fromEnd'] ?? false) === true) {
+            $index = $count - $index;
+        }
+
+        if ($index < 0 || $index >= $count) {
+            return null;
+        }
+
+        return $index;
     }
 
     private static function decodeDecimalInteger(string $payload): int|float
