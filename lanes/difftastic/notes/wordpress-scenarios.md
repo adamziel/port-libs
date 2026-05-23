@@ -18,6 +18,10 @@ The upstream `align_footer` text fixture now maps display alignment where a chan
 
 The WordPress readme footer fixture applies that to plugin `readme.txt` reviews. A description wording change and deleted beta-only note are reported, while the stable FAQ footer heading remains aligned context instead of appearing as chunk content.
 
+The upstream CLI `changes_at_end` fixture now maps a text display shape where the final changed block reaches the end of the file. The JSON display keeps the terminal EOF context line aligned outside the changed chunk instead of treating it as novel content.
+
+The WordPress readme end-changes fixture applies that to plugin `readme.txt` changelog review. Stable-tag and final release-note edits plus an inserted audit note are visible, while the retained terminal EOF context stays aligned outside the changed chunk.
+
 Plain-text line splitting now maps upstream `src/lines.rs` `split_on_newlines` trailing EOF behavior and the `sample_files/repeated_line_no_eol_*.txt` fixture. Text mode preserves trailing empty lines and appended repeated final lines instead of trimming them away before `$text.line[...]` output.
 
 The WordPress import-log no-EOL fixture applies that to migration output under `wp-content/uploads/migration/import.log`. Compact JSON output preserves a final appended import record even when neither side ends with a newline.
@@ -159,6 +163,7 @@ php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-text-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-blank-display.php
 php lanes/difftastic/examples/wordpress-readme-footer-alignment-display.php
+php lanes/difftastic/examples/wordpress-readme-end-changes-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
 php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -208,4 +213,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map the upstream CLI `changes_at_end` text fixture into explicit PHP display expectations, especially the final changed block and retained trailing context behavior.
+Map another upstream text display pair such as `big_text_hunk_*.txt` or `many_newlines_*.txt`, especially hunk compaction and dense blank-line context behavior.

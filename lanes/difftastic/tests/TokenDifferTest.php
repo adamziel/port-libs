@@ -668,6 +668,34 @@ return [
         $t->same(2, $decoded['chunks'][0][1]['lhs']['line_number']);
         $t->true(!isset($decoded['chunks'][0][1]['rhs']), 'Deleted text line should not fabricate an opposite-side display entry.');
     },
+    'maps upstream cli changes at end text fixture without losing eof context' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-changes-at-end-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-changes-at-end-2.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'text']);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/cli_tests/changes_at_end.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $lastAligned = $decoded['aligned_lines'][array_key_last($decoded['aligned_lines'])];
+        $chunk = $decoded['chunks'][0];
+        $lastChunkLine = $chunk[array_key_last($chunk)];
+        $encodedChunks = json_encode($decoded['chunks'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(30, count($changes));
+        $t->same('~', $changes[0]['op']);
+        $t->same('$text.line[0]', $changes[0]['path']);
+        $t->same('              TOKEN_PATH@129..133 "/d6/"', $changes[0]['old']);
+        $t->same('                    TOKEN_INTEGER@125..127 "77"', $changes[0]['new']);
+        $t->same('+', $changes[29]['op']);
+        $t->same('$text.line[29]', $changes[29]['path']);
+        $t->same('                          TOKEN_PATH@152..155 "/Aa"', $changes[29]['text']);
+        $t->same([21, 30], $lastAligned);
+        $t->same(29, $lastChunkLine['rhs']['line_number']);
+        $t->true(!str_contains($encodedChunks, '"line_number":30'), 'The retained terminal EOF context should stay aligned, not appear as novel chunk content.');
+    },
     'wordpress readme footer alignment display keeps faq footer unchanged' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-after.txt');
@@ -685,6 +713,29 @@ return [
         $t->same('legacy', $decoded['chunks'][0][0]['lhs']['changes'][0]['content']);
         $t->same('modern', $decoded['chunks'][0][0]['rhs']['changes'][0]['content']);
         $t->true(!str_contains($encodedChunks, 'Frequently Asked Questions'), 'Stable readme footer heading should stay aligned as context, not novel chunk content.');
+    },
+    'wordpress readme end changes display preserves terminal context' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-end-changes-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-end-changes-after.txt');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-end-review/readme.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $lastAligned = $decoded['aligned_lines'][array_key_last($decoded['aligned_lines'])];
+        $encodedChunks = json_encode($decoded['chunks'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->same('wp-content/plugins/acme-end-review/readme.txt', $decoded['path']);
+        $t->same([8, 9], $lastAligned);
+        $t->contains('legacy', $encodedChunks);
+        $t->contains('modern', $encodedChunks);
+        $t->contains('"content":"Add"', $encodedChunks);
+        $t->contains('"content":"bindings"', $encodedChunks);
+        $t->contains('"content":"audit"', $encodedChunks);
+        $t->true(!str_contains($encodedChunks, '"line_number":9'), 'The final EOF context line should not be emitted as a changed readme chunk.');
     },
     'maps upstream split on newlines trailing eof behavior' => static function (TestRunner $t): void {
         $changes = (new TokenDiffer())->diffSyntaxLists('abc', "abc\n", ['language' => 'text']);
