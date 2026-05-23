@@ -10,6 +10,6 @@
     "audit": "verified 2026-05-23: focused readability PHP coverage passes 138 tests / 1691 assertions / 0 failures; upstream targeted `npm test -- --grep tmz-1` passes 13/13 checks; `php lanes/readability/examples/wordpress-tmz-legacy-post-envelope-import.php` reports legacy date retained: yes, article body retained: yes, duplicate split headline retained: no, inline images retained: 3, paragraph blocks: 7. The duplicate-root gate was clear before this worker started the root run, and final root aggregate `php tools/run-tests.php` passes 213 test files / 24517 assertions / 0 failures.",
     "currentWork": "Native Mozilla `tmz-1` fixture mapping copies Mozilla source/expected/metadata, preserves metadata/readerable/text parity, promotes a compact legacy `post-*` envelope around a single `articleBody`, retains the upstream split subheadline/date boundary, removes the duplicate headline prefix, and adds a WordPress scenario for legacy publisher post imports.",
     "blocker": "No focused readability blocker. Final root aggregate verification is green: `php tools/run-tests.php` passed 213 test files / 24517 assertions / 0 failures after the duplicate-root gate returned no active root harness.",
-    "latestCommit": "pending-lane-commit-after-f03f1473",
+    "latestCommit": "6c135b81",
     "nextTask": "Map another remaining small upstream fixture with current text parity but no local fixture coverage, such as invalid-attributes or comment-inside-script-parsing, then tighten expected-HTML parity for one small fixture without broad cleanup changes."
 }
