@@ -1653,3 +1653,37 @@ indexes. The new `examples/wordpress-jsonb-option-fixture.php` script prepares
 WordPress-oriented JSONB option-value fixture bytes, while
 `examples/wordpress-jsonb-option-value.php` documents recovery for plugin
 settings stored by SQLite JSONB functions.
+
+## Focused Native Mapping: B-tree Freeblock Inspection
+
+This slice maps SQLite's page-local freeblock chain validation and free-space
+accounting from `btreeComputeFreeSpace()` in `src/btree.c`. B-tree page
+headers already exposed the first freeblock offset and fragmented-byte count;
+the native PHP reader now walks the freeblock linked list, rejects overlapping
+or out-of-usable-space entries, and computes total free bytes as SQLite does:
+unallocated space before the cell content area, fragmented bytes, and all
+freeblock sizes.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  corrupt2.test corruptK.test
+```
+
+Result: 3 Tcl script/permutation runs, 0 errors out of 68 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/corrupt2.test` corrupts freeblock offsets on page 1 and expects
+  quick-check to report b-tree free-space corruption.
+- `test/corruptK.test` manipulates free-slot sizes and overlapping allocation
+  boundaries around `MemPage.nFree` and defragmentation.
+
+The native PHP tests now cover ordered freeblock-chain decoding, SQLite-style
+free-space byte accounting, non-ascending/overlapping freeblock rejection,
+reserved-byte usable-size boundaries, and corrupt free-space totals. The new
+`examples/wordpress-page-freeblocks.php` script reports page-local freeblock
+state for WordPress SQLite database images so recovery/import tooling can
+inspect deleted-space and malformed-page clues without loading SQLite.

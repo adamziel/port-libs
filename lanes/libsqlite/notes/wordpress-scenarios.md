@@ -219,6 +219,13 @@ indexes shaped like `wp_options(autoload, option_value, option_name)`, for
 example `autoload='no' AND option_value='cached-feed'` plus a transient
 `option_name` range, and still avoid unrelated or damaged branches.
 
+B-tree page freeblock chains can now be inspected directly from a page header.
+WordPress recovery or import diagnostics can report reclaimed/deleted-space
+regions on the schema root or `wp_options` root page, compute SQLite-style
+free-space totals, and flag overlapping, out-of-usable-space, or impossible
+free-space accounting before relying on an index or table page. This is a
+read-only page-integrity slice, not SQLite defragmentation or page rewriting.
+
 First-column `IN (...)` option-name lookups now read multiple requested
 options through an `option_name` index, suppress duplicate RHS names the way
 SQLite avoids duplicate result rows, and ignore `NULL` RHS values for `WHERE`
@@ -263,6 +270,11 @@ bounded sample of decoded `wp_options` records without using the PHP SQLite
 extension. The same path now handles large serialized/autoloaded option values
 stored on overflow pages. This is an inspection primitive needed by
 import/export and recovery tooling on hosts where `sqlite3` is unavailable.
+
+`examples/wordpress-page-freeblocks.php` reads a WordPress-oriented SQLite
+database image, inspects one b-tree page's freeblock chain, reports
+SQLite-style free-space accounting, and surfaces page-local freeblock
+corruption without invoking the SQLite extension.
 
 `examples/wordpress-indexed-option-lookup.php` reads a WordPress-oriented
 SQLite database file, resolves an explicit `wp_options(option_name)` index,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
+use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
@@ -313,6 +314,51 @@ return [
         $t->same(1234, $btree->rightMostPointer);
         $t->same(5, $btree->fragmentedFreeBytes);
         $t->same([500, 506], $btree->cellPointers($page));
+    },
+    'parses sqlite btree freeblock chains and free space accounting' => static function (TestRunner $t): void {
+        $page = str_repeat("\0", 512);
+        $page[0] = "\x0d";
+        $page = substr_replace($page, pack('n', 420), 1, 2);
+        $page = substr_replace($page, pack('n', 1), 3, 2);
+        $page = substr_replace($page, pack('n', 400), 5, 2);
+        $page[7] = "\x03";
+        $page = substr_replace($page, pack('n', 400), 8, 2);
+        $page = substr_replace($page, pack('n', 470) . pack('n', 20), 420, 4);
+        $page = substr_replace($page, pack('n', 0) . pack('n', 16), 470, 4);
+
+        $header = SQLiteBTreePageHeader::parsePage($page, 512);
+        $freeblocks = $header->freeblocks($page);
+
+        $t->same(SQLiteBTreeFreeblock::class, get_class($freeblocks[0]));
+        $t->same([
+            ['offset' => 420, 'size' => 20, 'end_offset' => 440, 'next_offset' => 470],
+            ['offset' => 470, 'size' => 16, 'end_offset' => 486, 'next_offset' => null],
+        ], array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $freeblocks));
+        $t->same(429, $header->freeSpaceBytes($page));
+    },
+    'rejects corrupt sqlite btree freeblock chains' => static function (TestRunner $t): void {
+        $overlap = str_repeat("\0", 512);
+        $overlap[0] = "\x0d";
+        $overlap = substr_replace($overlap, pack('n', 420), 1, 2);
+        $overlap = substr_replace($overlap, pack('n', 400), 5, 2);
+        $overlap = substr_replace($overlap, pack('n', 430) . pack('n', 20), 420, 4);
+        $overlapHeader = SQLiteBTreePageHeader::parsePage($overlap, 512);
+        $t->throws(InvalidArgumentException::class, static fn () => $overlapHeader->freeblocks($overlap));
+
+        $reserved = str_repeat("\0", 512);
+        $reserved[0] = "\x0d";
+        $reserved = substr_replace($reserved, pack('n', 490), 1, 2);
+        $reserved = substr_replace($reserved, pack('n', 480), 5, 2);
+        $reserved = substr_replace($reserved, pack('n', 0) . pack('n', 20), 490, 4);
+        $reservedHeader = SQLiteBTreePageHeader::parsePage($reserved, 512);
+        $t->throws(InvalidArgumentException::class, static fn () => $reservedHeader->freeblocks($reserved, 500));
+
+        $badAccounting = str_repeat("\0", 512);
+        $badAccounting[0] = "\x0d";
+        $badAccounting = substr_replace($badAccounting, pack('n', 500), 5, 2);
+        $badAccounting[7] = "\x14";
+        $badAccountingHeader = SQLiteBTreePageHeader::parsePage($badAccounting, 512);
+        $t->throws(InvalidArgumentException::class, static fn () => $badAccountingHeader->freeSpaceBytes($badAccounting));
     },
     'parses sqlite table interior cells with child page and rowid separator' => static function (TestRunner $t) use ($tableInteriorPage): void {
         $page = $tableInteriorPage([[2, 200]], 3);

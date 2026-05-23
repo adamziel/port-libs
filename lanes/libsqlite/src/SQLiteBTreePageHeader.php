@@ -128,6 +128,67 @@ final class SQLiteBTreePageHeader
         return $this->cellPointerArrayOffset() + ($this->cellCount * 2);
     }
 
+    /**
+     * @return list<SQLiteBTreeFreeblock>
+     */
+    public function freeblocks(string $page, ?int $usableSize = null): array
+    {
+        $usableSize ??= $this->pageSize;
+        $this->validatePageAndUsableSize($page, $usableSize);
+
+        $freeblocks = [];
+        $offset = $this->firstFreeblockOffset;
+        if ($offset === 0) {
+            return [];
+        }
+
+        if ($offset < $this->cellContentAreaStart) {
+            throw new \InvalidArgumentException('SQLite b-tree first freeblock offset is before the cell content area');
+        }
+
+        $lastFreeblockOffset = $usableSize - 4;
+        while ($offset !== 0) {
+            if ($offset > $lastFreeblockOffset) {
+                throw new \InvalidArgumentException('SQLite b-tree freeblock offset extends beyond usable page space');
+            }
+
+            $nextOffset = self::readUInt16($page, $offset);
+            $size = self::readUInt16($page, $offset + 2);
+            if ($size < 4) {
+                throw new \InvalidArgumentException('SQLite b-tree freeblock size is too small');
+            }
+            if ($offset + $size > $usableSize) {
+                throw new \InvalidArgumentException('SQLite b-tree freeblock extends beyond usable page space');
+            }
+            if ($nextOffset !== 0 && $nextOffset <= $offset + $size + 3) {
+                throw new \InvalidArgumentException('SQLite b-tree freeblock chain is not in ascending non-overlapping order');
+            }
+
+            $freeblocks[] = new SQLiteBTreeFreeblock($offset, $size, $nextOffset === 0 ? null : $nextOffset);
+            $offset = $nextOffset;
+        }
+
+        return $freeblocks;
+    }
+
+    public function freeSpaceBytes(string $page, ?int $usableSize = null): int
+    {
+        $usableSize ??= $this->pageSize;
+        $this->validatePageAndUsableSize($page, $usableSize);
+
+        $freeBytes = $this->fragmentedFreeBytes + $this->cellContentAreaStart;
+        foreach ($this->freeblocks($page, $usableSize) as $freeblock) {
+            $freeBytes += $freeblock->size;
+        }
+
+        $cellContentFloor = $this->cellPointerArrayEnd();
+        if ($freeBytes > $usableSize || $freeBytes < $cellContentFloor) {
+            throw new \InvalidArgumentException('SQLite b-tree free-space accounting is corrupt');
+        }
+
+        return $freeBytes - $cellContentFloor;
+    }
+
     public function isLeaf(): bool
     {
         return ($this->pageTypeFlag & 0x08) !== 0;
@@ -146,6 +207,19 @@ final class SQLiteBTreePageHeader
     public function hasLeafData(): bool
     {
         return $this->isLeaf() && $this->hasIntegerKeys();
+    }
+
+    private function validatePageAndUsableSize(string $page, int $usableSize): void
+    {
+        if (strlen($page) < $this->pageSize) {
+            throw new \InvalidArgumentException('SQLite b-tree parser requires a complete page image');
+        }
+        if ($usableSize < 0 || $usableSize > $this->pageSize) {
+            throw new \InvalidArgumentException('Invalid SQLite usable page size for b-tree freeblock inspection');
+        }
+        if ($this->cellContentAreaStart > $usableSize) {
+            throw new \InvalidArgumentException('SQLite b-tree cell content area starts beyond usable page space');
+        }
     }
 
     private static function readUInt16(string $bytes, int $offset): int
