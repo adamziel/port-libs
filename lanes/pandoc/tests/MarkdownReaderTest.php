@@ -392,6 +392,51 @@ return [
         $t->same('Title with "quotes" inside', $document->children[8]->children[1]->attr('title'));
         $t->same('Title with "quote" inside', $document->children[9]->children[1]->attr('title'));
     },
+    'maps upstream markdown reader more urls with spaces and split reference definitions' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '[foo] and [bar]',
+            '',
+            '[foo]: ',
+            '  /url',
+            '',
+            '[bar]:',
+            '/url',
+            '"title"',
+            '',
+            '[foo](/bar and baz)',
+            '[foo](/bar',
+            ' and baz )',
+            '[foo]( /bar  and  baz  )',
+            '[foo](bar baz  "title" )',
+            '',
+            '[baz][] [bam][] [bork][]',
+            '',
+            '[baz]: /foo foo',
+            '[bam]:  /foo fee   ',
+            '[bork]:  /foo/zee zob   (title)',
+        ]));
+
+        $blankLineReferences = $document->children[0];
+        $spaceInlineLinks = $document->children[1];
+        $spaceReferenceLinks = $document->children[2];
+
+        $t->same('/url', $blankLineReferences->children[0]->attr('url'));
+        $t->same('/url', $blankLineReferences->children[2]->attr('url'));
+        $t->same('title', $blankLineReferences->children[2]->attr('title'));
+        $t->same('/bar%20and%20baz', $spaceInlineLinks->children[0]->attr('url'));
+        $t->same('/bar%20and%20baz', $spaceInlineLinks->children[2]->attr('url'));
+        $t->same('/bar%20and%20baz', $spaceInlineLinks->children[4]->attr('url'));
+        $t->same('bar%20baz', $spaceInlineLinks->children[6]->attr('url'));
+        $t->same('title', $spaceInlineLinks->children[6]->attr('title'));
+        $t->same('/foo%20foo', $spaceReferenceLinks->children[0]->attr('url'));
+        $t->same('/foo%20fee', $spaceReferenceLinks->children[2]->attr('url'));
+        $t->same('/foo/zee%20zob', $spaceReferenceLinks->children[4]->attr('url'));
+        $t->same('title', $spaceReferenceLinks->children[4]->attr('title'));
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $t->contains('<a href="/bar%20and%20baz">foo</a>', $blocks);
+        $t->contains('<a href="/foo/zee%20zob" title="title">bork</a>', $blocks);
+    },
     'maps upstream testsuite ampersand links and autolinks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             "Here's a [link with an ampersand in the URL][1].",
@@ -3304,6 +3349,8 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit imported post">migration checklist</a>', $blocks);
+        $t->contains('<a href="https://example.test/uploads/legacy%20media%20file.jpg" title="Legacy media file">legacy media file</a>', $blocks);
+        $t->contains('<a href="/wp-content/uploads/import%20batch%2042.csv" title="Batch manifest">spaced batch manifest</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
     },

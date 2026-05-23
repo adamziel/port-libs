@@ -75,6 +75,18 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   whitespace-separated termination, and an invalid spaced footnote label
 - `test/testsuite.native` Footnotes rendered native AST slice inspected in this
   run: 305 lines, including 4 `Note` nodes
+- `test/markdown-reader-more.txt` inspected in this run: 366 Markdown lines in
+  Pandoc's additional Markdown reader fixture.
+- `test/markdown-reader-more.native` inspected in this run: 1,715 rendered
+  native AST lines.
+- `test/markdown-reader-more.txt` blank-reference and URL-space slice inspected
+  in this run: 44 Markdown lines covering two reference definitions whose
+  targets/titles live on following lines, four inline link destinations with
+  spaces or multiline spaces, and three reference link destinations with spaces
+  plus one parenthesized title.
+- `test/markdown-reader-more.native` corresponding rendered AST slice inspected
+  in this run: 100 lines showing two split reference-definition links and
+  seven space-containing link destinations normalized with `%20`.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky

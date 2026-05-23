@@ -230,13 +230,18 @@ final class MarkdownReader
                 continue;
             }
 
-            $reference = $this->tryParseReferenceDefinition($expanded);
+            $reference = $this->tryParseReferenceDefinitionStart($expanded);
             if ($reference !== null) {
-                $references[$this->normalizeReferenceLabel($reference['label'])] = [
-                    'url' => $reference['url'],
-                    'title' => $reference['title'],
-                ];
-                continue;
+                [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
+                $target = $this->parseLinkDestinationAndTitle($targetSource);
+                if ($target !== null) {
+                    $references[$this->normalizeReferenceLabel($reference['label'])] = [
+                        'url' => $target['url'],
+                        'title' => $target['title'],
+                    ];
+                    $index = $nextIndex - 1;
+                    continue;
+                }
             }
 
             $content[] = $line;
@@ -314,20 +319,70 @@ final class MarkdownReader
      */
     private function tryParseReferenceDefinition(string $line): ?array
     {
-        if (preg_match('/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+        $reference = $this->tryParseReferenceDefinitionStart($line);
+        if ($reference === null) {
             return null;
         }
 
-        $target = $this->parseLinkDestinationAndTitle($m[2]);
+        $target = $this->parseLinkDestinationAndTitle($reference['content']);
         if ($target === null) {
             return null;
         }
 
         return [
-            'label' => $m[1],
+            'label' => $reference['label'],
             'url' => $target['url'],
             'title' => $target['title'],
         ];
+    }
+
+    /**
+     * @return array{label:string, content:string}|null
+     */
+    private function tryParseReferenceDefinitionStart(string $line): ?array
+    {
+        if (preg_match('/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        return [
+            'label' => $m[1],
+            'content' => rtrim($m[2]),
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}
+     */
+    private function collectReferenceDefinitionTarget(array $lines, int $index, string $firstLine): array
+    {
+        $target = trim($firstLine);
+        $cursor = $index + 1;
+        $count = count($lines);
+
+        if ($target === '') {
+            while ($cursor < $count && trim($lines[$cursor]) === '') {
+                $cursor++;
+            }
+
+            if ($cursor >= $count) {
+                return ['', $cursor];
+            }
+
+            $target = trim($this->expandTabsToSpaces($lines[$cursor]));
+            $cursor++;
+        }
+
+        if ($cursor < $count) {
+            $candidate = trim($this->expandTabsToSpaces($lines[$cursor]));
+            if ($this->parseLinkTitle($candidate) !== null) {
+                $target .= ' ' . $candidate;
+                $cursor++;
+            }
+        }
+
+        return [$target, $cursor];
     }
 
     /**
@@ -5392,24 +5447,70 @@ final class MarkdownReader
             return ['url' => '', 'title' => ''];
         }
 
-        [$destination, $rest] = $this->readLinkDestination($content);
-        if ($destination === null) {
+        if ($content[0] === '<') {
+            [$destination, $rest] = $this->readLinkDestination($content);
+            if ($destination === null) {
+                return null;
+            }
+
+            $title = '';
+            $rest = trim($rest);
+            if ($rest !== '') {
+                $title = $this->parseLinkTitle($rest);
+                if ($title === null) {
+                    return null;
+                }
+            }
+
+            return [
+                'url' => $this->normalizeLinkDestination($destination),
+                'title' => $title,
+            ];
+        }
+
+        [$destination, $titleSource] = $this->splitBareLinkDestinationAndTitle($content);
+        $destination = trim($destination);
+        if ($destination === '') {
             return null;
         }
 
         $title = '';
-        $rest = trim($rest);
-        if ($rest !== '') {
-            $title = $this->parseLinkTitle($rest);
+        if ($titleSource !== null) {
+            $title = $this->parseLinkTitle($titleSource);
             if ($title === null) {
                 return null;
             }
         }
 
         return [
-            'url' => $this->unescapeLinkComponent($destination),
+            'url' => $this->normalizeLinkDestination($destination),
             'title' => $title,
         ];
+    }
+
+    /**
+     * @return array{0:string, 1:string|null}
+     */
+    private function splitBareLinkDestinationAndTitle(string $content): array
+    {
+        $length = strlen($content);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if (!ctype_space($content[$cursor])) {
+                continue;
+            }
+
+            $title = ltrim(substr($content, $cursor + 1));
+            if ($title === '' || $this->parseLinkTitle($title) === null) {
+                continue;
+            }
+
+            $destination = rtrim(substr($content, 0, $cursor));
+            if ($destination !== '') {
+                return [$destination, $title];
+            }
+        }
+
+        return [$content, null];
     }
 
     /**
@@ -5482,6 +5583,14 @@ final class MarkdownReader
     private function unescapeLinkComponent(string $text): string
     {
         return preg_replace('/\\\\([^A-Za-z0-9\s])/', '$1', $text) ?? $text;
+    }
+
+    private function normalizeLinkDestination(string $destination): string
+    {
+        $destination = $this->unescapeLinkComponent($destination);
+        $destination = trim(preg_replace('/\s+/', ' ', $destination) ?? $destination);
+
+        return str_replace(' ', '%20', $destination);
     }
 
     /**

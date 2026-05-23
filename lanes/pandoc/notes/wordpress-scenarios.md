@@ -208,6 +208,10 @@ forms, nested brackets in link text, and up-to-three-space reference
 definitions; ampersands stay intact in URLs, link text, and titles; URI and
 email autolinks work inside paragraphs, lists, and quotes; and code spans or
 indented code blocks keep angle-bracket URLs as literal code.
+The `test/markdown-reader-more.txt` URL-space cases are now represented too:
+reference definitions may put the URL and title on following lines, and bare
+link destinations with spaces are collapsed and percent-encoded as `%20` while
+keeping trailing quoted or parenthesized titles attached.
 The bounded Images section is now mapped for import-safe media preservation:
 standalone reference images become WordPress image blocks with caption/title
 metadata, and inline image spans remain inside paragraph text with escaped alt
@@ -265,7 +269,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   labels, smart import-editor quotes, apostrophes, ellipses, date-range en
   dashes, em-dash review notes, HTML entity text that must not double-escape,
   literal comparison characters, reference audit links with WordPress edit-link
-  titles, autolinked audit URLs, importer email contacts, a standalone
+  titles, spaced media/manifest URLs that must be `%20`-encoded, autolinked
+  audit URLs, importer email contacts, a standalone
   referenced release image, an inline thumbnail image, reference and inline
   footnotes for source audit trails, raw TeX citations, inline/display math
   notes, a raw TeX table source block, and a fenced PHP migration snippet.
@@ -469,6 +474,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Reference audit links render as normal WordPress paragraph links with title
   attributes preserved, URI autolinks render as escaped clickable URLs, and
   importer email autolinks render as `mailto:` links without invoking Pandoc.
+- Legacy media and manifest links with spaces render as WordPress-safe
+  `%20`-encoded URLs, including split reference definitions whose title is on a
+  following line.
 - Referenced import images render as core WordPress image blocks with preserved
   captions/titles, and inline thumbnail images render inside paragraph blocks
   without invoking Pandoc.

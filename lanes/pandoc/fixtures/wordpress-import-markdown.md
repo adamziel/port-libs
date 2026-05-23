@@ -8,11 +8,16 @@ Inline media audit: ![thumbnail](https://example.test/uploads/thumb.jpg "Thumbna
 
 Reference audit links: [migration checklist][checklist] and <https://example.test/audit?post=42&status=ready>.
 
+Spaced source links: [legacy media file](https://example.test/uploads/legacy media file.jpg "Legacy media file") and [spaced batch manifest][spaced-batch].
+
 Contact importer: <importer@example.test>.
 
 Footnote audit: migration source[^source-note] and inline editor note.^[Inline note keeps [audit link](https://example.test/audit-footnote) and `]` marker visible.]
 
 [checklist]: </wp-admin/post.php?post=42&action=edit> "Edit imported post"
+[spaced-batch]:
+/wp-content/uploads/import batch 42.csv
+"Batch manifest"
 [release-frame]: https://example.test/uploads/release-frame.jpg "Release archive frame"
 
 [^source-note]: Source archive footnote keeps the reviewer trail.
