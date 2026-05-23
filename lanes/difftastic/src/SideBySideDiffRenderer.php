@@ -8,13 +8,16 @@ use InvalidArgumentException;
 
 final class SideBySideDiffRenderer
 {
+    private const DEFAULT_CONTEXT_LINES = 3;
+    private const HUNK_MERGE_MAX_DISTANCE = 4;
+
     public function __construct(
         private readonly TokenDiffer $differ = new TokenDiffer(),
     ) {
     }
 
     /**
-     * @param array{tabWidth?: int, columnWidth?: int, stripCr?: bool} $options
+     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool} $options
      */
     public function renderTextDiff(string $old, string $new, array $options = []): string
     {
@@ -26,15 +29,29 @@ final class SideBySideDiffRenderer
 
         $tabWidth = max(1, (int) ($options['tabWidth'] ?? 8));
         $columnWidth = max($tabWidth + 1, (int) ($options['columnWidth'] ?? 80));
-        $oldLines = $this->displayLines($old);
-        $newLines = $this->displayLines($new);
+        $contextLines = max(0, (int) ($options['contextLines'] ?? self::DEFAULT_CONTEXT_LINES));
+        $showBoth = (bool) ($options['showBoth'] ?? false);
+        if (!$showBoth && $old === '' && $new !== '') {
+            return $this->renderSingleColumnTextDiff($new, $tabWidth);
+        }
+        if (!$showBoth && $new === '' && $old !== '') {
+            return $this->renderSingleColumnTextDiff($old, $tabWidth);
+        }
+
+        $oldLines = $old === '' ? [] : $this->displayLines($old);
+        $newLines = $new === '' ? [] : $this->displayLines($new);
         $lineNumberWidth = max(1, strlen((string) max(count($oldLines), count($newLines))));
         $rows = [];
 
-        foreach ($this->alignedLinePairs($oldLines, $newLines) as $pair) {
+        foreach ($this->alignedLinePairs($oldLines, $newLines, $contextLines) as $pair) {
             [$oldLineNumber, $newLineNumber] = $pair;
+            if ($oldLineNumber === null && $newLineNumber === null) {
+                $rows[] = $this->formatHunkSeparator($lineNumberWidth, $columnWidth);
+                continue;
+            }
+
             $lhsParts = $oldLineNumber === null
-                ? ['']
+                ? [str_repeat(' ', $columnWidth)]
                 : $this->splitLineForDisplay($oldLines[$oldLineNumber], $columnWidth, $tabWidth, 'left');
             $rhsParts = $newLineNumber === null
                 ? ['']
@@ -53,6 +70,20 @@ final class SideBySideDiffRenderer
 
                 $rows[] = $lhsNumber . $lhsText . '  ' . $rhsNumber . $rhsText;
             }
+        }
+
+        return implode("\n", $rows) . "\n";
+    }
+
+    private function renderSingleColumnTextDiff(string $source, int $tabWidth): string
+    {
+        $lines = explode("\n", $source);
+        $lineNumberWidth = max(1, strlen((string) count($lines)));
+        $rows = [];
+
+        foreach ($lines as $index => $line) {
+            $rows[] = $this->formatLineNumber($index, $lineNumberWidth)
+                . str_replace("\t", str_repeat(' ', $tabWidth), $line);
         }
 
         return implode("\n", $rows) . "\n";
@@ -128,7 +159,7 @@ final class SideBySideDiffRenderer
      * @param list<string> $newLines
      * @return list<array{0:?int, 1:?int}>
      */
-    private function alignedLinePairs(array $oldLines, array $newLines): array
+    private function alignedLinePairs(array $oldLines, array $newLines, int $contextLines): array
     {
         $pairs = [];
         $pendingOld = [];
@@ -150,7 +181,7 @@ final class SideBySideDiffRenderer
 
         $this->flushPendingLinePairs($pairs, $pendingOld, $pendingNew);
 
-        return $pairs;
+        return $this->linePairsWithContext($pairs, $oldLines, $newLines, $contextLines);
     }
 
     /**
@@ -167,6 +198,96 @@ final class SideBySideDiffRenderer
 
         $pendingOld = [];
         $pendingNew = [];
+    }
+
+    /**
+     * @param list<array{0:?int, 1:?int}> $pairs
+     * @param list<string> $oldLines
+     * @param list<string> $newLines
+     * @return list<array{0:?int, 1:?int}>
+     */
+    private function linePairsWithContext(array $pairs, array $oldLines, array $newLines, int $contextLines): array
+    {
+        $groups = [];
+        $currentStart = null;
+        $currentEnd = null;
+        $lastChangedIndex = null;
+
+        foreach ($pairs as $index => $pair) {
+            if (!$this->linePairHasChange($pair, $oldLines, $newLines)) {
+                continue;
+            }
+
+            if ($currentStart === null) {
+                $currentStart = $index;
+                $currentEnd = $index;
+            } elseif ($lastChangedIndex !== null && $index - $lastChangedIndex <= self::HUNK_MERGE_MAX_DISTANCE) {
+                $currentEnd = $index;
+            } else {
+                $groups[] = [$currentStart, $currentEnd];
+                $currentStart = $index;
+                $currentEnd = $index;
+            }
+
+            $lastChangedIndex = $index;
+        }
+
+        if ($currentStart === null || $currentEnd === null) {
+            return $pairs;
+        }
+
+        $groups[] = [$currentStart, $currentEnd];
+
+        $ranges = [];
+        $lastPairIndex = count($pairs) - 1;
+        foreach ($groups as [$start, $end]) {
+            $rangeStart = max(0, $start - $contextLines);
+            $rangeEnd = min($lastPairIndex, $end + $contextLines);
+            $previous = array_key_last($ranges);
+            if ($previous !== null && $rangeStart <= $ranges[$previous][1] + 1) {
+                $ranges[$previous][1] = max($ranges[$previous][1], $rangeEnd);
+                continue;
+            }
+
+            $ranges[] = [$rangeStart, $rangeEnd];
+        }
+
+        $visible = [];
+        foreach ($ranges as $rangeIndex => [$start, $end]) {
+            if ($rangeIndex > 0) {
+                $visible[] = [null, null];
+            }
+            for ($index = $start; $index <= $end; $index++) {
+                $visible[] = $pairs[$index];
+            }
+        }
+
+        return $visible;
+    }
+
+    /**
+     * @param array{0:?int, 1:?int} $pair
+     * @param list<string> $oldLines
+     * @param list<string> $newLines
+     */
+    private function linePairHasChange(array $pair, array $oldLines, array $newLines): bool
+    {
+        [$oldLineNumber, $newLineNumber] = $pair;
+        if ($oldLineNumber === null || $newLineNumber === null) {
+            return true;
+        }
+
+        return $oldLines[$oldLineNumber] !== $newLines[$newLineNumber];
+    }
+
+    private function formatHunkSeparator(int $lineNumberWidth, int $columnWidth): string
+    {
+        return str_repeat('.', $lineNumberWidth)
+            . ' '
+            . str_repeat(' ', $columnWidth)
+            . '  '
+            . str_repeat('.', $lineNumberWidth)
+            . ' ...';
     }
 
     private function displayPart(string $part, int $maxWidth, int $tabWidth, string $side): string

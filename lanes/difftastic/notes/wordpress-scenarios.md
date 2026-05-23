@@ -42,6 +42,14 @@ Side-by-side display now maps upstream `src/display/style.rs` tab-width handling
 
 The WordPress tabbed block metadata fixture applies that to tab-indented `block.json` review. `title`, `viewScriptModule`, and nested `supports.html` changes render with deterministic spaces so a browser or terminal review surface does not depend on local tab stops.
 
+Side-by-side display now also maps upstream `--context` behavior from `src/options.rs` plus the context/hunk helpers in `src/display/context.rs`, `src/display/hunks.rs`, and `src/display/side_by_side.rs`. It uses three context lines by default, accepts `contextLines`, merges nearby hunk windows, and marks omitted distant stable lines with a separator.
+
+The WordPress block-pattern context fixture applies that to PHP block pattern registration arrays. A compact review can show changed hero/footer pattern metadata while omitting stable testimonial/gallery registrations that are outside the context window.
+
+Side-by-side display now maps upstream empty-side behavior from `src/options.rs` and `src/display/side_by_side.rs`: created or deleted files render as one numbered source column by default, while callers can request `showBoth` for padded two-column output.
+
+The WordPress created import-report side-by-side example applies that to generated Data Liberation CSV output. Newly generated report rows are shown without a blank opposite column.
+
 Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
 
 The WordPress large asset manifest example applies that to generated block asset metadata. A one-line JSON manifest that gains a `view.js` asset and changes its version remains bounded to the configured side-by-side column width instead of producing an unreadable or prohibitively slow review line.
@@ -193,6 +201,8 @@ php lanes/difftastic/examples/wordpress-created-import-report-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
 php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
 php lanes/difftastic/examples/wordpress-tabbed-block-json-side-by-side.php
+php lanes/difftastic/examples/wordpress-pattern-context-side-by-side.php
+php lanes/difftastic/examples/wordpress-created-import-report-side-by-side.php
 php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
 php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -243,4 +253,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Broaden upstream side-by-side hunk/context behavior now that long_line and huge_cpp large-file boundaries are mapped without copying huge blobs.
+Map another upstream display boundary such as syntax-highlighted side-by-side novel spans.

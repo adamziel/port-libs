@@ -972,6 +972,78 @@ return [
         $t->contains('    return 0;', $display);
         $t->true(!str_contains($display, "\t"), 'Configured tab width should be applied to both changed and retained C lines.');
     },
+    'maps upstream side by side default context lines' => static function (TestRunner $t): void {
+        $beforeLines = array_map(static fn (int $line): string => 'stable-' . str_pad((string) $line, 2, '0', STR_PAD_LEFT), range(1, 20));
+        $afterLines = $beforeLines;
+        $afterLines[9] = 'changed-10';
+        $before = implode("\n", $beforeLines) . "\n";
+        $after = implode("\n", $afterLines) . "\n";
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'columnWidth' => 40,
+        ]);
+
+        $t->contains('stable-07', $display);
+        $t->contains('stable-13', $display);
+        $t->contains('changed-10', $display);
+        $t->true(!str_contains($display, 'stable-05'), 'Default side-by-side display should omit context before the three-line window.');
+        $t->true(!str_contains($display, 'stable-15'), 'Default side-by-side display should omit context after the three-line window.');
+    },
+    'maps upstream side by side context hunks with separators' => static function (TestRunner $t): void {
+        $beforeLines = array_map(static fn (int $line): string => 'stable-' . str_pad((string) $line, 2, '0', STR_PAD_LEFT), range(1, 22));
+        $afterLines = $beforeLines;
+        $afterLines[5] = 'changed-alpha';
+        $afterLines[17] = 'changed-beta';
+        $before = implode("\n", $beforeLines) . "\n";
+        $after = implode("\n", $afterLines) . "\n";
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'columnWidth' => 32,
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('changed-alpha', $display);
+        $t->contains('changed-beta', $display);
+        $t->contains('stable-05', $display);
+        $t->contains('stable-19', $display);
+        $t->contains(' ...', $display);
+        $t->true(!str_contains($display, 'stable-11'), 'Distant unchanged lines between hunk windows should be elided.');
+    },
+    'maps upstream context rust sample through side by side display' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-context-1.rs');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-context-2.rs');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'columnWidth' => 56,
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('match ()', $display);
+        $t->contains('let opposite_to_lhs', $display);
+        $t->contains('let lang_name;', $display);
+        $t->true(!str_contains($display, 'No syntactic changes'), 'The upstream context fixture should remain a visible side-by-side change.');
+    },
+    'maps upstream side by side created files as single column by default' => static function (TestRunner $t): void {
+        $display = (new SideBySideDiffRenderer())->renderTextDiff('', "alpha\tasset\nbeta asset\n", [
+            'tabWidth' => 4,
+            'columnWidth' => 20,
+        ]);
+
+        $t->same("1 alpha    asset\n2 beta asset\n3 \n", $display);
+    },
+    'maps upstream side by side deleted files as single column by default' => static function (TestRunner $t): void {
+        $display = (new SideBySideDiffRenderer())->renderTextDiff("old render.php\nlegacy asset\n", '', [
+            'columnWidth' => 20,
+        ]);
+
+        $t->same("1 old render.php\n2 legacy asset\n3 \n", $display);
+    },
+    'maps upstream side by side show both mode for created files' => static function (TestRunner $t): void {
+        $display = (new SideBySideDiffRenderer())->renderTextDiff('', "alpha asset\nbeta asset\n", [
+            'columnWidth' => 20,
+            'showBoth' => true,
+        ]);
+
+        $t->contains('.                       1 alpha asset', $display);
+        $t->contains('.                       2 beta asset', $display);
+    },
     'maps upstream long line sample shape with linear display width wrapping' => static function (TestRunner $t): void {
         $renderer = new SideBySideDiffRenderer();
         $line = str_repeat('abcdefghij', 16000);
@@ -1029,6 +1101,32 @@ return [
         $t->contains('        "html": false', $display);
         $t->contains('        "html": true', $display);
         $t->true(!str_contains($display, "\t"), 'Block metadata review output should not depend on browser or terminal tab stops.');
+    },
+    'wordpress created import report side by side uses single column' => static function (TestRunner $t): void {
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-created-import-report-after.txt');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff('', $after, [
+            'tabWidth' => 4,
+            'columnWidth' => 64,
+        ]);
+
+        $t->contains('1 Post ID,Status,Notes', $display);
+        $t->contains('4 44,queued,Needs media sideload retry', $display);
+        $t->true(!str_contains($display, '  . '), 'Created WordPress report should not reserve an empty opposite column by default.');
+    },
+    'wordpress block pattern context display omits distant stable patterns' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-pattern-context-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-pattern-context-after.php');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'tabWidth' => 4,
+            'columnWidth' => 64,
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('Landing Hero', $display);
+        $t->contains("'footer', 'site'", $display);
+        $t->contains(' ...', $display);
+        $t->true(!str_contains($display, 'Testimonial'), 'Unchanged middle block patterns should stay out of compact side-by-side review output.');
+        $t->true(!str_contains($display, 'Gallery'), 'A distant stable pattern should not be displayed when it is outside the context window.');
     },
     'recurses into nested wordpress registration arrays' => static function (TestRunner $t): void {
         $before = "register_block_type('demo/card', ['supports' => ['html' => false, 'align' => ['wide']], 'render_callback' => 'old_card']);";
