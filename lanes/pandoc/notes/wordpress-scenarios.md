@@ -653,6 +653,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   citation-adjacent shortcut links keep the source link clickable while leaving
   the citation marker visible, and empty reference placeholders render as empty
   `href` links without swallowing the following review paragraph.
+- Backslash-escaped source URL/title punctuation now follows Pandoc's reader
+  boundary for migration links: escaped closing parentheses remain part of the
+  destination, escaped title quotes render as WordPress-safe title attributes,
+  and reference definitions can carry escaped `)` or `.` punctuation without
+  leaving literal backslashes in reviewer-facing links.
 - Bare Pandoc citation imports now keep reviewer citation text visible while
   preserving link boundaries around adjacent source logs. This lets later
   citation-processing passes see `@cita [review-only note]` without turning a
@@ -717,5 +722,5 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the adjacent `Tests.Readers.Markdown` unbalanced-bracket/backslash-escape
-group explicitly.
+Map the adjacent `Tests.Readers.Markdown` intraword underscore and raw-LaTeX-in-URL
+edge cases explicitly.

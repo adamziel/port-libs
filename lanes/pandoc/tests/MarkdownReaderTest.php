@@ -607,6 +607,39 @@ return [
         $t->same('Title with "quotes" inside', $document->children[8]->children[1]->attr('title'));
         $t->same('Title with "quote" inside', $document->children[9]->children[1]->attr('title'));
     },
+    'maps upstream markdown reader unbalanced brackets and backslash escaped links' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $unbalanced = $reader->read('[[[[[[[[[[[[hi')->children[0];
+        $url = $reader->read('[hi](/there\\))')->children[0]->children[0];
+        $title = $reader->read('[hi](/there "a\"a")')->children[0]->children[0];
+        $referenceTitle = $reader->read(implode("\n", [
+            '[hi]',
+            '',
+            '[hi]: /there (a\\)a)',
+        ]))->children[0]->children[0];
+        $referenceUrl = $reader->read(implode("\n", [
+            '[hi]',
+            '',
+            '[hi]: /there\\.0',
+        ]))->children[0]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($reader->read(implode("\n\n", [
+            '[escaped closing paren](/there\\))',
+            '[escaped title](/there "a\"a")',
+        ])));
+
+        $t->same('paragraph', $unbalanced->type);
+        $t->same('[[[[[[[[[[[[hi', $unbalanced->children[0]->attr('text'));
+        $t->same('link', $url->type);
+        $t->same('/there)', $url->attr('url'));
+        $t->same('hi', $url->children[0]->attr('text'));
+        $t->same('/there', $title->attr('url'));
+        $t->same('a"a', $title->attr('title'));
+        $t->same('/there', $referenceTitle->attr('url'));
+        $t->same('a)a', $referenceTitle->attr('title'));
+        $t->same('/there.0', $referenceUrl->attr('url'));
+        $t->contains('<p><a href="/there)">escaped closing paren</a></p>', $blocks);
+        $t->contains('<p><a href="/there" title="a&quot;a">escaped title</a></p>', $blocks);
+    },
     'maps upstream markdown reader more urls with spaces and split reference definitions' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '[foo] and [bar]',
@@ -4626,6 +4659,8 @@ XML;
         $t->contains('<a href="hi_(there_(nested))">nested reference</a>', $blocks);
         $t->contains('<p>Inline code attribute audit: <code id="enqueue-call" class="php" data-source="batch-42" title="Import source token">wp_enqueue_script</code> stays tagged for reviewer tooling.</p>', $blocks);
         $t->contains('<p>Backslash link label audit: <a href="b">*<span class="pandoc-raw-tex">\a</span></a> keeps escaped import markers visible.</p>', $blocks);
+        $t->contains('<p>Backslash escape source audit: <a href="/there)">escaped closing paren</a> and <a href="/there" title="a&quot;a">escaped title</a> keep migration links intact.</p>', $blocks);
+        $t->contains('<p>Reference escape source audit: <a href="/there" title="a)a">escaped reference title</a> and <a href="/there.0">escaped reference url</a> preserve source metadata.</p>', $blocks);
         $t->contains('<p>Fallback source markers: [<em>not a migration link</em>] [<em>no source</em>]…</p>', $blocks);
         $t->contains('<p>Citation-adjacent source link: MapReduce was popularized by <a href="https://example.test/source/mapreduce">Google</a> [@mapreduce] during source review.</p>', $blocks);
         $t->contains('<p>Citation boundary audit: @cita [review-only note] stays source citation text, while @cita <a href="https://example.test/citation-link">source log</a> keeps the reviewer link separate.</p>', $blocks);

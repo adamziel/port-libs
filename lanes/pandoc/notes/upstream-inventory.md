@@ -962,6 +962,13 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   the indented ordinary code block remains unclassed code, and the fixture's
   one-space-indented ` > foo bar` line remains a block quote when
   `literateHaskell => true`.
+- The adjacent `Tests.Readers.Markdown` unbalanced-bracket and backslash-escape
+  cases are now explicitly mapped: a long unmatched bracket run remains literal
+  paragraph text, inline-link `\)` becomes a literal `)` inside the URL,
+  escaped quotes inside inline titles survive, and escaped punctuation in
+  reference-link URLs/titles is unescaped through the same native path. The
+  reader now narrows Markdown backslash escapes to Pandoc/CommonMark-style
+  ASCII punctuation instead of treating any non-alphanumeric byte as escapable.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
@@ -1005,3 +1012,13 @@ assertions, and 0 failures.
 Required root verification on 2026-05-23: the duplicate-root gate returned
 clear, so `php tools/run-tests.php` was run once and passed 196 test files,
 21,585 assertions, and 0 failures.
+
+Focused local verification on 2026-05-23 after the unbalanced-bracket and
+backslash-escape slice: `php -l` passed for `MarkdownReader.php` and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,097
+assertions, and 0 failures.
+
+Required root verification on 2026-05-23 after the same slice: the duplicate
+root gate returned clear, so `php tools/run-tests.php` was run once and passed
+198 test files, 21,767 assertions, and 0 failures.

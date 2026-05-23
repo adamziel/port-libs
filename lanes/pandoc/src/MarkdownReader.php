@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class MarkdownReader
 {
+    private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
     /** @var array<string, array{url:string, title:string}> */
     private array $referenceLinks = [];
 
@@ -7650,7 +7652,21 @@ final class MarkdownReader
 
     private function unescapeLinkComponent(string $text): string
     {
-        return preg_replace('/\\\\([^A-Za-z0-9\s])/', '$1', $text) ?? $text;
+        $unescaped = '';
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            $next = $text[$offset + 1] ?? '';
+            if ($char === '\\' && $this->isMarkdownEscapablePunctuation($next)) {
+                $unescaped .= $next;
+                $offset++;
+                continue;
+            }
+
+            $unescaped .= $char;
+        }
+
+        return $unescaped;
     }
 
     private function normalizeLinkDestination(string $destination): string
@@ -8087,11 +8103,16 @@ final class MarkdownReader
         }
 
         $next = $text[$offset + 1] ?? '';
-        if ($next === '' || preg_match('/[A-Za-z0-9\s]/', $next) === 1) {
+        if (!$this->isMarkdownEscapablePunctuation($next)) {
             return null;
         }
 
         return ['text' => $next, 'next' => $offset + 2];
+    }
+
+    private function isMarkdownEscapablePunctuation(string $char): bool
+    {
+        return $char !== '' && str_contains(self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION, $char);
     }
 
     /**

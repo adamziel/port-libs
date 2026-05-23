@@ -46,6 +46,10 @@ Parenthesized source links: [campaign landing](/hi(there)) and [nested reference
 
 Backslash link label audit: [\*\a](b) keeps escaped import markers visible.
 
+Backslash escape source audit: [escaped closing paren](/there\)) and [escaped title](/there "a\"a") keep migration links intact.
+
+Reference escape source audit: [escaped reference title][escaped-title] and [escaped reference url][escaped-url] preserve source metadata.
+
 Fallback source markers: [*not a migration link*] [*no source*]...
 
 Citation-adjacent source link: MapReduce was popularized by [Google] [@mapreduce] during source review.
@@ -84,6 +88,8 @@ Footnote audit: migration source[^source-note] and inline editor note.^[Inline n
 /wp-content/uploads/import batch 42.csv
 "Batch manifest"
 [release-frame]: https://example.test/uploads/release-frame.jpg "Release archive frame"
+[escaped-title]: /there (a\)a)
+[escaped-url]: /there\.0
 
 [^source-note]: Source archive footnote keeps the reviewer trail.
 
