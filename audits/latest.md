@@ -42,8 +42,8 @@ returned no rows at the initial sampled gates. A later pre-commit validation
 gate returned active no-argument root PID `3620458`, and a concurrent focused
 Syncthing PID `3629657`, so no duplicate root run was started. A post-commit
 handoff sample briefly returned no-argument root PID `3630255`, which exited
-before owner sampling; the final exact gate returned only focused Syncthing PID
-`3630018`.
+before owner sampling; another final sample returned active no-argument root PID
+`3633298` and focused Readability PID `3635944`.
 
 Owner evidence for the active root harness:
 
@@ -57,6 +57,13 @@ Final focused-harness owner evidence:
 ```text
 PID     USER   PPID     ELAPSED STAT COMMAND
 3630018 claude 3582353  56      Rs   php tools/run-tests.php lanes/syncthing/tests
+```
+
+Latest active root owner evidence:
+
+```text
+PID     USER   PPID     ELAPSED STAT COMMAND
+3633298 claude 3633247  51      R+   php tools/run-tests.php
 ```
 
 Current manifest samples versus the published dashboard:
@@ -228,8 +235,8 @@ PID     USER   PPID     ELAPSED STAT COMMAND
 ```
 
 A post-commit handoff sample briefly returned no-argument root PID `3630255`
-before it exited; the final exact gate returned only focused Syncthing PID
-`3630018`, owned by `claude`.
+before it exited; a later final sample returned active no-argument root PID
+`3633298`, owned by `claude`.
 
 No aggregate root run was started by this audit. The root run was also blocked
 by stability: active writer/status/agent processes remained, the worktree was
