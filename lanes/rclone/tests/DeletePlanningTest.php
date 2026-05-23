@@ -138,6 +138,30 @@ return [
         $t->same(['exports/site.wxr'], array_map(static fn ($info) => $info->path, $copied));
         $t->same('<rss>current export</rss>', $target->get('exports/site.wxr'));
     },
+    'match listings reports duplicate destination diagnostics while keeping the first entry' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('exports/site.wxr', '<rss>current export</rss>');
+        $source->put('database/site.sql', 'insert into wp_posts values (...)');
+        $target->put('exports/site.wxr', '<rss>current export</rss>');
+        $target->putUnchecked('exports/site.wxr', '<rss>stale duplicate export</rss>');
+        $target->put('exports/old-site.wxr', '<rss>old export</rss>');
+
+        $plan = new SyncPlan();
+        $diagnostics = $plan->matchListingDiagnostics($source, $target);
+
+        $t->same(['exports/site.wxr'], array_map(static fn (array $pair): string => $pair['source']->path, $diagnostics['matches']));
+        $t->same(['database/site.sql'], array_map(static fn ($info): string => $info->path, $diagnostics['sourceOnly']));
+        $t->same(['exports/old-site.wxr'], array_map(static fn ($info): string => $info->path, $diagnostics['destinationOnly']));
+        $t->same(['exports/site.wxr'], array_map(static fn (array $duplicate): string => $duplicate['path'], $diagnostics['duplicateDestinations']));
+        $t->same(['Duplicate object found in destination - ignoring'], array_map(static fn (array $duplicate): string => $duplicate['message'], $diagnostics['duplicateDestinations']));
+        $t->same(hash('sha256', '<rss>current export</rss>'), $diagnostics['duplicateDestinations'][0]['kept']->sha256);
+        $t->same(hash('sha256', '<rss>stale duplicate export</rss>'), $diagnostics['duplicateDestinations'][0]['ignored']->sha256);
+
+        $copied = $plan->copyChanged($source, $target);
+        $t->same(['database/site.sql'], array_map(static fn ($info): string => $info->path, $copied));
+        $t->same('<rss>current export</rss>', $target->get('exports/site.wxr'));
+    },
     'wordpress duplicate source listing example preserves first export entry' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-duplicate-source-listing.php';
 
@@ -145,6 +169,19 @@ return [
         $t->same(['database/site.sql'], $example['copied']);
         $t->same('<rss version="2.0"></rss>', $example['targetExportBytes']);
         $t->same('insert into wp_posts values (...)', $example['targetDatabaseBytes']);
+    },
+    'wordpress duplicate destination diagnostics example surfaces ignored export' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-duplicate-destination-diagnostics.php';
+
+        $t->same(['exports/site.wxr'], $example['matches']);
+        $t->same(['database/site.sql'], $example['sourceOnly']);
+        $t->same([], $example['destinationOnly']);
+        $t->same(['exports/site.wxr'], $example['duplicateDestinationPaths']);
+        $t->same(['Duplicate object found in destination - ignoring'], $example['duplicateDestinationMessages']);
+        $t->same(hash('sha256', '<rss>interrupted stale duplicate</rss>'), $example['ignoredDuplicateHashes'][0]);
+        $t->same(['database/site.sql'], $example['copied']);
+        $t->same('<rss version="2.0"></rss>', $example['targetExportBytes']);
+        $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
     },
     'ignore existing skips changed destination objects like upstream sync' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
@@ -327,6 +364,86 @@ return [
         $t->same('<rss>current</rss>', $target->get('exports/site.wxr'));
         $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
     },
+    'delete before sync moves pruned and overwritten objects through backup dir options' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('database/site.sql', 'insert into wp_posts values (...)');
+        $source->put('exports/site.wxr', '<rss>current</rss>');
+        $source->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes');
+
+        $target->put('exports/site.wxr', '<rss>stale published export</rss>');
+        $target->put('exports/old-site.wxr', '<rss>old export</rss>');
+        $target->put('wp-content/uploads/2024/01/obsolete.jpg', 'obsolete image bytes');
+
+        $plan = new SyncPlan();
+        $stats = null;
+        $result = $plan->syncWithDeleteMode(
+            $source,
+            $target,
+            deleteMode: DeleteMode::BEFORE,
+            noTraverse: true,
+            noTraverseStats: $stats,
+            backupPrefix: 'archive/2026-05-22',
+            suffix: '-previous',
+            suffixKeepExtension: true,
+            maxDelete: 2,
+        );
+
+        $t->same([
+            'archive/2026-05-22/exports/old-site-previous.wxr',
+            'archive/2026-05-22/wp-content/uploads/2024/01/obsolete-previous.jpg',
+        ], array_map(static fn ($info): string => $info->path, $result['deleted']));
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+        ], array_map(static fn ($info): string => $info->path, $result['copied']));
+        $t->same(false, $result['deletePassNoTraverse']['enabled']);
+        $t->same(true, $stats['enabled']);
+        $t->same('<rss>stale published export</rss>', $target->get('archive/2026-05-22/exports/site-previous.wxr'));
+        $t->same('<rss>old export</rss>', $target->get('archive/2026-05-22/exports/old-site-previous.wxr'));
+        $t->same('obsolete image bytes', $target->get('archive/2026-05-22/wp-content/uploads/2024/01/obsolete-previous.jpg'));
+        $t->same('<rss>current</rss>', $target->get('exports/site.wxr'));
+        $t->same('insert into wp_posts values (...)', $target->get('database/site.sql'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('wp-content/uploads/2024/01/obsolete.jpg'));
+    },
+    'delete before sync stops before copy pass when max delete guard trips' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('database/site.sql', 'insert into wp_posts values (...)');
+        $source->put('exports/site.wxr', '<rss>current</rss>');
+
+        $target->put('exports/site.wxr', '<rss>stale published export</rss>');
+        $target->put('exports/old-site.wxr', '<rss>old export</rss>');
+        $target->put('wp-content/uploads/2024/01/obsolete.jpg', 'obsolete image bytes');
+
+        $plan = new SyncPlan();
+        $stats = null;
+        $error = null;
+        try {
+            $plan->syncWithDeleteMode(
+                $source,
+                $target,
+                deleteMode: DeleteMode::BEFORE,
+                noTraverse: true,
+                noTraverseStats: $stats,
+                backupPrefix: 'archive/2026-05-22',
+                suffix: '-previous',
+                suffixKeepExtension: true,
+                maxDelete: 1,
+            );
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('--max-delete threshold reached', $error?->getMessage());
+        $t->same(null, $stats);
+        $t->same('<rss>old export</rss>', $target->get('archive/2026-05-22/exports/old-site-previous.wxr'));
+        $t->same('obsolete image bytes', $target->get('wp-content/uploads/2024/01/obsolete.jpg'));
+        $t->same('<rss>stale published export</rss>', $target->get('exports/site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('database/site.sql'));
+    },
     'wordpress sync no traverse example reports traversal disablement before pruning' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-sync-notraverse-disabled.php';
 
@@ -362,6 +479,17 @@ return [
             'wp-content/uploads/2026/05/hero.webp',
         ], $example['copied']);
         $t->same(['exports/old-site.wxr'], $example['deleted']);
+        $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
+    },
+    'wordpress delete before backup limit example aborts before copy pass' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-delete-before-backup-limit.php';
+
+        $t->same('--max-delete threshold reached', $example['error']);
+        $t->same(false, $example['copyPassRan']);
+        $t->same('<rss>old export</rss>', $example['archivedOldExportBytes']);
+        $t->same('obsolete image bytes', $example['obsoleteUploadStillPresent']);
+        $t->same('<rss>stale published export</rss>', $example['publishedExportBytes']);
+        $t->same(false, $example['databaseCopied']);
         $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
     },
     'no traverse wordpress backup copy probes only included artifact destinations' => static function (TestRunner $t): void {

@@ -42,6 +42,65 @@ final class SyncPlan
         return $changed;
     }
 
+    /**
+     * Model the observable fs/march.matchListings partition for object lists.
+     *
+     * Duplicate same-key objects keep the first listed entry for comparisons
+     * and report later entries as ignored diagnostics, matching upstream's
+     * duplicate source/destination log boundary without mutating either side.
+     *
+     * @return array{
+     *     matches: list<array{source: ObjectInfo, destination: ObjectInfo}>,
+     *     sourceOnly: list<ObjectInfo>,
+     *     destinationOnly: list<ObjectInfo>,
+     *     duplicateSources: list<array{path: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>,
+     *     duplicateDestinations: list<array{path: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * }
+     */
+    public function matchListingDiagnostics(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        bool $ignoreCaseSync = false,
+    ): array {
+        $sourceListing = $this->diagnosticListing($source, $filter, $ignoreCaseSync, 'source');
+        $targetListing = $this->diagnosticListing($target, $filter, $ignoreCaseSync, 'destination');
+        $sourcePaths = $sourceListing['paths'];
+        $targetPaths = $targetListing['paths'];
+        $allPaths = array_keys($sourcePaths + $targetPaths);
+        sort($allPaths, SORT_STRING);
+
+        $matches = [];
+        $sourceOnly = [];
+        $destinationOnly = [];
+        foreach ($allPaths as $path) {
+            $sourceInfo = $sourcePaths[$path] ?? null;
+            $targetInfo = $targetPaths[$path] ?? null;
+            if ($sourceInfo !== null && $targetInfo !== null) {
+                $matches[] = [
+                    'source' => $sourceInfo,
+                    'destination' => $targetInfo,
+                ];
+                continue;
+            }
+            if ($sourceInfo !== null) {
+                $sourceOnly[] = $sourceInfo;
+                continue;
+            }
+            if ($targetInfo !== null) {
+                $destinationOnly[] = $targetInfo;
+            }
+        }
+
+        return [
+            'matches' => $matches,
+            'sourceOnly' => $sourceOnly,
+            'destinationOnly' => $destinationOnly,
+            'duplicateSources' => $sourceListing['duplicates'],
+            'duplicateDestinations' => $targetListing['duplicates'],
+        ];
+    }
+
     public function check(MemoryProvider $source, MemoryProvider $target, bool $oneWay = false, ?FilterRuleSet $filter = null): CheckResult
     {
         $sourcePaths = $this->listedPaths($source, $filter);
@@ -319,6 +378,12 @@ final class SyncPlan
         bool $noTraverse = false,
         ?array &$noTraverseStats = null,
         bool $ignoreCaseSync = false,
+        ?MemoryProvider $backup = null,
+        string $backupPrefix = '',
+        string $suffix = '',
+        bool $suffixKeepExtension = false,
+        ?int $maxDelete = null,
+        ?int $maxDeleteSize = null,
     ): array {
         $deleteMode = DeleteMode::normalize($deleteMode);
         $deleted = [];
@@ -335,6 +400,12 @@ final class SyncPlan
                 $filter,
                 DeleteMode::ONLY,
                 $deleteExcluded,
+                maxDelete: $maxDelete,
+                maxDeleteSize: $maxDeleteSize,
+                backup: $backup,
+                backupPrefix: $backupPrefix,
+                suffix: $suffix,
+                suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
             );
 
@@ -357,6 +428,12 @@ final class SyncPlan
                 $filter,
                 DeleteMode::ONLY,
                 $deleteExcluded,
+                maxDelete: $maxDelete,
+                maxDeleteSize: $maxDeleteSize,
+                backup: $backup,
+                backupPrefix: $backupPrefix,
+                suffix: $suffix,
+                suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
             );
         }
@@ -365,6 +442,10 @@ final class SyncPlan
             $source,
             $target,
             $filter,
+            backup: $backup,
+            backupPrefix: $backupPrefix,
+            suffix: $suffix,
+            suffixKeepExtension: $suffixKeepExtension,
             ignoreCaseSync: $ignoreCaseSync,
             noTraverse: $noTraverse,
             noTraverseStats: $noTraverseStats,
@@ -378,6 +459,12 @@ final class SyncPlan
                 $filter,
                 $deleteMode,
                 $deleteExcluded,
+                maxDelete: $maxDelete,
+                maxDeleteSize: $maxDeleteSize,
+                backup: $backup,
+                backupPrefix: $backupPrefix,
+                suffix: $suffix,
+                suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
             );
         }
@@ -2400,6 +2487,46 @@ final class SyncPlan
         }
 
         return $paths;
+    }
+
+    /**
+     * @return array{
+     *     paths: array<string, ObjectInfo>,
+     *     duplicates: list<array{path: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * }
+     */
+    private function diagnosticListing(
+        MemoryProvider $provider,
+        ?FilterRuleSet $filter,
+        bool $ignoreCaseSync,
+        string $side,
+    ): array {
+        $paths = [];
+        $duplicates = [];
+        $message = 'Duplicate object found in ' . $side . ' - ignoring';
+        foreach ($provider->list() as $info) {
+            if ($filter !== null && !$filter->includes($info->path)) {
+                continue;
+            }
+
+            $key = $ignoreCaseSync ? $this->syncPathKey($info->path) : self::normalizePath($info->path);
+            if (!isset($paths[$key])) {
+                $paths[$key] = $info;
+                continue;
+            }
+
+            $duplicates[] = [
+                'path' => $info->path,
+                'kept' => $paths[$key],
+                'ignored' => $info,
+                'message' => $message,
+            ];
+        }
+
+        return [
+            'paths' => $paths,
+            'duplicates' => $duplicates,
+        ];
     }
 
     /**
