@@ -1,0 +1,8 @@
+{
+	"name": "acme/card",
+	"title": "Editorial Card",
+	"viewScriptModule": "file:./view.js",
+	"supports": {
+		"html": true
+	}
+}

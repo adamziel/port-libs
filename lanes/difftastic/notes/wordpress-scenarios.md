@@ -38,6 +38,18 @@ Makefile mode now maps the upstream CLI `makefile_text_as_atom` boundary. Native
 
 The WordPress plugin build Makefile fixture applies that to shared-hosting build metadata. It reports `CCFLAGS` hardening changes and inserted block asset entries such as `build/view.js` while keeping the mode distinct from generic `$text.line[...]` fallback output.
 
+Side-by-side display now maps upstream `src/display/style.rs` tab-width handling and the `sample_files/tab_*.txt` / `sample_files/tab_*.c` fixtures. Tabs are expanded to the configured width before rendering, long lines are split by display width, left-column fragments are padded, and continuation rows use dotted line-number markers.
+
+The WordPress tabbed block metadata fixture applies that to tab-indented `block.json` review. `title`, `viewScriptModule`, and nested `supports.html` changes render with deterministic spaces so a browser or terminal review surface does not depend on local tab stops.
+
+Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
+
+The WordPress large asset manifest example applies that to generated block asset metadata. A one-line JSON manifest that gains a `view.js` asset and changes its version remains bounded to the configured side-by-side column width instead of producing an unreadable or prohibitively slow review line.
+
+Display wrapping now also maps upstream `src/display/style.rs` Unicode width cases used by `split_string_by_width`: emoji and CJK characters consume two display columns, combining marks and joiners consume zero, and wrapped rows are split without cutting UTF-8 byte sequences.
+
+The WordPress minified asset map example applies that to a generated one-line asset manifest with Japanese labels and package emoji. Inserted `view.js` assets remain readable in bounded side-by-side rows even when multibyte labels appear throughout the physical line.
+
 Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
 
 Python mode now adds a targeted upstream `if_*.py` mapping for indentation-sensitive blocks. It keeps a stable `if` header and retained body lines aligned when a statement moves out of the indented body, reporting the moved statement separately under `$py.if[...]` and `$py.root[...]` paths.
@@ -176,6 +188,9 @@ php lanes/difftastic/examples/wordpress-readme-nearby-hunks-display.php
 php lanes/difftastic/examples/wordpress-created-import-report-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
 php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
+php lanes/difftastic/examples/wordpress-tabbed-block-json-side-by-side.php
+php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
+php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
@@ -223,4 +238,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream text/display pair such as `tab_*.txt` or `long_line_*.txt`, especially tab-width alignment and oversized-line fallback/status behavior.
+Map another upstream large-file display boundary such as `huge_cpp_*.cpp` byte-limit metadata or broaden side-by-side hunk/context behavior without hydrating huge blobs into lane artifacts.

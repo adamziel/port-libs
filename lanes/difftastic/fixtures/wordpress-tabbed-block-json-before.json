@@ -1,0 +1,7 @@
+{
+	"name": "acme/card",
+	"title": "Card",
+	"supports": {
+		"html": false
+	}
+}

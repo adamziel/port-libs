@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Difftastic\HtmlDiffRenderer;
 use PortLibs\Difftastic\FileContentDecoder;
 use PortLibs\Difftastic\JsonDiffRenderer;
+use PortLibs\Difftastic\SideBySideDiffRenderer;
 use PortLibs\Difftastic\TokenDiffer;
 
 return [
@@ -926,6 +927,108 @@ return [
         $t->contains('data-path="$make.text[2]"', $html);
         $t->contains('build/view.js', $html);
         $t->true(!str_contains($html, 'data-path="$text.line'), 'Makefile mode should use make-specific text atom paths, not generic text fallback paths.');
+    },
+    'maps upstream tab display style helpers with fixed-width expansion and wrapping' => static function (TestRunner $t): void {
+        $renderer = new SideBySideDiffRenderer();
+
+        $t->same(11, $renderer->displayWidth("\tfoo", 8));
+        $t->same(['ab    ', 'cd    '], $renderer->splitLineForDisplay("ab\tcd", 6, 4, 'left'));
+        $t->same(['ab    ', 'cd'], $renderer->splitLineForDisplay("ab\tcd", 6, 4, 'right'));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->splitLineForDisplay("\t", 4, 4));
+    },
+    'maps upstream unicode display width helpers for wrapped long lines' => static function (TestRunner $t): void {
+        $renderer = new SideBySideDiffRenderer();
+
+        $t->same(2, $renderer->displayWidth('📦', 2));
+        $t->same(0, $renderer->displayWidth("\u{200d}", 2));
+        $t->same(['ab📦', 'def '], $renderer->splitLineForDisplay('ab📦def', 4, 2, 'left'));
+        $t->same(["aabbcc\u{300}", 'x     '], $renderer->splitLineForDisplay("aabbcc\u{300}x", 6, 2, 'left'));
+        $t->same(['一个汉字', '两列宽  '], $renderer->splitLineForDisplay('一个汉字两列宽', 8, 2, 'left'));
+    },
+    'maps upstream tab text sample without emitting raw tabs in side by side display' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-tab-text-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-tab-text-2.txt');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'tabWidth' => 8,
+            'columnWidth' => 96,
+        ]);
+
+        $t->contains('        env.VERCEL_ENV === "production"', $display);
+        $t->contains('                ? "https://alpha.sweets.community"', $display);
+        $t->contains('                        ? `https://${env.VERCEL_URL}`', $display);
+        $t->true(!str_contains($display, "\t"), 'Difftastic side-by-side display replaces tab characters before rendering lines.');
+        $t->contains('. ', $display);
+    },
+    'maps upstream tab c sample with configurable tab width' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-tab-c-1.c');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-tab-c-2.c');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'tabWidth' => 4,
+            'columnWidth' => 48,
+        ]);
+
+        $t->contains('    printf("Hello World");', $display);
+        $t->contains('    printf("Goodbye World");', $display);
+        $t->contains('    return 0;', $display);
+        $t->true(!str_contains($display, "\t"), 'Configured tab width should be applied to both changed and retained C lines.');
+    },
+    'maps upstream long line sample shape with linear display width wrapping' => static function (TestRunner $t): void {
+        $renderer = new SideBySideDiffRenderer();
+        $line = str_repeat('abcdefghij', 16000);
+        $parts = $renderer->splitLineForDisplay($line, 80, 8, 'left');
+
+        $t->same(2000, count($parts));
+        $t->same(str_repeat('abcdefghij', 8), $parts[0]);
+        $t->same(str_repeat('abcdefghij', 8), $parts[1999]);
+        $t->same(80, max(array_map('strlen', $parts)));
+    },
+    'wordpress large single-line asset manifest display stays bounded' => static function (TestRunner $t): void {
+        $asset = static fn (int $index): string => '{"handle":"acme-card-' . str_pad((string) $index, 3, '0', STR_PAD_LEFT) . '","src":"file:./build/card-' . $index . '.js"}';
+        $before = '{"version":"1.0.0","assets":[' . implode(',', array_map($asset, range(0, 64))) . ']}';
+        $after = '{"version":"1.1.0","assets":[{"handle":"acme-card-view","src":"file:./build/view.js"},' . implode(',', array_map($asset, range(0, 64))) . ']}';
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'tabWidth' => 4,
+            'columnWidth' => 72,
+        ]);
+        $lines = array_values(array_filter(explode("\n", $display), static fn (string $line): bool => $line !== ''));
+
+        $t->true(count($lines) > 40, 'Large single-line asset manifests should wrap over multiple display rows.');
+        $t->true(max(array_map('strlen', $lines)) <= 150, 'Wrapped side-by-side rows should stay bounded by the configured display column width.');
+        $t->contains('acme-card-view', $display);
+        $t->contains('"version":"1.1.0"', $display);
+        $t->contains('. ', $display);
+    },
+    'wordpress minified asset map display wraps multibyte labels at display width' => static function (TestRunner $t): void {
+        $asset = static fn (int $index): string => '{"handle":"acme-card-' . str_pad((string) $index, 3, '0', STR_PAD_LEFT) . '","label":"カード📦' . $index . '","src":"file:./build/card-' . $index . '.js"}';
+        $before = '{"version":"1.0.0","assets":[' . implode(',', array_map($asset, range(0, 32))) . ']}';
+        $after = '{"version":"1.1.0","assets":[{"handle":"acme-card-view","label":"ビュー📦","src":"file:./build/view.js"},' . implode(',', array_map($asset, range(0, 32))) . ']}';
+        $renderer = new SideBySideDiffRenderer();
+        $display = $renderer->renderTextDiff($before, $after, [
+            'tabWidth' => 4,
+            'columnWidth' => 40,
+        ]);
+        $lines = array_values(array_filter(explode("\n", $display), static fn (string $line): bool => $line !== ''));
+
+        $t->true(count($lines) > 40, 'Minified asset maps should wrap over many bounded display rows.');
+        $t->true(max(array_map(static fn (string $line): int => $renderer->displayWidth($line, 4), $lines)) <= 86, 'Rows should remain bounded by display width even with CJK and emoji labels.');
+        $t->contains('ビュー📦', $display);
+        $t->contains('file:./build/view.js', $display);
+        $t->contains('. ', $display);
+    },
+    'wordpress tabbed block metadata display expands tabs for review' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tabbed-block-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tabbed-block-json-after.json');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'tabWidth' => 4,
+            'columnWidth' => 48,
+        ]);
+
+        $t->contains('    "title": "Card",', $display);
+        $t->contains('    "title": "Editorial Card",', $display);
+        $t->contains('    "viewScriptModule": "file:./view.js",', $display);
+        $t->contains('        "html": false', $display);
+        $t->contains('        "html": true', $display);
+        $t->true(!str_contains($display, "\t"), 'Block metadata review output should not depend on browser or terminal tab stops.');
     },
     'recurses into nested wordpress registration arrays' => static function (TestRunner $t): void {
         $before = "register_block_type('demo/card', ['supports' => ['html' => false, 'align' => ['wide']], 'render_callback' => 'old_card']);";
