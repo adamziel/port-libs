@@ -9,6 +9,7 @@ use PortLibs\Syncthing\FileInfoScanner;
 use PortLibs\Syncthing\FolderScanProgress;
 use PortLibs\Syncthing\IgnoreMatcher;
 use PortLibs\Syncthing\RequestServer;
+use PortLibs\Syncthing\ScannerSubWalkDiagnostic;
 
 return [
     'maps upstream scanner CreateFileInfo ownership xattrs and block metadata' => static function (TestRunner $t): void {
@@ -229,6 +230,77 @@ return [
                 $dir . '/library/original.jpg',
                 $linkedDirName,
             ], array_map(static fn (FileInfo $file): string => $file->name, $wholeParent));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'diagnoses upstream scanner sub walk parent guard boundaries' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/library/original.jpg', 'target media bytes');
+            syncthing_scanner_write($root, $dir . '/not-a-directory', 'regular file parent');
+            $linkedDirName = $dir . '/linked-library';
+            $linkedDirPath = syncthing_scanner_path($root, $linkedDirName);
+            if (!@symlink('library', $linkedDirPath)) {
+                throw new RuntimeException('directory symlink creation failed');
+            }
+
+            $scanner = new FileInfoScanner($root);
+            $directSymlink = $scanner->diagnoseSubWalk('/' . $linkedDirName);
+            $belowSymlink = $scanner->diagnoseSubWalk($linkedDirName . '/original.jpg');
+            $belowRegular = $scanner->diagnoseSubWalk($dir . '/not-a-directory/child.jpg');
+            $missingParent = $scanner->diagnoseSubWalk($dir . '/missing-parent/child.jpg');
+            $missingDirectSub = $scanner->diagnoseSubWalk($dir . '/missing-direct.jpg');
+
+            $t->same([
+                'sub' => $linkedDirName,
+                'parent' => $dir,
+                'status' => ScannerSubWalkDiagnostic::STATUS_ALLOWED,
+                'path' => null,
+                'message' => null,
+                'shouldWalk' => true,
+            ], $directSymlink->toArray());
+            $t->same([
+                'sub' => $linkedDirName . '/original.jpg',
+                'parent' => $linkedDirName,
+                'status' => ScannerSubWalkDiagnostic::STATUS_TRAVERSES_SYMLINK,
+                'path' => $linkedDirName,
+                'message' => 'traverses symlink: ' . $linkedDirName,
+                'shouldWalk' => false,
+            ], $belowSymlink->toArray());
+            $t->same([
+                'sub' => $dir . '/not-a-directory/child.jpg',
+                'parent' => $dir . '/not-a-directory',
+                'status' => ScannerSubWalkDiagnostic::STATUS_NOT_A_DIRECTORY,
+                'path' => $dir . '/not-a-directory',
+                'message' => 'not a directory: ' . $dir . '/not-a-directory',
+                'shouldWalk' => false,
+            ], $belowRegular->toArray());
+            $t->same([
+                'sub' => $dir . '/missing-parent/child.jpg',
+                'parent' => $dir . '/missing-parent',
+                'status' => ScannerSubWalkDiagnostic::STATUS_MISSING_PARENT,
+                'path' => $dir . '/missing-parent',
+                'message' => null,
+                'shouldWalk' => false,
+            ], $missingParent->toArray());
+            $t->same([
+                'sub' => $dir . '/missing-direct.jpg',
+                'parent' => $dir,
+                'status' => ScannerSubWalkDiagnostic::STATUS_MISSING,
+                'path' => $dir . '/missing-direct.jpg',
+                'message' => null,
+                'shouldWalk' => false,
+            ], $missingDirectSub->toArray());
+            $t->true($belowSymlink->isTraversalBlocked());
+            $t->true($belowRegular->isTraversalBlocked());
+            $t->true(!$missingParent->isTraversalBlocked());
+            $t->same([], $scanner->walk([$linkedDirName . '/original.jpg']));
+            $t->same([], $scanner->walk([$dir . '/not-a-directory/child.jpg']));
+            $t->same([], $scanner->walk([$dir . '/missing-parent/child.jpg']));
+            $t->same([], $scanner->walk([$dir . '/missing-direct.jpg']));
+            $t->same([$linkedDirName], array_map(static fn (FileInfo $file): string => $file->name, $scanner->walk([$linkedDirName])));
         } finally {
             syncthing_scanner_rm($root);
         }

@@ -247,19 +247,17 @@ final class FileInfoScanner
                 throw new \InvalidArgumentException('Scanner walk subs must be strings');
             }
 
-            $name = self::normalizeWalkSub($sub);
+            $diagnostic = $this->diagnoseSubWalk($sub);
+            $name = $diagnostic->sub;
             if (self::isCancelled($shouldCancelClosure, $name)) {
                 break;
             }
 
-            if ($this->subParentTraversesSymlink($name)) {
+            if (!$diagnostic->shouldWalk()) {
                 continue;
             }
 
             $path = $name === '' ? $this->rootPath : $this->absolutePath($name);
-            if (!file_exists($path) && !is_link($path)) {
-                continue;
-            }
 
             if ($name === '') {
                 foreach ($this->directoryEntries($path) as $entry) {
@@ -933,6 +931,68 @@ final class FileInfoScanner
         return $normalized;
     }
 
+    public function diagnoseSubWalk(string $sub): ScannerSubWalkDiagnostic
+    {
+        $name = self::normalizeWalkSub($sub);
+        $parent = self::subWalkParent($name);
+
+        if ($parent !== '.') {
+            $current = '';
+            foreach (explode('/', $parent) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+
+                $current = $current === '' ? $part : $current . '/' . $part;
+                $path = $this->absolutePath($current);
+                $stat = @lstat($path);
+                if (!is_array($stat)) {
+                    return new ScannerSubWalkDiagnostic(
+                        $name,
+                        $parent,
+                        ScannerSubWalkDiagnostic::STATUS_MISSING_PARENT,
+                        $current,
+                    );
+                }
+                if (is_link($path)) {
+                    return new ScannerSubWalkDiagnostic(
+                        $name,
+                        $parent,
+                        ScannerSubWalkDiagnostic::STATUS_TRAVERSES_SYMLINK,
+                        $current,
+                        'traverses symlink: ' . $current,
+                    );
+                }
+                if (!is_dir($path)) {
+                    return new ScannerSubWalkDiagnostic(
+                        $name,
+                        $parent,
+                        ScannerSubWalkDiagnostic::STATUS_NOT_A_DIRECTORY,
+                        $current,
+                        'not a directory: ' . $current,
+                    );
+                }
+            }
+        }
+
+        $path = $name === '' ? $this->rootPath : $this->absolutePath($name);
+        if (!file_exists($path) && !is_link($path)) {
+            return new ScannerSubWalkDiagnostic($name, $parent, ScannerSubWalkDiagnostic::STATUS_MISSING, $name);
+        }
+
+        return new ScannerSubWalkDiagnostic($name, $parent, ScannerSubWalkDiagnostic::STATUS_ALLOWED);
+    }
+
+    private static function subWalkParent(string $name): string
+    {
+        if ($name === '' || !str_contains($name, '/')) {
+            return '.';
+        }
+
+        $parent = substr($name, 0, strrpos($name, '/'));
+        return $parent === '' ? '.' : $parent;
+    }
+
     /**
      * @param list<string> $subs
      * @return list<string>
@@ -949,40 +1009,6 @@ final class FileInfoScanner
         }
 
         return array_values(array_unique($checkpointSubs));
-    }
-
-    private function subParentTraversesSymlink(string $name): bool
-    {
-        if ($name === '' || !str_contains($name, '/')) {
-            return false;
-        }
-
-        $parent = substr($name, 0, strrpos($name, '/'));
-        if ($parent === '') {
-            return false;
-        }
-
-        $current = '';
-        foreach (explode('/', $parent) as $part) {
-            if ($part === '') {
-                continue;
-            }
-
-            $current = $current === '' ? $part : $current . '/' . $part;
-            $path = $this->absolutePath($current);
-            $stat = @lstat($path);
-            if (!is_array($stat)) {
-                return false;
-            }
-            if (is_link($path)) {
-                return true;
-            }
-            if (!is_dir($path)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static function isParentPath(string $name, string $parent): bool

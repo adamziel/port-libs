@@ -1284,7 +1284,49 @@ Verification for this batch:
   gated root run captured to `.upstream-cache/syncthing-root-rerun.log` waited
   on the root lock and then passed 198 files, 22371 assertions, and 0 failures.
 
+## 2026-05-23 Scanner Sub-Walk Diagnostics
+
+Targeted upstream reads covered `lib/scanner/walk.go` configured sub handling,
+`lib/osutil/traversessymlink.go`, `traversessymlink_test.go`,
+`TestNotExistingError`, and `TestIssue4799`. The relevant upstream boundary is:
+`osutil.TraversesSymlink(filepath.Dir(sub))` blocks paths below symlinked
+parents and regular-file parent components, returns no error for missing parent
+components, and direct file or symlink sub roots are handled by the subsequent
+filesystem walk. Focused upstream commands passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub' -count=1`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.010s`, and
+`go test ./lib/osutil -run '^TestTraversesSymlink$|^TestIssue4875$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/osutil 0.008s`.
+
+Native PHP `FileInfoScanner` now exposes `diagnoseSubWalk()` and the
+`ScannerSubWalkDiagnostic` value object. The diagnostic distinguishes allowed
+sub roots, missing direct roots, missing parent components, not-a-directory
+parent components, and traverses-symlink parent components while preserving the
+scanner's no-result output for blocked or missing subs. The WordPress example
+`wordpress-scanner-sub-walk-diagnostics.php` shows a media-library preflight
+for an allowed symlink alias, a blocked path below that alias, a path below a
+regular-file parent, a missing parent, and a missing direct upload root.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FileInfoScanner.php` passed.
+- `php -l lanes/syncthing/src/ScannerSubWalkDiagnostic.php` passed.
+- `php -l lanes/syncthing/tests/FileInfoScannerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-sub-walk-diagnostics.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+  passed 1 file, 151 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2153
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-sub-walk-diagnostics.php`
+  ran successfully and reported `allowed`, `traverses-symlink`,
+  `not-a-directory`, `missing-parent`, and `missing` statuses.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active root harness, so this worker ran `php tools/run-tests.php`;
+  it passed 199 files, 22555 assertions, and 0 failures.
+
 ## Next Task
 
-Map scanner sub-walk not-a-directory and missing-parent diagnostics against
-upstream `osutil.TraversesSymlink` error boundaries.
+Map scanner sub-walk permission and unexpected filesystem errors against
+upstream `isWarnableError` and scan failure event boundaries.
