@@ -9,13 +9,21 @@ final class MarkdownWriter
     /** @var list<array{number:int, node:AstNode}> */
     private array $notes = [];
 
-    /** @var list<array{label:string, url:string, title:string}> */
+    /** @var list<array{label:string, url:string, title:string, attrs:array<string, mixed>}> */
     private array $references = [];
 
     /** @var array<string, int> */
     private array $referenceLabelUses = [];
 
+    /** @var array<string, bool> */
+    private array $referenceUsedLabels = [];
+
+    /** @var array<string, string> */
+    private array $referenceTargetLabels = [];
+
     private int $nextNoteNumber = 1;
+
+    private int $lastReferenceIndex = 0;
 
     /**
      * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string} $options
@@ -33,12 +41,19 @@ final class MarkdownWriter
         $this->notes = [];
         $this->references = [];
         $this->referenceLabelUses = [];
+        $this->referenceUsedLabels = [];
+        $this->referenceTargetLabels = [];
         $this->nextNoteNumber = 1;
+        $this->lastReferenceIndex = 0;
 
         $blocks = [];
         foreach ($document->children as $index => $node) {
             if ($this->referenceLocation() === 'end_of_section' && $node->type === 'heading' && $index > 0) {
                 $this->appendPendingDefinitions($blocks);
+            }
+
+            if ($node->type === 'code_block' && $index > 0 && $this->isListBlock($document->children[$index - 1])) {
+                $blocks[] = '<!-- -->';
             }
 
             $lines = $this->renderBlock($node, 0);
@@ -178,9 +193,11 @@ final class MarkdownWriter
     private function renderListItem(AstNode $item, string $marker, int $indent): array
     {
         $prefix = str_repeat(' ', $indent) . $marker;
+        $continuationIndent = $indent + strlen($marker);
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
             $prefix .= $task ? '[x] ' : '[ ] ';
+            $continuationIndent += 4;
         }
 
         $inlineChildren = [];
@@ -200,10 +217,17 @@ final class MarkdownWriter
             }
 
             if ($child->type === 'paragraph') {
+                if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
+                    $lines[0] = rtrim($prefix . $this->renderInlines($child->children));
+                    continue;
+                }
+
                 if ($lines !== [] && end($lines) !== '') {
                     $lines[] = '';
                 }
-                $lines[] = str_repeat(' ', $indent + 2) . $this->renderInlines($child->children);
+                foreach (explode("\n", $this->renderInlines($child->children)) as $line) {
+                    $lines[] = str_repeat(' ', $continuationIndent) . $line;
+                }
                 continue;
             }
 
@@ -259,47 +283,73 @@ final class MarkdownWriter
     {
         $text = '';
         foreach ($nodes as $index => $node) {
-            $text .= $this->renderInline($node, $nodes[$index + 1] ?? null);
+            $text .= $this->renderInline($node, array_slice($nodes, $index + 1));
         }
 
         return $text;
     }
 
-    private function renderInline(AstNode $node, ?AstNode $next = null): string
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderInline(AstNode $node, array $following = []): string
     {
         return match ($node->type) {
-            'text' => (string) $node->attr('text', ''),
+            'text' => $this->escapeText((string) $node->attr('text', '')),
             'softbreak' => "\n",
             'linebreak' => "\\\n",
             'code' => '`' . str_replace('`', '\\`', (string) $node->attr('text', '')) . '`',
-            'emph' => '*' . $this->renderInlines($node->children) . '*',
-            'strong' => '**' . $this->renderInlines($node->children) . '**',
-            'link' => $this->renderLink($node, $next),
+            'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
+            'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
+            'link' => $this->renderLink($node, $following),
+            'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
+            'raw_inline', 'raw_markdown', 'raw_html_inline' => (string) $node->attr(
+                'text',
+                $node->attr('markdown', $node->attr('html', ''))
+            ),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
         };
     }
 
-    private function renderLink(AstNode $node, ?AstNode $next): string
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderLink(AstNode $node, array $following): string
     {
-        if ((bool) ($this->options['referenceLinks'] ?? false)) {
-            return $this->renderReferenceLink($node, $next);
+        if ($this->canRenderAutolink($node)) {
+            return '<' . $this->autolinkText($node) . '>';
         }
 
-        return '[' . $this->renderInlines($node->children) . '](' . (string) $node->attr('url', '') . ')';
+        if ((bool) ($this->options['referenceLinks'] ?? false)) {
+            return $this->renderReferenceLink($node, $following);
+        }
+
+        $title = (string) $node->attr('title', '');
+        $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
+
+        return '[' . $this->renderInlines($node->children) . ']('
+            . (string) $node->attr('url', '')
+            . $titleMarkdown
+            . ')'
+            . $this->renderLinkAttributes($node);
     }
 
-    private function renderReferenceLink(AstNode $node, ?AstNode $next): string
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderReferenceLink(AstNode $node, array $following): string
     {
         $labelText = $this->renderInlines($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
             (string) $node->attr('url', ''),
-            (string) $node->attr('title', '')
+            (string) $node->attr('title', ''),
+            $this->linkAttrTuple($node)
         );
 
-        $shortcutable = $referenceLabel === $plainLabel && $this->canUseShortcutReference($next);
+        $shortcutable = $referenceLabel === $plainLabel && $this->canUseShortcutReference($following);
         if ($shortcutable) {
             return '[' . $labelText . ']';
         }
@@ -320,29 +370,64 @@ final class MarkdownWriter
         return '[^' . $number . ']';
     }
 
-    private function registerReference(string $suggestedLabel, string $url, string $title): string
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function registerReference(string $suggestedLabel, string $url, string $title, array $attrs): string
     {
-        $label = $this->normalizeReferenceLabelText($suggestedLabel);
-        if ($label === '') {
-            $label = 'link';
+        $targetKey = $url . "\0" . $title . "\0" . $this->attributeSignature($attrs);
+        if (isset($this->referenceTargetLabels[$targetKey])) {
+            return $this->referenceTargetLabels[$targetKey];
         }
 
-        $key = strtolower($label);
-        $use = $this->referenceLabelUses[$key] ?? 0;
-        $this->referenceLabelUses[$key] = $use + 1;
+        $label = $this->normalizeReferenceLabelText($suggestedLabel);
+        if ($this->requiresGeneratedReferenceLabel($label)) {
+            $actualLabel = $this->nextGeneratedReferenceLabel();
+        } else {
+            $key = strtolower($label);
+            $use = $this->referenceLabelUses[$key] ?? 0;
+            $this->referenceLabelUses[$key] = $use + 1;
+            $actualLabel = $use === 0 && !isset($this->referenceUsedLabels[$key])
+                ? $label
+                : $this->nextGeneratedReferenceLabel();
+        }
 
-        $actualLabel = $use === 0 ? $label : (string) $use;
+        $this->referenceUsedLabels[strtolower($actualLabel)] = true;
+        $this->referenceTargetLabels[$targetKey] = $actualLabel;
         $this->references[] = [
             'label' => $actualLabel,
             'url' => $url,
             'title' => $title,
+            'attrs' => $attrs,
         ];
 
         return $actualLabel;
     }
 
-    private function canUseShortcutReference(?AstNode $next): bool
+    private function requiresGeneratedReferenceLabel(string $label): bool
     {
+        return $label === ''
+            || strlen($label) > 999
+            || str_contains($label, '[')
+            || str_contains($label, ']');
+    }
+
+    private function nextGeneratedReferenceLabel(): string
+    {
+        do {
+            $this->lastReferenceIndex++;
+            $candidate = (string) $this->lastReferenceIndex;
+        } while (isset($this->referenceUsedLabels[strtolower($candidate)]));
+
+        return $candidate;
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function canUseShortcutReference(array $following): bool
+    {
+        $next = $following[0] ?? null;
         if ($next === null) {
             return true;
         }
@@ -351,11 +436,191 @@ final class MarkdownWriter
             return false;
         }
 
+        if ($next->type === 'softbreak' || $next->type === 'linebreak') {
+            return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
+        }
+
+        if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
+            return !$this->startsWithReferenceSuffixConflict((string) $next->attr(
+                'text',
+                $next->attr('markdown', $next->attr('html', ''))
+            ));
+        }
+
         if ($next->type !== 'text') {
             return true;
         }
 
-        return !str_starts_with((string) $next->attr('text', ''), '[');
+        $text = (string) $next->attr('text', '');
+        if ($text === '') {
+            return $this->canUseShortcutReference(array_slice($following, 1));
+        }
+
+        if ($this->startsWithReferenceSuffixConflict($text)) {
+            return false;
+        }
+
+        $withoutLeadingSpace = ltrim($text, " \t\r\n");
+        if ($withoutLeadingSpace !== $text) {
+            if ($withoutLeadingSpace !== '') {
+                return !str_starts_with($withoutLeadingSpace, '[');
+            }
+
+            return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function canUseShortcutReferenceAfterWhitespace(array $following): bool
+    {
+        $next = $following[0] ?? null;
+        if ($next === null) {
+            return true;
+        }
+
+        if ($next->type === 'link' || $next->type === 'citation') {
+            return false;
+        }
+
+        if ($next->type === 'text') {
+            $text = (string) $next->attr('text', '');
+
+            return $text === '' || !str_starts_with(ltrim($text, " \t\r\n"), '[');
+        }
+
+        if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
+            $raw = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
+
+            return !str_starts_with(ltrim($raw, " \t\r\n"), '[');
+        }
+
+        return true;
+    }
+
+    private function startsWithReferenceSuffixConflict(string $text): bool
+    {
+        return str_starts_with($text, '[')
+            || str_starts_with($text, '(')
+            || str_starts_with($text, ':')
+            || str_starts_with($text, ' [');
+    }
+
+    private function delimitInlineContent(string $opener, string $closer, string $content): string
+    {
+        if ($content === '') {
+            return '';
+        }
+
+        $leading = '';
+        if (preg_match('/^\s+/u', $content, $match) === 1) {
+            $leading = $match[0];
+            $content = substr($content, strlen($leading));
+        }
+
+        $trailing = '';
+        if (preg_match('/\s+$/u', $content, $match) === 1) {
+            $trailing = $match[0];
+            $content = substr($content, 0, strlen($content) - strlen($trailing));
+        }
+
+        return $leading . $opener . $content . $closer . $trailing;
+    }
+
+    private function escapeText(string $text): string
+    {
+        $escaped = '';
+        $length = strlen($text);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $text[$i];
+            $tail = substr($text, $i);
+
+            if ($i === 0 && $char === '#' && $this->startsWithAtxHeadingMarker($text)) {
+                $escaped .= '\\#';
+                continue;
+            }
+
+            if ($i === 0 && $char === '@' && isset($text[$i + 1]) && preg_match('/[A-Za-z0-9_{]/', $text[$i + 1]) === 1) {
+                $escaped .= '\\@';
+                continue;
+            }
+
+            if (str_starts_with($tail, '...')) {
+                $escaped .= '\\...';
+                $i += 2;
+                continue;
+            }
+
+            if (str_starts_with($tail, '--')) {
+                $escaped .= '\\--';
+                $i++;
+                continue;
+            }
+
+            if (str_starts_with($tail, ':::' )) {
+                $colonRun = strspn($tail, ':');
+                $escaped .= '\\' . str_repeat(':', $colonRun);
+                $i += $colonRun - 1;
+                continue;
+            }
+
+            if (str_starts_with($tail, '![')) {
+                $escaped .= '\\![';
+                $i++;
+                continue;
+            }
+
+            if (str_starts_with($tail, '~~')) {
+                $escaped .= '\\~~';
+                $i++;
+                continue;
+            }
+
+            if ($char === '&' && preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
+                $escaped .= '\\&';
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escaped .= '\\\\';
+                continue;
+            }
+
+            if ($char === '_' && $this->isIntrawordUnderscore($text, $i)) {
+                $escaped .= '_';
+                continue;
+            }
+
+            $escaped .= match ($char) {
+                '[', ']', '`', '*', '_', '|', '^', '~', '$', '\'', '"' => '\\' . $char,
+                '>', '<' => '\\' . $char,
+                default => $char,
+            };
+        }
+
+        return $escaped;
+    }
+
+    private function startsWithAtxHeadingMarker(string $text): bool
+    {
+        $offset = strspn($text, '#');
+
+        return $offset > 0 && ($offset === strlen($text) || $text[$offset] === ' ' || $text[$offset] === "\t");
+    }
+
+    private function isIntrawordUnderscore(string $text, int $offset): bool
+    {
+        $previous = $text[$offset - 1] ?? '';
+        $next = $text[$offset + 1] ?? '';
+
+        return $previous !== ''
+            && $next !== ''
+            && preg_match('/[A-Za-z0-9]/', $previous) === 1
+            && preg_match('/[A-Za-z0-9]/', $next) === 1;
     }
 
     /**
@@ -424,8 +689,12 @@ final class MarkdownWriter
                 $blocks[] = $this->renderNoteDefinition($note['number'], $note['node']);
             }
 
+            $referenceDefinitions = [];
             foreach ($references as $reference) {
-                $blocks[] = $this->renderReferenceDefinition($reference);
+                $referenceDefinitions[] = $this->renderReferenceDefinition($reference);
+            }
+            if ($referenceDefinitions !== []) {
+                $blocks[] = implode("\n", $referenceDefinitions);
             }
         }
 
@@ -450,15 +719,146 @@ final class MarkdownWriter
     }
 
     /**
-     * @param array{label:string, url:string, title:string} $reference
+     * @param array{label:string, url:string, title:string, attrs:array<string, mixed>} $reference
      */
     private function renderReferenceDefinition(array $reference): string
     {
         $title = $reference['title'] === ''
             ? ''
-            : ' "' . str_replace(['\\', '"'], ['\\\\', '\\"'], $reference['title']) . '"';
+            : ' "' . $this->escapeLinkTitle($reference['title']) . '"';
+        $attrs = $this->renderAttributesTuple($reference['attrs']);
 
-        return '  [' . $reference['label'] . ']: ' . $reference['url'] . $title;
+        return '  [' . $reference['label'] . ']: '
+            . $reference['url']
+            . $title
+            . ($attrs === '' ? '' : ' ' . $attrs);
+    }
+
+    private function canRenderAutolink(AstNode $node): bool
+    {
+        $url = (string) $node->attr('url', '');
+        if (!$this->isUriLike($url)) {
+            return false;
+        }
+
+        $attrs = $this->linkAttrTuple($node);
+        $classes = $attrs['classes'];
+        if (
+            $attrs['id'] !== ''
+            || $attrs['attributes'] !== []
+            || ($classes !== [] && $classes !== ['uri'] && $classes !== ['email'])
+        ) {
+            return false;
+        }
+
+        if (count($node->children) !== 1 || $node->children[0]->type !== 'text') {
+            return false;
+        }
+
+        $label = (string) $node->children[0]->attr('text', '');
+        $suffix = $this->autolinkText($node);
+
+        return $label === $suffix || $this->escapeUri($label) === $suffix;
+    }
+
+    private function autolinkText(AstNode $node): string
+    {
+        $url = (string) $node->attr('url', '');
+
+        return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
+    }
+
+    private function isUriLike(string $url): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $url) === 1;
+    }
+
+    private function escapeUri(string $url): string
+    {
+        return preg_replace_callback(
+            '/[^A-Za-z0-9\\-._~:\\/?#\\[\\]@!$&\'()*+,;=%]/u',
+            static fn (array $match): string => implode('', array_map(
+                static fn (string $byte): string => sprintf('%%%02X', ord($byte)),
+                str_split($match[0])
+            )),
+            $url
+        ) ?? $url;
+    }
+
+    /**
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function linkAttrTuple(AstNode $node): array
+    {
+        $id = (string) $node->attr('id', '');
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        $classes = array_values(array_filter(
+            array_map(static fn (mixed $class): string => (string) $class, $classes),
+            static fn (string $class): bool => $class !== ''
+        ));
+
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes)) {
+            $attributes = [];
+        }
+        $attributes = array_filter(
+            array_map(static fn (mixed $value): string => (string) $value, $attributes),
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return [
+            'id' => $id,
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function renderLinkAttributes(AstNode $node): string
+    {
+        return $this->renderAttributesTuple($this->linkAttrTuple($node));
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderAttributesTuple(array $attrs): string
+    {
+        $parts = [];
+        if ($attrs['id'] !== '') {
+            $parts[] = '#' . $this->escapeAttributeToken($attrs['id']);
+        }
+        foreach ($attrs['classes'] as $class) {
+            $parts[] = '.' . $this->escapeAttributeToken($class);
+        }
+        foreach ($attrs['attributes'] as $name => $value) {
+            $parts[] = $this->escapeAttributeToken((string) $name)
+                . '="'
+                . $this->escapeAttributeToken($value)
+                . '"';
+        }
+
+        return $parts === [] ? '' : '{' . implode(' ', $parts) . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function attributeSignature(array $attrs): string
+    {
+        return json_encode($attrs, JSON_THROW_ON_ERROR);
+    }
+
+    private function escapeAttributeToken(string $value): string
+    {
+        return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+    }
+
+    private function escapeLinkTitle(string $title): string
+    {
+        return str_replace(['\\', '"'], ['\\\\', '\\"'], $title);
     }
 
     private function referenceLocation(): string
@@ -480,7 +880,16 @@ final class MarkdownWriter
             'linebreak',
             'code',
             'link',
+            'citation',
+            'raw_inline',
+            'raw_markdown',
+            'raw_html_inline',
             'note',
         ], true);
+    }
+
+    private function isListBlock(AstNode $node): bool
+    {
+        return $node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list';
     }
 }

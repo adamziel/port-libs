@@ -787,6 +787,31 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   source-review links can be written as shortcut reference links with their
   definitions beside the relevant block instead of being flattened into inline
   URLs.
+- The same reviewer handoff example now covers Pandoc's shortcut-reference
+  boundary rules for adjacent source links, repeated labels, bracketed reviewer
+  notes, and citation-adjacent references. This keeps exported WordPress review
+  packets parseable by Pandoc-compatible Markdown tooling when multiple source
+  URLs share a human label like `source`.
+- Native Markdown reviewer handoff exports now also follow Pandoc's top-level
+  writer boundaries for review packets assembled from the shared AST:
+  multi-paragraph ordered review steps write the first paragraph on the marker
+  line and continuation paragraphs under the marker content column, a top-level
+  indented source snippet after a list is separated with Pandoc's `<!-- -->`
+  guard so it does not become a list continuation when re-read, tight nested
+  checklists stay compact, and delimiter-adjacent strong/emphasis spacing keeps
+  source-review markers parseable by Pandoc-compatible Markdown tooling.
+- Native Markdown reviewer handoff exports now escape literal audit tokens using
+  Pandoc's Markdown inline writer rules. This keeps source text such as
+  heading-looking `#` markers, Markdown emphasis delimiters, code ticks,
+  pipe-table separators, TeX/math punctuation, HTML-looking tags, entity
+  references, and raw-TeX backslashes visible as reviewer text instead of being
+  reinterpreted when the packet is re-imported.
+- Native Markdown reviewer handoff exports now emit Pandoc-style URI and e-mail
+  autolinks plus link attributes. The reviewer handoff example writes
+  `<https://example.test/review-packet>` and `<editor@example.test>` directly,
+  and emits a packet reference definition with `{#review-packet .source-link
+  data-source="batch-42"}` metadata so WordPress editorial packets can preserve
+  source-review ids/classes without falling back to inline HTML.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -796,6 +821,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded upstream writer slice, preferably shortcut reference-link
-adjacency/deduplication cases from `Tests.Writers.Markdown` or a small Markdown
-writer inline escaping fixture with native WordPress review relevance.
+Map the next bounded Markdown writer image edge from
+`Text.Pandoc.Writers.Markdown.Inline`: image attributes, title/alt handling, and
+autolink-prevention labels.

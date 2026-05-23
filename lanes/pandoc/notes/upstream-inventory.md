@@ -1236,3 +1236,115 @@ Required root verification on 2026-05-23 after the Markdown writer
 note/reference-location slice eventually ran after earlier active-root lock
 races and passed: `php tools/run-tests.php` reported 209 test files, 24,067
 assertions, and 0 failures.
+
+`test/Tests/Writers/Markdown.hs` was inspected again for the bounded
+`shortcutLinkRefsTests` group. The PHP Markdown writer now maps all 12 cases:
+shortcutable simple links, adjacent links, space-plus-link boundaries,
+repeated labels with numbered references, bracket-following text escaping,
+raw markdown inline boundaries with and without a leading space, and citation
+boundaries with and without a leading space. Consecutive reference definitions
+are emitted as adjacent definition lines to match Pandoc's `refsToMarkdown`
+shape instead of becoming separate paragraphs.
+
+Focused local verification on 2026-05-23 after the Markdown writer shortcut
+reference-link boundary slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted a
+handoff packet with duplicate adjacent source links, numbered reference labels,
+escaped bracketed reviewer text, and citation-adjacent references; `php
+tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test
+file, 2,254 assertions, and 0 failures. The focused file now contains 201
+behavior tests.
+
+Required root verification on 2026-05-23 after the Markdown writer shortcut
+reference-link boundary slice was left pending: the duplicate-root gate
+returned active exact-root PID `2994382` owned by `claude` (`php
+tools/run-tests.php`, parent `2994380`, elapsed `00:07`, state `R`), so this
+lane did not start a duplicate root run.
+
+`test/Tests/Writers/Markdown.hs` was inspected again for its three top-level
+tests. The PHP Markdown writer now maps all three: an ordered list with a
+second paragraph followed by an indented code block emits Pandoc's raw HTML
+`<!-- -->` separator before the code block, tight nested bullet lists remain
+compact (`- foo` followed by an indented `- bar` without a blank loose-list
+gap), and delimiter-adjacent whitespace is moved outside nested strong/emphasis
+markers for the upstream `#10696` case.
+
+Focused local verification on 2026-05-23 after the Markdown writer top-level
+slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted the
+expected reviewer handoff packet; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,257
+assertions, and 0 failures. The focused file now contains 202 behavior tests.
+
+Required root verification on 2026-05-23 after the Markdown writer top-level
+slice was left pending: the duplicate-root gate returned active exact-root PID
+`3087737` owned by `claude` (`php tools/run-tests.php`, parent `3087673`,
+elapsed `00:18`, state `R`), so this lane did not start a duplicate root run.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected for the bounded
+`escapeText` and `getReference` paths. The PHP Markdown writer now maps 21
+focused checks from that source boundary: ATX-looking leading `#` text,
+smart dash and ellipsis escapes, fenced-div colon-run escapes, image and
+strikeout delimiter guards, intraword underscore passthrough, Markdown
+formatting/math/table punctuation escapes, angle bracket escapes under
+Pandoc's all-symbols-escapable extension, character-reference ampersand
+escaping, raw-TeX backslash escaping, generated numeric labels for
+bracket-containing reference labels, same-target reference definition reuse,
+and numbered disambiguation for duplicate human labels.
+
+This also normalizes the `Tests.Writers.Markdown` leaf-test inventory count:
+the upstream module has 19 behavior tests, not 20 (three top-level cases,
+four note/reference-location cases, and 12 shortcut-reference cases).
+
+Focused local verification on 2026-05-23 after the Markdown writer inline
+escaping/reference-definition slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted the
+reviewer handoff packet with block-local notes plus literal audit tokens
+escaped for Pandoc-compatible Markdown; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,258
+assertions, and 0 failures. The focused file now contains 203 behavior tests.
+
+Required root verification on 2026-05-23 after the Markdown writer inline
+escaping/reference-definition slice first found active exact-root PID `3110747`
+owned by `claude` (`php tools/run-tests.php`, parent `3096285`, elapsed
+`00:18`, state `Rs`), so this lane did not start a duplicate root run at that
+point. A later duplicate-root gate was clear, so this lane ran
+`php tools/run-tests.php` once. It exited red with 214 test files, 24,638
+assertions, and 1 failure. Pandoc tests passed inside the root run, but the
+retained tool-output chunks did not include the failing `FAIL ...` line, so the
+failing non-pandoc test name is not known from this lane run. A post-run gate
+found active exact-root PID `3168962` owned by `claude` (`php
+tools/run-tests.php`, parent `3093040`, elapsed `00:13`, state `Rs`), so no
+second root run was started. A final duplicate-root sample still found active
+exact-root PID `3174787` owned by `claude` (`php tools/run-tests.php`, parent
+`3105286`, elapsed `00:27`, state `Rs`). After the exact-root gate cleared
+again, a final filtered root capture ran `php tools/run-tests.php` and passed
+214 test files, 24,677 assertions, and 0 failures.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected again for the
+bounded `Link` emission branch. The PHP Markdown writer now maps eight focused
+checks from that source boundary: URI autolinks render as `<url>` when the
+label matches the target, `mailto:` targets render as `<address>` without the
+scheme, autolinks bypass reference-link mode, inline links preserve quoted
+titles, inline links append id/class/key-value attributes with Pandoc's
+`attrsToMarkdown` shape, reference definitions append link attributes, targets
+that differ only by attributes get distinct reference labels, and repeated
+attributed targets reuse the same reference definition.
+
+Focused local verification on 2026-05-23 after the Markdown writer
+URI/e-mail autolink and link-attribute slice: `php -l` passed for
+`MarkdownWriter.php`, `MarkdownReaderTest.php`, and
+`examples/wordpress-markdown-review-handoff.php`; `php
+lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted angle
+bracket URI/e-mail autolinks plus an attributed reviewer packet reference
+definition; `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+passed 1 test file, 2,260 assertions, and 0 failures. The focused file now
+contains 205 behavior tests.
+
+Required root verification on 2026-05-23 after the Markdown writer URI/e-mail
+autolink and link-attribute slice: the duplicate-root gate returned clear, so
+`php tools/run-tests.php` was run once. It passed 216 test files, 24,927
+assertions, and 0 failures.

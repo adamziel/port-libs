@@ -130,3 +130,95 @@
 - A final exact-root sample was clear, so this lane ran the root harness once:
   - `php tools/run-tests.php`
   - Result: 209 test files, 24,067 assertions, 0 failures
+
+## Markdown Writer Shortcut Reference Boundary Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- Focused example passed:
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - Result: emitted duplicate adjacent reviewer source links with numbered
+    reference definitions, escaped bracketed reviewer text, and
+    citation-adjacent reference syntax.
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,254 assertions, 0 failures
+- Required duplicate-root gate found an active exact root harness, so this lane
+  did not start a duplicate root run:
+  - PID `2994382`, user `claude`, PPID `2994380`, elapsed `00:07`, state `R`,
+    command `php tools/run-tests.php`
+
+## Markdown Writer Top-Level Cases Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- Focused example passed:
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - Result: emitted the native Markdown reviewer handoff packet with
+    block-local notes and adjacent shortcut reference definitions.
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,257 assertions, 0 failures
+- Required duplicate-root gate found an active exact root harness, so this lane
+  did not start a duplicate root run:
+  - PID `3087737`, user `claude`, PPID `3087673`, elapsed `00:18`, state `R`,
+    command `php tools/run-tests.php`
+
+## Markdown Writer Inline Escaping And Reference Labels Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- Focused example passed:
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - Result: emitted the native Markdown reviewer handoff packet with
+    block-local notes, adjacent shortcut reference definitions, and escaped
+    literal audit tokens.
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,258 assertions, 0 failures
+- First duplicate-root gate found an active exact root harness, so this lane
+  did not start a duplicate root run at that point:
+  - PID `3110747`, user `claude`, PPID `3096285`, elapsed `00:18`, state `Rs`,
+    command `php tools/run-tests.php`
+- A later duplicate-root gate was clear, so this lane ran the root harness once:
+  - `php tools/run-tests.php`
+  - Result: 214 test files, 24,638 assertions, 1 failure
+  - Pandoc tests passed inside the root run. The retained tool-output chunks did
+    not include the failing `FAIL ...` line, so the failing non-pandoc test name
+    is not known from this lane run.
+- Post-run duplicate-root sample found another active exact root harness, so no
+  second root run was started:
+  - PID `3168962`, user `claude`, PPID `3093040`, elapsed `00:13`, state `Rs`,
+    command `php tools/run-tests.php`
+- Final duplicate-root sample still found an active exact root harness:
+  - PID `3174787`, user `claude`, PPID `3105286`, elapsed `00:27`, state `Rs`,
+    command `php tools/run-tests.php`
+- A final filtered root capture was run after the exact-root gate cleared:
+  - `php tools/run-tests.php`
+  - Result: 214 test files, 24,677 assertions, 0 failures
+
+## Markdown Writer URI/E-Mail Autolink And Link Attribute Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- Focused example passed:
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - Result: emitted angle-bracket URI/e-mail autolinks plus an attributed
+    reviewer packet reference definition.
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,260 assertions, 0 failures
+- Required duplicate-root gate was clear:
+  - `pgrep -af '^php tools/run-tests\.php( |$)'`
+  - Result: no active exact root harness processes
+- Root harness passed:
+  - `php tools/run-tests.php`
+  - Result: 216 test files, 24,927 assertions, 0 failures

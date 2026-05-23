@@ -2372,6 +2372,271 @@ MD;
             'Some more text.',
         ]), $endOfSection);
     },
+    'maps upstream markdown writer shortcut reference link boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $link = static fn (string $url, string $title, string $label): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $title,
+        ], [$text($label)]);
+        $raw = static fn (string $markdown): AstNode => new AstNode('raw_inline', [
+            'format' => 'markdown',
+            'text' => $markdown,
+        ]);
+        $citation = static fn (string $markdown): AstNode => new AstNode('citation', [
+            'id' => trim($markdown, '[]@'),
+            'text' => $markdown,
+        ], [$text($markdown)]);
+        $write = static function (array $children): string {
+            $document = new AstNode('document', [], [
+                new AstNode('paragraph', [], $children),
+            ]);
+
+            return (new MarkdownWriter(['referenceLinks' => true]))->write($document);
+        };
+
+        $t->same("[foo]\n\n  [foo]: /url \"title\"", $write([
+            $link('/url', 'title', 'foo'),
+        ]));
+        $t->same(implode("\n", [
+            '[first][][second]',
+            '',
+            '  [first]: /url1 "title1"',
+            '  [second]: /url2 "title2"',
+        ]), $write([
+            $link('/url1', 'title1', 'first'),
+            $link('/url2', 'title2', 'second'),
+        ]));
+        $t->same(implode("\n", [
+            '[first][] [second]',
+            '',
+            '  [first]: /url1 "title1"',
+            '  [second]: /url2 "title2"',
+        ]), $write([
+            $link('/url1', 'title1', 'first'),
+            $text(' '),
+            $link('/url2', 'title2', 'second'),
+        ]));
+        $t->same(implode("\n", [
+            '[foo][][foo][1][foo][2]',
+            '',
+            '  [foo]: /url1',
+            '  [1]: /url2',
+            '  [2]: /url3',
+        ]), $write([
+            $link('/url1', '', 'foo'),
+            $link('/url2', '', 'foo'),
+            $link('/url3', '', 'foo'),
+        ]));
+        $t->same(implode("\n", [
+            '[foo][] [foo][1] [foo][2]',
+            '',
+            '  [foo]: /url1',
+            '  [1]: /url2',
+            '  [2]: /url3',
+        ]), $write([
+            $link('/url1', '', 'foo'),
+            $text(' '),
+            $link('/url2', '', 'foo'),
+            $text(' '),
+            $link('/url3', '', 'foo'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][]\\[text in brackets\\]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $text('[text in brackets]'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][] \\[text in brackets\\]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $text(' [text in brackets]'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][][rawText]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $raw('[rawText]'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][] [rawText]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $text(' '),
+            $raw('[rawText]'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][] [rawText]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $raw(' [rawText]'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][][@author]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $citation('[@author]'),
+        ]));
+        $t->same(implode("\n", [
+            '[link][] [@author]',
+            '',
+            '  [link]: /url',
+        ]), $write([
+            $link('/url', '', 'link'),
+            $text(' '),
+            $citation('[@author]'),
+        ]));
+    },
+    'maps upstream markdown writer inline escaping and generated reference labels' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $link = static fn (string $url, string $label): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => '',
+        ], [$text($label)]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('# Heading-looking source -- ... ::: ![draft] ~~gone~~ a_b *stars* _under_ `tick` | ^ ~ $ <tag> > &ouml; \\macro '),
+                $link('/review', 'bracket [label]'),
+                $text(' and '),
+                $link('/review', 'bracket [again]'),
+                $text(' then '),
+                $link('/other', 'normal'),
+                $text(' and '),
+                $link('/other-2', 'normal'),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~~gone\\~~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket \\[label\\]][1] and [bracket \\[again\\]][1] then [normal] and [normal][2]',
+            '',
+            '  [1]: /review',
+            '  [normal]: /other',
+            '  [2]: /other-2',
+        ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
+    },
+    'maps upstream markdown writer uri email autolinks and link attributes' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Source packet: '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/review?post=42',
+                    'classes' => ['uri'],
+                ], [$text('https://example.test/review?post=42')]),
+                $text(' and '),
+                new AstNode('link', [
+                    'url' => 'mailto:editor@example.test',
+                    'classes' => ['email'],
+                ], [$text('editor@example.test')]),
+                $text(' plus '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/packet',
+                    'title' => 'Packet "review"',
+                    'id' => 'packet',
+                    'classes' => ['source-link', 'handoff'],
+                    'attributes' => [
+                        'data-source' => 'batch-42',
+                        'title' => 'Packet "audit"',
+                    ],
+                ], [$text('packet link')]),
+            ]),
+        ]);
+
+        $t->same(
+            'Source packet: <https://example.test/review?post=42> and <editor@example.test> plus [packet link](https://example.test/packet "Packet \\"review\\""){#packet .source-link .handoff data-source="batch-42" title="Packet \\"audit\\""}',
+            (new MarkdownWriter())->write($document)
+        );
+    },
+    'maps upstream markdown writer reference definitions with link attributes' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $sourceLink = static fn (string $id, string $source): AstNode => new AstNode('link', [
+            'url' => '/source',
+            'title' => 'Source title',
+            'id' => $id,
+            'classes' => ['source-link'],
+            'attributes' => ['data-source' => $source],
+        ], [$text('source')]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('link', [
+                    'url' => 'https://example.test/review',
+                    'classes' => ['uri'],
+                ], [$text('https://example.test/review')]),
+                $text(' '),
+                $sourceLink('source-a', 'a'),
+                $text(' '),
+                $sourceLink('source-b', 'b'),
+                $text(' '),
+                $sourceLink('source-a', 'a'),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '<https://example.test/review> [source][] [source][1] [source]',
+            '',
+            '  [source]: /source "Source title" {#source-a .source-link data-source="a"}',
+            '  [1]: /source "Source title" {#source-b .source-link data-source="b"}',
+        ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
+    },
+    'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+        $writer = new MarkdownWriter();
+
+        $listThenCode = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 1], [
+                new AstNode('list_item', [], [
+                    $paragraph('one'),
+                    $paragraph('two'),
+                ]),
+            ]),
+            new AstNode('code_block', ['text' => 'test']),
+        ]);
+        $tightSublist = new AstNode('document', [], [
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [
+                    $text('foo'),
+                    new AstNode('bullet_list', [], [
+                        new AstNode('list_item', [], [$text('bar')]),
+                    ]),
+                ]),
+                new AstNode('list_item', [], [$text('baz')]),
+            ]),
+        ]);
+        $emphStrongSpacing = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', [], [
+                    $text('f'),
+                    new AstNode('strong', [], [$text(' d ')]),
+                ]),
+                $text('l'),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '1.  one',
+            '',
+            '    two',
+            '',
+            '<!-- -->',
+            '',
+            '    test',
+        ]), $writer->write($listThenCode));
+        $t->same("- foo\n  - bar\n- baz", $writer->write($tightSublist));
+        $t->same('*f **d*** l', $writer->write($emphStrongSpacing));
+    },
     'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '-     code',
