@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Difftastic\HtmlDiffRenderer;
 use PortLibs\Difftastic\FileContentDecoder;
+use PortLibs\Difftastic\GitExternalDiffMetadata;
 use PortLibs\Difftastic\InlineDiffRenderer;
 use PortLibs\Difftastic\JsonDiffRenderer;
 use PortLibs\Difftastic\SideBySideDiffRenderer;
@@ -1094,6 +1095,66 @@ return [
         $t->contains("   \033[1;32m1 \033[0mlabel:    modern", $display);
         $t->true(!str_contains($display, "\t"), 'Inline display replaces tabs before rendering lines.');
     },
+    'maps upstream git style new file arguments without permission warning' => static function (TestRunner $t): void {
+        $arguments = [
+            'simple.txt',
+            '/dev/null',
+            '.',
+            '.',
+            'sample_files/simple_1.txt',
+            'abcdef1234',
+            '100644',
+        ];
+        $metadata = GitExternalDiffMetadata::fromArguments($arguments);
+        $display = (new InlineDiffRenderer())->renderGitExternalTextDiff('', "alpha\n", $arguments, [
+            'language' => 'text',
+        ]);
+
+        $t->same('simple.txt', $metadata->displayPath);
+        $t->same(null, $metadata->extraInfo);
+        $t->contains('simple.txt --- Text', $display);
+        $t->contains('   1 alpha', $display);
+        $t->true(!str_contains($display, 'File permissions changed'), 'A Git new-file . mode should not be reported as a permission change.');
+    },
+    'maps upstream git style rename arguments into inline extra info' => static function (TestRunner $t): void {
+        $arguments = [
+            'elisp_oldname.el',
+            'sample_files/elisp_1.el',
+            'lhs_hash_placeholder',
+            'lhs_mode_placeholder',
+            'sample_files/elisp_2.el',
+            'rhs_hash_placeholder',
+            'rhs_mode_placeholder',
+            'elisp_newname.el',
+            'similarity_placeholder',
+        ];
+        $display = (new InlineDiffRenderer())->renderGitExternalTextDiff(
+            "(message \"legacy\")\n",
+            "(message \"modern\")\n",
+            $arguments,
+            ['language' => 'text'],
+        );
+
+        $t->contains('elisp_newname.el --- Text', $display);
+        $t->contains('Renamed from elisp_oldname.el to elisp_newname.el', $display);
+        $t->contains('File permissions changed from lhs_mode_placeholder to rhs_mode_placeholder.', $display);
+        $t->contains('legacy', $display);
+        $t->contains('modern', $display);
+    },
+    'maps upstream git style seven argument permission metadata' => static function (TestRunner $t): void {
+        $metadata = GitExternalDiffMetadata::fromArguments([
+            'render.php',
+            '/tmp/git-blob-old/render.php',
+            'lhs_hash',
+            '100644',
+            '/tmp/git-blob-new/render.php',
+            'rhs_hash',
+            '100755',
+        ]);
+
+        $t->same('render.php', $metadata->displayPath);
+        $t->same('File permissions changed from 100644 to 100755.', $metadata->extraInfo);
+    },
     'maps upstream binary changed cli removed status' => static function (TestRunner $t): void {
         $binary = "\x89PNG\r\n\x1a\n" . str_repeat("\0", 2048);
         $display = (new InlineDiffRenderer())->renderBinaryDiff($binary, '', [
@@ -1149,6 +1210,35 @@ return [
         $t->contains('modern', $display);
         $t->contains('Frequently Asked Questions', $display);
         $t->true(!str_contains($display, 'Stable tag: 1.3.0'), 'Distant stable readme metadata should stay out of compact inline review output.');
+    },
+    'wordpress git backed plugin rename inline display keeps git metadata' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-git-rename-render-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-git-rename-render-after.php');
+        $display = (new InlineDiffRenderer())->renderGitExternalTextDiff(
+            $before,
+            $after,
+            [
+                'wp-content/plugins/acme-card/src/render-card.php',
+                '/tmp/git-blob-old/render-card.php',
+                'oldhash',
+                '100644',
+                '/tmp/git-blob-new/render-card.php',
+                'newhash',
+                '100755',
+                'wp-content/plugins/acme-card/includes/render-card.php',
+                'similarity 88%',
+            ],
+            [
+                'language' => 'php',
+                'contextLines' => 1,
+            ],
+        );
+
+        $t->contains('wp-content/plugins/acme-card/includes/render-card.php --- PHP', $display);
+        $t->contains('Renamed from wp-content/plugins/acme-card/src/render-card.php to wp-content/plugins/acme-card/includes/render-card.php', $display);
+        $t->contains('File permissions changed from 100644 to 100755.', $display);
+        $t->contains('acme_render_legacy_card', $display);
+        $t->contains('acme_render_modern_card', $display);
     },
     'maps upstream side by side created files as single column by default' => static function (TestRunner $t): void {
         $display = (new SideBySideDiffRenderer())->renderTextDiff('', "alpha\tasset\nbeta asset\n", [

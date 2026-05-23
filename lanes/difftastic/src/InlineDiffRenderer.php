@@ -84,6 +84,17 @@ final class InlineDiffRenderer
     }
 
     /**
+     * @param list<string> $gitArguments
+     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool} $options
+     */
+    public function renderGitExternalTextDiff(string $old, string $new, array $gitArguments, array $options = []): string
+    {
+        $metadata = GitExternalDiffMetadata::fromArguments($gitArguments);
+
+        return $this->renderTextDiff($old, $new, $metadata->applyToOptions($options));
+    }
+
+    /**
      * @param array{path?: string, extraInfo?: string, useColor?: bool} $options
      */
     public function renderBinaryDiff(string $oldBytes, string $newBytes, array $options = []): string
@@ -112,6 +123,17 @@ final class InlineDiffRenderer
             . ', new: '
             . $this->formatBinarySize($newSize)
             . ").\n\n";
+    }
+
+    /**
+     * @param list<string> $gitArguments
+     * @param array{path?: string, extraInfo?: string, useColor?: bool} $options
+     */
+    public function renderGitExternalBinaryDiff(string $oldBytes, string $newBytes, array $gitArguments, array $options = []): string
+    {
+        $metadata = GitExternalDiffMetadata::fromArguments($gitArguments);
+
+        return $this->renderBinaryDiff($oldBytes, $newBytes, $metadata->applyToOptions($options));
     }
 
     public function formatHeader(
