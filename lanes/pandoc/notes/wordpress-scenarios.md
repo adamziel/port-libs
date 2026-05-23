@@ -704,9 +704,13 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   colgroup widths, per-cell alignment, strong inline cell content, preserved
   `colspan`/`rowspan` structural metadata, and table footers without invoking
   Pandoc.
+- Markdown review lists that contain raw HTML controls now stay attached to the
+  intended list item. The fixture maps Pandoc's list issue #1154 shape with
+  div/button/div children so migration review markup does not escape the list
+  and reorder editorial checklist context.
 
 ## Next Task
 
-Map the remaining `Tests.Readers.Markdown` `emph and strong` intraword
-underscore case explicitly, or take the adjacent unbalanced-bracket/backslash
-escape group as the next bounded Markdown-reader slice.
+Map the adjacent `Tests.Readers.Markdown` unbalanced-bracket/backslash-escape
+group explicitly, or broaden the bounded list raw-HTML support beyond the
+current div/button issue #1154 shape.

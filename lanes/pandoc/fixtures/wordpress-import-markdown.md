@@ -255,6 +255,18 @@ HTML reader list import:
 <li><p>Publish reviewed batch</p></li>
 </ol>
 
+HTML reader list raw block import:
+
+ -  <div>
+    first migration div stays inside the review list
+    </div>
+
+    <button>confirm source button</button>
+
+    <div>
+    second migration div stays attached too.
+    </div>
+
 <h2>HTML reader nested checklist</h2>
 <ul>
 <li>Audit source sections<ul>

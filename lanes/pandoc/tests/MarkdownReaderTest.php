@@ -1896,6 +1896,33 @@ return [
         $t->same('bullet_list', $nested->type);
         $t->same('d', $nested->children[0]->children[0]->attr('text'));
     },
+    'maps upstream markdown list item containing raw html blocks' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            ' -  <div>',
+            '    first div breaks',
+            '    </div>',
+            '',
+            '    <button>if this button exists</button>',
+            '',
+            '    <div>',
+            '    with this div too.',
+            '    </div>',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $item = $list->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('bullet_list', $list->type);
+        $t->same(1, count($list->children));
+        $t->same(['div', 'raw_html', 'plain', 'raw_html', 'div'], array_map(static fn (AstNode $node): string => $node->type, $item->children));
+        $t->same('first div breaks', $item->children[0]->children[0]->attr('text'));
+        $t->same('<button>', $item->children[1]->attr('html'));
+        $t->same('if this button exists', $item->children[2]->attr('text'));
+        $t->same('</button>', $item->children[3]->attr('html'));
+        $t->same('with this div too.', $item->children[4]->children[0]->attr('text'));
+        $t->contains('<ul><li><div><p>first div breaks</p></div><button>if this button exists</button><div><p>with this div too.</p></div></li></ul>', $blocks);
+    },
     'maps upstream testsuite list continuation lines indented with tabs and spaces' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             "+\tthis is a list item",
@@ -4935,12 +4962,19 @@ XML;
         $document = (new MarkdownReader())->read($fixture);
         $htmlList = null;
         $styledOrdered = null;
+        $rawHtmlList = null;
         foreach ($document->children as $node) {
             if (
                 $node->type === 'bullet_list'
                 && ($node->children[0] ?? null)?->children[0]?->attr('text') === 'Review imported posts'
             ) {
                 $htmlList = $node;
+            }
+            if (
+                $node->type === 'bullet_list'
+                && ($node->children[0] ?? null)?->children[0]?->type === 'div'
+            ) {
+                $rawHtmlList = $node;
             }
             if ($node->type === 'ordered_list' && $node->attr('start') === 4 && $node->attr('style') === 'lower_roman') {
                 $styledOrdered = $node;
@@ -4949,9 +4983,11 @@ XML;
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->true($htmlList !== null, 'HTML reader top-level ul should stay on the native list path');
+        $t->true($rawHtmlList !== null, 'Markdown list item with raw HTML blocks should stay one native list item');
         $t->true($styledOrdered !== null, 'HTML reader styled ol should preserve ordered-list metadata');
         $t->same('bullet_list', $htmlList->children[1]->children[1]->type);
         $t->same('Verify captions', $htmlList->children[1]->children[1]->children[1]->children[0]->attr('text'));
+        $t->same(['div', 'raw_html', 'plain', 'raw_html', 'div'], array_map(static fn (AstNode $node): string => $node->type, $rawHtmlList->children[0]->children));
         $t->same('paragraph', $styledOrdered->children[0]->children[0]->type);
         $nestedHeading = null;
         $fancyQueue = null;
@@ -4970,6 +5006,8 @@ XML;
         $t->contains('<p>HTML reader list import:</p>', $blocks);
         $t->contains('<ul><li>Review imported posts</li><li>Attach media audit<ul><li>Confirm alt text</li><li>Verify captions</li></ul></li></ul>', $blocks);
         $t->contains('<ol start="4" type="i"><li><p>Queue editorial pass</p></li><li><p>Publish reviewed batch</p></li></ol>', $blocks);
+        $t->contains('<p>HTML reader list raw block import:</p>', $blocks);
+        $t->contains('<ul><li><div><p>first migration div stays inside the review list</p></div><button>confirm source button</button><div><p>second migration div stays attached too.</p></div></li></ul>', $blocks);
         $t->contains('<h2 id="html-reader-nested-checklist">HTML reader nested checklist</h2>', $blocks);
         $t->contains('<ul><li>Audit source sections<ul><li>Posts<ul><li>Confirm nested review note</li></ul></li></ul></li></ul>', $blocks);
         $t->contains('<ol start="2"><li>Import source batch</li><li><p>Review media mapping</p><p>Record continuation note</p><ol start="4" type="i"><li>Check roman subqueue</li><li>Escalate captions<ol type="A"><li>Alt text</li><li>Credit line</li></ol></li></ol></li></ol>', $blocks);

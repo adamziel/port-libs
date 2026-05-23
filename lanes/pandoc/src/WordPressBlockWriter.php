@@ -221,6 +221,10 @@ final class WordPressBlockWriter
                 $html .= $this->renderListHtml($child, true);
                 continue;
             }
+            if (!$this->isInlineNode($child) && $child->type !== 'paragraph') {
+                $html .= $this->renderBlocksAsHtml([$child]);
+                continue;
+            }
             if ($child->type === 'paragraph') {
                 $rendered = $this->renderInlines($child);
                 $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;

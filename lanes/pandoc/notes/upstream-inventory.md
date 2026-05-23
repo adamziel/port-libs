@@ -946,6 +946,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   letter/number checks, while issue #11613 inline-note quote delimiters inside
   `^[...]` notes still stay inside the note instead of closing the surrounding
   single or double quoted span.
+- The adjacent `Tests.Readers.Markdown` list issue #1154 case is now mapped:
+  a list item beginning with `<div>` keeps the following div, single-line
+  `<button>...</button>` raw HTML container, and second div as block children
+  of the same list item. This prevents the native PHP reader from splitting a
+  migration review list into a stray paragraph plus top-level HTML blocks.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
@@ -958,3 +963,13 @@ gate returned clear. `php tools/run-tests.php` exited 1 with 192 test files,
 (`native quadb store imports and merges proof-backed heads across reopen`;
 expected `RuntimeException` was not thrown). Pandoc tests passed inside that
 root run.
+
+Focused local verification on 2026-05-23 after the raw-HTML-in-list slice:
+`php -l` passed for `MarkdownReader.php`, `WordPressBlockWriter.php`, and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,056
+assertions, and 0 failures. The first required root verification gate found
+active root PID `1534970` owned by `claude` (`php tools/run-tests.php`), so no
+duplicate root run was started then. A later exact gate was clear, and
+`php tools/run-tests.php` passed 196 test files, 21,368 assertions, and 0
+failures.

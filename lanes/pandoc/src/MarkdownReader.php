@@ -362,6 +362,10 @@ final class MarkdownReader
             return [$line];
         }
 
+        if (preg_match('/^[ \t]{0,3}(?:[-*+]|\d{1,9}[.)]|#[.)]|\([A-Za-z0-9]+\)|[A-Za-z]+[.)])[ \t]+/', $line) === 1) {
+            return [$line];
+        }
+
         if (preg_match('/^[ \t]*</', $line) === 1) {
             return [$line];
         }
@@ -1054,7 +1058,7 @@ final class MarkdownReader
     private function tryReadRawHtmlSingleLineContainerBlock(array $lines, int &$index): ?array
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}(<(del)(?:\s+[^>]*)?>)(.*)(<\/\2\s*>)[ \t]*$/iu', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}(<(del|button)(?:\s+[^>]*)?>)(.*)(<\/\2\s*>)[ \t]*$/iu', $line, $m) !== 1) {
             return null;
         }
 
@@ -5261,6 +5265,10 @@ final class MarkdownReader
         $loose = false;
         $firstText = trim($marker['text']);
 
+        if ($firstText !== '' && $this->isListItemBlockHtmlStart($firstText)) {
+            return $this->parseBlockHtmlListItem($lines, $cursor, $marker);
+        }
+
         if ($firstText !== '') {
             $paragraph[] = $firstText;
         }
@@ -5348,6 +5356,78 @@ final class MarkdownReader
             'text' => $firstText,
             'number' => $marker['start'],
         ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null} $marker
+     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null}
+     */
+    private function parseBlockHtmlListItem(array $lines, int $cursor, array $marker): array
+    {
+        $count = count($lines);
+        $baseIndent = $marker['indent'];
+        $contentIndent = $marker['contentIndent'];
+        $content = [trim($marker['text'])];
+        $loose = false;
+        $cursor++;
+
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $next = $cursor;
+                while ($next < $count && trim($lines[$next]) === '') {
+                    $next++;
+                }
+
+                if ($next >= $count) {
+                    break;
+                }
+
+                $nextMarker = $this->matchListMarker($lines[$next], $next);
+                if ($nextMarker !== null && $nextMarker['indent'] <= $baseIndent) {
+                    break;
+                }
+
+                if ($this->countIndentColumns($lines[$next]) >= $contentIndent) {
+                    $content[] = '';
+                    $loose = true;
+                    $cursor = $next;
+                    continue;
+                }
+
+                break;
+            }
+
+            $lineMarker = $this->matchListMarker($line, $cursor);
+            if ($lineMarker !== null && $lineMarker['indent'] <= $baseIndent) {
+                break;
+            }
+
+            if ($this->countIndentColumns($line) < $contentIndent) {
+                break;
+            }
+
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+            $cursor++;
+        }
+
+        while ($content !== [] && trim($content[array_key_last($content)]) === '') {
+            array_pop($content);
+        }
+
+        return [
+            'parts' => $this->read(implode("\n", $content))->children,
+            'next' => $cursor,
+            'loose' => $loose,
+            'text' => trim($marker['text']),
+            'number' => $marker['start'],
+        ];
+    }
+
+    private function isListItemBlockHtmlStart(string $text): bool
+    {
+        return preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1;
     }
 
     private function isLazyListContinuation(string $line): bool
