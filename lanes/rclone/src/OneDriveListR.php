@@ -22,12 +22,12 @@ final class OneDriveListR
      * Build a ListR callable compatible with ListDirectory::listRecursiveDirect().
      *
      * $initialDirectories is path => normalized OneDrive ID. $sharedFolderListings
-     * is shared-folder remote path => direct child items used by the conventional
-     * List fallback for RemoteItem folders.
+     * is shared-folder remote path => direct child items or a ListP callable used
+     * by the conventional List fallback for RemoteItem folders.
      *
      * @param list<array<string, mixed>> $deltaItems
      * @param array<string, string> $initialDirectories
-     * @param array<string, list<array<string, mixed>|ObjectInfo>> $sharedFolderListings
+     * @param array<string, list<array<string, mixed>|ObjectInfo>|callable> $sharedFolderListings
      * @return callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable)
      */
     public static function fromDelta(
@@ -56,7 +56,7 @@ final class OneDriveListR
      *
      * @param array<int|string, array<string, mixed>> $deltaPages
      * @param array<string, string> $initialDirectories
-     * @param array<string, list<array<string, mixed>|ObjectInfo>> $sharedFolderListings
+     * @param array<string, list<array<string, mixed>|ObjectInfo>|callable> $sharedFolderListings
      * @param null|array<string, mixed> $trace
      * @return callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable)
      */
@@ -109,23 +109,17 @@ final class OneDriveListR
             });
 
             $listSharedFolder = null;
-            $listSharedFolder = static function (string $remote) use (
+            $listSharedFolder = static function (string $remote, mixed $fallbackListing = null) use (
                 &$listSharedFolder,
                 $sharedFolderListings,
                 $exposeOneNoteFiles,
                 $helper,
             ): void {
-                foreach ($sharedFolderListings[$remote] ?? [] as $rawEntry) {
-                    $entry = $rawEntry instanceof ObjectInfo
-                        ? $rawEntry
-                        : self::entryFromItem($rawEntry, $remote, $exposeOneNoteFiles);
-                    if ($entry === null) {
-                        continue;
-                    }
-
+                $listing = $sharedFolderListings[$remote] ?? $fallbackListing ?? [];
+                foreach (self::sharedFolderEntries($listing, $remote, $exposeOneNoteFiles) as $entry) {
                     $helper->add($entry);
                     if (ListDirectory::isDirectory($entry)) {
-                        $listSharedFolder($entry->path);
+                        $listSharedFolder($entry->path, is_callable($listing) ? $listing : null);
                     }
                 }
             };
@@ -171,6 +165,97 @@ final class OneDriveListR
     }
 
     /**
+     * Build a ListP callable from Graph child-list response pages.
+     *
+     * This is the ordinary non-recursive `ListP` path upstream uses inside
+     * the shared-folder fallback. The first request targets `/children` with
+     * `$top`, continuations switch to the `@odata.nextLink` RootURL, deleted
+     * entries are skipped, and directory/file mode filters happen before the
+     * caller sees an item.
+     *
+     * @param array<string, array<int|string, array<string, mixed>>> $childPagesByRemote
+     * @param array<string, string> $directoryIdsByRemote
+     * @param null|array<string, mixed> $trace
+     * @return callable(string, callable(list<ObjectInfo>): (null|\Throwable), bool, bool): (null|\Throwable)
+     */
+    public static function listPFromChildPages(
+        array $childPagesByRemote,
+        array $directoryIdsByRemote,
+        bool $exposeOneNoteFiles = false,
+        int $listChunk = 200,
+        ?array &$trace = null,
+    ): callable {
+        if ($listChunk < 1) {
+            throw new \InvalidArgumentException('OneDrive list chunk must be positive');
+        }
+        if ($trace === null) {
+            $trace = [];
+        }
+
+        $pagesByRemote = [];
+        foreach ($childPagesByRemote as $remote => $pages) {
+            $pagesByRemote[self::normalizePath((string) $remote)] = $pages;
+        }
+
+        $directoryIds = [];
+        foreach ($directoryIdsByRemote as $remote => $id) {
+            $directoryIds[self::normalizePath((string) $remote)] = (string) $id;
+        }
+
+        return static function (
+            string $dir,
+            callable $callback,
+            bool $directoriesOnly = false,
+            bool $filesOnly = false,
+        ) use (
+            $pagesByRemote,
+            $directoryIds,
+            $exposeOneNoteFiles,
+            $listChunk,
+            &$trace,
+        ): ?\Throwable {
+            $remote = self::normalizePath($dir);
+            $directoryId = $directoryIds[$remote] ?? null;
+            if ($directoryId === null || $directoryId === '') {
+                return new \RuntimeException("Directory not found: {$remote}");
+            }
+
+            $helper = new ListHelper(static function (array $entries) use ($callback): void {
+                $result = $callback($entries);
+                if ($result instanceof \Throwable) {
+                    throw $result;
+                }
+                if ($result !== null) {
+                    throw new \InvalidArgumentException('ListP callback must return null or Throwable');
+                }
+            });
+
+            try {
+                self::listAllPages(
+                    $pagesByRemote[$remote] ?? [['value' => []]],
+                    $directoriesOnly,
+                    $filesOnly,
+                    static function (array $item) use ($remote, $exposeOneNoteFiles, $helper): void {
+                        $entry = self::entryFromItem($item, $remote, $exposeOneNoteFiles);
+                        if ($entry !== null) {
+                            $helper->add($entry);
+                        }
+                    },
+                    $listChunk,
+                    $trace,
+                    '/children',
+                    $directoryId,
+                );
+                $helper->flush();
+
+                return null;
+            } catch (\Throwable $throwable) {
+                return $throwable;
+            }
+        };
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $pages
      * @param callable(array<string, mixed>): void $fn
      * @param array<string, mixed> $trace
@@ -182,20 +267,27 @@ final class OneDriveListR
         callable $fn,
         int $listChunk,
         array &$trace,
+        string $initialPath = '/root/delta',
+        ?string $directoryId = null,
     ): void {
         $pageKey = self::firstPageKey($pages);
         $rootUrl = null;
-        $path = '/root/delta';
+        $path = $initialPath;
         $parameters = ['$top' => [(string) $listChunk]];
         $trace['requests'] ??= [];
         $trace['pages'] ??= [];
 
         while ($pageKey !== null) {
-            $trace['requests'][] = [
+            $request = [
                 'rootUrl' => $rootUrl,
                 'path' => $path,
                 'parameters' => $parameters,
             ];
+            if ($directoryId !== null) {
+                $request['directoryId'] = $directoryId;
+            }
+
+            $trace['requests'][] = $request;
             $trace['pages'][] = $pageKey;
 
             $page = $pages[$pageKey] ?? null;
@@ -312,6 +404,55 @@ final class OneDriveListR
                 ?? $page['NextLink']
                 ?? null,
         ) ?? '';
+    }
+
+    /**
+     * @param list<array<string, mixed>|ObjectInfo>|callable $listing
+     * @return list<ObjectInfo>
+     */
+    private static function sharedFolderEntries(mixed $listing, string $remote, bool $exposeOneNoteFiles): array
+    {
+        if (is_callable($listing)) {
+            $entries = [];
+            $result = $listing(
+                $remote,
+                static function (array $batch) use (&$entries): null {
+                    foreach ($batch as $entry) {
+                        if (!$entry instanceof ObjectInfo) {
+                            throw new \InvalidArgumentException('shared-folder ListP batches must contain ObjectInfo entries');
+                        }
+                        $entries[] = $entry;
+                    }
+
+                    return null;
+                },
+            );
+
+            if ($result instanceof \Throwable) {
+                throw $result;
+            }
+            if ($result !== null) {
+                throw new \InvalidArgumentException('shared-folder ListP must return null or Throwable');
+            }
+
+            return $entries;
+        }
+
+        if (!is_array($listing)) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($listing as $rawEntry) {
+            $entry = $rawEntry instanceof ObjectInfo
+                ? $rawEntry
+                : self::entryFromItem($rawEntry, $remote, $exposeOneNoteFiles);
+            if ($entry !== null) {
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
     }
 
     /**

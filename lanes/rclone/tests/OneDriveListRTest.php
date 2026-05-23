@@ -47,6 +47,42 @@ function rclone_onedrive_listr_names(array $entries): array
 }
 
 /**
+ * @return array{entries: list<ObjectInfo>, batches: list<list<string>>}
+ */
+function rclone_onedrive_listr_collect_listp(
+    callable $listP,
+    string $dir,
+    bool $directoriesOnly = false,
+    bool $filesOnly = false,
+): array {
+    $entries = [];
+    $batches = [];
+    $result = $listP(
+        $dir,
+        static function (array $batch) use (&$entries, &$batches): null {
+            $batches[] = rclone_onedrive_listr_names($batch);
+            array_push($entries, ...$batch);
+
+            return null;
+        },
+        $directoriesOnly,
+        $filesOnly,
+    );
+
+    if ($result instanceof Throwable) {
+        throw $result;
+    }
+    if ($result !== null) {
+        throw new InvalidArgumentException('ListP callable must return null or Throwable');
+    }
+
+    return [
+        'entries' => $entries,
+        'batches' => $batches,
+    ];
+}
+
+/**
  * @return array<string, mixed>
  */
 function rclone_onedrive_listr_delta_file(int $number, string $parentId = 'root'): array
@@ -352,6 +388,223 @@ return [
             ],
         ], $trace['requests']);
     },
+    'onedrive child ListP follows nextLink and applies directory file filters' => static function (TestRunner $t): void {
+        $childPages = [
+            'site-backups/shared-review' => [
+                [
+                    'value' => [
+                        [
+                            'id' => 'users',
+                            'name' => 'users.wxr',
+                            'size' => 17,
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'file' => ['mimeType' => 'application/rss+xml'],
+                        ],
+                        [
+                            'id' => 'uploads',
+                            'name' => 'uploads',
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'folder' => ['childCount' => 1],
+                        ],
+                        [
+                            'id' => 'deleted-cache',
+                            'name' => 'deleted-cache.html',
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'deleted' => [],
+                            'file' => [],
+                        ],
+                    ],
+                    '@odata.nextLink' => 'https://graph.example/shared-review/children?page=2',
+                ],
+                'https://graph.example/shared-review/children?page=2' => [
+                    'value' => [
+                        [
+                            'id' => 'hero',
+                            'name' => 'hero.jpg',
+                            'size' => 150,
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'file' => ['mimeType' => 'image/jpeg'],
+                        ],
+                        [
+                            'id' => 'cache',
+                            'name' => 'cache',
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'folder' => ['childCount' => 0],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $directoryIds = ['site-backups/shared-review' => 'owner-drive#shared-root'];
+
+        $trace = [];
+        $listP = OneDriveListR::listPFromChildPages($childPages, $directoryIds, listChunk: 3, trace: $trace);
+        $all = rclone_onedrive_listr_collect_listp($listP, 'site-backups/shared-review');
+
+        $t->same([[
+            'site-backups/shared-review/users.wxr',
+            'site-backups/shared-review/uploads/',
+            'site-backups/shared-review/hero.jpg',
+            'site-backups/shared-review/cache/',
+        ]], $all['batches']);
+        $t->same([
+            [
+                'rootUrl' => null,
+                'path' => '/children',
+                'parameters' => ['$top' => ['3']],
+                'directoryId' => 'owner-drive#shared-root',
+            ],
+            [
+                'rootUrl' => 'https://graph.example/shared-review/children?page=2',
+                'path' => '',
+                'parameters' => [],
+                'directoryId' => 'owner-drive#shared-root',
+            ],
+        ], $trace['requests']);
+
+        $filteredListP = OneDriveListR::listPFromChildPages($childPages, $directoryIds, listChunk: 3);
+        $directories = rclone_onedrive_listr_collect_listp($filteredListP, 'site-backups/shared-review', directoriesOnly: true);
+        $files = rclone_onedrive_listr_collect_listp($filteredListP, 'site-backups/shared-review', filesOnly: true);
+
+        $t->same(['site-backups/shared-review/uploads/', 'site-backups/shared-review/cache/'], rclone_onedrive_listr_names($directories['entries']));
+        $t->same(['site-backups/shared-review/users.wxr', 'site-backups/shared-review/hero.jpg'], rclone_onedrive_listr_names($files['entries']));
+    },
+    'onedrive child listAll stops before nextLink when a page is empty' => static function (TestRunner $t): void {
+        $trace = [];
+        $listP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [
+                    [
+                        'value' => [],
+                        '@odata.nextLink' => 'https://graph.example/shared-review/children?page=2',
+                    ],
+                    'https://graph.example/shared-review/children?page=2' => [
+                        'value' => [[
+                            'id' => 'late',
+                            'name' => 'late.wxr',
+                            'size' => 10,
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'file' => [],
+                        ]],
+                    ],
+                ],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+            listChunk: 1,
+            trace: $trace,
+        );
+
+        $collected = rclone_onedrive_listr_collect_listp($listP, 'site-backups/shared-review');
+
+        $t->same([], $collected['entries']);
+        $t->same([0], $trace['pages']);
+        $t->same([
+            [
+                'rootUrl' => null,
+                'path' => '/children',
+                'parameters' => ['$top' => ['1']],
+                'directoryId' => 'owner-drive#shared-root',
+            ],
+        ], $trace['requests']);
+    },
+    'onedrive ListR shared-folder fallback can recurse through paged child ListP' => static function (TestRunner $t): void {
+        $childTrace = [];
+        $sharedListP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [
+                    [
+                        'value' => [
+                            [
+                                'id' => 'users',
+                                'name' => 'users.wxr',
+                                'size' => 17,
+                                'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                                'file' => ['mimeType' => 'application/rss+xml'],
+                            ],
+                            [
+                                'id' => 'uploads',
+                                'name' => 'uploads',
+                                'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                                'folder' => ['childCount' => 1],
+                            ],
+                        ],
+                        '@odata.nextLink' => 'https://graph.example/shared-review/children?page=2',
+                    ],
+                    'https://graph.example/shared-review/children?page=2' => [
+                        'value' => [[
+                            'id' => 'readme',
+                            'name' => 'review-notes.txt',
+                            'size' => 12,
+                            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                            'file' => ['mimeType' => 'text/plain'],
+                        ]],
+                    ],
+                ],
+                'site-backups/shared-review/uploads' => [[
+                    'value' => [[
+                        'id' => 'hero',
+                        'name' => 'hero.jpg',
+                        'size' => 150,
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'uploads'],
+                        'file' => ['mimeType' => 'image/jpeg'],
+                    ]],
+                ]],
+            ],
+            [
+                'site-backups/shared-review' => 'owner-drive#shared-root',
+                'site-backups/shared-review/uploads' => 'owner-drive#uploads',
+            ],
+            listChunk: 2,
+            trace: $childTrace,
+        );
+
+        $listR = OneDriveListR::fromDelta(
+            [
+                [
+                    'id' => 'shared-local',
+                    'name' => 'ignored-local-name',
+                    'parentReference' => ['driveId' => 'site-drive', 'id' => 'backups'],
+                    'remoteItem' => [
+                        'id' => 'shared-root',
+                        'name' => 'shared-review',
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-parent'],
+                        'folder' => ['childCount' => 3],
+                    ],
+                ],
+                [
+                    'id' => 'export',
+                    'name' => 'export.wxr',
+                    'size' => 18,
+                    'parentReference' => ['driveId' => 'site-drive', 'id' => 'backups'],
+                    'file' => ['mimeType' => 'application/rss+xml'],
+                ],
+            ],
+            'site-drive#root',
+            ['site-backups' => 'site-drive#backups'],
+            ['site-backups/shared-review' => $sharedListP],
+        );
+
+        $collected = rclone_onedrive_listr_collect($listR, 'site-backups');
+
+        $t->same([[
+            'site-backups/shared-review/',
+            'site-backups/shared-review/users.wxr',
+            'site-backups/shared-review/uploads/',
+            'site-backups/shared-review/uploads/hero.jpg',
+            'site-backups/shared-review/review-notes.txt',
+            'site-backups/export.wxr',
+        ]], $collected['batches']);
+        $t->same([
+            'owner-drive#shared-root',
+            'owner-drive#users',
+            'owner-drive#uploads',
+            'owner-drive#hero',
+            'owner-drive#readme',
+            'site-drive#export',
+        ], array_map(static fn (ObjectInfo $entry): ?string => $entry->id, $collected['entries']));
+        $t->same('https://graph.example/shared-review/children?page=2', $childTrace['requests'][1]['rootUrl']);
+        $t->same('owner-drive#uploads', $childTrace['requests'][2]['directoryId']);
+    },
     'wordpress onedrive shared ListR restore example includes shared review artifacts' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-shared-listr-restore.php';
 
@@ -392,5 +645,22 @@ return [
                 'parameters' => [],
             ],
         ], $example['requests']);
+    },
+    'wordpress onedrive shared ListP pagination example follows child pages' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-shared-listp-pagination.php';
+
+        $t->same('listR-shared-listp-pages', $example['source']);
+        $t->same([
+            'site-backups/shared-review/database.sql',
+            'site-backups/shared-review/export.wxr',
+            'site-backups/shared-review/users.wxr',
+            'site-backups/shared-review/',
+            'site-backups/shared-review/uploads/',
+            'site-backups/shared-review/uploads/hero.jpg',
+        ], $example['manifest']);
+        $t->same(true, $example['nextLinkFollowed']);
+        $t->same(true, $example['sharedListPUsed']);
+        $t->same(true, $example['deletedSkipped']);
+        $t->same('owner-drive#uploads', $example['childRequests'][2]['directoryId']);
     },
 ];

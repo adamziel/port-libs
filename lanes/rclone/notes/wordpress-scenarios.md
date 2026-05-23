@@ -212,6 +212,8 @@ The `../examples/wordpress-onedrive-disabled-delta-fallback.php` scenario maps O
 
 The `../examples/wordpress-onedrive-delta-paginated-restore.php` scenario maps OneDrive's paged delta recursive listing path. It starts with `/root/delta?$top=75`, follows `@odata.nextLink` to a second Graph page by clearing path and parameters, publishes a 105-entry WXR/SQL/uploads restore manifest in upstream `ListHelper` batches of 100 and 5, and does all of this against local fixtures without OAuth or provider credentials.
 
+The `../examples/wordpress-onedrive-shared-listp-pagination.php` scenario maps OneDrive's ordinary child `ListP` pagination inside the shared-folder fallback. It follows a shared review folder `@odata.nextLink`, reuses the same ListP callable when recursing into the nested uploads directory, skips deleted cache output before callbacks, and publishes WXR, SQL, users WXR, and upload media without OAuth or provider credentials.
+
 ## Next Task
 
-Map OneDrive ordinary `ListP`/`listAll` child pagination for shared-folder fallback, including directories-only/files-only filtering and the empty-page nextLink boundary.
+Map OneDrive ordinary `ListP` provider and callback error propagation during shared-folder fallback, including partial helper batches and final flush suppression.
