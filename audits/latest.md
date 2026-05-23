@@ -1,10 +1,11 @@
-# Independent Audit - 2026-05-23T10:47:29Z
+# Independent Audit - 2026-05-23T10:49:15Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, all 12 `lanes/*/UPSTREAM_TEST_MANIFEST.json` files,
 lane status files needed for alignment checks, recent Git history, dirty-tree
 state, active process state, and the required root-test gate. During handoff,
-`HEAD` moved from `d656fc477898` through `f03f1473d306` to `24837bc2f6dd`; a
+`HEAD` moved from `d656fc477898` through Difftastic commits, this audit-only
+commit `64e9fcf1`, and Readability commits to current `37f77f2ef3de`; a
 transient `52f8abff82c1` commit was also observed and then disappeared from
 current history.
 
@@ -32,10 +33,11 @@ non-progress unless it is explicitly temporary oracle tooling.
      marks every lane `stopped`. Process sampling found 25 matching active
      watchdog/capacity/dashboard/evaluator/integrator/auditor/lane-agent
      processes, including primary lane agents and capacity jobs.
-   - Evidence: `HEAD` was `d656fc477898` during the first final sample, then
-     moved through `f03f1473d306` to `24837bc2f6dd` while this audit was being
-     staged. A transient `52f8abff82c1` commit was also observed; it mixed
-     `audits/latest.md` and `progress.md` with
+   - Evidence: `HEAD` was `d656fc477898` during the first final sample, moved
+     through `f03f1473d306` and `24837bc2f6dd` while this audit was being
+     staged, accepted this audit-only commit as `64e9fcf1`, then moved again
+     through `6c135b81` to `37f77f2ef3de`. A transient `52f8abff82c1` commit
+     was also observed; it mixed `audits/latest.md` and `progress.md` with
      `lanes/difftastic/lane-status.json` before disappearing from current
      history, confirming that audit/status integration is still happening in a
      moving tree.
@@ -43,7 +45,8 @@ non-progress unless it is explicitly temporary oracle tooling.
      136 files during the audit, default `git status --short` moved from 1238
      to 1242 rows, and later handoff samples reported 1244 default status rows,
      135 tracked status rows, and `132 files changed, 30475 insertions(+), 911
-     deletions(-)`.
+     deletions(-)`. The latest post-commit handoff sample reported 131 tracked
+     status rows and `131 files changed, 30914 insertions(+), 897 deletions(-)`.
    - Evidence: manifest data changed during the audit window. Difftastic moved
      from `585 / 237` to `586 / 240` total/mapped while active writers were
      still running.
@@ -60,7 +63,7 @@ non-progress unless it is explicitly temporary oracle tooling.
      WordPress scenarios, phase, audit, current work, blocker, and commit.
    - Evidence: `porting.html:32`-`36` still publishes generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`; current
-     `HEAD` is `24837bc2f6dd`. `porting-summary.json` reports the same
+     `HEAD` is `37f77f2ef3de`. `porting-summary.json` reports the same
      generated time and source commit.
    - Evidence: `porting.html:41`-`50` still collapses upstream denominator into
      `Benchmark` and PHP pass/fail plus mapped tests into `Mapped`, rather than
@@ -162,9 +165,11 @@ process. A later handoff gate found active root PID `3102951`; owner evidence:
 3102951 claude 3102950 00:28 R php tools/run-tests.php
 ```
 
-No duplicate root run was started. The stability gate also failed: active
-writer/status loops persisted and tracked files/manifests changed during the
-audit.
+A post-commit handoff sample then briefly returned active root PID `3104648
+php tools/run-tests.php`; it exited before owner sampling, and the final exact
+gate was clear. No duplicate root run was started. The stability gate also
+failed: active writer/status loops persisted and tracked files/manifests
+changed during the audit.
 
 Validation commands run instead:
 
@@ -180,6 +185,9 @@ at the time checked. The shell-out scan found no PHP process shell-outs under
 Recent history reviewed:
 
 ```text
+37f77f2e readability: record tmz lane status
+6c135b81 readability: map tmz legacy post envelope
+64e9fcf1 Refresh independent audit status
 24837bc2 difftastic: stamp highlight status
 f03f1473 difftastic: map parser highlight captures
 d656fc47 Refresh independent audit status
