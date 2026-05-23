@@ -36,6 +36,7 @@ final class PatchFunctionCall
      *   knownTables?:list<string>,
      *   mergeBases?:array<string, string>,
      *   revisionGraph?:list<array<string, mixed>>,
+     *   revisionSnapshots?:array<string, list<array<string, mixed>>>,
      *   headHash?:string,
      *   databaseName?:string,
      *   databaseTables?:list<string>,
@@ -45,9 +46,28 @@ final class PatchFunctionCall
      */
     public function rows(array $tables, array $arguments, array $options = []): array
     {
-        [$fromCommit, $toCommit, $tableName] = $this->parseArguments($arguments, $options);
-        [$fromCommit, $toCommit] = $this->resolvePatchRevisions($fromCommit, $toCommit, $options);
-        $this->enforceSelectPrivileges($tables, $tableName, $options);
+        [$fromSpec, $toSpec, $tableName] = $this->parseArguments($arguments, $options);
+        [$fromCommit, $toCommit] = $this->resolvePatchRevisions($fromSpec, $toSpec, $options);
+
+        $snapshotKnownTables = null;
+        if (array_key_exists('revisionSnapshots', $options)) {
+            $tables = $this->tableDeltasFromRevisionSnapshots(
+                $options['revisionSnapshots'],
+                $fromCommit,
+                $toCommit,
+                $fromSpec,
+                $toSpec,
+                $snapshotKnownTables
+            );
+        }
+
+        $effectiveOptions = $options;
+        $knownTables = $this->mergeKnownTables($options['knownTables'] ?? null, $snapshotKnownTables);
+        if ($knownTables !== null) {
+            $effectiveOptions['knownTables'] = $knownTables;
+        }
+
+        $this->enforceSelectPrivileges($tables, $tableName, $effectiveOptions);
 
         if ($fromCommit === $toCommit) {
             return [];
@@ -55,7 +75,7 @@ final class PatchFunctionCall
 
         $selectedTables = $tableName === null
             ? $tables
-            : $this->selectTableDelta($tables, $tableName, $options['knownTables'] ?? null);
+            : $this->selectTableDelta($tables, $tableName, $knownTables);
 
         return $this->renderer->rows($selectedTables, [
             'fromCommit' => $fromCommit,
@@ -156,6 +176,312 @@ final class PatchFunctionCall
         }
 
         return "branch not found: {$baseSpec}";
+    }
+
+    /**
+     * @param mixed $snapshots
+     * @param list<string>|null $knownTables
+     * @return list<array<string, mixed>>
+     */
+    private function tableDeltasFromRevisionSnapshots(
+        mixed $snapshots,
+        string $fromCommit,
+        string $toCommit,
+        string $fromSpec,
+        string $toSpec,
+        ?array &$knownTables
+    ): array {
+        $snapshots = $this->normalizeRevisionSnapshots($snapshots);
+        $fromTables = $this->snapshotForRevision($snapshots, $fromCommit, $fromSpec);
+        $toTables = $this->snapshotForRevision($snapshots, $toCommit, $toSpec);
+        $knownTables = $this->knownTableNamesFromSnapshots($fromTables, $toTables);
+
+        $fromIndex = $this->indexSnapshotTables($fromTables, 'from');
+        $toIndex = $this->indexSnapshotTables($toTables, 'to');
+        $matcher = new TableDeltaMatcher();
+        $summaries = $matcher->summaries(
+            $this->summaryTablesFromSnapshots($fromTables),
+            $this->summaryTablesFromSnapshots($toTables)
+        );
+
+        $deltas = [];
+        foreach ($summaries as $summary) {
+            $fromName = $summary['from_table_name'];
+            $toName = $summary['to_table_name'];
+            $from = is_string($fromName) && isset($fromIndex[$fromName]) ? $fromIndex[$fromName] : null;
+            $to = is_string($toName) && isset($toIndex[$toName]) ? $toIndex[$toName] : null;
+            $schemaSource = $to ?? $from;
+            if ($schemaSource === null) {
+                continue;
+            }
+
+            $delta = [
+                'tableName' => $summary['table_name'],
+                'fromTableName' => $fromName,
+                'toTableName' => $toName,
+                'fromSchema' => $from['schema'] ?? null,
+                'toSchema' => $to['schema'] ?? null,
+                'fromRows' => $from['rows'] ?? [],
+                'toRows' => $to['rows'] ?? [],
+                'columns' => $schemaSource['columns'],
+                'keyless' => $schemaSource['keyless'],
+            ];
+
+            if ($schemaSource['primaryKey'] !== null) {
+                $delta['primaryKey'] = $schemaSource['primaryKey'];
+            }
+
+            $deltas[] = $delta;
+        }
+
+        return $deltas;
+    }
+
+    /**
+     * @param mixed $snapshots
+     * @return array<string, list<array{name:non-empty-string, schema:TableSchema, rows:list<array<string, scalar|null>>, primaryKey:non-empty-string|list<non-empty-string>|null, columns:list<non-empty-string>, keyless:bool, rowHash:string, rowCount:int}>>
+     */
+    private function normalizeRevisionSnapshots(mixed $snapshots): array
+    {
+        if (!is_array($snapshots)) {
+            throw new \InvalidArgumentException('Patch revisionSnapshots must be a map of revision names to table snapshots.');
+        }
+
+        $normalized = [];
+        foreach ($snapshots as $revision => $tables) {
+            if (!is_string($revision) || $revision === '') {
+                throw new \InvalidArgumentException('Patch revisionSnapshots keys must be non-empty revision strings.');
+            }
+            if (!is_array($tables)) {
+                throw new \InvalidArgumentException("Patch revisionSnapshots entry {$revision} must be a list of table snapshots.");
+            }
+
+            $normalized[$revision] = [];
+            foreach (array_values($tables) as $i => $table) {
+                if (!is_array($table)) {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$revision} table {$i} must be an array.");
+                }
+
+                $name = $this->snapshotTableName($table, "{$revision} table {$i}");
+                $schema = $table['schema'] ?? null;
+                if (!$schema instanceof TableSchema) {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$revision} table {$name} must include a TableSchema.");
+                }
+
+                $rows = $this->snapshotRows($table['rows'] ?? [], "{$revision} table {$name} rows");
+                $primaryKey = $this->snapshotPrimaryKey($table['primaryKey'] ?? null, $schema, "{$revision} table {$name}");
+                $columns = array_key_exists('columns', $table)
+                    ? $this->stringList($table['columns'], "{$revision} table {$name} columns")
+                    : $this->schemaColumnNames($schema);
+                $keyless = array_key_exists('keyless', $table) ? $table['keyless'] : $schema->isKeyless();
+                if (!is_bool($keyless)) {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$revision} table {$name} keyless must be boolean.");
+                }
+
+                $rowHash = $table['rowHash'] ?? $this->rowHash($rows);
+                if (!is_string($rowHash) || $rowHash === '') {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$revision} table {$name} rowHash must be a non-empty string.");
+                }
+                $rowCount = $table['rowCount'] ?? count($rows);
+                if (!is_int($rowCount) || $rowCount < 0) {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$revision} table {$name} rowCount must be a non-negative integer.");
+                }
+
+                $normalized[$revision][] = [
+                    'name' => $name,
+                    'schema' => $schema,
+                    'rows' => $rows,
+                    'primaryKey' => $primaryKey,
+                    'columns' => $columns,
+                    'keyless' => $keyless,
+                    'rowHash' => $rowHash,
+                    'rowCount' => $rowCount,
+                ];
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, list<array{name:non-empty-string, schema:TableSchema, rows:list<array<string, scalar|null>>, primaryKey:non-empty-string|list<non-empty-string>|null, columns:list<non-empty-string>, keyless:bool, rowHash:string, rowCount:int}>> $snapshots
+     * @return list<array{name:non-empty-string, schema:TableSchema, rows:list<array<string, scalar|null>>, primaryKey:non-empty-string|list<non-empty-string>|null, columns:list<non-empty-string>, keyless:bool, rowHash:string, rowCount:int}>
+     */
+    private function snapshotForRevision(array $snapshots, string $resolvedRevision, string $originalSpec): array
+    {
+        foreach ([$resolvedRevision, $originalSpec] as $revision) {
+            if (isset($snapshots[$revision])) {
+                return $snapshots[$revision];
+            }
+        }
+
+        throw new \InvalidArgumentException("Patch revisionSnapshots is missing snapshot for revision {$originalSpec}.");
+    }
+
+    /**
+     * @param list<array{name:non-empty-string, schema:TableSchema, rows:list<array<string, scalar|null>>, primaryKey:non-empty-string|list<non-empty-string>|null, columns:list<non-empty-string>, keyless:bool, rowHash:string, rowCount:int}> $tables
+     * @return array<string, array{name:non-empty-string, schema:TableSchema, rows:list<array<string, scalar|null>>, primaryKey:non-empty-string|list<non-empty-string>|null, columns:list<non-empty-string>, keyless:bool, rowHash:string, rowCount:int}>
+     */
+    private function indexSnapshotTables(array $tables, string $side): array
+    {
+        $indexed = [];
+        foreach ($tables as $table) {
+            if (isset($indexed[$table['name']])) {
+                throw new \InvalidArgumentException("Duplicate {$side} revision snapshot table: {$table['name']}.");
+            }
+            $indexed[$table['name']] = $table;
+        }
+
+        return $indexed;
+    }
+
+    /**
+     * @param list<array{name:non-empty-string, schema:TableSchema, rows:list<array<string, scalar|null>>, primaryKey:non-empty-string|list<non-empty-string>|null, columns:list<non-empty-string>, keyless:bool, rowHash:string, rowCount:int}> $tables
+     * @return list<array{name:non-empty-string, schema:TableSchema, rowHash:string, rowCount:int}>
+     */
+    private function summaryTablesFromSnapshots(array $tables): array
+    {
+        return array_map(
+            static fn (array $table): array => [
+                'name' => $table['name'],
+                'schema' => $table['schema'],
+                'rowHash' => $table['rowHash'],
+                'rowCount' => $table['rowCount'],
+            ],
+            $tables
+        );
+    }
+
+    /**
+     * @param list<array{name:non-empty-string}> $fromTables
+     * @param list<array{name:non-empty-string}> $toTables
+     * @return list<non-empty-string>
+     */
+    private function knownTableNamesFromSnapshots(array $fromTables, array $toTables): array
+    {
+        $names = [];
+        foreach ([$fromTables, $toTables] as $tables) {
+            foreach ($tables as $table) {
+                $names[$table['name']] = $table['name'];
+            }
+        }
+
+        ksort($names, SORT_STRING);
+
+        return array_values($names);
+    }
+
+    /**
+     * @param list<string>|null $explicit
+     * @param list<string>|null $fromSnapshots
+     * @return list<string>|null
+     */
+    private function mergeKnownTables(mixed $explicit, ?array $fromSnapshots): ?array
+    {
+        if ($explicit === null) {
+            return $fromSnapshots;
+        }
+
+        $names = [];
+        foreach ($this->stringList($explicit, 'knownTables') as $name) {
+            $names[strtolower($name)] = $name;
+        }
+        foreach ($fromSnapshots ?? [] as $name) {
+            $names[strtolower($name)] = $name;
+        }
+
+        return array_values($names);
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     */
+    private function snapshotTableName(array $table, string $label): string
+    {
+        $name = $table['name'] ?? $table['tableName'] ?? null;
+        if (!is_string($name) || $name === '') {
+            throw new \InvalidArgumentException("Patch revisionSnapshots {$label} must include a non-empty name.");
+        }
+
+        return $name;
+    }
+
+    /**
+     * @return list<array<string, scalar|null>>
+     */
+    private function snapshotRows(mixed $rows, string $label): array
+    {
+        if (!is_array($rows)) {
+            throw new \InvalidArgumentException("Patch revisionSnapshots {$label} must be a list of row arrays.");
+        }
+
+        $normalized = [];
+        foreach ($rows as $i => $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException("Patch revisionSnapshots {$label} row {$i} must be an array.");
+            }
+            foreach ($row as $column => $value) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$label} row {$i} columns must be non-empty strings.");
+                }
+                if ($value !== null && !is_scalar($value)) {
+                    throw new \InvalidArgumentException("Patch revisionSnapshots {$label} row {$i} values must be scalar or null.");
+                }
+            }
+            $normalized[] = $row;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return non-empty-string|list<non-empty-string>|null
+     */
+    private function snapshotPrimaryKey(mixed $primaryKey, TableSchema $schema, string $label): string|array|null
+    {
+        if ($primaryKey === null) {
+            $columns = array_map(static fn (array $column): string => $column['name'], $schema->primaryKeyColumns());
+
+            return $columns === [] ? null : $columns;
+        }
+
+        if (is_string($primaryKey)) {
+            if ($primaryKey === '') {
+                throw new \InvalidArgumentException("Patch revisionSnapshots {$label} primaryKey must be non-empty.");
+            }
+
+            return $primaryKey;
+        }
+
+        $columns = $this->stringList($primaryKey, "{$label} primaryKey");
+        if ($columns === []) {
+            throw new \InvalidArgumentException("Patch revisionSnapshots {$label} primaryKey must include at least one column.");
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @return list<non-empty-string>
+     */
+    private function schemaColumnNames(TableSchema $schema): array
+    {
+        return array_map(static fn (array $column): string => $column['name'], $schema->columns());
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $rows
+     */
+    private function rowHash(array $rows): string
+    {
+        $encodedRows = [];
+        foreach ($rows as $row) {
+            ksort($row, SORT_STRING);
+            $encodedRows[] = json_encode($row, JSON_THROW_ON_ERROR);
+        }
+        sort($encodedRows, SORT_STRING);
+
+        return hash('sha256', json_encode($encodedRows, JSON_THROW_ON_ERROR));
     }
 
     private function isDoltHashLike(string $spec): bool

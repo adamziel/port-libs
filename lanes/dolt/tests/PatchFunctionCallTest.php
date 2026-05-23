@@ -63,6 +63,63 @@ $patchRevisionGraph = static function (): array {
     ];
 };
 
+$patchWorktreeSnapshots = static function (): array {
+    $headSchema = TableSchema::fromColumns([
+        ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ['name' => 'c1', 'tag' => 2, 'type' => 'int'],
+        ['name' => 'c2', 'tag' => 3, 'type' => 'int'],
+        ['name' => 'c3', 'tag' => 4, 'type' => 'int'],
+        ['name' => 'c4', 'tag' => 5, 'type' => 'int'],
+        ['name' => 'c5', 'tag' => 6, 'type' => 'int'],
+    ]);
+    $workingSchema = TableSchema::fromColumns([
+        ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ['name' => 'c0', 'tag' => 2, 'type' => 'int'],
+        ['name' => 'c2', 'tag' => 3, 'type' => 'int'],
+        ['name' => 'c3', 'tag' => 4, 'type' => 'int'],
+        ['name' => 'c5', 'tag' => 6, 'type' => 'int'],
+        ['name' => 'c6', 'tag' => 7, 'type' => 'bigint'],
+    ]);
+
+    return [
+        'revisionGraph' => [
+            ['commit_hash' => 'head000000000000000000000000000', 'parents' => [], 'refs' => ['refs/heads/main']],
+        ],
+        'headHash' => 'head000000000000000000000000000',
+        'revisionSnapshots' => [
+            'head000000000000000000000000000' => [
+                [
+                    'name' => 't',
+                    'schema' => $headSchema,
+                    'rows' => [
+                        ['pk' => 0, 'c1' => 1, 'c2' => 2, 'c3' => 3, 'c4' => 4, 'c5' => 5],
+                    ],
+                ],
+            ],
+            'STAGED' => [
+                [
+                    'name' => 't',
+                    'schema' => $headSchema,
+                    'rows' => [
+                        ['pk' => 0, 'c1' => 1, 'c2' => 2, 'c3' => 3, 'c4' => 4, 'c5' => 5],
+                        ['pk' => 1, 'c1' => 1, 'c2' => 2, 'c3' => 3, 'c4' => 4, 'c5' => 5],
+                    ],
+                ],
+            ],
+            'WORKING' => [
+                [
+                    'name' => 't',
+                    'schema' => $workingSchema,
+                    'rows' => [
+                        ['pk' => 0, 'c0' => 1, 'c2' => 2, 'c3' => 3, 'c5' => 5, 'c6' => null],
+                        ['pk' => 1, 'c0' => 1, 'c2' => 2, 'c3' => 3, 'c5' => 5, 'c6' => null],
+                    ],
+                ],
+            ],
+        ],
+    ];
+};
+
 return [
     'dolt patch function call parses two-dot revisions and filters requested tables' => static function (TestRunner $t) use ($patchTables): void {
         $rows = (new PatchFunctionCall())->rows($patchTables(), ['main..branch1', 'T'], [
@@ -167,6 +224,42 @@ return [
             'knownTables' => ['t', 'newtable'],
         ]));
     },
+    'dolt patch function call materializes distinct head staged and working snapshots' => static function (TestRunner $t) use ($patchWorktreeSnapshots): void {
+        $call = new PatchFunctionCall();
+        $options = $patchWorktreeSnapshots() + ['knownTables' => ['t']];
+
+        $staged = $call->rows([], ['HEAD', 'STAGED', 't'], $options);
+        $t->same(['head000000000000000000000000000', 'STAGED'], [
+            $staged[0]['from_commit_hash'],
+            $staged[0]['to_commit_hash'],
+        ]);
+        $t->same(['data'], array_values(array_unique(array_column($staged, 'diff_type'))));
+        $t->same("INSERT INTO `t` (`pk`,`c1`,`c2`,`c3`,`c4`,`c5`) VALUES (1,1,2,3,4,5);", $staged[0]['statement']);
+
+        $worktree = $call->rows([], ['STAGED', 'WORKING', 't'], $options);
+        $t->same(['STAGED', 'WORKING'], [$worktree[0]['from_commit_hash'], $worktree[0]['to_commit_hash']]);
+        $t->same([
+            'ALTER TABLE `t` RENAME COLUMN `c1` TO `c0`;',
+            'ALTER TABLE `t` DROP `c4`;',
+            'ALTER TABLE `t` ADD `c6` bigint;',
+            'UPDATE `t` SET `c0`=1 WHERE `pk`=0;',
+            'UPDATE `t` SET `c0`=1 WHERE `pk`=1;',
+        ], array_column($worktree, 'statement'));
+
+        $reverse = $call->rows([], ['WORKING', 'STAGED', 't'], $options);
+        $t->same([
+            'ALTER TABLE `t` RENAME COLUMN `c0` TO `c1`;',
+            'ALTER TABLE `t` DROP `c6`;',
+            'ALTER TABLE `t` ADD `c4` int;',
+            'UPDATE `t` SET `c1`=1,`c4`=4 WHERE `pk`=0;',
+            'UPDATE `t` SET `c1`=1,`c4`=4 WHERE `pk`=1;',
+        ], array_column($reverse, 'statement'));
+
+        $t->same([], $call->rows([], ['WORKING..WORKING', 't'], $options));
+        $t->same([], $call->rows([], ['HEAD', 'STAGED', 'unchanged'], array_replace($options, [
+            'knownTables' => ['t', 'unchanged'],
+        ])));
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
@@ -263,5 +356,17 @@ return [
         $t->contains('privilege check failed: SELECT on wp_review.wp_import_log', $output['allTablesDenied']);
         $t->true(count($output['databaseWideRows']) >= 5);
         $t->same('review-base', $output['databaseWideRows'][0]['from_commit_hash']);
+    },
+    'wordpress patch worktree review example compares head staged and working snapshots' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-worktree-review.php';
+
+        $t->same('STAGED', $output['stagedPostPatch'][0]['to_commit_hash']);
+        $t->contains('INSERT INTO `wp_posts`', $output['stagedPostPatch'][1]['statement']);
+        $t->same(['schema', 'schema', 'schema', 'data', 'data', 'data'], array_column($output['worktreePostPatch'], 'diff_type'));
+        $t->contains('RENAME COLUMN `post_status` TO `post_state`', $output['worktreePostPatch'][0]['statement']);
+        $t->contains('DROP `legacy_checksum`', $output['worktreePostPatch'][1]['statement']);
+        $t->contains('ADD `import_batch`', $output['worktreePostPatch'][2]['statement']);
+        $t->contains('INSERT INTO `wp_posts`', $output['worktreePostPatch'][5]['statement']);
+        $t->same([], $output['sameWorkingPatch']);
     },
 ];

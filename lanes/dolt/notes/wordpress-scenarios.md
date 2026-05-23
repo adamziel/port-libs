@@ -20,6 +20,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` row projection for schema/data SQL patch queues, including schema-before-data ordering, schema/data partition filters, focused CREATE/DROP/ALTER DDL, keyed INSERT/UPDATE/DELETE statements, and keyless duplicate-cardinality INSERT/DELETE statements.
 - Native `dolt_patch()` table-function call parsing for explicit from/to refs, `A..B` ranges, merge-base-backed `A...B` ranges, same-ref `WORKING`/`STAGED` no-op rows, case-insensitive requested-table lookup, known unchanged-table empty results, table-not-found errors, and non-literal argument rejection.
 - Native `dolt_patch()` ref resolution for supplied commit graphs, including branch/tag/ancestor specs resolving to commit hashes in patch rows, same-hash branch/tag comparisons returning no rows, `WORKING` / `STAGED` labels remaining materialized working-set roots, and upstream-shaped missing branch/hash errors.
+- Native `dolt_patch()` revision snapshot materialization for supplied HEAD/STAGED/WORKING table roots, including forward and reverse schema/data patch rows, same-ref empty output, known unchanged-table empty output, and resolved HEAD commit hashes in patch rows.
 - Native `dolt_patch()` SELECT privilege checks for revision databases, including base database extraction from names like `wp_review/review-working`, table-specific reviewer grants, database-wide reviewer grants, all-table checks for unscoped patch calls, and authorization before same-ref no-op output.
 - Native `dolt_patch()` binary SQL rendering for media-library hashes and fingerprints stored in `binary` / `varbinary` columns, matching upstream `0x...` patch literals instead of quoted text.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
@@ -68,6 +69,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `fixtures/wp-binary-patch-review.php` models a WordPress media hash review where `wp_attachment_hashes` stores attachment fingerprints in `varbinary(32)` and `binary(4)` columns.
 - `examples/wordpress-binary-patch-review.php` returns native `dolt_patch()` data statements with upstream-shaped `0x...` SQL literals, so media migration tools can review binary checksums without corrupting them as text.
 - `examples/wordpress-patch-call-boundary.php` returns native `dolt_patch()` call-boundary rows for `review-base..review-working`, a merge-base-backed `main...review-working` review, resolved review branch/tag hashes, a `WORKING` patch target, an unchanged known `wp_options` table, a missing table/ref error, and a non-literal table-argument error.
+- `fixtures/wp-patch-worktree-review.php` models a WordPress post migration where HEAD, STAGED, and WORKING each carry distinct `wp_posts` snapshots: staged post queue changes are ready for review, while unstaged worktree edits rename `post_status`, drop `legacy_checksum`, add `import_batch`, and add a media-note post.
+- `examples/wordpress-patch-worktree-review.php` returns HEAD-to-STAGED, STAGED-to-WORKING, WORKING-to-STAGED, and WORKING-to-WORKING `dolt_patch()` rows, so a migration UI can preview staged and unstaged SQL patch queues without shelling out to Dolt.
 - `examples/wordpress-patch-privilege-review.php` returns a revision-database patch review where a limited reviewer can inspect `wp_posts` changes but an unscoped patch fails until the reviewer has database-wide SELECT over `wp_import_log` and the other database tables.
 - `fixtures/wp-ignore-summary.php` models a migration workspace with generated scratch/cache tables that should be hidden by `dolt_ignore`, while `dolt_ignore`, review tables, and explicit false-pattern exceptions remain visible.
 - `examples/wordpress-ignore-summary.php` returns ignore-aware `dolt_diff_summary()` rows for that workspace, so a WordPress migration UI can focus on reviewable data changes instead of generated scratch tables.
@@ -98,4 +101,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map broader `dolt_patch()` staged/worktree materialization where HEAD, STAGED, and WORKING each carry distinct table snapshots, then compare those rows against focused upstream `WORKING and STAGED` assertions.
+Next best slice: map `dolt_patch()` primary-key-change warning behavior for staged/worktree comparisons, including skipped data patches and warning collection.
