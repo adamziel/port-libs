@@ -2761,6 +2761,64 @@ return [
         $t->same(['cached-feed', 'cached-feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefix([], '_transient_', '_transient`'));
     },
+    'uses supplied custom collation callbacks for composite equality prefix range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_value_name', 'wp_options', 2, 'CREATE INDEX wp_options_value_name ON wp_options(option_value COLLATE WPSLUG, option_name) WHERE option_value IS NOT NULL AND option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['theme-core', '_transient_feed', 99]]], 5);
+        $page3 = $indexLeafPage([
+            $indexCell(['Plugin-Core', '_transient_feed', 1]),
+            $indexCell(['plugin_core', '_transient_timeout_feed', 2]),
+            $indexCell(['Plugin-Core', 'cron_lock', 3]),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'Plugin-Core', 'no'], 1),
+            $schemaCell([null, '_transient_timeout_feed', 'plugin_core', 'no'], 2),
+            $schemaCell([null, 'cron_lock', 'Plugin-Core', 'no'], 3),
+        ]);
+        $page5 = str_repeat("\0", 512);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+        $asciiLower = static function (string $value): string {
+            $bytes = $value;
+            $length = strlen($bytes);
+            for ($i = 0; $i < $length; $i++) {
+                $ord = ord($bytes[$i]);
+                if ($ord >= 0x41 && $ord <= 0x5a) {
+                    $bytes[$i] = chr($ord + 0x20);
+                }
+            }
+
+            return $bytes;
+        };
+        $wpslug = static function (string $left, string $right) use ($asciiLower): int {
+            return strcmp(str_replace('_', '-', $asciiLower($left)), str_replace('_', '-', $asciiLower($right)));
+        };
+        $prefix = ['option_value' => 'plugin_core'];
+
+        $transients = $database->wordpressOptionsByIndexedNameRangeWithPrefixCollations(
+            $prefix,
+            '_transient_',
+            '_transient`',
+            ['WPSLUG' => $wpslug],
+        );
+        $limited = $database->wordpressOptionsByIndexedNameRangeWithPrefixCollations(
+            $prefix,
+            '_transient_',
+            '_transient`',
+            ['wpslug' => $wpslug],
+            1,
+        );
+
+        $t->same(2, $database->indexRootPageForPrefixRangeLookupWithCollations('wp_options', $prefix, 'option_name', '_transient_', '_transient`', ['WPSLUG' => $wpslug]));
+        $t->same(null, $database->indexRootPageForPrefixRangeLookupWithCollations('wp_options', $prefix, 'option_name', '_transient_', '_transient`', []));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefix($prefix, '_transient_', '_transient`'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['Plugin-Core', 'plugin_core'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefixCollations($prefix, null, null, ['WPSLUG' => $wpslug]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefixCollations($prefix, '_transient_', '_transient`', ['WPSLUG' => static fn (): string => '0']));
+    },
     'uses partial composite autoload and option_name range indexes when predicates are implied' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

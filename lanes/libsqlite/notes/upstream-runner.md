@@ -1815,3 +1815,45 @@ validates callback return types. The new
 maps non-autoloaded transient/cache recovery when a site-specific option-name
 collation treats underscores, case, or plugin slug separators differently from
 SQLite's built-ins.
+
+## Focused Native Mapping: Custom-Collated Equality Prefix Ranges
+
+This slice extends composite range scans to indexes where an equality-prefix
+column, not just the range column, uses an application-defined collation. The
+native PHP reader now accepts a map of collation callbacks for a bounded
+`wp_options(prefix COLLATE X, option_name)` scan, verifies that every
+non-built-in collation in the constrained index has a supplied callback, and
+uses those callbacks during equality-prefix comparison and b-tree interval
+pruning.
+
+Focused upstream runner rerun:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  collate2.test collate4.test index3.test
+```
+
+Result on 2026-05-23: 5 Tcl script/permutation runs, 0 errors out of 269
+tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/collate2.test` registers the application-defined `BACKWARDS`
+  comparator and verifies equality/range comparison behavior.
+- `test/collate4.test` verifies multi-column index usability when indexed
+  columns carry user-defined collations.
+- `test/index3.test` covers collated index metadata at the quoted identifier
+  and autoindex boundary.
+
+The native PHP test fixture now covers
+`wp_options(option_value COLLATE WPSLUG, option_name) WHERE option_value IS
+NOT NULL AND option_name IS NOT NULL`: ordinary composite scans reject the
+unsupported collation, while
+`wordpressOptionsByIndexedNameRangeWithPrefixCollations()` treats
+`Plugin-Core` and `plugin_core` as the same equality prefix under the supplied
+callback, applies the `option_name` bounds, and skips an out-of-range index
+branch before page decoding. The example
+`examples/wordpress-custom-collation-prefix-option-name-range.php` maps this
+to plugin/cache recovery where a site-specific grouping column uses slug-like
+custom comparison.

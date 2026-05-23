@@ -662,6 +662,37 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $equalityPrefix
+     * @param array<string, callable(string, string): int> $customCollations
+     */
+    public function indexRootPageForPrefixRangeLookupWithCollations(
+        string $tableName,
+        array $equalityPrefix,
+        string $rangeColumnName,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        array $customCollations,
+        bool $upperInclusive = false,
+    ): ?int {
+        if ($equalityPrefix === []) {
+            throw new \InvalidArgumentException('SQLite index prefix range lookup requires at least one equality column');
+        }
+
+        $lookup = $this->indexLookupForColumnPrefixRangeWithCollations(
+            $tableName,
+            array_keys($equalityPrefix),
+            array_values($equalityPrefix),
+            $rangeColumnName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            self::normalizeCustomCollations($customCollations),
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
      * @param non-empty-array<string, mixed> $columnValues
      */
     public function indexRootPageForPointLookupColumns(string $tableName, array $columnValues): ?int
@@ -3936,6 +3967,34 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $equalityPrefix
+     * @param array<string, callable(string, string): int> $customCollations
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameRangeWithPrefixCollations(
+        array $equalityPrefix,
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        array $customCollations,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($equalityPrefix === []) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed name range lookup requires at least one equality column');
+        }
+
+        return $this->wordpressOptionsByIndexedColumnPrefixRangeWithCollations(
+            $equalityPrefix,
+            'option_name',
+            $lowerInclusive,
+            $upperBound,
+            $customCollations,
+            $limit,
+            $upperInclusive,
+        );
+    }
+
+    /**
      * @return list<SQLiteWordPressOption>
      */
     public function wordpressOptionsByIndexedNameRange(
@@ -4519,6 +4578,98 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $equalityColumnValues
+     * @param array<string, callable(string, string): int> $customCollations
+     * @return list<SQLiteWordPressOption>
+     */
+    private function wordpressOptionsByIndexedColumnPrefixRangeWithCollations(
+        array $equalityColumnValues,
+        string $rangeColumnName,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        array $customCollations,
+        ?int $limit,
+        bool $upperInclusive = false,
+    ): array {
+        if ($equalityColumnValues === []) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup requires at least one equality column');
+        }
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one bound');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $normalizedCollations = self::normalizeCustomCollations($customCollations);
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $equalityColumnNames = array_keys($equalityColumnValues);
+        $equalityValues = array_values($equalityColumnValues);
+        $indexLookup = $this->indexLookupForColumnPrefixRangeWithCollations(
+            'wp_options',
+            $equalityColumnNames,
+            $equalityValues,
+            $rangeColumnName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $normalizedCollations,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException('SQLite wp_options composite range index with supplied collations is not present');
+        }
+
+        $rangeColumn = $indexLookup['columns'][count($equalityValues)] ?? null;
+        if (!$rangeColumn instanceof SQLiteIndexColumn) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation composite range index is missing the range column');
+        }
+        if ($lowerInclusive !== null && $upperBound !== null) {
+            $boundaryComparison = self::compareSQLiteScalarForIndexColumn(
+                $lowerInclusive,
+                $upperBound,
+                $rangeColumn,
+                $normalizedCollations,
+            );
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach (
+            $this->indexCellsByColumnPrefixRange(
+                $indexLookup['rootPage'],
+                $equalityValues,
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $indexLookup['columns'],
+                $normalizedCollations,
+            ) as $indexCell
+        ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
      * @return list<SQLiteIndexCell>
      */
     private function indexCellsByFirstValue(
@@ -4967,6 +5118,7 @@ final class SQLiteDatabase
         mixed $upperBound,
         bool $upperInclusive,
         array $columns,
+        array $customCollations = [],
     ): array {
         $rangeIndex = count($equalityValues);
         $rangeColumn = $columns[$rangeIndex] ?? null;
@@ -4989,6 +5141,7 @@ final class SQLiteDatabase
             null,
             false,
             null,
+            $customCollations,
         );
 
         return $matches;
@@ -5001,6 +5154,7 @@ final class SQLiteDatabase
      * @param list<SQLiteIndexCell> $matches
      * @param null|list<mixed> $intervalLowerValues
      * @param null|list<mixed> $intervalUpperValues
+     * @param array<string, callable(string, string): int> $customCollations
      */
     private function collectIndexCellsByColumnPrefixRange(
         int $pageNumber,
@@ -5015,6 +5169,7 @@ final class SQLiteDatabase
         ?array $intervalLowerValues,
         bool $hasIntervalUpper,
         ?array $intervalUpperValues,
+        array $customCollations,
     ): void {
         if (
             !self::columnPrefixRangeIntersectsInterval(
@@ -5026,6 +5181,7 @@ final class SQLiteDatabase
                 $intervalLowerValues,
                 $hasIntervalUpper,
                 $intervalUpperValues,
+                $customCollations,
             )
         ) {
             return;
@@ -5057,6 +5213,7 @@ final class SQLiteDatabase
                     $upperBound,
                     $upperInclusive,
                     $columns,
+                    $customCollations,
                 )) {
                     $matches[] = $cell;
                 }
@@ -5091,6 +5248,7 @@ final class SQLiteDatabase
                 $hasPrevious ? $previousValues : $intervalLowerValues,
                 true,
                 $currentValues,
+                $customCollations,
             );
 
             if (self::indexRecordMatchesColumnPrefixRange(
@@ -5100,6 +5258,7 @@ final class SQLiteDatabase
                 $upperBound,
                 $upperInclusive,
                 $columns,
+                $customCollations,
             )) {
                 $matches[] = $cell;
             }
@@ -5121,6 +5280,7 @@ final class SQLiteDatabase
             $hasPrevious ? $previousValues : $intervalLowerValues,
             $hasIntervalUpper,
             $intervalUpperValues,
+            $customCollations,
         );
     }
 
@@ -5128,6 +5288,7 @@ final class SQLiteDatabase
      * @param list<mixed> $recordValues
      * @param list<mixed> $equalityValues
      * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @param array<string, callable(string, string): int> $customCollations
      */
     private static function indexRecordMatchesColumnPrefixRange(
         array $recordValues,
@@ -5136,6 +5297,7 @@ final class SQLiteDatabase
         mixed $upperBound,
         bool $upperInclusive,
         array $columns,
+        array $customCollations,
     ): bool {
         $rangeIndex = count($equalityValues);
         $rangeColumn = $columns[$rangeIndex] ?? null;
@@ -5147,7 +5309,7 @@ final class SQLiteDatabase
         }
 
         foreach ($equalityValues as $index => $value) {
-            if (self::compareSQLiteScalar($recordValues[$index], $value, $columns[$index]->collation) !== 0) {
+            if (self::compareSQLiteScalarForIndexColumn($recordValues[$index], $value, $columns[$index], $customCollations) !== 0) {
                 return false;
             }
         }
@@ -5156,11 +5318,11 @@ final class SQLiteDatabase
         if (($lowerInclusive !== null || $upperBound !== null) && $rangeValue === null) {
             return false;
         }
-        if ($lowerInclusive !== null && self::compareSQLiteScalar($rangeValue, $lowerInclusive, $rangeColumn->collation) < 0) {
+        if ($lowerInclusive !== null && self::compareSQLiteScalarForIndexColumn($rangeValue, $lowerInclusive, $rangeColumn, $customCollations) < 0) {
             return false;
         }
         if ($upperBound !== null) {
-            $upperComparison = self::compareSQLiteScalar($rangeValue, $upperBound, $rangeColumn->collation);
+            $upperComparison = self::compareSQLiteScalarForIndexColumn($rangeValue, $upperBound, $rangeColumn, $customCollations);
             if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
                 return false;
             }
@@ -5174,6 +5336,7 @@ final class SQLiteDatabase
      * @param non-empty-list<SQLiteIndexColumn> $columns
      * @param null|list<mixed> $intervalLowerValues
      * @param null|list<mixed> $intervalUpperValues
+     * @param array<string, callable(string, string): int> $customCollations
      */
     private static function columnPrefixRangeIntersectsInterval(
         array $equalityValues,
@@ -5184,6 +5347,7 @@ final class SQLiteDatabase
         ?array $intervalLowerValues,
         bool $hasIntervalUpper,
         ?array $intervalUpperValues,
+        array $customCollations,
     ): bool {
         $rangeIndex = count($equalityValues);
         $prefixLength = count($equalityValues);
@@ -5201,6 +5365,7 @@ final class SQLiteDatabase
                     array_slice($intervalUpperValues, 0, $prefixLength),
                     $equalityValues,
                     array_slice($columns, 0, $prefixLength),
+                    $customCollations,
                 ) < 0
             ) {
                 return false;
@@ -5213,6 +5378,7 @@ final class SQLiteDatabase
                     array_slice($intervalLowerValues, 0, $prefixLength),
                     $equalityValues,
                     array_slice($columns, 0, $prefixLength),
+                    $customCollations,
                 ) > 0
             ) {
                 return false;
@@ -5247,6 +5413,7 @@ final class SQLiteDatabase
                 array_slice($intervalUpperValues, 0, $rangeIndex + 1),
                 $physicalLower,
                 $constrainedColumns,
+                $customCollations,
             ) < 0
         ) {
             return false;
@@ -5260,6 +5427,7 @@ final class SQLiteDatabase
                 array_slice($intervalLowerValues, 0, $rangeIndex + 1),
                 $physicalUpper,
                 $constrainedColumns,
+                $customCollations,
             ) > 0
         ) {
             return false;
@@ -5272,14 +5440,25 @@ final class SQLiteDatabase
      * @param list<mixed> $leftValues
      * @param list<mixed> $rightValues
      * @param list<SQLiteIndexColumn> $columns
+     * @param array<string, callable(string, string): int> $customCollations
      */
-    private static function compareIndexKeyValues(array $leftValues, array $rightValues, array $columns): int
+    private static function compareIndexKeyValues(
+        array $leftValues,
+        array $rightValues,
+        array $columns,
+        array $customCollations = [],
+    ): int
     {
         foreach ($columns as $index => $column) {
             if (!array_key_exists($index, $leftValues) || !array_key_exists($index, $rightValues)) {
                 break;
             }
-            $comparison = self::compareSQLiteScalar($leftValues[$index], $rightValues[$index], $column->collation);
+            $comparison = self::compareSQLiteScalarForIndexColumn(
+                $leftValues[$index],
+                $rightValues[$index],
+                $column,
+                $customCollations,
+            );
             if ($comparison !== 0) {
                 return $column->descending ? -$comparison : $comparison;
             }
@@ -5505,6 +5684,100 @@ final class SQLiteDatabase
                         $equalityConstraints,
                         $rangeColumnName,
                     )
+                ) {
+                    continue;
+                }
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'columns' => $prefix,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param non-empty-list<string> $equalityColumnNames
+     * @param non-empty-list<mixed> $pointLookupValues
+     * @param array<string, callable(string, string): int> $customCollations
+     * @return null|array{rootPage:int,columns:non-empty-list<SQLiteIndexColumn>}
+     */
+    private function indexLookupForColumnPrefixRangeWithCollations(
+        string $tableName,
+        array $equalityColumnNames,
+        array $pointLookupValues,
+        string $rangeColumnName,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        array $customCollations,
+    ): ?array {
+        if ($equalityColumnNames === []) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one equality column');
+        }
+        if (count($equalityColumnNames) !== count($pointLookupValues)) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires one value per equality column');
+        }
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one bound');
+        }
+
+        $wantedColumnNames = array_merge($equalityColumnNames, [$rangeColumnName]);
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $columns = SQLiteCreateIndex::columns($record->sql);
+            if ($columns === null || count($columns) < count($wantedColumnNames)) {
+                continue;
+            }
+
+            $prefix = array_slice($columns, 0, count($wantedColumnNames));
+            foreach ($prefix as $index => $column) {
+                if (strcasecmp($column->columnName, $wantedColumnNames[$index]) !== 0) {
+                    continue 2;
+                }
+            }
+            if (!self::indexColumnsHaveSupportedCollations($prefix, $customCollations)) {
+                continue;
+            }
+            $usesCustomCollation = self::indexColumnsUseCustomCollations($prefix);
+
+            if ($prefix[0]->partial) {
+                $equalityConstraints = array_combine($equalityColumnNames, $pointLookupValues);
+                if ($equalityConstraints === false) {
+                    $equalityConstraints = [];
+                }
+                $predicateIsImplied = false;
+                if ($prefix[0]->partialPredicate !== null) {
+                    if ($usesCustomCollation) {
+                        $predicateIsImplied = self::partialPredicateIsImpliedByEqualityAndNonNullRange(
+                            $prefix[0]->partialPredicate,
+                            $equalityConstraints,
+                            $rangeColumnName,
+                        );
+                    } else {
+                        $rangeConstraints = [
+                            $rangeColumnName => [
+                                'lowerInclusive' => $lowerInclusive,
+                                'upperBound' => $upperBound,
+                                'upperInclusive' => $upperInclusive,
+                            ],
+                        ];
+                        $predicateIsImplied = self::partialPredicateIsImpliedByConstraints(
+                            $prefix[0]->partialPredicate,
+                            $equalityConstraints,
+                            $rangeConstraints,
+                            true,
+                        );
+                    }
+                }
+                if (
+                    $prefix[0]->partialPredicate === null
+                    || !$predicateIsImplied
                 ) {
                     continue;
                 }
@@ -5849,6 +6122,82 @@ final class SQLiteDatabase
         }
 
         throw new \InvalidArgumentException('Unsupported SQLite scalar comparison value');
+    }
+
+    /**
+     * @param array<string, callable(string, string): int> $customCollations
+     */
+    private static function compareSQLiteScalarForIndexColumn(
+        mixed $left,
+        mixed $right,
+        SQLiteIndexColumn $column,
+        array $customCollations,
+    ): int {
+        $collationName = strtoupper($column->collation);
+        if (isset($customCollations[$collationName])) {
+            return self::compareSQLiteScalarWithCustomTextCollation($left, $right, $customCollations[$collationName]);
+        }
+
+        return self::compareSQLiteScalar($left, $right, $column->collation);
+    }
+
+    /**
+     * @param array<string, callable(string, string): int> $customCollations
+     * @return array<string, callable(string, string): int>
+     */
+    private static function normalizeCustomCollations(array $customCollations): array
+    {
+        $normalized = [];
+        foreach ($customCollations as $name => $compare) {
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('SQLite custom collation names must be non-empty strings');
+            }
+            if (!is_callable($compare)) {
+                throw new \InvalidArgumentException("SQLite custom collation {$name} must be callable");
+            }
+            $normalized[strtoupper($name)] = $compare;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<SQLiteIndexColumn> $columns
+     * @param array<string, callable(string, string): int> $customCollations
+     */
+    private static function indexColumnsHaveSupportedCollations(array $columns, array $customCollations): bool
+    {
+        foreach ($columns as $column) {
+            if (!$column instanceof SQLiteIndexColumn) {
+                return false;
+            }
+            $collationName = strtoupper($column->collation);
+            if (
+                !isset($customCollations[$collationName])
+                && !in_array($collationName, ['BINARY', 'NOCASE', 'RTRIM'], true)
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<SQLiteIndexColumn> $columns
+     */
+    private static function indexColumnsUseCustomCollations(array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (!$column instanceof SQLiteIndexColumn) {
+                return false;
+            }
+            if (!in_array(strtoupper($column->collation), ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function compareSQLiteText(string $left, string $right, string $collation): int

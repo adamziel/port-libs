@@ -584,6 +584,14 @@ comparator for the second indexed column. This maps non-autoloaded transient or
 cache recovery on sites that created custom slug/case collations while still
 requiring the autoload equality prefix and a collation-safe partial predicate.
 
+`examples/wordpress-custom-collation-prefix-option-name-range.php` reads a
+bounded `option_name` range through a composite index whose equality-prefix
+column uses an application-defined collation, for example
+`wp_options(option_value COLLATE WPSLUG, option_name)`. The caller supplies a
+collation callback map, so recovery tooling can group plugin/cache rows where
+`Plugin-Core` and `plugin_core` compare equal under site-specific slug rules
+while the ordinary composite path continues to reject unsupported collations.
+
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
@@ -594,6 +602,8 @@ named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
 mutation at `[#]`, broader JSONB output/edit behavior beyond the current
 value encoder, and full JSON5 numeric/string edge parity; custom collation
-coverage beyond explicit first-column, `lower(option_name)` point lookup, and
-autoload equality-prefix `option_name` range recovery; and
-composite planner shapes outside equality-prefix plus one range column.
+coverage across automatic indexes, additional composite planner shapes, and
+expression-index families beyond the explicit first-column, custom-collated
+equality-prefix, `lower(option_name)` point/list/range, and autoload
+equality-prefix `option_name` range recovery paths; and composite planner
+shapes outside equality-prefix plus one range column.
