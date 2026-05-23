@@ -3,7 +3,8 @@
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane
 status files needed to check status drift, bridge/shell-out usage in PHP files,
-and recent Git history through observed `HEAD` movement to `3cdb7ec`.
+and recent Git history through observed `HEAD` movement to `7103bcd` before the
+audit commit.
 
 I did not edit lane implementation files, launch agents or tmux sessions, or
 push. The only intended writes from this pass are this audit and the
@@ -18,15 +19,16 @@ audit-status/next-intervention text in `progress.md`.
      `lanes/readability`, and `lanes/syncthing`, plus `progress.md`,
      `porting.html`, `porting-summary.json`, scripts, and status files.
    - Evidence: `HEAD` advanced during this audit from initially observed
-     `6e8d154` through `c7db622`, `76a5dd9`, `2bf98a9`, `0bc5002`, `a0a4694`,
-     `7c7ab2f`, `9434234`, `4aae69d`, and `3cdb7ec`. The latest sample reports
-     `309` `git status --short` entries, `40` tracked modified entries, and
-     `git diff --shortstat` reports `40 files changed, 7657 insertions(+), 341
-     deletions(-)`. The required root command was not stable across runs: one
+     `6e8d154` through `c7db622`, `76a5dd9`, `2bf98a9`, `0bc5002`, `2263c75`,
+     `a0a4694`, `7c7ab2f`, `9434234`, `4aae69d`, `42903db`, and `7103bcd`. The
+     latest sample reports `328` `git status --short` entries, `52` tracked
+     modified entries, and `git diff --shortstat` reports `52 files changed,
+     8486 insertions(+), 218 deletions(-)`. The
+     required root command was not stable across runs: one
      exact run exited `1` with `174` files, `16246` assertions, and `4`
      failures; later reruns were green with different assertion totals; the final
-     post-edit run exited `1` with `174` files, `16316` assertions, and `1`
-     failure in Difftastic.
+     current run exited `1` with `174` files, `16323` assertions, and `2`
+     failures in Pandoc.
    - Goal requirement at risk: `goal.md:29` requires small reviewable slices with
      passing tests, `goal.md:48` requires verification and cleanup before
      assigning the next slice, and `goal.md:49` requires repo-wide checks to be
@@ -166,21 +168,28 @@ final post-edit captured run exit status: 1
 174 test files, 16316 assertions, 1 failures
 FAIL wordpress large single-line asset manifest display stays bounded (lanes/difftastic/tests/TokenDifferTest.php)
 Large single-line asset manifests should wrap over multiple display rows.
+
+post-commit captured run exit status: 1
+174 test files, 16323 assertions, 2 failures
+FAIL maps upstream markdown reader more raw tex environments and macros (lanes/pandoc/tests/MarkdownReaderTest.php)
+Values are not identical
+FAIL writes wordpress math and raw tex preservation markup from import notes (lanes/pandoc/tests/MarkdownReaderTest.php)
+String does not contain '<pre class="wp-block-code"><code class="language-tex">\newcommand{\wptuple}[1]{\langle #1 \rangle}</code></pre>'
 ```
 
 The first red run's individual failure lines were not preserved before output
 truncation, and the later failure-extraction rerun did not reproduce them. The
-final run is still better than the first exact run from this audit, but it is
-red. The changing assertion totals plus `HEAD` movement mean this is an unstable
-moving aggregate, not a stable accepted baseline.
+current final run is still better than the first exact run from this audit, but
+it is red. The changing assertion totals and shifting failure locations plus
+`HEAD` movement mean this is an unstable moving aggregate, not a stable accepted
+baseline.
 
 ## Recommended Next Intervention
 
 Freeze or explicitly coordinate active writers. First repair or reject the
-Difftastic long-line display batch that currently leaves `php tools/run-tests.php`
-red. Then accept or reject dirty lane batches one lane at a time, starting with
-files whose status says pending/uncommitted. After each accepted batch, rerun
-focused lane tests and `php tools/run-tests.php`, commit that lane slice, then
-regenerate `progress.md`, `porting.html`, `porting-summary.json`, and lane
-statuses from the same accepted snapshot with normalized
-denominator/parity/status fields.
+Pandoc raw-TeX batch that currently leaves `php tools/run-tests.php` red. Then
+accept or reject dirty lane batches one lane at a time, starting with files whose
+status says pending/uncommitted. After each accepted batch, rerun focused lane
+tests and `php tools/run-tests.php`, commit that lane slice, then regenerate
+`progress.md`, `porting.html`, `porting-summary.json`, and lane statuses from
+the same accepted snapshot with normalized denominator/parity/status fields.
