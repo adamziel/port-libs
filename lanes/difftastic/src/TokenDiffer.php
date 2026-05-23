@@ -2980,7 +2980,7 @@ final class TokenDiffer
                 }
             }
 
-            $path = $this->javaScriptCallPath($oldCall['callee'], $basePath);
+            $path = $this->javaScriptCallPath($oldCall['callee'], $basePath, $oldCall['pathContext'] ?? '');
             if ($matchIndex === null) {
                 $changes[] = ['op' => '-', 'path' => $path, 'text' => $oldCall['text']];
                 continue;
@@ -3000,7 +3000,7 @@ final class TokenDiffer
 
             $changes[] = [
                 'op' => '+',
-                'path' => $this->javaScriptCallPath($call['callee'], $basePath),
+                'path' => $this->javaScriptCallPath($call['callee'], $basePath, $call['pathContext'] ?? ''),
                 'text' => $call['text'],
             ];
         }
@@ -3127,7 +3127,7 @@ final class TokenDiffer
 
     /**
      * @param list<array<string, mixed>> $nodes
-     * @return list<array{callee:string, signature:string, list:array<string, mixed>, text:string}>
+     * @return list<array{callee:string, signature:string, list:array<string, mixed>, text:string, pathContext:string}>
      */
     private function javaScriptCalls(array $nodes): array
     {
@@ -3139,13 +3139,25 @@ final class TokenDiffer
 
     /**
      * @param list<array<string, mixed>> $nodes
-     * @param list<array{callee:string, signature:string, list:array<string, mixed>, text:string}> $calls
+     * @param list<array{callee:string, signature:string, list:array<string, mixed>, text:string, pathContext:string}> $calls
      * @param list<string> $contextLabels
      */
     private function collectJavaScriptCalls(array $nodes, array &$calls, array $contextLabels = []): void
     {
         $calleeParts = [];
-        foreach ($nodes as $node) {
+        $count = count($nodes);
+        for ($index = 0; $index < $count; $index++) {
+            $node = $nodes[$index];
+            $function = $this->javaScriptFunctionDeclarationAt($nodes, $index);
+            if ($function !== null) {
+                $functionContextLabels = $contextLabels;
+                $functionContextLabels[] = 'function:' . $function['name'];
+                $this->collectJavaScriptCalls($function['body']['children'] ?? [], $calls, $functionContextLabels);
+                $index = $function['bodyIndex'];
+                $calleeParts = [];
+                continue;
+            }
+
             if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
                 if ($this->isJavaScriptCalleeToken($node['token'])) {
                     $calleeParts[] = $node['token']->text;
@@ -3171,6 +3183,7 @@ final class TokenDiffer
                         'signature' => $this->javaScriptCallSignature($callee, $node, $contextLabels),
                         'list' => $node,
                         'text' => $callee . $this->nodeText($node),
+                        'pathContext' => $this->javaScriptCallPathContext($contextLabels),
                     ];
                     if ($label !== null && $this->isJavaScriptNamedCallbackCallee($callee)) {
                         $nextContextLabels[] = $callee . ':' . $label;
@@ -3185,7 +3198,41 @@ final class TokenDiffer
 
     private function isJavaScriptCalleeToken(Token $token): bool
     {
-        return $token->kind === 'identifier' || in_array($token->text, ['.', '$'], true);
+        return ($token->kind === 'identifier' && !$this->isJavaScriptCalleeBoundaryKeyword($token->text))
+            || in_array($token->text, ['.', '$'], true);
+    }
+
+    private function isJavaScriptCalleeBoundaryKeyword(string $text): bool
+    {
+        return in_array($text, [
+            'async',
+            'await',
+            'break',
+            'case',
+            'catch',
+            'class',
+            'const',
+            'continue',
+            'default',
+            'delete',
+            'do',
+            'else',
+            'export',
+            'finally',
+            'for',
+            'function',
+            'if',
+            'import',
+            'let',
+            'new',
+            'return',
+            'switch',
+            'throw',
+            'try',
+            'var',
+            'while',
+            'yield',
+        ], true);
     }
 
     /**
@@ -3232,6 +3279,23 @@ final class TokenDiffer
         return $signature . ':label:' . $label;
     }
 
+    /**
+     * @param list<string> $contextLabels
+     */
+    private function javaScriptCallPathContext(array $contextLabels): string
+    {
+        $path = '';
+        foreach ($contextLabels as $label) {
+            if (!str_starts_with($label, 'function:')) {
+                continue;
+            }
+
+            $path .= '.function[' . json_encode(substr($label, strlen('function:')), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+        }
+
+        return $path;
+    }
+
     private function isJavaScriptNamedCallbackCallee(string $callee): bool
     {
         return in_array($callee, [
@@ -3268,9 +3332,9 @@ final class TokenDiffer
         return null;
     }
 
-    private function javaScriptCallPath(string $callee, string $basePath): string
+    private function javaScriptCallPath(string $callee, string $basePath, string $pathContext = ''): string
     {
-        return $basePath . '.call[' . json_encode($callee, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
+        return $basePath . $pathContext . '.call[' . json_encode($callee, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ']';
     }
 
     private function javaScriptBlockPath(string $keyword, string $basePath, int $index): string
@@ -3291,7 +3355,16 @@ final class TokenDiffer
     {
         $names = [];
         $calleeParts = [];
-        foreach ($nodes as $node) {
+        $count = count($nodes);
+        for ($index = 0; $index < $count; $index++) {
+            $node = $nodes[$index];
+            $function = $this->javaScriptFunctionDeclarationAt($nodes, $index);
+            if ($function !== null) {
+                $index = $function['bodyIndex'];
+                $calleeParts = [];
+                continue;
+            }
+
             if (($node['type'] ?? '') === 'atom' && $node['token'] instanceof Token) {
                 if ($this->isJavaScriptCalleeToken($node['token'])) {
                     $calleeParts[] = $node['token']->text;
@@ -3313,6 +3386,87 @@ final class TokenDiffer
         }
 
         return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return ?array{name:string, body:array<string, mixed>, bodyIndex:int}
+     */
+    private function javaScriptFunctionDeclarationAt(array $nodes, int $functionIndex): ?array
+    {
+        $node = $nodes[$functionIndex] ?? null;
+        if (
+            !is_array($node)
+            || ($node['type'] ?? '') !== 'atom'
+            || !$node['token'] instanceof Token
+            || $node['token']->text !== 'function'
+        ) {
+            return null;
+        }
+
+        $nameIndex = $this->nextNonCommentNodeIndex($nodes, $functionIndex + 1);
+        $nameNode = $nameIndex === null ? null : $nodes[$nameIndex];
+        if (
+            !is_array($nameNode)
+            || ($nameNode['type'] ?? '') !== 'atom'
+            || !$nameNode['token'] instanceof Token
+            || !$this->isJavaScriptIdentifierAtom($nameNode['token']->text)
+        ) {
+            return null;
+        }
+
+        $parametersIndex = $this->nextNonCommentNodeIndex($nodes, $nameIndex + 1);
+        $parametersNode = $parametersIndex === null ? null : $nodes[$parametersIndex];
+        if (
+            !is_array($parametersNode)
+            || ($parametersNode['type'] ?? '') !== 'list'
+            || ($parametersNode['open'] ?? '') !== '('
+        ) {
+            return null;
+        }
+
+        $bodyIndex = $this->nextNonCommentNodeIndex($nodes, $parametersIndex + 1);
+        $bodyNode = $bodyIndex === null ? null : $nodes[$bodyIndex];
+        if (
+            !is_array($bodyNode)
+            || ($bodyNode['type'] ?? '') !== 'list'
+            || ($bodyNode['open'] ?? '') !== '{'
+        ) {
+            return null;
+        }
+
+        return [
+            'name' => $nameNode['token']->text,
+            'body' => $bodyNode,
+            'bodyIndex' => $bodyIndex,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     */
+    private function nextNonCommentNodeIndex(array $nodes, int $offset): ?int
+    {
+        for ($index = $offset; $index < count($nodes); $index++) {
+            $node = $nodes[$index];
+            if (
+                ($node['type'] ?? '') === 'atom'
+                && $node['token'] instanceof Token
+                && $node['token']->kind === 'comment'
+            ) {
+                continue;
+            }
+
+            return $index;
+        }
+
+        return null;
+    }
+
+    private function isJavaScriptIdentifierAtom(string $text): bool
+    {
+        return preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $text) === 1
+            && !in_array($text, ['as', 'async', 'await', 'class', 'export', 'function', 'import'], true);
     }
 
     /**

@@ -100,6 +100,8 @@ Standalone JavaScript mode now maps the upstream `sample_files/javascript_simple
 
 Standalone JavaScript mode now also maps the larger upstream `sample_files/javascript_*.js` repeated callback shape. Named callback calls such as Jest `describe(...)` / `test(...)` and WordPress `wp.hooks.addAction(...)` / `addFilter(...)` use their first string label plus enclosing named callback labels when matching repeated calls. The WordPress hook-registration fixture applies this to a block plugin `view.js` change where a new analytics action is inserted before the retained `acme.card.init` callback; the diff reports the new hook and the added `bindCard()` call without pairing the retained init hook with the analytics hook by callee name alone.
 
+Standalone JavaScript mode now also maps a targeted upstream `sample_files/load_*.js` function-declaration shape. Function declarations become call scopes instead of fake `functionName()` calls, so repeated calls inside different helpers are not paired by callee name alone. The WordPress block registration fixture applies this to repeated `wp.blocks.registerBlockType(...)` calls: an inserted `registerQueryBlock()` reports as a new function-scoped registration while the retained gallery registration remains matched.
+
 JavaScript mode now also maps upstream parse-error fallback semantics from `DEFAULT_PARSE_ERROR_LIMIT=0`, `to_syntax_with_limit`, and the CLI `yaml_parse_errors` fallback test. The WordPress block editor syntax-error fixture compares a partial `registerPlugin(...)` edit with an unclosed object literal. Because the combined native delimiter parse-error count exceeds the limit, syntax-list output switches to escaped line-oriented `$text.line[...]` changes and compact JSON display labels the file as `Text (... exceeded DFT_PARSE_ERROR_LIMIT)` instead of showing misleading `$js.call[...]` structural matches.
 
 Supported-language byte-limit fallback now maps upstream `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, and `TextFallback` behavior. The WordPress render metadata example lowers the limit to exercise the path with a bounded PHP block metadata change: render callback and support changes are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (... exceeded DFT_BYTE_LIMIT)` instead of attempting an incomplete structural diff.
@@ -109,6 +111,8 @@ Supported-language graph-limit fallback now maps upstream `DEFAULT_GRAPH_LIMIT`,
 File-content decoding now maps upstream `src/files.rs` UTF-16 byte-order-mark handling and the `sample_files/utf16_*.py` pair. The WordPress UTF-16 WXR example compares byte-order-marked export XML bytes and renders `_old_builder`, `_wp_page_template`, and `_thumbnail_id` postmeta changes as normal XML JSON chunks instead of reporting the export as a binary file.
 
 File-content decoding now also maps the upstream `src/files.rs` Windows-1252 fallback branch and `sample_files/windows1251_*.txt`. The WordPress legacy encoded readme example compares plugin metadata bytes from an ISO-8859-1/Windows-1252 source, keeps decoded text such as `müller`, `Löst`, and `Blöcke` readable, and reports `alte` to `moderne` release copy as normal text chunks instead of a binary status.
+
+File-content decoding now maps the upstream `src/files.rs` mostly-valid UTF-8 branch and the `tests/cli.rs` `slightly_invalid_utf8` boundary. The WordPress slightly-invalid WXR example compares export XML bytes with one corrupt UTF-8 byte, keeps replacement-character text instead of reinterpreting it as Windows-1252 punctuation, and still reports `Legacy` to `Modern` title changes plus inserted `_wp_page_template` metadata as XML review chunks.
 
 TypeScript mode now maps the upstream `sample_files/typescript_*.ts` type literal shape. The WordPress block editor props fixture applies this to a `BlockEditProps` interface change, reporting an inserted top-level `context: "edit"` member and nested `mediaId: number` attribute member while keeping retained props such as `clientId`, `attributes`, `title`, and `ctaText` aligned.
 
@@ -137,6 +141,7 @@ php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
 php lanes/difftastic/examples/wordpress-multi-asset-html-diff.php
 php lanes/difftastic/examples/wordpress-view-script-js-diff.php
 php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
+php lanes/difftastic/examples/wordpress-block-registration-functions-js-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-syntax-error-js-diff.php
 php lanes/difftastic/examples/wordpress-byte-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-graph-limit-fallback-diff.php
@@ -169,8 +174,9 @@ php lanes/difftastic/examples/wordpress-block-array-syntax-diff.php
 php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 php lanes/difftastic/examples/wordpress-utf16-wxr-display.php
 php lanes/difftastic/examples/wordpress-legacy-encoding-display.php
+php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 ```
 
 ## Next Task
 
-Map another upstream `sample_files` display pair such as `multibyte_*.py` or a broader CLI display golden shard.
+Map a broader upstream CLI display golden shard beyond the currently covered text, multibyte, encoding, and HTML/JSON examples.

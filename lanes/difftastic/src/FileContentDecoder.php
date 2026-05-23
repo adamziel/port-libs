@@ -46,6 +46,11 @@ final class FileContentDecoder
             return $this->decodeUtf16WithByteOrderMark($bytes);
         }
 
+        $mostlyUtf8 = $this->decodeMostlyValidUtf8($bytes);
+        if ($mostlyUtf8 !== null) {
+            return $mostlyUtf8;
+        }
+
         return $this->decodeWindows1252Text($bytes);
     }
 
@@ -62,6 +67,65 @@ final class FileContentDecoder
     private function hasUtf16ByteOrderMark(string $bytes): bool
     {
         return str_starts_with($bytes, "\xfe\xff") || str_starts_with($bytes, "\xff\xfe");
+    }
+
+    private function decodeMostlyValidUtf8(string $bytes): ?string
+    {
+        $text = '';
+        $invalidOrNulls = 0;
+        $characters = 0;
+        $length = strlen($bytes);
+
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($bytes[$offset]);
+            if ($byte < 0x80) {
+                $text .= $bytes[$offset];
+                if ($byte === 0x00 && $characters < 50_000) {
+                    $invalidOrNulls++;
+                }
+                $offset++;
+                $characters++;
+                continue;
+            }
+
+            $sequenceLength = $this->utf8SequenceLength($byte);
+            if ($sequenceLength !== null && $offset + $sequenceLength <= $length) {
+                $sequence = substr($bytes, $offset, $sequenceLength);
+                if ($this->isValidUtf8($sequence)) {
+                    $text .= $sequence;
+                    $offset += $sequenceLength;
+                    $characters++;
+                    continue;
+                }
+            }
+
+            $text .= "\xef\xbf\xbd";
+            if ($characters < 50_000) {
+                $invalidOrNulls++;
+                if ($invalidOrNulls > 2) {
+                    return null;
+                }
+            }
+            $offset++;
+            $characters++;
+        }
+
+        return $invalidOrNulls <= 2 && $this->isValidUtf8($text) ? $text : null;
+    }
+
+    private function utf8SequenceLength(int $byte): ?int
+    {
+        if ($byte >= 0xc2 && $byte <= 0xdf) {
+            return 2;
+        }
+        if ($byte >= 0xe0 && $byte <= 0xef) {
+            return 3;
+        }
+        if ($byte >= 0xf0 && $byte <= 0xf4) {
+            return 4;
+        }
+
+        return null;
     }
 
     private function decodeWindows1252Text(string $bytes): ?string

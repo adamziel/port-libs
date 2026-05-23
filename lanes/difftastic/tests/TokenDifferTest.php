@@ -318,6 +318,21 @@ return [
         $t->true(!str_contains($encoded, '+ $js.call["test"] test("/new GET",done=>{request(app).get("/new").auth("admin",ADMIN_PASSWORD)'), 'Stable Editing /new GET test should remain matched under its describe label.');
         $t->true(!str_contains($encoded, '+ $js.call["test"] test("/new POST",done=>{request(app).post("/new").type("form").send({name:"FooBar",content:"hello world"}).auth("admin",ADMIN_PASSWORD)'), 'Stable Editing /new POST test should remain matched under its describe label.');
     },
+    'maps upstream load javascript excerpt with function scoped calls' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-load-functions-1.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-load-functions-2.js');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'javascript']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('- $js.function["createNodeModuleResource"].call["path.relative"] path.relative("node_modules",localPath)', $encoded);
+        $t->contains('- $js.function["createNodeModuleResource"].call["models.Resource"] models.Resource({path:resourcePath,mimeType:MIME_TYPES[path.extname(localPath)],bootstrapPath:localPath})', $encoded);
+        $t->true(!str_contains($encoded, '$js.call["functioncreateResource"]'), 'Function declarations should not be treated as ordinary calls.');
+        $t->true(!str_contains($encoded, '$js.call["functioncreateNodeModuleResource"]'), 'Removed function declarations should not create fake call records.');
+        $t->true(!str_contains($encoded, '~ $js.call["models.Resource"]'), 'Calls inside different function declarations should not be paired by callee name alone.');
+    },
     'maps upstream typescript sample as a type member insertion' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-typescript-1.ts');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-typescript-2.ts');
@@ -925,6 +940,21 @@ return [
         $t->contains('bindCard', $html);
         $t->true(!str_contains($html, '<del>&#039;acme.card.init&#039;</del><ins>&#039;acme.card.analytics&#039;</ins>'), 'A newly inserted hook callback should not be paired with the retained init hook by callee name alone.');
         $t->true(!str_contains($html, 'data-op="-" data-path="$js.call[&quot;wp.hooks.addFilter&quot;]"'), 'The stable addFilter registration should remain matched.');
+    },
+    'wordpress block registration diff keeps repeated global calls scoped to functions' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-registration-functions-before.js');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-registration-functions-after.js');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'javascript',
+            'title' => 'WordPress block registration function diff',
+        ]);
+
+        $t->contains('WordPress block registration function diff', $html);
+        $t->contains('data-path="$js.function[&quot;registerCardBlock&quot;].call[&quot;wp.i18n.setLocaleData&quot;]"', $html);
+        $t->contains('data-path="$js.function[&quot;registerQueryBlock&quot;].call[&quot;wp.blocks.registerBlockType&quot;]"', $html);
+        $t->contains('wp.blocks.registerBlockType(&quot;acme/query&quot;,querySettings)', $html);
+        $t->true(!str_contains($html, '<del>&quot;acme/gallery&quot;</del><ins>&quot;acme/query&quot;</ins>'), 'A new block registration function should not be paired with a retained function only because both call wp.blocks.registerBlockType.');
+        $t->true(!str_contains($html, 'data-path="$js.call[&quot;functionregisterQueryBlock&quot;]"'), 'Function declarations should not render as fake calls in WordPress block scripts.');
     },
     'wordpress block editor javascript syntax errors fall back to text diff' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-editor-syntax-error-before.js');
@@ -1674,6 +1704,33 @@ return [
         $t->contains('lhs hnlich:normal', $encoded);
         $t->contains('rhs hmlich:normal', $encoded);
     },
+    'maps upstream slightly invalid utf8 cli content as lossy text' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slightly-invalid-utf8-before.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slightly-invalid-utf8-after.hex')));
+        $t->true(is_string($before));
+        $t->true(is_string($after));
+
+        $decoder = new FileContentDecoder();
+        $decodedBefore = $decoder->guessTextContent($before);
+        $decodedAfter = $decoder->guessTextContent($after);
+        $replacement = "\xef\xbf\xbd";
+
+        $t->contains('using System;', (string) $decodedBefore);
+        $t->contains('legacy ' . $replacement . ' copy', (string) $decodedBefore);
+        $t->contains('modern ' . $replacement . ' copy', (string) $decodedAfter);
+        $t->true(!str_contains((string) $decodedBefore, "legacy \xc2\xa1 copy"), 'A single invalid UTF-8 byte should use replacement text before Windows-1252 fallback.');
+
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileBytesDiff(
+            $before,
+            $after,
+            'sample_files/cli_tests/MainWindowViewModel.cs',
+            'C#',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']), 'Mostly valid UTF-8 should produce text chunks, not a binary status envelope.');
+    },
     'wordpress legacy encoded readme bytes render as text instead of binary' => static function (TestRunner $t): void {
         $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-legacy-encoding-before.hex')));
         $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-legacy-encoding-after.hex')));
@@ -1747,6 +1804,45 @@ return [
         $t->contains('_old_builder', $joined);
         $t->contains('_wp_page_template', $joined);
         $t->contains('_thumbnail_id', $joined);
+    },
+    'wordpress slightly invalid wxr bytes render as text with replacement characters' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-slightly-invalid-wxr-before.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-slightly-invalid-wxr-after.hex')));
+        $t->true(is_string($before));
+        $t->true(is_string($after));
+
+        $decoder = new FileContentDecoder();
+        $replacement = "\xef\xbf\xbd";
+        $t->contains('Legacy ' . $replacement . ' block', (string) $decoder->guessTextContent($before));
+        $t->contains('Modern ' . $replacement . ' block', (string) $decoder->guessTextContent($after));
+
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileBytesDiff(
+            $before,
+            $after,
+            'wp-content/uploads/wordpress-export.xml',
+            'XML',
+            ['language' => 'xml'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('XML', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']), 'Slightly invalid WXR bytes should remain reviewable text.');
+
+        $contents = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $contents[] = $change['content'];
+                    }
+                }
+            }
+        }
+        $joined = implode("\n", $contents);
+        $t->contains('Legacy', $joined);
+        $t->contains('Modern', $joined);
+        $t->contains('_wp_page_template', $joined);
+        $t->true(!str_contains($joined, "\xc2\xa1"), 'WordPress export review should not reinterpret one bad UTF-8 byte as Windows-1252 punctuation.');
     },
     'wordpress plugin workflow yaml display keeps wp cli command changes string highlighted' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-workflow-before.yml');
