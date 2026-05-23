@@ -345,6 +345,90 @@ final class QuadbStore
         ];
     }
 
+    /**
+     * Returns a portable dump of the native file-backed store. The `state`
+     * payload is the same JSON-backed state this PHP port persists on disk,
+     * while `rawEntries` records the upstream-shaped LMDB cursor bytes in hex
+     * so a restore can prove it did not lose bucket/key/value fidelity.
+     *
+     * @return array{
+     *     schemaVersion: int,
+     *     format: string,
+     *     trackKeys: bool,
+     *     state: array<string, mixed>,
+     *     current: array{detached: bool, head: ?string, rootHash: string, headNodeId: int},
+     *     rawEntries: array<string, list<array{keyHex: string, valueHex: string}>>
+     * }
+     */
+    public function exportPortableDump(): array
+    {
+        $this->persist();
+
+        return [
+            'schemaVersion' => 1,
+            'format' => 'quadrable-quadb-portable-dump',
+            'trackKeys' => $this->trackKeys,
+            'state' => self::readStateFile($this->directory),
+            'current' => $this->status(),
+            'rawEntries' => self::rawEntrySnapshotHex($this->lmdbRawEntrySnapshot()),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $dump
+     */
+    public static function restorePortableDump(string $directory, array $dump): self
+    {
+        if (is_dir($directory) && self::directoryHasEntries($directory)) {
+            throw new \RuntimeException('restore target directory must be empty');
+        }
+        if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new \RuntimeException("Unable to create directory '{$directory}'");
+        }
+        if (($dump['schemaVersion'] ?? null) !== 1
+            || ($dump['format'] ?? null) !== 'quadrable-quadb-portable-dump'
+            || !array_key_exists('trackKeys', $dump)
+            || !is_bool($dump['trackKeys'])
+            || !isset($dump['state'])
+            || !is_array($dump['state'])
+            || !isset($dump['rawEntries'])
+        ) {
+            throw new \InvalidArgumentException('malformed quadrable portable dump');
+        }
+
+        $expectedRawEntries = self::normalizeRawEntrySnapshotHex($dump['rawEntries']);
+
+        $statePath = self::statePath($directory);
+        $tmpPath = $statePath . '.tmp.' . bin2hex(random_bytes(4));
+        $encoded = json_encode(
+            $dump['state'],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        ) . "\n";
+
+        if (file_put_contents($tmpPath, $encoded, LOCK_EX) === false) {
+            throw new \RuntimeException("Unable to write Quadrable portable dump state '{$tmpPath}'");
+        }
+        if (!rename($tmpPath, $statePath)) {
+            @unlink($tmpPath);
+            throw new \RuntimeException("Unable to restore Quadrable portable dump state '{$statePath}'");
+        }
+
+        $store = self::open($directory, $dump['trackKeys']);
+        $restoredRawEntries = self::rawEntrySnapshotHex($store->lmdbRawEntrySnapshot());
+        if ($expectedRawEntries !== $restoredRawEntries) {
+            throw new \RuntimeException('restored portable dump raw LMDB entries did not match the dump');
+        }
+
+        if (isset($dump['current'])) {
+            $expectedCurrent = self::normalizePortableDumpCurrent($dump['current']);
+            if ($expectedCurrent !== $store->status()) {
+                throw new \RuntimeException('restored portable dump current head status did not match the dump');
+            }
+        }
+
+        return $store;
+    }
+
     public function currentHeadName(): ?string
     {
         return $this->currentHead;
@@ -1598,6 +1682,138 @@ final class QuadbStore
     private static function statePath(string $directory): string
     {
         return rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . self::STATE_FILE;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function readStateFile(string $directory): array
+    {
+        $decoded = json_decode(
+            (string) file_get_contents(self::statePath($directory)),
+            true,
+            flags: JSON_THROW_ON_ERROR
+        );
+        if (!is_array($decoded)) {
+            throw new \InvalidArgumentException('Malformed quadrable file-backed store state');
+        }
+
+        return $decoded;
+    }
+
+    private static function directoryHasEntries(string $directory): bool
+    {
+        $entries = scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException("Unable to inspect directory '{$directory}'");
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry !== '.' && $entry !== '..') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, list<array{key: string, value: string}>> $snapshot
+     *
+     * @return array<string, list<array{keyHex: string, valueHex: string}>>
+     */
+    private static function rawEntrySnapshotHex(array $snapshot): array
+    {
+        $out = [];
+        foreach (self::lmdbBucketNames() as $bucket) {
+            $out[$bucket] = [];
+            foreach ($snapshot[$bucket] ?? [] as $entry) {
+                $out[$bucket][] = [
+                    'keyHex' => bin2hex($entry['key']),
+                    'valueHex' => bin2hex($entry['value']),
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function lmdbBucketNames(): array
+    {
+        return [
+            'quadrable_head',
+            'quadrable_nodesLeaf',
+            'quadrable_nodesInterior',
+            'quadrable_key',
+            'quadrable_quadb_state',
+        ];
+    }
+
+    /**
+     * @return array<string, list<array{keyHex: string, valueHex: string}>>
+     */
+    private static function normalizeRawEntrySnapshotHex(mixed $snapshot): array
+    {
+        if (!is_array($snapshot)) {
+            throw new \InvalidArgumentException('portable dump raw entries must be an object');
+        }
+
+        $out = [];
+        foreach (self::lmdbBucketNames() as $bucket) {
+            if (!isset($snapshot[$bucket]) || !is_array($snapshot[$bucket])) {
+                throw new \InvalidArgumentException('portable dump raw entries missing bucket ' . $bucket);
+            }
+
+            $out[$bucket] = [];
+            foreach ($snapshot[$bucket] as $entry) {
+                if (!is_array($entry)
+                    || !isset($entry['keyHex'], $entry['valueHex'])
+                    || !is_string($entry['keyHex'])
+                    || !is_string($entry['valueHex'])
+                    || !preg_match('/^(?:[0-9a-f]{2})*$/', $entry['keyHex'])
+                    || !preg_match('/^(?:[0-9a-f]{2})*$/', $entry['valueHex'])
+                ) {
+                    throw new \InvalidArgumentException('portable dump raw entry is malformed');
+                }
+
+                $out[$bucket][] = [
+                    'keyHex' => $entry['keyHex'],
+                    'valueHex' => $entry['valueHex'],
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{detached: bool, head: ?string, rootHash: string, headNodeId: int}
+     */
+    private static function normalizePortableDumpCurrent(mixed $current): array
+    {
+        if (!is_array($current)
+            || !isset($current['detached'], $current['rootHash'], $current['headNodeId'])
+            || !is_bool($current['detached'])
+            || !is_string($current['rootHash'])
+            || !preg_match('/^[0-9a-f]{64}$/', $current['rootHash'])
+        ) {
+            throw new \InvalidArgumentException('portable dump current status is malformed');
+        }
+
+        $head = $current['head'] ?? null;
+        if ($head !== null && !is_string($head)) {
+            throw new \InvalidArgumentException('portable dump current head must be a string or null');
+        }
+
+        return [
+            'detached' => $current['detached'],
+            'head' => $head,
+            'rootHash' => $current['rootHash'],
+            'headNodeId' => self::parseNonNegativeNodeId($current['headNodeId'], 'portable dump current head node id'),
+        ];
     }
 
     private function assertHeadName(string $head): void

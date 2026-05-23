@@ -1449,6 +1449,108 @@ return [
             quadrableQuadbRemoveDir($noTrackProofDir);
         }
     },
+    'native quadb store restores portable dumps for mixed full proof detached and noTrack heads' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $restoreDir = quadrableQuadbTempDir();
+        $corruptRestoreDir = quadrableQuadbTempDir();
+        $noTrackDir = quadrableQuadbTempDir();
+        $noTrackRestoreDir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n"
+                . "wp_posts:2|Second post\n",
+                '|'
+            );
+            $masterRoot = $repo->tree()->rootHash();
+            $proofHex = $repo->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:1',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $repo->fork('wp-preview', 'master');
+            $repo->put('wp_posts:1', 'Preview post');
+            $previewRoot = $repo->tree()->rootHash();
+
+            $repo->checkout('delegated-proof');
+            $repo->importProofHex($proofHex, $masterRoot);
+            $repo->put('wp_options:siteurl', 'https://delegated.example.test');
+            $delegatedRoot = $repo->status()['rootHash'];
+
+            $repo->checkout();
+            $repo->importProofHex($proofHex, $masterRoot);
+            $repo->put('wp_posts:1', 'Detached delegated post');
+            $detachedRoot = $repo->status()['rootHash'];
+
+            $dump = $repo->exportPortableDump();
+            $t->same('quadrable-quadb-portable-dump', $dump['format']);
+            $t->true($dump['trackKeys']);
+            $t->true($dump['current']['detached']);
+            $t->same($detachedRoot, $dump['current']['rootHash']);
+            $t->same($dump['rawEntries'], quadrableQuadbRawSnapshotHex($repo->lmdbRawEntrySnapshot()));
+            $t->true(count($dump['rawEntries']['quadrable_head']) >= 3);
+            $t->true(count($dump['rawEntries']['quadrable_key']) >= 2);
+
+            $restored = QuadbStore::restorePortableDump($restoreDir, $dump);
+            $t->same($dump['rawEntries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same($dump['current'], $restored->status());
+            $t->same('Detached delegated post', $restored->get('wp_posts:1'));
+            $t->throws(RuntimeException::class, static fn () => $restored->get('wp_options:home'));
+
+            $restored->checkout('delegated-proof');
+            $t->same($delegatedRoot, $restored->status()['rootHash']);
+            $t->same('https://delegated.example.test', $restored->get('wp_options:siteurl'));
+            $t->same('Published post', $restored->get('wp_posts:1'));
+
+            $restored->checkout('wp-preview');
+            $t->same($previewRoot, $restored->status()['rootHash']);
+            $t->same('Preview post', $restored->get('wp_posts:1'));
+
+            $restored->checkout('master');
+            $t->same($masterRoot, $restored->status()['rootHash']);
+            $t->same('Published post', $restored->get('wp_posts:1'));
+            $t->same('https://example.test', $restored->get('wp_options:home'));
+
+            $corrupt = $dump;
+            $corrupt['rawEntries']['quadrable_quadb_state'][0]['valueHex'] = '00';
+            $t->throws(RuntimeException::class, static fn () => QuadbStore::restorePortableDump($corruptRestoreDir, $corrupt));
+
+            $private = QuadbStore::init($noTrackDir, false);
+            $private->put('wp_options:private', "secret\0value");
+            $private->put('wp_posts:1', 'Private post');
+            $privateRoot = $private->tree()->rootHash();
+            $privateProofHex = $private->exportProofHex([
+                'wp_options:private',
+                'wp_posts:404',
+            ]);
+
+            $private->checkout('private-proof');
+            $private->importProofHex($privateProofHex, $privateRoot);
+            $private->put('wp_options:private', "delegated\0secret");
+
+            $privateDump = $private->exportPortableDump();
+            $t->same(false, $privateDump['trackKeys']);
+            $t->same([], $privateDump['rawEntries']['quadrable_key']);
+
+            $privateRestored = QuadbStore::restorePortableDump($noTrackRestoreDir, $privateDump);
+            $t->same($privateDump['rawEntries'], quadrableQuadbRawSnapshotHex($privateRestored->lmdbRawEntrySnapshot()));
+            $t->same("delegated\0secret", $privateRestored->get('wp_options:private'));
+            $t->same([], $privateRestored->lmdbRawEntrySnapshot()['quadrable_key']);
+            $t->throws(RuntimeException::class, static fn () => $privateRestored->exportProofBytes(
+                ['wp_options:private'],
+                Proof::ENCODING_FULL_KEYS
+            ));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($restoreDir);
+            quadrableQuadbRemoveDir($corruptRestoreDir);
+            quadrableQuadbRemoveDir($noTrackDir);
+            quadrableQuadbRemoveDir($noTrackRestoreDir);
+        }
+    },
     'native quadb store preserves numeric head names as LMDB string keys' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $proofDir = quadrableQuadbTempDir();
