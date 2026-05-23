@@ -97,6 +97,8 @@ final class NestingTransformer
             if (str_starts_with($nestedPrelude, '@nest ')) {
                 $nestedSelectors = $this->resolveNestedSelectors($selectors, substr($nestedPrelude, 6));
                 $output .= $this->lowerStyleBody($nestedSelectors, $nestedBody);
+            } elseif (str_starts_with($nestedPrelude, '@scope')) {
+                $output .= $this->resolveScopePrelude($nestedPrelude, $selectors) . '{' . $this->lowerScopeBody($nestedBody) . '}';
             } elseif (str_starts_with($nestedPrelude, '@')) {
                 $output .= $nestedPrelude . '{' . $this->lowerStyleBody($selectors, $nestedBody) . '}';
             } else {
@@ -110,6 +112,45 @@ final class NestingTransformer
         $declarations .= substr($body, $cursor);
 
         return $output . $this->emitDeclarationRule($selectors, $declarations);
+    }
+
+    private function lowerScopeBody(string $body): string
+    {
+        $output = '';
+        $declarations = '';
+        $cursor = 0;
+
+        while (($open = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $prefix = substr($body, $cursor, $open - $cursor);
+            [$declarationPart, $nestedPrelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
+            $declarations .= $declarationPart;
+            $output .= $declarations;
+            $declarations = '';
+
+            $nestedPrelude = trim($nestedPrelude);
+            if ($nestedPrelude === '') {
+                throw new \InvalidArgumentException('Nested CSS rule is missing a prelude');
+            }
+
+            $close = $this->findMatchingBrace($body, $open);
+            $nestedBody = substr($body, $open + 1, $close - $open - 1);
+
+            if (str_starts_with($nestedPrelude, '@nest ')) {
+                $nestedSelectors = $this->resolveNestedSelectors([':scope'], substr($nestedPrelude, 6));
+                $output .= $this->lowerStyleBody($nestedSelectors, $nestedBody);
+            } elseif (str_starts_with($nestedPrelude, '@scope')) {
+                $output .= $this->resolveScopePrelude($nestedPrelude, [':scope']) . '{' . $this->lowerScopeBody($nestedBody) . '}';
+            } elseif (str_starts_with($nestedPrelude, '@')) {
+                $output .= $nestedPrelude . '{' . $this->lowerScopeBody($nestedBody) . '}';
+            } else {
+                $nestedSelectors = $this->resolveNestedSelectors([':scope'], $nestedPrelude);
+                $output .= $this->lowerStyleBody($nestedSelectors, $nestedBody);
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return $output . substr($body, $cursor);
     }
 
     /**
@@ -204,6 +245,67 @@ final class NestingTransformer
         }
 
         return $output;
+    }
+
+    /**
+     * @param list<string> $parentSelectors
+     */
+    private function resolveScopePrelude(string $prelude, array $parentSelectors): string
+    {
+        $rest = trim(substr($prelude, 6));
+        if ($rest === '') {
+            return '@scope';
+        }
+
+        if (str_starts_with($rest, 'to ')) {
+            $boundary = $this->readParenthesized(trim(substr($rest, 3)));
+            if ($boundary === null) {
+                return $prelude;
+            }
+
+            return '@scope to (' . $this->resolveScopeSelectorList($boundary[0], $parentSelectors) . ')';
+        }
+
+        if (!str_starts_with($rest, '(')) {
+            return $prelude;
+        }
+
+        $start = $this->readParenthesized($rest);
+        if ($start === null) {
+            return $prelude;
+        }
+
+        $scopeRoot = $this->resolveScopeSelectorList($start[0], $parentSelectors);
+        $output = '@scope (' . $scopeRoot . ')';
+        $afterStart = trim($start[1]);
+
+        if ($afterStart === '') {
+            return $output;
+        }
+
+        if (!str_starts_with($afterStart, 'to ')) {
+            return $output . ' ' . $afterStart;
+        }
+
+        $end = $this->readParenthesized(trim(substr($afterStart, 3)));
+        if ($end === null) {
+            return $output . ' ' . $afterStart;
+        }
+
+        return $output . ' to (' . $this->resolveScopeSelectorList($end[0], [$scopeRoot]) . ')';
+    }
+
+    /**
+     * @param list<string> $parentSelectors
+     */
+    private function resolveScopeSelectorList(string $selectorList, array $parentSelectors): string
+    {
+        $selectors = [];
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            $selectors[] = $this->resolveParentReferences(trim($selector), $parentSelectors);
+        }
+
+        return implode(', ', $selectors);
     }
 
     /**
@@ -461,6 +563,54 @@ final class NestingTransformer
         }
 
         return $last;
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private function readParenthesized(string $value): ?array
+    {
+        if (($value[0] ?? '') !== '(') {
+            return null;
+        }
+
+        $close = $this->findMatchingParen($value, 0);
+
+        return [substr($value, 1, $close - 1), substr($value, $close + 1)];
+    }
+
+    private function findMatchingParen(string $value, int $open): int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('Unclosed CSS parentheses');
     }
 
     private function findMatchingBrace(string $css, int $open): int

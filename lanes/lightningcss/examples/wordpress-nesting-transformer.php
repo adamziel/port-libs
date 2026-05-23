@@ -10,6 +10,11 @@ $css = <<<'CSS'
 .wp-block-query {
   color: blue;
 
+  &::before, &::after {
+    content: "";
+    display: block;
+  }
+
   .wp-block-post-title {
     color: red;
 
@@ -41,6 +46,12 @@ $css = <<<'CSS'
   @container (min-width: 320px) {
     &article > .wp-block-post-title {
       font-size: clamp(1.25rem, 2cqw, 2rem);
+    }
+  }
+
+  @scope (& > .wp-block-post-template) to (& .wp-block-post-excerpt) {
+    & .wp-block-post-title {
+      color: yellow;
     }
   }
 }

@@ -76,7 +76,10 @@ final class CssMinifier
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
 
-        return $this->composeAnimationDeclarationBlocks($css);
+        $css = $this->composeAnimationDeclarationBlocks($css);
+        $css = $this->normalizeScopeRuleSpacing($css);
+
+        return $this->compactLegacyPseudoElementColons($css);
     }
 
     private function stripComments(string $css): string
@@ -114,6 +117,103 @@ final class CssMinifier
             }
 
             $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function compactLegacyPseudoElementColons(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($css);
+        $legacyPseudoElements = ['before', 'after', 'first-line', 'first-letter'];
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === ':' && ($css[$i + 1] ?? '') === ':' && $this->isSelectorContextAhead($css, $i)) {
+                foreach ($legacyPseudoElements as $pseudoElement) {
+                    $token = '::' . $pseudoElement;
+                    if (strncasecmp(substr($css, $i, strlen($token)), $token, strlen($token)) !== 0) {
+                        continue;
+                    }
+
+                    $next = $css[$i + strlen($token)] ?? '';
+                    if ($next !== '' && preg_match('/[-_a-zA-Z0-9]/', $next) === 1) {
+                        continue;
+                    }
+
+                    $output .= ':' . $pseudoElement;
+                    $i += strlen($token) - 1;
+                    continue 2;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function isSelectorContextAhead(string $css, int $offset): bool
+    {
+        $nextBlock = $this->findNextTopLevel($css, '{', $offset);
+        if ($nextBlock === null) {
+            return false;
+        }
+
+        $nextStatement = $this->findNextTopLevel($css, ';', $offset);
+        if ($nextStatement !== null && $nextStatement < $nextBlock) {
+            return false;
+        }
+
+        $nextClose = $this->findNextTopLevel($css, '}', $offset);
+
+        return $nextClose === null || $nextBlock < $nextClose;
+    }
+
+    private function normalizeScopeRuleSpacing(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $scope = strpos($css, '@scope', $cursor);
+            if ($scope === false) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $output .= substr($css, $cursor, $scope - $cursor);
+            $open = $this->findNextTopLevel($css, '{', $scope);
+            if ($open === null) {
+                $output .= substr($css, $scope);
+                break;
+            }
+
+            $prelude = substr($css, $scope, $open - $scope);
+            $prelude = preg_replace('/\bto\(/', 'to (', $prelude) ?? $prelude;
+            $output .= $prelude . '{';
+            $cursor = $open + 1;
         }
 
         return $output;

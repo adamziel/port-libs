@@ -56,6 +56,24 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream nested pseudo-element selectors' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.foo {
+  &::before, &::after {
+    background: blue;
+
+    @media screen {
+      background: orange;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '.foo:before,.foo:after{background:#00f}@media screen{.foo:before,.foo:after{background:orange}}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
     'nesting transformer maps upstream attached type selector lowering' => static function (TestRunner $t): void {
         $transformer = new NestingTransformer();
 
@@ -132,6 +150,18 @@ CSS;
             $transformer->lower('.foo { @container (min-width: 100px) { grid-auto-flow: column; &article > figure { color: red; } } }')
         );
     },
+    'nesting transformer maps upstream nested scope boundary lowering' => static function (TestRunner $t): void {
+        $transformer = new NestingTransformer();
+
+        $t->same(
+            '@scope(.bar){color:#ff0}',
+            $transformer->lower('.foo { @scope (.bar) { color: yellow; } }')
+        );
+        $t->same(
+            '.parent{color:#00f}@scope(.parent>.scope) to (.parent>.scope .limit){:scope .content{color:#ff0}}',
+            $transformer->lower('.parent { color: blue; @scope (& > .scope) to (& .limit) { & .content { color: yellow; } } }')
+        );
+    },
     'wordpress nested block stylesheet lowers without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-query {
@@ -154,11 +184,32 @@ CSS;
       color: blue;
     }
   }
+
+  @scope (& > .wp-block-post-template) to (& .wp-block-post-excerpt) {
+    & .wp-block-post-title {
+      color: yellow;
+    }
+  }
 }
 CSS;
 
         $t->same(
-            '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.is-featured :is(.wp-block-query .wp-block-post-title){opacity:.9}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}',
+            '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.is-featured :is(.wp-block-query .wp-block-post-title){opacity:.9}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}@scope(.wp-block-query>.wp-block-post-template) to (.wp-block-query>.wp-block-post-template .wp-block-post-excerpt){:scope .wp-block-post-title{color:#ff0}}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
+    'wordpress nested pseudo-element selectors lower for block controls' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-button {
+  &::before, &::after {
+    content: "";
+    border-color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '.wp-block-button:before,.wp-block-button:after{content:"";border-color:#ff0}',
             (new NestingTransformer())->lower($css)
         );
     },

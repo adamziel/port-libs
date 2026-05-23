@@ -22,6 +22,22 @@ return [
             (new CssMinifier())->minify($css)
         );
     },
+    'css minifier maps upstream legacy pseudo-element colon compaction' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo:before,.foo:after{content:"::before";color:#00f}a:first-line{color:red}',
+            $minifier->minify('.foo::before, .foo::after { content: "::before"; color: blue; } a::first-line { color: red; }')
+        );
+        $t->same(
+            '.foo::placeholder{color:red}',
+            $minifier->minify('.foo::placeholder { color: red; }')
+        );
+        $t->same(
+            '.foo{--selector:.bar::before}.foo:before{color:red}',
+            $minifier->minify('.foo { --selector: .bar::before; } .foo::before { color: red; }')
+        );
+    },
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
