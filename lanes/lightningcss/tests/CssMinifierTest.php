@@ -255,6 +255,10 @@ CSS;
         $t->same('.foo{rotate:-50deg}', $minifier->minify('.foo { rotate: mod(-140deg, -90deg) }'));
         $t->same('.foo{rotate:-40deg}', $minifier->minify('.foo { rotate: mod(140deg, -90deg) }'));
         $t->same('.foo{width:mod(18px,5vw)}', $minifier->minify('.foo { width: mod(18px, 5vw) }'));
+        $t->same(
+            '.foo{transform:rotateX(-40deg)rotateY(50deg)}',
+            $minifier->minify('.foo { transform: rotateX(mod(140deg, -90deg)) rotateY(rem(140deg, -90deg)) }')
+        );
         $t->same('.foo{width:30px}', $minifier->minify('.foo { width: calc(10px * mod(18, 5)) }'));
     },
     'css minifier maps upstream nested math functions inside calc' => static function (TestRunner $t): void {

@@ -47,6 +47,18 @@ return [
             (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: transform; }')
         );
     },
+    'transition prefixer maps upstream clamp lowering for legacy safari targets' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{border-width:max(1em,min(2px,4vh))}',
+            $prefixer->prefixForTargets('.foo { border-width: clamp(1em, 2px, 4vh) }', ['safari' => 12])
+        );
+        $t->same(
+            '.foo{border-width:clamp(1em,2px,4vh)}',
+            $prefixer->prefixForTargets('.foo { border-width: clamp(1em, 2px, 4vh) }', ['safari' => 14])
+        );
+    },
     'transition prefixer maps upstream mask transition prefixing' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -554,6 +566,19 @@ CSS;
         $t->contains('transition:margin-right .2s,-webkit-transform .2s,transform .2s', $prefixed);
         $t->contains('-webkit-transition:margin-left .2s,-webkit-transform .2s,transform .2s', $prefixed);
         $t->contains('-webkit-transition:margin-right .2s,-webkit-transform .2s,transform .2s', $prefixed);
+    },
+    'wordpress cover transform math and clamp fallback minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-tilt:hover {
+  transform: rotateX(mod(140deg, -90deg)) rotateY(rem(140deg, -90deg));
+  border-width: clamp(1em, 2px, 4vh);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-tilt:hover{transform:rotateX(-40deg)rotateY(50deg);border-width:max(1em,min(2px,4vh))}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['safari' => 12])
+        );
     },
     'wordpress decorative mask transitions get legacy WebKit names without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'

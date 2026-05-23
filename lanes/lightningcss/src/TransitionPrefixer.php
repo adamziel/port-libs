@@ -126,10 +126,11 @@ final class TransitionPrefixer
             ? false
             : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
+        $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
-        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $colorChanged) {
+        if ($transitionChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $clampChanged || $colorChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -478,6 +479,7 @@ final class TransitionPrefixer
                 || ($safari !== null && $safari < 5.1),
             'imageSetNeedsWebkit' => $chrome !== null && $chrome <= 95.0 && !isset($normalized['ie']),
             'imageSetNeedsUrlFallback' => isset($normalized['ie']),
+            'clampNeedsMaxMinFallback' => $safari !== null && $safari <= 12.0,
         ];
     }
 
@@ -1942,6 +1944,100 @@ final class TransitionPrefixer
         );
 
         return '-webkit-image-set(' . implode(',', $candidates) . ')';
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteClampFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['clampNeedsMaxMinFallback'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        foreach ($entries as &$entry) {
+            if (stripos($entry['value'], 'clamp(') === false) {
+                continue;
+            }
+
+            $rewritten = $this->lowerClampFunctions($entry['value']);
+            if ($rewritten === $entry['value']) {
+                continue;
+            }
+
+            $entry['value'] = $rewritten;
+            $changed = true;
+        }
+        unset($entry);
+
+        return $changed;
+    }
+
+    private function lowerClampFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            $lower = strtolower(substr($value, $i));
+            $previous = $i > 0 ? $value[$i - 1] : '';
+            if (str_starts_with($lower, 'url(') && ($previous === '' || !$this->isIdentifierChar($previous))) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $function;
+                $i = $offset;
+                continue;
+            }
+            if (str_starts_with($lower, 'clamp(') && ($previous === '' || !$this->isIdentifierChar($previous))) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $this->lowerClampFunction($function);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function lowerClampFunction(string $function): string
+    {
+        if (preg_match('/^clamp\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $args = $this->splitTopLevel($matches[1], ',');
+        if (count($args) !== 3) {
+            return $function;
+        }
+
+        $min = $this->lowerClampFunctions($args[0]);
+        $preferred = $this->lowerClampFunctions($args[1]);
+        $max = $this->lowerClampFunctions($args[2]);
+
+        return 'max(' . $min . ',min(' . $preferred . ',' . $max . '))';
     }
 
     private function prefixImageSetCandidate(string $candidate): string

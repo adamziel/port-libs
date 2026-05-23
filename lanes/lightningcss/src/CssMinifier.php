@@ -1156,6 +1156,7 @@ final class CssMinifier
     private function minifyDeclarationValue(string $property, string $value): string
     {
         $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
+        $value = $this->minifyTransformValue($property, $value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
@@ -1170,6 +1171,15 @@ final class CssMinifier
         }
 
         return $value;
+    }
+
+    private function minifyTransformValue(string $property, string $value): string
+    {
+        if (!in_array(strtolower($property), ['transform', '-webkit-transform', '-moz-transform'], true)) {
+            return $value;
+        }
+
+        return preg_replace('/\)\s+(?=[-_a-zA-Z][-_a-zA-Z0-9]*\()/u', ')', $value) ?? $value;
     }
 
     private function minifyContainerDeclarationValue(string $property, string $value): string
