@@ -1100,7 +1100,7 @@ final class TableRecognizer
         $widths = array_fill(0, $columns, 0);
         foreach ($matrix as $row) {
             foreach ($row as $idx => $cell) {
-                $widths[$idx] = max($widths[$idx], strlen($cell));
+                $widths[$idx] = max($widths[$idx], $this->displayWidth($cell));
             }
         }
 
@@ -1122,10 +1122,28 @@ final class TableRecognizer
     {
         $cells = [];
         foreach ($row as $idx => $cell) {
-            $cells[] = ' ' . str_pad($cell, $widths[$idx], ' ', STR_PAD_RIGHT) . ' ';
+            $cells[] = ' ' . $this->padRight($cell, $widths[$idx]) . ' ';
         }
 
         return '|' . implode('|', $cells) . '|';
+    }
+
+    private function padRight(string $text, int $width): string
+    {
+        $padding = max(0, $width - $this->displayWidth($text));
+
+        return $text . str_repeat(' ', $padding);
+    }
+
+    private function displayWidth(string $text): int
+    {
+        if ($text === '') {
+            return 0;
+        }
+
+        preg_match_all('/./us', $text, $matches);
+
+        return count($matches[0]);
     }
 
     private function markdownReplaceAll(string $text): string

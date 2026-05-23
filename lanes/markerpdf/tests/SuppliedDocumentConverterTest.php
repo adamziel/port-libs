@@ -345,6 +345,42 @@ return [
             unlink($path);
         }
     },
+    'converts the upstream switch transformer table 1 slice with unicode table metrics and caption' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-switch-transformers-table1-supplied-document.php';
+        $path = sys_get_temp_dir() . '/markerpdf-switch-transformers-table1-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% switch transformer table 1 supplied fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $fixture['pdftextPages'],
+                $fixture['options'],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $score = (new BenchmarkScorer())->scoreText(
+                $result['text'],
+                $fixture['markerExcerpt'],
+                $fixture['chunkLength']
+            );
+
+            $t->contains('## 2.4 Improved Training And Fine-Tuning Techniques', $result['text']);
+            $t->contains('| Model', $result['text']);
+            $t->contains('Speed (↑)', $result['text']);
+            $t->contains('Not achieved†', $result['text']);
+            $t->contains('Switch\\-Base+', $result['text']);
+            $t->contains('Table 1: Benchmarking Switch versus MoE.', $result['text']);
+            $t->true($score > $fixture['scoreThreshold']);
+            $t->same(['layout', 'order', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['block_stats']['table']);
+            $t->same(1, $result['metadata']['inserted_tables']);
+            $t->same([1], $result['metadata']['table_plan']['table_counts']);
+            $t->same('Switch-Base+', $result['metadata']['table_assigned_cells'][0][55]['text']);
+            $t->same(33, $result['context']['document_page_count']);
+        } finally {
+            unlink($path);
+        }
+    },
     'converts supplied equation dictionaries inside the document-level pipeline' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-formula-supplied-document.php';
         $path = sys_get_temp_dir() . '/markerpdf-formula-supplied-' . bin2hex(random_bytes(4)) . '.pdf';

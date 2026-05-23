@@ -208,6 +208,28 @@ return [
             $markdown
         );
     },
+    'formats upstream unicode table headers with character width like tabulate' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $markdown = $recognizer->markdownFormat([
+            ['bbox' => [0.0, 0.0, 120.0, 20.0], 'text' => 'Model', 'row_ids' => [0], 'col_ids' => [0]],
+            ['bbox' => [130.0, 0.0, 220.0, 20.0], 'text' => 'Speed (↑)', 'row_ids' => [0], 'col_ids' => [1]],
+            ['bbox' => [230.0, 0.0, 320.0, 20.0], 'text' => 'Note', 'row_ids' => [0], 'col_ids' => [2]],
+            ['bbox' => [0.0, 30.0, 120.0, 50.0], 'text' => 'Switch-Base', 'row_ids' => [1], 'col_ids' => [0]],
+            ['bbox' => [130.0, 30.0, 220.0, 50.0], 'text' => '1000', 'row_ids' => [1], 'col_ids' => [1]],
+            ['bbox' => [230.0, 30.0, 320.0, 50.0], 'text' => 'achieved†', 'row_ids' => [1], 'col_ids' => [2]],
+            ['bbox' => [0.0, 60.0, 120.0, 80.0], 'text' => 'Switch-C', 'row_ids' => [2], 'col_ids' => [0]],
+            ['bbox' => [130.0, 60.0, 220.0, 80.0], 'text' => '4x', 'row_ids' => [2], 'col_ids' => [1]],
+            ['bbox' => [230.0, 60.0, 320.0, 80.0], 'text' => 'stable', 'row_ids' => [2], 'col_ids' => [2]],
+        ]);
+
+        $t->same(
+            "| Model        | Speed (↑) | Note      |\n"
+            . "|--------------|-----------|-----------|\n"
+            . "| Switch\\-Base | 1000      | achieved† |\n"
+            . "| Switch\\-C    | 4x        | stable    |",
+            $markdown
+        );
+    },
     'merges multiline continuation rows using assigned column ids despite x jitter' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(
