@@ -258,7 +258,11 @@ final class SQLiteJsonB
         }
         if (is_float($value)) {
             if (!is_finite($value)) {
-                throw new \InvalidArgumentException('SQLite JSONB encoder cannot encode non-finite floats');
+                if (is_nan($value)) {
+                    return chr(self::NULL);
+                }
+
+                return self::encodeNode(self::FLOAT, $value < 0 ? '-9e999' : '9e999');
             }
 
             $payload = json_encode($value, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);

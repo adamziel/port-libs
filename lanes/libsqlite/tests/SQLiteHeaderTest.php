@@ -12,6 +12,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteJsonB;
+use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
@@ -77,6 +78,9 @@ $recordPayload = static function (array $values) use ($varint): string {
                 $serialTypes[] = 4;
                 $body .= pack('N', $value & 0xffffffff);
             }
+        } elseif (is_float($value)) {
+            $serialTypes[] = 7;
+            $body .= pack('E', $value);
         } elseif (is_array($value) && isset($value['__sqlite_blob']) && is_string($value['__sqlite_blob'])) {
             $serialTypes[] = 12 + (strlen($value['__sqlite_blob']) * 2);
             $body .= $value['__sqlite_blob'];
@@ -1705,6 +1709,63 @@ return [
         $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $lastRuleEnabled));
         $t->same([$json5Settings], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $enabled));
     },
+    'normalizes json5 non-finite numbers for wordpress json indexes and jsonb fixtures' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $json5Settings = '{limit:+Infinity,disabled:-Inf,missing:NaN}';
+        $negativeSettings = '{limit:-Infinity,missing:NaN}';
+        $decoded = SQLiteJson5Parser::decode($json5Settings);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Fixture JSON5 did not decode to an object array');
+        }
+
+        $encoded = SQLiteJsonB::encode($decoded);
+        $roundTripped = SQLiteJsonB::decode($encoded);
+        if (!is_array($roundTripped)) {
+            throw new RuntimeException('Fixture JSONB did not decode to an object array');
+        }
+
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_json5_limit_scalar', 'wp_options', 3, 'CREATE INDEX wp_options_json5_limit_scalar ON wp_options(json_extract(option_value, \'$.limit\')) WHERE option_value IS NOT NULL'], 2),
+            $schemaCell(['index', 'wp_options_json5_limit_fragment', 'wp_options', 4, 'CREATE INDEX wp_options_json5_limit_fragment ON wp_options(option_value -> \'limit\') WHERE option_value IS NOT NULL'], 3),
+            $schemaCell(['index', 'wp_options_json5_missing_fragment', 'wp_options', 5, 'CREATE INDEX wp_options_json5_missing_fragment ON wp_options(option_value -> \'missing\') WHERE option_value IS NOT NULL'], 4),
+        ], 1024, 100, $makeFirstPage(1024, 5));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_json5_limit_settings', $json5Settings, 'no'], 1),
+            $schemaCell([null, 'plugin_json5_negative_limit', $negativeSettings, 'no'], 2),
+        ], 1024);
+        $page3 = $indexLeafPage([
+            $indexCell([-INF, 2]),
+            $indexCell([INF, 1]),
+        ], 1024);
+        $page4 = $indexLeafPage([
+            $indexCell(['-9e999', 2]),
+            $indexCell(['9e999', 1]),
+        ], 1024);
+        $page5 = $indexLeafPage([
+            $indexCell(['null', 1]),
+            $indexCell(['null', 2]),
+        ], 1024);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $positiveLimit = $database->wordpressOptionsByIndexedJsonOptionValue('$.limit', INF);
+        $negativeLimit = $database->wordpressOptionsByIndexedJsonOptionValue('$.limit', -INF);
+        $positiveFragment = $database->wordpressOptionsByIndexedJsonOptionFragment('$.limit', INF);
+        $negativeFragment = $database->wordpressOptionsByIndexedJsonOptionFragment('$.limit', -INF);
+        $nanFragment = $database->wordpressOptionsByIndexedJsonOptionFragment('$.missing', NAN);
+
+        $t->true(is_float($decoded['limit']) && is_infinite($decoded['limit']) && $decoded['limit'] > 0);
+        $t->true(is_float($decoded['disabled']) && is_infinite($decoded['disabled']) && $decoded['disabled'] < 0);
+        $t->same(null, $decoded['missing']);
+        $t->same('cc25576c696d69745539653939398764697361626c6564652d3965393939776d697373696e6700', bin2hex($encoded));
+        $t->true(is_float($roundTripped['limit']) && is_infinite($roundTripped['limit']) && $roundTripped['limit'] > 0);
+        $t->true(is_float($roundTripped['disabled']) && is_infinite($roundTripped['disabled']) && $roundTripped['disabled'] < 0);
+        $t->same(null, $roundTripped['missing']);
+        $t->same(['plugin_json5_limit_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $positiveLimit));
+        $t->same(['plugin_json5_negative_limit'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $negativeLimit));
+        $t->same(['plugin_json5_limit_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $positiveFragment));
+        $t->same(['plugin_json5_negative_limit'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $negativeFragment));
+        $t->same(['plugin_json5_limit_settings', 'plugin_json5_negative_limit'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $nanFragment));
+    },
     'rejects malformed json5 while verifying wordpress json expression indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
@@ -1734,7 +1795,9 @@ return [
         $t->same(['a' => [2, 3.5, true, false, null, 'x']], SQLiteJsonB::decode($encoded));
         $t->same(['quote' => 'a"b', 'slash' => 'c\\d'], SQLiteJsonB::decode($quoted));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::decode("\x8c\xe6\xff\xff\xff\x17\x13\x33"));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::encode(INF));
+        $t->same('553965393939', bin2hex(SQLiteJsonB::encode(INF)));
+        $t->same('652d3965393939', bin2hex(SQLiteJsonB::encode(-INF)));
+        $t->same('00', bin2hex(SQLiteJsonB::encode(NAN)));
     },
     'removes focused sqlite jsonb object members and array elements' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [1, 2, 3, 4]]);

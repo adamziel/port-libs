@@ -1611,6 +1611,46 @@ settings are still rejected during indexed row verification. The new
 for indexed JSON5-style plugin/theme settings on hosts without the SQLite
 extension.
 
+## Focused Native Mapping: JSON5 Non-Finite Normalization
+
+This slice tightens the JSON5 numeric boundary for `+Infinity`, `-Infinity`,
+and `NaN`. SQLite accepts those JSON5 inputs, returns SQL infinities from
+`->>`/`json_extract(...)`, returns JSON text fragments `9e999`, `-9e999`, or
+`null` from `->`, and emits JSONB float payloads with the same normalized
+`9e999`/`-9e999` text. The native reader now follows that behavior for
+WordPress `wp_options` expression-index verification and JSONB fixture
+generation instead of treating PHP non-finite floats as unencodable.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json501.test json102.test jsonb01.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 541 tests in 00:00.
+
+Targeted upstream SQL probes:
+
+```sql
+SELECT hex(jsonb('{limit:+Infinity,disabled:-Inf,missing:NaN}'));
+SELECT jsonb('{limit:+Infinity,disabled:-Inf,missing:NaN}')->>'limit';
+SELECT jsonb('{limit:+Infinity,disabled:-Inf,missing:NaN}')->'limit';
+```
+
+Results: JSONB hex
+`CC25576C696D69745539653939398764697361626C6564652D3965393939776D697373696E6700`,
+scalar `Inf`, and JSON fragment `9e999`.
+
+The native PHP tests now cover JSON5 decoding of positive/negative infinity and
+NaN-as-null, upstream-compatible JSONB hex generation and round-trip decoding,
+`json_extract(option_value,'$.limit')` expression-index lookups using SQLite
+record float keys, and `option_value -> 'limit'` / `option_value -> 'missing'`
+fragment lookups using `9e999`, `-9e999`, and `null` index keys. The
+`examples/wordpress-jsonb-option-fixture.php` script now prints non-finite
+JSON5 settings safely while generating JSONB option-value fixture bytes.
+
 ## Focused Native Mapping: Escaped JSON Path Labels
 
 This slice keeps the bounded JSON expression-index lookup API but broadens path

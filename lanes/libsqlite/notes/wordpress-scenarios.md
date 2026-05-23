@@ -178,6 +178,13 @@ edited plugin settings such as `{enabled: true, mode: 'dark', /* note */
 rules: [{enabled:false}, {enabled:true,},],}` through stored JSON expression
 indexes, while malformed JSON5 such as duplicate commas is still rejected
 instead of trusting an index payload blindly.
+JSON5 non-finite numbers now follow SQLite's JSON normalization boundary:
+`+Infinity` and `-Infinity` can be matched through scalar JSON expression
+indexes and through `->` fragment indexes as `9e999` and `-9e999`, while
+`NaN` is treated as JSON null. This maps plugin/theme option values that use
+JSON5 sentinels for unlimited cache TTLs, disabled quotas, or unset import
+limits, and the JSONB fixture example can generate matching BLOB values for
+preflight/recovery tests.
 SQLite `option_value ->> 'key'` expression indexes are now accepted for the
 same simple JSON object-member lookup family. This maps plugin/theme settings
 databases that use the JSON text-operator shorthand instead of

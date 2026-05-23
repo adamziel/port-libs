@@ -6505,18 +6505,17 @@ final class SQLiteDatabase
     private static function sqliteJsonScalar(mixed $value): mixed
     {
         if ($value === null || is_int($value) || is_float($value) || is_string($value)) {
+            if (is_float($value) && is_nan($value)) {
+                return null;
+            }
+
             return $value;
         }
         if (is_bool($value)) {
             return $value ? 1 : 0;
         }
         if (is_array($value)) {
-            $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            if (!is_string($json)) {
-                throw new \InvalidArgumentException('SQLite json_extract lookup value cannot be encoded as JSON');
-            }
-
-            return $json;
+            return self::sqliteJsonTextValue($value);
         }
 
         throw new \InvalidArgumentException('SQLite json_extract lookup value must be null, scalar, or JSON-encodable array');
@@ -6528,12 +6527,66 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite JSON -> lookup value must be null, scalar, or JSON-encodable array');
         }
 
-        $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if (!is_string($json)) {
-            throw new \InvalidArgumentException('SQLite JSON -> lookup value cannot be encoded as JSON');
+        return self::sqliteJsonTextEncode($value, 0);
+    }
+
+    private static function sqliteJsonTextEncode(mixed $value, int $depth): string
+    {
+        if ($depth > 512) {
+            throw new \InvalidArgumentException('SQLite JSON -> lookup value exceeds the maximum nesting depth');
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        if ($value === true) {
+            return 'true';
+        }
+        if ($value === false) {
+            return 'false';
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            if (is_nan($value)) {
+                return 'null';
+            }
+            if (!is_finite($value)) {
+                return $value < 0 ? '-9e999' : '9e999';
+            }
         }
 
-        return $json;
+        if (is_string($value) || is_float($value)) {
+            $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if (!is_string($json)) {
+                throw new \InvalidArgumentException('SQLite JSON -> lookup value cannot be encoded as JSON');
+            }
+
+            return $json;
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('SQLite JSON -> lookup value must be null, scalar, or JSON-encodable array');
+        }
+
+        if (array_is_list($value)) {
+            $items = [];
+            foreach ($value as $item) {
+                $items[] = self::sqliteJsonTextEncode($item, $depth + 1);
+            }
+
+            return '[' . implode(',', $items) . ']';
+        }
+
+        $items = [];
+        foreach ($value as $key => $item) {
+            $jsonKey = json_encode((string) $key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if (!is_string($jsonKey)) {
+                throw new \InvalidArgumentException('SQLite JSON -> lookup key cannot be encoded as JSON');
+            }
+            $items[] = $jsonKey . ':' . self::sqliteJsonTextEncode($item, $depth + 1);
+        }
+
+        return '{' . implode(',', $items) . '}';
     }
 
     /**
