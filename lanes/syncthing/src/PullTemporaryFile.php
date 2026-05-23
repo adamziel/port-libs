@@ -28,15 +28,28 @@ final class PullTemporaryFile
      */
     private array $sources = [];
 
+    private ?string $conflictName = null;
+
+    /**
+     * @var list<string>
+     */
+    private array $scanNames = [];
+
     public function __construct(
         public readonly FileInfo $file,
         string $rootPath,
         ?string $tempName = null,
         private readonly bool $ignorePerms = false,
         private readonly bool $sparse = true,
+        private readonly ?FileInfo $currentFile = null,
+        private readonly int $maxConflicts = -1,
+        private readonly ?int $conflictTimestamp = null,
     ) {
         if ($this->file->type !== FileInfo::TYPE_FILE || $this->file->deleted || $this->file->isInvalid()) {
             throw new \InvalidArgumentException('Pull temporary files can only assemble valid regular files');
+        }
+        if ($this->maxConflicts < -1) {
+            throw new \InvalidArgumentException('Max conflicts must be -1 or greater');
         }
 
         ProtocolValidation::checkFileInfoConsistency($this->file);
@@ -168,8 +181,7 @@ final class PullTemporaryFile
             $this->error = 'existing final path is not a regular file';
             return $this->result(closed: true, finalized: false, error: $this->error);
         }
-        if (is_file($finalPath) && !unlink($finalPath)) {
-            $this->error = 'removing old final file failed';
+        if (is_file($finalPath) && !$this->replaceExistingFinalFile($finalPath)) {
             return $this->result(closed: true, finalized: false, error: $this->error);
         }
 
@@ -375,6 +387,8 @@ final class PullTemporaryFile
             dbUpdateType: $dbUpdateType,
             finalSize: $this->finalSize,
             encryptionTrailerSize: $this->encryptionTrailerSize,
+            conflictName: $this->conflictName,
+            scanNames: $this->scanNames,
         );
     }
 
@@ -403,5 +417,125 @@ final class PullTemporaryFile
         }
 
         return unlink($source);
+    }
+
+    private function replaceExistingFinalFile(string $finalPath): bool
+    {
+        if (!$this->shouldMoveExistingForConflict()) {
+            if (!unlink($finalPath)) {
+                $this->error = 'removing old final file failed';
+                return false;
+            }
+
+            return true;
+        }
+
+        if (self::isConflictName($this->file->name) || $this->maxConflicts === 0) {
+            if (!unlink($finalPath)) {
+                $this->error = 'removing old conflict file failed';
+                return false;
+            }
+
+            return true;
+        }
+
+        $conflictName = self::conflictName(
+            $this->file->name,
+            $this->modifiedByLabel(),
+            $this->conflictTimestamp ?? time(),
+        );
+        $conflictPath = $this->absolutePath($conflictName);
+        $conflictDir = dirname($conflictPath);
+        if (!is_dir($conflictDir) && !mkdir($conflictDir, 0777, true) && !is_dir($conflictDir)) {
+            $this->error = 'creating conflict parent directory failed';
+            return false;
+        }
+
+        if (!@rename($finalPath, $conflictPath)) {
+            $this->error = 'moving old final file for conflict failed';
+            return false;
+        }
+
+        $this->conflictName = $conflictName;
+        $this->scanNames[] = $conflictName;
+        $this->pruneConflicts();
+
+        return true;
+    }
+
+    private function shouldMoveExistingForConflict(): bool
+    {
+        if ($this->currentFile === null || $this->currentFile->isDirectory() || $this->currentFile->isSymlink()) {
+            return false;
+        }
+
+        return $this->file->inConflictWith($this->currentFile);
+    }
+
+    private function modifiedByLabel(): string
+    {
+        return $this->file->modifiedBy > 0 ? (string) $this->file->modifiedBy : 'unknown';
+    }
+
+    private static function conflictName(string $name, string $lastModifiedBy, int $timestamp): string
+    {
+        $slash = strrpos($name, '/');
+        $directory = $slash === false ? '' : substr($name, 0, $slash + 1);
+        $base = $slash === false ? $name : substr($name, $slash + 1);
+        $dot = strrpos($base, '.');
+        $stem = $dot === false ? $base : substr($base, 0, $dot);
+        $extension = $dot === false ? '' : substr($base, $dot);
+
+        return $directory . $stem . '.sync-conflict-' . date('Ymd-His', $timestamp) . '-' . $lastModifiedBy . $extension;
+    }
+
+    private static function isConflictName(string $name): bool
+    {
+        $slash = strrpos($name, '/');
+        $base = $slash === false ? $name : substr($name, $slash + 1);
+
+        return str_contains($base, '.sync-conflict-');
+    }
+
+    private function pruneConflicts(): void
+    {
+        if ($this->maxConflicts < 0) {
+            return;
+        }
+
+        $matches = $this->existingConflictNames();
+        if (count($matches) <= $this->maxConflicts) {
+            return;
+        }
+
+        rsort($matches, SORT_STRING);
+        foreach (array_slice($matches, $this->maxConflicts) as $name) {
+            $path = $this->absolutePath($name);
+            if (is_file($path) || is_link($path)) {
+                @unlink($path);
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function existingConflictNames(): array
+    {
+        $slash = strrpos($this->file->name, '/');
+        $directory = $slash === false ? '' : substr($this->file->name, 0, $slash + 1);
+        $base = $slash === false ? $this->file->name : substr($this->file->name, $slash + 1);
+        $dot = strrpos($base, '.');
+        $stem = $dot === false ? $base : substr($base, 0, $dot);
+        $extension = $dot === false ? '' : substr($base, $dot);
+        $pattern = $this->absolutePath($directory . $stem . '.sync-conflict-????????-??????*' . $extension);
+        $paths = glob($pattern) ?: [];
+        $names = [];
+        $prefixLength = strlen($this->rootPath . DIRECTORY_SEPARATOR);
+        foreach ($paths as $path) {
+            $names[] = str_replace(DIRECTORY_SEPARATOR, '/', substr($path, $prefixLength));
+        }
+
+        return $names;
     }
 }

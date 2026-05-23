@@ -135,6 +135,80 @@ return [
             syncthing_pull_temp_rm($root);
         }
     },
+    'performFinish moves conflicting local file aside before promotion' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/concurrent-edit.jpg';
+            $localBytes = str_repeat('local editor crop ', 5000);
+            $remoteBytes = str_repeat('remote camera edit ', 5000);
+            $current = syncthing_pull_temp_file($name, $localBytes, 0644, 1700000600, VersionVector::fromCounters([101 => 4]));
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700000700,
+                VersionVector::fromCounters([202 => 2]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
+                throw new RuntimeException('Failed to create final parent directory');
+            }
+            file_put_contents($finalPath, $localBytes);
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, conflictTimestamp: 1700000800);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledConcurrentWinner');
+            $result = $assembler->finalize();
+            $expectedConflict = 'wp-content/uploads/2026/concurrent-edit.sync-conflict-'
+                . date('Ymd-His', 1700000800)
+                . '-202.jpg';
+            $conflictPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedConflict);
+
+            $t->true($result->finalized);
+            $t->same($expectedConflict, $result->conflictName);
+            $t->same([$expectedConflict], $result->scanNames);
+            $t->same($remoteBytes, (string) file_get_contents($finalPath));
+            $t->same($localBytes, (string) file_get_contents($conflictPath));
+            $t->same([0 => 'pulledConcurrentWinner'], $assembler->sourcesByBlockIndex());
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish replaces non-conflicting descendant file without conflict copy' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/metadata-only.jpg';
+            $localBytes = str_repeat('local published media ', 4000);
+            $remoteBytes = str_repeat('remote normalized media ', 4000);
+            $current = syncthing_pull_temp_file($name, $localBytes, 0644, 1700000900, VersionVector::fromCounters([101 => 4]));
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001000,
+                VersionVector::fromCounters([101 => 4, 202 => 1]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
+                throw new RuntimeException('Failed to create final parent directory');
+            }
+            file_put_contents($finalPath, $localBytes);
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, conflictTimestamp: 1700001100);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledDescendant');
+            $result = $assembler->finalize();
+            $conflicts = glob($root . DIRECTORY_SEPARATOR . 'wp-content/uploads/2026/*.sync-conflict-*') ?: [];
+
+            $t->true($result->finalized);
+            $t->same(null, $result->conflictName);
+            $t->same([], $result->scanNames);
+            $t->same([], $conflicts);
+            $t->same($remoteBytes, (string) file_get_contents($finalPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
     'failed block pulls close but leave temporary file reusable' => static function (TestRunner $t): void {
         $root = syncthing_pull_temp_root();
         try {
@@ -212,7 +286,14 @@ return [
     },
 ];
 
-function syncthing_pull_temp_file(string $name, string $bytes, int $permissions = 0644, int $modifiedS = 0): FileInfo
+function syncthing_pull_temp_file(
+    string $name,
+    string $bytes,
+    int $permissions = 0644,
+    int $modifiedS = 0,
+    ?VersionVector $version = null,
+    int $modifiedBy = 101,
+): FileInfo
 {
     $blockList = new BlockList();
     $blocks = $blockList->fromBytes($bytes, BlockList::MIN_BLOCK_SIZE);
@@ -220,11 +301,12 @@ function syncthing_pull_temp_file(string $name, string $bytes, int $permissions 
     return new FileInfo(
         name: $name,
         modifiedS: $modifiedS,
-        version: VersionVector::fromCounters([101 => 1]),
+        version: $version ?? VersionVector::fromCounters([101 => 1]),
         size: strlen($bytes),
         rawBlockSize: BlockList::MIN_BLOCK_SIZE,
         permissions: $permissions,
         blocks: $blocks,
+        modifiedBy: $modifiedBy,
     );
 }
 

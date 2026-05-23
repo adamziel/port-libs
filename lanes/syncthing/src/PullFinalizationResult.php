@@ -21,10 +21,17 @@ final class PullFinalizationResult
         public readonly string $dbUpdateType = '',
         public readonly int $finalSize = 0,
         public readonly int $encryptionTrailerSize = 0,
+        public readonly ?string $conflictName = null,
+        public readonly array $scanNames = [],
     ) {
         foreach ($this->availableBlockIndexes as $index) {
             if (!is_int($index) || $index < 0) {
                 throw new \InvalidArgumentException('Available block indexes must be non-negative integers');
+            }
+        }
+        foreach ($this->scanNames as $name) {
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('Scan names must be non-empty strings');
             }
         }
         if ($this->finalSize < 0 || $this->encryptionTrailerSize < 0) {
@@ -36,7 +43,7 @@ final class PullFinalizationResult
     }
 
     /**
-     * @return array{closed:bool, finalized:bool, error:?string, tempName:string, finalName:string, availableBlockIndexes:list<int>, dbUpdateType:string, finalSize:int, encryptionTrailerSize:int}
+     * @return array{closed:bool, finalized:bool, error:?string, tempName:string, finalName:string, availableBlockIndexes:list<int>, dbUpdateType:string, finalSize:int, encryptionTrailerSize:int, conflictName:?string, scanNames:list<string>}
      */
     public function toArray(): array
     {
@@ -50,6 +57,8 @@ final class PullFinalizationResult
             'dbUpdateType' => $this->dbUpdateType,
             'finalSize' => $this->finalSize,
             'encryptionTrailerSize' => $this->encryptionTrailerSize,
+            'conflictName' => $this->conflictName,
+            'scanNames' => $this->scanNames,
         ];
     }
 }

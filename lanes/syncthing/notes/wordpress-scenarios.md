@@ -602,23 +602,29 @@ both peer activity counters returning to zero after the request attempts.
 The temporary-finalization slice now maps the adjacent upstream
 `sharedPullerState.tempFile`, `copyDone`, `pullDone`, `finalClose`,
 `tempFileInWritableDir`, `finalizeEncrypted`, `writeEncryptionTrailer`,
-`performFinish`, and sparse all-zero block boundaries: verified copied and
+`performFinish`, `moveForConflict`, and sparse all-zero block boundaries: verified copied and
 pulled blocks are written into Syncthing temporary names, temporary files are
 created or reopened with final permissions OR `0600` so read-only private media
 can still be assembled after a restart, sparse zero blocks are marked available
 without a network request, final close waits until every target block is accounted for,
 receive-encrypted temporary files append the FileInfo trailer before promotion,
 successful close renames the temp file into place and emits the
-`dbUpdateHandleFile` update type, second close attempts are no-ops, and failed
-pulls close while leaving the temporary file for a later retry. This is a
+`dbUpdateHandleFile` update type, conflicting existing regular files are moved
+to `.sync-conflict-YYYYMMDD-HHMMSS-device` siblings before the pulled file is
+published, descendant versions replace without conflict copies, second close
+attempts are no-ops, and failed pulls close while leaving the temporary file
+for a later retry. This is a
 static targeted mapping from upstream `sharedpullerstate.go`,
-`sharedpullerstate_test.go`, and `folder_sendrecv.go`, not a new full upstream
-runner. The WordPress example `wordpress-pull-temporary-finalize.php` shows a
+`sharedpullerstate_test.go`, `folder_sendrecv.go`, and
+`lib/protocol/bep_fileinfo.go`, not a new full upstream runner. The WordPress
+example `wordpress-pull-temporary-finalize.php` shows a
 media file assembled from one origin copy, one sparse zero block, and one
 pulled block before final promotion. `wordpress-pull-temp-permissions.php`
 shows a private media draft resuming from a read-only `.syncthing` temp file,
 temporarily restoring owner write access, and finalizing back to restricted
-WordPress permissions.
+WordPress permissions. `wordpress-pull-conflict-replacement.php` shows a
+concurrent local WordPress media crop retained as a `.sync-conflict` sibling
+before a Playground peer's version is promoted.
 The receive-encrypted variant
 `wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
 during native temporary-file promotion, with local finalized size and remote
@@ -627,6 +633,6 @@ index size reported separately.
 ## Next Task
 
 Broaden upstream `folder_sendrecv` behavior around unavailable peers,
-conflict/versioner replacement during `performFinish`, directory/case-conflict
-replacement, and database update side effects after the native final file
-promotion succeeds.
+versioner/archive replacement during `performFinish`, directory/case-conflict
+replacement, conflict-retention pruning, and database update side effects after
+the native final file promotion succeeds.
