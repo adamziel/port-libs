@@ -308,6 +308,33 @@ final class QuadbStore
         ];
     }
 
+    /**
+     * Returns the same native LMDB bucket projection as lmdbBucketSnapshot(), but
+     * with raw LMDB entry keys exposed as bytes. Quadrable stores node and
+     * leaf-key buckets with MDB_INTEGERKEY and `lmdb::to_sv<uint64_t>(nodeId)`,
+     * while heads and quadb state use string keys.
+     *
+     * @return array{
+     *     quadrable_head: list<array{key: string, value: string}>,
+     *     quadrable_nodesLeaf: list<array{key: string, value: string}>,
+     *     quadrable_nodesInterior: list<array{key: string, value: string}>,
+     *     quadrable_key: list<array{key: string, value: string}>,
+     *     quadrable_quadb_state: list<array{key: string, value: string}>
+     * }
+     */
+    public function lmdbRawEntrySnapshot(): array
+    {
+        $snapshot = $this->lmdbBucketSnapshot();
+
+        return [
+            'quadrable_head' => self::lmdbStringKeyEntries($snapshot['quadrable_head']),
+            'quadrable_nodesLeaf' => self::lmdbUInt64KeyEntries($snapshot['quadrable_nodesLeaf']),
+            'quadrable_nodesInterior' => self::lmdbUInt64KeyEntries($snapshot['quadrable_nodesInterior']),
+            'quadrable_key' => self::lmdbUInt64KeyEntries($snapshot['quadrable_key']),
+            'quadrable_quadb_state' => self::lmdbStringKeyEntries($snapshot['quadrable_quadb_state']),
+        ];
+    }
+
     public function currentHeadName(): ?string
     {
         return $this->currentHead;
@@ -2703,6 +2730,54 @@ final class QuadbStore
         }
 
         return $maxNodeId + 1;
+    }
+
+    /**
+     * @param array<int, string> $bucket
+     *
+     * @return list<array{key: string, value: string}>
+     */
+    private static function lmdbUInt64KeyEntries(array $bucket): array
+    {
+        ksort($bucket, SORT_NUMERIC);
+
+        $entries = [];
+        foreach ($bucket as $nodeId => $value) {
+            if (!is_int($nodeId) || $nodeId < 0) {
+                throw new \RuntimeException('LMDB integer-key bucket contains a non-integer key');
+            }
+
+            $entries[] = [
+                'key' => self::packUInt64Le($nodeId),
+                'value' => $value,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, string> $bucket
+     *
+     * @return list<array{key: string, value: string}>
+     */
+    private static function lmdbStringKeyEntries(array $bucket): array
+    {
+        ksort($bucket, SORT_STRING);
+
+        $entries = [];
+        foreach ($bucket as $key => $value) {
+            if (!is_string($key)) {
+                throw new \RuntimeException('LMDB string-key bucket contains a non-string key');
+            }
+
+            $entries[] = [
+                'key' => $key,
+                'value' => $value,
+            ];
+        }
+
+        return $entries;
     }
 
     private static function packNodeRefWord(int $nodeId, int $nodeType): string

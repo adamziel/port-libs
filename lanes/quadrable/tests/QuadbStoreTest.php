@@ -1102,6 +1102,105 @@ return [
             quadrableQuadbRemoveDir($dir);
         }
     },
+    'native quadb store exposes raw LMDB entry bytes for backup tooling' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $proofDir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $tree = $repo->tree();
+            $lmdb = $repo->lmdbBucketSnapshot();
+            $raw = $repo->lmdbRawEntrySnapshot();
+
+            $t->same([
+                [
+                    'key' => 'master',
+                    'value' => quadrableQuadbPackUint64Le($tree->headNodeId()),
+                ],
+            ], $raw['quadrable_head']);
+            $t->same([
+                [
+                    'key' => 'currHead',
+                    'value' => 'master',
+                ],
+            ], $raw['quadrable_quadb_state']);
+
+            $leafNodeIds = array_keys($lmdb['quadrable_nodesLeaf']);
+            $interiorNodeIds = array_keys($lmdb['quadrable_nodesInterior']);
+            $trackedKeyNodeIds = array_keys($lmdb['quadrable_key']);
+
+            $t->same($leafNodeIds, array_map(
+                static fn (array $entry): int => quadrableQuadbUnpackUint64Le($entry['key']),
+                $raw['quadrable_nodesLeaf']
+            ));
+            $t->same($interiorNodeIds, array_map(
+                static fn (array $entry): int => quadrableQuadbUnpackUint64Le($entry['key']),
+                $raw['quadrable_nodesInterior']
+            ));
+            $t->same($trackedKeyNodeIds, array_map(
+                static fn (array $entry): int => quadrableQuadbUnpackUint64Le($entry['key']),
+                $raw['quadrable_key']
+            ));
+
+            $firstLeafNodeId = $leafNodeIds[0];
+            $leafEntriesByKeyHex = quadrableQuadbRawEntriesByKeyHex($raw['quadrable_nodesLeaf']);
+            $trackedKeyEntriesByKeyHex = quadrableQuadbRawEntriesByKeyHex($raw['quadrable_key']);
+            $firstLeafKeyHex = bin2hex(quadrableQuadbPackUint64Le($firstLeafNodeId));
+
+            $t->same($lmdb['quadrable_nodesLeaf'][$firstLeafNodeId], $leafEntriesByKeyHex[$firstLeafKeyHex]);
+            $t->same($lmdb['quadrable_key'][$firstLeafNodeId], $trackedKeyEntriesByKeyHex[$firstLeafKeyHex]);
+
+            $detached = $repo->fork();
+            $detachedRaw = $repo->lmdbRawEntrySnapshot();
+            $t->same([
+                [
+                    'key' => 'detachedHead',
+                    'value' => quadrableQuadbPackUint64Le($detached->headNodeId()),
+                ],
+            ], $detachedRaw['quadrable_quadb_state']);
+            $t->same($raw['quadrable_nodesLeaf'], $detachedRaw['quadrable_nodesLeaf']);
+            $t->same($raw['quadrable_nodesInterior'], $detachedRaw['quadrable_nodesInterior']);
+
+            $trustedRoot = $repo->tree()->rootHash();
+            $proofHex = $repo->exportProofHex([
+                'wp_options:siteurl',
+                'wp_posts:404',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $proofRepo = QuadbStore::init($proofDir);
+            $proofRepo->checkout('wp-delegated-raw-backup');
+            $proofRepo->importProofHex($proofHex, $trustedRoot);
+
+            $proofLmdb = $proofRepo->lmdbBucketSnapshot();
+            $proofRaw = $proofRepo->lmdbRawEntrySnapshot();
+            $proofHeadNodeId = quadrableQuadbUnpackUint64Le($proofLmdb['quadrable_head']['wp-delegated-raw-backup']);
+            $interiorEntriesByKeyHex = quadrableQuadbRawEntriesByKeyHex($proofRaw['quadrable_nodesInterior']);
+
+            $t->same([
+                [
+                    'key' => 'currHead',
+                    'value' => 'wp-delegated-raw-backup',
+                ],
+            ], $proofRaw['quadrable_quadb_state']);
+            $t->same(quadrableQuadbPackUint64Le($proofHeadNodeId), $proofRaw['quadrable_head'][0]['value']);
+            $t->true($proofHeadNodeId >= 288230376151711744);
+            $t->same(
+                $proofLmdb['quadrable_nodesInterior'][$proofHeadNodeId],
+                $interiorEntriesByKeyHex[bin2hex(quadrableQuadbPackUint64Le($proofHeadNodeId))]
+            );
+            $t->same($proofRaw, QuadbStore::open($proofDir)->lmdbRawEntrySnapshot());
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($proofDir);
+        }
+    },
     'native quadb store exposes proof-backed LMDB bucket layout like upstream importProof' => static function (TestRunner $t): void {
         $sourceDir = quadrableQuadbTempDir();
         $targetDir = quadrableQuadbTempDir();
@@ -1542,6 +1641,30 @@ function quadrableQuadbUnpackUint64Le(string $bytes): int
     }
 
     return $parts['low'] + ($parts['high'] * 4294967296);
+}
+
+function quadrableQuadbPackUint64Le(int $value): string
+{
+    if ($value < 0) {
+        throw new InvalidArgumentException('uint64 value must be non-negative');
+    }
+
+    return pack('V2', $value % 4294967296, intdiv($value, 4294967296));
+}
+
+/**
+ * @param list<array{key: string, value: string}> $entries
+ *
+ * @return array<string, string>
+ */
+function quadrableQuadbRawEntriesByKeyHex(array $entries): array
+{
+    $indexed = [];
+    foreach ($entries as $entry) {
+        $indexed[bin2hex($entry['key'])] = $entry['value'];
+    }
+
+    return $indexed;
 }
 
 /**
