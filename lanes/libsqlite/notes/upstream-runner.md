@@ -1687,3 +1687,43 @@ reserved-byte usable-size boundaries, and corrupt free-space totals. The new
 `examples/wordpress-page-freeblocks.php` script reports page-local freeblock
 state for WordPress SQLite database images so recovery/import tooling can
 inspect deleted-space and malformed-page clues without loading SQLite.
+
+## Focused Native Mapping: Custom Collation Option Index Lookups
+
+SQLite lets applications register named collation callbacks, and indexed
+lookups may use those indexes only when the query comparison uses compatible
+collation semantics. The native PHP reader now exposes a bounded
+`wp_options(option_name COLLATE X)` lookup where recovery tooling supplies the
+collation name plus a PHP comparator. This keeps unsupported collations
+rejected by the ordinary built-in lookup path while allowing explicit recovery
+from database images that were created with application-defined collations.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  collate1.test collate2.test collate4.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 301 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/collate1.test` registers application-defined `HEX`, `numeric`, and
+  quoted-name collations and verifies that registered callbacks change
+  comparison and ordering behavior.
+- `test/collate2.test` registers `BACKWARDS` and verifies custom collation
+  behavior for `WHERE` comparison operators.
+- `test/collate4.test` verifies that index usability depends on matching the
+  comparison collation with the index collation.
+
+The native PHP test now covers a WordPress-shaped
+`wp_options(option_name COLLATE WPCASE)` index. The ordinary
+`wordpressOptionByIndexedName()` path still throws for the unsupported
+collation, while `wordpressOptionsByIndexedNameWithCollation()` accepts a PHP
+case-folding comparator, returns all rows equal under that callback, rejects
+missing collation names, and rejects callbacks that do not return an integer.
+The new `examples/wordpress-custom-collation-option-lookup.php` script maps
+custom-collation option recovery on hosts where the PHP SQLite extension is
+unavailable.

@@ -544,6 +544,14 @@ generated IDs continue after imported content.
 containing a `wp_options` table record, parses the table leaf cell payload, and
 reports the decoded table name/root page without using the PHP SQLite extension.
 
+`examples/wordpress-custom-collation-option-lookup.php` reads a
+WordPress-oriented SQLite database file whose `wp_options(option_name)` index
+was created with an application-defined collation such as `WPCASE` or
+`BACKWARDS`. The caller supplies the matching PHP comparator, allowing recovery
+tooling to use that index intentionally while ordinary built-in lookup paths
+continue to reject unsupported collations instead of returning misleading
+results.
+
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
@@ -553,5 +561,6 @@ slice: expression indexes beyond `lower(column)`, `upper(column)`,
 named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
 mutation at `[#]`, broader JSONB output/edit behavior beyond the current
-value encoder, and full JSON5 numeric/string edge parity; custom collations;
-and composite planner shapes outside equality-prefix plus one range column.
+value encoder, and full JSON5 numeric/string edge parity; custom collation
+coverage beyond explicit first-column `option_name` point recovery; and
+composite planner shapes outside equality-prefix plus one range column.

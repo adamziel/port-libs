@@ -898,6 +898,35 @@ return [
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
     },
+    'uses supplied custom collation callback for wordpress option_name index lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_wpcase_name', 'wp_options', 3, 'CREATE INDEX wp_options_wpcase_name ON wp_options(option_name COLLATE WPCASE)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'SiteURL', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+            $schemaCell([null, 'Home', 'https://example.test/home-alt', 'no'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['home', 2]),
+            $indexCell(['Home', 3]),
+            $indexCell(['SiteURL', 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+        $wpcase = static fn (string $left, string $right): int => strcmp(strtolower($left), strtolower($right));
+
+        $matches = $database->wordpressOptionsByIndexedNameWithCollation('HOME', 'WPCASE', $wpcase);
+        $limited = $database->wordpressOptionsByIndexedNameWithCollation('siteurl', 'wpcase', $wpcase, 1);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('HOME'));
+        $t->same(['home', 'Home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $matches));
+        $t->same(['https://example.test/blog', 'https://example.test/home-alt'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $matches));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameWithCollation('siteurl', '', $wpcase));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameWithCollation('siteurl', 'NO_SUCH', $wpcase));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameWithCollation('siteurl', 'WPCASE', static fn (): string => '0'));
+    },
     'uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

@@ -711,6 +711,74 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForColumnWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        mixed $pointLookupValue,
+    ): ?array {
+        if ($collationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+
+        $autoIndexFirstColumns = null;
+        $autoIndexOrdinal = 0;
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql !== null) {
+                $firstColumn = SQLiteCreateIndex::firstColumn($record->sql);
+                if (
+                    $firstColumn !== null
+                    && strcasecmp($firstColumn->columnName, $columnName) === 0
+                    && strcasecmp($firstColumn->collation, $collationName) === 0
+                ) {
+                    if (
+                        $firstColumn->partial
+                        && (
+                            $firstColumn->partialPredicate === null
+                            || !self::partialPredicateIsImpliedByConstraints(
+                                $firstColumn->partialPredicate,
+                                [$columnName => $pointLookupValue],
+                                [],
+                                true,
+                            )
+                        )
+                    ) {
+                        continue;
+                    }
+
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
+            }
+            if ($record->sql === null && self::isAutomaticIndex($record, $tableName)) {
+                if ($autoIndexFirstColumns === null) {
+                    $autoIndexFirstColumns = $this->automaticIndexFirstColumnsForTable($tableName);
+                }
+                $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
+                $autoIndexOrdinal++;
+                if (
+                    $firstColumn !== null
+                    && strcasecmp($firstColumn->columnName, $columnName) === 0
+                    && strcasecmp($firstColumn->collation, $collationName) === 0
+                ) {
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<mixed> $values
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
@@ -1698,6 +1766,63 @@ final class SQLiteDatabase
         }
 
         return SQLiteWordPressOption::fromTableRow($row);
+    }
+
+    /**
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameWithCollation(
+        string $optionName,
+        string $collationName,
+        callable $compare,
+        ?int $limit = null,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForColumnWithCollation(
+            'wp_options',
+            'option_name',
+            $collationName,
+            $optionName,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options option_name index with collation {$collationName} is not present");
+        }
+
+        $options = [];
+        foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
+            $record = $indexCell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+            }
+            if (self::compareSQLiteScalarWithCustomTextCollation($record->values[0], $optionName, $compare) !== 0) {
+                continue;
+            }
+
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
     }
 
     /**
@@ -4819,6 +4944,38 @@ final class SQLiteDatabase
             }
 
             return self::compareSQLiteText($left, $right, $collation);
+        }
+
+        throw new \InvalidArgumentException('Unsupported SQLite scalar comparison value');
+    }
+
+    /**
+     * @param callable(string, string): int $compare
+     */
+    private static function compareSQLiteScalarWithCustomTextCollation(mixed $left, mixed $right, callable $compare): int
+    {
+        $leftRank = self::sqliteScalarRank($left);
+        $rightRank = self::sqliteScalarRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+        if ($left === null && $right === null) {
+            return 0;
+        }
+        if (is_int($left) || is_float($left)) {
+            return $left <=> $right;
+        }
+        if (is_string($left)) {
+            if (!is_string($right)) {
+                throw new \InvalidArgumentException('SQLite scalar comparison values must share a storage class');
+            }
+
+            $comparison = $compare($left, $right);
+            if (!is_int($comparison)) {
+                throw new \InvalidArgumentException('SQLite custom collation callback must return an integer');
+            }
+
+            return $comparison <=> 0;
         }
 
         throw new \InvalidArgumentException('Unsupported SQLite scalar comparison value');
