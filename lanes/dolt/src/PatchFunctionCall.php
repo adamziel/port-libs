@@ -31,12 +31,21 @@ final class PatchFunctionCall
      *   keyless?:bool
      * }> $tables
      * @param list<mixed|PatchFunctionArgument> $arguments
-     * @param array{filter?:string|null, knownTables?:list<string>, mergeBases?:array<string, string>} $options
+     * @param array{
+     *   filter?:string|null,
+     *   knownTables?:list<string>,
+     *   mergeBases?:array<string, string>,
+     *   databaseName?:string,
+     *   databaseTables?:list<string>,
+     *   selectPrivileges?:list<string>
+     * } $options
      * @return list<array{statement_order:int, from_commit_hash:string, to_commit_hash:string, table_name:string, diff_type:string, statement:string}>
      */
     public function rows(array $tables, array $arguments, array $options = []): array
     {
         [$fromCommit, $toCommit, $tableName] = $this->parseArguments($arguments, $options);
+        $this->enforceSelectPrivileges($tables, $tableName, $options);
+
         if ($fromCommit === $toCommit) {
             return [];
         }
@@ -82,6 +91,177 @@ final class PatchFunctionCall
         $tableName = $count === 3 ? $this->textArgument($arguments[2], 'table name') : null;
 
         return [$first, $toCommit, $tableName];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tables
+     * @param array{
+     *   knownTables?:list<string>,
+     *   databaseName?:string,
+     *   databaseTables?:list<string>,
+     *   selectPrivileges?:list<string>
+     * } $options
+     */
+    private function enforceSelectPrivileges(array $tables, ?string $tableName, array $options): void
+    {
+        if (!array_key_exists('selectPrivileges', $options)) {
+            return;
+        }
+
+        $database = $this->baseDatabaseName($options['databaseName'] ?? null);
+        $privileges = $this->selectPrivileges($options['selectPrivileges']);
+
+        if ($tableName !== null) {
+            $this->assertSelectPrivilege($database, $tableName, $privileges);
+
+            return;
+        }
+
+        foreach ($this->databaseTableNames($tables, $options) as $databaseTableName) {
+            $this->assertSelectPrivilege($database, $databaseTableName, $privileges);
+        }
+    }
+
+    private function baseDatabaseName(mixed $databaseName): string
+    {
+        if (!is_string($databaseName) || $databaseName === '') {
+            throw new \InvalidArgumentException('Patch databaseName must be a non-empty string when selectPrivileges are supplied.');
+        }
+
+        $base = explode('/', $databaseName, 2)[0];
+        if ($base === '') {
+            throw new \InvalidArgumentException('Patch databaseName must include a base database name.');
+        }
+
+        return $base;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function selectPrivileges(mixed $privileges): array
+    {
+        if (!is_array($privileges)) {
+            throw new \InvalidArgumentException('Patch selectPrivileges must be a list of database-qualified SELECT grants.');
+        }
+
+        $normalized = [];
+        foreach ($privileges as $privilege) {
+            if (!is_string($privilege) || $privilege === '') {
+                throw new \InvalidArgumentException('Patch selectPrivileges must contain non-empty strings.');
+            }
+
+            $privilege = strtolower(str_replace('`', '', trim($privilege)));
+            if (!preg_match('/^[^.]+\\.(?:[^.]+|\\*)$/', $privilege) && $privilege !== '*.*') {
+                throw new \InvalidArgumentException('Patch selectPrivileges entries must be database-qualified grants like db.table, db.*, or *.*.');
+            }
+
+            $normalized[] = $privilege;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tables
+     * @param array{knownTables?:list<string>, databaseTables?:list<string>} $options
+     * @return list<string>
+     */
+    private function databaseTableNames(array $tables, array $options): array
+    {
+        if (array_key_exists('databaseTables', $options)) {
+            return $this->stringList($options['databaseTables'], 'databaseTables');
+        }
+
+        if (array_key_exists('knownTables', $options)) {
+            return $this->stringList($options['knownTables'], 'knownTables');
+        }
+
+        $names = [];
+        $seen = [];
+        foreach ($tables as $table) {
+            if (!is_array($table)) {
+                throw new \InvalidArgumentException('Patch tables must be arrays.');
+            }
+            foreach ($this->tableNames($table) as $name) {
+                if ($name === '') {
+                    continue;
+                }
+
+                $key = strtolower($name);
+                if (!isset($seen[$key])) {
+                    $seen[$key] = true;
+                    $names[] = $name;
+                }
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $value, string $field): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException("Patch {$field} must be a list of table names.");
+        }
+
+        $strings = [];
+        foreach ($value as $entry) {
+            if (!is_string($entry) || $entry === '') {
+                throw new \InvalidArgumentException("Patch {$field} must contain non-empty strings.");
+            }
+            $strings[] = $entry;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param list<string> $privileges
+     */
+    private function assertSelectPrivilege(string $database, string $tableName, array $privileges): void
+    {
+        if ($this->hasSelectPrivilege($database, $tableName, $privileges)) {
+            return;
+        }
+
+        if (!$this->hasAnyDatabaseAccess($database, $privileges)) {
+            throw new \RuntimeException("database access denied for user on database {$database}");
+        }
+
+        throw new \RuntimeException("privilege check failed: SELECT on {$database}.{$tableName}");
+    }
+
+    /**
+     * @param list<string> $privileges
+     */
+    private function hasSelectPrivilege(string $database, string $tableName, array $privileges): bool
+    {
+        $database = strtolower($database);
+        $tableName = strtolower($tableName);
+
+        return in_array('*.*', $privileges, true)
+            || in_array("{$database}.*", $privileges, true)
+            || in_array("{$database}.{$tableName}", $privileges, true);
+    }
+
+    /**
+     * @param list<string> $privileges
+     */
+    private function hasAnyDatabaseAccess(string $database, array $privileges): bool
+    {
+        $database = strtolower($database);
+
+        foreach ($privileges as $privilege) {
+            if ($privilege === '*.*' || str_starts_with($privilege, "{$database}.")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function textArgument(mixed $argument, string $field): string

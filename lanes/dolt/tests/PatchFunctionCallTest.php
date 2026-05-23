@@ -116,6 +116,60 @@ return [
             $t->contains('only literal values supported', $exception->getMessage());
         }
     },
+    'dolt patch function call enforces upstream select privilege boundaries' => static function (TestRunner $t) use ($patchTables): void {
+        $call = new PatchFunctionCall();
+        $options = [
+            'databaseName' => 'mydb/b1',
+            'knownTables' => ['t', 'newtable'],
+            'databaseTables' => ['t', 'newtable'],
+        ];
+
+        try {
+            $call->rows($patchTables(), ['main', 'branch1', 't'], $options + [
+                'selectPrivileges' => [],
+            ]);
+            $t->true(false, 'Expected patch call without database privileges to throw.');
+        } catch (RuntimeException $exception) {
+            $t->contains('database access denied for user on database mydb', $exception->getMessage());
+        }
+
+        $authorizedRows = $call->rows($patchTables(), ['main', 'branch1', 't'], $options + [
+            'selectPrivileges' => ['mydb.t'],
+        ]);
+        $t->same(['t', 't'], array_column($authorizedRows, 'table_name'));
+
+        try {
+            $call->rows($patchTables(), ['main', 'branch1', 'newtable'], $options + [
+                'selectPrivileges' => ['mydb.t'],
+            ]);
+            $t->true(false, 'Expected patch call without table privileges to throw.');
+        } catch (RuntimeException $exception) {
+            $t->contains('privilege check failed: SELECT on mydb.newtable', $exception->getMessage());
+        }
+
+        try {
+            $call->rows($patchTables(), ['main', 'branch1'], $options + [
+                'selectPrivileges' => ['mydb.t'],
+            ]);
+            $t->true(false, 'Expected unscoped patch call without all-table privileges to throw.');
+        } catch (RuntimeException $exception) {
+            $t->contains('privilege check failed: SELECT on mydb.newtable', $exception->getMessage());
+        }
+
+        $allRows = $call->rows($patchTables(), ['main', 'branch1'], $options + [
+            'selectPrivileges' => ['mydb.*'],
+        ]);
+        $t->same(['newtable', 't', 't'], array_column($allRows, 'table_name'));
+
+        try {
+            $call->rows($patchTables(), ['WORKING', 'WORKING', 't'], $options + [
+                'selectPrivileges' => [],
+            ]);
+            $t->true(false, 'Expected same-ref no-op patch call to check privileges before returning empty rows.');
+        } catch (RuntimeException $exception) {
+            $t->contains('database access denied for user on database mydb', $exception->getMessage());
+        }
+    },
     'wordpress patch call boundary example maps table-function review behavior' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-patch-call-boundary.php';
 
@@ -125,5 +179,15 @@ return [
         $t->same([], $output['unchangedKnownTable']);
         $t->contains('table not found: wp_missing_queue', $output['missingTableError']);
         $t->contains('only literal values supported', $output['nonLiteralError']);
+    },
+    'wordpress patch privilege review example maps limited reviewer access' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-privilege-review.php';
+
+        $t->same(['wp_posts', 'wp_posts'], array_column($output['limitedReviewerRows'], 'table_name'));
+        $t->same(['data', 'data'], array_column($output['limitedReviewerRows'], 'diff_type'));
+        $t->contains('database access denied for user on database wp_review', $output['noPrivilegeError']);
+        $t->contains('privilege check failed: SELECT on wp_review.wp_import_log', $output['allTablesDenied']);
+        $t->true(count($output['databaseWideRows']) >= 5);
+        $t->same('review-base', $output['databaseWideRows'][0]['from_commit_hash']);
     },
 ];
