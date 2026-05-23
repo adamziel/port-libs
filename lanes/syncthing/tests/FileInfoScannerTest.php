@@ -325,6 +325,97 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk ignores permission-only changes when upstream IgnorePerms is enabled' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/noisy-permissions.jpg';
+            $path = syncthing_scanner_write($root, $name, 'permission metadata noise');
+            chmod($path, 0644);
+            touch($path, 1_700_006_100);
+            clearstatcache(true, $path);
+
+            $strictScanner = new FileInfoScanner($root);
+            $current = $strictScanner->walk([$name])[0];
+            $t->same(0644, $current->permissions & 0777);
+            $t->true(!$current->noPermissions);
+
+            chmod($path, 0600);
+            clearstatcache(true, $path);
+
+            $strictChanged = $strictScanner->walk([$name], currentFiles: [$current]);
+            $t->same(1, count($strictChanged));
+            $t->same(0600, $strictChanged[0]->permissions & 0777);
+            $t->true(!$strictChanged[0]->noPermissions);
+
+            $ignorePermsScanner = new FileInfoScanner($root, ignorePerms: true);
+            $t->same([], $ignorePermsScanner->walk([$name], currentFiles: [$current]));
+            $ignoredInfo = $ignorePermsScanner->scan($name);
+            $t->same(0600, $ignoredInfo->permissions & 0777);
+            $t->true($ignoredInfo->noPermissions);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk treats modification times inside the upstream window as unchanged' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/fat-window.jpg';
+            $path = syncthing_scanner_write($root, $name, 'fat timestamp media');
+            touch($path, 1_700_006_200);
+            clearstatcache(true, $path);
+
+            $scanner = new FileInfoScanner($root);
+            $current = $scanner->walk([$name])[0];
+            $t->same(1_700_006_200, $current->modifiedS);
+
+            touch($path, 1_700_006_201);
+            clearstatcache(true, $path);
+
+            $strictChanged = $scanner->walk([$name], currentFiles: [$current]);
+            $t->same(1, count($strictChanged));
+            $t->same(1_700_006_201, $strictChanged[0]->modifiedS);
+
+            $insideWindow = new FileInfoScanner($root, modTimeWindowNs: 2_000_000_000);
+            $t->same([], $insideWindow->walk([$name], currentFiles: [$current]));
+
+            $atBoundary = new FileInfoScanner($root, modTimeWindowNs: 1_000_000_000);
+            $t->same(1, count($atBoundary->walk([$name], currentFiles: [$current])));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk skips unchanged symlink current files and emits target changes' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/original.jpg', 'original media');
+            syncthing_scanner_write($root, $dir . '/replacement.jpg', 'replacement media');
+            $linkName = $dir . '/current.jpg';
+            $linkPath = syncthing_scanner_path($root, $linkName);
+            if (!@symlink('original.jpg', $linkPath)) {
+                throw new RuntimeException('symlink creation failed');
+            }
+
+            $scanner = new FileInfoScanner($root);
+            $current = $scanner->walk([$linkName])[0];
+            $t->same(FileInfo::TYPE_SYMLINK, $current->type);
+            $t->same('original.jpg', $current->symlinkTarget);
+            $t->same(null, $scanner->scanIfChanged($linkName, currentFile: $current));
+            $t->same([], $scanner->walk([$linkName], currentFiles: [$current]));
+
+            unlink($linkPath);
+            if (!@symlink('replacement.jpg', $linkPath)) {
+                throw new RuntimeException('symlink replacement failed');
+            }
+
+            $changed = $scanner->walk([$linkName], currentFiles: [$current]);
+            $t->same(1, count($changed));
+            $t->same(FileInfo::TYPE_SYMLINK, $changed[0]->type);
+            $t->same('replacement.jpg', $changed[0]->symlinkTarget);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
 ];
 
 function syncthing_scanner_root(): string

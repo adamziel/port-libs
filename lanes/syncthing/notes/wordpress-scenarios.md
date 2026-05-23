@@ -955,6 +955,16 @@ new receive-only state, and carries the prior `blocksHash` into
 `previousBlocksHash` when a rescan is emitted. `wordpress-scanner-unchanged-shortcut.php`
 shows an unchanged WordPress media upload producing no second scan item while a
 prior ignored local state forces a receive-only rescan with conflict lineage.
+The scanner current-file equivalence slice now also maps the upstream
+`IgnorePerms` and `ModTimeWindow` boundaries used by `walkRegular`, `walkDir`,
+and `walkSymlink`: permission-only changes are skipped when the folder ignores
+permissions, scanned regular files and directories advertise `NoPermissions`
+under that setting, one-second filesystem timestamp drift can be ignored inside
+the configured window, the boundary remains strict (`diff < window`), and
+unchanged symlink targets are skipped instead of re-emitted. The WordPress
+example `wordpress-scanner-ignoreperms-window.php` shows a shared-hosting media
+file where chmod noise and FAT-style timestamp truncation do not create a
+spurious sync item, while strict scanning still detects both changes.
 
 ## Test Run Notes
 
@@ -983,6 +993,14 @@ current-file sizing, and upstream 500 MiB hysteresis examples. The new
 WordPress example `php lanes/syncthing/examples/wordpress-scanner-unchanged-shortcut.php`
 ran successfully and reported `unchangedSecondScanItems=0`,
 `ignoredPriorStateForcesRescan=true`, and `previousBlocksHashCarried=true`.
+Later on 2026-05-23, after the scanner `IgnorePerms`/mod-time-window slice,
+`php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed
+1 file, 79 assertions, and 0 failures; `php tools/run-tests.php
+lanes/syncthing/tests` passed 39 files, 2081 assertions, and 0 failures; and
+`php lanes/syncthing/examples/wordpress-scanner-ignoreperms-window.php` ran
+successfully with `strictPermissionChangeItems=1`,
+`ignorePermsPermissionChangeItems=0`, `strictOneSecondMtimeChangeItems=1`,
+and `windowedOneSecondMtimeChangeItems=0`.
 
 Focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1` passed in
 `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
@@ -1004,6 +1022,12 @@ Focused upstream scanner unchanged-file evidence was refreshed with
 `go test ./lib/scanner -run '^TestWalkReceiveOnly$' -count=1`, which passed in
 the same hydrated worktree with
 `ok github.com/syncthing/syncthing/lib/scanner 0.007s`.
+Focused upstream evidence for this batch was refreshed with
+`go test ./lib/model -run '^TestModTimeWindow$' -count=1`, which passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/model 0.028s`, and
+`go test ./lib/scanner -run '^TestWalkSymlinkUnix$' -count=1`, which passed in
+the same worktree with `ok github.com/syncthing/syncthing/lib/scanner 0.016s`.
 
 Before root PHP harnesses, this worker ran the required
 `pgrep -af '^php tools/run-tests\.php( |$)'` check before starting any root
@@ -1015,8 +1039,13 @@ not start a duplicate root rerun at that time. After the active harness cleared,
 this worker reran `php tools/run-tests.php` captured to
 `.upstream-cache/syncthing-root-rerun.log`; it passed 191 test files, 20725
 assertions, and 0 failures. No Syncthing lane-local test failed.
+For this batch, the required pre-root
+`pgrep -af '^php tools/run-tests\.php( |$)'` check again returned no active
+root harness, and `php tools/run-tests.php` passed 193 test files, 20939
+assertions, and 0 failures.
 
 ## Next Task
 
-Map upstream scanner normalization/error reporting, or add scanner
-`IgnorePerms`/mod-time-window parity for current-file equivalence.
+Map upstream scanner normalization/error reporting, scan progress event
+boundaries, or platform-specific permission equivalence beyond the current
+POSIX-style slice.

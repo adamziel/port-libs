@@ -21,6 +21,7 @@ final class FileInfoScanner
         string $rootPath,
         private readonly bool $scanOwnership = false,
         private readonly bool $scanXattrs = false,
+        private readonly bool $ignorePerms = false,
         ?callable $xattrFilter = null,
         private readonly int $maxSingleXattrSize = 0,
         private readonly int $maxTotalXattrSize = 0,
@@ -86,7 +87,7 @@ final class FileInfoScanner
                 throw new \RuntimeException('readlink failed for ' . $name);
             }
 
-            return new FileInfo(
+            $info = new FileInfo(
                 name: $name,
                 type: FileInfo::TYPE_SYMLINK,
                 noPermissions: true,
@@ -113,6 +114,7 @@ final class FileInfoScanner
                 type: FileInfo::TYPE_DIRECTORY,
                 localFlags: $this->localFlags,
                 permissions: $permissions,
+                noPermissions: $this->ignorePerms,
                 previousBlocksHash: $currentFile?->blocksHash ?? '',
                 unixOwnerName: $platform['unixOwnerName'],
                 unixGroupName: $platform['unixGroupName'],
@@ -143,6 +145,7 @@ final class FileInfoScanner
             type: FileInfo::TYPE_FILE,
             localFlags: $this->localFlags,
             permissions: $permissions,
+            noPermissions: $this->ignorePerms,
             rawBlockSize: $rawBlockSize,
             previousBlocksHash: $previousBlocksHash,
             unixOwnerName: $platform['unixOwnerName'],
@@ -172,6 +175,7 @@ final class FileInfoScanner
             type: FileInfo::TYPE_FILE,
             localFlags: $this->localFlags,
             permissions: $permissions,
+            noPermissions: $this->ignorePerms,
             rawBlockSize: $rawBlockSize,
             previousBlocksHash: $previousBlocksHash,
             blocks: $blocks,
@@ -198,6 +202,7 @@ final class FileInfoScanner
     {
         return $currentFile->isEquivalent($scannedFile, new FileInfoComparison(
             modTimeWindowNs: $this->modTimeWindowNs,
+            ignorePerms: $this->ignorePerms,
             ignoreBlocks: true,
             ignoreFlags: $this->localFlags,
             ignoreOwnership: !$this->scanOwnership,
