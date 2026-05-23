@@ -343,6 +343,32 @@ return [
         $t->same(['schema'], array_column($rows, 'diff_type'));
         $t->same([], $warnings);
     },
+    'dolt patch function call materializes table collation snapshot deltas' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-collation-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same([
+            "ALTER TABLE `wp_options` COLLATE='utf8mb4_0900_bin';",
+            "UPDATE `wp_options` SET `option_value`='https://review.example.test' WHERE `option_id`=1;",
+        ], array_column($rows, 'statement'));
+        $t->same(['schema', 'data'], array_column($rows, 'diff_type'));
+        $t->same([], $warnings);
+    },
+    'dolt patch function call materializes target row size snapshot deltas' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-target-row-size-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same([
+            'ALTER TABLE `wp_postmeta` TARGET_ROW_SIZE=4096;',
+            'UPDATE `wp_postmeta` SET `meta_value`=\'{"widgets":["legacy","reviewed"],"layout":"wide"}\' WHERE `meta_id`=7001;',
+        ], array_column($rows, 'statement'));
+        $t->same(['schema', 'data'], array_column($rows, 'diff_type'));
+        $t->same([], $warnings);
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
@@ -479,6 +505,22 @@ return [
 
         $t->same(['schema'], array_column($output['rows'], 'diff_type'));
         $t->contains('CONSTRAINT `wp_import_audit_chk_status` CHECK', $output['statements'][0]);
+        $t->same([], $output['warnings']);
+    },
+    'wordpress patch collation review example exposes option comparison drift' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-collation-review.php';
+
+        $t->same(['schema', 'data'], array_column($output['rows'], 'diff_type'));
+        $t->same("ALTER TABLE `wp_options` COLLATE='utf8mb4_0900_bin';", $output['statements'][0]);
+        $t->contains("UPDATE `wp_options` SET `option_value`='https://review.example.test'", $output['statements'][1]);
+        $t->same([], $output['warnings']);
+    },
+    'wordpress patch target row size review example exposes large meta storage drift' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-target-row-size-review.php';
+
+        $t->same(['schema', 'data'], array_column($output['rows'], 'diff_type'));
+        $t->same('ALTER TABLE `wp_postmeta` TARGET_ROW_SIZE=4096;', $output['statements'][0]);
+        $t->contains('UPDATE `wp_postmeta` SET `meta_value`=', $output['statements'][1]);
         $t->same([], $output['warnings']);
     },
 ];

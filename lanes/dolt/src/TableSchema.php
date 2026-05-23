@@ -14,6 +14,7 @@ final class TableSchema
     public const WARNING_TRUNCATED = 1292;
     public const PRIMARY_KEY_CHANGE_WARNING = 'cannot render full diff between commits %s and %s due to primary key set change';
     public const DATATYPE_COERCION_FAILURE_WARNING = "unable to coerce value from field '%s' into latest column schema";
+    public const DEFAULT_TARGET_ROW_SIZE = 2048;
 
     /** @var list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}> */
     private array $columns;
@@ -27,12 +28,18 @@ final class TableSchema
     /** @var list<array{name:non-empty-string, expression:non-empty-string, enforced:bool}> */
     private array $checks;
 
+    private string $collation;
+
+    private int $targetRowSize;
+
     /**
      * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
      *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
-     *   checks?:list<array{name:string, expression:string, enforced?:bool}>
+     *   checks?:list<array{name:string, expression:string, enforced?:bool}>,
+     *   collation?:string,
+     *   targetRowSize?:int
      * } $options
      */
     public function __construct(array $columns, array $options = [])
@@ -41,6 +48,8 @@ final class TableSchema
         $this->indexes = $this->normalizeIndexes($options['indexes'] ?? []);
         $this->foreignKeys = $this->normalizeForeignKeys($options['foreignKeys'] ?? []);
         $this->checks = $this->normalizeChecks($options['checks'] ?? []);
+        $this->collation = $this->normalizeCollation($options['collation'] ?? 'utf8mb4_0900_bin');
+        $this->targetRowSize = $this->normalizeTargetRowSize($options['targetRowSize'] ?? self::DEFAULT_TARGET_ROW_SIZE);
     }
 
     /**
@@ -48,7 +57,9 @@ final class TableSchema
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
      *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
-     *   checks?:list<array{name:string, expression:string, enforced?:bool}>
+     *   checks?:list<array{name:string, expression:string, enforced?:bool}>,
+     *   collation?:string,
+     *   targetRowSize?:int
      * } $options
      */
     public static function fromColumns(array $columns, array $options = []): self
@@ -247,11 +258,28 @@ final class TableSchema
         return $this->checks;
     }
 
+    public function collation(): string
+    {
+        return $this->collation;
+    }
+
+    public function characterSet(): string
+    {
+        return $this->characterSetForCollation($this->collation);
+    }
+
+    public function targetRowSize(): int
+    {
+        return $this->targetRowSize;
+    }
+
     public function hasSameSchemaMetadata(self $other): bool
     {
         return $this->indexes === $other->indexes
             && $this->foreignKeys === $other->foreignKeys
-            && $this->checks === $other->checks;
+            && $this->checks === $other->checks
+            && $this->collation === $other->collation
+            && $this->targetRowSize === $other->targetRowSize;
     }
 
     /**
@@ -315,14 +343,16 @@ final class TableSchema
             return $this;
         }
 
-            return new self(array_values(array_filter(
-                $this->columns,
-                static fn (array $column): bool => !isset($names[$column['name']])
-            )), [
-                'indexes' => $this->indexes,
-                'foreignKeys' => $this->foreignKeys,
-                'checks' => $this->checks,
-            ]);
+        return new self(array_values(array_filter(
+            $this->columns,
+            static fn (array $column): bool => !isset($names[$column['name']])
+        )), [
+            'indexes' => $this->indexes,
+            'foreignKeys' => $this->foreignKeys,
+            'checks' => $this->checks,
+            'collation' => $this->collation,
+            'targetRowSize' => $this->targetRowSize,
+        ]);
     }
 
     /**
@@ -555,6 +585,34 @@ final class TableSchema
         }
 
         return $value;
+    }
+
+    private function normalizeCollation(mixed $collation): string
+    {
+        if (!is_string($collation) || $collation === '') {
+            throw new \InvalidArgumentException('Schema collation must be a non-empty string.');
+        }
+
+        return $collation;
+    }
+
+    private function characterSetForCollation(string $collation): string
+    {
+        $underscore = strpos($collation, '_');
+        if ($underscore === false) {
+            return 'utf8mb4';
+        }
+
+        return substr($collation, 0, $underscore);
+    }
+
+    private function normalizeTargetRowSize(mixed $targetRowSize): int
+    {
+        if (!is_int($targetRowSize) || $targetRowSize < 0 || $targetRowSize > 65535) {
+            throw new \InvalidArgumentException('Schema targetRowSize must be an integer between 0 and 65535.');
+        }
+
+        return $targetRowSize === 0 ? self::DEFAULT_TARGET_ROW_SIZE : $targetRowSize;
     }
 
     /**

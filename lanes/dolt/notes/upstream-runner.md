@@ -5,6 +5,40 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## Runner Refresh 2026-05-23 Patch Target Row Size Slice
+
+- Focused upstream source inspection:
+  - `go/libraries/doltcore/schema/schema.go`: `SchemasAreEqual` compares `GetTargetRowSize()`, so target-row-size-only differences are schema changes.
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: non-create/drop schema patch generation emits target-row-size DDL after charset/collation changes as `ALTER TABLE <table> TARGET_ROW_SIZE=<bytes>;`.
+  - `.upstream-cache/dolt/.gomodcache/github.com/dolthub/go-mysql-server@v0.20.1-0.20260521203635-622656d89ca9/enginetest/queries/create_table_queries.go`: upstream show-create appends `TARGET_ROW_SIZE=<bytes>` for non-default target-row-size table options.
+  - `go/libraries/doltcore/sqle/enginetest/ddl_queries.go` and `go/libraries/doltcore/sqle/tables.go`: the target-row-size upper bound is `65535`, and larger values fail with the upstream `target_row_size <n> exceeds maximum allowed value 65535` error.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestDoltDdlScripts/create_table_with_too_large_target_row_size' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.289s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(PatchTableFunction|PatchTableFunctionPrepared)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.612s`.
+- Direct cache-local CLI probe:
+  - Created a temporary Dolt repo, ran `create table t (pk int primary key) target_row_size=4096`, then checked `SHOW CREATE TABLE t` and `dolt_patch('HEAD','WORKING','t')`.
+  - Result: `SHOW CREATE TABLE` included `TARGET_ROW_SIZE=4096`; the `dolt_patch()` create-table schema row omitted the target-row-size table option, matching `sqle/sqlfmt/schema_fmt.go` create-table generation rather than show-create output.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `16` Dolt test files, `162` behavior tests, `829` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0` with `172` test files, `16,079` assertions, and `0` failures.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
+## Runner Refresh 2026-05-23 Patch Table Collation Slice
+
+- Focused upstream source inspection:
+  - `go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go`: the `charset and collation changes` `dolt_patch()` assertions expect `ALTER TABLE \`t\` COLLATE='utf8mb4_0900_bin';` when reverting to the default table collation and `ALTER TABLE \`t\` COLLATE='utf8mb3_general_ci';` when applying a character-set change, with schema rows preceding data rows.
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: non-create/drop schema patch generation emits collation DDL after column, primary-key, secondary-index, and foreign-key diffs.
+  - `.upstream-cache/dolt/.gomodcache/github.com/dolthub/go-mysql-server@v0.20.1-0.20260521203635-622656d89ca9/sql/parser.go`: `GenerateCreateTableStatement` renders `DEFAULT CHARSET=<charset> COLLATE=<collation>` from the table collation metadata.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(PatchTableFunction|PatchTableFunctionPrepared)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.630s`.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `16` Dolt test files, `159` behavior tests, `818` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php` was run in the shared moving worktree and did not pass because of unrelated lane failures. The latest failure-filtered rerun reported `171` test files, `15,937` assertions, and `1` failure in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php` (`lowers wordpress async generator asset queue class cleanup without node`).
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
 ## Runner Refresh 2026-05-23 Patch Check Constraint Slice
 
 - Focused upstream source inspection:

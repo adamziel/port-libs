@@ -64,6 +64,96 @@ return [
         ], array_column($rows, 'statement'));
         $t->same(['schema'], array_column($rows, 'diff_type'));
     },
+    'dolt patch renders table collation changes like upstream' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ]);
+        $accentInsensitive = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ], [
+            'collation' => 'utf8mb4_0900_ai_ci',
+        ]);
+        $utf8mb3 = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ], [
+            'collation' => 'utf8mb3_general_ci',
+        ]);
+        $renderer = new PatchRenderer();
+
+        $reverseRows = $renderer->rows([[
+            'tableName' => 't',
+            'fromSchema' => $accentInsensitive,
+            'toSchema' => $schema,
+            'primaryKey' => 'pk',
+            'fromRows' => [['pk' => 1]],
+            'toRows' => [],
+        ]]);
+        $forwardRows = $renderer->rows([[
+            'tableName' => 't',
+            'fromSchema' => $accentInsensitive,
+            'toSchema' => $utf8mb3,
+            'primaryKey' => 'pk',
+            'fromRows' => [['pk' => 1]],
+            'toRows' => [['pk' => 1], ['pk' => 2]],
+        ]]);
+
+        $t->same([
+            "ALTER TABLE `t` COLLATE='utf8mb4_0900_bin';",
+            'DELETE FROM `t` WHERE `pk`=1;',
+        ], array_column($reverseRows, 'statement'));
+        $t->same([
+            "ALTER TABLE `t` COLLATE='utf8mb3_general_ci';",
+            'INSERT INTO `t` (`pk`) VALUES (2);',
+        ], array_column($forwardRows, 'statement'));
+        $t->same(['schema', 'data'], array_column($reverseRows, 'diff_type'));
+        $t->same(['schema', 'data'], array_column($forwardRows, 'diff_type'));
+    },
+    'dolt patch renders target row size changes after collation like upstream' => static function (TestRunner $t): void {
+        $default = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'body', 'tag' => 2, 'type' => 'longtext'],
+        ]);
+        $wideRows = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'body', 'tag' => 2, 'type' => 'longtext'],
+        ], [
+            'collation' => 'utf8mb4_unicode_ci',
+            'targetRowSize' => 4096,
+        ]);
+        $renderer = new PatchRenderer();
+
+        $forwardRows = $renderer->rows([[
+            'tableName' => 't',
+            'fromSchema' => $default,
+            'toSchema' => $wideRows,
+            'primaryKey' => 'pk',
+            'fromRows' => [['pk' => 1, 'body' => 'old']],
+            'toRows' => [['pk' => 1, 'body' => 'new']],
+        ]]);
+        $reverseRows = $renderer->rows([[
+            'tableName' => 't',
+            'fromSchema' => $wideRows,
+            'toSchema' => $default,
+            'primaryKey' => 'pk',
+            'fromRows' => [['pk' => 1, 'body' => 'new']],
+            'toRows' => [['pk' => 1, 'body' => 'old']],
+        ]]);
+
+        $t->same([
+            "ALTER TABLE `t` COLLATE='utf8mb4_unicode_ci';",
+            'ALTER TABLE `t` TARGET_ROW_SIZE=4096;',
+            "UPDATE `t` SET `body`='new' WHERE `pk`=1;",
+        ], array_column($forwardRows, 'statement'));
+        $t->same([
+            "ALTER TABLE `t` COLLATE='utf8mb4_0900_bin';",
+            'ALTER TABLE `t` TARGET_ROW_SIZE=2048;',
+            "UPDATE `t` SET `body`='old' WHERE `pk`=1;",
+        ], array_column($reverseRows, 'statement'));
+        $t->same(['schema', 'schema', 'data'], array_column($forwardRows, 'diff_type'));
+        $t->throws(InvalidArgumentException::class, static fn () => TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+        ], ['targetRowSize' => 70000]));
+    },
     'dolt patch ddl changes follow upstream column diff ordering' => static function (TestRunner $t): void {
         $from = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],

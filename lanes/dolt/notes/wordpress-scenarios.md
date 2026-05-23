@@ -26,6 +26,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` primary-key-change warning collection for staged/worktree snapshots, preserving schema patch rows while skipping unsafe data SQL and recording upstream warning code `1235`.
 - Native `dolt_patch()` secondary-index and foreign-key DDL rendering for staged/worktree snapshots, including `CREATE TABLE` KEY/CONSTRAINT clauses, index/foreign-key-only schema deltas, and upstream ordering of `ADD INDEX` before `ADD CONSTRAINT`.
 - Native `dolt_patch()` create-table check-constraint rendering, including upstream `CONSTRAINT ... CHECK (...)` clause placement after keys and foreign keys.
+- Native `dolt_patch()` table-collation rendering, including upstream `ALTER TABLE ... COLLATE='<collation>'` rows before data patches and `CREATE TABLE` default charset/collation metadata.
+- Native `dolt_patch()` target-row-size rendering, including upstream `ALTER TABLE ... TARGET_ROW_SIZE=<bytes>` rows after collation DDL and before data patches.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -80,6 +82,10 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-patch-foreign-key-review.php` returns the index, foreign-key, and parent primary-key `dolt_patch()` rows plus warning code `1235`, so a migration UI can apply safe DDL ordering while blocking unsafe data SQL.
 - `fixtures/wp-patch-check-constraint-review.php` models a WordPress import audit table that guards allowed migration statuses with a check constraint.
 - `examples/wordpress-patch-check-constraint-review.php` returns the `CREATE TABLE` patch statement with the native Dolt-style check clause, so a migration UI can review status guards before creating the audit table.
+- `fixtures/wp-patch-collation-review.php` models a `wp_options` review where legacy `utf8mb4_unicode_ci` comparison semantics are normalized to Dolt's default binary collation while the site URL changes.
+- `examples/wordpress-patch-collation-review.php` returns the collation DDL before the `wp_options` data update, so a migration UI can flag comparison/sort drift separately from option-value changes.
+- `fixtures/wp-patch-target-row-size-review.php` models a `wp_postmeta` review where large page-builder metadata moves to a wider target row size while the serialized meta payload changes.
+- `examples/wordpress-patch-target-row-size-review.php` returns the target-row-size DDL before the `wp_postmeta` data update, so a migration UI can flag storage-layout drift separately from large meta-value changes.
 - `examples/wordpress-patch-privilege-review.php` returns a revision-database patch review where a limited reviewer can inspect `wp_posts` changes but an unscoped patch fails until the reviewer has database-wide SELECT over `wp_import_log` and the other database tables.
 - `fixtures/wp-ignore-summary.php` models a migration workspace with generated scratch/cache tables that should be hidden by `dolt_ignore`, while `dolt_ignore`, review tables, and explicit false-pattern exceptions remain visible.
 - `examples/wordpress-ignore-summary.php` returns ignore-aware `dolt_diff_summary()` rows for that workspace, so a WordPress migration UI can focus on reviewable data changes instead of generated scratch tables.
@@ -110,4 +116,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map modified/drop secondary-index or foreign-key DDL boundaries for staged/worktree comparisons beyond the current add-only WordPress foreign-key scenario.
+Next best slice: add upstream-backed modified/drop secondary-index and foreign-key fixtures for staged/worktree comparisons beyond the current add-only WordPress foreign-key scenario.

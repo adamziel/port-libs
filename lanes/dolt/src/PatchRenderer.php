@@ -260,6 +260,16 @@ final class PatchRenderer
             }
         }
 
+        if ($fromSchema->collation() !== $toSchema->collation()) {
+            $statements[] = 'ALTER TABLE ' . $this->quoteIdentifier($toTableName)
+                . ' COLLATE=' . $this->quoteSqlString($toSchema->collation()) . ';';
+        }
+
+        if ($fromSchema->targetRowSize() !== $toSchema->targetRowSize()) {
+            $statements[] = 'ALTER TABLE ' . $this->quoteIdentifier($toTableName)
+                . ' TARGET_ROW_SIZE=' . $toSchema->targetRowSize() . ';';
+        }
+
         return $statements;
     }
 
@@ -308,7 +318,7 @@ final class PatchRenderer
 
         return 'CREATE TABLE ' . $this->quoteIdentifier($tableName) . " (\n"
             . implode(",\n", $lines)
-            . "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;";
+            . "\n) ENGINE=InnoDB DEFAULT CHARSET={$schema->characterSet()} COLLATE={$schema->collation()};";
     }
 
     /**
@@ -571,5 +581,10 @@ final class PatchRenderer
         }
 
         return '`' . str_replace('`', '``', $identifier) . '`';
+    }
+
+    private function quoteSqlString(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
     }
 }
