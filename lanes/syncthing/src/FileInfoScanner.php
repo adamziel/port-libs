@@ -199,6 +199,8 @@ final class FileInfoScanner
     /**
      * @param list<string> $subs
      * @param null|callable(FolderScanProgress): void $progressLogger
+     * @param null|callable(string, \Throwable, string): void $errorLogger
+     * @param null|callable(?string): bool $shouldCancel
      * @return list<FileInfo>
      */
     public function walk(
@@ -209,7 +211,12 @@ final class FileInfoScanner
         iterable $currentFiles = [],
         ?callable $progressLogger = null,
         string $folder = '',
+        ?callable $errorLogger = null,
+        ?callable $shouldCancel = null,
     ): array {
+        $errorLoggerClosure = $errorLogger === null ? null : \Closure::fromCallable($errorLogger);
+        $shouldCancelClosure = $shouldCancel === null ? null : \Closure::fromCallable($shouldCancel);
+
         if ($hashBlocks && $progressLogger !== null) {
             return $this->walkWithHashProgress(
                 $subs,
@@ -218,6 +225,8 @@ final class FileInfoScanner
                 $currentFiles,
                 \Closure::fromCallable($progressLogger),
                 $folder,
+                $errorLoggerClosure,
+                $shouldCancelClosure,
             );
         }
 
@@ -232,6 +241,10 @@ final class FileInfoScanner
             }
 
             $name = self::normalizeWalkSub($sub);
+            if (self::isCancelled($shouldCancelClosure, $name)) {
+                break;
+            }
+
             $path = $name === '' ? $this->rootPath : $this->absolutePath($name);
             if (!file_exists($path) && !is_link($path)) {
                 continue;
@@ -239,12 +252,16 @@ final class FileInfoScanner
 
             if ($name === '') {
                 foreach ($this->directoryEntries($path) as $entry) {
-                    $this->walkPath($entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results);
+                    if (!$this->walkPath($entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure)) {
+                        break 2;
+                    }
                 }
                 continue;
             }
 
-            $this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results);
+            if (!$this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure)) {
+                break;
+            }
         }
 
         return $results;
@@ -261,8 +278,20 @@ final class FileInfoScanner
         iterable $currentFiles,
         \Closure $progressLogger,
         string $folder,
+        ?\Closure $errorLogger,
+        ?\Closure $shouldCancel,
     ): array {
-        $results = $this->walk($subs, $ignoreMatcher, false, $blockSize, $currentFiles);
+        $results = $this->walk(
+            $subs,
+            $ignoreMatcher,
+            false,
+            $blockSize,
+            $currentFiles,
+            null,
+            '',
+            $errorLogger,
+            $shouldCancel,
+        );
         $fileIndexes = [];
         $total = 1;
         foreach ($results as $index => $file) {
@@ -279,14 +308,51 @@ final class FileInfoScanner
         }
 
         $current = 0;
-        foreach ($fileIndexes as $index) {
-            $hashed = $this->hashScannedFile($results[$index]);
-            $results[$index] = $hashed;
+        $hashedResults = [];
+        $fileIndexMap = array_fill_keys($fileIndexes, true);
+        foreach ($results as $index => $file) {
+            if (!isset($fileIndexMap[$index])) {
+                $hashedResults[] = $file;
+                continue;
+            }
+
+            if (self::isCancelled($shouldCancel, $file->name)) {
+                break;
+            }
+
+            try {
+                $hashed = $this->hashScannedFile($file);
+            } catch (\Throwable $throwable) {
+                self::reportWalkError($errorLogger, $file->name, $throwable, 'hashing');
+                $progressLogger(new FolderScanProgress($folder, $current, $total));
+                continue;
+            }
+
+            $hashedResults[] = $hashed;
             $current += $hashed->size;
             $progressLogger(new FolderScanProgress($folder, $current, $total));
         }
 
-        return $results;
+        return $hashedResults;
+    }
+
+    private static function isCancelled(?\Closure $shouldCancel, ?string $name): bool
+    {
+        return $shouldCancel !== null && (bool) $shouldCancel($name);
+    }
+
+    private static function reportWalkError(?\Closure $errorLogger, string $name, \Throwable $throwable, string $phase): void
+    {
+        if ($errorLogger === null) {
+            throw $throwable;
+        }
+
+        $errorLogger($name, $throwable, $phase);
+    }
+
+    private static function phaseForThrowable(\Throwable $throwable): string
+    {
+        return str_starts_with($throwable->getMessage(), 'normalizing path:') ? 'normalizing path' : 'scan';
     }
 
     private function hashScannedFile(FileInfo $info): FileInfo
@@ -295,7 +361,7 @@ final class FileInfoScanner
             throw new \LogicException('Only regular files can be block hashed');
         }
 
-        $bytes = file_get_contents($this->absolutePath($info->name));
+        $bytes = @file_get_contents($this->absolutePath($info->name));
         if (!is_string($bytes)) {
             throw new \RuntimeException('read failed for ' . $info->name);
         }
@@ -494,31 +560,42 @@ final class FileInfoScanner
         ?string $ignoredParent,
         array &$seen,
         array &$results,
-    ): void {
+        ?\Closure $errorLogger,
+        ?\Closure $shouldCancel,
+    ): bool {
+        if (self::isCancelled($shouldCancel, $name)) {
+            return false;
+        }
+
         $path = $this->absolutePath($name);
         if (!file_exists($path) && !is_link($path)) {
-            return;
+            return true;
         }
 
-        $this->assertValidUtf8Name($name);
+        try {
+            $this->assertValidUtf8Name($name);
 
-        if (RequestServer::isTemporaryName($name) || RequestServer::isInternalName($name)) {
-            return;
-        }
-
-        $normalizedName = $this->normalizedWalkName($name);
-        if ($normalizedName !== $name) {
-            $name = $this->applyNormalization($name, $normalizedName);
-            $path = $this->absolutePath($name);
-            if (!file_exists($path) && !is_link($path)) {
-                return;
+            if (RequestServer::isTemporaryName($name) || RequestServer::isInternalName($name)) {
+                return true;
             }
+
+            $normalizedName = $this->normalizedWalkName($name);
+            if ($normalizedName !== $name) {
+                $name = $this->applyNormalization($name, $normalizedName);
+                $path = $this->absolutePath($name);
+                if (!file_exists($path) && !is_link($path)) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $throwable) {
+            self::reportWalkError($errorLogger, $name, $throwable, self::phaseForThrowable($throwable));
+            return true;
         }
 
         $isDirectory = is_dir($path) && !is_link($path);
         $isRegularOrSymlink = is_file($path) || is_link($path);
         if (!$isDirectory && !$isRegularOrSymlink) {
-            return;
+            return true;
         }
 
         if ($ignoreMatcher !== null) {
@@ -531,25 +608,33 @@ final class FileInfoScanner
                     }
 
                     foreach ($this->directoryEntries($path) as $entry) {
-                        $this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results);
+                        if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results, $errorLogger, $shouldCancel)) {
+                            return false;
+                        }
                     }
                 }
 
-                return;
+                return true;
             }
         }
 
         if ($ignoredParent !== null && self::isParentPath($name, $ignoredParent)) {
-            $this->emitIgnoredParentChain($ignoredParent, $name, $hashBlocks, $blockSize, $currentByName, $seen, $results);
-        } else {
-            $this->emitScanned($name, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+            if (!$this->emitIgnoredParentChain($ignoredParent, $name, $hashBlocks, $blockSize, $currentByName, $seen, $results, $errorLogger, $shouldCancel)) {
+                return false;
+            }
+        } elseif (!$this->emitScanned($name, $hashBlocks, $blockSize, $currentByName, $seen, $results, $errorLogger, $shouldCancel)) {
+            return false;
         }
 
         if ($isDirectory) {
             foreach ($this->directoryEntries($path) as $entry) {
-                $this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results);
+                if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLogger, $shouldCancel)) {
+                    return false;
+                }
             }
         }
+
+        return true;
     }
 
     /**
@@ -564,8 +649,12 @@ final class FileInfoScanner
         array $currentByName,
         array &$seen,
         array &$results,
-    ): void {
-        $this->emitScanned($ignoredParent, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+        ?\Closure $errorLogger,
+        ?\Closure $shouldCancel,
+    ): bool {
+        if (!$this->emitScanned($ignoredParent, $hashBlocks, $blockSize, $currentByName, $seen, $results, $errorLogger, $shouldCancel)) {
+            return false;
+        }
 
         $relative = substr($name, strlen($ignoredParent) + 1);
         $current = $ignoredParent;
@@ -575,8 +664,12 @@ final class FileInfoScanner
             }
 
             $current .= '/' . $part;
-            $this->emitScanned($current, $hashBlocks, $blockSize, $currentByName, $seen, $results);
+            if (!$this->emitScanned($current, $hashBlocks, $blockSize, $currentByName, $seen, $results, $errorLogger, $shouldCancel)) {
+                return false;
+            }
         }
+
+        return true;
     }
 
     /**
@@ -590,16 +683,31 @@ final class FileInfoScanner
         array $currentByName,
         array &$seen,
         array &$results,
-    ): void {
+        ?\Closure $errorLogger,
+        ?\Closure $shouldCancel,
+    ): bool {
         if (isset($seen[$name])) {
-            return;
+            return true;
         }
 
-        $file = $this->scanIfChanged($name, $hashBlocks, $blockSize, $currentByName[$name] ?? null);
+        if (self::isCancelled($shouldCancel, $name)) {
+            return false;
+        }
+
+        try {
+            $file = $this->scanIfChanged($name, $hashBlocks, $blockSize, $currentByName[$name] ?? null);
+        } catch (\Throwable $throwable) {
+            self::reportWalkError($errorLogger, $name, $throwable, 'scan');
+            $seen[$name] = true;
+            return true;
+        }
+
         if ($file !== null) {
             $results[] = $file;
         }
         $seen[$name] = true;
+
+        return true;
     }
 
     /**

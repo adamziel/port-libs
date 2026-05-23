@@ -982,6 +982,14 @@ advances, preserves the existing walk order for directories and files, and
 emits no progress for unchanged or metadata-only walks. The WordPress example
 `wordpress-scanner-progress-events.php` shows a media-library scan reporting
 Syncthing-style progress totals while producing hashed `FileInfo` entries.
+The scanner error/cancel slice now maps adjacent upstream `handleError`,
+`ScanResult.Err`, `isWarnableError`, `parallelHasher.hashFiles`, and
+`TestStopWalk` boundaries: direct scans remain strict, while opt-in
+`FileInfoScanner::walk()` callbacks can collect per-path scan or hash errors
+and can stop traversal or queued progress hashing before another file starts.
+`wordpress-scanner-error-cancel.php` shows a WordPress media scan reporting a
+retryable metadata read error, hashing one changed upload, and cancelling
+before the queued thumbnail is returned as a partial un-hashed `FileInfo`.
 The scanner Windows executable-bit slice now maps the host-specific upstream
 `updateFileInfo` branch in `lib/scanner/walk.go`: for regular files on
 Windows, the scanner copies executable bits from the current indexed
@@ -1119,9 +1127,25 @@ successfully with `posixPermissionChangeItems=1`,
 The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
 returned no active root harness, so this worker ran `php tools/run-tests.php`;
 it passed 196 test files, 21507 assertions, and 0 failures.
+For the scanner error/cancel batch, targeted upstream reads covered
+`lib/scanner/walk.go` `handleError`, `isWarnableError`, context cancellation
+checks, and `lib/scanner/blockqueue.go` `parallelHasher.hashFiles` error
+handling. The focused upstream command
+`go test ./lib/scanner -run '^TestStopWalk$' -count=1` passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/scanner 0.155s`. The focused lane test
+`php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed
+1 file, 107 assertions, and 0 failures; the full lane run
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2109
+assertions, and 0 failures; and
+`php lanes/syncthing/examples/wordpress-scanner-error-cancel.php` ran
+successfully with one scan error, one `8/14` progress event, and no partial
+thumbnail `FileInfo`. The required pre-root
+`pgrep -af '^php tools/run-tests\.php( |$)'` check returned no active root
+harness, so this worker ran `php tools/run-tests.php`; it passed 197 test
+files, 21712 assertions, and 0 failures.
 
 ## Next Task
 
-Extend scanner progress toward cancellation/error event boundaries, or map
-another host-specific scanner branch with executable upstream runner evidence on
-a matching platform.
+Map another scanner host/permission boundary with executable upstream runner
+evidence, or extend scanner cancellation into resumable scan checkpoints.

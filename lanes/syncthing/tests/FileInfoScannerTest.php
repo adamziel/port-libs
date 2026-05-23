@@ -335,6 +335,80 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk reports scanner item errors and continues with siblings' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/good.jpg', 'publishable media');
+            syncthing_scanner_write($root, $dir . '/metadata-error.jpg', 'metadata read fails');
+
+            $errors = [];
+            $scanner = new FileInfoScanner(
+                $root,
+                scanXattrs: true,
+                xattrLister: static function (string $path): array {
+                    if (basename($path) === 'metadata-error.jpg') {
+                        throw new RuntimeException('xattr list failed');
+                    }
+
+                    return [];
+                },
+            );
+            $files = $scanner->walk(
+                [$dir],
+                errorLogger: static function (string $path, Throwable $error, string $phase) use (&$errors): void {
+                    $errors[] = [$path, $phase, $error->getMessage()];
+                },
+            );
+
+            $t->same([$dir, $dir . '/good.jpg'], array_map(static fn (FileInfo $file): string => $file->name, $files));
+            $t->same([[
+                $dir . '/metadata-error.jpg',
+                'scan',
+                'reading platform data: get xattr ' . $dir . '/metadata-error.jpg: xattr list failed',
+            ]], $errors);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk progress cancellation stops before hashing another queued file' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/hero.jpg', 'abcdefgh');
+            syncthing_scanner_write($root, $dir . '/thumb.jpg', '12345');
+
+            $progress = [];
+            $cancelAfterFirstHash = false;
+            $cancelChecks = [];
+            $scanner = new FileInfoScanner($root);
+            $files = $scanner->walk(
+                [$dir],
+                hashBlocks: true,
+                blockSize: 4,
+                progressLogger: static function (FolderScanProgress $event) use (&$progress, &$cancelAfterFirstHash): void {
+                    $progress[] = $event->toArray();
+                    $cancelAfterFirstHash = true;
+                },
+                folder: 'wordpress-media',
+                shouldCancel: static function (?string $path) use (&$cancelAfterFirstHash, &$cancelChecks): bool {
+                    if ($cancelAfterFirstHash) {
+                        $cancelChecks[] = $path;
+                        return true;
+                    }
+
+                    return false;
+                },
+            );
+
+            $t->same([$dir, $dir . '/hero.jpg'], array_map(static fn (FileInfo $file): string => $file->name, $files));
+            $t->same(hash('sha256', 'abcd'), $files[1]->blocks[0]->hashHex);
+            $t->same([['folder' => 'wordpress-media', 'current' => 8, 'total' => 14, 'rate' => 0.0]], $progress);
+            $t->same([$dir . '/thumb.jpg'], $cancelChecks);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
     'walk retains current file block size within upstream hysteresis window' => static function (TestRunner $t): void {
         $root = syncthing_scanner_root();
         try {
