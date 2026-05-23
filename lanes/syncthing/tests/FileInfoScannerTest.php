@@ -8,6 +8,7 @@ use PortLibs\Syncthing\FileInfoComparison;
 use PortLibs\Syncthing\FileInfoScanner;
 use PortLibs\Syncthing\FolderScanProgress;
 use PortLibs\Syncthing\IgnoreMatcher;
+use PortLibs\Syncthing\RequestServer;
 
 return [
     'maps upstream scanner CreateFileInfo ownership xattrs and block metadata' => static function (TestRunner $t): void {
@@ -295,6 +296,43 @@ return [
             $t->same(['foo'], array_map(static fn (FileInfo $file): string => $file->name, $slashSub));
             $t->same(hash('sha256', 'scanned '), $slashSub[0]->blocks[0]->hashHex);
             $t->same(22, $slashSub[0]->size);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk removes stale regular temporary files using upstream temp lifetime' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            $published = $dir . '/published.jpg';
+            $freshTemp = RequestServer::temporaryName($dir . '/fresh.jpg');
+            $staleTemp = RequestServer::temporaryName($dir . '/stale.jpg');
+            $windowsTemp = $dir . '/~syncthing~windows.jpg.tmp';
+            $tempDir = $dir . '/.syncthing.partial.tmp';
+
+            syncthing_scanner_write($root, $published, 'published media');
+            $freshPath = syncthing_scanner_write($root, $freshTemp, 'fresh temp bytes');
+            $stalePath = syncthing_scanner_write($root, $staleTemp, 'stale temp bytes');
+            $windowsPath = syncthing_scanner_write($root, $windowsTemp, 'stale windows temp bytes');
+            @mkdir(syncthing_scanner_path($root, $tempDir), 0777, true);
+            syncthing_scanner_write($root, $tempDir . '/leftover-block', 'directory temp child');
+
+            $now = time();
+            touch($freshPath, $now - 60);
+            touch($stalePath, $now - 7200);
+            touch($windowsPath, $now - 7200);
+            clearstatcache();
+
+            $scanner = new FileInfoScanner($root, tempLifetimeSeconds: 3600);
+            $files = $scanner->walk([$dir]);
+
+            $t->same([$dir, $published], array_map(static fn (FileInfo $file): string => $file->name, $files));
+            $t->true(file_exists($freshPath));
+            $t->true(!file_exists($stalePath));
+            $t->true(!file_exists($windowsPath));
+            $t->true(is_dir(syncthing_scanner_path($root, $tempDir)));
+            $t->true(file_exists(syncthing_scanner_path($root, $tempDir . '/leftover-block')));
+            $t->throws(InvalidArgumentException::class, static fn () => new FileInfoScanner($root, tempLifetimeSeconds: -1));
         } finally {
             syncthing_scanner_rm($root);
         }

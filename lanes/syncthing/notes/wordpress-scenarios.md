@@ -1172,7 +1172,7 @@ harness, so this worker ran `php tools/run-tests.php`; it passed 198 files,
 
 ## Next Task
 
-Map stale temporary-file lifetime cleanup during scanner walks.
+Map scanner subdir traversal guards for paths below symlinked parents.
 
 ## 2026-05-23 Scanner Resume Checkpoints
 
@@ -1204,3 +1204,38 @@ Verification for this batch:
   sampling; a second exact gate was clear, so this worker ran
   `php tools/run-tests.php`, which passed 198 files, 22059 assertions, and 0
   failures.
+
+## 2026-05-23 Scanner Temporary Cleanup
+
+Targeted upstream reads covered `lib/scanner/walk.go` `Config.TempLifetime`,
+the fixed scan `now`, the `fs.IsTemporary` branch that skips temporary names
+and removes stale regular temp files, `lib/model/folder.go` wiring from
+`KeepTemporariesH`, and `lib/fs/tempname.go` basename-prefix detection. No
+direct upstream package test for this cleanup branch was found; this batch uses
+static targeted upstream evidence plus native PHP behavior coverage.
+
+Native PHP `FileInfoScanner` now keeps the upstream default 24-hour temporary
+lifetime while allowing an explicit `tempLifetimeSeconds` override. During
+walks, temporary basenames are omitted from FileInfo output, stale regular temp
+files older than the configured lifetime are unlinked, fresh temp files are
+kept for reuse, and temp directories are left untouched. The WordPress example
+`wordpress-scanner-temporary-cleanup.php` shows a media publish scan advertising
+only the finalized upload while removing stale Unix and Windows temporary
+files.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FileInfoScanner.php` passed.
+- `php -l lanes/syncthing/tests/FileInfoScannerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-temporary-cleanup.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+  passed 1 file, 131 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2133
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-temporary-cleanup.php` ran
+  successfully and reported one advertised finalized media item, fresh temp
+  kept, stale Unix temp removed, and stale Windows temp removed.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active root harness, so this worker ran `php tools/run-tests.php`;
+  it passed 198 files, 22201 assertions, and 0 failures.

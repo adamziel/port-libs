@@ -6,6 +6,8 @@ namespace PortLibs\Syncthing;
 
 final class FileInfoScanner
 {
+    private const DEFAULT_TEMP_LIFETIME_SECONDS = 86400;
+
     private string $rootPath;
     private ?\Closure $xattrFilter;
     private ?\Closure $xattrLister;
@@ -32,6 +34,7 @@ final class FileInfoScanner
         private readonly int $modTimeWindowNs = 0,
         private readonly bool $autoNormalize = false,
         ?string $platformFamily = null,
+        private readonly int $tempLifetimeSeconds = self::DEFAULT_TEMP_LIFETIME_SECONDS,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -42,6 +45,9 @@ final class FileInfoScanner
         }
         if ($this->localFlags < 0 || $this->modTimeWindowNs < 0) {
             throw new \InvalidArgumentException('Scanner local flags and modification time window must not be negative');
+        }
+        if ($this->tempLifetimeSeconds < 0) {
+            throw new \InvalidArgumentException('Temporary file lifetime must not be negative');
         }
 
         $this->rootPath = rtrim($realRoot, DIRECTORY_SEPARATOR);
@@ -234,6 +240,7 @@ final class FileInfoScanner
         $seen = [];
         $subs = $subs === [] ? [''] : $subs;
         $currentByName = $this->currentFilesByName($currentFiles);
+        $scanNow = time();
 
         foreach ($subs as $sub) {
             if (!is_string($sub)) {
@@ -252,14 +259,14 @@ final class FileInfoScanner
 
             if ($name === '') {
                 foreach ($this->directoryEntries($path) as $entry) {
-                    if (!$this->walkPath($entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure)) {
+                    if (!$this->walkPath($entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure, $scanNow)) {
                         break 2;
                     }
                 }
                 continue;
             }
 
-            if (!$this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure)) {
+            if (!$this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure, $scanNow)) {
                 break;
             }
         }
@@ -611,6 +618,7 @@ final class FileInfoScanner
         array &$results,
         ?\Closure $errorLogger,
         ?\Closure $shouldCancel,
+        int $scanNow,
     ): bool {
         if (self::isCancelled($shouldCancel, $name)) {
             return false;
@@ -624,7 +632,11 @@ final class FileInfoScanner
         try {
             $this->assertValidUtf8Name($name);
 
-            if (RequestServer::isTemporaryName($name) || RequestServer::isInternalName($name)) {
+            if ($this->handleTemporaryPath($name, $path, $scanNow)) {
+                return true;
+            }
+
+            if (RequestServer::isInternalName($name)) {
                 return true;
             }
 
@@ -660,7 +672,7 @@ final class FileInfoScanner
                     }
 
                     foreach ($this->directoryEntries($path) as $entry) {
-                        if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results, $errorLogger, $shouldCancel)) {
+                        if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results, $errorLogger, $shouldCancel, $scanNow)) {
                             return false;
                         }
                     }
@@ -680,9 +692,25 @@ final class FileInfoScanner
 
         if ($isDirectory) {
             foreach ($this->directoryEntries($path) as $entry) {
-                if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLogger, $shouldCancel)) {
+                if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLogger, $shouldCancel, $scanNow)) {
                     return false;
                 }
+            }
+        }
+
+        return true;
+    }
+
+    private function handleTemporaryPath(string $name, string $path, int $scanNow): bool
+    {
+        if (!RequestServer::isTemporaryName($name)) {
+            return false;
+        }
+
+        if (!is_link($path) && is_file($path)) {
+            $modified = @filemtime($path);
+            if (is_int($modified) && $modified + $this->tempLifetimeSeconds < $scanNow) {
+                @unlink($path);
             }
         }
 
