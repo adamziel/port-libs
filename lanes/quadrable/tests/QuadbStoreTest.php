@@ -634,6 +634,56 @@ return [
             quadrableQuadbRemoveDir($targetDir);
         }
     },
+    'native quadb store retains mergeProof import garbage until quadb gc' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n"
+                . "wp_posts:2|Second post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $siteProofHex = $source->exportProofHex(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+            $postProofHex = $source->exportProofHex(['wp_posts:1'], Proof::ENCODING_FULL_KEYS);
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated-merge-gc');
+            $target->importProofHex($siteProofHex, $trustedRoot);
+            $target->mergeProofHex($postProofHex);
+
+            $before = $target->lmdbBucketSnapshot();
+            $beforeNodeCount = count($before['quadrable_nodesLeaf']) + count($before['quadrable_nodesInterior']);
+            $t->same('Published post', $target->get('wp_posts:1'));
+            $t->true(
+                quadrableQuadbRawBucketBytes($before) > $target->stats()['numBytes'],
+                'mergeProof import should leave unreferenced projected LMDB nodes before gc'
+            );
+
+            $gc = quadrableQuadbParseGcText($target->garbageCollectText());
+            $after = $target->lmdbBucketSnapshot();
+            $afterNodeCount = count($after['quadrable_nodesLeaf']) + count($after['quadrable_nodesInterior']);
+
+            $t->same($beforeNodeCount, $gc['total']);
+            $t->true($gc['garbage'] > 0);
+            $t->same($beforeNodeCount - $gc['garbage'], $afterNodeCount);
+            $t->same($target->stats()['numBytes'], quadrableQuadbRawBucketBytes($after));
+            $t->same('https://example.test', $target->get('wp_options:siteurl'));
+            $t->same('Published post', $target->get('wp_posts:1'));
+
+            $reopened = QuadbStore::open($targetDir);
+            $t->same($after, $reopened->lmdbBucketSnapshot());
+            $t->same("Collected 0/{$afterNodeCount} nodes\n", $reopened->garbageCollectText());
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
     'native quadb store persists proof-backed partial-head writes across reopen' => static function (TestRunner $t): void {
         $sourceDir = quadrableQuadbTempDir();
         $targetDir = quadrableQuadbTempDir();

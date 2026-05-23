@@ -238,81 +238,16 @@ final class QuadbStore
                 return $partialProjectionRoots[$stateKey];
             }
 
-            $partialSnapshot = $this->partialTreeFromState($state)->partialStorageSnapshot();
-            $idMap = [0 => 0];
-            $pending = [];
-
-            foreach ($partialSnapshot['leaves'] as $nativeNodeId => $leaf) {
-                $pending[(int) $nativeNodeId] = [
-                    'kind' => 'leaf',
-                    'record' => $leaf,
-                ];
-            }
-            foreach ($partialSnapshot['branches'] as $nativeNodeId => $branch) {
-                $pending[(int) $nativeNodeId] = [
-                    'kind' => $branch['type'] === 'witness' ? 'witness' : 'branch',
-                    'record' => $branch,
-                ];
-            }
-            ksort($pending, SORT_NUMERIC);
-
-            while ($pending !== []) {
-                $progress = false;
-
-                foreach ($pending as $nativeNodeId => $entry) {
-                    $record = $entry['record'];
-
-                    if ($entry['kind'] === 'leaf') {
-                        $mappedNodeId = $nextLeafNodeId++;
-                        $idMap[$nativeNodeId] = $mappedNodeId;
-                        $leaves[$mappedNodeId] = self::encodeLmdbPartialLeafNode($record);
-                        if ($this->trackKeys && isset($record['key']) && $record['key'] !== '') {
-                            $leafKeys[$mappedNodeId] = $record['key'];
-                        }
-                        unset($pending[$nativeNodeId]);
-                        $progress = true;
-
-                        continue;
-                    }
-
-                    if ($entry['kind'] === 'witness') {
-                        $mappedNodeId = $nextInteriorNodeId++;
-                        $idMap[$nativeNodeId] = $mappedNodeId;
-                        $branches[$mappedNodeId] = self::encodeLmdbWitnessNode($record);
-                        unset($pending[$nativeNodeId]);
-                        $progress = true;
-
-                        continue;
-                    }
-
-                    $leftNativeNodeId = (int) $record['leftNodeId'];
-                    $rightNativeNodeId = (int) $record['rightNodeId'];
-                    if (!array_key_exists($leftNativeNodeId, $idMap) || !array_key_exists($rightNativeNodeId, $idMap)) {
-                        continue;
-                    }
-
-                    $mappedNodeId = $nextInteriorNodeId++;
-                    $idMap[$nativeNodeId] = $mappedNodeId;
-                    $branches[$mappedNodeId] = self::encodeLmdbBranchNode([
-                        'leftNodeId' => $idMap[$leftNativeNodeId],
-                        'rightNodeId' => $idMap[$rightNativeNodeId],
-                        'hash' => $record['hash'],
-                    ]);
-                    unset($pending[$nativeNodeId]);
-                    $progress = true;
-                }
-
-                if (!$progress) {
-                    throw new \RuntimeException('partial proof storage projection contains unresolved child nodes');
-                }
-            }
-
-            ksort($leaves, SORT_NUMERIC);
-            ksort($leafKeys, SORT_NUMERIC);
-            ksort($branches, SORT_NUMERIC);
-
-            $rootNodeId = (int) $partialSnapshot['rootNodeId'];
-            $partialProjectionRoots[$stateKey] = $idMap[$rootNodeId] ?? 0;
+            $projectedNodes = [];
+            $partialProjectionRoots[$stateKey] = $this->projectPartialStateLmdbNodes(
+                $state,
+                $leaves,
+                $leafKeys,
+                $branches,
+                $nextLeafNodeId,
+                $nextInteriorNodeId,
+                $projectedNodes
+            );
 
             return $partialProjectionRoots[$stateKey];
         };
@@ -765,10 +700,14 @@ final class QuadbStore
         }
 
         $stats = $this->nodeStore->garbageCollect($extraRoots);
+        $partialStats = $this->garbageCollectPartialProofStorage();
         $this->pruneTrackedKeysToStoredLeaves();
         $this->persist();
 
-        return $stats;
+        return [
+            'total' => $stats['total'] + $partialStats['total'],
+            'garbage' => $stats['garbage'] + $partialStats['garbage'],
+        ];
     }
 
     public function garbageCollectText(): string
@@ -1263,6 +1202,7 @@ final class QuadbStore
             'proofRootHash' => $partial->rootHash(),
             'storageId' => self::partialStorageId($this->currentHead, $storageOrdinal, $encodedProof),
             'storageOrdinal' => $storageOrdinal,
+            'proofStoragePruned' => false,
             'proofs' => [bin2hex($encodedProof)],
             'updates' => [],
             'events' => [
@@ -1314,6 +1254,7 @@ final class QuadbStore
 
         $proofHex = bin2hex($encodedProof);
         $state['proofs'][] = $proofHex;
+        $state['proofStoragePruned'] = false;
         $state['events'][] = [
             'type' => 'proof',
             'rootHash' => $rootBeforeMerge,
@@ -1484,6 +1425,431 @@ final class QuadbStore
     }
 
     /**
+     * Projects a proof-backed head into upstream-shaped LMDB nodes. Before a
+     * native GC pass, proof events are replayed as separate importProof writes
+     * so mergeProof leaves the same kind of unreferenced imported nodes that the
+     * C++ store later sweeps.
+     *
+     * @param array<string, mixed> $state
+     * @param array<int, string> $leaves
+     * @param array<int, string> $leafKeys
+     * @param array<int, string> $branches
+     * @param array<int, array<string, mixed>> $projectedNodes
+     */
+    private function projectPartialStateLmdbNodes(
+        array $state,
+        array &$leaves,
+        array &$leafKeys,
+        array &$branches,
+        int &$nextLeafNodeId,
+        int &$nextInteriorNodeId,
+        array &$projectedNodes
+    ): int {
+        if (($state['proofStoragePruned'] ?? false) === true) {
+            return $this->projectPartialTreeLmdbNodes(
+                $this->partialTreeFromState($state),
+                $leaves,
+                $leafKeys,
+                $branches,
+                $nextLeafNodeId,
+                $nextInteriorNodeId,
+                $projectedNodes
+            );
+        }
+
+        $current = null;
+        $currentProjectedRoot = null;
+
+        foreach ($state['events'] as $event) {
+            if ($event['type'] === 'proof') {
+                $proof = Proof::decode((string) hex2bin($event['proof']));
+                $imported = SparseTree::importProof($proof, $event['rootHash']);
+                $importedProjectedRoot = $this->projectPartialTreeLmdbNodes(
+                    $imported,
+                    $leaves,
+                    $leafKeys,
+                    $branches,
+                    $nextLeafNodeId,
+                    $nextInteriorNodeId,
+                    $projectedNodes
+                );
+
+                if ($current === null) {
+                    $current = $imported;
+                    $currentProjectedRoot = $importedProjectedRoot;
+                    continue;
+                }
+
+                if ($current->rootHash() !== $event['rootHash']) {
+                    throw new \RuntimeException('partial proof event root mismatch');
+                }
+
+                $current->mergeProof($proof);
+                $currentProjectedRoot = $this->mergeProjectedProofNodes(
+                    (int) $currentProjectedRoot,
+                    $importedProjectedRoot,
+                    $projectedNodes,
+                    $branches,
+                    $nextInteriorNodeId
+                );
+                continue;
+            }
+
+            if ($current === null) {
+                throw new \RuntimeException('partial proof update occurred before proof import');
+            }
+
+            $rawUpdate = [
+                'delete' => $event['delete'],
+                'value' => $event['value'],
+            ];
+            if (isset($event['key'])) {
+                $rawUpdate['key'] = $event['key'];
+            }
+
+            $current->applyRawUpdates([
+                $event['keyHash'] => $rawUpdate,
+            ]);
+            $currentProjectedRoot = null;
+        }
+
+        if ($current === null) {
+            throw new \RuntimeException('partial proof state has no proofs');
+        }
+        if ($current->rootHash() !== $state['rootHash']) {
+            throw new \RuntimeException('partial proof state root mismatch');
+        }
+
+        if ($currentProjectedRoot !== null) {
+            return (int) $currentProjectedRoot;
+        }
+
+        return $this->projectPartialTreeLmdbNodes(
+            $this->partialTreeFromState($state),
+            $leaves,
+            $leafKeys,
+            $branches,
+            $nextLeafNodeId,
+            $nextInteriorNodeId,
+            $projectedNodes
+        );
+    }
+
+    /**
+     * @param array<int, string> $leaves
+     * @param array<int, string> $leafKeys
+     * @param array<int, string> $branches
+     * @param array<int, array<string, mixed>> $projectedNodes
+     */
+    private function projectPartialTreeLmdbNodes(
+        SparseTree $partial,
+        array &$leaves,
+        array &$leafKeys,
+        array &$branches,
+        int &$nextLeafNodeId,
+        int &$nextInteriorNodeId,
+        array &$projectedNodes
+    ): int {
+        $partialSnapshot = $partial->partialStorageSnapshot();
+        $idMap = [0 => 0];
+        $pending = [];
+
+        foreach ($partialSnapshot['leaves'] as $nativeNodeId => $leaf) {
+            $pending[(int) $nativeNodeId] = [
+                'kind' => 'leaf',
+                'record' => $leaf,
+            ];
+        }
+        foreach ($partialSnapshot['branches'] as $nativeNodeId => $branch) {
+            $pending[(int) $nativeNodeId] = [
+                'kind' => $branch['type'] === 'witness' ? 'witness' : 'branch',
+                'record' => $branch,
+            ];
+        }
+        ksort($pending, SORT_NUMERIC);
+
+        while ($pending !== []) {
+            $progress = false;
+
+            foreach ($pending as $nativeNodeId => $entry) {
+                $record = $entry['record'];
+
+                if ($entry['kind'] === 'leaf') {
+                    $mappedNodeId = $nextLeafNodeId++;
+                    $idMap[$nativeNodeId] = $mappedNodeId;
+                    $leaves[$mappedNodeId] = self::encodeLmdbPartialLeafNode($record);
+                    $projectedNodes[$mappedNodeId] = $record;
+                    if ($this->trackKeys && isset($record['key']) && $record['key'] !== '') {
+                        $leafKeys[$mappedNodeId] = $record['key'];
+                    }
+                    unset($pending[$nativeNodeId]);
+                    $progress = true;
+
+                    continue;
+                }
+
+                if ($entry['kind'] === 'witness') {
+                    $mappedNodeId = $nextInteriorNodeId++;
+                    $idMap[$nativeNodeId] = $mappedNodeId;
+                    $branches[$mappedNodeId] = self::encodeLmdbWitnessNode($record);
+                    $projectedNodes[$mappedNodeId] = $record;
+                    unset($pending[$nativeNodeId]);
+                    $progress = true;
+
+                    continue;
+                }
+
+                $leftNativeNodeId = (int) $record['leftNodeId'];
+                $rightNativeNodeId = (int) $record['rightNodeId'];
+                if (!array_key_exists($leftNativeNodeId, $idMap) || !array_key_exists($rightNativeNodeId, $idMap)) {
+                    continue;
+                }
+
+                $mappedNodeId = $nextInteriorNodeId++;
+                $mappedRecord = [
+                    'type' => 'branch',
+                    'leftNodeId' => $idMap[$leftNativeNodeId],
+                    'rightNodeId' => $idMap[$rightNativeNodeId],
+                    'hash' => $record['hash'],
+                ];
+                $idMap[$nativeNodeId] = $mappedNodeId;
+                $branches[$mappedNodeId] = self::encodeLmdbBranchNode($mappedRecord);
+                $projectedNodes[$mappedNodeId] = $mappedRecord;
+                unset($pending[$nativeNodeId]);
+                $progress = true;
+            }
+
+            if (!$progress) {
+                throw new \RuntimeException('partial proof storage projection contains unresolved child nodes');
+            }
+        }
+
+        ksort($leaves, SORT_NUMERIC);
+        ksort($leafKeys, SORT_NUMERIC);
+        ksort($branches, SORT_NUMERIC);
+
+        $rootNodeId = (int) $partialSnapshot['rootNodeId'];
+
+        return $idMap[$rootNodeId] ?? 0;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     * @param array<int, string> $branches
+     */
+    private function mergeProjectedProofNodes(
+        int $originalNodeId,
+        int $newNodeId,
+        array &$projectedNodes,
+        array &$branches,
+        int &$nextInteriorNodeId
+    ): int {
+        $original = $this->projectedNodeRecord($originalNodeId, $projectedNodes);
+        $new = $this->projectedNodeRecord($newNodeId, $projectedNodes);
+
+        if (($this->isProjectedWitnessAny($original) && !$this->isProjectedWitnessAny($new))
+            || ($original['type'] === 'witness' && $new['type'] === 'witnessLeaf')
+        ) {
+            return $newNodeId;
+        }
+
+        if ($original['type'] === 'branch' && $new['type'] === 'branch') {
+            $leftNodeId = $this->mergeProjectedProofNodes(
+                (int) $original['leftNodeId'],
+                (int) $new['leftNodeId'],
+                $projectedNodes,
+                $branches,
+                $nextInteriorNodeId
+            );
+            $rightNodeId = $this->mergeProjectedProofNodes(
+                (int) $original['rightNodeId'],
+                (int) $new['rightNodeId'],
+                $projectedNodes,
+                $branches,
+                $nextInteriorNodeId
+            );
+
+            if ($original['leftNodeId'] === $leftNodeId && $original['rightNodeId'] === $rightNodeId) {
+                return $originalNodeId;
+            }
+            if ($new['leftNodeId'] === $leftNodeId && $new['rightNodeId'] === $rightNodeId) {
+                return $newNodeId;
+            }
+
+            $nodeId = $nextInteriorNodeId++;
+            $record = [
+                'type' => 'branch',
+                'leftNodeId' => $leftNodeId,
+                'rightNodeId' => $rightNodeId,
+                'hash' => (new HashTree())->branchHash(
+                    $this->projectedNodeHash($leftNodeId, $projectedNodes),
+                    $this->projectedNodeHash($rightNodeId, $projectedNodes)
+                ),
+            ];
+            $branches[$nodeId] = self::encodeLmdbBranchNode($record);
+            $projectedNodes[$nodeId] = $record;
+            ksort($branches, SORT_NUMERIC);
+
+            return $nodeId;
+        }
+
+        return $originalNodeId;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     *
+     * @return array<string, mixed>
+     */
+    private function projectedNodeRecord(int $nodeId, array $projectedNodes): array
+    {
+        if ($nodeId === 0) {
+            return [
+                'type' => 'empty',
+                'hash' => HashTree::EMPTY_HASH,
+            ];
+        }
+        if (!isset($projectedNodes[$nodeId])) {
+            throw new \RuntimeException('partial proof storage projection references an unknown node');
+        }
+
+        return $projectedNodes[$nodeId];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     */
+    private function projectedNodeHash(int $nodeId, array $projectedNodes): string
+    {
+        return $this->projectedNodeRecord($nodeId, $projectedNodes)['hash'];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isProjectedWitnessAny(array $node): bool
+    {
+        return $node['type'] === 'witness' || $node['type'] === 'witnessLeaf';
+    }
+
+    /**
+     * @return array{total: int, garbage: int}
+     */
+    private function garbageCollectPartialProofStorage(): array
+    {
+        if ($this->partialProofHeads === [] && $this->partialDetachedHead === null) {
+            return [
+                'total' => 0,
+                'garbage' => 0,
+            ];
+        }
+
+        $leaves = [];
+        $leafKeys = [];
+        $branches = [];
+        $projectedNodes = [];
+        $nextLeafNodeId = 1;
+        $nextInteriorNodeId = TrackedNodeStore::FIRST_INTERIOR_NODE_ID;
+        $partialProjectionRoots = [];
+        $markedRoots = [];
+
+        $projectState = function (array $state) use (
+            &$leaves,
+            &$leafKeys,
+            &$branches,
+            &$projectedNodes,
+            &$nextLeafNodeId,
+            &$nextInteriorNodeId,
+            &$partialProjectionRoots
+        ): int {
+            $stateKey = hash(
+                'sha256',
+                json_encode($state, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+            );
+            if (isset($partialProjectionRoots[$stateKey])) {
+                return $partialProjectionRoots[$stateKey];
+            }
+
+            $partialProjectionRoots[$stateKey] = $this->projectPartialStateLmdbNodes(
+                $state,
+                $leaves,
+                $leafKeys,
+                $branches,
+                $nextLeafNodeId,
+                $nextInteriorNodeId,
+                $projectedNodes
+            );
+
+            return $partialProjectionRoots[$stateKey];
+        };
+
+        foreach ($this->partialProofHeads as $state) {
+            $markedRoots[] = $projectState($state);
+        }
+
+        if ($this->partialDetachedHead !== null) {
+            $detachedRoot = $projectState($this->partialDetachedHead);
+            if ($this->currentHead === null) {
+                $markedRoots[] = $detachedRoot;
+            }
+        }
+
+        $total = count($projectedNodes);
+        $marked = [];
+        foreach ($markedRoots as $rootNodeId) {
+            $this->markProjectedNodeReachable($rootNodeId, $projectedNodes, $marked);
+        }
+
+        $garbage = 0;
+        foreach (array_keys($projectedNodes) as $nodeId) {
+            if (!isset($marked[$nodeId])) {
+                $garbage++;
+            }
+        }
+
+        if ($garbage > 0) {
+            $this->markPartialProofStoragePruned();
+        }
+
+        return [
+            'total' => $total,
+            'garbage' => $garbage,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     * @param array<int, true> $marked
+     */
+    private function markProjectedNodeReachable(int $nodeId, array $projectedNodes, array &$marked): void
+    {
+        if ($nodeId === 0 || isset($marked[$nodeId])) {
+            return;
+        }
+        if (!isset($projectedNodes[$nodeId])) {
+            throw new \RuntimeException('partial proof GC root references an unknown node');
+        }
+
+        $marked[$nodeId] = true;
+        $node = $projectedNodes[$nodeId];
+        if ($node['type'] === 'branch') {
+            $this->markProjectedNodeReachable((int) $node['leftNodeId'], $projectedNodes, $marked);
+            $this->markProjectedNodeReachable((int) $node['rightNodeId'], $projectedNodes, $marked);
+        }
+    }
+
+    private function markPartialProofStoragePruned(): void
+    {
+        foreach ($this->partialProofHeads as $head => $state) {
+            $state['proofStoragePruned'] = true;
+            $this->partialProofHeads[$head] = $state;
+        }
+        if ($this->partialDetachedHead !== null) {
+            $this->partialDetachedHead['proofStoragePruned'] = true;
+        }
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function currentPartialProofState(): ?array
@@ -1611,6 +1977,7 @@ final class QuadbStore
         ]);
 
         $state['rootHash'] = $partial->rootHash();
+        $state['proofStoragePruned'] = false;
         $update = [
             'delete' => $delete,
             'keyHash' => $keyHash,
@@ -1648,6 +2015,7 @@ final class QuadbStore
         $partial->applyRawUpdates($updates);
 
         $state['rootHash'] = $partial->rootHash();
+        $state['proofStoragePruned'] = false;
         foreach ($updates as $keyHash => $update) {
             $record = [
                 'delete' => $update['delete'],
@@ -1826,11 +2194,21 @@ final class QuadbStore
             $storageId = self::legacyPartialStorageId($proofRootHash, $proofs, $updates, $events);
         }
 
+        $proofStoragePruned = false;
+        if (array_key_exists('proofStoragePruned', $state)) {
+            if (!is_bool($state['proofStoragePruned'])) {
+                throw new \InvalidArgumentException($label . ' has malformed proof storage GC flag');
+            }
+
+            $proofStoragePruned = $state['proofStoragePruned'];
+        }
+
         return [
             'rootHash' => $state['rootHash'],
             'proofRootHash' => $proofRootHash,
             'storageId' => $storageId,
             'storageOrdinal' => $storageOrdinal,
+            'proofStoragePruned' => $proofStoragePruned,
             'proofs' => $proofs,
             'updates' => $updates,
             'events' => $events,
