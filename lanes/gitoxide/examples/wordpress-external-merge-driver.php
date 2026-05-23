@@ -36,17 +36,56 @@ if ($command === null) {
     throw new RuntimeException('Expected an external WordPress merge driver');
 }
 
+$deletedBaseCommand = $choice->driver->prepareCommand(
+    $fixture['deletedBase']['ancestor'],
+    $fixture['deletedBase']['current'],
+    $fixture['deletedBase']['other'],
+    $fixture['relativePath'],
+    $fixture['ancestorLabel'],
+    $fixture['currentLabel'],
+    $fixture['otherLabel'],
+    $fixture['markerSize'],
+    worktreeDir: $worktree,
+);
+
+$tooLargeError = null;
+try {
+    $choice->driver->prepareCommand(
+        $fixture['tooLargeMedia']['ancestor'],
+        $fixture['tooLargeMedia']['current'],
+        $fixture['tooLargeMedia']['other'],
+        'wp-content/uploads/hero.avif',
+        worktreeDir: $worktree,
+        largeFileThresholdBytes: $fixture['tooLargeMedia']['threshold'],
+    );
+} catch (RuntimeException $exception) {
+    $tooLargeError = $exception->getMessage();
+}
+
+$currentBuffer = file_get_contents($command->currentPath);
+$result = $command->run(static function ($prepared) use ($fixture): int {
+    file_put_contents($prepared->currentPath, $fixture['expectedMerged']);
+
+    return 0;
+});
+
 $summary = [
     'driver' => $choice->name,
     'command' => $command->command,
     'tempFilesUnderWorktree' => str_starts_with($command->ancestorPath, $worktree)
         && str_starts_with($command->currentPath, $worktree)
         && str_starts_with($command->otherPath, $worktree),
-    'currentBuffer' => file_get_contents($command->currentPath),
+    'currentBuffer' => $currentBuffer,
+    'mergedBuffer' => $result->content,
+    'resultResolution' => $result->resolution,
+    'deletedBaseBuffer' => file_get_contents($deletedBaseCommand->ancestorPath),
+    'tooLargeMediaRejected' => $tooLargeError !== null,
+    'tooLargeMediaError' => $tooLargeError,
     'wordpressUse' => $fixture['wordpressUse'],
 ];
 
 $command->cleanup();
+$deletedBaseCommand->cleanup();
 @rmdir($worktree);
 
 return $summary;

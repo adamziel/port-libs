@@ -25,6 +25,14 @@ $media = BuiltinDriver::merge(
     $fixture['media']['theirs'],
 );
 
+$autoMediaDriver = BuiltinDriver::fromMergeAttribute($fixture['mediaAutoDetected']['state']);
+$autoMedia = BuiltinDriver::merge(
+    $autoMediaDriver,
+    $fixture['mediaAutoDetected']['base'],
+    $fixture['mediaAutoDetected']['ours'],
+    $fixture['mediaAutoDetected']['theirs'],
+);
+
 $themeDriver = BuiltinDriver::fromMergeAttribute($fixture['themeJson']['state']);
 $themeMarkerSize = BuiltinDriver::markerSizeFromAttribute($fixture['themeJson']['markerSize']);
 $theme = BuiltinDriver::merge(
@@ -49,6 +57,9 @@ echo 'notes-resolution=' . $notes->resolution . "\n";
 echo 'notes-content=' . str_replace("\n", '|', trim($notes->content)) . "\n";
 echo 'media-driver=' . $mediaDriver . "\n";
 echo 'media-resolution=' . $media->resolution . "\n";
+echo 'auto-media-driver=' . $autoMediaDriver . "\n";
+echo 'auto-media-resolution=' . $autoMedia->resolution . "\n";
+echo 'auto-media-picked=' . str_replace("\0", '\\0', $autoMedia->content) . "\n";
 echo 'theme-driver=' . $themeDriver . "\n";
 echo 'theme-marker-size=' . $themeMarkerSize . "\n";
 echo 'theme-content=' . str_replace("\n", '|', trim($theme->content)) . "\n";

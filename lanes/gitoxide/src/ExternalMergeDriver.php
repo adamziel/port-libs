@@ -91,9 +91,9 @@ final class ExternalMergeDriver
     }
 
     public function prepareCommand(
-        string $ancestor,
-        string $current,
-        string $other,
+        ?string $ancestor,
+        ?string $current,
+        ?string $other,
         string $relativePath,
         ?string $ancestorLabel = null,
         ?string $currentLabel = null,
@@ -101,15 +101,23 @@ final class ExternalMergeDriver
         int $markerSize = 7,
         ?string $worktreeDir = null,
         ?string $gitDir = null,
+        int $largeFileThresholdBytes = 0,
     ): ExternalMergeDriverCommand {
         if ($markerSize < 1 || $markerSize > 255) {
             throw new \InvalidArgumentException('External merge driver marker size must fit in a non-zero byte');
+        }
+        if ($largeFileThresholdBytes < 0) {
+            throw new \InvalidArgumentException('External merge driver large file threshold must not be negative');
         }
 
         $directory = $worktreeDir ?? $gitDir ?? getcwd();
         if ($directory === false || $directory === null || !is_dir($directory)) {
             throw new \InvalidArgumentException('External merge driver temp directory does not exist');
         }
+
+        $ancestor = self::resourceBytes($ancestor, 'CommonAncestorOrBase', $largeFileThresholdBytes);
+        $current = self::resourceBytes($current, 'CurrentOrOurs', $largeFileThresholdBytes);
+        $other = self::resourceBytes($other, 'OtherOrTheirs', $largeFileThresholdBytes);
 
         $ancestorPath = self::writeTemp($directory, $ancestor);
         $currentPath = self::writeTemp($directory, $current);
@@ -196,6 +204,18 @@ final class ExternalMergeDriver
         }
 
         return MergeDriverChoice::builtin(BuiltinDriver::TEXT);
+    }
+
+    private static function resourceBytes(?string $contents, string $kind, int $largeFileThresholdBytes): string
+    {
+        if ($contents === null) {
+            return '';
+        }
+        if ($largeFileThresholdBytes > 0 && strlen($contents) > $largeFileThresholdBytes) {
+            throw new \RuntimeException("The resource of kind {$kind} was too large to be processed");
+        }
+
+        return $contents;
     }
 
     private static function writeTemp(string $directory, string $contents): string

@@ -19,6 +19,12 @@ return [
         'ours' => "jpeg-local\0",
         'theirs' => "jpeg-remote\0",
     ],
+    'mediaAutoDetected' => [
+        'state' => BuiltinDriver::ATTRIBUTE_SET,
+        'base' => "avif-base\0",
+        'ours' => "avif-local\0",
+        'theirs' => "avif-remote\0",
+    ],
     'themeJson' => [
         'state' => BuiltinDriver::ATTRIBUTE_SET,
         'markerSize' => '9',

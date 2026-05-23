@@ -18,6 +18,30 @@ final class ExternalMergeDriverCommand
     ) {
     }
 
+    /**
+     * @param null|callable(self): int $runner
+     */
+    public function run(?callable $runner = null): BlobMergeResult
+    {
+        $exitCode = $runner === null ? self::runShellCommand($this->command) : $runner($this);
+
+        return $this->readResultFromExitCode($exitCode);
+    }
+
+    public function readResultFromExitCode(int $exitCode): BlobMergeResult
+    {
+        if ($exitCode !== 0) {
+            throw new \RuntimeException("External merge driver failed with non-zero exit status {$exitCode}: {$this->command}");
+        }
+
+        $contents = file_get_contents($this->currentPath);
+        if ($contents === false) {
+            throw new \RuntimeException('IO failed when dealing with merge-driver output');
+        }
+
+        return new BlobMergeResult($contents, BlobMergeResult::RESOLUTION_COMPLETE, 0);
+    }
+
     public function cleanup(): void
     {
         foreach ($this->temporaryPaths as $path) {
@@ -30,5 +54,24 @@ final class ExternalMergeDriverCommand
     public function __destruct()
     {
         $this->cleanup();
+    }
+
+    private static function runShellCommand(string $command): int
+    {
+        $null = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
+        $process = proc_open(
+            $command,
+            [
+                0 => ['file', $null, 'r'],
+                1 => ['file', $null, 'w'],
+                2 => ['file', $null, 'w'],
+            ],
+            $pipes,
+        );
+        if (!is_resource($process)) {
+            throw new \RuntimeException("Failed to launch external merge driver: {$command}");
+        }
+
+        return proc_close($process);
     }
 }

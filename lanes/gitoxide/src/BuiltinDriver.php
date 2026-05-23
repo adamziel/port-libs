@@ -70,11 +70,35 @@ final class BuiltinDriver
         ?string $theirsLabel = 'theirs',
         int $markerSize = 7,
         ?string $binaryResolveWith = null,
+        int $largeFileThresholdBytes = 0,
     ): BlobMergeResult {
-        return match (self::asString($driver)) {
+        if ($largeFileThresholdBytes < 0) {
+            throw new \InvalidArgumentException('Large file threshold must not be negative');
+        }
+
+        $driver = self::asString($driver);
+        if ($driver !== self::BINARY && self::shouldUseBinaryDriver($base, $ours, $theirs, $largeFileThresholdBytes)) {
+            $driver = self::BINARY;
+        }
+
+        return match ($driver) {
             self::TEXT => BlobMerge::mergeText($base, $ours, $theirs, $textStyle, $baseLabel, $oursLabel, $theirsLabel, $markerSize),
             self::UNION => BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_UNION, $baseLabel, $oursLabel, $theirsLabel, $markerSize),
             self::BINARY => BlobMerge::mergeBinary($base, $ours, $theirs, $binaryResolveWith),
         };
+    }
+
+    private static function shouldUseBinaryDriver(string $base, string $ours, string $theirs, int $largeFileThresholdBytes): bool
+    {
+        foreach ([$base, $ours, $theirs] as $buffer) {
+            if ($largeFileThresholdBytes > 0 && strlen($buffer) > $largeFileThresholdBytes) {
+                return true;
+            }
+            if (str_contains(substr($buffer, 0, 8000), "\0")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

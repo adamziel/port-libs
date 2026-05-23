@@ -71,6 +71,58 @@ return [
         $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $binaryTheirs->resolution);
         $t->same("theirs\0", $binaryTheirs->content);
     },
+    'text and union drivers fall back to binary for binary-like buffers' => static function (TestRunner $t): void {
+        $textFallback = BuiltinDriver::merge(
+            BuiltinDriver::TEXT,
+            "base",
+            "ours",
+            "theirs\0",
+        );
+        $textResolved = BuiltinDriver::merge(
+            BuiltinDriver::TEXT,
+            "base",
+            "ours",
+            "theirs\0",
+            binaryResolveWith: BlobMerge::PICK_THEIRS,
+        );
+        $sameBinary = BuiltinDriver::merge(
+            BuiltinDriver::TEXT,
+            "base",
+            "same\0buffer",
+            "same\0buffer",
+        );
+        $unionFallback = BuiltinDriver::merge(
+            BuiltinDriver::UNION,
+            "base",
+            "ours\0",
+            "theirs\0",
+        );
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $textFallback->resolution);
+        $t->same("ours", $textFallback->content);
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $textResolved->resolution);
+        $t->same("theirs\0", $textResolved->content);
+        $t->same(BlobMergeResult::RESOLUTION_COMPLETE, $sameBinary->resolution);
+        $t->same("same\0buffer", $sameBinary->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $unionFallback->resolution);
+        $t->same("ours\0", $unionFallback->content);
+    },
+    'text driver falls back to binary for large buffers before diffing' => static function (TestRunner $t): void {
+        $largeFallback = BuiltinDriver::merge(
+            BuiltinDriver::TEXT,
+            'base',
+            'ours',
+            'unspecified',
+            largeFileThresholdBytes: 9,
+        );
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $largeFallback->resolution);
+        $t->same('ours', $largeFallback->content);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => BuiltinDriver::merge(BuiltinDriver::TEXT, '', '', '', largeFileThresholdBytes: -1),
+        );
+    },
     'wordpress builtin merge driver fixture maps attributes to native drivers' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-builtin-merge-driver.php';
 
@@ -87,6 +139,13 @@ return [
             $fixture['media']['base'],
             $fixture['media']['ours'],
             $fixture['media']['theirs'],
+        );
+        $autoMediaDriver = BuiltinDriver::fromMergeAttribute($fixture['mediaAutoDetected']['state']);
+        $autoMedia = BuiltinDriver::merge(
+            $autoMediaDriver,
+            $fixture['mediaAutoDetected']['base'],
+            $fixture['mediaAutoDetected']['ours'],
+            $fixture['mediaAutoDetected']['theirs'],
         );
         $themeDriver = BuiltinDriver::fromMergeAttribute($fixture['themeJson']['state']);
         $theme = BuiltinDriver::merge(
@@ -111,6 +170,9 @@ return [
         $t->same(BuiltinDriver::BINARY, $mediaDriver);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $media->resolution);
         $t->same($fixture['media']['ours'], $media->content);
+        $t->same(BuiltinDriver::TEXT, $autoMediaDriver);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $autoMedia->resolution);
+        $t->same($fixture['mediaAutoDetected']['ours'], $autoMedia->content);
         $t->same(BuiltinDriver::TEXT, $themeDriver);
         $t->same($fixture['themeJson']['expected'], $theme->content);
         $t->same(BuiltinDriver::TEXT, $unknownDriver);

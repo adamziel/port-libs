@@ -20,5 +20,17 @@ return [
     'ancestor' => "{\"settings\":{\"layout\":\"base\"}}\n",
     'current' => "{\"settings\":{\"layout\":\"wide\"}}\n",
     'other' => "{\"settings\":{\"layout\":\"boxed\"}}\n",
-    'wordpressUse' => 'A PHP deployment tool can prepare a configured WordPress JSON merge driver command and tempfiles for review without executing the external driver in shared-hosting or Playground contexts.',
+    'expectedMerged' => "{\"settings\":{\"layout\":\"wide\",\"contentSize\":\"840px\"}}\n",
+    'deletedBase' => [
+        'ancestor' => null,
+        'current' => "{\"version\":2,\"settings\":{}}\n",
+        'other' => "{\"version\":2,\"settings\":{\"layout\":{\"contentSize\":\"840px\"}}}\n",
+    ],
+    'tooLargeMedia' => [
+        'ancestor' => "avif-base\n",
+        'current' => "avif-current\n",
+        'other' => "oversized-avif-binary-placeholder",
+        'threshold' => 13,
+    ],
+    'wordpressUse' => 'A PHP deployment tool can prepare a configured WordPress JSON merge driver command, treat deleted theme.json bases as empty driver tempfiles, reject too-large media-like resources before driver execution, let an approved driver overwrite the current tempfile, and read the merged theme.json buffer back without invoking Git.',
 ];
