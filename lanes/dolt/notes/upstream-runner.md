@@ -16,7 +16,7 @@
 - Native PHP verification:
   - Focused `ConstraintViolationsTableTest.php`: `9` behavior tests, `34` assertions, `0` failures.
   - Dolt lane-only PHP: `19` test files, `193` behavior tests, `972` assertions, `0` failures.
-  - Required root `php tools/run-tests.php`: exit `0`; `183` test files, `18,198` assertions, `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0`; `183` test files, `18,203` assertions, `0` failures.
 - Boundary unchanged: this maps per-table constraint-violation cleanup semantics, not a general SQL DELETE engine or full upstream `go test ./...` / full BATS parity.
 
 ## Implementation Lane 2026-05-23 Foreign-Key Constraint-Violation Metadata
