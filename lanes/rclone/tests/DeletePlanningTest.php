@@ -210,6 +210,50 @@ return [
         $t->same('target-dir', $diagnostics['duplicateDestinations'][0]['kept']->id);
         $t->same('interrupted-dir', $diagnostics['duplicateDestinations'][0]['ignored']->id);
     },
+    'match listings rejects out of order source and destination entry streams' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('b.wxr', 'b');
+        $source->put('a.sql', 'a');
+        $target->put('z.wxr', 'z');
+        $target->put('c.sql', 'c');
+        $plan = new SyncPlan();
+
+        try {
+            $plan->matchListingDiagnosticsFromEntries(
+                [$source->info('b.wxr'), $source->info('a.sql')],
+                [],
+            );
+            throw new RuntimeException('source order guard did not fire');
+        } catch (RuntimeException $throwable) {
+            $t->same('Out of order listing in source', $throwable->getMessage());
+        }
+
+        try {
+            $plan->matchListingDiagnosticsFromEntries(
+                [],
+                [$target->info('z.wxr'), $target->info('c.sql')],
+            );
+            throw new RuntimeException('destination order guard did not fire');
+        } catch (RuntimeException $throwable) {
+            $t->same('Out of order listing in destination', $throwable->getMessage());
+        }
+    },
+    'match listings treats object before same-path directory as out of order' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $source->mkdir('exports', ['id' => 'source-dir']);
+        $source->put('exports', '<rss>directory marker object</rss>');
+
+        try {
+            (new SyncPlan())->matchListingDiagnosticsFromEntries(
+                [$source->info('exports'), $source->directoryInfo('exports')],
+                [],
+            );
+            throw new RuntimeException('directory type order guard did not fire');
+        } catch (RuntimeException $throwable) {
+            $t->same('Out of order listing in source', $throwable->getMessage());
+        }
+    },
     'wordpress duplicate source listing example preserves first export entry' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-duplicate-source-listing.php';
 
@@ -244,6 +288,18 @@ return [
         $t->same(['published-month'], $example['keptDirectoryIds']);
         $t->same(['interrupted-restore-month'], $example['ignoredDirectoryIds']);
         $t->same(hash('sha256', 'directory marker bytes'), $example['markerObjectHash']);
+    },
+    'wordpress match listing order guard example reports unsorted provider batch' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-matchlisting-order-guard.php';
+
+        $t->same([
+            'wp-content/uploads/2026/05/hero.jpg',
+            'database/site.sql',
+            'exports/site.wxr',
+        ], $example['sourceEntryOrder']);
+        $t->same('Out of order listing in source', $example['error']);
+        $t->same([], $example['matches']);
+        $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
     },
     'ignore existing skips changed destination objects like upstream sync' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
@@ -470,6 +526,147 @@ return [
         $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
         $t->throws(RuntimeException::class, static fn () => $target->get('wp-content/uploads/2024/01/obsolete.jpg'));
     },
+    'delete before sync prunes empty destination directories after backup dir moves' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('database/site.sql', 'insert into wp_posts values (...)');
+        $source->put('exports/site.wxr', '<rss>current</rss>');
+        $source->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes');
+
+        $target->put('exports/site.wxr', '<rss>stale published export</rss>');
+        $target->mkdir('exports/retired');
+        $target->put('exports/retired/old-site.wxr', '<rss>old export</rss>');
+        $target->mkdir('wp-content/uploads/2024');
+        $target->mkdir('wp-content/uploads/2024/01');
+        $target->put('wp-content/uploads/2024/01/obsolete.jpg', 'obsolete image bytes');
+        $target->mkdir('wp-content/cache');
+        $target->put('wp-content/cache/orphan.html', '<html>stale cache</html>');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ exports/retired/**',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $result = (new SyncPlan())->syncWithDeleteMode(
+            $source,
+            $target,
+            $filter,
+            deleteMode: DeleteMode::BEFORE,
+            backupPrefix: 'archive/2026-05-22',
+            suffix: '-previous',
+            suffixKeepExtension: true,
+        );
+
+        $t->same([
+            'archive/2026-05-22/exports/retired/old-site-previous.wxr',
+            'archive/2026-05-22/wp-content/uploads/2024/01/obsolete-previous.jpg',
+        ], array_map(static fn ($info): string => $info->path, $result['deleted']));
+        $t->same([
+            'wp-content/uploads/2024/01',
+            'wp-content/uploads/2024',
+            'exports/retired',
+        ], array_map(static fn ($info): string => $info->path, $result['deletePassPrunedDirectories']));
+        $t->same([], $result['prunedDirectories']);
+        $t->same('<rss>old export</rss>', $target->get('archive/2026-05-22/exports/retired/old-site-previous.wxr'));
+        $t->same('obsolete image bytes', $target->get('archive/2026-05-22/wp-content/uploads/2024/01/obsolete-previous.jpg'));
+        $t->throws(RuntimeException::class, static fn () => $target->directoryInfo('exports/retired'));
+        $t->throws(RuntimeException::class, static fn () => $target->directoryInfo('wp-content/uploads/2024'));
+        $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
+        $t->same('archive/2026-05-22/exports/retired', $target->directoryInfo('archive/2026-05-22/exports/retired')->path);
+    },
+    'rmdirs removes empty subtrees and root candidate like upstream operations' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('A1');
+        $provider->mkdir('A1/B1');
+        $provider->mkdir('A1/B1/C1');
+        $provider->put('A1/B1/C1/one', 'aaa');
+        $provider->mkdir('A2');
+        $provider->mkdir('A1/B2');
+        $provider->mkdir('A1/B2/C2');
+        $provider->mkdir('A1/B1/C3');
+        $provider->mkdir('A3');
+        $provider->mkdir('A3/B3');
+        $provider->mkdir('A3/B3/C4');
+        $provider->put('A1/two', 'bbb');
+
+        $plan = new SyncPlan();
+        $removed = $plan->removeEmptyDirectories($provider, 'A3/B3/C4');
+        $t->same(['A3/B3/C4'], array_map(static fn ($info): string => $info->path, $removed));
+        $t->same('A3/B3', $provider->directoryInfo('A3/B3')->path);
+
+        $plan->removeEmptyDirectories($provider);
+        $t->same([
+            'A1',
+            'A1/B1',
+            'A1/B1/C1',
+        ], array_map(static fn ($info): string => $info->path, $provider->directories()));
+
+        $provider->delete('A1/B1/C1/one');
+        $provider->delete('A1/two');
+        $removed = $plan->removeEmptyDirectories($provider);
+        $t->same(['A1/B1/C1', 'A1/B1', 'A1', ''], array_map(static fn ($info): string => $info->path, $removed));
+        $t->same([], $provider->directories());
+    },
+    'rmdirs leave root preserves requested empty root directory' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('A1');
+        $provider->mkdir('A1/B1');
+        $provider->mkdir('A1/B1/C1');
+
+        $removed = (new SyncPlan())->removeEmptyDirectories($provider, 'A1', leaveRoot: true);
+
+        $t->same(['A1/B1/C1', 'A1/B1'], array_map(static fn ($info): string => $info->path, $removed));
+        $t->same(['A1'], array_map(static fn ($info): string => $info->path, $provider->directories()));
+    },
+    'rmdirs applies include filters to empty directory candidates' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('A1');
+        $provider->mkdir('A1/B1');
+        $provider->mkdir('A1/B1/C1');
+
+        $filter = FilterRuleSet::fromRules([
+            '+ /A1/B1/**',
+            '- *',
+        ]);
+        $removed = (new SyncPlan())->removeEmptyDirectories($provider, filter: $filter);
+
+        $t->same(['A1/B1/C1', 'A1/B1'], array_map(static fn ($info): string => $info->path, $removed));
+        $t->same(['A1'], array_map(static fn ($info): string => $info->path, $provider->directories()));
+    },
+    'rmdirs counts provider rmdir errors caused by filtered out files' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('A1');
+        $provider->put('A1/excluded.tmp', 'keep');
+        $provider->mkdir('A2');
+        $provider->put('A2/excluded.tmp', 'keep');
+        $provider->mkdir('A3');
+
+        $filter = FilterRuleSet::fromRules([
+            '- *.tmp',
+            '+ /A1/**',
+            '+ /A2/**',
+            '+ /A3/**',
+            '- *',
+        ]);
+
+        $error = null;
+        try {
+            (new SyncPlan())->removeEmptyDirectories($provider, filter: $filter);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('failed to remove directories: 2 errors: last error: Directory not empty: A2', $error?->getMessage());
+        $t->same('A1', $provider->directoryInfo('A1')->path);
+        $t->same('A2', $provider->directoryInfo('A2')->path);
+        $t->throws(RuntimeException::class, static fn () => $provider->directoryInfo('A3'));
+        $t->same('keep', $provider->get('A1/excluded.tmp'));
+        $t->same('keep', $provider->get('A2/excluded.tmp'));
+    },
     'delete before sync stops before copy pass when max delete guard trips' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
@@ -553,6 +750,34 @@ return [
         $t->same('<rss>stale published export</rss>', $example['publishedExportBytes']);
         $t->same(false, $example['databaseCopied']);
         $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
+    },
+    'wordpress delete before empty directory prune example keeps backup archive dirs' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-delete-before-empty-dir-prune.php';
+
+        $t->same([
+            'wp-content/uploads/2024/01',
+            'wp-content/uploads/2024',
+            'exports/retired',
+        ], $example['prunedDirectories']);
+        $t->same('<rss>old export</rss>', $example['archivedOldExportBytes']);
+        $t->same('obsolete image bytes', $example['archivedObsoleteUploadBytes']);
+        $t->same(false, $example['staleExportDirectoryExists']);
+        $t->same(false, $example['staleUploadDirectoryExists']);
+        $t->same(true, $example['backupArchiveDirectoryExists']);
+        $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
+    },
+    'wordpress rmdirs upload prune example leaves upload root and non-empty months' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-rmdirs-upload-prune.php';
+
+        $t->same([
+            'wp-content/uploads/2024/01',
+            'wp-content/uploads/2024',
+        ], $example['prunedDirectories']);
+        $t->same(true, $example['uploadRootExists']);
+        $t->same(true, $example['currentMonthExists']);
+        $t->same(false, $example['staleMonthExists']);
+        $t->same('current image bytes', $example['currentUploadBytes']);
+        $t->same('<html>cache</html>', $example['cacheLeftUntouched']);
     },
     'no traverse wordpress backup copy probes only included artifact destinations' => static function (TestRunner $t): void {
         $source = new MemoryProvider();

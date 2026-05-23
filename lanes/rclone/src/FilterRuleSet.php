@@ -67,6 +67,17 @@ final class FilterRuleSet
         return true;
     }
 
+    public function includesRemote(string $path): bool
+    {
+        foreach ($this->rules as $rule) {
+            if ($this->matchesRawRegex($rule['regex'], $path)) {
+                return $rule['include'];
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @return list<string>
      */
@@ -76,5 +87,15 @@ final class FilterRuleSet
             static fn (array $rule): string => ($rule['include'] ? '+ ' : '- ') . $rule['regex'],
             $this->rules,
         );
+    }
+
+    private function matchesRawRegex(string $regex, string $path): bool
+    {
+        $result = preg_match('~' . str_replace('~', '\\~', $regex) . '~', preg_replace('#/+#', '/', $path) ?? $path);
+        if ($result === false) {
+            throw new \InvalidArgumentException("bad regex {$regex}");
+        }
+
+        return $result === 1;
     }
 }

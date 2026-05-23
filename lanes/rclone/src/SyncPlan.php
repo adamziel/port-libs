@@ -69,6 +69,58 @@ final class SyncPlan
     ): array {
         $sourceListing = $this->diagnosticListing($source, $filter, $ignoreCaseSync, 'source', $includeDirectories);
         $targetListing = $this->diagnosticListing($target, $filter, $ignoreCaseSync, 'destination', $includeDirectories);
+
+        return $this->mergeDiagnosticListings($sourceListing, $targetListing);
+    }
+
+    /**
+     * Model matchListings when callers already have source/destination entries
+     * in upstream channel order. Unlike provider-backed diagnostics, this path
+     * does not sort before matching: a decreasing key raises the same guard as
+     * upstream's "Out of order listing" panic, surfaced as a PHP exception.
+     *
+     * @param list<ObjectInfo> $sourceEntries
+     * @param list<ObjectInfo> $targetEntries
+     * @return array{
+     *     matches: list<array{source: ObjectInfo, destination: ObjectInfo}>,
+     *     sourceOnly: list<ObjectInfo>,
+     *     destinationOnly: list<ObjectInfo>,
+     *     duplicateSources: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>,
+     *     duplicateDestinations: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * }
+     */
+    public function matchListingDiagnosticsFromEntries(
+        array $sourceEntries,
+        array $targetEntries,
+        bool $ignoreCaseSync = false,
+    ): array {
+        $sourceListing = $this->diagnosticListingFromOrderedEntries($sourceEntries, $ignoreCaseSync, 'source');
+        $targetListing = $this->diagnosticListingFromOrderedEntries($targetEntries, $ignoreCaseSync, 'destination');
+
+        return $this->mergeDiagnosticListings($sourceListing, $targetListing);
+    }
+
+    /**
+     * @param array{
+     *     paths: array<string, ObjectInfo>,
+     *     order: array<string, array{pathKey: string, type: string}>,
+     *     duplicates: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * } $sourceListing
+     * @param array{
+     *     paths: array<string, ObjectInfo>,
+     *     order: array<string, array{pathKey: string, type: string}>,
+     *     duplicates: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * } $targetListing
+     * @return array{
+     *     matches: list<array{source: ObjectInfo, destination: ObjectInfo}>,
+     *     sourceOnly: list<ObjectInfo>,
+     *     destinationOnly: list<ObjectInfo>,
+     *     duplicateSources: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>,
+     *     duplicateDestinations: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * }
+     */
+    private function mergeDiagnosticListings(array $sourceListing, array $targetListing): array
+    {
         $sourcePaths = $sourceListing['paths'];
         $targetPaths = $targetListing['paths'];
         $entryOrder = $sourceListing['order'] + $targetListing['order'];
@@ -376,7 +428,7 @@ final class SyncPlan
      * a copy-only pass. That second pass may use --no-traverse because delete
      * traversal is no longer active.
      *
-     * @return array{copied: list<ObjectInfo>, deleted: list<ObjectInfo>, deleteMode: string, deletePassNoTraverse: ?array<string, mixed>}
+     * @return array{copied: list<ObjectInfo>, deleted: list<ObjectInfo>, prunedDirectories: list<ObjectInfo>, deleteMode: string, deletePassNoTraverse: ?array<string, mixed>, deletePassPrunedDirectories: list<ObjectInfo>}
      */
     public function syncWithDeleteMode(
         MemoryProvider $source,
@@ -396,6 +448,8 @@ final class SyncPlan
     ): array {
         $deleteMode = DeleteMode::normalize($deleteMode);
         $deleted = [];
+        $prunedDirectories = [];
+        $deletePassPrunedDirectories = [];
         $deletePassNoTraverse = null;
 
         if ($deleteMode === DeleteMode::ONLY) {
@@ -403,6 +457,13 @@ final class SyncPlan
                 $deletePassNoTraverse = $this->disabledNoTraverseStats(DeleteMode::ONLY);
             }
             $noTraverseStats = null;
+            $deletePassDirectoryCandidates = $this->destinationOnlyDirectoryCandidates(
+                $source,
+                $target,
+                $filter,
+                $deleteExcluded,
+                $ignoreCaseSync,
+            );
             $deleted = $this->deleteDestinationOnly(
                 $source,
                 $target,
@@ -417,12 +478,19 @@ final class SyncPlan
                 suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
             );
+            $prunedDirectories = $this->pruneEmptyDirectoryCandidates(
+                $target,
+                $deletePassDirectoryCandidates,
+                $backupPrefix,
+            );
 
             return [
                 'copied' => [],
                 'deleted' => $deleted,
+                'prunedDirectories' => $prunedDirectories,
                 'deleteMode' => $deleteMode,
                 'deletePassNoTraverse' => $deletePassNoTraverse,
+                'deletePassPrunedDirectories' => $deletePassPrunedDirectories,
             ];
         }
 
@@ -431,6 +499,13 @@ final class SyncPlan
             if ($noTraverse) {
                 $deletePassNoTraverse = $this->disabledNoTraverseStats(DeleteMode::ONLY);
             }
+            $deletePassDirectoryCandidates = $this->destinationOnlyDirectoryCandidates(
+                $source,
+                $target,
+                $filter,
+                $deleteExcluded,
+                $ignoreCaseSync,
+            );
             $deleted = $this->deleteDestinationOnly(
                 $source,
                 $target,
@@ -444,6 +519,11 @@ final class SyncPlan
                 suffix: $suffix,
                 suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
+            );
+            $deletePassPrunedDirectories = $this->pruneEmptyDirectoryCandidates(
+                $target,
+                $deletePassDirectoryCandidates,
+                $backupPrefix,
             );
         }
 
@@ -462,6 +542,13 @@ final class SyncPlan
         );
 
         if ($deleteMode !== DeleteMode::OFF && $deleteMode !== DeleteMode::BEFORE) {
+            $directoryCandidates = $this->destinationOnlyDirectoryCandidates(
+                $source,
+                $target,
+                $filter,
+                $deleteExcluded,
+                $ignoreCaseSync,
+            );
             $deleted = $this->deleteDestinationOnly(
                 $source,
                 $target,
@@ -476,13 +563,20 @@ final class SyncPlan
                 suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
             );
+            $prunedDirectories = $this->pruneEmptyDirectoryCandidates(
+                $target,
+                $directoryCandidates,
+                $backupPrefix,
+            );
         }
 
         return [
             'copied' => $copied,
             'deleted' => $deleted,
+            'prunedDirectories' => $prunedDirectories,
             'deleteMode' => $deleteMode,
             'deletePassNoTraverse' => $deletePassNoTraverse,
+            'deletePassPrunedDirectories' => $deletePassPrunedDirectories,
         ];
     }
 
@@ -2304,6 +2398,157 @@ final class SyncPlan
         return $deleted;
     }
 
+    /**
+     * Model syncCopyMove.deleteEmptyDirectories for destination-only dirs.
+     *
+     * Upstream records directories that are missing from the source during the
+     * destination march, then tries to remove them deepest-first after file
+     * deletes. TryRmdir errors are logged and ignored, so non-empty or already
+     * vanished synthetic parents do not abort the sync.
+     *
+     * @return list<ObjectInfo>
+     */
+    public function pruneEmptyDestinationDirectories(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        bool $deleteExcluded = false,
+        string $backupPrefix = '',
+        bool $ignoreCaseSync = false,
+    ): array {
+        return $this->pruneEmptyDirectoryCandidates(
+            $target,
+            $this->destinationOnlyDirectoryCandidates($source, $target, $filter, $deleteExcluded, $ignoreCaseSync),
+            $backupPrefix,
+        );
+    }
+
+    /**
+     * Model operations.Rmdirs for standalone empty-directory pruning.
+     *
+     * Rclone builds an emptiness map from the filtered walk, then attempts
+     * provider Rmdir calls deepest-first. Filtered-out objects can still make
+     * provider Rmdir fail; those errors are counted and reported after every
+     * same-level candidate has been attempted.
+     *
+     * @return list<ObjectInfo>
+     */
+    public function removeEmptyDirectories(
+        MemoryProvider $provider,
+        string $dir = '',
+        bool $leaveRoot = false,
+        ?FilterRuleSet $filter = null,
+        int $maxDepth = -1,
+    ): array {
+        $dir = self::normalizePath($dir);
+        $provider->directoryInfo($dir);
+
+        $dirEmpty = [$dir => !$leaveRoot];
+        foreach ($provider->directories($dir) as $directory) {
+            if (!self::pathIsOrUnderRmdirRoot($directory->path, $dir)) {
+                continue;
+            }
+            if (!$this->withinRmdirsDepth($directory->path, $dir, $maxDepth)) {
+                continue;
+            }
+            if (!array_key_exists($directory->path, $dirEmpty)) {
+                $dirEmpty[$directory->path] = true;
+            }
+        }
+
+        foreach ($provider->list($dir) as $object) {
+            if (!self::pathIsOrUnderRmdirRoot($object->path, $dir)) {
+                continue;
+            }
+            if (!$this->withinRmdirsDepth($object->path, $dir, $maxDepth)) {
+                continue;
+            }
+            if ($filter !== null && !$filter->includes($object->path)) {
+                continue;
+            }
+
+            $parent = $object->path;
+            while ($parent !== '') {
+                $parent = self::parentPath($parent);
+                if (array_key_exists($parent, $dirEmpty) && $dirEmpty[$parent] === false) {
+                    break;
+                }
+                $dirEmpty[$parent] = false;
+            }
+        }
+
+        $toDelete = [];
+        foreach ($dirEmpty as $path => $empty) {
+            if (!$empty || !$this->rmdirsFilterIncludesRemote($path, $filter)) {
+                continue;
+            }
+
+            $toDelete[self::pathLevel($path)][] = $path;
+        }
+
+        if ($toDelete === []) {
+            return [];
+        }
+
+        krsort($toDelete, SORT_NUMERIC);
+        $removed = [];
+        $errorCount = 0;
+        $lastError = null;
+        foreach ($toDelete as $paths) {
+            sort($paths, SORT_STRING);
+            foreach ($paths as $path) {
+                try {
+                    $removed[] = $provider->rmdir($path);
+                } catch (\RuntimeException $throwable) {
+                    $errorCount++;
+                    $lastError = $throwable;
+                }
+            }
+        }
+
+        if ($errorCount === 1 && $lastError !== null) {
+            throw new \RuntimeException('failed to remove directories: ' . $lastError->getMessage(), 0, $lastError);
+        }
+        if ($errorCount > 1 && $lastError !== null) {
+            throw new \RuntimeException(
+                sprintf('failed to remove directories: %d errors: last error: %s', $errorCount, $lastError->getMessage()),
+                0,
+                $lastError,
+            );
+        }
+
+        return $removed;
+    }
+
+    /**
+     * @param list<ObjectInfo> $candidates
+     * @return list<ObjectInfo>
+     */
+    private function pruneEmptyDirectoryCandidates(MemoryProvider $target, array $candidates, string $backupPrefix): array
+    {
+        $backupPrefix = self::normalizePath($backupPrefix);
+        usort(
+            $candidates,
+            static fn (ObjectInfo $left, ObjectInfo $right): int => self::pathLevel($right->path) <=> self::pathLevel($left->path)
+                ?: $right->path <=> $left->path
+                ?: ($right->providerKey ?? '') <=> ($left->providerKey ?? ''),
+        );
+
+        $removed = [];
+        foreach ($candidates as $directory) {
+            if ($backupPrefix !== '' && self::pathUnderPrefix($directory->path, $backupPrefix)) {
+                continue;
+            }
+            try {
+                $removed[] = $target->rmdir($directory->path);
+            } catch (\RuntimeException) {
+                // TryRmdir errors are intentionally non-fatal in sync cleanup.
+            }
+        }
+
+        return $removed;
+    }
+
     public static function backupPath(
         string $path,
         string $backupPrefix = '',
@@ -2499,6 +2744,51 @@ final class SyncPlan
     }
 
     /**
+     * @return array<string, ObjectInfo>
+     */
+    private function listedDirectoryPaths(MemoryProvider $provider, ?FilterRuleSet $filter, bool $ignoreCaseSync = false): array
+    {
+        $paths = [];
+        foreach ($provider->directories() as $info) {
+            if ($info->path === '' || !$this->filterAllowsDirectory($provider, $info->path, $filter)) {
+                continue;
+            }
+
+            $key = $ignoreCaseSync ? $this->syncPathKey($info->path) : $info->path;
+            if (!isset($paths[$key])) {
+                $paths[$key] = $info;
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    private function destinationOnlyDirectoryCandidates(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter,
+        bool $deleteExcluded,
+        bool $ignoreCaseSync,
+    ): array {
+        $sourceDirs = $this->listedDirectoryPaths($source, $filter, $ignoreCaseSync);
+        $targetDirs = $this->listedDirectoryPaths($target, $deleteExcluded ? null : $filter, $ignoreCaseSync);
+
+        $candidates = [];
+        foreach ($targetDirs as $pathKey => $targetDir) {
+            if ($targetDir->path === '' || isset($sourceDirs[$pathKey])) {
+                continue;
+            }
+
+            $candidates[] = $targetDir;
+        }
+
+        return $candidates;
+    }
+
+    /**
      * @return array{
      *     paths: array<string, ObjectInfo>,
      *     order: array<string, array{pathKey: string, type: string}>,
@@ -2534,6 +2824,70 @@ final class SyncPlan
                 'ignored' => $entry['info'],
                 'message' => $message,
             ];
+        }
+
+        return [
+            'paths' => $paths,
+            'order' => $order,
+            'duplicates' => $duplicates,
+        ];
+    }
+
+    /**
+     * @param list<ObjectInfo> $entries
+     * @return array{
+     *     paths: array<string, ObjectInfo>,
+     *     order: array<string, array{pathKey: string, type: string}>,
+     *     duplicates: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     * }
+     */
+    private function diagnosticListingFromOrderedEntries(array $entries, bool $ignoreCaseSync, string $side): array
+    {
+        $paths = [];
+        $order = [];
+        $duplicates = [];
+        $previous = null;
+        $sequence = 0;
+
+        foreach ($entries as $info) {
+            if (!$info instanceof ObjectInfo) {
+                throw new \RuntimeException('unknown object type ' . get_debug_type($info));
+            }
+
+            $entry = $this->diagnosticEntry(
+                $info,
+                ListDirectory::isDirectory($info) ? 'directory' : 'object',
+                $ignoreCaseSync,
+                $sequence++,
+            );
+            $entryKey = $entry['pathKey'] . "\0" . $entry['type'];
+
+            if ($previous !== null) {
+                $comparison = $this->compareDiagnosticEntryOrder($entry, $previous);
+                if ($comparison === 0) {
+                    $duplicates[] = [
+                        'path' => $entry['info']->path,
+                        'type' => $entry['type'],
+                        'kept' => $paths[$entryKey],
+                        'ignored' => $entry['info'],
+                        'message' => 'Duplicate ' . $entry['type'] . ' found in ' . $side . ' - ignoring',
+                    ];
+                    $previous = $entry;
+                    continue;
+                }
+                if ($comparison < 0) {
+                    throw new \RuntimeException('Out of order listing in ' . $side);
+                }
+            }
+
+            if (!isset($paths[$entryKey])) {
+                $paths[$entryKey] = $entry['info'];
+                $order[$entryKey] = [
+                    'pathKey' => $entry['pathKey'],
+                    'type' => $entry['type'],
+                ];
+            }
+            $previous = $entry;
         }
 
         return [
@@ -2593,6 +2947,16 @@ final class SyncPlan
             'info' => $info,
             'sequence' => $sequence,
         ];
+    }
+
+    /**
+     * @param array{pathKey: string, type: string, info: ObjectInfo, sequence: int} $left
+     * @param array{pathKey: string, type: string, info: ObjectInfo, sequence: int} $right
+     */
+    private function compareDiagnosticEntryOrder(array $left, array $right): int
+    {
+        return $left['pathKey'] <=> $right['pathKey']
+            ?: $left['type'] <=> $right['type'];
     }
 
     /**
@@ -2795,6 +3159,24 @@ final class SyncPlan
         }
 
         return true;
+    }
+
+    private function rmdirsFilterIncludesRemote(string $path, ?FilterRuleSet $filter): bool
+    {
+        if ($filter === null) {
+            return true;
+        }
+
+        return $filter->includesRemote($path === '' ? '/' : $path . '/');
+    }
+
+    private function withinRmdirsDepth(string $path, string $root, int $maxDepth): bool
+    {
+        if ($maxDepth < 0) {
+            return true;
+        }
+
+        return self::relativePathLevel($path, $root) <= $maxDepth;
     }
 
     private function filterAllowsDirectory(MemoryProvider $source, string $dir, ?FilterRuleSet $filter): bool
@@ -3294,6 +3676,14 @@ final class SyncPlan
         return $path === $prefix || str_starts_with($path, $prefix . '/');
     }
 
+    private static function pathIsOrUnderRmdirRoot(string $path, string $root): bool
+    {
+        $path = self::normalizePath($path);
+        $root = self::normalizePath($root);
+
+        return $root === '' || $path === $root || str_starts_with($path, $root . '/');
+    }
+
     private static function parentPath(string $path): string
     {
         $path = self::normalizePath($path);
@@ -3331,6 +3721,20 @@ final class SyncPlan
         $path = self::normalizePath($path);
 
         return $path === '' ? 0 : substr_count($path, '/') + 1;
+    }
+
+    private static function relativePathLevel(string $path, string $root): int
+    {
+        $path = self::normalizePath($path);
+        $root = self::normalizePath($root);
+        if ($path === $root) {
+            return 0;
+        }
+        if ($root !== '' && str_starts_with($path, $root . '/')) {
+            $path = substr($path, strlen($root) + 1);
+        }
+
+        return self::pathLevel($path);
     }
 
     private function samePathDifferentCase(string $left, string $right): bool
