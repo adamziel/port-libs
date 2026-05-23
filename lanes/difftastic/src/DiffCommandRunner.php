@@ -470,6 +470,9 @@ final class DiffCommandRunner
 
         $directoryOptions = $options;
         unset($directoryOptions['exitCode']);
+        if (!array_key_exists('printUnchanged', $directoryOptions)) {
+            $directoryOptions['printUnchanged'] = true;
+        }
         $directoryOptions['binaryOverrides'] = $parsed['globs'];
         $directoryOptions['languageOverrides'] = $rawLanguageOverrides;
         $directoryOptions['fileOptions'] = $this->directoryFileOptionsWithCommandLimits($directoryOptions);

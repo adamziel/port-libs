@@ -92,6 +92,10 @@ Guarded unstable JSON display command parsing now maps upstream `--display=json`
 
 The WordPress env unstable JSON command example applies that to `wp-content/plugins/acme-card/block.json`. A caller-provided environment array selects JSON display and emits aligned lines plus chunks for `title`, `viewScriptModule`, and `supports` changes so a block editor or migration UI can consume review data directly.
 
+Guarded JSON directory command output now maps upstream `print_unchanged = !skip-unchanged` semantics from `src/options.rs`, `src/main.rs`, and `src/display/json.rs`. By default, command-level directory JSON includes unchanged file envelopes; a caller-provided `DFT_SKIP_UNCHANGED=true` filters them.
+
+The WordPress env JSON directory command example applies that to a plugin directory review. It keeps unchanged `src/render.php` visible as an `unchanged` PHP status while changed `.wp-env.json` and `block.json` entries stay machine-readable for review UIs that need a full file inventory.
+
 Display-control command parsing now maps upstream `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` environment-style configuration from `src/options.rs`, `src/main.rs`, and `src/display/style.rs`. Invalid background, syntax-highlight, or sort-path values return bad-argument status before review, and explicit PHP options override caller-provided environment values.
 
 The WordPress env display-controls command example applies that to PHP render callback review and generated asset/template directory review. A caller-provided environment array selects dark-background bright ANSI colors, validates `DFT_SYNTAX_HIGHLIGHT=off`, and sorts directory JSON paths without inspecting the live process environment.
@@ -248,6 +252,10 @@ Compact JSON display now maps upstream `src/display/json.rs` keyword/type highli
 
 Parser-specific syntax highlighting now maps a narrow upstream `tree_highlights` slice for markup tags, CSS keyword contexts, and keyword-ish booleans/constants/operators. The WordPress TSX tag-highlight example emits inserted `PanelBody` and `TextControl` component tags as `type` spans plus inserted `&&`, `true`, and `false` as `keyword` spans in compact JSON, while ANSI display bolds HTML tag names, CSS `@media` / `!important`, and keyword-ish operator/literal contexts when syntax highlighting is enabled. Attribute/property-style captures remain normal, matching the upstream highlight enum boundary.
 
+TypeScript syntax highlighting now also maps upstream constructor/type captures for custom identifiers. The WordPress block controller display example emits inserted `BlockVariationController` annotation and constructor spans as `type` while keeping `new` as `keyword`, so block-editor TypeScript review data can style custom controllers without a JavaScript-side parser.
+
+JavaScript and TypeScript syntax highlighting now maps upstream uppercase identifier capture priority from difftastic's parser query dependencies. The WordPress block registry display example emits inserted `BlockRegistry` as a `type` span outside a type annotation and `WP_BLOCK_API_VERSION` as a `keyword` span, matching upstream's constructor/type and constant bucket ordering for editor review data.
+
 Compact JSON display now also maps upstream `src/display/json.rs` `tree_sitter_error` highlight output for parser-error atoms. The WordPress parser-error display example compares block registration JavaScript with an extra `}` and, when the parse-error budget allows structural display, exposes that delimiter as a `tree_sitter_error` span for editor review tools instead of treating it as ordinary punctuation.
 
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
@@ -342,8 +350,10 @@ php lanes/difftastic/examples/wordpress-parser-error-ansi-command.php
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 php lanes/difftastic/examples/wordpress-tsx-tag-highlight-display.php
+php lanes/difftastic/examples/wordpress-block-controller-highlight-display.php
+php lanes/difftastic/examples/wordpress-block-registry-highlight-display.php
 ```
 
 ## Next Task
 
-Map another parser/display edge such as decorator captures or command JSON directory output.
+Map another parser/display highlight edge such as decorator captures.

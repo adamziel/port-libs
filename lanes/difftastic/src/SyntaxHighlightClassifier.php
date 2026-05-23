@@ -63,6 +63,15 @@ final class SyntaxHighlightClassifier
             return 'type';
         }
 
+        if ($this->isJavaScriptLikeLanguage($language)) {
+            if ($this->isJavaScriptAllCapsConstantIdentifier($token->text)) {
+                return 'keyword';
+            }
+            if ($this->isUppercaseIdentifier($token->text)) {
+                return 'type';
+            }
+        }
+
         if (in_array($lower, $this->languageKeywords($language), true)) {
             return 'keyword';
         }
@@ -123,6 +132,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['rs', 'rust'], true);
     }
 
+    private function isJavaScriptLikeLanguage(string $language): bool
+    {
+        return in_array($language, ['javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx'], true);
+    }
+
     private function isMarkupTagName(string $source, int $start): bool
     {
         if ($start <= 0) {
@@ -156,6 +170,16 @@ final class SyntaxHighlightClassifier
 
         return $previous === ''
             || preg_match('/[\s<&,(=:]/', $previous) === 1;
+    }
+
+    private function isJavaScriptAllCapsConstantIdentifier(string $text): bool
+    {
+        return preg_match('/^[A-Z_][A-Z0-9_]+$/', $text) === 1;
+    }
+
+    private function isUppercaseIdentifier(string $text): bool
+    {
+        return preg_match('/^[A-Z][A-Za-z0-9_$]*$/', $text) === 1;
     }
 
     private function previousNonWhitespaceCharacter(string $source, int $start): ?string

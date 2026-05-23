@@ -2055,6 +2055,60 @@ return [
         $t->contains('../../mu-plugins/acme-cache', $json);
         $t->contains('viewScriptModule', $json);
     },
+    'maps upstream json directory command print unchanged default and skip flag' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $runner = new DiffCommandRunner();
+        $default = $runner->runJsonDirectoryDiff(
+            $fixtures . '/wordpress-directory-before',
+            $fixtures . '/wordpress-directory-after',
+            [
+                'sortPaths' => true,
+            ],
+            [
+                'DFT_DISPLAY' => 'json',
+                'DFT_UNSTABLE' => 'yes',
+            ],
+        );
+        $skipped = $runner->runJsonDirectoryDiff(
+            $fixtures . '/wordpress-directory-before',
+            $fixtures . '/wordpress-directory-after',
+            [
+                'sortPaths' => true,
+            ],
+            [
+                'DFT_DISPLAY' => 'json',
+                'DFT_SKIP_UNCHANGED' => 'true',
+                'DFT_UNSTABLE' => 'yes',
+            ],
+        );
+        $defaultByPath = [];
+        foreach ($default['files'] as $file) {
+            $defaultByPath[$file['path']] = $file;
+        }
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $default['exitCode']);
+        $t->same('', $default['stderr']);
+        $t->same(true, $default['hasChanges']);
+        $t->same('unchanged', $defaultByPath['wp-content/plugins/acme-card/src/render.php']['status']);
+        $t->same('PHP', $defaultByPath['wp-content/plugins/acme-card/src/render.php']['language']);
+        $t->true(in_array('wp-content/plugins/acme-card/src/render.php', array_column($default['files'], 'path'), true), 'JSON directory command should print unchanged files unless skipped.');
+        $t->true(!in_array('wp-content/plugins/acme-card/src/render.php', array_column($skipped['files'], 'path'), true), 'DFT_SKIP_UNCHANGED should filter unchanged directory files.');
+    },
+    'wordpress env json directory command example emits unchanged render file status' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-env-json-directory-command.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+        $byPath = [];
+        foreach ($decoded as $file) {
+            $byPath[$file['path']] = $file;
+        }
+
+        $t->same('unchanged', $byPath['wp-content/plugins/acme-card/src/render.php']['status']);
+        $t->same('PHP', $byPath['wp-content/plugins/acme-card/src/render.php']['language']);
+        $t->same('changed', $byPath['wp-content/plugins/acme-card/block.json']['status']);
+        $t->contains('.wp-env.json', implode("\n", array_column($decoded, 'path')));
+    },
     'wordpress directory diff applies language overrides before builtin globs' => static function (TestRunner $t): void {
         $fixtures = dirname(__DIR__) . '/fixtures';
         $files = (new DirectoryDiffer())->diffDirectories(
@@ -3227,6 +3281,57 @@ return [
         $t->contains('string:type', $encoded);
         $t->contains('boolean:type', $encoded);
     },
+    'json display renderer maps upstream typescript constructor captures as type highlights' => static function (TestRunner $t): void {
+        $before = "export { save } from './save';\n";
+        $after = "const controller: BlockVariationController = new BlockVariationController();\nexport { save } from './save';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/typescript_constructor_highlight.ts',
+            'TypeScript',
+            ['language' => 'typescript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('TypeScript', $decoded['language']);
+        $t->contains('new:keyword', $encoded);
+        $t->contains('BlockVariationController:type', $encoded);
+        $t->same(2, substr_count($encoded, 'BlockVariationController:type'));
+    },
+    'json display renderer maps upstream javascript uppercase capture priority' => static function (TestRunner $t): void {
+        $before = "export { save } from './save';\n";
+        $after = "BlockRegistry.configure(WP_BLOCK_API_VERSION);\nexport { save } from './save';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/javascript_uppercase_highlight.js',
+            'JavaScript',
+            ['language' => 'javascript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('JavaScript', $decoded['language']);
+        $t->contains('BlockRegistry:type', $encoded);
+        $t->contains('WP_BLOCK_API_VERSION:keyword', $encoded);
+    },
     'json display renderer maps upstream tag captures as type highlights' => static function (TestRunner $t): void {
         $before = "export const Edit = () => null;\n";
         $after = "export const Edit = () => <PanelBody title=\"Modern\" />;\n";
@@ -3396,6 +3501,21 @@ return [
         $t->true(in_array(['start' => 21, 'end' => 23, 'style' => '1'], $spans, true), 'Operator captures should follow upstream keyword-style handling.');
         $t->true(in_array(['start' => 24, 'end' => 29, 'style' => '1'], $spans, true), 'Boolean captures should follow upstream keyword-style handling.');
         $t->true(in_array(['start' => 33, 'end' => 37, 'style' => '1'], $spans, true), 'Constant captures should follow upstream keyword-style handling.');
+    },
+    'ansi highlighter maps upstream typescript constructor captures as type highlights' => static function (TestRunner $t): void {
+        $line = 'const controller: BlockVariationController = new BlockVariationController();';
+        $rendered = (new AnsiSyntaxHighlighter())->highlightLine($line, 8, ['language' => 'typescript']);
+
+        $t->contains("\033[1mBlockVariationController\033[0m", $rendered);
+        $t->contains("\033[1mnew\033[0m", $rendered);
+        $t->same(2, substr_count($rendered, "\033[1mBlockVariationController\033[0m"));
+    },
+    'ansi highlighter maps upstream javascript uppercase captures' => static function (TestRunner $t): void {
+        $line = 'BlockRegistry.configure(WP_BLOCK_API_VERSION);';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'javascript']);
+
+        $t->true(in_array(['start' => 0, 'end' => 13, 'style' => '1'], $spans, true), 'PascalCase identifiers should follow upstream constructor/type capture handling.');
+        $t->true(in_array(['start' => 24, 'end' => 44, 'style' => '1'], $spans, true), 'All-caps constants should follow upstream constant-as-keyword capture handling.');
     },
     'ansi highlighter maps upstream rust label captures as type highlights' => static function (TestRunner $t): void {
         $line = "fn render<'block>(title: &'block str) -> &'block str { title }";
@@ -3642,6 +3762,47 @@ return [
         $t->contains('string:type', $encoded);
         $t->contains('number:type', $encoded);
         $t->contains('boolean:type', $encoded);
+    },
+    'wordpress block controller display highlights custom types and constructors' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-block-controller-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/src/variation-controller.ts', $decoded['path']);
+        $t->contains('BlockVariationController:type', $encoded);
+        $t->contains('void:type', $encoded);
+        $t->contains('new:keyword', $encoded);
+    },
+    'wordpress block registry display highlights constructor and constant captures' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-block-registry-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/src/block-registry.js', $decoded['path']);
+        $t->contains('BlockRegistry:type', $encoded);
+        $t->contains('WP_BLOCK_API_VERSION:keyword', $encoded);
     },
     'wordpress tsx tag highlight display exposes component tags as types' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tsx-tag-highlight-before.tsx');

@@ -20,6 +20,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - 382 vendored parser files, including 35 parser corpus files, 139 parser example source files, 19 vendored highlight query files, 1 parser bench file, and 42 binding files.
 - The upstream JSON display highlight boundary is inspected through `src/display/json.rs`'s 7 serialized `Highlight` enum variants: `delimiter`, `normal`, `string`, `type`, `comment`, `keyword`, and `tree_sitter_error`.
 - The upstream parser syntax-highlight boundary is inspected through `src/parse/tree_sitter_parser.rs` `tree_highlights`, where `tag`, `constructor`, and `label` captures become `Type`, `keyword`/`operator`-style captures become `Keyword`, strings and comments are preserved by capture family, and HTML sub-language raw text receives CSS/JavaScript highlight metadata before `src/display/style.rs` applies ANSI styling or `src/display/json.rs` serializes highlight labels. Targeted static counts for this slice are 65 `highlight_query` config entries, 4 `parse_as` sub-language entries, and 19 vendored highlight query files.
+- The upstream JavaScript/TypeScript uppercase highlight boundary is inspected through difftastic `Cargo.toml` dependency pins plus targeted primary query reads: `tree-sitter-javascript` `v0.25.0` `queries/highlights.scm` marks any uppercase identifier as `@constructor` and all-caps identifiers as `@constant`, while `tree-sitter-typescript` `v0.23.2` `queries/highlights.scm` marks uppercase identifiers as `@type`. Difftastic's `tree_highlights` promotes constructor/type captures to `AtomKind::Type` and checks keyword/constant captures first when serializing atoms.
 - The upstream parse-error fallback boundary is inspected through `DEFAULT_PARSE_ERROR_LIMIT`, `to_syntax_with_limit`, `line_parser::change_positions`, and the `tests/cli.rs` `yaml_parse_errors` test with its two `sample_files/cli_tests/bad_yaml_*.yml` fixtures.
 - The upstream byte-limit fallback boundary is inspected through `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, `ExceededByteLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
 - The upstream graph-limit fallback boundary is inspected through `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `dijkstra::mark_syntax`, `ExceededGraphLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
@@ -44,7 +45,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The Python block-header boundary is inspected through the upstream `Python` tree-sitter configuration and a targeted directory fixture pair, `sample_files/dir_1/has_many_hunk.py` / `sample_files/dir_2/has_many_hunk.py`, where `function041` changes only its signature while neighboring functions stay stable.
 - The Python compound-clause boundary is inspected through the upstream `Python` tree-sitter configuration and mapped locally for `elif`, `else`, `try`, `except`, and `finally` clauses, with continuation clauses attached to the preceding compound statement path.
 
-This gives the lane 583 inspected behavior artifacts for the current cloned static denominator: 144 Rust test/test-case attributes, 111 golden output pairs, 114 numbered sample fixture pairs, 4 directory fixture pairs, 35 parser corpus files, 139 vendored parser example source files, 19 vendored highlight query files, 6 targeted syntax-highlight source/config boundaries, 3 targeted strip-CR source files, 2 targeted Makefile CLI fixture files, 2 targeted changes-at-end CLI fixture files, 2 targeted tab-width display source files, and 3 targeted unstable JSON display source files.
+This gives the lane 583 inspected behavior artifacts for the current cloned static denominator: 144 Rust test/test-case attributes, 111 golden output pairs, 114 numbered sample fixture pairs, 4 directory fixture pairs, 35 parser corpus files, 139 vendored parser example source files, 19 vendored highlight query files, 6 targeted syntax-highlight source/config boundaries, 3 targeted strip-CR source files, 2 targeted Makefile CLI fixture files, 2 targeted changes-at-end CLI fixture files, 2 targeted tab-width display source files, and 3 targeted unstable JSON display source files. The JavaScript/TypeScript uppercase highlight slice also inspected two exact-version parser dependency query files pinned by difftastic's Cargo manifest.
 
 ## Runner Status
 
@@ -116,6 +117,8 @@ It failed before compilation because the local Cargo cache cannot resolve crates
 - Targeted upstream `src/options.rs` `--display=json` parsing is now mapped with the upstream `DFT_UNSTABLE` guard. The PHP command runner accepts `json` only when the caller-provided environment array contains `DFT_UNSTABLE`; otherwise it returns exit 2 with the upstream unstable-output warning before review.
 - Targeted upstream `src/main.rs` JSON display branching and `src/display/json.rs` single-file printing are now mapped for command-runner review. Guarded `DFT_DISPLAY=json` routes single-file diffs through the native compact JSON envelope and keeps ordinary `--exit-code` behavior, without reading live process environment values.
 - The WordPress env unstable JSON command example applies that slice to `wp-content/plugins/acme-card/block.json`, emitting aligned lines and chunks for `title`, `viewScriptModule`, and `supports` changes as machine-readable review data.
+- Targeted upstream `src/options.rs` `print_unchanged = !skip-unchanged`, `src/main.rs` `DisplayMode::Json` directory branching, and `src/display/json.rs` `print_directory` filtering are now mapped for command-runner directory review. Guarded JSON directory command output includes unchanged file envelopes by default and filters them only when caller-provided `DFT_SKIP_UNCHANGED=true` is parsed.
+- The WordPress env JSON directory command example applies that slice to plugin directory review. It keeps unchanged `wp-content/plugins/acme-card/src/render.php` visible as an `unchanged` PHP envelope while changed `.wp-env.json` and `block.json` entries remain machine-readable.
 - Targeted upstream `src/options.rs` display-control environment parsing is now mapped for command-runner review: caller-supplied `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` values are parsed from an explicit environment array, invalid values return exit 2 before review, and explicit PHP options take precedence over environment-style configuration.
 - The WordPress env display-controls command example applies that slice to a dark-background side-by-side PHP render diff plus sorted directory JSON review for generated asset metadata and Blade template fixtures, without reading live process environment values.
 - Targeted upstream `src/display/style.rs` `color_positions` plus `src/display/side_by_side.rs` / `src/display/inline.rs` display option propagation are now mapped for ANSI syntax highlighting. Native terminal renderers bold keyword/type tokens, color string literals, and italicize comments when color output is enabled and `syntaxHighlight` is on; setting `DFT_SYNTAX_HIGHLIGHT=off` or explicit `syntaxHighlight => false` suppresses those syntax token styles while retaining red/green novel diff colors.
@@ -213,7 +216,7 @@ Mapped native behavior:
 - Plain-text line splitting keeps trailing empty EOF lines like upstream `split_on_newlines`, and JSON display preserves no-final-newline append chunks from `repeated_line_no_eol_*.txt`.
 - Token changes carry `start`, `end`, `content`, and `highlight` fields; native highlights now map all seven upstream enum variants: delimiter, normal, string, comment, keyword, type, and tree_sitter_error. The tree-sitter-error slice is mapped through native delimiter error spans when the parse-error limit allows structural display instead of the default text fallback.
 - JSON display spans are constructed from byte ranges, matching upstream's `start_col`/`end_col` serialization and Rust string slicing. The upstream `multibyte_*.py` sample now asserts `"foo€"`/`"bar€"` offsets as `foo`/`bar` at `1..4` and `€` at `4..7`.
-- Directory JSON output is represented as an array of file objects and can skip unchanged files, matching upstream `print_directory`; native directory walking now supplies that renderer with relative paths from both sides, including hidden items and excluding `.git`.
+- Directory JSON output is represented as an array of file objects and can skip unchanged files, matching upstream `print_directory`; native directory walking now supplies that renderer with relative paths from both sides, including hidden items and excluding `.git`. The command-runner path now follows upstream command defaults by printing unchanged entries unless `DFT_SKIP_UNCHANGED` is true, while the lower-level helper can still be used for compact changed-only review.
 - TypeScript dynamic metadata imports are now covered by JSON display review chunks for `assets.ts`, so block metadata `assert` to `with`, `javascript` to `module`, and inserted `supports.json` import spans remain machine-readable.
 - TypeScript/PHP/Python/Rust keyword and primitive-type atoms now keep upstream-style `keyword` and `type` highlight labels in compact JSON display. The WordPress TypeScript metadata example uses this for inserted `type`, `const`, `string`, `number`, and `boolean` spans in block asset review data.
 - Parser-error delimiters now keep upstream-style `tree_sitter_error` highlight labels in compact JSON display when `parseErrorLimit` is high enough to continue structural display. The WordPress block editor parser-error example exposes an extra `}` in block registration JavaScript as a machine-readable error span instead of reducing it to a normal punctuation change.
@@ -236,6 +239,10 @@ The WordPress env resource-limits example applies that slice to block render met
 
 Targeted parser-specific syntax highlighting now maps a narrow upstream `tree_highlights` slice from `src/parse/tree_sitter_parser.rs` plus `src/display/style.rs` and `src/display/json.rs`: markup tag names captured as `tag`/`constructor` become `type`, keyword-ish `keyword`/`boolean`/`constant`/`operator` captures become `keyword`, CSS at-keyword and `!important` contexts become `keyword`, existing strings/comments keep their upstream categories, and field/property/attribute-style captures remain normal because upstream does not promote them into the serialized highlight enum. The shared native classifier feeds both ANSI display and compact JSON display, while JSON text-fallback chunks suppress the extra semantic pass so existing fallback text expectations stay stable. The WordPress TSX tag-highlight example applies that to `wp-content/plugins/acme-card/src/edit.tsx`, exposing inserted `PanelBody` and `TextControl` component tags as `type` spans and inserted `&&`, `true`, and `false` as `keyword` spans while leaving JSX attributes normal and values string-highlighted.
 
+Targeted TypeScript syntax highlighting now maps the same upstream `tree_highlights` constructor/type capture boundary through the TypeScript and JavaScript highlight-query configuration. The native PHP classifier promotes inserted custom type identifiers and constructor calls such as `BlockVariationController` to the serialized `type` highlight in both compact JSON display and ANSI syntax highlighting, while preserving `new` as a keyword. The WordPress block controller display example applies this to `wp-content/plugins/acme-card/src/variation-controller.ts`.
+
+Targeted JavaScript/TypeScript syntax highlighting now also maps the upstream uppercase identifier capture priority from the exact parser query dependencies used by difftastic. Any PascalCase JavaScript-like identifier such as `BlockRegistry` is emitted as a `type` highlight even outside a type annotation or `new` expression, while all-caps constants such as `WP_BLOCK_API_VERSION` are emitted as `keyword` because upstream maps `constant` into the keyword bucket before type. The WordPress block registry display example applies this to `wp-content/plugins/acme-card/src/block-registry.js`.
+
 Targeted TOML parser semantics now map the upstream `sample_files/toml_*.toml` pair, `src/parse/tree_sitter_parser.rs` `Toml` configuration, and `sample_files/compare.expected` golden hash `e1002ceba14d973fcc8abc23619e65b0`. The native syntax-list path aligns table-qualified key/value entries, reports scalar updates under `$toml.<table>.<key>`, diffs top-level array items such as `ports`, and preserves deleted multiline strings and literal path strings as TOML entries instead of only reporting bracketed array churn.
 
 The WordPress plugin TOML config fixture applies that slice to release/build/Playground metadata. It reports `requires_wp`, build target, PHP runtime, plugin list, and multiline review-note changes through `$toml...` paths, and `examples/wordpress-plugin-toml-config-diff.php` renders those changes as escaped syntax-list HTML for browser review surfaces.
@@ -244,7 +251,7 @@ The TOML path slice now also descends into inline tables, mapping the same upstr
 
 The WordPress plugin release matrix fixture applies the inline-table behavior to repeated `[[plugins]]` array-table entries and nested Playground blueprint metadata. Repeated plugin entries now carry indexed paths such as `$toml.plugins[1].config.autoload`, so a release review can distinguish changed plugin records instead of collapsing repeated `slug`/`status` keys.
 
-The focused PHP lane test now passes 217 tests and 1195 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, parser-specific tag/CSS keyword highlighting in ANSI and JSON output, keyword-ish boolean/constant/operator highlighting, normal attribute/property boundaries, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, command resource-limit environment parsing for byte/graph/parse fallback budgets, the TOML table/key syntax-list slice, and the TOML inline-table/array-table slice.
+The focused PHP lane test now passes 228 tests and 1233 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, guarded JSON directory command print-unchanged/skip-unchanged behavior, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, parser-specific tag/CSS keyword highlighting in ANSI and JSON output, TypeScript constructor/custom-type highlighting in ANSI and JSON output, JavaScript uppercase constructor/type and all-caps constant highlight priority in ANSI and JSON output, keyword-ish boolean/constant/operator highlighting, normal attribute/property boundaries, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, command resource-limit environment parsing for byte/graph/parse fallback budgets, the TOML table/key syntax-list slice, and the TOML inline-table/array-table slice.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -252,17 +259,21 @@ Before the required root test runner, this lane checked for an active root harne
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-For this TOML inline-table/array-table slice, that command returned no output, so this lane started the aggregate root harness once. The run completed red due to failures outside `lanes/difftastic`:
+For this JSON directory command slice, that command returned no output, so this lane started the aggregate root harness once. The first run completed red, with the failing line not visible in the captured output:
 
 ```text
 php tools/run-tests.php
-199 test files, 22567 assertions, 3 failures
-lanes/libsqlite/tests/SQLiteHeaderTest.php: plans wordpress automatic indexed insert by splitting a leaf and growing a full index root interior expected 6, actual 7
-lanes/libsqlite/tests/SQLiteHeaderTest.php: plans wordpress replacement by splitting a composite index leaf and growing a full root interior expected 7, actual 6
-lanes/readability/tests/ArticleExtractorTest.php: maps Mozilla wikipedia-4 fixture with list table and category chrome cleanup selected the article summary instead of "From Wikipedia, the free encyclopedia"
+203 test files, 23480 assertions, 1 failures
 ```
 
-The difftastic-focused test file is green with 217 named tests, 1195 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. After the empty-inline-table assertion was added, a root rerun attempt hit/started under lock contention and was terminated to avoid competing aggregate work; the completed aggregate root result for this slice remains blocked by unrelated libsqlite/readability failures, and no difftastic-local root failure is present. The latest duplicate-root sample then showed active root PID `2558261` owned by `claude` running `php tools/run-tests.php`, so this lane did not start another aggregate run.
+A second duplicate-root gate was clear, so this lane reran the root harness with filtered output to capture any failure line. The latest aggregate rerun completed green:
+
+```text
+php tools/run-tests.php
+204 test files, 23520 assertions, 0 failures
+```
+
+The difftastic-focused test file is green with 228 named tests, 1233 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. No difftastic-local PHP blocker is present for this slice.
 
 The touched WordPress examples also run:
 
@@ -279,6 +290,11 @@ php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php | php -r 
 valid json
 php lanes/difftastic/examples/wordpress-env-unstable-json-command.php | php -r '$line = fgets(STDIN); json_decode($line, true, 512, JSON_THROW_ON_ERROR); echo "valid json\n";'
 valid json
+php lanes/difftastic/examples/wordpress-env-json-directory-command.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo count($decoded) . " files\n"; foreach ($decoded as $file) { echo $file["path"] . " " . $file["language"] . " " . $file["status"] . "\n"; }'
+3 files
+.wp-env.json JSON changed
+wp-content/plugins/acme-card/block.json JSON changed
+wp-content/plugins/acme-card/src/render.php PHP unchanged
 php lanes/difftastic/examples/wordpress-check-only-command.php
 wp-content/plugins/acme-card/block.json --- JSON
 WordPress plugin metadata gate
@@ -361,8 +377,12 @@ false:keyword
 /:keyword
 PanelBody:type
 >:delimiter
+php lanes/difftastic/examples/wordpress-block-controller-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n";'
+wp-content/plugins/acme-card/src/variation-controller.ts TypeScript changed
+php lanes/difftastic/examples/wordpress-block-registry-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n";'
+wp-content/plugins/acme-card/src/block-registry.js JavaScript changed
 ```
 
 ## Next Task
 
-Map another parser/display edge such as decorator captures or command JSON directory output.
+Map another parser/display highlight edge such as decorator captures.
