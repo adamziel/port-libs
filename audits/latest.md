@@ -2,9 +2,9 @@
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status
-files needed for alignment checks, recent Git history through `HEAD`
-`702734a0`, dirty-tree state, active process state, and the PHP process-launch
-surface.
+files needed for alignment checks, recent Git history through initial audit
+`HEAD` `702734a0`, a post-commit handoff after `HEAD` advanced to `987cea06`,
+dirty-tree state, active process state, and the PHP process-launch surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, or start a root harness. Bridge,
@@ -32,9 +32,10 @@ non-progress unless it is explicitly temporary oracle tooling.
      lane-agent loops for LightningCSS, Quadrable, Syncthing, Gitoxide,
      esbuild, Difftastic, Dolt, markerPDF, Readability, libsqlite, Pandoc, and
      rclone.
-   - Evidence: the latest dirty-tree samples showed `1107` default
-     `git status --short` entries, `131` tracked changed files, and
-     `131 files changed, 28483 insertions(+), 868 deletions(-)`.
+   - Evidence: after the audit-only commit, another worker advanced `HEAD` to
+     `987cea06`. The latest dirty-tree samples then showed `1111` default
+     `git status --short` entries, `136` tracked changed files, and
+     `136 files changed, 28871 insertions(+), 870 deletions(-)`.
    - Audit judgment: do not accept any dashboard, lane-status, manifest
      percentage, or root-test anecdote as the current portfolio baseline until
      active writers/status publishers are frozen and one snapshot is tested.
@@ -82,13 +83,14 @@ non-progress unless it is explicitly temporary oracle tooling.
      denominator in one `Benchmark` column and combines PHP pass/fail with
      mapped tests in one `Mapped` column, instead of the separate fields
      required by `goal.md:45`.
-   - Evidence: current manifest mapped counts disagree with the dashboard:
+   - Evidence: latest sampled manifest mapped counts disagree with the
+     dashboard:
      Difftastic `217 / 583` vs dashboard `160 / 417`, Dolt `370 / 613` vs
      `242 / 613`, esbuild `199 / 2567` vs `164 / 2567`, Gitoxide
-     `1680 / 2877` vs `1432 / 2877`, libsqlite `191 / 1454` vs `149 / 1454`,
+     `1692 / 2877` vs `1432 / 2877`, libsqlite `192 / 1454` vs `149 / 1454`,
      LightningCSS `978 / 3532` vs `773 / 3532`, markerPDF `190 / 246` vs
-     `159 / 78`, Pandoc `536 / 2276` vs `426 / 2028`, rclone `389 / 2553`
-     vs `291 / 327`, Readability `1317 / 1984` vs `1031 / 1984`, and
+     `159 / 78`, Pandoc `541 / 2276` vs `426 / 2028`, rclone `390 / 2553`
+     vs `291 / 327`, Readability `1334 / 1984` vs `1031 / 1984`, and
      Syncthing `283 / 658` vs `235 / 658`.
 
 4. **High - manifest/status schemas still cannot support trustworthy portfolio
@@ -179,21 +181,29 @@ sample 1: 2541185 php tools/run-tests.php
 owner evidence: both exited before owner sampling
 sample 2: 2542369 php tools/run-tests.php
 owner evidence: 2542369 claude 2510498 00:13 R php tools/run-tests.php
+sample 3: no exact root-harness process after HEAD advanced to 987cea06
+sample 4: 2555291 php tools/run-tests.php
+owner evidence: 2555291 claude 2518279 00:10 R php tools/run-tests.php
 ```
 
-No duplicate root run was started.
+No duplicate root run was started. A temporary clear gate was not enough for a
+trustworthy aggregate run because `HEAD` had just moved again and the dirty
+tree/status surface remained non-quiescent; the latest handoff gate found
+another active exact root harness.
 
 Latest dirty-tree samples:
 
 ```text
-git status --short --untracked-files=no: 131 tracked entries
-git status --short: 1107 entries
-git diff --shortstat: 131 files changed, 28483 insertions(+), 868 deletions(-)
+git status --short --untracked-files=no: 136 tracked entries
+git status --short: 1111 entries
+git diff --shortstat: 136 files changed, 28871 insertions(+), 870 deletions(-)
 ```
 
 Recent history reviewed:
 
 ```text
+987cea06 Port syncthing scanner sub-walk diagnostics
+2345b8a6 Refresh independent audit status
 702734a0 Refresh independent audit status
 f5a0cbee libsqlite grow table root on option replacement
 5b0672aa Port esbuild static method decorator helpers
