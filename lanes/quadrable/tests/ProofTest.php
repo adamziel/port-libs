@@ -122,6 +122,39 @@ return [
 
         $t->throws(RuntimeException::class, static fn () => $partial->get('500'));
     },
+    'matches upstream C++ big proof transport byte oracle' => static function (TestRunner $t): void {
+        $oraclePath = __DIR__ . '/../fixtures/upstream-big-proof-oracle.json';
+        $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+
+        $tree = new SparseTree();
+        $changes = $tree->change();
+        for ($i = 0; $i < $oracle['entryCount']; $i++) {
+            $s = (string) $i;
+            $changes->put($s, $s . 'val');
+        }
+        $changes->apply();
+
+        $keys = [];
+        for ($i = $oracle['queryStartInclusive']; $i < $oracle['queryEndExclusive']; $i++) {
+            $keys[] = (string) $i;
+        }
+
+        $encoded = $tree->exportProof($keys)->encode();
+        $hex = '0x' . bin2hex($encoded);
+
+        $t->same($oracle['encodedProofBytes'], strlen($encoded));
+        $t->same($oracle['encodedProofBytesSha256'], hash('sha256', $encoded));
+        $t->same($oracle['encodedProofHexTextSha256'], hash('sha256', $hex));
+        $t->same($oracle['encodedProofHexPrefix'], substr($hex, 0, strlen($oracle['encodedProofHexPrefix'])));
+        $t->same($oracle['encodedProofHexSuffix'], substr($hex, -strlen($oracle['encodedProofHexSuffix'])));
+
+        $partial = SparseTree::importProof(Proof::decode($encoded), $tree->rootHash());
+        $query = $partial->getMulti($keys);
+        $t->same('0val', $query['0']['value']);
+        $t->same('499val', $query['499']['value']);
+        $t->true(!$query['-1']['exists']);
+        $t->throws(RuntimeException::class, static fn () => $partial->get('500'));
+    },
     'maps upstream shared empty witness proof for multiple absent keys' => static function (TestRunner $t): void {
         $tree = new SparseTree();
         $tree->change()

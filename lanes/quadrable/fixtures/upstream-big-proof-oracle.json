@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "lane": "quadrable",
+  "name": "upstream-big-proof-test-transport-oracle",
+  "upstream": {
+    "repository": "hoytech/quadrable",
+    "commit": "4f44437dc9b951a91986ad69e2856938387be614"
+  },
+  "generatedOn": "2026-05-23",
+  "sourceMapping": "check.cpp test(\"big proof test\"): insert string keys 0..999 with values \"<key>val\", export a HashedKeys proof for query keys -500..499.",
+  "runnerEvidence": {
+    "buildCommand": "make -r quadb",
+    "importCommandShape": "for i in 0..999: printf '%s,%sval\\n' \"$i\" \"$i\" | quadb --db=<tmp> import --sep=,",
+    "exportCommandShape": "quadb --db=<tmp> exportProof --hex -- -500 -499 ... 498 499",
+    "note": "The full upstream runner also passes locally with `make -r test`; this fixture records the exact exported proof byte digest from the upstream C++ CLI without using the CLI at PHP runtime."
+  },
+  "proofEncoding": "HashedKeys",
+  "entryCount": 1000,
+  "queryStartInclusive": -500,
+  "queryEndExclusive": 500,
+  "encodedProofBytes": 40310,
+  "encodedProofBytesSha256": "b0a7cacec38d47d6c56304bcce0f5f166d6d60016c54307de75d9016f07952fc",
+  "encodedProofHexTextSha256": "6a31c1e09df4cabaededfabccb662ef4ef8b3e85d9d30f8227a1164469869a3f",
+  "encodedProofHexPrefix": "0x00030a20000900009ce7f59aca69e4f65f2417c147ac14d121fe7b1c20b2a329047e3f6268a2d90632313376616c00",
+  "encodedProofHexSuffix": "000000e2e0a360454e5f785f9241d66490168844ed9514b02216fc856b5c174680b6e7ffaafdcf000000000000000000"
+}
