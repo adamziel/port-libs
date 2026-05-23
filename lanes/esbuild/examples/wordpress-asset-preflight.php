@@ -43,6 +43,9 @@ $forUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . 
 $forUsingHelperCollisionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-helper-collision.ts');
 $whileUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-while-using-assets.ts');
 $asyncGeneratorFunctionAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-async-generator-function-assets.ts');
+$defaultAsyncGeneratorAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-default-async-generator-assets.ts');
+$exportedAsyncGeneratorConstantTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-exported-async-generator-constant.ts');
+$asyncGeneratorRegistryAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-async-generator-registry-assets.ts');
 $asyncGeneratorAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-async-generator-assets.ts');
 $objectAsyncGeneratorAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-object-async-generator-assets.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
@@ -91,6 +94,9 @@ $forUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingA
 $forUsingHelperCollisionLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingHelperCollisionTypeScriptSource, lowerUsingDeclarations: true);
 $whileUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($whileUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $asyncGeneratorFunctionAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($asyncGeneratorFunctionAssetsTypeScriptSource, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
+$defaultAsyncGeneratorAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($defaultAsyncGeneratorAssetsTypeScriptSource, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
+$exportedAsyncGeneratorConstantLegacyLowered = (new TypeScriptModuleLowerer())->lower($exportedAsyncGeneratorConstantTypeScriptSource, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
+$asyncGeneratorRegistryAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($asyncGeneratorRegistryAssetsTypeScriptSource, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
 $asyncGeneratorAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($asyncGeneratorAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $objectAsyncGeneratorAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($objectAsyncGeneratorAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
@@ -152,6 +158,9 @@ printf("WordPress TypeScript for using asset helper bytes: %d\n", strlen($forUsi
 printf("WordPress TypeScript for using collision helper bytes: %d\n", strlen($forUsingHelperCollisionLegacyLowered));
 printf("WordPress TypeScript while using asset helper bytes: %d\n", strlen($whileUsingAssetsLegacyLowered));
 printf("WordPress TypeScript async generator function helper bytes: %d\n", strlen($asyncGeneratorFunctionAssetsLegacyLowered));
+printf("WordPress TypeScript default async generator helper bytes: %d\n", strlen($defaultAsyncGeneratorAssetsLegacyLowered));
+printf("WordPress TypeScript exported async generator constant helper bytes: %d\n", strlen($exportedAsyncGeneratorConstantLegacyLowered));
+printf("WordPress TypeScript async generator registry helper bytes: %d\n", strlen($asyncGeneratorRegistryAssetsLegacyLowered));
 printf("WordPress TypeScript async generator asset helper bytes: %d\n", strlen($asyncGeneratorAssetsLegacyLowered));
 printf("WordPress TypeScript object async generator asset helper bytes: %d\n", strlen($objectAsyncGeneratorAssetsLegacyLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));

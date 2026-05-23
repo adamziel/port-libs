@@ -3571,16 +3571,31 @@ final class TypeScriptModuleLowerer
         }
 
         for ($async = $start; $async <= $effectiveEnd; $async++) {
-            if (($this->tokens[$async] ?? null)?->text !== 'async' || !$this->isTopLevelInRange($start, $async)) {
+            if (($this->tokens[$async] ?? null)?->text !== 'async') {
                 continue;
             }
 
-            $previous = $this->previousSignificantTokenIndex($async - 1);
-            if ($previous !== null) {
-                $previousText = ($this->tokens[$previous] ?? null)?->text;
-                if (!in_array($previousText, ['=', 'export', 'default'], true)) {
+            $isParenthesizedDefaultExport = false;
+            $isParenthesizedExpression = false;
+            $isNestedExpression = false;
+            if (!$this->isTopLevelInRange($start, $async)) {
+                $isParenthesizedDefaultExport = $this->isParenthesizedDefaultExportAsyncGeneratorExpression($start, $async);
+                $isParenthesizedExpression = $this->isParenthesizedAsyncGeneratorExpression($start, $async);
+                $isNestedExpression = $this->isNestedAsyncGeneratorExpression($start, $async);
+                if (!$isParenthesizedDefaultExport && !$isParenthesizedExpression && !$isNestedExpression) {
                     continue;
                 }
+            }
+
+            $previous = $this->previousSignificantTokenIndex($async - 1);
+            $previousText = $previous === null ? null : ($this->tokens[$previous] ?? null)?->text;
+            if ($previousText !== null
+                && !in_array($previousText, ['=', 'export', 'default'], true)
+                && !($isParenthesizedDefaultExport && $previousText === '(')
+                && !($isParenthesizedExpression && $previousText === '(')
+                && !$isNestedExpression
+            ) {
+                continue;
             }
 
             $function = $this->asyncGeneratorFunctionAt($async, $effectiveEnd);
@@ -3591,7 +3606,10 @@ final class TypeScriptModuleLowerer
             $prefix = $async > $start ? $this->printRuntimeTokenRange($start, $async - 1, $start) : '';
             $header = $this->asyncGeneratorFunctionRuntimeHeader($function);
             $replacement = $this->printAsyncGeneratorFunctionLike($header, $function['bodyOpen'] + 1, $function['bodyClose']);
-            $output = $prefix === '' ? $replacement : rtrim($prefix) . ' ' . $replacement;
+            $prefix = rtrim($prefix);
+            $output = $prefix === ''
+                ? $replacement
+                : $prefix . $this->asyncGeneratorExpressionSeparator($prefix) . $replacement;
 
             if ($function['bodyClose'] + 1 <= $effectiveEnd) {
                 $suffix = $this->printRuntimeTokenRange($function['bodyClose'] + 1, $effectiveEnd, $start);
@@ -3603,11 +3621,76 @@ final class TypeScriptModuleLowerer
             if ($previous !== null && ($this->tokens[$previous] ?? null)?->text === '=') {
                 $output .= ';';
             }
+            if (($isParenthesizedDefaultExport || $isParenthesizedExpression || $this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $output))
+                && !str_ends_with($output, ';')
+            ) {
+                $output .= ';';
+            }
 
-            return [$output, $function['bodyClose']];
+            return [$output, $effectiveEnd];
         }
 
         return null;
+    }
+
+    private function isParenthesizedDefaultExportAsyncGeneratorExpression(int $start, int $async): bool
+    {
+        if (($this->tokens[$start] ?? null)?->text !== 'export'
+            || ($this->tokens[$start + 1] ?? null)?->text !== 'default'
+            || $start + 2 >= $async
+        ) {
+            return false;
+        }
+
+        for ($cursor = $start + 2; $cursor < $async; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text !== '(') {
+                return false;
+            }
+        }
+
+        return ($this->tokens[$async - 1] ?? null)?->text === '(';
+    }
+
+    private function isParenthesizedAsyncGeneratorExpression(int $start, int $async): bool
+    {
+        $previous = $this->previousSignificantTokenIndex($async - 1);
+        if ($previous === null || ($this->tokens[$previous] ?? null)?->text !== '(') {
+            return false;
+        }
+
+        $close = $this->findMatchingPunctuator($previous, '(', ')');
+        if ($close <= $async) {
+            return false;
+        }
+
+        return $close <= $this->withoutTrailingSemicolon($this->findStatementEndForLowering($start));
+    }
+
+    private function isNestedAsyncGeneratorExpression(int $start, int $async): bool
+    {
+        $previous = $this->previousSignificantTokenIndex($async - 1);
+        if ($previous === null) {
+            return false;
+        }
+
+        $previousText = ($this->tokens[$previous] ?? null)?->text;
+        if ($previousText === '[') {
+            $close = $this->findMatchingPunctuator($previous, '[', ']');
+
+            return $close <= $this->withoutTrailingSemicolon($this->findStatementEndForLowering($start));
+        }
+
+        if ($previousText !== ',') {
+            return false;
+        }
+
+        return $this->enclosingOpenPunctuator($async, '(', ')', $start) !== null
+            || $this->enclosingOpenPunctuator($async, '[', ']', $start) !== null;
+    }
+
+    private function asyncGeneratorExpressionSeparator(string $prefix): string
+    {
+        return preg_match('/[\(\[:]$/', $prefix) === 1 ? '' : ' ';
     }
 
     /**
