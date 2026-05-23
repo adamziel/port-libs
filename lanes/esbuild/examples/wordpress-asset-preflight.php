@@ -47,6 +47,7 @@ $functionUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__
 $blockUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-block-using-disposable.ts');
 $forUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-assets.ts');
 $forUsingHelperCollisionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-helper-collision.ts');
+$switchUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-switch-using-assets.ts');
 $whileUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-while-using-assets.ts');
 $asyncGeneratorFunctionAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-async-generator-function-assets.ts');
 $defaultAsyncGeneratorAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-default-async-generator-assets.ts');
@@ -63,6 +64,7 @@ $destructuredNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DI
 $functionNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-function-namespace.ts');
 $namespaceUsingPreviewTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-using-preview.ts');
 $namespaceUsingHelperCollisionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-using-helper-collision.ts');
+$namespaceAwaitUsingPreviewTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-await-using-preview.ts');
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
@@ -106,6 +108,7 @@ $blockUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($blo
 $forUsingAssetsLowered = (new TypeScriptModuleLowerer())->lower($forUsingAssetsTypeScriptSource);
 $forUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $forUsingHelperCollisionLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingHelperCollisionTypeScriptSource, lowerUsingDeclarations: true);
+$switchUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($switchUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $whileUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($whileUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $asyncGeneratorFunctionAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($asyncGeneratorFunctionAssetsTypeScriptSource, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
 $defaultAsyncGeneratorAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($defaultAsyncGeneratorAssetsTypeScriptSource, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
@@ -122,6 +125,30 @@ $destructuredNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($destr
 $functionNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($functionNamespaceTypeScriptSource);
 $namespaceUsingPreviewLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceUsingPreviewTypeScriptSource);
 $namespaceUsingHelperCollisionLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceUsingHelperCollisionTypeScriptSource);
+$namespaceAwaitUsingPreviewLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceAwaitUsingPreviewTypeScriptSource);
+$switchCaseUsingDiagnostic = 'no';
+try {
+    (new TypeScriptModuleLowerer())->lower(<<<'TS'
+switch (metadata.viewScript) {
+  case "view":
+    using previewAsset: Disposable = acquirePreviewAsset(metadata.viewScript);
+    queueAsset(previewAsset.url);
+}
+TS);
+} catch (InvalidArgumentException) {
+    $switchCaseUsingDiagnostic = 'yes';
+}
+$decoratorBoundaryDiagnostic = 'no';
+try {
+    (new TypeScriptModuleLowerer())->lower(<<<'TS'
+@blockController<BlockConfiguration>(metadata)
+function registerBlock() {
+  wp.blocks.registerBlockType(metadata.name, metadata);
+}
+TS);
+} catch (InvalidArgumentException) {
+    $decoratorBoundaryDiagnostic = 'yes';
+}
 $namespaceLowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
 namespace CardBlockRuntime {
   export import blocks = wp.blocks;
@@ -178,6 +205,7 @@ printf("WordPress TypeScript block scoped using helper bytes: %d\n", strlen($blo
 printf("WordPress TypeScript for using asset loop bytes: %d\n", strlen($forUsingAssetsLowered));
 printf("WordPress TypeScript for using asset helper bytes: %d\n", strlen($forUsingAssetsLegacyLowered));
 printf("WordPress TypeScript for using collision helper bytes: %d\n", strlen($forUsingHelperCollisionLegacyLowered));
+printf("WordPress TypeScript switch using asset helper bytes: %d\n", strlen($switchUsingAssetsLegacyLowered));
 printf("WordPress TypeScript while using asset helper bytes: %d\n", strlen($whileUsingAssetsLegacyLowered));
 printf("WordPress TypeScript async generator function helper bytes: %d\n", strlen($asyncGeneratorFunctionAssetsLegacyLowered));
 printf("WordPress TypeScript default async generator helper bytes: %d\n", strlen($defaultAsyncGeneratorAssetsLegacyLowered));
@@ -195,6 +223,9 @@ printf("WordPress TypeScript destructured namespace bytes: %d\n", strlen($destru
 printf("WordPress TypeScript function namespace bytes: %d\n", strlen($functionNamespaceLowered));
 printf("WordPress TypeScript namespace using helper bytes: %d\n", strlen($namespaceUsingPreviewLowered));
 printf("WordPress TypeScript namespace using collision helper bytes: %d\n", strlen($namespaceUsingHelperCollisionLowered));
+printf("WordPress TypeScript namespace async using bytes: %d\n", strlen($namespaceAwaitUsingPreviewLowered));
+printf("WordPress TypeScript switch case using diagnostic: %s\n", $switchCaseUsingDiagnostic);
+printf("WordPress TypeScript decorator boundary diagnostic: %s\n", $decoratorBoundaryDiagnostic);
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()

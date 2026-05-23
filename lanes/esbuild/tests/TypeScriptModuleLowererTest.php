@@ -188,6 +188,66 @@ TS);
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('using x: Disposable'));
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('using x = y, z'));
     },
+    'rejects upstream switch case using declarations unless block wrapped' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('switch (x) { case 0: using y = z }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('switch (x) { default: await using y = z }'));
+        $t->same(
+            "switch (x) { case 0: { using y = z } }\n",
+            $lowerer->lower('switch (x) { case 0: { using y = z } }')
+        );
+    },
+    'lowers upstream switch case block using declarations through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            'async function f() { switch (x) { case 0: { using y: Disposable = z; work(y); } default: { await using q: AsyncDisposable = r; done(q); } } }',
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains('switch (x) { case 0: {', $lowered);
+        $t->contains('const y = __using(_stack2, z);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('default: {', $lowered);
+        $t->contains('const q = __using(_stack3, r, true);', $lowered);
+        $t->contains('var _promise3 = __callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains('_promise3 && await _promise3;', $lowered);
+        $t->true(strpos($lowered, 'const y = __using(_stack2, z);') < strpos($lowered, 'work(y);'));
+        $t->true(strpos($lowered, 'work(y);') < strpos($lowered, '__callDispose(_stack2'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+    },
+    'lowers upstream switch case for using headers through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            'switch (x) { case 0: for (using y: Disposable of z) body(y) default: for (await using q: AsyncDisposable of r) done(q) }',
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('switch (x) { case 0: for (var _y of z) {', $lowered);
+        $t->contains('const y = __using(_stack2, _y);', $lowered);
+        $t->contains('body(y);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('default: for (var _q of r) {', $lowered);
+        $t->contains('const q = __using(_stack3, _q, true);', $lowered);
+        $t->contains('done(q);', $lowered);
+        $t->contains('var _promise3 = __callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains('_promise3 && await _promise3;', $lowered);
+        $t->true(strpos($lowered, 'const y = __using(_stack2, _y);') < strpos($lowered, 'body(y);'));
+        $t->true(strpos($lowered, 'body(y);') < strpos($lowered, '__callDispose(_stack2'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+    },
+    'rejects wordpress switch case disposable asset declarations without node' => static function (TestRunner $t): void {
+        $source = <<<'TS'
+switch (metadata.viewScript) {
+  case "view":
+    using previewAsset: Disposable = acquirePreviewAsset(metadata.viewScript);
+    queueAsset(previewAsset.url);
+}
+TS;
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => (new TypeScriptModuleLowerer())->lower($source));
+    },
     'maps upstream using nullish initializer optimization boundaries' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1295,6 +1355,17 @@ JS . "\n", $lowerer->lower('class Foo { @x<{}>.y<[], () => {}> z: any }'));
 
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { @x<{}>().y<[], () => {}>() z: any }'));
     },
+    'rejects upstream invalid decorator boundaries' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { x(@y z) {} }'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@dec enum foo {}'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@dec namespace foo {}'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@dec function foo() {}'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@x[y] class Foo {}'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@x?.y() class Foo {}'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@new Function() class Foo {}'));
+    },
     'keeps upstream class decorators on lowered class statements' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1317,6 +1388,16 @@ Foo.settings = metadata;
 JS . "\n", $lowerer->lower('@blockController<BlockConfiguration>(metadata) class Foo { static settings: BlockConfiguration = metadata }', false, targetYear: 2021));
 
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@x export @y class Foo { y: any }'));
+    },
+    'rejects wordpress block decorators on non-class declarations without node' => static function (TestRunner $t): void {
+        $source = <<<'TS'
+@blockController<BlockConfiguration>(metadata)
+function registerBlock() {
+  wp.blocks.registerBlockType(metadata.name, metadata);
+}
+TS;
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => (new TypeScriptModuleLowerer())->lower($source));
     },
     'rejects malformed upstream typescript auto accessors' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
@@ -2438,6 +2519,35 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, 'satisfies'));
+    },
+    'lowers wordpress switch case disposable asset cleanup without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-switch-using-assets.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('import metadata from "./block.json" with { type: "json" };', $lowered);
+        $t->contains('export async function registerPreviewAssetByMode(mode, queue) {', $lowered);
+        $t->contains('switch (mode) {', $lowered);
+        $t->contains('case "view": {', $lowered);
+        $t->contains('const previewAsset = __using(_stack2, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('registerAsset(previewAsset.handle, previewAsset.url);', $lowered);
+        $t->contains('__callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('case "bulk":', $lowered);
+        $t->contains('for (var _modeAsset of collectModeAssets(metadata, mode)) {', $lowered);
+        $t->contains('const modeAsset = __using(_stack3, _modeAsset);', $lowered);
+        $t->contains('registerAsset(modeAsset.handle, modeAsset.url);', $lowered);
+        $t->contains('__callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains('const editorAsset = __using(_stack4, await queue.openNext(metadata.editorScript), true);', $lowered);
+        $t->contains('var _promise4 = __callDispose(_stack4, _error4, _hasError4);', $lowered);
+        $t->contains('_promise4 && await _promise4;', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(strpos($lowered, 'const previewAsset = __using') < strpos($lowered, 'registerAsset(previewAsset.handle'));
+        $t->true(strpos($lowered, 'registerAsset(previewAsset.handle') < strpos($lowered, '__callDispose(_stack2'));
+        $t->true(strpos($lowered, 'const modeAsset = __using') < strpos($lowered, 'registerAsset(modeAsset.handle'));
+        $t->true(strpos($lowered, 'registerAsset(modeAsset.handle') < strpos($lowered, '__callDispose(_stack3'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
     'lowers wordpress for using asset loops without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-for-using-assets.ts');

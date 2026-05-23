@@ -1448,22 +1448,35 @@ final class TypeScriptNamespaceLowerer
      */
     private function printExportedLocalDeclaration(array $declaration, string $namespace, array $imports, array $exportedValues): array
     {
-        $uses = [];
-        $source = $this->printTokenRange(
+        $statement = $this->printNamespaceFunctionStatement(
             $declaration['declarationStart'],
             $declaration['declarationEnd'],
             $namespace,
             $imports,
-            $exportedValues,
-            $uses
+            $exportedValues
         );
+        if ($statement === null) {
+            $uses = [];
+            $source = $this->printTokenRange(
+                $declaration['declarationStart'],
+                $declaration['declarationEnd'],
+                $namespace,
+                $imports,
+                $exportedValues,
+                $uses
+            );
+            $statement = [
+                'text' => $source,
+                'uses' => array_values(array_unique($uses)),
+            ];
+        }
 
         return [
             'lines' => [
-                $source,
+                $statement['text'],
                 $namespace . '.' . $declaration['name'] . ' = ' . $declaration['name'] . ';',
             ],
-            'uses' => array_values(array_unique($uses)),
+            'uses' => $statement['uses'],
         ];
     }
 
@@ -1785,6 +1798,11 @@ JS, [
      */
     private function printBodyStatement(int $start, int $end, string $namespace, array $imports, array $exportedValues): array
     {
+        $function = $this->printNamespaceFunctionStatement($start, $end, $namespace, $imports, $exportedValues);
+        if ($function !== null) {
+            return $function;
+        }
+
         $uses = [];
         $text = $this->printTokenRange($start, $end, $namespace, $imports, $exportedValues, $uses);
         if ($text !== '' && !str_ends_with($text, ';')) {
@@ -1792,6 +1810,222 @@ JS, [
         }
 
         return ['text' => $text, 'uses' => array_values(array_unique($uses))];
+    }
+
+    /**
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     * @return array{text:string, uses:list<string>}|null
+     */
+    private function printNamespaceFunctionStatement(int $start, int $end, string $namespace, array $imports, array $exportedValues): ?array
+    {
+        $functionIndex = $start;
+        $isAsync = false;
+        if (($this->tokens[$functionIndex] ?? null)?->text === 'async'
+            && ($this->tokens[$functionIndex + 1] ?? null)?->text === 'function'
+        ) {
+            $isAsync = true;
+            $functionIndex++;
+        }
+
+        if (($this->tokens[$functionIndex] ?? null)?->text !== 'function') {
+            return null;
+        }
+
+        $bodyOpen = $this->functionBodyOpen($functionIndex + 1, $end);
+        if ($bodyOpen === null) {
+            return null;
+        }
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $end) {
+            return null;
+        }
+
+        $uses = [];
+        $header = $this->printTokenRange($start, $bodyOpen - 1, $namespace, $imports, $exportedValues, $uses);
+        [$body, $bodyUses] = $this->printNamespaceFunctionBody(
+            $bodyOpen + 1,
+            $bodyClose,
+            $isAsync,
+            $namespace,
+            $imports,
+            $exportedValues
+        );
+
+        return [
+            'text' => $header . '{' . $body . '}',
+            'uses' => array_values(array_unique([...$uses, ...$bodyUses])),
+        ];
+    }
+
+    private function functionBodyOpen(int $start, int $end): ?int
+    {
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($text === ')') {
+                $parenDepth--;
+                continue;
+            }
+            if ($text === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($text === ']') {
+                $bracketDepth--;
+                continue;
+            }
+            if ($text === '{') {
+                if ($parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
+                    return $i;
+                }
+                $braceDepth++;
+                continue;
+            }
+            if ($text === '}') {
+                $braceDepth--;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     * @return array{0:string, 1:list<string>}
+     */
+    private function printNamespaceFunctionBody(
+        int $start,
+        int $bodyClose,
+        bool $isAsync,
+        string $namespace,
+        array $imports,
+        array $exportedValues
+    ): array {
+        $parts = [];
+        $uses = [];
+        for ($cursor = $start; $cursor < $bodyClose;) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                $cursor++;
+                continue;
+            }
+
+            $statementEnd = $this->declarationStatementEnd($cursor, $bodyClose)
+                ?? $this->findStatementEndOrLineBreak($cursor, $bodyClose);
+            $effectiveEnd = $statementEnd;
+            if (($this->tokens[$effectiveEnd] ?? null)?->text === ';') {
+                $effectiveEnd--;
+            }
+            if ($effectiveEnd < $cursor) {
+                $cursor = $statementEnd + 1;
+                continue;
+            }
+
+            if ($this->isNamespaceUsingStatement($cursor)) {
+                [$statement, $statementUses] = $this->printNamespaceFunctionUsingDeclaration(
+                    $cursor,
+                    $effectiveEnd,
+                    $isAsync,
+                    $namespace,
+                    $imports,
+                    $exportedValues
+                );
+            } else {
+                $statementUses = [];
+                $statement = $this->printTokenRange($cursor, $effectiveEnd, $namespace, $imports, $exportedValues, $statementUses);
+                if ($statement !== '' && !str_ends_with($statement, ';') && !str_ends_with($statement, '}')) {
+                    $statement .= ';';
+                }
+            }
+
+            if ($statement !== '') {
+                $parts[] = $statement;
+                array_push($uses, ...$statementUses);
+            }
+            $cursor = $statementEnd + 1;
+        }
+
+        return [implode('', $parts), array_values(array_unique($uses))];
+    }
+
+    /**
+     * @param array<string, array{local:string, source:string, exported:bool}> $imports
+     * @param array<string, true> $exportedValues
+     * @return array{0:string, 1:list<string>}
+     */
+    private function printNamespaceFunctionUsingDeclaration(
+        int $start,
+        int $end,
+        bool $isAsyncFunction,
+        string $namespace,
+        array $imports,
+        array $exportedValues
+    ): array {
+        $cursor = $start;
+        $isAwaitUsing = false;
+        if (($this->tokens[$cursor] ?? null)?->text === 'await') {
+            if (!$isAsyncFunction) {
+                throw new \InvalidArgumentException('Cannot use await using inside a non-async namespace function');
+            }
+            $isAwaitUsing = true;
+            $cursor++;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== 'using') {
+            throw new \InvalidArgumentException('Expected TypeScript namespace function using declaration');
+        }
+
+        $cursor++;
+        $declarators = [];
+        $uses = [];
+        while ($cursor <= $end) {
+            $name = $this->tokens[$cursor] ?? null;
+            if ($name?->kind !== 'identifier') {
+                throw new \InvalidArgumentException('Expected identifier in TypeScript namespace function using declaration');
+            }
+            if ($this->hasLineBreakBetween($cursor - 1, $cursor)) {
+                throw new \InvalidArgumentException('Expected identifier in TypeScript namespace function using declaration');
+            }
+
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === ':') {
+                $cursor = $this->skipNamespaceUsingTypeExpression($cursor + 1, $end);
+            }
+            if (($this->tokens[$cursor] ?? null)?->text !== '=') {
+                throw new \InvalidArgumentException('The declaration "' . $name->text . '" must be initialized');
+            }
+
+            $valueStart = $cursor + 1;
+            if ($valueStart > $end) {
+                throw new \InvalidArgumentException('Expected initializer after TypeScript namespace function using declaration');
+            }
+
+            $cursor = $this->namespaceUsingInitializerEnd($valueStart, $end);
+            $valueEnd = ($this->tokens[$cursor] ?? null)?->text === ',' ? $cursor - 1 : $end;
+            if ($valueEnd < $valueStart) {
+                throw new \InvalidArgumentException('Expected initializer after TypeScript namespace function using declaration');
+            }
+
+            $valueUses = [];
+            $declarators[] = $name->text . ' = ' . $this->printTokenRange($valueStart, $valueEnd, $namespace, $imports, $exportedValues, $valueUses);
+            array_push($uses, ...$valueUses);
+
+            if (($this->tokens[$cursor] ?? null)?->text !== ',') {
+                break;
+            }
+            $cursor++;
+        }
+
+        return [
+            ($isAwaitUsing ? 'await using ' : 'using ') . implode(', ', $declarators) . ';',
+            array_values(array_unique($uses)),
+        ];
     }
 
     /**

@@ -74,6 +74,29 @@ TS);
         $t->true(!str_contains($lowered, 'var __using = (stack, value, async) => {'));
         $t->true(!str_contains($lowered, '__callDispose(_stack, _error, _hasError);'));
     },
+    'erases upstream namespace function scoped using declarations' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptNamespaceLowerer();
+        $lowered = $lowerer->lower(<<<'TS'
+namespace ns {
+  export let settings = s;
+  function register() {
+    using preview: Disposable = acquire(settings.viewScript);
+    done(preview, settings);
+  }
+  export async function registerAsync(queue) {
+    await using asset: AsyncDisposable = await queue.open(settings.editorScript);
+    done(asset, settings);
+  }
+}
+TS);
+
+        $t->contains('function register(){using preview = acquire(ns.settings.viewScript);done(preview, ns.settings);}', $lowered);
+        $t->contains('async function registerAsync(queue){await using asset = await queue.open(ns.settings.editorScript);done(asset, ns.settings);}', $lowered);
+        $t->contains('ns.registerAsync = registerAsync;', $lowered);
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('namespace ns { function f() { await using x: AsyncDisposable = y } }'));
+    },
     'lowers upstream namespace exported variable declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptNamespaceLowerer();
 
@@ -376,6 +399,19 @@ JS . "\n", $lowered);
         $t->contains('__callDispose2(_stack, _error, _hasError);', $lowered);
         $t->contains('wp.blocks.registerBlockType(CardBlockRuntime.settings.name, {...CardBlockRuntime.settings, viewScript:CardBlockRuntime.previewUrl,});', $lowered);
         $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress namespace async disposable preview without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-namespace-await-using-preview.ts');
+        $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
+
+        $t->contains('CardBlockRuntime.settings = {name:metadata.name, viewScript:metadata.viewScript, editorScript:metadata.editorScript,};', $lowered);
+        $t->contains('async function registerPreview(queue){await using previewAsset = await queue.open(CardBlockRuntime.settings.viewScript);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(CardBlockRuntime.settings.name, {...CardBlockRuntime.settings, viewScript:previewAsset.url,});', $lowered);
+        $t->contains('CardBlockRuntime.registerPreview = registerPreview;', $lowered);
+        $t->true(strpos($lowered, 'CardBlockRuntime.settings =') < strpos($lowered, 'await using previewAsset ='));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
 ];

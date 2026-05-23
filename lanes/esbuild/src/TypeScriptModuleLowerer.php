@@ -59,6 +59,8 @@ final class TypeScriptModuleLowerer
         $this->usingScopeCounter = 0;
         $this->asyncGeneratorForAwaitCounter = 0;
         $this->configureHelperNames();
+        $this->validateSwitchCaseUsingDeclarations();
+        $this->validateDecoratorBoundaries();
 
         $lines = [];
         $exportAssignments = [];
@@ -131,6 +133,14 @@ final class TypeScriptModuleLowerer
                 [$functionOutput, $functionEnd] = $functionUsingStatement;
                 $lines[] = $functionOutput;
                 $i = $functionEnd;
+                continue;
+            }
+
+            $switchCaseUsingStatement = $this->lowerSwitchCaseBlockUsingStatementAt($i, $effectiveEnd);
+            if ($switchCaseUsingStatement !== null) {
+                [$switchOutput, $switchEnd] = $switchCaseUsingStatement;
+                $lines[] = $switchOutput;
+                $i = $switchEnd;
                 continue;
             }
 
@@ -398,6 +408,20 @@ final class TypeScriptModuleLowerer
         $count = count($this->tokens);
         for ($i = $atIndex + 1; $i < $count; $i++) {
             $text = $this->tokens[$i]->text;
+            if ($i === $atIndex + 1) {
+                $first = $this->tokens[$i];
+                if (($first->kind !== 'identifier' && $first->text !== '(')
+                    || in_array($first->text, ['new', 'function', 'class'], true)
+                ) {
+                    throw new \InvalidArgumentException('Expected identifier after JavaScript decorator');
+                }
+            }
+            if ($depth === 0 && ($text === '?.' || ($text === '?' && ($this->tokens[$i + 1] ?? null)?->text === '.'))) {
+                throw new \InvalidArgumentException('JavaScript decorator syntax does not allow "?." here');
+            }
+            if ($depth === 0 && $text === '[') {
+                throw new \InvalidArgumentException('JavaScript decorator syntax does not allow computed property access here');
+            }
             if (in_array($text, ['(', '{', '['], true)) {
                 $depth++;
             } elseif (in_array($text, [')', '}', ']'], true)) {
@@ -429,6 +453,162 @@ final class TypeScriptModuleLowerer
         }
 
         throw new \InvalidArgumentException('Unterminated TypeScript decorator');
+    }
+
+    private function validateDecoratorBoundaries(): void
+    {
+        $classBodies = $this->classBodyRanges();
+        $count = count($this->tokens);
+
+        for ($i = 0; $i < $count; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== '@') {
+                continue;
+            }
+
+            $classBody = $this->enclosingClassBodyRange($i, $classBodies);
+            $targetClass = $this->decoratorListClassTargetIndex($i);
+
+            if ($classBody !== null && $targetClass === null) {
+                if ($this->isParameterDecorator($i, $classBody)) {
+                    throw new \InvalidArgumentException('Parameter decorators are not allowed in JavaScript');
+                }
+
+                continue;
+            }
+
+            if ($targetClass === null) {
+                throw new \InvalidArgumentException('Decorators are not valid here');
+            }
+
+            $i = max($i, $targetClass - 1);
+        }
+    }
+
+    /**
+     * @return list<array{open:int, close:int}>
+     */
+    private function classBodyRanges(): array
+    {
+        $ranges = [];
+        $count = count($this->tokens);
+        for ($i = 0; $i < $count; $i++) {
+            if (($this->tokens[$i] ?? null)?->text !== 'class') {
+                continue;
+            }
+
+            $bodyOpen = $this->classExpressionBodyOpen($i, $count - 1);
+            if ($bodyOpen === null) {
+                continue;
+            }
+
+            $ranges[] = [
+                'open' => $bodyOpen,
+                'close' => $this->findMatchingPunctuator($bodyOpen, '{', '}'),
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{open:int, close:int}> $ranges
+     * @return array{open:int, close:int}|null
+     */
+    private function enclosingClassBodyRange(int $index, array $ranges): ?array
+    {
+        $best = null;
+        $bestSize = PHP_INT_MAX;
+        foreach ($ranges as $range) {
+            if ($index <= $range['open'] || $index >= $range['close']) {
+                continue;
+            }
+
+            $size = $range['close'] - $range['open'];
+            if ($size < $bestSize) {
+                $best = $range;
+                $bestSize = $size;
+            }
+        }
+
+        return $best;
+    }
+
+    private function decoratorListClassTargetIndex(int $start): ?int
+    {
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->text === '@') {
+            $cursor = $this->decoratorEnd($cursor) + 1;
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'export') {
+            $cursor++;
+            if (($this->tokens[$cursor] ?? null)?->text === 'default') {
+                $cursor++;
+            }
+        }
+
+        if (($this->tokens[$cursor] ?? null)?->text === 'declare') {
+            $cursor++;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text === 'abstract') {
+            $cursor++;
+        }
+
+        return ($this->tokens[$cursor] ?? null)?->text === 'class' ? $cursor : null;
+    }
+
+    /**
+     * @param array{open:int, close:int} $classBody
+     */
+    private function isParameterDecorator(int $atIndex, array $classBody): bool
+    {
+        $depth = 0;
+        $open = null;
+        for ($i = $classBody['open'] + 1; $i < $atIndex; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($text === '(') {
+                $depth++;
+                if ($depth === 1) {
+                    $open = $i;
+                }
+                continue;
+            }
+            if ($text === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    $open = null;
+                }
+            }
+        }
+
+        if ($open === null || $depth <= 0) {
+            return false;
+        }
+
+        $close = $this->findMatchingPunctuator($open, '(', ')');
+        $next = $this->nextSignificantTokenAfterMethodParameters($close, $classBody['close']);
+
+        return $next !== null && ($this->tokens[$next] ?? null)?->text === '{';
+    }
+
+    private function nextSignificantTokenAfterMethodParameters(int $close, int $classBodyClose): ?int
+    {
+        $depth = 0;
+        for ($i = $close + 1; $i < $classBodyClose; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($depth === 0 && in_array($text, ['{', ';', '='], true)) {
+                return $i;
+            }
+            if (in_array($text, ['(', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return null;
     }
 
     private function canStartDecoratedClassMember(Token $token): bool
@@ -4286,6 +4466,175 @@ final class TypeScriptModuleLowerer
     /**
      * @return array{0:string, 1:int}|null
      */
+    private function lowerSwitchCaseBlockUsingStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        if (!$this->lowerUsingDeclarations
+            || ($this->tokens[$start] ?? null)?->text !== 'switch'
+            || ($this->tokens[$start + 1] ?? null)?->text !== '('
+        ) {
+            return null;
+        }
+
+        $conditionClose = $this->findMatchingPunctuator($start + 1, '(', ')');
+        $bodyOpen = $conditionClose + 1;
+        if (($this->tokens[$bodyOpen] ?? null)?->text !== '{') {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd || $bodyClose !== $effectiveEnd) {
+            return null;
+        }
+
+        $copyOffset = $this->tokens[$start]->offset;
+        $output = '';
+        $changed = false;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
+
+        for ($cursor = $bodyOpen + 1; $cursor < $bodyClose; $cursor++) {
+            $text = $this->tokens[$cursor]->text;
+            $atCaseClauseLevel = $parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0;
+
+            if ($atCaseClauseLevel && $text === 'for') {
+                $statementEnd = $this->switchCaseClauseStatementEnd($cursor, $bodyClose);
+                $effectiveStatementEnd = $this->withoutTrailingSemicolon($statementEnd);
+                $this->validateForUsingStatement($cursor, $effectiveStatementEnd);
+                $forUsing = $this->lowerForUsingStatementAt($cursor, $effectiveStatementEnd);
+                if ($forUsing !== null) {
+                    [$forOutput, $forEnd] = $forUsing;
+                    $output .= substr($this->source, $copyOffset, $this->tokens[$cursor]->offset - $copyOffset);
+                    $output .= $forOutput;
+                    $copyOffset = $this->tokens[$forEnd]->offset + strlen($this->tokens[$forEnd]->text);
+                    $changed = true;
+                    $cursor = $forEnd;
+                    continue;
+                }
+            }
+
+            if ($text === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($text === ')') {
+                $parenDepth--;
+                continue;
+            }
+            if ($text === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($text === ']') {
+                $bracketDepth--;
+                continue;
+            }
+            if ($text === '}' && $braceDepth > 0) {
+                $braceDepth--;
+                continue;
+            }
+            if ($text !== '{') {
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0 || $braceDepth !== 0) {
+                $braceDepth++;
+                continue;
+            }
+
+            $blockClose = $this->findMatchingPunctuator($cursor, '{', '}');
+            if (!$this->containsUsingDeclarationInRange($cursor + 1, $blockClose - 1)) {
+                $cursor = $blockClose;
+                continue;
+            }
+
+            [$bodyLines, $blockChanged] = $this->lowerBlockScopedUsingStatements($cursor + 1, $blockClose);
+            if (!$blockChanged) {
+                $cursor = $blockClose;
+                continue;
+            }
+
+            $output .= substr($this->source, $copyOffset, $this->tokens[$cursor]->offset - $copyOffset);
+            $output .= $this->formatBlockScopedUsingLines($bodyLines);
+            $copyOffset = $this->tokens[$blockClose]->offset + strlen($this->tokens[$blockClose]->text);
+            $changed = true;
+            $cursor = $blockClose;
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        $output .= substr(
+            $this->source,
+            $copyOffset,
+            $this->tokens[$bodyClose]->offset + strlen($this->tokens[$bodyClose]->text) - $copyOffset
+        );
+
+        return [trim($output), $bodyClose];
+    }
+
+    private function switchCaseClauseStatementEnd(int $start, int $bodyClose): int
+    {
+        $depth = 0;
+        $canEndAtTopLevelCloseBrace = $this->statementCanEndAtTopLevelCloseBrace($start);
+        for ($i = $start; $i < $bodyClose; $i++) {
+            $text = $this->tokens[$i]->text;
+            if ($i > $start && $depth === 0 && ($text === 'case' || $text === 'default')) {
+                return max($start, $this->previousSignificantTokenIndex($i - 1) ?? ($i - 1));
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                if ($canEndAtTopLevelCloseBrace && $depth === 0 && $text === '}') {
+                    return $i;
+                }
+                continue;
+            }
+            if ($text === ';' && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return max($start, $bodyClose - 1);
+    }
+
+    /**
+     * @param list<string> $bodyLines
+     */
+    private function formatBlockScopedUsingLines(array $bodyLines): string
+    {
+        $lines = ['{'];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
+        }
+        $lines[] = '}';
+
+        return implode("\n", $lines);
+    }
+
+    private function containsUsingDeclarationInRange(int $start, int $end): bool
+    {
+        for ($cursor = $start; $cursor <= $end; $cursor++) {
+            if ($this->isUsingDeclarationStart($cursor)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
     private function lowerBlockScopedUsingStatementAt(int $start, int $effectiveEnd): ?array
     {
         if (!$this->lowerUsingDeclarations) {
@@ -4700,6 +5049,14 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $switchCaseUsing = $this->lowerSwitchCaseBlockUsingStatementAt($cursor, $effectiveEnd);
+            if ($switchCaseUsing !== null) {
+                [$switchOutput, $switchEnd] = $switchCaseUsing;
+                $lines[] = $switchOutput;
+                $cursor = $switchEnd;
+                continue;
+            }
+
             $nested = $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd);
             if ($nested !== null) {
                 [$nestedOutput, $nestedEnd] = $nested;
@@ -4796,6 +5153,15 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $switchCaseUsing = $this->lowerUsingDeclarations ? $this->lowerSwitchCaseBlockUsingStatementAt($cursor, $effectiveEnd) : null;
+            if ($switchCaseUsing !== null) {
+                [$switchOutput, $switchEnd] = $switchCaseUsing;
+                $lines[] = $switchOutput;
+                $changed = true;
+                $cursor = $switchEnd;
+                continue;
+            }
+
             $nested = $this->lowerUsingDeclarations ? $this->lowerBlockScopedUsingStatementAt($cursor, $effectiveEnd) : null;
             if ($nested !== null) {
                 [$nestedOutput, $nestedEnd] = $nested;
@@ -4866,6 +5232,15 @@ final class TypeScriptModuleLowerer
                 $lines[] = $forOutput;
                 $changed = true;
                 $cursor = $forEnd;
+                continue;
+            }
+
+            $switchCaseUsing = $this->lowerSwitchCaseBlockUsingStatementAt($cursor, $effectiveEnd);
+            if ($switchCaseUsing !== null) {
+                [$switchOutput, $switchEnd] = $switchCaseUsing;
+                $lines[] = $switchOutput;
+                $changed = true;
+                $cursor = $switchEnd;
                 continue;
             }
 
@@ -5278,6 +5653,66 @@ final class TypeScriptModuleLowerer
 
         if ($semicolon !== null && $initializer === null) {
             throw new \InvalidArgumentException('The declaration "' . $name->text . '" must be initialized');
+        }
+    }
+
+    private function validateSwitchCaseUsingDeclarations(): void
+    {
+        $count = count($this->tokens);
+        for ($switch = 0; $switch < $count; $switch++) {
+            if (($this->tokens[$switch] ?? null)?->text !== 'switch'
+                || ($this->tokens[$switch + 1] ?? null)?->text !== '('
+            ) {
+                continue;
+            }
+
+            $conditionClose = $this->findMatchingPunctuator($switch + 1, '(', ')');
+            $bodyOpen = $conditionClose + 1;
+            if (($this->tokens[$bodyOpen] ?? null)?->text !== '{') {
+                continue;
+            }
+
+            $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+            $braceDepth = 0;
+            $parenDepth = 0;
+            $bracketDepth = 0;
+            $waitingForCaseColon = false;
+            $insideCaseClause = false;
+
+            for ($i = $bodyOpen + 1; $i < $bodyClose; $i++) {
+                $text = $this->tokens[$i]->text;
+                $atCaseClauseLevel = $braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0;
+
+                if ($atCaseClauseLevel && ($text === 'case' || $text === 'default')) {
+                    $waitingForCaseColon = true;
+                    $insideCaseClause = false;
+                    continue;
+                }
+
+                if ($atCaseClauseLevel && $waitingForCaseColon && $text === ':') {
+                    $waitingForCaseColon = false;
+                    $insideCaseClause = true;
+                    continue;
+                }
+
+                if ($atCaseClauseLevel && $insideCaseClause && $this->isUsingDeclarationStart($i)) {
+                    throw new \InvalidArgumentException('Cannot use a "using" declaration directly inside a switch case');
+                }
+
+                if ($text === '{') {
+                    $braceDepth++;
+                } elseif ($text === '}') {
+                    $braceDepth--;
+                } elseif ($text === '(') {
+                    $parenDepth++;
+                } elseif ($text === ')') {
+                    $parenDepth--;
+                } elseif ($text === '[') {
+                    $bracketDepth++;
+                } elseif ($text === ']') {
+                    $bracketDepth--;
+                }
+            }
         }
     }
 
