@@ -192,7 +192,21 @@ npm test -- --grep clean-links
 13 passing (599ms)
 ```
 
-For the JSON-LD title disambiguation, replace-font-tags, compact metadata, RTL direction, and data URL image slices, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 43 Mozilla fixture pages, including `test-pages/data-url-image`, `test-pages/keep-images`, `test-pages/wordpress`, `test-pages/schema-org-context-object`, `test-pages/003-metadata-preferred`, `test-pages/004-metadata-space-separated-properties`, `test-pages/title-and-h1-discrepancy`, `test-pages/replace-font-tags`, and `test-pages/rtl-1` through `test-pages/rtl-4`.
+The medium-1 empty heading/boundary slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep medium-1
+15 passing (750ms)
+```
+
+The cnet-svg-classes duplicate SVG sprite slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep cnet-svg-classes
+15 passing (639ms)
+```
+
+For the JSON-LD title disambiguation, replace-font-tags, compact metadata, RTL direction, and data URL image slices, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 45 Mozilla fixture pages, including `test-pages/cnet-svg-classes`, `test-pages/medium-1`, `test-pages/data-url-image`, `test-pages/keep-images`, `test-pages/wordpress`, `test-pages/schema-org-context-object`, `test-pages/003-metadata-preferred`, `test-pages/004-metadata-space-separated-properties`, `test-pages/title-and-h1-discrepancy`, `test-pages/replace-font-tags`, and `test-pages/rtl-1` through `test-pages/rtl-4`.
 
 ## PHP Mapping
 
@@ -228,6 +242,8 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Focused Mozilla short non-SVG base64 data URI placeholders are removed before `data-srcset` promotion so responsive candidates survive JavaScript-free extraction.
 - Mozilla `test-pages/data-url-image` copied into the lane and mapped for data URL media boundaries: standalone tiny GIF payloads are preserved, short placeholder GIF `src` values are removed when `data-srcset` exists, `data-srcset` is promoted to `srcset`, inline SVG data URI literal spaces are preserved in serialized content, and base64 SVG/JPEG payloads plus editorial paragraph/image boundaries remain aligned with upstream expectations.
 - Mozilla `test-pages/keep-images` copied into the lane and mapped for Medium full-width editorial media retention: all 16 expected image payloads, 16 figures, 65 paragraphs, captions, metadata, readerable classification, source image order, and the named `div#readability-page-1 > div[name=ef8c]` section boundary remain while editor/metabar chrome is removed.
+- Mozilla `test-pages/medium-1` copied into the lane and mapped for Medium metadata, readerable classification, empty spacer heading cleanup, and lead heading-to-paragraph text boundary preservation so `Better Student Journalism` does not concatenate with the first paragraph.
+- Mozilla `test-pages/cnet-svg-classes` copied into the lane and mapped for Spanish CNET metadata, readerable classification, article text/image parity, and duplicate inline SVG symbol-sprite dedupe while preserving retained SVG content.
 - Mozilla `_fixRelativeUris` post-processing: `javascript:` links are replaced by inert text/span content, and `href`, `src`, `poster`, and `srcset` values are resolved against the document URL and first base element when a source URL is supplied.
 - Mozilla title/header cleanup semantics from `_headerDuplicatesTitle` and `_prepArticle`: the first content `h1`/`h2` that closely duplicates the extracted title is removed, and remaining `h1` elements are demoted to `h2` because the title is emitted separately.
 - Layout-only full-width figure wrapper cleanup: wrappers whose only payload is a single image figure with a short caption are removed when surrounded by paragraph-rich article siblings, while in-column editorial figures are retained for WordPress block image output.
@@ -258,6 +274,13 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `test-pages/title-and-h1-discrepancy` copied into the lane and mapped for JSON-LD `name`/`headline` disagreement where the JSON-LD field matching the cleaned document title remains the article title while the body h1 is demoted/cleaned in extracted content.
 - Mozilla `test-pages/schema-org-context-object` copied into the lane and mapped for object-valued JSON-LD `@context`, NewsArticle title/byline/site/date/lang/excerpt metadata, readerable classification, full paragraph sequence parity, React/Next comment-delimited contributor text preservation, and leading timestamp/inline-byline chrome removal before the first editorial paragraph.
 - Mozilla post-process comment cleanup semantics are now native for the current slice: DOM comment nodes are removed before div phrasing content is wrapped into paragraphs, so hydration markers such as `<!-- -->` do not split a text run into multiple paragraph blocks.
+
+## Verification 2026-05-23
+
+- Upstream targeted oracle: `npm test -- --grep medium-1` passes 15 checks with 0 failures in `.upstream-cache/readability`.
+- Upstream targeted oracle: `npm test -- --grep cnet-svg-classes` passes 15 checks with 0 failures in `.upstream-cache/readability`.
+- Readability-local PHP coverage: 83 behavior tests, 772 assertions, 0 failures.
+- Required root `php tools/run-tests.php`: 159 test files, 14522 assertions, 0 failures.
 - WordPress React/Next migration cleanup: contributor or byline text split by parser comment delimiters serializes as one paragraph block instead of multiple fragment blocks.
 - Mozilla/fixture text projection boundary semantics are now native for the current slice: text-bearing block, table, and list siblings receive separator whitespace after cleanup so expected text does not concatenate across paragraph-heading, paragraph-paragraph, generated-br paragraph, and table-cell boundaries.
 - WordPress block-boundary spacing cleanup: imported article text, search excerpts, and review logs keep paragraph-to-heading and table-cell words separated even when source HTML omits whitespace between adjacent tags.
@@ -299,14 +322,14 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/data-url-image/keep-images-medium-section-wrapper/ad wrapper/title-heading/title-h1-discrepancy/schema-org-context-object/wordpress-articleBody/out-of-band figure/post-process/leading-action-bar/heading-less-news-chrome/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim-footer-parity-selected-root-nbsp/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline/entity-unescape/replace-font-tags/rtl-direction/transparent-section-wrapper/readability-page-wrapper/comment-delimited-phrasing/block-boundary-spacing mappings.
-- Native PHP lane tests: 79 passing, 0 failing, 739 assertions.
-- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 79 tests, 739 assertions, and 0 failures.
-- Latest required root verification: `php tools/run-tests.php` passes 153 test files, 13923 assertions, and 0 failures.
-- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted oracles pass `npm test -- --grep keep-images` with 15 checks in 825ms, `npm test -- --grep schema-org-context-object` with 17 checks in 759ms, `npm test -- --grep 'keep-tabular-data|replace-brs'` with 26 checks in 648ms, and `npm test -- --grep clean-links` with 13 checks in 599ms.
-- Blocker: no readability-local, upstream targeted, or root verification blocker is active. Remaining exact-parity gaps are structural HTML parity for remaining Medium image/avatar wrapper details and default/root wrapper strategy.
-- Current work: native scoring now treats `section-content` as a Medium layout shell rather than a high-confidence generic content token when a surrounding article/section boundary is available. This brings the copied Mozilla `keep-images` fixture closer to structural parity by preserving `div#readability-page-1 > div[name=ef8c]`, and adds `wordpress-medium-section-wrapper-parity.php` to show oracle wrapper preservation while WordPress block output remains flattened.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/data-url-image/keep-images-medium-section-wrapper/ad wrapper/title-heading/title-h1-discrepancy/schema-org-context-object/wordpress-articleBody/out-of-band figure/post-process/leading-action-bar/heading-less-news-chrome/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim-footer-parity-selected-root-nbsp/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline/entity-unescape/replace-font-tags/rtl-direction/transparent-section-wrapper/readability-page-wrapper/comment-delimited-phrasing/block-boundary-spacing/medium-1-empty-heading-boundary/cnet-svg-sprite-dedupe mappings.
+- Native PHP lane tests: 83 passing, 0 failing, 772 assertions.
+- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 83 tests, 772 assertions, and 0 failures.
+- Latest required root verification: `php tools/run-tests.php` passes with 159 test files, 14522 assertions, and 0 failures.
+- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted oracles pass `npm test -- --grep keep-images` with 15 checks in 825ms, `npm test -- --grep schema-org-context-object` with 17 checks in 759ms, `npm test -- --grep 'keep-tabular-data|replace-brs'` with 26 checks in 648ms, `npm test -- --grep clean-links` with 13 checks in 599ms, `npm test -- --grep medium-1` with 15 checks in 750ms, and `npm test -- --grep cnet-svg-classes` with 15 checks in 639ms.
+- Blocker: no readability-local or upstream targeted blocker is active. The upstream targeted oracle, focused readability PHP tests, and required root harness are passing for this batch.
+- Current work: native post-processing now removes duplicate inline SVG symbol sprites by repeated symbol-id signature while preserving the first sprite and ordinary inline SVG content. The copied Mozilla `cnet-svg-classes` fixture now matches the upstream duplicate-sprite boundary, and `wordpress-svg-sprite-dedupe.php` shows repeated theme sprite sheets do not become duplicate block output while editorial inline SVG diagrams remain.
 
 ## Next Slice
 
-Continue `keep-images`/`lazy-image-1` exact structural parity, especially remaining Medium image/avatar wrapper shape and default/root wrapper strategy.
+Continue Medium exact structural parity for remaining image/avatar wrapper shape and default/root wrapper strategy, using `medium-1` and `lazy-image-1` as the next fixture pair.

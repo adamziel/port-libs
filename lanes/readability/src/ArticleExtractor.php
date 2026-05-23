@@ -1816,11 +1816,13 @@ final class ArticleExtractor
     {
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
         $this->removeCommentNodes($scope);
+        $this->removeDuplicateSvgSymbolSprites($scope);
         $this->wrapPhrasingContentInDivs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
         $this->removeEmptyParagraphs($scope);
+        $this->removeEmptyHeadings($scope);
         $this->removeBreaksBeforeParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
@@ -2009,6 +2011,56 @@ final class ArticleExtractor
         }
     }
 
+    private function removeDuplicateSvgSymbolSprites(\DOMElement $scope): void
+    {
+        $seen = [];
+        $remove = [];
+        foreach ($scope->getElementsByTagName('svg') as $svg) {
+            if (!$svg instanceof \DOMElement) {
+                continue;
+            }
+
+            $signature = $this->svgSymbolSpriteSignature($svg);
+            if ($signature === null) {
+                continue;
+            }
+
+            if (isset($seen[$signature])) {
+                $remove[] = $svg;
+                continue;
+            }
+
+            $seen[$signature] = true;
+        }
+
+        foreach ($remove as $svg) {
+            $svg->parentNode?->removeChild($svg);
+        }
+    }
+
+    private function svgSymbolSpriteSignature(\DOMElement $svg): ?string
+    {
+        $ids = [];
+        foreach ($svg->getElementsByTagName('symbol') as $symbol) {
+            if (!$symbol instanceof \DOMElement) {
+                continue;
+            }
+
+            $id = trim($symbol->getAttribute('id'));
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        if ($ids === []) {
+            return null;
+        }
+
+        sort($ids);
+
+        return implode("\n", $ids);
+    }
+
     private function cleanPresentationalAttributes(\DOMElement $node): void
     {
         if (strtolower($node->tagName) === 'svg') {
@@ -2053,6 +2105,26 @@ final class ArticleExtractor
             }
 
             $paragraph->parentNode?->removeChild($paragraph);
+        }
+    }
+
+    private function removeEmptyHeadings(\DOMElement $scope): void
+    {
+        $headings = [];
+        foreach ($scope->getElementsByTagName('*') as $node) {
+            if (!$node instanceof \DOMElement || preg_match('/^h[1-6]$/i', $node->tagName) !== 1) {
+                continue;
+            }
+
+            $headings[] = $node;
+        }
+
+        foreach ($headings as $heading) {
+            if ($this->normalizeWhitespace($heading->textContent) !== '' || $this->hasMediaPayload($heading)) {
+                continue;
+            }
+
+            $heading->parentNode?->removeChild($heading);
         }
     }
 

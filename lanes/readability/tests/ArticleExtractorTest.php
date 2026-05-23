@@ -89,6 +89,36 @@ $attributeValues = static function (string $html, string $query): array {
 
     return $values;
 };
+$svgSymbolSignatures = static function (string $html): array {
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="UTF-8" ?><main>' . $html . '</main>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+
+    $signatures = [];
+    foreach ($dom->getElementsByTagName('svg') as $svg) {
+        if (!$svg instanceof DOMElement) {
+            continue;
+        }
+
+        $ids = [];
+        foreach ($svg->getElementsByTagName('symbol') as $symbol) {
+            if ($symbol instanceof DOMElement && trim($symbol->getAttribute('id')) !== '') {
+                $ids[] = trim($symbol->getAttribute('id'));
+            }
+        }
+
+        if ($ids === []) {
+            continue;
+        }
+
+        sort($ids);
+        $signatures[] = implode('|', $ids);
+    }
+
+    return $signatures;
+};
 $normalizedText = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
 
 return [
@@ -1332,6 +1362,49 @@ return [
         $t->true(str_starts_with($rows[4]['src'] ?? '', 'data:image/jpeg;base64,'), 'real JPEG data URI should be preserved');
         $t->same(4, count($attributeValues($article->contentHtml, '//p')), 'expected editorial paragraphs should remain around data URI images');
     },
+    'maps Mozilla cnet svg sprite dedupe fixture' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText, $svgSymbolSignatures): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/cnet-svg-classes';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($svgSymbolSignatures($expected), $svgSymbolSignatures($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//svg')), count($attributeValues($article->contentHtml, '//svg')));
+    },
+    'deduplicates repeated WordPress inline SVG symbol sprites before block output' => static function (TestRunner $t): void {
+        $sprite = '<svg class="theme-icons"><symbol id="wp-play" viewBox="0 0 10 10"><path d="M0 0 L10 5 L0 10 Z"></path></symbol></svg>';
+        $source = '<html><head><meta property="og:title" content="SVG Sprite Import"></head><body><article>'
+            . '<h1>SVG Sprite Import</h1>'
+            . '<p>' . str_repeat('Legacy WordPress themes can embed repeated inline SVG symbol sprites inside exported post content. ', 3) . '</p>'
+            . $sprite
+            . '<p>' . str_repeat('The migration should keep one reusable sprite while preventing duplicate icon blocks in the imported article. ', 3) . '</p>'
+            . '<svg id="editorial-diagram" viewBox="0 0 20 20"><path d="M0 0 L20 20"></path></svg>'
+            . $sprite
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('SVG Sprite Import', $article->title);
+        $t->same(1, substr_count($article->contentHtml, '<symbol id="wp-play"'), 'duplicate symbol sprites should be removed from article HTML');
+        $t->same(1, substr_count($blocks, '<symbol id="wp-play"'), 'duplicate symbol sprites should not become duplicate WordPress blocks');
+        $t->contains('id="editorial-diagram"', $article->contentHtml);
+        $t->contains('preventing duplicate icon blocks', $blocks);
+    },
     'maps Mozilla keep-images fixture full-width editorial media retention' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/keep-images';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1393,6 +1466,46 @@ return [
         $t->same(false, str_contains($blocks, 'name="wpsec"'), 'WordPress blocks should flatten source section boundaries');
         $t->same(false, str_contains($blocks, 'section-content'), 'source Medium layout classes should remain stripped');
         $t->same(false, str_contains($wordpressArticle->text, 'Related source chrome'), 'surrounding source chrome should not enter the migrated article');
+    },
+    'maps Mozilla medium-1 empty heading cleanup and boundary spacing' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/medium-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same([], $attributeValues($article->contentHtml, '//*[self::h1 or self::h2 or self::h3 or self::h4 or self::h5 or self::h6][not(normalize-space()) and not(.//img or .//embed or .//object or .//iframe)]'));
+        $t->same(false, str_contains($article->text, 'JournalismWe'), 'empty Medium heading wrappers should not concatenate heading and paragraph text');
+        $t->true(str_starts_with($article->text, 'Better Student Journalism We pushed out the first version'), 'article text should retain a boundary between the lead heading and paragraph');
+    },
+    'removes empty imported headings before WordPress paragraph serialization' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Empty Heading Import"></head><body><article>'
+            . '<h1>Empty Heading Import</h1>'
+            . '<h4><br></h4>'
+            . '<p>' . str_repeat('A WordPress migration should not keep visual spacer headings from the source editor. ', 3) . '</p>'
+            . '<h2>Review Notes</h2>'
+            . '<h3> </h3>'
+            . '<p>' . str_repeat('The resulting blocks should keep readable boundaries around real headings and paragraphs. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Empty Heading Import', $article->title);
+        $t->same(false, str_contains($article->contentHtml, '<h4'), 'empty spacer heading should be removed before block output');
+        $t->same(false, str_contains($article->contentHtml, '<h3'), 'whitespace-only spacer heading should be removed before block output');
+        $t->same(false, str_contains($article->text, 'ImportA WordPress'), 'title-adjacent spacer heading should not collapse text boundaries');
+        $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
+        $t->contains('Review Notes', $blocks);
     },
     'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
