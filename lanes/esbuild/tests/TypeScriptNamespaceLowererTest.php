@@ -53,6 +53,27 @@ JS . "\n", $lowerer->lower('namespace ns { export import foo = bar.x; foo }'));
         $t->true(strpos($lowered, 'const c = __using(_stack, d);') < strpos($lowered, 'ns.e = c;'));
         $t->throws(InvalidArgumentException::class, static fn (): string => (new TypeScriptNamespaceLowerer())->lower('namespace ns { await using c: Disposable = d }'));
     },
+    'renames upstream namespace using helper symbols when source names collide' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
+const __knownSymbol = symbols.known;
+const __typeError = errors.type;
+const __using = disposables.using;
+const __callDispose = disposables.callDispose;
+namespace ns {
+  using c: Disposable = d;
+  export const e = c;
+}
+TS);
+
+        $t->contains('var __knownSymbol2 = (name, symbol) =>', $lowered);
+        $t->contains('var __typeError2 = (msg) => {', $lowered);
+        $t->contains('var __using2 = (stack, value, async) => {', $lowered);
+        $t->contains('var __callDispose2 = (stack, error, hasError) => {', $lowered);
+        $t->contains('const c = __using2(_stack, d);', $lowered);
+        $t->contains('__callDispose2(_stack, _error, _hasError);', $lowered);
+        $t->true(!str_contains($lowered, 'var __using = (stack, value, async) => {'));
+        $t->true(!str_contains($lowered, '__callDispose(_stack, _error, _hasError);'));
+    },
     'lowers upstream namespace exported variable declarations' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptNamespaceLowerer();
 
@@ -340,6 +361,20 @@ JS . "\n", $lowered);
         $t->true(strpos($lowered, 'const previewAsset = __using') < strpos($lowered, 'CardBlockRuntime.previewUrl = previewAsset.url;'));
         $t->true(strpos($lowered, 'CardBlockRuntime.previewUrl = previewAsset.url;') < strpos($lowered, '__callDispose(_stack'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress namespace disposable preview with colliding helper names without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-namespace-using-helper-collision.ts');
+        $lowered = (new TypeScriptNamespaceLowerer())->lower($source);
+
+        $t->contains('var __using2 = (stack, value, async) => {', $lowered);
+        $t->contains('var __callDispose2 = (stack, error, hasError) => {', $lowered);
+        $t->contains('const __using = wp.disposables.using;', $lowered);
+        $t->contains('const __callDispose = wp.disposables.callDispose;', $lowered);
+        $t->contains('const previewAsset = __using2(_stack, acquirePreviewAsset(CardBlockRuntime.settings.viewScript));', $lowered);
+        $t->contains('__callDispose2(_stack, _error, _hasError);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(CardBlockRuntime.settings.name, {...CardBlockRuntime.settings, viewScript:CardBlockRuntime.previewUrl,});', $lowered);
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },

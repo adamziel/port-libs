@@ -3475,7 +3475,7 @@ final class TypeScriptModuleLowerer
         [$stackName] = $this->nextUsingScopeNames();
         $iterable = $this->printTokenRange($loop['iterableStart'], $loop['iterableEnd']);
         $bodyLines = [
-            'const ' . $loop['name'] . ' = __using(' . $stackName . ', ' . $tempName . ($loop['awaitUsing'] ? ', true' : '') . ');',
+            'const ' . $loop['name'] . ' = ' . $this->usingHelperUsingName . '(' . $stackName . ', ' . $tempName . ($loop['awaitUsing'] ? ', true' : '') . ');',
         ];
         $hasAwaitUsing = $loop['awaitUsing'];
 

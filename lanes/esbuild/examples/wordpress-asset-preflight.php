@@ -40,6 +40,7 @@ $usingLocalControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR
 $functionUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-function-using-disposable.ts');
 $blockUsingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-block-using-disposable.ts');
 $forUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-assets.ts');
+$forUsingHelperCollisionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-helper-collision.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
@@ -47,6 +48,7 @@ $dotNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/
 $destructuredNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-destructured-settings.ts');
 $functionNamespaceTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-function-namespace.ts');
 $namespaceUsingPreviewTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-using-preview.ts');
+$namespaceUsingHelperCollisionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-using-helper-collision.ts');
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
@@ -82,6 +84,7 @@ $functionUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($
 $blockUsingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($blockUsingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $forUsingAssetsLowered = (new TypeScriptModuleLowerer())->lower($forUsingAssetsTypeScriptSource);
 $forUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
+$forUsingHelperCollisionLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingHelperCollisionTypeScriptSource, lowerUsingDeclarations: true);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -89,6 +92,7 @@ $dotNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($dotNamespaceTy
 $destructuredNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($destructuredNamespaceTypeScriptSource);
 $functionNamespaceLowered = (new TypeScriptNamespaceLowerer())->lower($functionNamespaceTypeScriptSource);
 $namespaceUsingPreviewLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceUsingPreviewTypeScriptSource);
+$namespaceUsingHelperCollisionLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceUsingHelperCollisionTypeScriptSource);
 $namespaceLowered = (new TypeScriptNamespaceLowerer())->lower(<<<'TS'
 namespace CardBlockRuntime {
   export import blocks = wp.blocks;
@@ -137,6 +141,7 @@ printf("WordPress TypeScript function scoped using helper bytes: %d\n", strlen($
 printf("WordPress TypeScript block scoped using helper bytes: %d\n", strlen($blockUsingDisposableLegacyLowered));
 printf("WordPress TypeScript for using asset loop bytes: %d\n", strlen($forUsingAssetsLowered));
 printf("WordPress TypeScript for using asset helper bytes: %d\n", strlen($forUsingAssetsLegacyLowered));
+printf("WordPress TypeScript for using collision helper bytes: %d\n", strlen($forUsingHelperCollisionLegacyLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
@@ -145,6 +150,7 @@ printf("WordPress TypeScript dot namespace bytes: %d\n", strlen($dotNamespaceLow
 printf("WordPress TypeScript destructured namespace bytes: %d\n", strlen($destructuredNamespaceLowered));
 printf("WordPress TypeScript function namespace bytes: %d\n", strlen($functionNamespaceLowered));
 printf("WordPress TypeScript namespace using helper bytes: %d\n", strlen($namespaceUsingPreviewLowered));
+printf("WordPress TypeScript namespace using collision helper bytes: %d\n", strlen($namespaceUsingHelperCollisionLowered));
 printf("JSON metadata imports: %d\n", count(array_filter(
     $analysis->relativeImports(),
     static fn ($import): bool => $import->hasJsonTypeAttribute()

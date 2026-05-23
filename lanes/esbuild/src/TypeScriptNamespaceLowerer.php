@@ -12,12 +12,17 @@ final class TypeScriptNamespaceLowerer
     private array $tokens = [];
     private string $source = '';
     private bool $needsUsingHelperRuntime = false;
+    private string $usingHelperKnownSymbolName = '__knownSymbol';
+    private string $usingHelperTypeErrorName = '__typeError';
+    private string $usingHelperUsingName = '__using';
+    private string $usingHelperCallDisposeName = '__callDispose';
 
     public function lower(string $source): string
     {
         $this->source = $source;
         $this->tokens = (new JsLexer())->tokenize($source);
         $this->needsUsingHelperRuntime = false;
+        $this->configureHelperNames();
 
         $output = '';
         $declaredValues = [];
@@ -1549,7 +1554,7 @@ final class TypeScriptNamespaceLowerer
             }
 
             $value = $this->printTokenRange($valueStart, $valueEnd, $namespace, $imports, $exportedValues, $uses);
-            $declarators[] = $name->text . ' = __using(_stack, ' . $value . ')';
+            $declarators[] = $name->text . ' = ' . $this->usingHelperUsingName . '(_stack, ' . $value . ')';
 
             if (($this->tokens[$cursor] ?? null)?->text !== ',') {
                 break;
@@ -1622,7 +1627,7 @@ final class TypeScriptNamespaceLowerer
         $wrapped[] = '} catch (_) {';
         $wrapped[] = '  var _error = _, _hasError = true;';
         $wrapped[] = '} finally {';
-        $wrapped[] = '  __callDispose(_stack, _error, _hasError);';
+        $wrapped[] = '  ' . $this->usingHelperCallDisposeName . '(_stack, _error, _hasError);';
         $wrapped[] = '}';
 
         return $wrapped;
@@ -1630,21 +1635,21 @@ final class TypeScriptNamespaceLowerer
 
     private function usingHelperRuntime(): string
     {
-        return <<<'JS'
-var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
-var __typeError = (msg) => {
+        return strtr(<<<'JS'
+var %%knownSymbol%% = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
+var %%typeError%% = (msg) => {
   throw TypeError(msg);
 };
-var __using = (stack, value, async) => {
+var %%using%% = (stack, value, async) => {
   if (value != null) {
-    if (typeof value !== "object" && typeof value !== "function") __typeError("Object expected");
+    if (typeof value !== "object" && typeof value !== "function") %%typeError%%("Object expected");
     var dispose, inner;
-    if (async) dispose = value[__knownSymbol("asyncDispose")];
+    if (async) dispose = value[%%knownSymbol%%("asyncDispose")];
     if (dispose === void 0) {
-      dispose = value[__knownSymbol("dispose")];
+      dispose = value[%%knownSymbol%%("dispose")];
       if (async) inner = dispose;
     }
-    if (typeof dispose !== "function") __typeError("Object not disposable");
+    if (typeof dispose !== "function") %%typeError%%("Object not disposable");
     if (inner) dispose = function() {
       try {
         inner.call(this);
@@ -1658,7 +1663,7 @@ var __using = (stack, value, async) => {
   }
   return value;
 };
-var __callDispose = (stack, error, hasError) => {
+var %%callDispose%% = (stack, error, hasError) => {
   var E = typeof SuppressedError === "function" ? SuppressedError : function(e, s, m, _2) {
     return _2 = Error(m), _2.name = "SuppressedError", _2.error = e, _2.suppressed = s, _2;
   };
@@ -1676,7 +1681,57 @@ var __callDispose = (stack, error, hasError) => {
   };
   return next();
 };
-JS . "\n";
+JS, [
+            '%%knownSymbol%%' => $this->usingHelperKnownSymbolName,
+            '%%typeError%%' => $this->usingHelperTypeErrorName,
+            '%%using%%' => $this->usingHelperUsingName,
+            '%%callDispose%%' => $this->usingHelperCallDisposeName,
+        ]) . "\n";
+    }
+
+    private function configureHelperNames(): void
+    {
+        $used = $this->sourceIdentifierMap();
+        $this->usingHelperKnownSymbolName = $this->allocateUniqueIdentifier('__knownSymbol', $used);
+        $this->usingHelperTypeErrorName = $this->allocateUniqueIdentifier('__typeError', $used);
+        $this->usingHelperUsingName = $this->allocateUniqueIdentifier('__using', $used);
+        $this->usingHelperCallDisposeName = $this->allocateUniqueIdentifier('__callDispose', $used);
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function sourceIdentifierMap(): array
+    {
+        $used = [];
+        foreach ($this->tokens as $token) {
+            if ($token->kind === 'identifier') {
+                $used[$token->text] = true;
+            }
+        }
+
+        return $used;
+    }
+
+    /**
+     * @param array<string, true> $used
+     */
+    private function allocateUniqueIdentifier(string $base, array &$used): string
+    {
+        if (!isset($used[$base])) {
+            $used[$base] = true;
+
+            return $base;
+        }
+
+        for ($suffix = 2; ; $suffix++) {
+            $candidate = $base . $suffix;
+            if (!isset($used[$candidate])) {
+                $used[$candidate] = true;
+
+                return $candidate;
+            }
+        }
     }
 
     private function isTypeOnlyNamespaceStatement(int $start): bool

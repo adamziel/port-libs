@@ -444,6 +444,28 @@ TS,
         $t->true(!str_contains($lowered, 'var __using = (stack, value, async) => {'));
         $t->true(!str_contains($lowered, '__using(_stack, acquire())'));
     },
+    'renames upstream for using helper symbols when source names collide' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+const __knownSymbol = "source-known";
+const __typeError = "source-error";
+const __using = "source-using";
+const __callDispose = "source-dispose";
+for (using asset: Disposable of assets) {
+  register(asset);
+}
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using2 = (stack, value, async) => {', $lowered);
+        $t->contains('var __callDispose2 = (stack, error, hasError) => {', $lowered);
+        $t->contains('const asset = __using2(_stack2, _asset);', $lowered);
+        $t->contains('__callDispose2(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('const __using = "source-using";', $lowered);
+        $t->true(!str_contains($lowered, 'const asset = __using(_stack2, _asset);'));
+        $t->true(!str_contains($lowered, 'var __using = (stack, value, async) => {'));
+    },
     'lowers upstream block scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'if (nested) { using x: Disposable = y; bar(x); }',
@@ -1557,6 +1579,23 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
         $t->true(strpos($lowered, 'const asset = __using') < strpos($lowered, 'registerAsset(asset.handle, asset.url);'));
         $t->true(strpos($lowered, 'registerAsset(asset.handle, asset.url);') < strpos($lowered, '__callDispose(_stack2'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'satisfies'));
+    },
+    'lowers wordpress for using asset cleanup with colliding helper names without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-for-using-helper-collision.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('var __using2 = (stack, value, async) => {', $lowered);
+        $t->contains('var __callDispose2 = (stack, error, hasError) => {', $lowered);
+        $t->contains('const __using = wp.disposables.using;', $lowered);
+        $t->contains('const __callDispose = wp.disposables.callDispose;', $lowered);
+        $t->contains('const asset = __using2(_stack2, _asset);', $lowered);
+        $t->contains('__callDispose2(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, 'const asset = __using(_stack2, _asset);'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));
