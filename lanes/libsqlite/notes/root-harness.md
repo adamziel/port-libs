@@ -467,3 +467,103 @@ php tools/run-tests.php
 ```
 
 Result observed by this worker: 210 test files, 24139 assertions, 0 failures.
+
+## Auto-Vacuum Pointer-Map Mutation Slice
+
+Focused lane verification for the auto-vacuum pointer-map mutation planning
+slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1508 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-pointer-map-mutation-plan.php
+```
+
+It reported updated page images `[1,2,6]`, page 6 as the new freelist trunk,
+the pointer-map entry for page 6 rewritten to `free-page`, and the existing
+`siteurl` row still readable through the native table reader.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick autovacuum.test incrvacuum.test
+```
+
+Result: 0 errors out of 507 tests.
+
+The required duplicate-root preflight was run before any aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned active exact root harness processes:
+
+```text
+3056982 php tools/run-tests.php
+3057590 php tools/run-tests.php
+```
+
+Owner sampling showed both owned by `claude`:
+
+```text
+PID      USER    ELAPSED CMD
+3056982 claude  00:15   php tools/run-tests.php
+3057590 claude  00:13   php tools/run-tests.php
+```
+
+This worker did not start a duplicate root harness. Aggregate root status is
+pending supervisor/integrator acceptance of the active run.
+
+## Auto-Vacuum Overflow Insert Pointer-Map Slice
+
+Focused lane verification for the auto-vacuum overflow insert pointer-map
+slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1519 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-autovacuum-overflow-option-insert-plan.php
+```
+
+It reported updated page images `[1,2,3,4,5,6]`, overflow pages `[4,5,6]`,
+pointer-map entries for the first overflow page pointing to page 3 and
+continuation overflow pages pointing to pages 4 and 5, and a readable
+`theme_mods_twentyfive` option.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test insert.test corrupt3.test
+```
+
+Result: 0 errors out of 839 tests.
+
+The required duplicate-root preflight was run before the aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned no active exact root process, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result: 213 test files, 24527 assertions, 0 failures.

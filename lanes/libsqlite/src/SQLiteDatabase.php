@@ -161,6 +161,15 @@ final class SQLiteDatabase
         return $entries;
     }
 
+    /**
+     * @param array<int, SQLitePointerMapEntry|array{0:int,1:int}|array{type:int,parent_page_number:int}> $updatesByPage
+     * @return array<int, string>
+     */
+    public function planPointerMapUpdates(array $updatesByPage, ?int $databasePageCount = null): array
+    {
+        return $this->pointerMapPageImagesForUpdates([], $updatesByPage, $databasePageCount);
+    }
+
     public function page(int $pageNumber): string
     {
         if ($pageNumber < 1) {
@@ -419,6 +428,9 @@ final class SQLiteDatabase
             if ($pageNumber < 2 || $pageNumber > $databasePageCount) {
                 throw new \InvalidArgumentException('SQLite freed page number is outside the database image');
             }
+            if ($this->isAutoVacuum() && $this->isPointerMapPage($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite auto-vacuum pointer-map pages cannot be placed on the freelist');
+            }
             if (isset($seenInput[$pageNumber]) || isset($alreadyFree[$pageNumber])) {
                 throw new \InvalidArgumentException("SQLite page {$pageNumber} is already on the freelist");
             }
@@ -472,6 +484,19 @@ final class SQLiteDatabase
             $alreadyFree[$pageNumber] = true;
         }
 
+        $updatedPointerMapPages = [];
+        if ($this->isAutoVacuum() && $pageNumbers !== []) {
+            $pointerMapUpdates = [];
+            foreach ($pageNumbers as $pageNumber) {
+                $pointerMapUpdates[$pageNumber] = [
+                    'type' => SQLitePointerMapEntry::FREE_PAGE,
+                    'parent_page_number' => 0,
+                ];
+            }
+
+            $updatedPointerMapPages = $this->pointerMapPageImagesForUpdates([], $pointerMapUpdates, $databasePageCount);
+        }
+
         $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
         $firstPage = substr_replace($firstPage, self::uint32Bytes($freelistPageCount), 36, 4);
 
@@ -484,6 +509,7 @@ final class SQLiteDatabase
             $databasePageCount,
             $firstTrunkPage,
             $freelistPageCount,
+            $updatedPointerMapPages,
         );
     }
 
@@ -592,6 +618,16 @@ final class SQLiteDatabase
             $this->pageCount(),
             $this->header->databaseSizePages,
             $allocationPlan?->databasePageCount ?? 0,
+            $pageImages === [] ? 0 : max(array_keys($pageImages)),
+        );
+        $pageImages = $this->withOverflowPointerMapPages(
+            $pageImages,
+            $overflowPageNumbers,
+            $tableRootPage,
+            $databasePageCount,
+        );
+        $databasePageCount = max(
+            $databasePageCount,
             $pageImages === [] ? 0 : max(array_keys($pageImages)),
         );
 
@@ -10188,18 +10224,145 @@ final class SQLiteDatabase
         return unpack('N', substr($bytes, $offset, 4))[1];
     }
 
+    /**
+     * @param array<int, string> $pageImages
+     * @param list<int> $overflowPageNumbers
+     * @return array<int, string>
+     */
+    private function withOverflowPointerMapPages(
+        array $pageImages,
+        array $overflowPageNumbers,
+        int $ownerBtreePageNumber,
+        int $databasePageCount,
+    ): array {
+        if (!$this->isAutoVacuum() || $overflowPageNumbers === []) {
+            return $pageImages;
+        }
+        if ($ownerBtreePageNumber < 2 || $ownerBtreePageNumber > $databasePageCount) {
+            throw new \InvalidArgumentException('SQLite overflow pointer-map owner page is outside the planned database image');
+        }
+
+        $updates = [];
+        $previousPageNumber = $ownerBtreePageNumber;
+        foreach (array_values($overflowPageNumbers) as $index => $overflowPageNumber) {
+            if ($overflowPageNumber < 2 || $overflowPageNumber > $databasePageCount) {
+                throw new \InvalidArgumentException('SQLite overflow pointer-map update page is outside the planned database image');
+            }
+
+            $updates[$overflowPageNumber] = [
+                'type' => $index === 0
+                    ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE
+                    : SQLitePointerMapEntry::OVERFLOW_PAGE,
+                'parent_page_number' => $previousPageNumber,
+            ];
+            $previousPageNumber = $overflowPageNumber;
+        }
+
+        return $this->pointerMapPageImagesForUpdates($pageImages, $updates, $databasePageCount);
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array<int, SQLitePointerMapEntry|array{0:int,1:int}|array{type:int,parent_page_number:int}> $updatesByPage
+     * @return array<int, string>
+     */
+    private function pointerMapPageImagesForUpdates(
+        array $pageImages,
+        array $updatesByPage,
+        ?int $databasePageCount = null,
+    ): array {
+        if (!$this->isAutoVacuum()) {
+            throw new \InvalidArgumentException('SQLite pointer-map updates require an auto-vacuum database');
+        }
+
+        $databasePageCount ??= max($this->pageCount(), $this->header->databaseSizePages);
+        foreach ($updatesByPage as $pageNumber => $update) {
+            if (!is_int($pageNumber) || $pageNumber < 2) {
+                throw new \InvalidArgumentException('SQLite pointer-map updates require one-based non-header page numbers');
+            }
+            if ($pageNumber > $databasePageCount) {
+                throw new \InvalidArgumentException("SQLite pointer-map update page {$pageNumber} is outside the planned database image");
+            }
+            if ($pageNumber === $this->pendingBytePageNumber() || $this->isPointerMapPage($pageNumber)) {
+                throw new \InvalidArgumentException("SQLite page {$pageNumber} does not have a pointer-map entry");
+            }
+
+            [$type, $parentPageNumber] = $this->normalizePointerMapUpdate($pageNumber, $update);
+            $pointerMapPage = $this->pointerMapPageFor($pageNumber);
+            if ($pointerMapPage === null || $pointerMapPage === $pageNumber) {
+                throw new \InvalidArgumentException("SQLite page {$pageNumber} does not have a pointer-map entry");
+            }
+            if ($pointerMapPage > $databasePageCount) {
+                throw new \InvalidArgumentException("SQLite pointer-map page {$pointerMapPage} is outside the planned database image");
+            }
+
+            $offset = $this->pointerMapOffsetFor($pageNumber);
+            $page = $pageImages[$pointerMapPage]
+                ?? ($pointerMapPage <= $this->pageCount() ? $this->page($pointerMapPage) : str_repeat("\0", $this->header->pageSize));
+            if (strlen($page) !== $this->header->pageSize) {
+                throw new \InvalidArgumentException('SQLite pointer-map page image length does not match page size');
+            }
+
+            $entryBytes = chr($type) . self::uint32Bytes($parentPageNumber);
+            if (substr($page, $offset, 5) === $entryBytes) {
+                continue;
+            }
+
+            $pageImages[$pointerMapPage] = substr_replace($page, $entryBytes, $offset, 5);
+        }
+
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function normalizePointerMapUpdate(int $pageNumber, mixed $update): array
+    {
+        if ($update instanceof SQLitePointerMapEntry) {
+            if ($update->pageNumber !== $pageNumber) {
+                throw new \InvalidArgumentException('SQLite pointer-map update key does not match the entry page number');
+            }
+
+            return [$update->type, $update->parentPageNumber];
+        }
+
+        if (!is_array($update)) {
+            throw new \InvalidArgumentException('SQLite pointer-map update must be an entry object or array');
+        }
+
+        $type = $update['type'] ?? $update[0] ?? null;
+        $parentPageNumber = $update['parent_page_number'] ?? $update[1] ?? null;
+        if (!is_int($type) || !is_int($parentPageNumber)) {
+            throw new \InvalidArgumentException('SQLite pointer-map update type and parent page number must be integers');
+        }
+
+        $pointerMapPage = $this->pointerMapPageFor($pageNumber);
+        $offset = $this->pointerMapOffsetFor($pageNumber);
+        new SQLitePointerMapEntry($pageNumber, $pointerMapPage ?? 0, $offset, $type, $parentPageNumber);
+
+        return [$type, $parentPageNumber];
+    }
+
     private function nextAppendPageNumber(int $databasePageCount): int
     {
         $nextPage = $databasePageCount + 1;
-        $pendingBytePage = intdiv(0x40000000, $this->header->pageSize) + 1;
-        if ($nextPage === $pendingBytePage) {
-            $nextPage++;
-        }
-        if ($nextPage > 0xffffffff) {
-            throw new \InvalidArgumentException('SQLite database page count exceeds the 32-bit page number range');
-        }
+        while (true) {
+            if ($nextPage > 0xffffffff) {
+                throw new \InvalidArgumentException('SQLite database page count exceeds the 32-bit page number range');
+            }
+            if (
+                $nextPage === $this->pendingBytePageNumber()
+                || ($this->isAutoVacuum() && $this->pointerMapPageFor($nextPage) === $nextPage)
+            ) {
+                $nextPage++;
+                continue;
+            }
 
-        return $nextPage;
+            return $nextPage;
+        }
     }
 
     private static function uint32Bytes(int $value): string

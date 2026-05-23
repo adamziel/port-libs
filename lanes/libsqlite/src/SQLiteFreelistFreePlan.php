@@ -11,6 +11,7 @@ final class SQLiteFreelistFreePlan
      * @param list<int> $leafPageNumbers
      * @param list<int> $newTrunkPageNumbers
      * @param array<int, string> $updatedFreelistPages
+     * @param array<int, string> $updatedPointerMapPages
      */
     public function __construct(
         public readonly array $freedPageNumbers,
@@ -21,6 +22,7 @@ final class SQLiteFreelistFreePlan
         public readonly int $databasePageCount,
         public readonly int $firstFreelistTrunkPage,
         public readonly int $freelistPageCount,
+        public readonly array $updatedPointerMapPages = [],
     ) {
     }
 
@@ -29,7 +31,10 @@ final class SQLiteFreelistFreePlan
      */
     public function pageImages(): array
     {
-        return [1 => $this->firstPage] + $this->updatedFreelistPages;
+        $pageImages = [1 => $this->firstPage] + $this->updatedFreelistPages + $this->updatedPointerMapPages;
+        ksort($pageImages);
+
+        return $pageImages;
     }
 
     /**

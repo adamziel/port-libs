@@ -3673,5 +3673,88 @@ ran successfully, reporting updated page images `[1,2,3,4,5,6]`, a one-cell
 onto the freelist, and the rewritten option reachable through
 `wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
 
-Remaining boundaries: non-root index replacement propagation, auto-vacuum
-pointer-map mutation updates, journaling, and WAL remain future slices.
+## Focused Native Mapping: Auto-Vacuum Pointer-Map Mutation Planning
+
+For the bounded auto-vacuum pointer-map mutation slice, the focused upstream
+runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 507 tests in 00:00.
+
+The mapped upstream boundary is SQLite's pointer-map contract from
+`src/btreeInt.h` and `src/btree.c`: entries are five bytes, page 1 and
+pointer-map pages have no pointer-map entry, freed pages are written as
+`PTRMAP_FREEPAGE` with parent 0 from `freePage2()`, auto-vacuum allocation
+skips pointer-map pages, first overflow pages point back to the owning b-tree
+page, later overflow pages point to the previous overflow page, and non-root
+b-tree pages point to their parent b-tree page.
+
+The native PHP slice now exposes `SQLiteDatabase::planPointerMapUpdates()` for
+standalone pointer-map page-image writes, updates `planPageFreeList()` to mark
+freed auto-vacuum pages as `FREE_PAGE`, rejects attempts to free pointer-map
+pages, and skips pointer-map pages when appending new pages in auto-vacuum
+databases.
+
+The direct libsqlite harness passed 202 PHP tests with 1508 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-pointer-map-mutation-plan.php` script ran
+successfully, reporting updated page images `[1,2,6]`, page 6 as the new
+freelist trunk, the pointer-map entry for page 6 rewritten to `free-page`, and
+the existing `siteurl` row still readable through the native table reader.
+
+Remaining boundaries: non-root index replacement propagation, integrating
+pointer-map updates into broader auto-vacuum table/index page moves, secure
+delete variants, journaling, and WAL remain future slices.
+
+## Focused Native Mapping: Auto-Vacuum Overflow Insert Pointer Maps
+
+For the bounded auto-vacuum `wp_options` large insert slice, the focused
+upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test insert.test corrupt3.test
+```
+
+Result: 4 named Tcl scripts / 8 runner script-permutation runs, 0 errors out
+of 839 tests in 00:00. A bounded static scan of those Tcl scripts counted 230
+`do_*` command lines, and a targeted static scan of `src/btree.c` plus
+`src/btreeInt.h` counted 27 pointer-map overflow contract lines.
+
+This maps SQLite's auto-vacuum pointer-map behavior for newly allocated
+overflow chains: the first overflow page is stored as `PTRMAP_OVERFLOW1` with
+the owning b-tree page as parent, continuation pages are stored as
+`PTRMAP_OVERFLOW2` with the previous overflow page as parent, and integrity
+checks verify overflow-chain pointer-map consistency.
+
+The native PHP slice now threads those pointer-map page-image updates into
+`planWordPressOptionInsert()` when a large inserted option allocates overflow
+pages in an auto-vacuum database.
+
+The direct libsqlite harness passed 203 PHP tests with 1519 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-autovacuum-overflow-option-insert-plan.php` script ran
+successfully, reporting updated page images `[1,2,3,4,5,6]`, overflow pages
+`[4,5,6]`, pointer-map entries `first-overflow-page -> 3`, `overflow-page ->
+4`, and `overflow-page -> 5`, and a readable `theme_mods_twentyfive` option.
+
+Remaining boundaries: replacement-created overflow chains, table/index page
+move pointer-map updates, secure-delete variants, journaling, and WAL remain
+future slices.

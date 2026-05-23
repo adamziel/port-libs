@@ -1006,6 +1006,26 @@ root/free/btree/overflow pointer-map entries while still reading the
 that must recognize auto-vacuum metadata before moving, freeing, or reusing
 pages in a WordPress SQLite fallback database.
 
+`examples/wordpress-pointer-map-mutation-plan.php` starts from a
+WordPress-shaped auto-vacuum SQLite database with a pointer-map page,
+`wp_options` b-tree pages, and an overflow chain. It asks the native free-page
+planner to release an obsolete overflow page, applies the returned
+header/pointer-map/freelist-trunk page images, and verifies that the freed
+page's pointer-map entry is now `free-page` while `siteurl` remains readable.
+This maps repair preflight for auto-vacuum databases where page moves or
+future overflow reuse must not leave stale pointer-map parent references.
+
+`examples/wordpress-autovacuum-overflow-option-insert-plan.php` starts from a
+WordPress-shaped auto-vacuum SQLite database and inserts a large
+`theme_mods_twentyfive` option that spills to a three-page overflow chain. It
+applies the returned header/pointer-map/table/overflow page images, verifies
+that the first overflow page points back to the `wp_options` b-tree page and
+that continuation overflow pages point to their previous overflow page, then
+reads the inserted option through the native table reader. This maps repair
+and migration preflight for large theme-mod or cache options on hosts where
+the SQLite extension is unavailable and stale auto-vacuum pointer-map entries
+would make later page moves unsafe.
+
 `examples/wordpress-index-merge-option-replacement-plan.php` starts from a
 multi-page `wp_options(autoload, option_name)` secondary index where changing a
 large cached option from `autoload='yes'` to `autoload='no'` underfills the old
@@ -1020,5 +1040,5 @@ sparse secondary-index page behind.
 ## Next Task
 
 Broaden replacement source-leaf merge/rebalance to non-root index parents,
-then add auto-vacuum pointer-map mutation updates before journaling or WAL
-work.
+then integrate pointer-map updates into auto-vacuum table/index page moves
+before journaling or WAL work.
