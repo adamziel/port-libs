@@ -44,6 +44,7 @@ final class MarkdownReader
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
         $documentAttrs = [];
+        [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
         [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
@@ -52,6 +53,9 @@ final class MarkdownReader
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
         $this->exampleReferences = array_replace($previousExampleReferences, $exampleReferences);
         $this->exampleNumbersByLine = $exampleNumbersByLine;
+        if ($titleBlock !== null) {
+            $documentAttrs = array_replace_recursive($documentAttrs, $this->buildTitleBlockAttrs($titleBlock));
+        }
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
@@ -272,6 +276,113 @@ final class MarkdownReader
         $this->rawTexMacros = $previousRawTexMacros;
 
         return $document;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:array{title:list<string>, author:list<string>, date:list<string>}|null}
+     */
+    private function extractTitleBlock(array $lines): array
+    {
+        if (($lines[0] ?? '') === '' || preg_match('/^%[ \t]?(.*)$/', $lines[0]) !== 1) {
+            return [$lines, null];
+        }
+
+        $fields = [
+            'title' => [],
+            'author' => [],
+            'date' => [],
+        ];
+        $fieldNames = array_keys($fields);
+        $cursor = 0;
+        $count = count($lines);
+
+        foreach ($fieldNames as $fieldName) {
+            if ($cursor >= $count || preg_match('/^%[ \t]?(.*)$/', $lines[$cursor], $m) !== 1) {
+                break;
+            }
+
+            $fieldLines = [rtrim($m[1])];
+            $cursor++;
+            while ($cursor < $count && trim($lines[$cursor]) !== '' && preg_match('/^[ \t]+(.*)$/', $lines[$cursor], $continuation) === 1) {
+                $fieldLines[] = rtrim($continuation[1]);
+                $cursor++;
+            }
+
+            $fields[$fieldName] = $fieldLines;
+        }
+
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        return [array_slice($lines, $cursor), $fields];
+    }
+
+    /**
+     * @param array{title:list<string>, author:list<string>, date:list<string>} $titleBlock
+     * @return array<string, mixed>
+     */
+    private function buildTitleBlockAttrs(array $titleBlock): array
+    {
+        $meta = [];
+        if ($this->metadataPlainText($titleBlock['title']) !== '') {
+            $meta['title'] = $this->metadataPlainText($titleBlock['title']);
+            $meta['titleInlines'] = $this->metadataInlines($titleBlock['title']);
+        }
+
+        $authors = $this->metadataAuthors($titleBlock['author']);
+        if ($authors !== []) {
+            $meta['author'] = $authors;
+            $meta['authors'] = $authors;
+            $meta['authorInlines'] = array_map(
+                fn (string $author): array => $this->parseInlines($author),
+                $authors
+            );
+        }
+
+        if ($this->metadataPlainText($titleBlock['date']) !== '') {
+            $meta['date'] = $this->metadataPlainText($titleBlock['date']);
+            $meta['dateInlines'] = $this->metadataInlines($titleBlock['date']);
+        }
+
+        return $meta === [] ? [] : ['meta' => $meta];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>
+     */
+    private function metadataInlines(array $lines): array
+    {
+        return $this->parseInlines(implode("\n", $lines));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function metadataPlainText(array $lines): string
+    {
+        return trim(preg_replace('/[ \t]*\n[ \t]*/', ' ', implode("\n", $lines)) ?? '');
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function metadataAuthors(array $lines): array
+    {
+        $authors = [];
+        foreach ($lines as $line) {
+            foreach (explode(';', $line) as $author) {
+                $author = trim($author);
+                if ($author !== '') {
+                    $authors[] = $author;
+                }
+            }
+        }
+
+        return $authors;
     }
 
     /**
@@ -5248,7 +5359,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null} $firstMarker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $firstMarker
      * @return array{node: AstNode, next: int}|null
      */
     private function parseList(array $lines, int $cursor, array $firstMarker): ?array
@@ -5303,6 +5414,8 @@ final class MarkdownReader
             $attrs['start'] = $start ?? 1;
             $attrs['style'] = $style ?? 'decimal';
             $attrs['delimiter'] = $delimiter ?? 'period';
+        } elseif ($this->allListItemsAreTasks($children)) {
+            $attrs['taskList'] = true;
         }
 
         return [
@@ -5313,8 +5426,8 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null} $marker
-     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null}
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseListItem(
         array $lines,
@@ -5331,15 +5444,26 @@ final class MarkdownReader
         $paragraph = [];
         $loose = false;
         $firstText = trim($marker['text']);
+        $taskChecked = null;
 
         if ($firstText !== '' && $this->isListItemBlockHtmlStart($firstText)) {
             return $this->parseBlockHtmlListItem($lines, $cursor, $marker);
         }
 
-        if ($firstText !== '') {
+        if ($firstText !== '' && $this->isListItemInitialCodeBlock($marker)) {
+            [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText);
+            $parts[] = $codeBlock;
+        } elseif ($firstText !== '') {
+            $task = $this->stripTaskListMarker($firstText);
+            if ($task !== null) {
+                $taskChecked = $task['checked'];
+                $firstText = $task['text'];
+            }
             $paragraph[] = $firstText;
+            $cursor++;
+        } else {
+            $cursor++;
         }
-        $cursor++;
 
         while ($cursor < $count) {
             $line = $lines[$cursor];
@@ -5363,7 +5487,7 @@ final class MarkdownReader
                 }
 
                 $nextIndent = $this->countIndentColumns($lines[$next]);
-                if (($nextMarker !== null && $nextMarker['indent'] > $baseIndent) || $nextIndent >= $contentIndent) {
+                if ($this->isNestedListMarker($nextMarker, $baseIndent, $contentIndent) || $nextIndent >= $contentIndent) {
                     $this->flushListItemParagraph($paragraph, $parts);
                     $loose = true;
                     $cursor = $next;
@@ -5383,7 +5507,7 @@ final class MarkdownReader
                     break;
                 }
 
-                if ($lineMarker['indent'] <= $baseIndent) {
+                if (!$this->isNestedListMarker($lineMarker, $baseIndent, $contentIndent)) {
                     break;
                 }
 
@@ -5422,13 +5546,14 @@ final class MarkdownReader
             'loose' => $loose,
             'text' => $firstText,
             'number' => $marker['start'],
+            'taskChecked' => $taskChecked,
         ];
     }
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null} $marker
-     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null}
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseBlockHtmlListItem(array $lines, int $cursor, array $marker): array
     {
@@ -5489,12 +5614,73 @@ final class MarkdownReader
             'loose' => $loose,
             'text' => trim($marker['text']),
             'number' => $marker['start'],
+            'taskChecked' => null,
         ];
     }
 
     private function isListItemBlockHtmlStart(string $text): bool
     {
         return preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1;
+    }
+
+    /**
+     * @param array{padding:int} $marker
+     */
+    private function isListItemInitialCodeBlock(array $marker): bool
+    {
+        return $marker['padding'] >= 5;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0: AstNode, 1: int}
+     */
+    private function readListItemInitialCodeBlock(array $lines, int $cursor, int $contentIndent, string $firstText): array
+    {
+        $content = [rtrim($firstText)];
+        $count = count($lines);
+
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $next = $cursor;
+                while ($next < $count && trim($lines[$next]) === '') {
+                    $next++;
+                }
+
+                if (
+                    $next < $count
+                    && $this->countIndentColumns($lines[$next]) >= $contentIndent
+                    && $this->matchListMarker($lines[$next], $next) === null
+                ) {
+                    $content[] = '';
+                    $cursor++;
+                    continue;
+                }
+
+                break;
+            }
+
+            if ($this->countIndentColumns($line) < $contentIndent) {
+                break;
+            }
+
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+            $cursor++;
+        }
+
+        while ($content !== [] && end($content) === '') {
+            array_pop($content);
+        }
+
+        return [
+            new AstNode('code_block', [
+                'classes' => [],
+                'attributes' => [],
+                'text' => implode("\n", $content),
+            ]),
+            $cursor,
+        ];
     }
 
     private function isLazyListContinuation(string $line): bool
@@ -5521,7 +5707,7 @@ final class MarkdownReader
     }
 
     /**
-     * @param array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null} $item
+     * @param array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null} $item
      */
     private function buildListItem(array $item, bool $loose): AstNode
     {
@@ -5555,12 +5741,48 @@ final class MarkdownReader
         if ($item['number'] !== null) {
             $attrs['number'] = $item['number'];
         }
+        if ($item['taskChecked'] !== null) {
+            $attrs['taskChecked'] = $item['taskChecked'];
+        }
 
         return new AstNode('list_item', $attrs, $children);
     }
 
     /**
-     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, style:string|null, delimiter:string|null}|null
+     * @return array{checked:bool, text:string}|null
+     */
+    private function stripTaskListMarker(string $text): ?array
+    {
+        if (preg_match('/^\[([ xX])\](?:[ \t]+|$)(.*)$/s', $text, $m) !== 1) {
+            return null;
+        }
+
+        return [
+            'checked' => strtolower($m[1]) === 'x',
+            'text' => ltrim($m[2]),
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function allListItemsAreTasks(array $children): bool
+    {
+        if ($children === []) {
+            return false;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'list_item' || !is_bool($child->attr('taskChecked', null))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null}|null
      */
     private function matchListMarker(string $line, ?int $lineIndex = null): ?array
     {
@@ -5577,6 +5799,7 @@ final class MarkdownReader
                 'start' => $lineIndex !== null ? ($this->exampleNumbersByLine[$lineIndex] ?? 1) : 1,
                 'text' => $example['text'],
                 'contentIndent' => $example['contentIndent'],
+                'padding' => $example['padding'],
                 'style' => 'example',
                 'delimiter' => 'two_parens',
             ];
@@ -5589,6 +5812,7 @@ final class MarkdownReader
                 'start' => null,
                 'text' => $m[4],
                 'contentIndent' => strlen($m[1]) + 1 + strlen($m[3]),
+                'padding' => strlen($m[3]),
                 'style' => null,
                 'delimiter' => null,
             ];
@@ -5601,13 +5825,14 @@ final class MarkdownReader
                 'start' => 1,
                 'text' => $m[4],
                 'contentIndent' => strlen($m[1]) + 2 + strlen($m[3]),
+                'padding' => strlen($m[3]),
                 'style' => 'default',
                 'delimiter' => 'default',
             ];
         }
 
         if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)( +)(.*)$/', $expanded, $m) === 1) {
-            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', strlen($m[3]));
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', strlen($m[3]), strlen($m[1]));
             if ($ordinal === null) {
                 return null;
             }
@@ -5618,6 +5843,7 @@ final class MarkdownReader
                 'start' => $ordinal['start'],
                 'text' => $m[4],
                 'contentIndent' => strlen($m[1]) + strlen($m[2]) + 2 + strlen($m[3]),
+                'padding' => strlen($m[3]),
                 'style' => $ordinal['style'],
                 'delimiter' => 'two_parens',
             ];
@@ -5630,6 +5856,7 @@ final class MarkdownReader
                 'start' => (int) $m[2],
                 'text' => $m[5],
                 'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + strlen($m[4]),
+                'padding' => strlen($m[4]),
                 'style' => 'decimal',
                 'delimiter' => $m[3] === ')' ? 'one_paren' : 'period',
             ];
@@ -5637,7 +5864,7 @@ final class MarkdownReader
 
         if (preg_match('/^( *)([A-Za-z]+)([.)])( +)(.*)$/', $expanded, $m) === 1) {
             $delimiter = $m[3] === ')' ? 'one_paren' : 'period';
-            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, strlen($m[4]));
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, strlen($m[4]), strlen($m[1]));
             if ($ordinal === null) {
                 return null;
             }
@@ -5648,6 +5875,7 @@ final class MarkdownReader
                 'start' => $ordinal['start'],
                 'text' => $m[5],
                 'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + strlen($m[4]),
+                'padding' => strlen($m[4]),
                 'style' => $ordinal['style'],
                 'delimiter' => $delimiter,
             ];
@@ -5657,7 +5885,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{indent:int, label:string, text:string, contentIndent:int}|null
+     * @return array{indent:int, label:string, text:string, contentIndent:int, padding:int}|null
      */
     private function matchNumberedExampleMarker(string $line): ?array
     {
@@ -5671,6 +5899,7 @@ final class MarkdownReader
             'label' => $m[2],
             'text' => $m[4],
             'contentIndent' => strlen($m[1]) + strlen($m[2]) + 3 + strlen($m[3]),
+            'padding' => strlen($m[3]),
         ];
     }
 
@@ -5688,10 +5917,17 @@ final class MarkdownReader
             && $marker['delimiter'] === $delimiter;
     }
 
+    private function isNestedListMarker(?array $marker, int $baseIndent, int $contentIndent): bool
+    {
+        return $marker !== null
+            && $marker['indent'] > $baseIndent
+            && ($marker['indent'] >= $contentIndent || $marker['indent'] - $baseIndent >= 2);
+    }
+
     /**
      * @return array{start:int, style:string}|null
      */
-    private function parseOrderedMarkerOrdinal(string $token, string $delimiter, int $spacesAfterMarker): ?array
+    private function parseOrderedMarkerOrdinal(string $token, string $delimiter, int $spacesAfterMarker, int $indent): ?array
     {
         if (ctype_digit($token)) {
             return ['start' => (int) $token, 'style' => 'decimal'];
@@ -5702,14 +5938,14 @@ final class MarkdownReader
         }
 
         $roman = $delimiter === 'period' ? $this->romanToInt($token) : null;
-        if ($roman !== null && (strlen($token) > 1 || $spacesAfterMarker >= 2)) {
+        if ($roman !== null && (strlen($token) > 1 || $spacesAfterMarker >= 2 || $indent > 0)) {
             return [
                 'start' => $roman,
                 'style' => ctype_upper($token) ? 'upper_roman' : 'lower_roman',
             ];
         }
 
-        if (strlen($token) === 1 && $spacesAfterMarker >= 2) {
+        if (strlen($token) === 1 && ($spacesAfterMarker >= 2 || $indent > 0)) {
             $start = ord(strtolower($token)) - ord('a') + 1;
 
             return [
@@ -7283,8 +7519,22 @@ final class MarkdownReader
             return null;
         }
 
+        if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $offset) === 1) {
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => $close[0]]),
+                'next' => $offset + strlen($close[0]),
+            ];
+        }
+
         if (preg_match('~\G<a(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $open, 0, $offset) === 1) {
             $afterOpen = $offset + strlen($open[0]);
+            if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $afterOpen) === 1) {
+                return [
+                    'node' => new AstNode('raw_html_inline', ['html' => $open[0]]),
+                    'next' => $afterOpen,
+                ];
+            }
+
             if (preg_match('~</a\s*>~iu', $text, $close, PREG_OFFSET_CAPTURE, $afterOpen) === 1) {
                 $end = $close[0][1] + strlen($close[0][0]);
 
@@ -7736,17 +7986,36 @@ final class MarkdownReader
 
     private function findClosingInlineMath(string $text, int $offset): ?int
     {
-        $position = strpos($text, '$', $offset);
-        while ($position !== false) {
+        $length = strlen($text);
+        $braceDepth = 0;
+
+        for ($position = $offset; $position < $length; $position++) {
+            $char = $text[$position];
+            if ($char === '\\') {
+                $position++;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                continue;
+            }
+
+            if ($char !== '$' || $braceDepth > 0) {
+                continue;
+            }
+
             if (
                 substr($text, $position, 2) !== '$$'
-                && !$this->isEscapedInlinePosition($text, $position)
                 && !$this->isInvalidClosingInlineMathDollar($text, $position)
             ) {
                 return $position;
             }
-
-            $position = strpos($text, '$', $position + 1);
         }
 
         return null;
@@ -7887,6 +8156,14 @@ final class MarkdownReader
                 'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
                 'next' => $offset + strlen($m[0]),
             ];
+        }
+
+        // Pandoc leaves bare environment commands such as "\begin" as text.
+        if (preg_match('/\G\\\\(?:begin|end)\b/', $text, $m, 0, $offset) === 1) {
+            $next = $text[$offset + strlen($m[0])] ?? '';
+            if ($next !== '{' && $next !== '[') {
+                return null;
+            }
         }
 
         if (
@@ -8337,7 +8614,11 @@ final class MarkdownReader
             return false;
         }
 
-        return !$this->isAsciiAlnum($previous) || !$this->isAsciiAlnum($next);
+        if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
+            return false;
+        }
+
+        return true;
     }
 
     private function canCloseInlineDelimiter(string $text, int $offset, string $char, int $size): bool
@@ -8353,7 +8634,16 @@ final class MarkdownReader
             return false;
         }
 
-        return !$this->isAsciiAlnum($previous) || !$this->isAsciiAlnum($next);
+        if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isIntrawordUnderscoreBoundary(string $previous, string $next): bool
+    {
+        return $this->isAsciiAlnum($previous) && $this->isAsciiAlnum($next);
     }
 
     private function isAsciiAlnum(string $char): bool

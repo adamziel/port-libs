@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
@@ -81,6 +83,18 @@ return [
         $t->same('d', $twoStrongs->children[3]->attr('text'));
         $t->contains('<p><em>x <strong>xx</strong> x</em></p>', $blocks);
         $t->contains('<p><em><strong>a</strong>b <strong>c</strong>d</em></p>', $blocks);
+    },
+    'maps upstream markdown reader intraword underscore and raw latex url guard' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $intraword = $reader->read('_foot_ball_')->children[0]->children[0];
+        $rawLatexUrl = $reader->read("\\begin\n")->children[0];
+
+        $t->same('emph', $intraword->type);
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $intraword->children));
+        $t->same('foot_ball', $intraword->children[0]->attr('text'));
+        $t->same('paragraph', $rawLatexUrl->type);
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $rawLatexUrl->children));
+        $t->same('\\begin', $rawLatexUrl->children[0]->attr('text'));
     },
     'maps upstream markdown reader alternating emph strong softbreak' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("*xxx* ***xxx*** xxx\n*xxx* ***xxx*** xxx");
@@ -379,6 +393,79 @@ return [
         $t->same('math', $paragraph->children[1]->type);
         $t->same('x', $paragraph->children[1]->attr('text'));
         $t->same("\u{2019}s and the systems\u{2019} condition.", $paragraph->children[2]->attr('text'));
+    },
+    'maps upstream markdown reader more dollars inside tex math braces' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '## $ in math',
+            '',
+            '$\\$2 + \\$3$',
+            '',
+            '$x = \\text{the $n$th root of $y$}$',
+            '',
+            'This should not be math:',
+            '',
+            '$PATH 90 $PATH',
+        ]));
+        $escapedDollarMath = $document->children[1];
+        $nestedDollarMath = $document->children[2];
+        $notMath = $document->children[4];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('$ in math', $document->children[0]->attr('text'));
+        $t->same('math', $escapedDollarMath->children[0]->type);
+        $t->same('\\$2 + \\$3', $escapedDollarMath->children[0]->attr('text'));
+        $t->same(['math'], array_map(static fn (AstNode $node): string => $node->type, $nestedDollarMath->children));
+        $t->same('x = \\text{the $n$th root of $y$}', $nestedDollarMath->children[0]->attr('text'));
+        $t->same('$PATH 90 $PATH', $notMath->children[0]->attr('text'));
+        $t->contains('<span class="math inline">\(x = \text{the $n$th root of $y$}\)</span>', $blocks);
+    },
+    'maps upstream markdown reader more raw html before header and commented list' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '## Horizontal rules with spaces at end',
+            '',
+            '* * * * *  ',
+            '',
+            '-- - -- -- -  ',
+            '',
+            '## Raw HTML before header',
+            '',
+            '<a></a>',
+            '',
+            '### my header',
+            '',
+            '## Commented-out list item',
+            '',
+            '- one',
+            '<!--',
+            '- two',
+            '-->',
+            '- three',
+        ]));
+        $emptyAnchor = $document->children[4];
+        $commentedList = $document->children[7];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Horizontal rules with spaces at end', $document->children[0]->attr('text'));
+        $t->same('horizontal_rule', $document->children[1]->type);
+        $t->same('horizontal_rule', $document->children[2]->type);
+        $t->same('heading', $document->children[3]->type);
+        $t->same('Raw HTML before header', $document->children[3]->attr('text'));
+        $t->same('paragraph', $emptyAnchor->type);
+        $t->same(['raw_html_inline', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $emptyAnchor->children));
+        $t->same('<a>', $emptyAnchor->children[0]->attr('html'));
+        $t->same('</a>', $emptyAnchor->children[1]->attr('html'));
+        $t->same('heading', $document->children[5]->type);
+        $t->same('my-header', $document->children[5]->attr('id'));
+        $t->same('heading', $document->children[6]->type);
+        $t->same('bullet_list', $commentedList->type);
+        $t->same(3, count($commentedList->children));
+        $t->same("one <!\u{2013}", $commentedList->children[0]->children[0]->attr('text'));
+        $t->same("two \u{2013}>", $commentedList->children[1]->children[0]->attr('text'));
+        $t->same('three', $commentedList->children[2]->children[0]->attr('text'));
+        $t->contains('<p><a></a></p>', $blocks);
+        $t->contains("<ul><li>one &lt;!\u{2013}</li><li>two \u{2013}&gt;</li><li>three</li></ul>", $blocks);
     },
     'maps upstream testsuite latex tabular block as raw tex' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -685,6 +772,34 @@ return [
         $t->contains('<a href="/bar%20and%20baz">foo</a>', $blocks);
         $t->contains('<a href="/foo/zee%20zob" title="title">bork</a>', $blocks);
     },
+    'maps upstream markdown reader more title block metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '% Title',
+            '  spanning multiple lines',
+            '% Author One',
+            '  Author Two; Author Three;',
+            '  Author Four',
+            ' ',
+            '# Additional markdown reader tests',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $authorInlines = $meta['authorInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Title spanning multiple lines', $meta['title']);
+        $t->same(['Author One', 'Author Two', 'Author Three', 'Author Four'], $meta['author']);
+        $t->same(['Author One', 'Author Two', 'Author Three', 'Author Four'], $meta['authors']);
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Title', $titleInlines[0]->attr('text'));
+        $t->same('spanning multiple lines', $titleInlines[2]->attr('text'));
+        $t->same(4, count($authorInlines));
+        $t->same('Author Three', $authorInlines[2][0]->attr('text'));
+        $t->same(1, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('additional-markdown-reader-tests', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="additional-markdown-reader-tests">Additional markdown reader tests</h1>', $blocks);
+    },
     'maps upstream markdown reader more entity links and parenthesized urls' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '## Entities in links and titles',
@@ -738,6 +853,25 @@ return [
         $t->contains('<a href="mailto:me@exämple.com">me@exämple.com</a>', $blocks);
         $t->contains('<a href="/hi(there)">link</a>', $blocks);
         $t->contains('<a href="hi_(there_(nested))">linky</a>', $blocks);
+    },
+    'maps upstream markdown reader entities group character numeric and link title references' => static function (TestRunner $t): void {
+        $character = (new MarkdownReader())->read('&lang; &ouml;')->children[0];
+        $numeric = (new MarkdownReader())->read('&#44;&#x44;&#X44;')->children[0];
+        $linkTitle = (new MarkdownReader())->read('[link](/url "title &lang; &ouml; &#44;")')->children[0]->children[0];
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read(implode("\n\n", [
+            '&lang; &ouml;',
+            '&#44;&#x44;&#X44;',
+            '[link](/url "title &lang; &ouml; &#44;")',
+        ])));
+
+        $t->same("\u{27E8} ö", $character->children[0]->attr('text'));
+        $t->same(',DD', $numeric->children[0]->attr('text'));
+        $t->same('link', $linkTitle->children[0]->attr('text'));
+        $t->same('/url', $linkTitle->attr('url'));
+        $t->same("title \u{27E8} ö ,", $linkTitle->attr('title'));
+        $t->contains("<p>\u{27E8} ö</p>", $blocks);
+        $t->contains('<p>,DD</p>', $blocks);
+        $t->contains("<a href=\"/url\" title=\"title \u{27E8} ö ,\">link</a>", $blocks);
     },
     'maps upstream markdown reader more reference link edge cases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -1286,6 +1420,29 @@ return [
         $t->same('setext-import-heading', $setextHeading->attr('id'));
         $t->contains('<h2 id="closing-hash-heading">Closing Hash Heading</h2>', $blocks);
         $t->contains('<h2 id="setext-import-heading">Setext Import Heading</h2>', $blocks);
+    },
+    'writes wordpress raw empty anchor before imported headings' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $rawAnchor = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'paragraph'
+                && count($node->children) === 2
+                && $node->children[0]->type === 'raw_html_inline'
+                && $node->children[1]->type === 'raw_html_inline'
+                && $node->children[0]->attr('html') === '<a>'
+                && $node->children[1]->attr('html') === '</a>'
+            ) {
+                $rawAnchor = $node;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($rawAnchor instanceof AstNode, 'Empty source anchors before headings should stay as raw HTML inline boundaries');
+        $t->contains('<p><a></a></p>', $blocks);
+        $t->contains('<h3 id="raw-anchor-follow-up">Raw Anchor Follow-up</h3>', $blocks);
     },
     'maps upstream markdown reader more line blocks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -1983,6 +2140,111 @@ MD;
         $t->same('bullet_list', $nested->type);
         $t->same('d', $nested->children[0]->children[0]->attr('text'));
     },
+    'maps upstream command task list items into ast attrs and checkbox html' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $simple = $reader->read("- [ ] foo\n- [x] bar")->children[0];
+        $nested = $reader->read("- [x] foo\n  - [ ] bar\n  - [x] baz\n- [ ] bim")->children[0];
+        $custom = $reader->read(implode("\n", [
+            '- [ ]  unchecked',
+            '- plain item',
+            '-  [x] checked',
+            '',
+            'paragraph',
+            '',
+            '1. [ ] ordered unchecked',
+            '2. [] plain item',
+            '3. [x] ordered checked',
+            '',
+            'paragraph',
+            '',
+            '- [ ] list item with a',
+            '',
+            '    second paragraph',
+            '',
+            '- [x] checked',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($custom);
+
+        $t->same('bullet_list', $simple->type);
+        $t->true((bool) $simple->attr('taskList'));
+        $t->same(false, $simple->children[0]->attr('taskChecked'));
+        $t->same(true, $simple->children[1]->attr('taskChecked'));
+        $t->same('foo', $simple->children[0]->children[0]->attr('text'));
+        $t->same('bar', $simple->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $nested->children[0]->children[1]->type);
+        $t->true((bool) $nested->children[0]->children[1]->attr('taskList'));
+        $t->same(false, $nested->children[0]->children[1]->children[0]->attr('taskChecked'));
+        $t->same(true, $nested->children[0]->children[1]->children[1]->attr('taskChecked'));
+        $t->same(false, $custom->children[0]->attr('taskList', false), 'Mixed task/plain bullet lists should not receive task-list class');
+        $t->same(false, $custom->children[0]->children[0]->attr('taskChecked'));
+        $t->same(null, $custom->children[0]->children[1]->attr('taskChecked', null));
+        $t->same(true, $custom->children[0]->children[2]->attr('taskChecked'));
+        $t->same('ordered_list', $custom->children[2]->type);
+        $t->same(false, $custom->children[2]->children[0]->attr('taskChecked'));
+        $t->same('[] plain item', $custom->children[2]->children[1]->attr('text'));
+        $t->same(true, $custom->children[2]->children[2]->attr('taskChecked'));
+        $t->true((bool) $custom->children[4]->attr('taskList'));
+        $t->same('paragraph', $custom->children[4]->children[0]->children[0]->type);
+        $t->same('second paragraph', $custom->children[4]->children[0]->children[1]->attr('text'));
+        $t->contains('<ul><li><label><input type="checkbox" />unchecked</label></li><li>plain item</li><li><label><input type="checkbox" checked="" />checked</label></li></ul>', $blocks);
+        $t->contains('<ol><li><label><input type="checkbox" />ordered unchecked</label></li><li>[] plain item</li><li><label><input type="checkbox" checked="" />ordered checked</label></li></ol>', $blocks);
+        $t->contains('<ul class="task-list"><li><p><label><input type="checkbox" />list item with a</label></p><p>second paragraph</p></li><li><p><label><input type="checkbox" checked="" />checked</label></p></li></ul>', $blocks);
+    },
+    'maps upstream command task list markdown and latex writer examples' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $markdownRoundTrip = $reader->read("- [ ] foo\n- [x] bar");
+        $latexTaskList = $reader->read("- [ ] foo bar\n\n  baz\n\n- [x] ok");
+
+        $t->same("- [ ] foo\n- [x] bar", (new MarkdownWriter())->write($markdownRoundTrip));
+        $t->same(implode("\n", [
+            '\begin{itemize}',
+            '\item[$\square$]',
+            '  foo bar',
+            '',
+            '  baz',
+            '\item[$\boxtimes$]',
+            '  ok',
+            '\end{itemize}',
+        ]), (new LatexWriter())->write($latexTaskList));
+    },
+    'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '-     code',
+            '      code',
+            '',
+            '  1.     code',
+            '         code',
+            '',
+            '  12345678.     code',
+            '                code',
+            '',
+            '  -     code',
+            '        code',
+            '',
+            '  -    no code',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $item = $list->children[0];
+        $ordered = $item->children[1];
+        $nestedBullets = $item->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('bullet_list', $list->type);
+        $t->same('code_block', $item->children[0]->type);
+        $t->same("code\ncode", $item->children[0]->attr('text'));
+        $t->same('ordered_list', $ordered->type);
+        $t->same(1, $ordered->attr('start'));
+        $t->same(12345678, $ordered->children[1]->attr('number'));
+        $t->same('code_block', $ordered->children[0]->children[0]->type);
+        $t->same("code\ncode", $ordered->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $nestedBullets->type);
+        $t->same('code_block', $nestedBullets->children[0]->children[0]->type);
+        $t->same('paragraph', $nestedBullets->children[1]->children[0]->type);
+        $t->same('no code', $nestedBullets->children[1]->children[0]->attr('text'));
+        $t->contains('<pre class="wp-block-code"><code>code' . "\n" . 'code</code></pre><ol>', $blocks);
+        $t->contains('<li><p>no code</p></li>', $blocks);
+    },
     'maps upstream markdown list item containing raw html blocks' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             ' -  <div>',
@@ -2102,6 +2364,55 @@ MD;
         $t->same('ordered_list', $nested->type);
         $t->same('default', $nested->attr('style'));
         $t->same('Nested.', $nested->children[0]->children[0]->attr('text'));
+    },
+    'maps upstream markdown reader more references curly quotes and consecutive lists' => static function (TestRunner $t): void {
+        $markdown = implode("\n\n", [
+            "## Case-insensitive references\n\n[Fum]\n\n[FUM]\n\n[bat]\n\n[fum]: /fum\n[BAT]: /bat",
+            "## Curly smart quotes\n\n“Hi”\n\n‘Hi’",
+            "## Consecutive lists\n\n- one\n- two\n1. one\n2. two\n\n a. one\n b. two",
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $referenceOne = $document->children[1]->children[0];
+        $referenceTwo = $document->children[2]->children[0];
+        $referenceThree = $document->children[3]->children[0];
+        $curlyDouble = $document->children[5]->children[0];
+        $curlySingle = $document->children[6]->children[0];
+        $bulletList = $document->children[8];
+        $decimalList = $document->children[9];
+        $alphaList = $document->children[10];
+        $guard = (new MarkdownReader())->read("B. Williams\n\nM.A. 2007");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $referenceOne->type);
+        $t->same('/fum', $referenceOne->attr('url'));
+        $t->same('Fum', $referenceOne->children[0]->attr('text'));
+        $t->same('/fum', $referenceTwo->attr('url'));
+        $t->same('FUM', $referenceTwo->children[0]->attr('text'));
+        $t->same('/bat', $referenceThree->attr('url'));
+        $t->same('bat', $referenceThree->children[0]->attr('text'));
+        $t->same('text', $curlyDouble->type);
+        $t->same('“Hi”', $curlyDouble->attr('text'));
+        $t->same('text', $curlySingle->type);
+        $t->same('‘Hi’', $curlySingle->attr('text'));
+        $t->same('bullet_list', $bulletList->type);
+        $t->same(2, count($bulletList->children));
+        $t->same('ordered_list', $decimalList->type);
+        $t->same('decimal', $decimalList->attr('style'));
+        $t->same(2, count($decimalList->children));
+        $t->same('ordered_list', $alphaList->type);
+        $t->same('lower_alpha', $alphaList->attr('style'));
+        $t->same(1, $alphaList->attr('start'));
+        $t->same('one', $alphaList->children[0]->children[0]->attr('text'));
+        $t->same('two', $alphaList->children[1]->children[0]->attr('text'));
+        $t->same('paragraph', $guard->children[0]->type);
+        $t->same('B. Williams', $guard->children[0]->attr('text'));
+        $t->same('paragraph', $guard->children[1]->type);
+        $t->same('M.A. 2007', $guard->children[1]->attr('text'));
+        $t->contains('<p><a href="/fum">Fum</a></p>', $blocks);
+        $t->contains('<p>“Hi”</p>', $blocks);
+        $t->contains('<ul><li>one</li><li>two</li></ul>', $blocks);
+        $t->contains('<ol><li>one</li><li>two</li></ol>', $blocks);
+        $t->contains('<ol type="a"><li>one</li><li>two</li></ol>', $blocks);
     },
     'maps upstream markdown definition lists without blank space' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("foo1\n  :  bar\n\nfoo2\n  : bar2\n  : bar3\n");
@@ -4724,6 +5035,12 @@ XML;
 
         $t->contains('<ul><li>a</li><li>b</li><li>c<ul><li>d</li></ul></li></ul>', $blocks);
     },
+    'writes wordpress task list checkboxes from migration review notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<ul class="task-list"><li><label><input type="checkbox" />Confirm imported task lists</label></li><li><label><input type="checkbox" checked="" />Keep completed reviewer tasks</label><ul class="task-list"><li><label><input type="checkbox" />Attach media checklist follow-up</label></li></ul></li></ul>', $blocks);
+    },
     'writes wordpress loose list paragraphs from migration follow-up steps' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
@@ -4734,6 +5051,9 @@ XML;
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
+        $t->contains('<ul><li>Source intake</li><li>Media audit</li></ul>', $blocks);
+        $t->contains('<ol><li>Prepare import batch</li><li>Confirm block output</li></ol>', $blocks);
+        $t->contains('<ol type="a"><li>Editorial review</li><li>Publish handoff</li></ol>', $blocks);
         $t->contains('<ol start="2"><li>Confirm source identifiers</li><li>Schedule staged import<ol start="4" type="i"><li>Review roman checkpoint</li><li>Approve nested audit</li></ol></li></ol>', $blocks);
     },
     'writes wordpress definition list html from upstream-shaped ast' => static function (TestRunner $t): void {
@@ -4969,6 +5289,8 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Reviewer <em>import note</em> flags <strong><em>urgent media cleanup</em></strong> before publishing.</p>', $blocks);
+        $t->contains('<p>Reviewer filename audit: <em>foot_ball</em> source marker keeps its inner underscore during import.</p>', $blocks);
+        $t->contains('<p>Raw URL guard audit: \\begin remains literal source text when a pasted URL command is incomplete.</p>', $blocks);
         $t->contains('<p>Reviewer emphasis nesting: <em>x <strong>xx</strong> x</em> and <em><strong>a</strong>b <strong>c</strong>d</em>.</p>', $blocks);
         $t->contains("<p>Reviewer softbreak emphasis:\n<em>source review</em> <strong><em>urgent pass</em></strong> keeps line\n<em>source review</em> <strong><em>urgent pass</em></strong> in one paragraph.</p>", $blocks);
     },
@@ -4995,6 +5317,7 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<span class="math inline">\(x \in y\)</span>', $blocks);
+        $t->contains('<span class="math inline">\(x = \text{the $n$th root of $y$}\)</span>', $blocks);
         $t->contains('<span class="pandoc-raw-tex">\cite[22-23]{smith.1899}</span>', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-tex">\newcommand{\wptuple}[1]{\langle #1 \rangle}</code></pre>', $blocks);
         $t->contains('<span class="math inline">\(\langle post_id,media_id \rangle\)</span>', $blocks);
@@ -5007,6 +5330,7 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Entity import note: AT&amp;T sponsor text and 4 &lt; 5 comparator stay visible for review.</p>', $blocks);
+        $t->contains("<p>Character reference audit: \u{27E8} ö and ,DD decode before WordPress escaping, while <a href=\"/url\" title=\"title \u{27E8} ö ,\">entity title</a> keeps its title decoded.</p>", $blocks);
         $t->same(false, str_contains($blocks, 'AT&amp;amp;T'));
     },
     'writes wordpress code block markup for migration snippets' => static function (TestRunner $t): void {
@@ -5015,6 +5339,13 @@ XML;
 
         $t->contains('<!-- wp:code -->', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-gallery]&#039;);</code></pre>', $blocks);
+    },
+    'writes wordpress indented list code blocks from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Indented list code handoff:</p>', $blocks);
+        $t->contains('<ul><li><pre class="wp-block-code"><code>do_action(&#039;pandoc_import_review&#039;);' . "\n" . 'update_post_meta($post_id, &#039;_pandoc_reviewed&#039;, &#039;1&#039;);</code></pre><ul><li>Keep four-space reviewer text as prose, not code.</li></ul></li></ul>', $blocks);
     },
     'writes wordpress literate haskell source docs from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-literate-haskell.md');

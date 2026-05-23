@@ -114,6 +114,8 @@ final class WordPressBlockWriter
             }
             $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
+        } elseif ($node->attr('taskList') === true) {
+            $tagAttrs = ' class="task-list"';
         }
         $items = [];
 
@@ -132,7 +134,7 @@ final class WordPressBlockWriter
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
-        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : '';
+        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($node->attr('taskList') === true ? ' class="task-list"' : '');
         $items = [];
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
@@ -211,8 +213,12 @@ final class WordPressBlockWriter
             }
         }
         $wrapParagraphs = (bool) $item->attr('loose', false) || $paragraphCount > 1;
+        $taskChecked = $item->attr('taskChecked', null);
+        $taskPending = is_bool($taskChecked);
+        $children = $item->children;
 
-        foreach ($item->children as $child) {
+        for ($index = 0, $count = count($children); $index < $count; $index++) {
+            $child = $children[$index];
             if ($child->type === 'bullet_list') {
                 $html .= $this->renderListHtml($child, false);
                 continue;
@@ -227,7 +233,23 @@ final class WordPressBlockWriter
             }
             if ($child->type === 'paragraph') {
                 $rendered = $this->renderInlines($child);
+                if ($taskPending) {
+                    $rendered = $this->renderTaskListLabel($taskChecked, $rendered);
+                    $taskPending = false;
+                }
                 $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
+                continue;
+            }
+
+            if ($taskPending) {
+                $inlineHtml = '';
+                while ($index < $count && $this->isInlineNode($children[$index])) {
+                    $inlineHtml .= $this->renderInlineNode($children[$index]);
+                    $index++;
+                }
+                $index--;
+                $html .= $this->renderTaskListLabel($taskChecked, $inlineHtml);
+                $taskPending = false;
                 continue;
             }
 
@@ -235,6 +257,13 @@ final class WordPressBlockWriter
         }
 
         return '<li>' . $html . '</li>';
+    }
+
+    private function renderTaskListLabel(bool $checked, string $html): string
+    {
+        $checkbox = '<input type="checkbox"' . ($checked ? ' checked=""' : '') . ' />';
+
+        return '<label>' . $checkbox . $html . '</label>';
     }
 
     private function renderDefinitionList(AstNode $node): string

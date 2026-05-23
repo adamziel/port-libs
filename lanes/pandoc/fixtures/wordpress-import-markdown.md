@@ -26,6 +26,14 @@ Link label boundary audit: [<https://example.test/source>](https://example.test/
 
 Jump to [Review Anchors] for intra-document reviewer links.
 
+Raw empty anchor handoff:
+
+<a></a>
+
+### Raw Anchor Follow-up
+
+Reviewer anchors from legacy exports can sit immediately before imported headings.
+
 Line break handoff: keep source line\
 attached to reviewer continuation with `hi
 there` code span.
@@ -39,6 +47,8 @@ Contact importer: <importer@example.test>.
 Multilingual source audit: <http://测.com?测=测> and [translated media](/bar/测?x=测 "Translated media") plus <测@foo.测.baz>.
 
 Entity source audit: [legacy umlaut media](/&uuml;rl "&ouml;&ouml;!") and <http://g&ouml;&ouml;gle.com> plus <me@ex&auml;mple.com>.
+
+Character reference audit: &lang; &ouml; and &#44;&#x44;&#X44; decode before WordPress escaping, while [entity title](/url "title &lang; &ouml; &#44;") keeps its title decoded.
 
 Parenthesized source links: [campaign landing](/hi(there)) and [nested reference][linky].
 
@@ -99,6 +109,10 @@ Footnote audit: migration source[^source-note] and inline editor note.^[Inline n
 
 Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
+Reviewer filename audit: _foot_ball_ source marker keeps its inner underscore during import.
+
+Raw URL guard audit: \begin remains literal source text when a pasted URL command is incomplete.
+
 Reviewer emphasis nesting: *x **xx** x* and ***a**b **c**d*.
 
 Reviewer softbreak emphasis:
@@ -134,6 +148,8 @@ Entity import note: AT&amp;T sponsor text and 4 < 5 comparator stay visible for 
 
 Migration math note: $x \in y$ and \cite[22-23]{smith.1899} stay visible for reviewer checks.
 
+Nested math text audit: $x = \text{the $n$th root of $y$}$ keeps TeX text-group dollars inside one math span.
+
 Reviewer math macro:
 
 \newcommand{\wptuple}[1]{\langle #1 \rangle}
@@ -147,6 +163,29 @@ $$\alpha + \omega \times x^2$$
 - Keep source links clickable for reviewer audits
 
   *   *   *   *   *
+
+Reviewer checkbox tasks:
+
+- [ ] Confirm imported task lists
+- [x] Keep completed reviewer tasks
+  - [ ] Attach media checklist follow-up
+
+Consecutive review queues:
+
+- Source intake
+- Media audit
+1. Prepare import batch
+2. Confirm block output
+
+ a. Editorial review
+ b. Publish handoff
+
+Indented list code handoff:
+
+-     do_action('pandoc_import_review');
+      update_post_meta($post_id, '_pandoc_reviewed', '1');
+
+  -    Keep four-space reviewer text as prose, not code.
 
 > Reviewer note: keep the archive URL attached to the imported post.
 

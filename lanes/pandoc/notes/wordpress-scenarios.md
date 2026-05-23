@@ -8,6 +8,12 @@ Native Markdown block reader and WordPress block writer for headings,
 paragraphs, Pandoc-style inline emphasis/strong/link/code spans, bullet lists,
 ordered lists, nested lists, and definition lists. Code spans now preserve
 list-marker-looking text such as `- x` and `#. x` inside imported list items.
+Pandoc title-block metadata is now available to WordPress import orchestration:
+a leading `%` title block is consumed before body parsing, multiline titles
+keep a metadata soft break for exact upstream shape, and semicolon or
+line-separated authors are exposed as individual author entries that an import
+pipeline can map to post title and review/byline metadata without rendering
+the title block as stray body paragraphs.
 List parsing now also maps the bounded `test/testsuite.txt` loose-list and
 continuation-line shape: blank-separated list items become paragraph-bearing
 loose items, tab/space-indented continuation lines stay inside the current
@@ -18,6 +24,17 @@ parenthesized decimal starts, lower/upper roman numerals, upper/lower alphabetic
 markers, and Pandoc autonumbering. The AST keeps marker style/delimiter
 metadata and the WordPress writer preserves start values for nested ordered
 lists.
+The bounded `test/command/tasklist.md` HTML examples are now represented too:
+Markdown review checkboxes such as `- [ ]` and `- [x]` become task metadata on
+list items, all-task bullet lists render with `class="task-list"`, mixed
+task/plain lists stay ordinary lists with checkbox labels only on the task
+items, ordered task items keep labels, and loose task items preserve later
+paragraphs outside the checkbox label.
+The adjacent `markdown-reader-more` consecutive-list boundary is now
+represented too: a review handoff can place bullet, decimal, and
+one-space-indented lower-alpha queues next to each other, and the WordPress
+writer emits separate `<ul>`, decimal `<ol>`, and `type="a"` `<ol>` blocks
+instead of nesting the alpha queue under the final decimal item.
 Definition lists now cover Pandoc-style loose first definitions, lazy
 continuation lines, blank-before-second definitions, and indented continuation
 paragraphs, which keeps imported FAQ, glossary, and release-note metadata
@@ -182,6 +199,11 @@ The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
 renders as nested strong emphasis in WordPress block HTML.
+The adjacent `Tests.Readers.Markdown` intraword underscore and raw-LaTeX URL
+guard cases are now represented too: filename-style reviewer markers such as
+`_foot_ball_` preserve the inner underscore inside one emphasized span, while
+an incomplete pasted `\begin` source command remains literal text instead of
+becoming raw TeX.
 The adjacent `Tests.Readers.Markdown` emph-with-strong delimiter cases are now
 represented too: reviewer notes like `*x **xx** x*` and `***a**b **c**d*`
 render as outer emphasis containing nested strong spans, matching Pandoc's
@@ -229,6 +251,15 @@ citations render as escaped inline TeX spans, `$...$` and `$$...$$` math render
 as WordPress-safe math spans, currency-like dollar examples and escaped dollars
 stay plain text, and raw `tabular` blocks render as escaped TeX code blocks
 instead of shelling out to Pandoc.
+The adjacent `markdown-reader-more` `$ in math` slice is now represented too:
+TeX text-group dollars inside `\text{the $n$th root of $y$}` stay inside one
+math span, so reviewer formulas do not split into multiple inline math nodes
+or stray paragraph text during WordPress handoff.
+The adjacent `markdown-reader-more` raw-HTML-before-header and commented-list
+slice is now represented too: empty source anchors immediately before imported
+headings stay as raw inline HTML boundaries, trailing-space horizontal rules
+stay separators, and commented-out list markers remain attached to list-item
+text instead of ending the review checklist.
 The bounded Special Characters section is now mapped for import-safe text
 round-tripping: Unicode text stays literal, `AT&amp;T` decodes once before the
 WordPress writer escapes output, literal comparison characters stay text, and
@@ -251,6 +282,10 @@ receive suffixes, shortcut/collapsed/case-insensitive references resolve to the
 first matching heading, explicit `{#id .class key="val"}` attributes are kept on
 the heading AST, and explicit reference definitions override implicit heading
 targets.
+The mid-fixture case-insensitive reference and curly-quote literal cases are
+represented too: reviewer shortcuts such as `[FUM]` resolve to `[fum]: /fum`,
+while pasted curly quote glyphs stay literal WordPress text rather than being
+reinterpreted as Markdown smart quote delimiters.
 The adjacent `test/markdown-reader-more.txt` backslash-newline and code-span
 cases are now represented too: an explicit trailing backslash before a newline
 becomes a hard `linebreak` node, code spans preserve literal trailing
@@ -311,6 +346,11 @@ leading spaces after `|` become nonbreaking indentation, blank line-block
 entries are preserved, and indented continuation lines fold into the previous
 line. The WordPress fixture uses this path for source stanzas and reviewer
 handoff text where line boundaries must survive block conversion.
+The adjacent indented-code-at-beginning-of-list case from
+`test/markdown-reader-more.txt` is now represented as well: list items whose
+marker is followed by five spaces start with native `code_block` children,
+nested ordered and bullet review queues preserve their code snippets, and the
+four-space `-    no code` guard remains ordinary reviewer prose.
 The bounded Images section is now mapped for import-safe media preservation:
 standalone reference images become WordPress image blocks with caption/title
 metadata, and inline image spans remain inside paragraph text with escaped alt
@@ -373,8 +413,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   audit URLs, importer email contacts, a standalone referenced release image, a
   latex-placement reviewer gallery figure with an imported alt override, an
   inline thumbnail image, reference and inline footnotes for source audit
-  trails, raw TeX citations, inline/display math notes, a raw TeX table source
-  block, and a fenced PHP migration snippet.
+  trails, raw TeX citations, inline/display math notes, nested TeX text math
+  with literal dollars, a raw TeX table source block, and a fenced PHP
+  migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -393,6 +434,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes extended bare source URL audit notes, exercising
   Greek source URLs, `%20` paths, and at-sign archive paths from the upstream
   bare URI family.
+- The fixture now includes a character-reference audit note, exercising
+  Pandoc-compatible named, decimal, and hexadecimal entity decoding in
+  paragraph text and link titles before WordPress escaping.
 - The fixture now includes link-label boundary audit notes, exercising Pandoc's
   rule that link-looking syntax remains literal inside an ordinary link label
   instead of creating nested anchors.
@@ -408,6 +452,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes a multi-line softbreak emphasis note, exercising
   Pandoc's alternating emph/strong paragraph case while keeping the reviewer
   note in one WordPress paragraph.
+- The fixture now includes an indented list code handoff, exercising Pandoc's
+  five-space list-marker code-block rule for migration snippets while keeping a
+  four-space nested reviewer note as prose.
 - The fixture now includes a citation boundary audit note, exercising Pandoc's
   bare citation suffix behavior while keeping a following reviewer source link
   as an ordinary WordPress link.
@@ -617,6 +664,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   source render as escaped WordPress-safe markup, preserving technical import
   notes for later MathJax/KaTeX or citation-processing passes without shelling
   out to Pandoc.
+- Inline math whose TeX arguments contain literal dollars now remains one
+  WordPress-safe math span, matching Pandoc's `markdown-reader-more` `$ in
+  math` fixture for reviewer notes such as `\text{the $n$th root of $y$}`.
 - Raw TeX macro definitions from Markdown imports now stay as escaped TeX code
   blocks, and subsequent math using a one-argument macro expands before
   WordPress output. This preserves reviewer-visible source definitions while
@@ -626,6 +676,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   WordPress paragraph text: `AT&amp;T` is decoded into the AST and emitted once
   as `AT&amp;T`, while `<` is emitted as `&lt;` instead of being treated as raw
   HTML.
+- Character and numeric Markdown entity references from
+  `Tests.Readers.Markdown` now decode before WordPress escaping too:
+  reviewer notes containing `&lang; &ouml;`, decimal references, and
+  lowercase/uppercase hexadecimal references render as visible Unicode/text,
+  and link title attributes receive the same decoded metadata.
 - Reference audit links render as normal WordPress paragraph links with title
   attributes preserved, URI autolinks render as escaped clickable URLs, bare
   pasted http(s) source URLs become anchors with trailing punctuation kept
@@ -713,6 +768,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   intended list item. The fixture maps Pandoc's list issue #1154 shape with
   div/button/div children so migration review markup does not escape the list
   and reorder editorial checklist context.
+- GitHub-style reviewer task lists now render as WordPress-safe checkbox list
+  HTML from native AST metadata, including nested task follow-up items, without
+  shelling out to Pandoc or flattening completed/incomplete review state into
+  plain bracket text.
+- The same task metadata can now be exported through native Markdown and LaTeX
+  writer paths for reviewer handoff documents: unchecked/checked WordPress
+  review tasks round-trip as Markdown `- [ ]`/`- [x]` markers and as Pandoc's
+  LaTeX square/boxtimes item labels without invoking the upstream binary.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -722,5 +785,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the adjacent `Tests.Readers.Markdown` intraword underscore and raw-LaTeX-in-URL
-edge cases explicitly.
+Map another bounded upstream writer slice, preferably Markdown writer coverage
+for non-task ordered-list marker styles or another small command fixture not yet
+represented in the manifest.

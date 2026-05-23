@@ -79,6 +79,14 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Pandoc's additional Markdown reader fixture.
 - `test/markdown-reader-more.native` inspected in this run: 1,715 rendered
   native AST lines.
+- `test/markdown-reader-more.txt` title-block slice inspected in this run:
+  six leading metadata lines covering a multiline `%` title, author lines split
+  by both line boundaries and semicolons, and a blank separator before the first
+  body heading.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 1-27 show `MetaInlines` title content
+  with a `SoftBreak`, a four-entry `MetaList` author field, no date metadata,
+  and `# Additional markdown reader tests` as the first body `Header`.
 - `test/markdown-reader-more.txt` blank-reference and URL-space slice inspected
   in this run: 44 Markdown lines covering two reference definitions whose
   targets/titles live on following lines, four inline link destinations with
@@ -116,6 +124,17 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `OrderedList (1, Example, TwoParens)` with two items, inline paragraph text
   where `(@foo)` and `(@bar)` have become `(2)` and `(3)`, and a later
   `OrderedList (3, Example, TwoParens)` with one item.
+- `test/markdown-reader-more.txt` case-insensitive reference, curly quote, and
+  consecutive-list slice inspected in this run: upstream lines 142-167 cover
+  three shortcut reference links whose definitions differ by case, two
+  paragraphs containing already-curly Unicode quote marks, and three adjacent
+  list families where the final one-space-indented `a.`/`b.` list remains a
+  separate top-level lower-alpha list.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 301-328 show three resolved `Link`
+  nodes, two literal `Str` nodes containing U+201C/U+201D and U+2018/U+2019,
+  followed by separate `BulletList`, decimal `OrderedList`, and lower-alpha
+  `OrderedList` blocks.
 - `test/markdown-reader-more.txt` line-block slice inspected in this run:
   upstream lines 191-201 cover one pipe-prefixed line block with four
   indentation levels, one empty line entry, and two continuation-line cases
@@ -124,6 +143,16 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   inspected in this run: upstream lines 451-516 show one `LineBlock` with
   seven line entries, including nonbreaking-space indentation counts of 4, 8,
   12, and 2 before the visible text.
+- `test/markdown-reader-more.txt` indented-code-at-beginning-of-list slice
+  inspected in this run: upstream lines 85-99 cover one bullet item whose first
+  child is a code block, two nested ordered-list items whose first children are
+  code blocks, one nested bullet item whose first child is a code block, and
+  one four-space guard item that stays ordinary prose.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 207-234 show `CodeBlock` nodes for the
+  five-space marker-padding items, an `OrderedList (1, Decimal, Period)` whose
+  second item is numbered `12345678`, and a nested `BulletList` where
+  `-    no code` remains `Plain [ Str "no" , Space , Str "code" ]`.
 - `test/markdown-reader-more.txt` raw TeX environment and macro slices
   inspected in this run: upstream lines 20-37 cover Raw ConTeXt and Raw LaTeX
   environments, and lines 136-140 cover a `\newcommand` macro followed by math
@@ -135,6 +164,24 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   LaTeX `center`/`tikzpicture` `RawBlock`; upstream lines 296-300 show a
   `\newcommand{\tuple}[1]{\langle #1 \rangle}` `RawBlock` and later math
   expanded to `\langle x,y \rangle`.
+- `test/markdown-reader-more.txt` `$ in math` slice inspected in this run:
+  upstream lines 67-75 cover escaped dollar signs inside inline math, dollars
+  inside a TeX `\text{...}` braced argument, and the `$PATH 90 $PATH`
+  non-math guard.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 173-192 show two `Math InlineMath`
+  nodes, including `x = \text{the $n$th root of $y$}`, followed by one
+  ordinary paragraph containing literal `$PATH 90 $PATH` text.
+- `test/markdown-reader-more.txt` horizontal-rule/raw-HTML/commented-list slice
+  inspected in this run: upstream lines 55-83 cover two trailing-space
+  horizontal-rule forms, one empty raw HTML anchor immediately before a level-3
+  heading, and a commented-out list marker shape between two ordinary list
+  items.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 137-206 show two `HorizontalRule`
+  nodes, a paragraph with separate raw HTML open/close inline nodes for
+  `<a></a>`, a `Header 3` with identifier `my-header`, and one `BulletList`
+  whose commented marker lines remain attached to list item text.
 - `test/markdown-reader-more.txt` rectangular grid-table slice inspected in
   this run: 74 mapped Markdown lines from the Grid Tables section cover the
   simple headed table, headless table, aligned headed table, aligned headless
@@ -222,6 +269,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   two-level nested-table AST shape and the full HTML document third-level case
   at the WordPress boundary; WordPress output preserves the third nested table
   rather than applying the AsciiDoc-specific downgrade.
+- `test/command/tasklist.md` command fixture inspected in this run: 104 lines
+  covering Pandoc's HTML writer output for simple task lists, nested task
+  lists, mixed task/plain bullet lists, ordered task items, loose task items,
+  plus separate LaTeX and Markdown round-trip examples. The bounded PHP slice
+  maps the three HTML task-list examples and leaves the LaTeX and Markdown
+  round-trip examples as future writer-specific work.
 - `test/html-reader.html` table section inspected in this run: 366 HTML lines
   from the upstream HTML reader fixture covering table head/body/foot sections,
   omitted section tags, row headers, colspan, rowspan, two tables with multiple
@@ -427,6 +480,9 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   digit-leading ids, citation followed by a footnote, inline link, reference
   link, shortcut reference link, implicit header link, and regular citation
   suffix text
+- `Tests.Readers.Markdown` entities group: 3 focused cases, now mapped by PHP
+  tests for named character references, decimal and hexadecimal numeric
+  references, and entity decoding inside link titles
 - `Tests.Readers.Markdown` inline-code attribute cases: 2 focused cases, now
   mapped by PHP tests for immediate attribute attachment and spaced
   attribute-looking text remaining literal
@@ -497,6 +553,12 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 - Paragraph joining, including the `test/markdown-reader-more.txt`
   backslash-newline slice where an unescaped trailing backslash before a line
   boundary becomes a `LineBreak` node instead of a soft line wrap.
+- Pandoc title-block metadata from the start of
+  `test/markdown-reader-more.txt`, cross-checked against
+  `test/markdown-reader-more.native`: the leading `%` block is consumed before
+  body parsing, a multiline title keeps a `SoftBreak` in metadata inlines,
+  semicolon- and line-separated authors become four author entries, the empty
+  date field stays absent, and the first body heading remains the first block.
 - Bullet and ordered list blocks
 - Inline emphasis with `*text*`
 - Inline strong with `**text**`
@@ -556,6 +618,12 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `(@label)` markers become Pandoc Example-style ordered lists with
   two-parentheses delimiters, and inline `(@label)` references render as the
   visible example numbers.
+- Indented code at the beginning of list items from
+  `test/markdown-reader-more.txt`: list marker padding of five spaces starts a
+  `code_block` child for bullet, decimal ordered, long-decimal ordered, and
+  nested bullet items, while the four-space `-    no code` guard stays ordinary
+  list-item prose. This matches Pandoc's native shape for the bounded fixture
+  without changing ordinary list continuation text.
 - Inline links with `[label](url)`
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
   Pandoc's opening-fence indentation stripping and both bare language and
@@ -588,6 +656,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `(A)`/`(B)` produce an upper-alpha nested list, `A.`/`I.`/`(6)`/`c)` produce
   the nested upper-alpha, upper-roman, decimal, and lower-alpha shape shown in
   `test/testsuite.native`, and `#.` produces Pandoc-style autonumbered lists.
+- HTML task-list examples from `test/command/tasklist.md`: leading `[ ]` and
+  `[x]` markers at the start of list items are stripped from the first
+  paragraph and stored as `taskChecked` metadata, bullet lists whose items are
+  all tasks receive `taskList` metadata, mixed task/plain lists intentionally do
+  not receive the task-list class, ordered task items still render checkbox
+  labels, and loose task items wrap only the first paragraph in the checkbox
+  label while preserving later paragraphs as ordinary list content.
+- Markdown and LaTeX writer examples from the same `test/command/tasklist.md`
+  fixture are now mapped too: native Markdown output round-trips unchecked and
+  checked task markers as `- [ ]` and `- [x]`, while native LaTeX output uses
+  Pandoc's task labels `\item[$\square$]` and `\item[$\boxtimes$]` for loose
+  task-list items.
 - Definition-list cases from `Tests.Readers.Markdown`: no blank space,
   blank space before the first definition, lazy continuation lines, indented
   continuation paragraphs, blank space before the second definition, first-line
@@ -871,6 +951,13 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   and builds a `span` AST node preserving id, class, and key/value attributes
   around parsed emphasis and link children. The WordPress writer emits safe
   span id/class/data/title attrs for the fixture's migration-review marker.
+- The mid-fixture `test/markdown-reader-more.txt` reference/quote/list slice is
+  now mapped too: reference labels normalize case for shortcut lookup, curly
+  quote code points stay literal text rather than becoming Markdown smart quote
+  nodes, and a one-space-indented lower-alpha list after a decimal list is kept
+  as a sibling list. The nested-list guard still keeps column-zero initials such
+  as `B. Williams` as paragraphs and preserves existing two-column nested list
+  behavior from the indented-code-at-beginning-of-list slice.
 - The `Tests.Readers.Markdown` inline-code attribute slice is now mapped too:
   immediate inline code attributes become AST id/class/key-value metadata, and
   the spaced attribute-looking form stays literal text instead of being parsed
@@ -969,6 +1056,17 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   reference-link URLs/titles is unescaped through the same native path. The
   reader now narrows Markdown backslash escapes to Pandoc/CommonMark-style
   ASCII punctuation instead of treating any non-alphanumeric byte as escapable.
+- The adjacent `Tests.Readers.Markdown` intraword underscore and raw-LaTeX URL
+  guard cases are now explicitly mapped from upstream lines 228-233:
+  `_foot_ball_` becomes a single `Emph` node whose text is `foot_ball`, while a
+  bare `\begin` line stays paragraph text instead of becoming a raw TeX inline.
+  The native reader now names both guard paths directly: intraword underscores
+  cannot close or open a delimiter run, and bare LaTeX environment commands
+  require an argument before they are treated as raw TeX.
+- The adjacent `Tests.Readers.Markdown` entities group is now explicitly mapped
+  from upstream lines 515-523: `&lang; &ouml;` decodes to text, decimal and
+  lowercase/uppercase hexadecimal numeric references decode to `,DD`, and
+  entity references inside link titles are decoded before WordPress escaping.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
@@ -1022,3 +1120,86 @@ assertions, and 0 failures.
 Required root verification on 2026-05-23 after the same slice: the duplicate
 root gate returned clear, so `php tools/run-tests.php` was run once and passed
 198 test files, 21,767 assertions, and 0 failures.
+
+Focused local verification on 2026-05-23 after the intraword-underscore and
+raw-LaTeX URL guard slice: `php -l` passed for `MarkdownReader.php` and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,105
+assertions, and 0 failures.
+
+Required root verification on 2026-05-23 after the same slice was left pending:
+the duplicate-root gate returned active root harness PID `2089975` owned by
+`claude` (`php tools/run-tests.php`, parent `2009714`, elapsed `00:10`, state
+`Rs`), so this lane did not start a duplicate root run.
+
+Focused local verification on 2026-05-23 after the entity-reference slice:
+`php -l` passed for `MarkdownReader.php` and `MarkdownReaderTest.php`;
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed
+1 test file, 2,114 assertions, and 0 failures.
+
+Required root verification on 2026-05-23 after the entity-reference slice:
+the duplicate-root gate returned clear, so `php tools/run-tests.php` was run
+once. It exited 1 with 198 test files, 21,846 assertions, and 45 failures.
+Pandoc tests passed inside that root run; the failures were outside this lane,
+concentrated in `lanes/lightningcss/tests/TransitionPrefixerTest.php` because
+`PortLibs\LightningCSS\TransitionPrefixer::rewriteDisplayFlexPrefixEntries()`
+is missing, plus one `lanes/syncthing/tests/FileInfoScannerTest.php` scanner
+checkpoint condition failure.
+
+Focused local verification on 2026-05-23 after the task-list slice: `php -l`
+passed for `MarkdownReader.php`, `WordPressBlockWriter.php`, and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,139
+assertions, and 0 failures.
+
+Required root verification on 2026-05-23 after the task-list slice was left
+pending: the duplicate-root gate returned active root harness PID `2399793`
+owned by `claude` (`php tools/run-tests.php`, parent `2264530`, elapsed
+`00:19`, state `Rs`), so this lane did not start a duplicate root run.
+
+Focused local verification on 2026-05-23 after the title-block metadata slice:
+`php -l` passed for `MarkdownReader.php` and `MarkdownReaderTest.php`;
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed
+1 test file, 2,151 assertions, and 0 failures. The focused file now contains
+191 behavior tests.
+
+Required root verification on 2026-05-23 after the title-block metadata slice
+was left pending: the duplicate-root gate returned active root harness PID
+`2479573` owned by `claude` (`php tools/run-tests.php`, parent `2479572`,
+elapsed `00:14`, state `R`), so this lane did not start a duplicate root run.
+
+Focused local verification on 2026-05-23 after the nested-dollar inline math
+slice: `php -l` passed for `MarkdownReader.php` and `MarkdownReaderTest.php`;
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed
+1 test file, 2,176 assertions, and 0 failures. The focused file now contains
+194 behavior tests.
+
+Required root verification on 2026-05-23 after the nested-dollar inline math
+slice was left pending: the duplicate-root gate returned active root harness
+PID `2613382` owned by `claude` (`php tools/run-tests.php`, parent `2613380`,
+elapsed `00:19`, state `R`), so this lane did not start a duplicate root run.
+
+Focused local verification on 2026-05-23 after the raw-HTML-before-header and
+commented-list slice: `php -l` passed for `MarkdownReader.php` and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,199
+assertions, and 0 failures. The focused file now contains 196 behavior tests.
+
+Required root verification on 2026-05-23 after the raw-HTML-before-header and
+commented-list slice: the duplicate-root gate returned clear, so
+`php tools/run-tests.php` was run once. It exited 1 with 202 test files,
+23,114 assertions, and 2 failures. Pandoc tests passed inside that root run;
+the visible failure was outside this lane in
+`lanes/readability/tests/ArticleExtractorTest.php`, where the
+`firefox-nightly-blog` byline fixture expected `Mike Conley` and got `NULL`.
+
+Focused local verification on 2026-05-23 after the task-list writer slice:
+`php -l` passed for `MarkdownReader.php`, `WordPressBlockWriter.php`,
+`MarkdownWriter.php`, `LatexWriter.php`, and `MarkdownReaderTest.php`;
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed
+1 test file, 2,234 assertions, and 0 failures. The focused file now contains
+198 behavior tests.
+
+Required root verification on 2026-05-23 after the task-list writer slice: the
+duplicate-root gate returned clear, so `php tools/run-tests.php` was run once
+and passed 203 test files, 23,476 assertions, and 0 failures.
