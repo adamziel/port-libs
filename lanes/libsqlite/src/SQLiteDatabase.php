@@ -3494,6 +3494,36 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $equalityPrefix
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameRangeWithPrefixAndCollation(
+        array $equalityPrefix,
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        string $collationName,
+        callable $compare,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($equalityPrefix === []) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed name range lookup requires at least one equality column');
+        }
+
+        return $this->wordpressOptionsByIndexedColumnPrefixRangeWithCollation(
+            $equalityPrefix,
+            'option_name',
+            $lowerInclusive,
+            $upperBound,
+            $collationName,
+            $compare,
+            $limit,
+            $upperInclusive,
+        );
+    }
+
+    /**
      * @return list<SQLiteWordPressOption>
      */
     public function wordpressOptionsByIndexedNameRange(
@@ -3961,6 +3991,106 @@ final class SQLiteDatabase
                 $indexLookup['columns'],
             ) as $indexCell
         ) {
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param non-empty-array<string, mixed> $equalityColumnValues
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    private function wordpressOptionsByIndexedColumnPrefixRangeWithCollation(
+        array $equalityColumnValues,
+        string $rangeColumnName,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        string $collationName,
+        callable $compare,
+        ?int $limit,
+        bool $upperInclusive = false,
+    ): array {
+        if ($equalityColumnValues === []) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup requires at least one equality column');
+        }
+        if ($collationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one bound');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $equalityColumnNames = array_keys($equalityColumnValues);
+        $equalityValues = array_values($equalityColumnValues);
+        $indexLookup = $this->indexLookupForColumnPrefixRangeWithRangeCollation(
+            'wp_options',
+            $equalityColumnNames,
+            $equalityValues,
+            $rangeColumnName,
+            $collationName,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options composite range index with collation {$collationName} is not present");
+        }
+
+        $rangeIndex = count($equalityValues);
+        $rangeColumn = $indexLookup['columns'][$rangeIndex] ?? null;
+        if (!$rangeColumn instanceof SQLiteIndexColumn) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation composite range index is missing the range column');
+        }
+
+        if ($lowerInclusive !== null && $upperBound !== null) {
+            $boundaryComparison = self::compareSQLiteScalarWithCustomTextCollation($lowerInclusive, $upperBound, $compare);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
+            $record = $indexCell->record($this->header->textEncoding);
+            if (count($record->values) <= $rangeIndex) {
+                throw new \InvalidArgumentException('SQLite index record has fewer values than the constrained custom-collation prefix range');
+            }
+
+            foreach ($equalityValues as $index => $value) {
+                if (self::compareSQLiteScalar($record->values[$index], $value, $indexLookup['columns'][$index]->collation) !== 0) {
+                    continue 2;
+                }
+            }
+
+            if (!self::customFirstValueIsInRange(
+                $record->values[$rangeIndex],
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $compare,
+            )) {
+                continue;
+            }
+
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
@@ -4904,6 +5034,80 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-list<string> $equalityColumnNames
+     * @param non-empty-list<mixed> $pointLookupValues
+     * @return null|array{rootPage:int,columns:non-empty-list<SQLiteIndexColumn>}
+     */
+    private function indexLookupForColumnPrefixRangeWithRangeCollation(
+        string $tableName,
+        array $equalityColumnNames,
+        array $pointLookupValues,
+        string $rangeColumnName,
+        string $rangeCollationName,
+    ): ?array {
+        if ($equalityColumnNames === []) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one equality column');
+        }
+        if (count($equalityColumnNames) !== count($pointLookupValues)) {
+            throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires one value per equality column');
+        }
+        if ($rangeCollationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+
+        $wantedColumnNames = array_merge($equalityColumnNames, [$rangeColumnName]);
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $columns = SQLiteCreateIndex::columns($record->sql);
+            if ($columns === null || count($columns) < count($wantedColumnNames)) {
+                continue;
+            }
+
+            $prefix = array_slice($columns, 0, count($wantedColumnNames));
+            foreach ($prefix as $index => $column) {
+                if (strcasecmp($column->columnName, $wantedColumnNames[$index]) !== 0) {
+                    continue 2;
+                }
+            }
+
+            $rangeColumn = $prefix[count($equalityColumnNames)] ?? null;
+            if (
+                !$rangeColumn instanceof SQLiteIndexColumn
+                || strcasecmp($rangeColumn->collation, $rangeCollationName) !== 0
+            ) {
+                continue;
+            }
+
+            if ($prefix[0]->partial) {
+                $equalityConstraints = array_combine($equalityColumnNames, $pointLookupValues);
+                if ($equalityConstraints === false) {
+                    $equalityConstraints = [];
+                }
+                if (
+                    $prefix[0]->partialPredicate === null
+                    || !self::partialPredicateIsImpliedByEqualityAndNonNullRange(
+                        $prefix[0]->partialPredicate,
+                        $equalityConstraints,
+                        $rangeColumnName,
+                    )
+                ) {
+                    continue;
+                }
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'columns' => $prefix,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<string, mixed> $columnValues
      */
     private static function partialPredicateIsImpliedByConstraints(
@@ -4975,6 +5179,72 @@ final class SQLiteDatabase
                     (bool) ($bounds['upperInclusive'] ?? false),
                 )
             ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $columnValues
+     */
+    private static function partialPredicateIsImpliedByEqualityAndNonNullRange(
+        SQLiteIndexPredicate $predicate,
+        array $columnValues,
+        string $rangeColumnName,
+    ): bool {
+        if ($predicate->operator === SQLiteIndexPredicate::AND) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    !$subPredicate instanceof SQLiteIndexPredicate
+                    || !self::partialPredicateIsImpliedByEqualityAndNonNullRange(
+                        $subPredicate,
+                        $columnValues,
+                        $rangeColumnName,
+                    )
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    $subPredicate instanceof SQLiteIndexPredicate
+                    && self::partialPredicateIsImpliedByEqualityAndNonNullRange(
+                        $subPredicate,
+                        $columnValues,
+                        $rangeColumnName,
+                    )
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (
+            strcasecmp($predicate->columnName, $rangeColumnName) === 0
+            && $predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL
+        ) {
+            return true;
+        }
+
+        foreach ($columnValues as $columnName => $value) {
+            if ($predicate->isImpliedByPointLookup((string) $columnName, $value)) {
                 return true;
             }
         }

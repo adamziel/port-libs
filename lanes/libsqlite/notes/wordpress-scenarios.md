@@ -559,6 +559,12 @@ underscores, or other slug separators differently from SQLite's built-in
 `BINARY`/`NOCASE`/`RTRIM` collations, while still requiring an explicit
 collation match and a comparator that returns an integer.
 
+`examples/wordpress-custom-collation-autoload-option-name-range.php` reads a
+bounded `wp_options(autoload, option_name COLLATE X)` range with a supplied
+comparator for the second indexed column. This maps non-autoloaded transient or
+cache recovery on sites that created custom slug/case collations while still
+requiring the autoload equality prefix and a collation-safe partial predicate.
+
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
@@ -569,5 +575,6 @@ named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
 mutation at `[#]`, broader JSONB output/edit behavior beyond the current
 value encoder, and full JSON5 numeric/string edge parity; custom collation
-coverage beyond explicit first-column `option_name` point/range recovery; and
+coverage beyond explicit first-column and autoload equality-prefix
+`option_name` range recovery; and
 composite planner shapes outside equality-prefix plus one range column.

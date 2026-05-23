@@ -1733,3 +1733,42 @@ custom-collation range scans. The
 `examples/wordpress-custom-collation-option-name-range.php` scripts map
 custom-collation option recovery on hosts where the PHP SQLite extension is
 unavailable.
+
+## Focused Native Mapping: Composite Custom-Collation Range Lookups
+
+SQLite also carries per-column collation metadata through multi-column
+indexes. This slice maps the WordPress-shaped read path
+`wp_options(autoload, option_name COLLATE X)`: callers constrain the built-in
+`autoload` prefix by equality, then supply the application collation callback
+for the bounded `option_name` range.
+
+Focused upstream runner rerun:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  collate1.test collate2.test collate4.test
+```
+
+Result on 2026-05-23: 3 Tcl scripts, 0 errors out of 301 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/collate4.test` verifies multi-column index collation usability,
+  including cases where the second indexed term's collation determines whether
+  the index order is compatible.
+- `test/collate1.test` and `test/collate2.test` provide the
+  application-defined comparator boundary for named collation callbacks.
+
+The native PHP tests now cover a WordPress-shaped partial index
+`wp_options(autoload, option_name COLLATE WPSLUG) WHERE autoload='no' AND
+option_name IS NOT NULL`. The ordinary composite range path still rejects the
+unsupported collation, while
+`wordpressOptionsByIndexedNameRangeWithPrefixAndCollation()` accepts the
+caller-provided comparator, enforces equality/`IS NOT NULL` partial predicate
+safety, handles inclusive/exclusive upper bounds and inverted ranges, and
+validates callback return types. The new
+`examples/wordpress-custom-collation-autoload-option-name-range.php` script
+maps non-autoloaded transient/cache recovery when a site-specific option-name
+collation treats underscores, case, or plugin slug separators differently from
+SQLite's built-ins.
