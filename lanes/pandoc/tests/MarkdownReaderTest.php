@@ -437,6 +437,75 @@ return [
         $t->contains('<a href="/bar%20and%20baz">foo</a>', $blocks);
         $t->contains('<a href="/foo/zee%20zob" title="title">bork</a>', $blocks);
     },
+    'maps upstream markdown reader more backslash newline and code spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("hi\\\nthere\n\n`hi\\`\n\n`hi\nthere`\n\n`` hi````there ``\n\n`hi\n\nthere`");
+        $hardBreak = $document->children[0];
+        $escapedCode = $document->children[1]->children[0];
+        $multilineCode = $document->children[2]->children[0];
+        $longTickCode = $document->children[3]->children[0];
+        $unterminatedStart = $document->children[4];
+        $unterminatedEnd = $document->children[5];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, count($document->children));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $hardBreak->children));
+        $t->same('hi', $hardBreak->children[0]->attr('text'));
+        $t->same('there', $hardBreak->children[2]->attr('text'));
+        $t->same("hi\nthere", $hardBreak->attr('text'));
+        $t->same('code', $escapedCode->type);
+        $t->same('hi\\', $escapedCode->attr('text'));
+        $t->same('code', $multilineCode->type);
+        $t->same('hi there', $multilineCode->attr('text'));
+        $t->same('hi````there', $longTickCode->attr('text'));
+        $t->same('`hi', $unterminatedStart->children[0]->attr('text'));
+        $t->same('there`', $unterminatedEnd->children[0]->attr('text'));
+        $t->contains('<p>hi<br/>there</p>', $blocks);
+        $t->contains('<p><code>hi\</code></p>', $blocks);
+        $t->contains('<p><code>hi there</code></p>', $blocks);
+        $t->contains('<p><code>hi````there</code></p>', $blocks);
+    },
+    'maps upstream markdown reader more implicit header references' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '### my header',
+            '### My header',
+            '### My other header',
+            'A link to [My header].',
+            'Another link to [it][My header].',
+            'Should be [case insensitive][my header].',
+            'Link to [Explicit header attributes].',
+            '[my other header]: /foo',
+            'But this is not a link to [My other header], since the reference is defined.',
+            '## Explicit header attributes {#foobar .baz key="val"}',
+        ]));
+
+        $firstDuplicate = $document->children[0];
+        $secondDuplicate = $document->children[1];
+        $otherHeader = $document->children[2];
+        $shortcut = $document->children[3]->children[1];
+        $collapsed = $document->children[4]->children[1];
+        $caseInsensitive = $document->children[5]->children[1];
+        $forwardExplicitAttribute = $document->children[6]->children[1];
+        $explicitOverride = $document->children[7]->children[1];
+        $attributeHeading = $document->children[8];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('my-header', $firstDuplicate->attr('id'));
+        $t->same('my-header-1', $secondDuplicate->attr('id'));
+        $t->same('my-other-header', $otherHeader->attr('id'));
+        $t->same('#my-header', $shortcut->attr('url'));
+        $t->same('My header', $shortcut->children[0]->attr('text'));
+        $t->same('#my-header', $collapsed->attr('url'));
+        $t->same('it', $collapsed->children[0]->attr('text'));
+        $t->same('#my-header', $caseInsensitive->attr('url'));
+        $t->same('#foobar', $forwardExplicitAttribute->attr('url'));
+        $t->same('/foo', $explicitOverride->attr('url'));
+        $t->same('foobar', $attributeHeading->attr('id'));
+        $t->same(['baz'], $attributeHeading->attr('classes'));
+        $t->same(['key' => 'val'], $attributeHeading->attr('attributes'));
+        $t->contains('<h2 id="foobar" class="baz">Explicit header attributes</h2>', $blocks);
+        $t->contains('<a href="#my-header">My header</a>', $blocks);
+        $t->contains('<a href="/foo">My other header</a>', $blocks);
+    },
     'maps upstream testsuite ampersand links and autolinks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             "Here's a [link with an ampersand in the URL][1].",
@@ -3353,6 +3422,12 @@ XML;
         $t->contains('<a href="/wp-content/uploads/import%20batch%2042.csv" title="Batch manifest">spaced batch manifest</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
+    },
+    'writes wordpress markdown hard breaks and multiline code spans from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Line break handoff: keep source line<br/>attached to reviewer continuation with <code>hi there</code> code span.</p>', $blocks);
     },
     'writes wordpress image blocks and inline media from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

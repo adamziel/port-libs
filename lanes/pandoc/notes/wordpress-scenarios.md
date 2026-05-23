@@ -212,6 +212,20 @@ The `test/markdown-reader-more.txt` URL-space cases are now represented too:
 reference definitions may put the URL and title on following lines, and bare
 link destinations with spaces are collapsed and percent-encoded as `%20` while
 keeping trailing quoted or parenthesized titles attached.
+The same upstream fixture's implicit header reference cases are now represented
+too: Markdown headings generate Pandoc-style anchors, duplicate generated ids
+receive suffixes, shortcut/collapsed/case-insensitive references resolve to the
+first matching heading, explicit `{#id .class key="val"}` attributes are kept on
+the heading AST, and explicit reference definitions override implicit heading
+targets.
+The adjacent `test/markdown-reader-more.txt` backslash-newline and code-span
+cases are now represented too: an explicit trailing backslash before a newline
+becomes a hard `linebreak` node, code spans preserve literal trailing
+backslashes, multiline code spans normalize their internal newline to a single
+space, longer backtick delimiters can contain literal backtick runs, and blank
+lines terminate an otherwise unterminated code span as ordinary paragraph text.
+The WordPress fixture uses that path for reviewer handoff text that needs a
+visible `<br/>` plus a normalized inline source token.
 The bounded Images section is now mapped for import-safe media preservation:
 standalone reference images become WordPress image blocks with caption/title
 metadata, and inline image spans remain inside paragraph text with escaped alt
@@ -477,6 +491,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Legacy media and manifest links with spaces render as WordPress-safe
   `%20`-encoded URLs, including split reference definitions whose title is on a
   following line.
+- Implicit intra-document reviewer links render as WordPress anchor links, and
+  attributed Markdown headings preserve stable ids/classes for migration review
+  without shelling out to Pandoc.
 - Referenced import images render as core WordPress image blocks with preserved
   captions/titles, and inline thumbnail images render inside paragraph blocks
   without invoking Pandoc.
@@ -503,6 +520,7 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded HTML-reader fixture shard from `test/html-reader.html/native`,
-with priority on remaining inline/body cases after the early Headers/Paragraphs
-slice.
+Map another bounded Markdown reader fixture shard from
+`test/markdown-reader-more.txt/native`, with priority on multilingual
+URL/email handling or numbered example lists before broadening into grid
+tables.

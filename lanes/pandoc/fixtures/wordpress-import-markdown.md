@@ -8,6 +8,12 @@ Inline media audit: ![thumbnail](https://example.test/uploads/thumb.jpg "Thumbna
 
 Reference audit links: [migration checklist][checklist] and <https://example.test/audit?post=42&status=ready>.
 
+Jump to [Review Anchors] for intra-document reviewer links.
+
+Line break handoff: keep source line\
+attached to reviewer continuation with `hi
+there` code span.
+
 Spaced source links: [legacy media file](https://example.test/uploads/legacy media file.jpg "Legacy media file") and [spaced batch manifest][spaced-batch].
 
 Contact importer: <importer@example.test>.
@@ -31,6 +37,10 @@ Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.
 
 Migration editor said, "Don't flatten 'legacy' captions..." Keep dates 1987--1999 and one---two review notes.
+
+## Review Anchors {#review-anchors .migration-anchor}
+
+Reviewers can jump back to [Migrated Release Notes] without a manually written reference definition.
 
 Entity import note: AT&amp;T sponsor text and 4 < 5 comparator stay visible for review.
 

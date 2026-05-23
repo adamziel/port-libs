@@ -87,6 +87,25 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/markdown-reader-more.native` corresponding rendered AST slice inspected
   in this run: 100 lines showing two split reference-definition links and
   seven space-containing link destinations normalized with `%20`.
+- `test/markdown-reader-more.txt` implicit-header-reference slice inspected in
+  this run: upstream lines 169-189 cover shortcut, collapsed, and
+  case-insensitive implicit references, an explicit reference definition that
+  overrides an implicit heading reference, and explicit heading attributes.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 329-450 show Pandoc's duplicate
+  generated heading id behavior (`my-header-1` after an earlier
+  `my-header`), `#my-header` links for the implicit forms, `/foo` for the
+  explicit override, and `#foobar` plus class/key metadata for the attributed
+  heading.
+- `test/markdown-reader-more.txt` backslash-newline and code-span slice
+  inspected in this run: upstream lines 101-117 cover an explicit trailing
+  backslash hard break, a code span ending in a literal backslash, a multiline
+  code span, a longer backtick-delimited code span containing four literal
+  backticks, and a blank-line-terminated unterminated code span.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 235-249 show `LineBreak`, three
+  `Code` nodes with normalized code text, and two literal paragraph strings for
+  the blank-line-terminated unterminated code span.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky
@@ -353,8 +372,14 @@ runner parity.
 
 The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 
-- ATX headings
-- Paragraph joining
+- ATX headings, including the `test/markdown-reader-more.txt` implicit header
+  reference slice: generated identifiers, duplicate generated-id suffixes,
+  shortcut/collapsed/case-insensitive implicit links, explicit heading
+  attributes, and explicit reference definitions overriding implicit heading
+  targets.
+- Paragraph joining, including the `test/markdown-reader-more.txt`
+  backslash-newline slice where an unescaped trailing backslash before a line
+  boundary becomes a `LineBreak` node instead of a soft line wrap.
 - Bullet and ordered list blocks
 - Inline emphasis with `*text*`
 - Inline strong with `**text**`
@@ -368,7 +393,10 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   superscripts with escaped spaces normalized to non-breaking spaces,
   `H~2~O`/`H~23~O`/`H~many\ of\ them~O` map to subscripts, and the upstream
   unescaped-space examples remain plain text rather than script spans.
-- Inline code spans
+- Inline code spans, including the `test/markdown-reader-more.txt` cases where
+  a trailing backslash is literal inside code, embedded newlines normalize to
+  spaces, longer backtick delimiters permit literal backticks, and a blank line
+  terminates an otherwise unterminated code span into ordinary paragraphs.
 - Inline links with `[label](url)`
 - Indented fenced code blocks from `test/command/indented-fences.md`, including
   Pandoc's opening-fence indentation stripping and both bare language and
@@ -659,6 +687,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 144 behavior tests, 1,351 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command was run after this slice
-and passed with 164 test files, 15,262 assertions, and 0 failures.
+with 148 behavior tests, 1,400 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command passed with 171 test files,
+15,819 assertions, and 0 failures.

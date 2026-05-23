@@ -25,7 +25,8 @@ final class MarkdownReader
         $documentAttrs = [];
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
-        $this->referenceLinks = array_replace($previousReferenceLinks, $references);
+        [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
+        $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
@@ -141,13 +142,25 @@ final class MarkdownReader
                 $blocks[] = new AstNode('horizontal_rule');
                 continue;
             }
-            if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
+            $markdownHeading = $this->tryParseMarkdownHeading($line);
+            if ($markdownHeading !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
-                $text = trim($m[2]);
+                $text = $markdownHeading['text'];
+                $attrs = [
+                    'level' => $markdownHeading['level'],
+                    'text' => $text,
+                    'id' => $markdownHeadingIds[$index] ?? $markdownHeading['id'] ?? '',
+                ];
+                if ($markdownHeading['classes'] !== []) {
+                    $attrs['classes'] = $markdownHeading['classes'];
+                }
+                if ($markdownHeading['attributes'] !== []) {
+                    $attrs['attributes'] = $markdownHeading['attributes'];
+                }
                 $blocks[] = new AstNode(
                     'heading',
-                    ['level' => strlen($m[1]), 'text' => $text],
+                    $attrs,
                     $this->parseInlines($text)
                 );
                 continue;
@@ -312,6 +325,134 @@ final class MarkdownReader
     private function normalizeReferenceLabel(string $label): string
     {
         return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:array<int, string>, 1:array<string, array{url:string, title:string}>}
+     */
+    private function collectMarkdownHeadingReferences(array $lines): array
+    {
+        $idsByLine = [];
+        $references = [];
+        $usedIds = [];
+
+        foreach ($lines as $index => $line) {
+            $heading = $this->tryParseMarkdownHeading($line);
+            if ($heading === null) {
+                continue;
+            }
+
+            $id = $heading['id'] ?? $this->uniqueMarkdownHeadingId(
+                $this->slugifyMarkdownHeading($heading['text']),
+                $usedIds
+            );
+            if (isset($heading['id'])) {
+                $usedIds[$heading['id']] = ($usedIds[$heading['id']] ?? 0) + 1;
+            }
+
+            $idsByLine[$index] = $id;
+            $label = $this->normalizeReferenceLabel($this->plainMarkdownHeadingText($heading['text']));
+            if ($label !== '' && !isset($references[$label])) {
+                $references[$label] = ['url' => '#' . $id, 'title' => ''];
+            }
+        }
+
+        return [$idsByLine, $references];
+    }
+
+    /**
+     * @return array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function tryParseMarkdownHeading(string $line): ?array
+    {
+        if (preg_match('/^(#{1,6})[ \t]+(.+)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $text = trim($m[2]);
+        $id = null;
+        $classes = [];
+        $attributes = [];
+
+        if (preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
+            $text = rtrim($attrs[1]);
+            [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($attrs[2]);
+        }
+
+        $heading = [
+            'level' => strlen($m[1]),
+            'text' => $text,
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+        if ($id !== null && $id !== '') {
+            $heading['id'] = $id;
+        }
+
+        return $heading;
+    }
+
+    /**
+     * @return array{0:string|null, 1:list<string>, 2:array<string, string>}
+     */
+    private function parseMarkdownAttributeSpec(string $source): array
+    {
+        $id = null;
+        $classes = [];
+        $attributes = [];
+        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"[^"]*"|\'[^\']*\'|[^\s]+))/', $source, $matches);
+
+        foreach ($matches[1] as $token) {
+            if ($token[0] === '#') {
+                $id = substr($token, 1);
+                continue;
+            }
+            if ($token[0] === '.') {
+                $classes[] = substr($token, 1);
+                continue;
+            }
+
+            [$name, $value] = explode('=', $token, 2);
+            $value = trim($value);
+            if ($value !== '' && (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))) {
+                $value = substr($value, 1, -1);
+            }
+            $attributes[$name] = $this->decodeHtmlEntities($this->unescapeLinkComponent($value));
+        }
+
+        return [$id, $classes, $attributes];
+    }
+
+    /**
+     * @param array<string, int> $usedIds
+     */
+    private function uniqueMarkdownHeadingId(string $base, array &$usedIds): string
+    {
+        $base = $base === '' ? 'section' : $base;
+        $count = $usedIds[$base] ?? 0;
+        $usedIds[$base] = $count + 1;
+
+        return $count === 0 ? $base : $base . '-' . $count;
+    }
+
+    private function slugifyMarkdownHeading(string $text): string
+    {
+        $plain = $this->plainMarkdownHeadingText($text);
+        $plain = function_exists('mb_strtolower') ? mb_strtolower($plain, 'UTF-8') : strtolower($plain);
+        $slug = preg_replace('/[^\pL\pN]+/u', '-', $plain) ?? $plain;
+
+        return trim($slug, '-');
+    }
+
+    private function plainMarkdownHeadingText(string $text): string
+    {
+        $text = preg_replace('/!\[([^\]]*)\]\([^)]+\)/', '$1', $text) ?? $text;
+        $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $text) ?? $text;
+        $text = preg_replace('/`+([^`]*)`+/', '$1', $text) ?? $text;
+        $text = str_replace(['*', '_', '~', '^'], '', $text);
+
+        return $this->decodeHtmlEntities(trim($text));
     }
 
     /**
@@ -4795,8 +4936,9 @@ final class MarkdownReader
         if ($paragraph === []) {
             return;
         }
-        $text = implode(' ', $paragraph);
+        $text = $this->joinParagraphLines($paragraph);
         $children = $this->parseInlines($text);
+        $plainText = str_contains($text, "\\\n") ? $this->plainTextFromInlines($children) : $text;
         if (count($children) === 1 && $children[0]->type === 'image') {
             $blocks[] = new AstNode(
                 'figure',
@@ -4807,8 +4949,32 @@ final class MarkdownReader
             return;
         }
 
-        $blocks[] = new AstNode('paragraph', ['text' => $text], $children);
+        $blocks[] = new AstNode('paragraph', ['text' => $plainText], $children);
         $paragraph = [];
+    }
+
+    /**
+     * @param list<string> $paragraph
+     */
+    private function joinParagraphLines(array $paragraph): string
+    {
+        $text = '';
+        $separator = '';
+        foreach ($paragraph as $line) {
+            $text .= $separator . $line;
+            $separator = $this->endsWithUnescapedBackslash($line) ? "\n" : ' ';
+        }
+
+        return $text;
+    }
+
+    private function endsWithUnescapedBackslash(string $line): bool
+    {
+        $offset = strlen($line) - 1;
+
+        return $offset >= 0
+            && $line[$offset] === '\\'
+            && !$this->isEscapedInlinePosition($line, $offset);
     }
 
     /**
@@ -4903,6 +5069,17 @@ final class MarkdownReader
                 $this->flushText($buffer, $nodes);
                 $nodes[] = new AstNode('softbreak');
                 $offset++;
+                continue;
+            }
+
+            if (
+                $text[$offset] === '\\'
+                && ($text[$offset + 1] ?? '') === "\n"
+                && !$this->isEscapedInlinePosition($text, $offset)
+            ) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = new AstNode('linebreak');
+                $offset += 2;
                 continue;
             }
 
