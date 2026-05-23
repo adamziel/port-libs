@@ -7,6 +7,7 @@ use PortLibs\Rclone\FilterRuleSet;
 use PortLibs\Rclone\HashSet;
 use PortLibs\Rclone\ListDirectory;
 use PortLibs\Rclone\MemoryProvider;
+use PortLibs\Rclone\ObjectInfo;
 use PortLibs\Rclone\SyncPlan;
 
 return [
@@ -121,6 +122,109 @@ return [
         $t->same(['new.txt'], array_map(static fn ($info) => $info->path, $plan->copyChanged($source, $target)));
         $t->same('old', $target->get('old.txt'));
         $t->same(['old.txt'], $plan->deletePaths($source, $target));
+    },
+    'operations delete filters ListFn objects before deletion' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('empty-dir');
+        $provider->put('small', '1234567890');
+        $provider->put('medium', str_repeat('-', 60));
+        $provider->put('large', str_repeat('A', 100));
+
+        $stats = null;
+        $result = (new SyncPlan())->deleteContents(
+            $provider,
+            includeObject: static fn (ObjectInfo $info): bool => $info->size <= 60,
+            stats: $stats,
+        );
+
+        $t->same(['medium', 'small'], array_map(static fn ($info): string => $info->path, $result['deleted']));
+        $t->same([], $result['prunedDirectories']);
+        $t->same([
+            'listed' => 3,
+            'deletes' => 2,
+            'deleteBytes' => 70,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunObjectSkipped' => 0,
+        ], $stats);
+        $t->same(str_repeat('A', 100), $provider->get('large'));
+        $t->same('empty-dir', $provider->directoryInfo('empty-dir')->path);
+    },
+    'operations delete dry run accounts file attempts without provider mutation' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('database/site.sql', 'insert');
+        $provider->put('exports/site.wxr', '<rss></rss>');
+
+        $stats = null;
+        $result = (new SyncPlan())->deleteContents($provider, dryRun: true, stats: $stats);
+
+        $t->same([], $result['deleted']);
+        $t->same([
+            'listed' => 2,
+            'deletes' => 2,
+            'deleteBytes' => 17,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunObjectSkipped' => 2,
+        ], $stats);
+        $t->same('insert', $provider->get('database/site.sql'));
+        $t->same('<rss></rss>', $provider->get('exports/site.wxr'));
+    },
+    'operations delete aggregates provider errors after attempting listed files' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('bad-one.txt', 'bad1');
+        $provider->put('bad-two.txt', 'bad22');
+        $provider->put('ok.txt', 'ok');
+        $provider->setDeleteError('bad-one.txt', 'permission denied');
+        $provider->setDeleteError('bad-two.txt', 'object locked');
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->deleteContents($provider, stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('failed to delete 2 files', $error?->getMessage());
+        $t->same([
+            'listed' => 3,
+            'deletes' => 3,
+            'deleteBytes' => 11,
+            'errors' => 2,
+            'lastError' => 'object locked',
+            'dryRunObjectSkipped' => 0,
+        ], $stats);
+        $t->same('bad1', $provider->get('bad-one.txt'));
+        $t->same('bad22', $provider->get('bad-two.txt'));
+        $t->throws(RuntimeException::class, static fn () => $provider->get('ok.txt'));
+    },
+    'operations delete reports max delete threshold as aggregate command failure' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('a-small.txt', str_repeat('a', 10));
+        $provider->put('b-medium.txt', str_repeat('b', 60));
+        $provider->put('c-large.txt', str_repeat('c', 100));
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->deleteContents($provider, maxDelete: 2, stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('failed to delete 1 files', $error?->getMessage());
+        $t->same([
+            'listed' => 3,
+            'deletes' => 2,
+            'deleteBytes' => 70,
+            'errors' => 1,
+            'lastError' => '--max-delete threshold reached',
+            'dryRunObjectSkipped' => 0,
+        ], $stats);
+        $t->throws(RuntimeException::class, static fn () => $provider->get('a-small.txt'));
+        $t->throws(RuntimeException::class, static fn () => $provider->get('b-medium.txt'));
+        $t->same(str_repeat('c', 100), $provider->get('c-large.txt'));
     },
     'match listings ignores duplicate source objects after the first provider entry' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
@@ -667,6 +771,299 @@ return [
         $t->same('keep', $provider->get('A1/excluded.tmp'));
         $t->same('keep', $provider->get('A2/excluded.tmp'));
     },
+    'try rmdir accounts attempts without counting provider errors' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('dir');
+        $provider->mkdir('dir/subdir');
+        $provider->put('dir/subdir/keep.txt', 'keep');
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->tryRemoveDirectory($provider, 'dir/subdir', stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('Directory not empty: dir/subdir', $error?->getMessage());
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 0,
+        ], $stats);
+        $t->same('dir/subdir', $provider->directoryInfo('dir/subdir')->path);
+        $t->same('keep', $provider->get('dir/subdir/keep.txt'));
+    },
+    'rmdir counts missing directory errors after try rmdir accounting' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('dir');
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->removeDirectory($provider, 'dir/missing', stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('Directory not found: dir/missing', $error?->getMessage());
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 1,
+            'lastError' => 'Directory not found: dir/missing',
+            'dryRunSkipped' => 0,
+        ], $stats);
+        $t->same('dir', $provider->directoryInfo('dir')->path);
+    },
+    'rmdir dry run skips provider rmdir including missing directories' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('dir');
+        $provider->mkdir('dir/empty');
+
+        $stats = null;
+        $plan = new SyncPlan();
+        $t->same(null, $plan->removeDirectory($provider, 'dir/missing', dryRun: true, stats: $stats));
+        $t->same(null, $plan->removeDirectory($provider, 'dir/empty', dryRun: true, stats: $stats));
+
+        $t->same([
+            'deletedDirs' => 2,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 2,
+        ], $stats);
+        $t->same('dir/empty', $provider->directoryInfo('dir/empty')->path);
+    },
+    'rmdir removes empty directories and records deleted directory stats' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->mkdir('dir');
+        $provider->mkdir('dir/empty');
+
+        $stats = null;
+        $removed = (new SyncPlan())->removeDirectory($provider, 'dir/empty', stats: $stats);
+
+        $t->same('dir/empty', $removed?->path);
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 0,
+        ], $stats);
+        $t->throws(RuntimeException::class, static fn () => $provider->directoryInfo('dir/empty'));
+        $t->same('dir', $provider->directoryInfo('dir')->path);
+    },
+    'purge direct provider dry run skips fallback and provider mutation' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('dir/file.txt', 'content');
+        $provider->mkdir('dir/empty');
+
+        $stats = null;
+        $result = (new SyncPlan())->purge($provider, 'dir', dryRun: true, stats: $stats);
+
+        $t->same([], array_map(static fn ($info): string => $info->path, $result['objects']));
+        $t->same([], array_map(static fn ($info): string => $info->path, $result['directories']));
+        $t->same(true, $result['usedDirectPurge']);
+        $t->same(false, $result['usedFallback']);
+        $t->same(null, $result['directError']);
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 1,
+            'deletes' => 0,
+            'deleteBytes' => 0,
+            'dryRunObjectSkipped' => 0,
+            'directPurgeAttempts' => 1,
+        ], $stats);
+        $t->same('content', $provider->get('dir/file.txt'));
+        $t->same('dir/empty', $provider->directoryInfo('dir/empty')->path);
+    },
+    'purge fallback dry run accounts listed objects and empty directories' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(directPurge: false);
+        $provider->mkdir('dir');
+        $provider->put('dir/one.txt', 'abc');
+        $provider->put('dir/two.txt', 'defg');
+        $provider->mkdir('dir/empty');
+
+        $stats = null;
+        $result = (new SyncPlan())->purge($provider, 'dir', dryRun: true, stats: $stats);
+
+        $t->same(false, $result['usedDirectPurge']);
+        $t->same(true, $result['usedFallback']);
+        $t->same([], array_map(static fn ($info): string => $info->path, $result['objects']));
+        $t->same([], array_map(static fn ($info): string => $info->path, $result['directories']));
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 1,
+            'deletes' => 2,
+            'deleteBytes' => 7,
+            'dryRunObjectSkipped' => 2,
+            'directPurgeAttempts' => 0,
+        ], $stats);
+        $t->same('abc', $provider->get('dir/one.txt'));
+        $t->same('defg', $provider->get('dir/two.txt'));
+        $t->same('dir/empty', $provider->directoryInfo('dir/empty')->path);
+    },
+    'purge falls back when direct provider returns cant purge' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(directPurgeError: MemoryProvider::ERROR_CANT_PURGE);
+        $provider->mkdir('dir');
+        $provider->put('dir/file.txt', 'abc');
+        $provider->mkdir('dir/empty');
+
+        $stats = null;
+        $result = (new SyncPlan())->purge($provider, 'dir', stats: $stats);
+
+        $t->same(false, $result['usedDirectPurge']);
+        $t->same(true, $result['usedFallback']);
+        $t->same(MemoryProvider::ERROR_CANT_PURGE, $result['directError']);
+        $t->same(['dir/file.txt'], array_map(static fn ($info): string => $info->path, $result['objects']));
+        $t->same(['dir/empty', 'dir'], array_map(static fn ($info): string => $info->path, $result['directories']));
+        $t->same([
+            'deletedDirs' => 3,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 0,
+            'deletes' => 1,
+            'deleteBytes' => 3,
+            'dryRunObjectSkipped' => 0,
+            'directPurgeAttempts' => 1,
+        ], $stats);
+        $t->throws(RuntimeException::class, static fn () => $provider->get('dir/file.txt'));
+        $t->throws(RuntimeException::class, static fn () => $provider->directoryInfo('dir'));
+    },
+    'purge direct provider fatal errors are counted without fallback' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(directPurgeError: "can't purge root directory");
+        $provider->put('dir/file.txt', 'abc');
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->purge($provider, 'dir', stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same("can't purge root directory", $error?->getMessage());
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 1,
+            'lastError' => "can't purge root directory",
+            'dryRunSkipped' => 0,
+            'deletes' => 0,
+            'deleteBytes' => 0,
+            'dryRunObjectSkipped' => 0,
+            'directPurgeAttempts' => 1,
+        ], $stats);
+        $t->same('abc', $provider->get('dir/file.txt'));
+    },
+    'cleanup unsupported providers error before dry run can skip destructiveness' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->putTrashedObject('trash/old-export.wxr', '<rss>old</rss>');
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->cleanUp($provider, dryRun: true, stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same(MemoryProvider::ERROR_CANT_CLEANUP, $error?->getMessage());
+        $t->same([
+            'cleanupCalls' => 0,
+            'dryRunSkipped' => 0,
+            'cleanedObjects' => 0,
+            'cleanedDirectories' => 0,
+            'errors' => 1,
+            'lastError' => MemoryProvider::ERROR_CANT_CLEANUP,
+        ], $stats);
+        $t->same(0, $provider->cleanUpCalls());
+        $t->same(['trash/old-export.wxr'], array_map(static fn ($info): string => $info->path, $provider->trashedObjects()));
+    },
+    'cleanup dry run skips supported provider cleanup without mutation' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(cleanUp: true);
+        $provider->putTrashedObject('trash/old-export.wxr', '<rss>old</rss>');
+        $provider->mkdirTrashedDirectory('trash/old-uploads');
+
+        $stats = null;
+        $result = (new SyncPlan())->cleanUp($provider, dryRun: true, stats: $stats);
+
+        $t->same(false, $result['providerCalled']);
+        $t->same(true, $result['dryRun']);
+        $t->same([], array_map(static fn ($info): string => $info->path, $result['objects']));
+        $t->same([], array_map(static fn ($info): string => $info->path, $result['directories']));
+        $t->same([
+            'cleanupCalls' => 0,
+            'dryRunSkipped' => 1,
+            'cleanedObjects' => 0,
+            'cleanedDirectories' => 0,
+            'errors' => 0,
+            'lastError' => null,
+        ], $stats);
+        $t->same(0, $provider->cleanUpCalls());
+        $t->same(['trash/old-export.wxr'], array_map(static fn ($info): string => $info->path, $provider->trashedObjects()));
+        $t->same(['trash/old-uploads'], array_map(static fn ($info): string => $info->path, $provider->trashedDirectories()));
+    },
+    'cleanup removes provider trash while preserving visible objects' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(cleanUp: true);
+        $provider->put('exports/site.wxr', '<rss>current</rss>');
+        $provider->putTrashedObject('exports/site.wxr#v1', '<rss>old</rss>');
+        $provider->putTrashedObject('wp-content/uploads/2024/01/old.jpg', 'old image');
+        $provider->mkdirTrashedDirectory('wp-content/uploads/2024/01');
+        $provider->mkdirTrashedDirectory('wp-content/uploads/2024');
+
+        $stats = null;
+        $result = (new SyncPlan())->cleanUp($provider, stats: $stats);
+
+        $t->same(true, $result['providerCalled']);
+        $t->same(false, $result['dryRun']);
+        $t->same([
+            'exports/site.wxr#v1',
+            'wp-content/uploads/2024/01/old.jpg',
+        ], array_map(static fn ($info): string => $info->path, $result['objects']));
+        $t->same([
+            'wp-content/uploads/2024/01',
+            'wp-content/uploads/2024',
+        ], array_map(static fn ($info): string => $info->path, $result['directories']));
+        $t->same([
+            'cleanupCalls' => 1,
+            'dryRunSkipped' => 0,
+            'cleanedObjects' => 2,
+            'cleanedDirectories' => 2,
+            'errors' => 0,
+            'lastError' => null,
+        ], $stats);
+        $t->same(1, $provider->cleanUpCalls());
+        $t->same('<rss>current</rss>', $provider->get('exports/site.wxr'));
+        $t->same([], $provider->trashedObjects());
+        $t->same([], $provider->trashedDirectories());
+    },
+    'cleanup provider errors are counted without clearing trash' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider(cleanUp: true, cleanUpError: 'could not empty remote trash');
+        $provider->putTrashedObject('trash/old-export.wxr', '<rss>old</rss>');
+
+        $stats = null;
+        $error = null;
+        try {
+            (new SyncPlan())->cleanUp($provider, stats: $stats);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same('could not empty remote trash', $error?->getMessage());
+        $t->same([
+            'cleanupCalls' => 1,
+            'dryRunSkipped' => 0,
+            'cleanedObjects' => 0,
+            'cleanedDirectories' => 0,
+            'errors' => 1,
+            'lastError' => 'could not empty remote trash',
+        ], $stats);
+        $t->same(1, $provider->cleanUpCalls());
+        $t->same(['trash/old-export.wxr'], array_map(static fn ($info): string => $info->path, $provider->trashedObjects()));
+    },
     'delete before sync stops before copy pass when max delete guard trips' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();
@@ -778,6 +1175,135 @@ return [
         $t->same(false, $example['staleMonthExists']);
         $t->same('current image bytes', $example['currentUploadBytes']);
         $t->same('<html>cache</html>', $example['cacheLeftUntouched']);
+    },
+    'wordpress rmdir dry run preflight example records deletion intent without mutation' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-rmdir-dry-run-preflight.php';
+
+        $t->same(null, $example['dryRunRemoved']);
+        $t->same(true, $example['staleLeafExistsAfterDryRun']);
+        $t->same('wp-content/uploads/2024/01', $example['removedAfterApply']);
+        $t->same(false, $example['staleLeafExistsAfterApply']);
+        $t->same('Directory not found: wp-content/uploads/2023/12', $example['missingError']);
+        $t->same([
+            'deletedDirs' => 2,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 2,
+        ], $example['dryRunStats']);
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 0,
+        ], $example['applyStats']);
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 1,
+            'lastError' => 'Directory not found: wp-content/uploads/2023/12',
+            'dryRunSkipped' => 0,
+        ], $example['missingStats']);
+        $t->same('current image bytes', $example['currentUploadBytes']);
+    },
+    'wordpress purge fallback preflight example keeps media through dry run then removes thumbnails' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-purge-fallback-preflight.php';
+
+        $t->same(true, $example['dryRunUsedDirectPurge']);
+        $t->same(false, $example['dryRunUsedFallback']);
+        $t->same([
+            'deletedDirs' => 1,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 1,
+            'deletes' => 0,
+            'deleteBytes' => 0,
+            'dryRunObjectSkipped' => 0,
+            'directPurgeAttempts' => 1,
+        ], $example['dryRunStats']);
+        $t->same(true, $example['thumbnailStillExistsAfterDryRun']);
+        $t->same(true, $example['appliedUsedFallback']);
+        $t->same(MemoryProvider::ERROR_CANT_PURGE, $example['appliedDirectError']);
+        $t->same([
+            'wp-content/uploads/2026/05/thumbs/hero-150x150.jpg',
+            'wp-content/uploads/2026/05/thumbs/hero-300x300.jpg',
+        ], $example['purgedObjects']);
+        $t->same(['wp-content/uploads/2026/05/thumbs'], $example['purgedDirectories']);
+        $t->same([
+            'deletedDirs' => 2,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 0,
+            'deletes' => 2,
+            'deleteBytes' => 36,
+            'dryRunObjectSkipped' => 0,
+            'directPurgeAttempts' => 1,
+        ], $example['applyStats']);
+        $t->same(false, $example['thumbsDirectoryExistsAfterApply']);
+        $t->same('current image bytes', $example['currentUploadBytes']);
+        $t->same('<rss version="2.0"></rss>', $example['exportPreserved']);
+    },
+    'wordpress delete command preflight example removes only large cache artifacts' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-delete-command-preflight.php';
+
+        $t->same([], $example['dryRunDeleted']);
+        $t->same([
+            'listed' => 4,
+            'deletes' => 1,
+            'deleteBytes' => 120,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunObjectSkipped' => 1,
+        ], $example['dryRunStats']);
+        $t->same(true, $example['largeCacheExistsAfterDryRun']);
+        $t->same(['wp-content/cache/page/rendered-block-fragment.bin'], $example['appliedDeleted']);
+        $t->same([
+            'listed' => 4,
+            'deletes' => 1,
+            'deleteBytes' => 120,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunObjectSkipped' => 0,
+        ], $example['applyStats']);
+        $t->same(false, $example['largeCacheExistsAfterApply']);
+        $t->same('<html>small cached page</html>', $example['smallCacheBytes']);
+        $t->same('current image bytes', $example['currentUploadBytes']);
+        $t->same('<rss version="2.0"></rss>', $example['exportPreserved']);
+    },
+    'wordpress cleanup empty trash example preserves visible backup artifacts' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-cleanup-empty-trash.php';
+
+        $t->same(false, $example['dryRunProviderCalled']);
+        $t->same([
+            'cleanupCalls' => 0,
+            'dryRunSkipped' => 1,
+            'cleanedObjects' => 0,
+            'cleanedDirectories' => 0,
+            'errors' => 0,
+            'lastError' => null,
+        ], $example['dryRunStats']);
+        $t->same([
+            'exports/site.wxr#version-2026-05-01',
+            'wp-content/uploads/2024/01/retired.jpg',
+        ], $example['trashObjectsAfterDryRun']);
+        $t->same([
+            'exports/site.wxr#version-2026-05-01',
+            'wp-content/uploads/2024/01/retired.jpg',
+        ], $example['cleanedObjects']);
+        $t->same([
+            'wp-content/uploads/2024/01',
+            'wp-content/uploads/2024',
+        ], $example['cleanedDirectories']);
+        $t->same([
+            'cleanupCalls' => 1,
+            'dryRunSkipped' => 0,
+            'cleanedObjects' => 2,
+            'cleanedDirectories' => 2,
+            'errors' => 0,
+            'lastError' => null,
+        ], $example['applyStats']);
+        $t->same([], $example['trashObjectsAfterApply']);
+        $t->same([], $example['trashDirectoriesAfterApply']);
+        $t->same('current image bytes', $example['currentUploadBytes']);
+        $t->same('<rss version="2.0"></rss>', $example['currentExportBytes']);
     },
     'no traverse wordpress backup copy probes only included artifact destinations' => static function (TestRunner $t): void {
         $source = new MemoryProvider();

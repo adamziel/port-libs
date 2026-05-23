@@ -16,6 +16,12 @@ The parallel cleanup slice adds the remaining provider-failure boundaries needed
 
 The chunkedreader factory slice adds upstream `New` selection behavior for restore strategy choice: unknown-size streamed WXR exports stay on the sequential reader even when multiple streams are requested, while known-size large WXR/media bundles use the parallel reader with 1 MiB-prefetched provider ranges.
 
+The Cat/Rcat slice adds native command-style streaming boundaries: `cat` can emit filtered WXR/SQL artifacts with offset/count/head/tail ranges, trailing separators, and discard accounting, while `rcat` and `rcatSize` upload stdin-style WXR streams through small, streaming, known-size, metadata, and checksum-ignore paths.
+
+The CopyURL slice adds native mocked-HTTP import boundaries: URL and Content-Disposition filename resolution, Last-Modified modtime preservation, request DownloadHeaders propagation, non-2xx status errors, stdout writer mode, no-clobber protection, print-filename reporting, and CSV `--urls` row handling without contacting live services.
+
+The Touch slice adds native command-style timestamp repair boundaries: YYMMDD and ISO timestamp parsing, empty-file creation with metadata, no-create and recursive missing-path skips, existing-file SetModTime, nonrecursive and recursive directory object updates, dry-run skips, and SetModTime error accounting without contacting live providers.
+
 ## Filtered Backup Example
 
 The fixture in `../fixtures/wordpress-backup-tree.php` models a small WordPress backup set with uploads, cache files, logs, WXR export data, and a SQL dump. The example in `../examples/wordpress-filtered-backup.php` includes uploads plus export/database artifacts while excluding cache, debug logs, and heavyweight design source files before planning changed paths. The current copy-changed test then copies only the included missing/changed artifacts and verifies the next filtered sync is empty.
@@ -154,6 +160,20 @@ The `../examples/wordpress-delete-before-empty-dir-prune.php` example maps upstr
 
 The `../examples/wordpress-rmdirs-upload-prune.php` example maps standalone upstream `operations.Rmdirs` for WordPress upload maintenance. It prunes stale empty upload-month directories deepest-first, preserves the requested `wp-content/uploads` root with `leaveRoot`, keeps non-empty current upload months, and leaves excluded cache artifacts untouched.
 
+The `../examples/wordpress-rmdir-dry-run-preflight.php` example maps standalone upstream `operations.Rmdir` and `operations.TryRmdir` boundaries. It records a dry-run deletion intent for a stale upload-month directory without mutating the provider, treats a missing dry-run directory as skipped intent rather than an error, then applies the real removal and records a counted missing-directory error for review.
+
+The `../examples/wordpress-purge-fallback-preflight.php` example maps standalone upstream `operations.Purge` direct/fallback behavior. It dry-runs generated-thumbnail purge intent through the direct provider path without mutation, then falls back from `ErrorCantPurge` to object deletes plus deepest-first Rmdirs cleanup while preserving current media and WXR export bytes.
+
+The `../examples/wordpress-delete-command-preflight.php` example maps upstream `operations.Delete` / `cmd/delete` behavior for filtered cache cleanup. It dry-runs a large-cache deletion pass, records delete intent and bytes without provider mutation, then deletes only the matching cache artifact while preserving small cache pages, current media, and WXR export bytes.
+
+The `../examples/wordpress-cleanup-empty-trash.php` example maps upstream `operations.CleanUp` / `cmd/cleanup` behavior for providers with trash or old-version cleanup support. It dry-runs provider trash cleanup without calling the provider, then clears stale WXR versions and retired upload-month trash entries while preserving the current WXR export and media bytes.
+
+The `../examples/wordpress-cat-rcat-wxr-stream.php` example maps upstream `operations.Cat`, `cmd/cat`, `operations.Rcat`, and `cmd/rcat` boundaries for WordPress exports. It uploads a WXR export through native rcat, publishes a filtered SQL-plus-WXR cat manifest with upstream trailing separators, excludes cache artifacts, and uses a negative-offset cat tail to verify the closing `</rss>` marker.
+
+The `../examples/wordpress-copyurl-remote-media-import.php` example maps upstream `operations.CopyURL`, `CopyURLToWriter`, and `cmd/copyurl` boundaries for remote WordPress media imports. It sends migration-specific download headers to a mocked legacy media source, resolves the imported file name from Content-Disposition, writes it under `wp-content/uploads`, preserves Last-Modified as the object modtime, prints the resolved destination, and confirms no-clobber preserves an existing image.
+
+The `../examples/wordpress-touch-media-timestamps.php` example maps upstream `cmd/touch` and `operations.TouchDir` boundaries for WordPress media repair. It dry-runs a recursive upload timestamp repair, applies the same filtered touch only to upload media objects, leaves WXR and cache artifacts untouched, and treats recursive missing paths as no-create skips.
+
 The `../examples/wordpress-files-from-no-traverse-restore.php` example maps upstream `fs/walk.NewDirTree` under `--no-traverse` plus `--files-from`. It looks up only selected WXR, SQL, and media remotes, skips a missing WXR entry, avoids provider `List` and provider `ListR` traversal entirely, synthesizes upload parent directories, and publishes a restore-priority manifest without scanning unrelated cache artifacts.
 
 The `../examples/wordpress-duplicate-source-listing.php` example maps upstream `fs/march.matchListings` duplicate-source behavior. It models a provider returning two WXR export objects at the same remote path, keeps the first listed export as the canonical sync comparison, suppresses the stale duplicate entry, and still copies the missing SQL artifact.
@@ -166,4 +186,4 @@ The `../examples/wordpress-matchlisting-order-guard.php` example maps upstream `
 
 ## Next Task
 
-Map operations.Rmdir/TryRmdir standalone accounting, dry-run, and missing-directory error boundaries.
+Map fs/operations MoveBackupDir/copy Move destination metadata edge cases or cmd/move/moveto command boundaries for WordPress media archive relocation.
