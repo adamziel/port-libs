@@ -6,14 +6,14 @@ lane status files needed for alignment checks, recent Git history, dirty-tree
 state, active process state, and the required root-test gate.
 
 Initial sampled `HEAD`: `2960351d726c` (`Refresh independent audit status`).
-During validation, `HEAD` moved through `6c13ace2` to `07221e76aefe`
-(`Update pandoc lane status commit marker`). Recent history reviewed includes
-`07221e76`, `6c13ace2`, `2960351d`, `275ec497`, `3032d35b`, `8b0f5af1`,
-`613b4eff`, `bdce6ef2`, `fabad4ea`, `2514e22e`, `3a42b2d8`, `29f817eb`,
-`53588555`, `ae8aadcf`, `3c042169`, `5dddc1ed`, `b529b1ee`, `c9254a88`,
-`0319eb91`, `64f06d33`, `3227da76`, `ab141f82`, `873879be`, `5f2ae4bd`,
-`37f77f2e`, `64e9fcf1`, `6c135b81`, `24837bc2`, `f03f1473`, and
-`d656fc47`.
+During validation and commit handoff, implementation history moved through
+`6c13ace2`, `07221e76`, `55605cb0`, `e77d40c2`, and `9f4f13f6` before this
+audit commit. Recent history reviewed includes `9f4f13f6`, `e77d40c2`,
+`55605cb0`, `07221e76`, `6c13ace2`, `2960351d`, `275ec497`, `3032d35b`,
+`8b0f5af1`, `613b4eff`, `bdce6ef2`, `fabad4ea`, `2514e22e`, `3a42b2d8`,
+`29f817eb`, `53588555`, `ae8aadcf`, `3c042169`, `5dddc1ed`, `b529b1ee`,
+`c9254a88`, `0319eb91`, `64f06d33`, `3227da76`, `ab141f82`, `873879be`,
+`5f2ae4bd`, `37f77f2e`, `64e9fcf1`, and `6c135b81`.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, or start a root harness. Bridge,
@@ -34,15 +34,15 @@ non-progress unless it is explicitly temporary oracle tooling.
      test recording; `goal.md:52` requires visible current dashboard progress.
    - Evidence: `progress.md:25` still says the launch target is 2
      implementation lanes plus 1 auditor, and `progress.md:31`-`42` marks all
-     12 lanes `stopped`. A process sample found 23 active watchdog, capacity,
+     12 lanes `stopped`. A process sample found 21 active watchdog, capacity,
      dashboard, evaluator, integrator, auditor, and lane-agent processes,
      including `port-markerpdf`, `port-difftastic`, `port-pandoc`,
      `port-quadrable`, `port-syncthing`, `port-libsqlite`, `port-gitoxide`,
      `port-readability`, `port-lightningcss`, `port-rclone`, `port-dolt`, and
      `port-esbuild`.
-   - Evidence: dirty-tree samples reported `1404` default
-     `git status --short --untracked-files=all` rows, `143` tracked changed
-     files, and `143 files changed, 38836 insertions(+), 2859 deletions(-)`.
+   - Evidence: dirty-tree samples reported `1394` default
+     `git status --short --untracked-files=all` rows, `129` tracked changed
+     files, and `129 files changed, 38858 insertions(+), 2784 deletions(-)`.
    - Audit judgment: root-test anecdotes, lane percentages, blockers, and
      latest-commit fields remain non-acceptance evidence until writers/status
      publishers are frozen and one regenerated snapshot is validated.
@@ -57,8 +57,8 @@ non-progress unless it is explicitly temporary oracle tooling.
      blocker, and commit.
    - Evidence: `porting.html:32`-`36` and `porting-summary.json:2`-`4` still
      publish generated time `2026-05-23 04:57:16 UTC` and source commit
-     `bda83c6b93d4865c7edddaf7a680378f347eb4e6`, while the latest sampled
-     `HEAD` is `07221e76aefe`.
+     `bda83c6b93d4865c7edddaf7a680378f347eb4e6`, while implementation history
+     has already advanced through `9f4f13f6` plus this audit commit.
    - Evidence: the dashboard table still collapses required fields:
      `porting.html:41`-`50` has `Benchmark` and `Mapped` columns instead of
      separate benchmark source, upstream denominator, mapped tests, and PHP
@@ -103,7 +103,8 @@ non-progress unless it is explicitly temporary oracle tooling.
      at the first sample, but I still did not run `php tools/run-tests.php`
      because the stability gate failed: active writer/status processes
      persisted and the dirty tree remained broad. Handoff gates later found
-     active exact root harness PIDs `3469680` and `3472162` owned by `claude`.
+     active exact root harness PIDs `3469680`, `3472162`, and `3475008` owned
+     by `claude`.
    - Audit judgment: the next accepted test result must be one quiesced root
      run from one accepted tree, not one of the current per-lane anecdotes.
 
@@ -183,6 +184,7 @@ Later handoff gates found active exact root harnesses:
 ```text
 3469680 php tools/run-tests.php
 3472162 php tools/run-tests.php
+3475008 php tools/run-tests.php
 ```
 
 Owner evidence:
@@ -190,6 +192,7 @@ Owner evidence:
 ```text
 3469680 claude 3371098 00:27 Rs php tools/run-tests.php
 3472162 claude 3382543 00:16 Rs php tools/run-tests.php
+3475008 claude 3408212 00:09 Rs php tools/run-tests.php
 ```
 
 Validation commands run instead:
@@ -207,12 +210,14 @@ git show --stat --oneline --decorate --no-renames -n 5
 
 Results: all lane upstream manifests, lane status files, and
 `porting-summary.json` parsed as valid JSON at the time checked. Latest samples
-reported `1404` default status rows, `143` tracked changed files, and
-`143 files changed, 38836 insertions(+), 2859 deletions(-)`. The process sample
-matched 23 active watchdog/agent/status/test-management processes. The exact
+reported `1394` default status rows, `129` tracked changed files, and
+`129 files changed, 38858 insertions(+), 2784 deletions(-)`. The process sample
+matched 21 active watchdog/agent/status/test-management processes. The exact
 duplicate-root gate was clear at the first sample, but the stability gate
-failed; later handoff gates found active root PIDs `3469680` and `3472162`
-owned by `claude`.
+failed; later handoff gates found active root PIDs `3469680`, `3472162`, and
+`3475008` owned by `claude`. A later gate matched transient focused-lane PID
+`3476238 php tools/run-tests.php lanes`, which exited before owner sampling,
+and the final exact gate was clear.
 
 ## Next Intervention
 
