@@ -50,6 +50,10 @@ Side-by-side display now maps upstream empty-side behavior from `src/options.rs`
 
 The WordPress created import-report side-by-side example applies that to generated Data Liberation CSV output. Newly generated report rows are shown without a blank opposite column.
 
+Side-by-side display now also maps upstream novel line/span coloring from `src/display/side_by_side.rs` and `src/display/style.rs`. When `useColor` is enabled, changed line numbers and intraline changed words are emitted with red/green ANSI styling while retained prefixes, suffixes, and context lines remain uncolored.
+
+The WordPress highlighted readme example applies that to plugin release-review copy. A `legacy` to `modern` wording change is highlighted inline while the stable FAQ footer context remains visible but uncolored.
+
 Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
 
 The WordPress large asset manifest example applies that to generated block asset metadata. A one-line JSON manifest that gains a `view.js` asset and changes its version remains bounded to the configured side-by-side column width instead of producing an unreadable or prohibitively slow review line.
@@ -203,6 +207,7 @@ php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
 php lanes/difftastic/examples/wordpress-tabbed-block-json-side-by-side.php
 php lanes/difftastic/examples/wordpress-pattern-context-side-by-side.php
 php lanes/difftastic/examples/wordpress-created-import-report-side-by-side.php
+php lanes/difftastic/examples/wordpress-highlighted-side-by-side.php
 php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
 php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -253,4 +258,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream display boundary such as syntax-highlighted side-by-side novel spans.
+Map another upstream display boundary such as unified inline output context and header/path styling.

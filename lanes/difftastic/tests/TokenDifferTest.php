@@ -972,6 +972,37 @@ return [
         $t->contains('    return 0;', $display);
         $t->true(!str_contains($display, "\t"), 'Configured tab width should be applied to both changed and retained C lines.');
     },
+    'maps upstream side by side novel spans with ansi colors' => static function (TestRunner $t): void {
+        $display = (new SideBySideDiffRenderer())->renderTextDiff(
+            "render_block('legacy-card', \$attrs);\n",
+            "render_block('modern-card', \$attrs);\n",
+            [
+                'columnWidth' => 48,
+                'useColor' => true,
+            ],
+        );
+
+        $t->contains("\033[1;31m1 \033[0m", $display);
+        $t->contains("\033[1;32m1 \033[0m", $display);
+        $t->contains("'\033[1;31mlegacy\033[0m-card'", $display);
+        $t->contains("'\033[1;32mmodern\033[0m-card'", $display);
+        $t->true(!str_contains($display, "\033[1;31mrender_block"), 'Stable source before the novel word should not be colored as deleted.');
+        $t->true(!str_contains($display, "\033[1;32m-card"), 'Stable suffix after the novel word should not be colored as inserted.');
+    },
+    'wordpress highlighted side by side review colors only changed copy' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-after.txt');
+        $display = (new SideBySideDiffRenderer())->renderTextDiff($before, $after, [
+            'columnWidth' => 56,
+            'contextLines' => 1,
+            'useColor' => true,
+        ]);
+
+        $t->contains("\033[1;31mlegacy\033[0m", $display);
+        $t->contains("\033[1;32mmodern\033[0m", $display);
+        $t->contains('Frequently Asked Questions', $display);
+        $t->true(!str_contains($display, "\033[1;32mFrequently"), 'Stable readme footer context should remain uncolored in highlighted side-by-side output.');
+    },
     'maps upstream side by side default context lines' => static function (TestRunner $t): void {
         $beforeLines = array_map(static fn (int $line): string => 'stable-' . str_pad((string) $line, 2, '0', STR_PAD_LEFT), range(1, 20));
         $afterLines = $beforeLines;

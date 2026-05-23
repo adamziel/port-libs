@@ -17,7 +17,7 @@ final class SideBySideDiffRenderer
     }
 
     /**
-     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool} $options
+     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool, useColor?: bool} $options
      */
     public function renderTextDiff(string $old, string $new, array $options = []): string
     {
@@ -31,11 +31,12 @@ final class SideBySideDiffRenderer
         $columnWidth = max($tabWidth + 1, (int) ($options['columnWidth'] ?? 80));
         $contextLines = max(0, (int) ($options['contextLines'] ?? self::DEFAULT_CONTEXT_LINES));
         $showBoth = (bool) ($options['showBoth'] ?? false);
+        $useColor = (bool) ($options['useColor'] ?? false);
         if (!$showBoth && $old === '' && $new !== '') {
-            return $this->renderSingleColumnTextDiff($new, $tabWidth);
+            return $this->renderSingleColumnTextDiff($new, $tabWidth, $useColor, 'right');
         }
         if (!$showBoth && $new === '' && $old !== '') {
-            return $this->renderSingleColumnTextDiff($old, $tabWidth);
+            return $this->renderSingleColumnTextDiff($old, $tabWidth, $useColor, 'left');
         }
 
         $oldLines = $old === '' ? [] : $this->displayLines($old);
@@ -50,12 +51,32 @@ final class SideBySideDiffRenderer
                 continue;
             }
 
+            $lhsHasNovel = $oldLineNumber !== null && (
+                $newLineNumber === null || $oldLines[$oldLineNumber] !== $newLines[$newLineNumber]
+            );
+            $rhsHasNovel = $newLineNumber !== null && (
+                $oldLineNumber === null || $oldLines[$oldLineNumber] !== $newLines[$newLineNumber]
+            );
             $lhsParts = $oldLineNumber === null
                 ? [str_repeat(' ', $columnWidth)]
-                : $this->splitLineForDisplay($oldLines[$oldLineNumber], $columnWidth, $tabWidth, 'left');
+                : $this->splitLineForDisplayWithNovel(
+                    $oldLines[$oldLineNumber],
+                    $newLineNumber === null ? null : $newLines[$newLineNumber],
+                    $columnWidth,
+                    $tabWidth,
+                    'left',
+                    $useColor,
+                );
             $rhsParts = $newLineNumber === null
                 ? ['']
-                : $this->splitLineForDisplay($newLines[$newLineNumber], $columnWidth, $tabWidth, 'right');
+                : $this->splitLineForDisplayWithNovel(
+                    $newLines[$newLineNumber],
+                    $oldLineNumber === null ? null : $oldLines[$oldLineNumber],
+                    $columnWidth,
+                    $tabWidth,
+                    'right',
+                    $useColor,
+                );
             $partCount = max(count($lhsParts), count($rhsParts));
 
             for ($part = 0; $part < $partCount; $part++) {
@@ -65,6 +86,12 @@ final class SideBySideDiffRenderer
                 $rhsNumber = $part === 0
                     ? $this->formatLineNumber($newLineNumber, $lineNumberWidth)
                     : $this->formatContinuationLineNumber($lineNumberWidth);
+                if ($useColor && $lhsHasNovel) {
+                    $lhsNumber = $this->ansiNovel($lhsNumber, 'left', true);
+                }
+                if ($useColor && $rhsHasNovel) {
+                    $rhsNumber = $this->ansiNovel($rhsNumber, 'right', true);
+                }
                 $lhsText = $lhsParts[$part] ?? str_repeat(' ', $columnWidth);
                 $rhsText = $rhsParts[$part] ?? '';
 
@@ -75,15 +102,23 @@ final class SideBySideDiffRenderer
         return implode("\n", $rows) . "\n";
     }
 
-    private function renderSingleColumnTextDiff(string $source, int $tabWidth): string
+    private function renderSingleColumnTextDiff(string $source, int $tabWidth, bool $useColor, string $side): string
     {
         $lines = explode("\n", $source);
         $lineNumberWidth = max(1, strlen((string) count($lines)));
         $rows = [];
 
         foreach ($lines as $index => $line) {
-            $rows[] = $this->formatLineNumber($index, $lineNumberWidth)
-                . str_replace("\t", str_repeat(' ', $tabWidth), $line);
+            $lineNumber = $this->formatLineNumber($index, $lineNumberWidth);
+            $displayLine = str_replace("\t", str_repeat(' ', $tabWidth), $line);
+            if ($useColor) {
+                $lineNumber = $this->ansiNovel($lineNumber, $side, true);
+                if ($displayLine !== '') {
+                    $displayLine = $this->ansiNovel($displayLine, $side);
+                }
+            }
+
+            $rows[] = $lineNumber . $displayLine;
         }
 
         return implode("\n", $rows) . "\n";
@@ -139,6 +174,153 @@ final class SideBySideDiffRenderer
         }
 
         return $parts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitLineForDisplayWithNovel(
+        string $line,
+        ?string $oppositeLine,
+        int $maxWidth,
+        int $tabWidth,
+        string $side,
+        bool $useColor,
+    ): array {
+        if (!$useColor) {
+            return $this->splitLineForDisplay($line, $maxWidth, $tabWidth, $side);
+        }
+
+        $spans = $this->lineNovelSpans($line, $oppositeLine, $side);
+        if ($spans === []) {
+            return $this->splitLineForDisplay($line, $maxWidth, $tabWidth, $side);
+        }
+
+        $parts = [];
+        $offset = 0;
+        $lineLength = strlen($line);
+        while ($offset < $lineLength) {
+            $nextOffset = $this->byteOffsetForWidth($line, $offset, $maxWidth, $tabWidth);
+            if ($nextOffset <= $offset) {
+                $nextOffset = $this->nextCharacterOffset($line, $offset);
+            }
+
+            $rawPart = substr($line, $offset, $nextOffset - $offset);
+            $displayPart = $this->displayPartWithNovelSpans($line, $offset, $nextOffset, $spans, $tabWidth, $side);
+            $padding = max(0, $maxWidth - $this->displayWidth($rawPart, $tabWidth));
+            if ($side === 'left') {
+                $displayPart .= str_repeat(' ', $padding);
+            }
+            $parts[] = $displayPart;
+            $offset = $nextOffset;
+        }
+
+        if ($parts === []) {
+            $parts[] = $this->displayPart('', $maxWidth, $tabWidth, $side);
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return list<array{start:int, end:int}>
+     */
+    private function lineNovelSpans(string $line, ?string $oppositeLine, string $side): array
+    {
+        if ($oppositeLine === null) {
+            return $line === '' ? [] : [['start' => 0, 'end' => strlen($line)]];
+        }
+
+        $ops = $side === 'left'
+            ? $this->differ->diffWords($line, $oppositeLine, ['splitNumbers' => true])
+            : $this->differ->diffWords($oppositeLine, $line, ['splitNumbers' => true]);
+        $targetOp = $side === 'left' ? '-' : '+';
+        $targetCursor = 0;
+        $spans = [];
+
+        foreach ($ops as $op) {
+            $length = strlen($op['text']);
+            if ($op['op'] === '=') {
+                $targetCursor += $length;
+                continue;
+            }
+
+            if ($op['op'] === $targetOp) {
+                if ($length > 0) {
+                    $spans[] = ['start' => $targetCursor, 'end' => $targetCursor + $length];
+                }
+                $targetCursor += $length;
+                continue;
+            }
+
+        }
+
+        return $this->mergeNovelSpans($spans);
+    }
+
+    /**
+     * @param list<array{start:int, end:int}> $spans
+     * @return list<array{start:int, end:int}>
+     */
+    private function mergeNovelSpans(array $spans): array
+    {
+        usort($spans, static fn (array $a, array $b): int => [$a['start'], $a['end']] <=> [$b['start'], $b['end']]);
+        $merged = [];
+
+        foreach ($spans as $span) {
+            if ($span['end'] <= $span['start']) {
+                continue;
+            }
+
+            $last = array_key_last($merged);
+            if ($last !== null && $span['start'] <= $merged[$last]['end']) {
+                $merged[$last]['end'] = max($merged[$last]['end'], $span['end']);
+                continue;
+            }
+
+            $merged[] = $span;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param list<array{start:int, end:int}> $spans
+     */
+    private function displayPartWithNovelSpans(
+        string $line,
+        int $start,
+        int $end,
+        array $spans,
+        int $tabWidth,
+        string $side,
+    ): string {
+        $cursor = $start;
+        $display = '';
+
+        foreach ($spans as $span) {
+            $spanStart = max($start, $span['start']);
+            $spanEnd = min($end, $span['end']);
+            if ($spanEnd <= $spanStart) {
+                continue;
+            }
+
+            if ($cursor < $spanStart) {
+                $display .= $this->expandTabs(substr($line, $cursor, $spanStart - $cursor), $tabWidth);
+            }
+            $display .= $this->ansiNovel(
+                $this->expandTabs(substr($line, $spanStart, $spanEnd - $spanStart), $tabWidth),
+                $side,
+                true,
+            );
+            $cursor = $spanEnd;
+        }
+
+        if ($cursor < $end) {
+            $display .= $this->expandTabs(substr($line, $cursor, $end - $cursor), $tabWidth);
+        }
+
+        return $display;
     }
 
     /**
@@ -292,10 +474,27 @@ final class SideBySideDiffRenderer
 
     private function displayPart(string $part, int $maxWidth, int $tabWidth, string $side): string
     {
-        $expanded = str_replace("\t", str_repeat(' ', $tabWidth), $part);
+        $expanded = $this->expandTabs($part, $tabWidth);
         $padding = max(0, $maxWidth - $this->displayWidth($part, $tabWidth));
 
         return $side === 'left' ? $expanded . str_repeat(' ', $padding) : $expanded;
+    }
+
+    private function expandTabs(string $text, int $tabWidth): string
+    {
+        return str_replace("\t", str_repeat(' ', $tabWidth), $text);
+    }
+
+    private function ansiNovel(string $text, string $side, bool $bold = false): string
+    {
+        if ($text === '') {
+            return '';
+        }
+
+        $color = $side === 'left' ? '31' : '32';
+        $prefix = $bold ? '1;' : '';
+
+        return "\033[" . $prefix . $color . 'm' . $text . "\033[0m";
     }
 
     private function byteOffsetForWidth(string $text, int $startOffset, int $maxWidth, int $tabWidth): int
