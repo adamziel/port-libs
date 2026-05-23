@@ -552,6 +552,81 @@ return [
             quadrableQuadbRemoveDir($emptyDir);
         }
     },
+    'native quadb store maps checkout and fork command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingCheckout = QuadbStore::checkoutCommandOutput($missingDir, 'wp-preview');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingCheckout);
+            $t->true(!is_dir($missingDir), 'missing checkout command should not create the database directory');
+
+            $missingFork = QuadbStore::forkCommandOutput($missingDir, 'wp-approved');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingFork);
+            $t->true(!is_dir($missingDir), 'missing fork command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::checkoutCommandOutput($storeDir, 'wp-preview'));
+            $t->same("Head: wp-preview\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", QuadbStore::open($storeDir)->statusText());
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_options:siteurl', 'https://preview.example.test'));
+            $preview = QuadbStore::open($storeDir);
+            $previewRoot = $preview->tree()->rootHash();
+            $previewHeadNodeId = $preview->tree()->headNodeId();
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::forkCommandOutput($storeDir, 'wp-approved'));
+            $approved = QuadbStore::open($storeDir);
+            $t->same('wp-approved', $approved->currentHeadName());
+            $t->same($previewRoot, $approved->tree()->rootHash());
+            $t->same($previewHeadNodeId, $approved->tree()->headNodeId());
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::checkoutCommandOutput($storeDir));
+            $detached = QuadbStore::open($storeDir);
+            $t->true($detached->isDetachedHead());
+            $t->same("Detached head\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", $detached->statusText());
+            $t->contains("   wp-approved : 0x{$previewRoot} ({$previewHeadNodeId})\n", $detached->headText());
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::forkCommandOutput($storeDir, 'wp-empty', 'missing-head'));
+            $emptyFork = QuadbStore::open($storeDir);
+            $t->same('wp-empty', $emptyFork->currentHeadName());
+            $t->same("Head: wp-empty\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", $emptyFork->statusText());
+            $t->contains("=> wp-empty : 0x" . HashTree::EMPTY_HASH . " (0)\n", $emptyFork->headText());
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store reopens the current named head and integer import export lines' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
 

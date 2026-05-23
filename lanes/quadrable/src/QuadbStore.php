@@ -348,6 +348,61 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb checkout [<head>]`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function checkoutCommandOutput(
+        string $directory,
+        ?string $head = null,
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->checkout($head);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb fork [<head>] [--from=<from>]`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function forkCommandOutput(
+        string $directory,
+        ?string $head = null,
+        ?string $from = null,
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->fork($head, $from);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb put <key> <val>`.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
