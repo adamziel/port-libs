@@ -12,6 +12,8 @@ final class SQLiteTableLeafCell
         public readonly string $payload,
         public readonly int $offset,
         public readonly int $bytesRead,
+        public readonly int $localPayloadLength = 0,
+        public readonly ?int $firstOverflowPage = null,
     ) {
     }
 
@@ -89,6 +91,7 @@ final class SQLiteTableLeafCell
 
         $payload = substr($page, $payloadOffset, $localPayloadLength);
         $bytesRead = $payloadLengthBytes + $rowIdBytes + $localPayloadLength;
+        $firstOverflowPage = null;
         if ($localPayloadLength < $payloadLength) {
             if ($payloadOffset + $localPayloadLength + 4 > $usableSize) {
                 throw new \InvalidArgumentException('SQLite table leaf cell overflow pointer extends beyond the page');
@@ -114,6 +117,8 @@ final class SQLiteTableLeafCell
             $payload,
             $offset,
             $bytesRead,
+            $localPayloadLength,
+            $firstOverflowPage,
         );
     }
 

@@ -21,7 +21,20 @@ numbers and reserved-byte usable sizes, mapping repair/preflight workflows
 where reusable freelist pages become a new large `wp_options.option_value`
 chain. Actual freelist trunk metadata is now readable from database images, so
 repair tooling can choose reusable pages from header/trunk state before
-building that overflow chain. Explicit
+building that overflow chain. Allocation planning now also returns the
+mutated first-page header and freelist trunk page images after reusable pages
+are consumed, including leaf-array replacement, emptied-trunk removal, and
+append-after-depletion page numbers for bounded generated-write preflight.
+Free planning now mirrors SQLite's bounded `freePage2` behavior for repair
+preflight: obsolete pages can be inserted as leaves on the first freelist trunk
+or promoted into a new first trunk when the freelist is empty or the first
+trunk is compatibility-full. Bounded insert planning now combines these
+write-side primitives for explicit-rowid, index-free `wp_options` fixtures
+whose root is a single table leaf page: the planner returns first-page,
+table-page, overflow-page, and freelist-trunk page images for a new option
+row, rejects duplicate rowids or option names, and refuses indexed fixtures
+instead of leaving stale secondary indexes behind.
+Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
 through the table b-tree without scanning the whole options table. The same
@@ -688,13 +701,35 @@ without a full pager yet.
 `examples/wordpress-freelist-overflow-repair-plan.php` starts from an actual
 SQLite-style freelist trunk page, reads its leaf page pointers and header
 counts, chooses reusable pages using SQLite's ordinary freelist allocation
-order, writes a large `wp_options.option_value` overflow chain into those
-pages, updates the remaining freelist metadata, and verifies the repaired
-image through the native reader.
+order, receives the mutated header/trunk page images from
+`planPageAllocation()`, writes a large `wp_options.option_value` overflow
+chain into those pages, and verifies the repaired image through the native
+reader.
+
+`examples/wordpress-free-obsolete-overflow-pages.php` models the opposite
+repair direction: rewrite a large `wp_options` row down to a small inline
+value, return the old overflow pages to freelist metadata through
+`planPageFreeList()`, and verify both the smaller option row and resulting
+freelist allocation order without the PHP SQLite extension.
+
+`examples/wordpress-generated-option-insert-plan.php` starts from a minimal
+index-free `wp_options` table image, asks `planWordPressOptionInsert()` for a
+bounded generated row insert, applies the returned page images, and parses the
+new large option value back through the native reader. This maps WordPress
+fixture generation and low-level repair preflight where a tool needs concrete
+SQLite page bytes before a full pager, index maintainer, or WAL writer exists.
+
+`examples/wordpress-replace-obsolete-overflow-option.php` starts from a
+large `wp_options` value stored across overflow pages, asks
+`planWordPressOptionReplace()` for a bounded same-row replacement, applies the
+returned table/header/freelist page images, and verifies that the smaller row
+is readable while the obsolete overflow chain is now available for future
+allocation. This maps cache/transient cleanup and migration repair tools that
+need to shrink option rows safely before broader pager, index, or WAL support
+exists.
 
 ## Next Task
 
-Port actual freelist allocation mutations for generated writes, including
-updating trunk leaf arrays and header counts across additional allocation
-patterns, then keep the generated write path paired with focused upstream
-evidence and a WordPress parse-back fixture.
+Extend the bounded replacement planner to allocate a new overflow chain for
+large replacement values, then add index-maintenance preflight before broader
+b-tree defragmentation, pointer-map/auto-vacuum, journaling, or WAL work.

@@ -169,6 +169,409 @@ final class SQLiteDatabase
         return $pageNumbers;
     }
 
+    public function planPageAllocation(int $count, bool $allowAppend = true): SQLiteFreelistAllocationPlan
+    {
+        if ($count < 0) {
+            throw new \InvalidArgumentException('SQLite page allocation count cannot be negative');
+        }
+
+        $this->freelistTrunkPages();
+
+        $databasePageCount = $this->pageCount();
+        if ($this->header->databaseSizePages > $databasePageCount) {
+            $databasePageCount = $this->header->databaseSizePages;
+        }
+
+        $firstPage = $this->page(1);
+        $firstTrunkPage = $this->header->firstFreelistTrunkPage;
+        $freelistPageCount = $this->header->freelistPageCount;
+        $updatedFreelistPages = [];
+        $allocatedPageNumbers = [];
+        $appendedPageNumbers = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            if ($freelistPageCount > 0) {
+                if ($firstTrunkPage < 2) {
+                    throw new \InvalidArgumentException('SQLite freelist has free pages but no valid first trunk page');
+                }
+
+                $trunkPageBytes = $updatedFreelistPages[$firstTrunkPage] ?? $this->page($firstTrunkPage);
+                $trunkPage = SQLiteFreelistTrunkPage::parse(
+                    $firstTrunkPage,
+                    $trunkPageBytes,
+                    $this->usablePageSize(),
+                    $this->pageCount(),
+                );
+
+                $freelistPageCount--;
+                if ($trunkPage->leafPageNumbers === []) {
+                    $allocatedPageNumbers[] = $trunkPage->pageNumber;
+                    unset($updatedFreelistPages[$trunkPage->pageNumber]);
+                    $firstTrunkPage = $trunkPage->nextTrunkPage ?? 0;
+                    continue;
+                }
+
+                $leafPageNumbers = $trunkPage->leafPageNumbers;
+                $allocatedPageNumbers[] = $leafPageNumbers[0];
+                $leafCount = count($leafPageNumbers);
+                if ($leafCount > 1) {
+                    $trunkPageBytes = substr_replace($trunkPageBytes, pack('N', $leafPageNumbers[$leafCount - 1]), 8, 4);
+                }
+                $trunkPageBytes = substr_replace($trunkPageBytes, pack('N', $leafCount - 1), 4, 4);
+                $updatedFreelistPages[$trunkPage->pageNumber] = $trunkPageBytes;
+                continue;
+            }
+
+            if (!$allowAppend) {
+                throw new \InvalidArgumentException('SQLite freelist does not contain enough pages for this allocation');
+            }
+
+            $databasePageCount = $this->nextAppendPageNumber($databasePageCount);
+            $allocatedPageNumbers[] = $databasePageCount;
+            $appendedPageNumbers[] = $databasePageCount;
+        }
+
+        if ($freelistPageCount === 0) {
+            $firstTrunkPage = 0;
+        }
+
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($databasePageCount), 28, 4);
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($freelistPageCount), 36, 4);
+
+        return new SQLiteFreelistAllocationPlan(
+            $allocatedPageNumbers,
+            $appendedPageNumbers,
+            $firstPage,
+            $updatedFreelistPages,
+            $databasePageCount,
+            $firstTrunkPage,
+            $freelistPageCount,
+        );
+    }
+
+    public function planPageFree(int $pageNumber): SQLiteFreelistFreePlan
+    {
+        return $this->planPageFreeList([$pageNumber]);
+    }
+
+    /**
+     * @param list<int> $pageNumbers
+     */
+    public function planPageFreeList(array $pageNumbers): SQLiteFreelistFreePlan
+    {
+        $pageNumbers = array_values($pageNumbers);
+
+        $this->freelistTrunkPages();
+
+        $databasePageCount = $this->pageCount();
+        if ($this->header->databaseSizePages > $databasePageCount) {
+            $databasePageCount = $this->header->databaseSizePages;
+        }
+
+        $alreadyFree = array_fill_keys($this->freelistPageNumbers(), true);
+        $seenInput = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite freed page numbers must be integers');
+            }
+            if ($pageNumber < 2 || $pageNumber > $databasePageCount) {
+                throw new \InvalidArgumentException('SQLite freed page number is outside the database image');
+            }
+            if (isset($seenInput[$pageNumber]) || isset($alreadyFree[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite page {$pageNumber} is already on the freelist");
+            }
+            $seenInput[$pageNumber] = true;
+        }
+
+        $firstPage = $this->page(1);
+        $firstTrunkPage = $this->header->firstFreelistTrunkPage;
+        $freelistPageCount = $this->header->freelistPageCount;
+        $updatedFreelistPages = [];
+        $leafPageNumbers = [];
+        $newTrunkPageNumbers = [];
+        $usableSize = $this->usablePageSize();
+        $trunkLeafInsertLimit = intdiv($usableSize, 4) - 8;
+
+        foreach ($pageNumbers as $pageNumber) {
+            if ($freelistPageCount !== 0) {
+                if ($firstTrunkPage < 2) {
+                    throw new \InvalidArgumentException('SQLite freelist has free pages but no valid first trunk page');
+                }
+
+                $trunkPageBytes = $updatedFreelistPages[$firstTrunkPage] ?? $this->page($firstTrunkPage);
+                $trunkPage = SQLiteFreelistTrunkPage::parse(
+                    $firstTrunkPage,
+                    $trunkPageBytes,
+                    $usableSize,
+                    $databasePageCount,
+                );
+
+                $leafCount = count($trunkPage->leafPageNumbers);
+                if ($leafCount < $trunkLeafInsertLimit) {
+                    $trunkPageBytes = substr_replace($trunkPageBytes, self::uint32Bytes($leafCount + 1), 4, 4);
+                    $trunkPageBytes = substr_replace($trunkPageBytes, self::uint32Bytes($pageNumber), 8 + ($leafCount * 4), 4);
+                    $updatedFreelistPages[$firstTrunkPage] = $trunkPageBytes;
+                    $leafPageNumbers[] = $pageNumber;
+                    $freelistPageCount++;
+                    $alreadyFree[$pageNumber] = true;
+                    continue;
+                }
+            }
+
+            $updatedFreelistPages[$pageNumber] = SQLiteFreelistTrunkPage::assemble(
+                $firstTrunkPage === 0 ? null : $firstTrunkPage,
+                [],
+                $this->header->pageSize,
+                $usableSize,
+            );
+            $firstTrunkPage = $pageNumber;
+            $newTrunkPageNumbers[] = $pageNumber;
+            $freelistPageCount++;
+            $alreadyFree[$pageNumber] = true;
+        }
+
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($freelistPageCount), 36, 4);
+
+        return new SQLiteFreelistFreePlan(
+            $pageNumbers,
+            $leafPageNumbers,
+            $newTrunkPageNumbers,
+            $firstPage,
+            $updatedFreelistPages,
+            $databasePageCount,
+            $firstTrunkPage,
+            $freelistPageCount,
+        );
+    }
+
+    public function planWordPressOptionInsert(
+        int $rowId,
+        string $optionName,
+        string $optionValue,
+        ?string $autoload = 'yes',
+        bool $allowAppend = true,
+    ): SQLiteWordPressOptionWritePlan {
+        if ($rowId < 1) {
+            throw new \InvalidArgumentException('SQLite wp_options insert rowid must be positive');
+        }
+        if ($this->indexRecordsForTable('wp_options') !== []) {
+            throw new \InvalidArgumentException('SQLite wp_options insert planning currently requires index-free fixtures');
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table is not present');
+        }
+        if ($tableRootPage === 1) {
+            throw new \InvalidArgumentException('SQLite wp_options insert planning requires a table root page separate from sqlite_schema');
+        }
+
+        $tablePage = $this->page($tableRootPage);
+        $tableHeader = SQLiteBTreePageHeader::parsePage(
+            $tablePage,
+            $this->header->pageSize,
+            $tableRootPage === 1 ? 100 : 0,
+        );
+        if ($tableHeader->pageType !== 'table-leaf') {
+            throw new \InvalidArgumentException('SQLite wp_options insert planning currently requires a single table leaf root page');
+        }
+
+        $existingCells = [];
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
+            if ($cell->rowId === $rowId) {
+                throw new \InvalidArgumentException("SQLite wp_options rowid {$rowId} already exists");
+            }
+            $option = SQLiteWordPressOption::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
+            if ($option->optionName === $optionName) {
+                throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} already exists");
+            }
+
+            $existingCells[] = [
+                'rowid' => $cell->rowId,
+                'cell' => substr($tablePage, $cell->offset, $cell->bytesRead),
+            ];
+        }
+
+        $payload = SQLiteRecord::encode([null, $optionName, $optionValue, $autoload], $this->header->textEncoding);
+        $usableSize = $this->usablePageSize();
+        $localPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+        $overflowPayload = substr($payload, $localPayloadLength);
+        $overflowPageNumbers = [];
+        $allocationPlan = null;
+        if ($overflowPayload !== '') {
+            $overflowPageCount = SQLiteOverflowPage::requiredPageCount(
+                strlen($overflowPayload),
+                $this->header->pageSize,
+                $usableSize,
+            );
+            $allocationPlan = $this->planPageAllocation($overflowPageCount, $allowAppend);
+            $overflowPageNumbers = $allocationPlan->allocatedPageNumbers;
+        }
+
+        $newCell = SQLiteTableLeafCell::encode(
+            $rowId,
+            $payload,
+            $usableSize,
+            $overflowPageNumbers[0] ?? null,
+        );
+        $existingCells[] = [
+            'rowid' => $rowId,
+            'cell' => $newCell,
+        ];
+        usort(
+            $existingCells,
+            static fn (array $left, array $right): int => $left['rowid'] <=> $right['rowid'],
+        );
+
+        $pageImages = $allocationPlan?->pageImages() ?? [];
+        $pageImages[$tableRootPage] = SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $existingCells),
+            $this->header->pageSize,
+            $tableRootPage === 1 ? 100 : 0,
+            $tablePage,
+            $usableSize,
+        );
+        if ($overflowPayload !== '') {
+            foreach (
+                SQLiteOverflowPage::encodeChainAtPages(
+                    $overflowPayload,
+                    $overflowPageNumbers,
+                    $this->header->pageSize,
+                    $usableSize,
+                ) as $pageNumber => $page
+            ) {
+                $pageImages[$pageNumber] = $page;
+            }
+        }
+        ksort($pageImages);
+
+        return new SQLiteWordPressOptionWritePlan(
+            $tableRootPage,
+            $rowId,
+            $optionName,
+            $optionValue,
+            $autoload,
+            $overflowPageNumbers,
+            $localPayloadLength,
+            $allocationPlan?->databasePageCount ?? max($this->pageCount(), $this->header->databaseSizePages),
+            $pageImages,
+        );
+    }
+
+    public function planWordPressOptionReplace(
+        string $optionName,
+        string $optionValue,
+        ?string $autoload = null,
+    ): SQLiteWordPressOptionReplacementPlan {
+        if ($this->indexRecordsForTable('wp_options') !== []) {
+            throw new \InvalidArgumentException('SQLite wp_options replacement planning currently requires index-free fixtures');
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table is not present');
+        }
+        if ($tableRootPage === 1) {
+            throw new \InvalidArgumentException('SQLite wp_options replacement planning requires a table root page separate from sqlite_schema');
+        }
+
+        $tablePage = $this->page($tableRootPage);
+        $tableHeader = SQLiteBTreePageHeader::parsePage(
+            $tablePage,
+            $this->header->pageSize,
+            $tableRootPage === 1 ? 100 : 0,
+        );
+        if ($tableHeader->pageType !== 'table-leaf') {
+            throw new \InvalidArgumentException('SQLite wp_options replacement planning currently requires a single table leaf root page');
+        }
+
+        $usableSize = $this->usablePageSize();
+        $existingCells = [];
+        $matchedRowId = null;
+        $replacementAutoload = null;
+        $replacementLocalPayloadLength = 0;
+        $obsoleteOverflowPageNumbers = [];
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $usableSize, $overflowReader) as $cell) {
+            $row = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if ($option->optionName !== $optionName) {
+                $existingCells[] = [
+                    'rowid' => $cell->rowId,
+                    'cell' => substr($tablePage, $cell->offset, $cell->bytesRead),
+                ];
+                continue;
+            }
+
+            if ($matchedRowId !== null) {
+                throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not unique");
+            }
+
+            $values = $row->values();
+            $replacementAutoload = $autoload ?? $option->autoload;
+            $values[0] = $values[0] ?? null;
+            $values[1] = $optionName;
+            $values[2] = $optionValue;
+            if (array_key_exists(3, $values) || $replacementAutoload !== null) {
+                $values[3] = $replacementAutoload;
+            }
+
+            $payload = SQLiteRecord::encode(array_values($values), $this->header->textEncoding);
+            $replacementLocalPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+            if ($replacementLocalPayloadLength < strlen($payload)) {
+                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports inline replacement payloads only');
+            }
+
+            if ($cell->firstOverflowPage !== null) {
+                $obsoleteOverflowPageNumbers = $this->overflowPageNumbers(
+                    $cell->firstOverflowPage,
+                    $cell->payloadLength - $cell->localPayloadLength,
+                );
+            }
+
+            $matchedRowId = $cell->rowId;
+            $existingCells[] = [
+                'rowid' => $cell->rowId,
+                'cell' => SQLiteTableLeafCell::encode($cell->rowId, $payload, $usableSize),
+            ];
+        }
+
+        if ($matchedRowId === null) {
+            throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not present");
+        }
+
+        usort(
+            $existingCells,
+            static fn (array $left, array $right): int => $left['rowid'] <=> $right['rowid'],
+        );
+
+        $freePlan = $obsoleteOverflowPageNumbers === [] ? null : $this->planPageFreeList($obsoleteOverflowPageNumbers);
+        $pageImages = $freePlan?->pageImages() ?? [];
+        $pageImages[$tableRootPage] = SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $existingCells),
+            $this->header->pageSize,
+            $tableRootPage === 1 ? 100 : 0,
+            $tablePage,
+            $usableSize,
+        );
+        ksort($pageImages);
+
+        return new SQLiteWordPressOptionReplacementPlan(
+            $tableRootPage,
+            $matchedRowId,
+            $optionName,
+            $optionValue,
+            $replacementAutoload,
+            $obsoleteOverflowPageNumbers,
+            $replacementLocalPayloadLength,
+            $freePlan?->databasePageCount ?? max($this->pageCount(), $this->header->databaseSizePages),
+            $pageImages,
+        );
+    }
+
     /**
      * @return list<SQLiteSchemaRecord>
      */
@@ -6907,6 +7310,49 @@ final class SQLiteDatabase
         return $payload;
     }
 
+    /**
+     * @return list<int>
+     */
+    private function overflowPageNumbers(int $firstOverflowPage, int $byteCount): array
+    {
+        if ($byteCount < 0) {
+            throw new \InvalidArgumentException('SQLite overflow byte count cannot be negative');
+        }
+        if ($byteCount === 0) {
+            return [];
+        }
+
+        $usableSize = $this->usablePageSize();
+        $overflowPagePayloadSize = $usableSize - 4;
+        if ($overflowPagePayloadSize <= 0) {
+            throw new \InvalidArgumentException('SQLite overflow page payload size is invalid');
+        }
+
+        $pageNumbers = [];
+        $remaining = $byteCount;
+        $pageNumber = $firstOverflowPage;
+        $visited = [];
+        while ($remaining > 0) {
+            if ($pageNumber < 2) {
+                throw new \InvalidArgumentException('SQLite overflow chain ended before payload was complete');
+            }
+            if (isset($visited[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite overflow chain loops at page {$pageNumber}");
+            }
+            if ($pageNumber > $this->pageCount()) {
+                throw new \InvalidArgumentException("SQLite overflow page {$pageNumber} is not present in the database image");
+            }
+            $visited[$pageNumber] = true;
+            $pageNumbers[] = $pageNumber;
+
+            $page = $this->page($pageNumber);
+            $remaining -= min($remaining, $overflowPagePayloadSize);
+            $pageNumber = self::readUInt32($page, 0);
+        }
+
+        return $pageNumbers;
+    }
+
     private static function readUInt32(string $bytes, int $offset): int
     {
         if ($offset < 0 || $offset + 4 > strlen($bytes)) {
@@ -6914,5 +7360,28 @@ final class SQLiteDatabase
         }
 
         return unpack('N', substr($bytes, $offset, 4))[1];
+    }
+
+    private function nextAppendPageNumber(int $databasePageCount): int
+    {
+        $nextPage = $databasePageCount + 1;
+        $pendingBytePage = intdiv(0x40000000, $this->header->pageSize) + 1;
+        if ($nextPage === $pendingBytePage) {
+            $nextPage++;
+        }
+        if ($nextPage > 0xffffffff) {
+            throw new \InvalidArgumentException('SQLite database page count exceeds the 32-bit page number range');
+        }
+
+        return $nextPage;
+    }
+
+    private static function uint32Bytes(int $value): string
+    {
+        if ($value < 0 || $value > 0xffffffff) {
+            throw new \InvalidArgumentException('SQLite uint32 value is outside the supported range');
+        }
+
+        return pack('N', $value);
     }
 }

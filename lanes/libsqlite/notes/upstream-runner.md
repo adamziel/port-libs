@@ -2384,6 +2384,176 @@ option back through the native reader. The new
 `examples/wordpress-freelist-overflow-repair-plan.php` script exposes that
 flow for recovery tooling without requiring the PHP SQLite extension.
 
+## Focused Native Mapping: Freelist Allocation Mutation Planning
+
+This slice adds the write-side planning counterpart for ordinary
+`BTALLOC_ANY` page allocation. `SQLiteDatabase::planPageAllocation()` validates
+the existing freelist chain, consumes requested pages in SQLite's ordinary
+allocation order, returns the mutated first-page header bytes, returns any
+updated freelist trunk page images, removes emptied trunk pages from the
+freelist, and appends new page numbers after freelist depletion when allowed.
+The mutation intentionally remains a page-image plan rather than a full pager
+or journaling implementation.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  pageropt.test corrupt2.test btree01.test
+```
+
+Result on 2026-05-23: 4 Tcl script/permutation runs, 0 errors out of 274 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` `allocateBtreePage()` documents decrementing the header
+  freelist count, choosing the first freelist leaf for ordinary allocation,
+  replacing that leaf slot with the last leaf pointer, removing empty trunk
+  pages, and appending new pages when the freelist is empty.
+- `test/pageropt.test` keeps freelist-to-overflow reuse in scope for large
+  record writes without reading the old reusable page content.
+- `test/corrupt2.test` keeps freelist header-count integrity in scope, and
+  `test/btree01.test` keeps b-tree payload integrity in scope after page
+  allocation feeds an overflow chain.
+
+The native PHP tests now cover leaf-array mutation across repeated
+allocations, stale unused leaf-pointer bytes that remain outside the declared
+leaf count, empty-trunk allocation across a trunk chain, append-after-depletion
+page numbering, insufficient-freelist rejection when appending is disabled,
+and a WordPress-shaped `wp_options.option_value` repair plan that uses the
+allocation plan's returned header/trunk page images before parsing the updated
+database image back through the native reader. The existing
+`examples/wordpress-freelist-overflow-repair-plan.php` script now reports the
+allocation plan and applies its page images directly.
+
+## Focused Native Mapping: Freelist Free Mutation Planning
+
+This slice adds the bounded write-side counterpart for SQLite's `freePage2()`
+freelist insertion behavior. `SQLiteDatabase::planPageFreeList()` validates
+the existing freelist chain, rejects pages outside the database image or pages
+already present on the freelist, increments the first-page freelist count, and
+returns page-image mutations. If the freelist is empty, or the first trunk has
+already reached SQLite's compatibility insertion limit of `usableSize / 4 - 8`
+leaf pointers, the freed page becomes the new first trunk. Otherwise, the page
+is appended as a leaf pointer on the current first trunk. The mutation remains
+a preflight page-image plan and intentionally does not implement pager
+journaling, pointer-map updates for auto-vacuum databases, secure-delete page
+zeroing, or full b-tree row replacement.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  pageropt.test corrupt2.test
+```
+
+Result on 2026-05-23: 3 Tcl script/permutation runs, 0 errors out of 59 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` `freePage2()` documents incrementing the header freelist
+  count, inserting a freed page as a first-trunk leaf when room exists,
+  avoiding the final six trunk entries for old-reader compatibility, and
+  making the freed page the new first trunk when insertion is not possible.
+- `test/pageropt.test` exercises deleting large rows whose overflow pages are
+  returned to the freelist while minimizing reads/writes.
+- `test/corrupt2.test` keeps freelist-count integrity checks in scope.
+
+The native PHP tests now cover inserting a freed page into a non-full first
+trunk, creating a new trunk for an empty freelist, creating a new trunk when
+the first trunk is compatibility-full, updated header/trunk page images, and
+the resulting next allocation order. The new
+`examples/wordpress-free-obsolete-overflow-pages.php` script rewrites a large
+`wp_options` row down to an inline value, returns the old overflow pages to
+the freelist plan, and parses the resulting option plus freelist metadata
+without requiring the PHP SQLite extension.
+
+## Focused Native Mapping: Bounded wp_options Insert Page Images
+
+This slice integrates the existing record, table-leaf cell, table-leaf page,
+overflow-chain, and freelist allocation primitives into
+`SQLiteDatabase::planWordPressOptionInsert()`. The helper is intentionally
+bounded: it handles explicit positive rowids for index-free `wp_options`
+fixtures whose root is a single table leaf page, returns the complete set of
+first-page/table/overflow/freelist page images, keeps table leaf cells sorted
+by rowid, rejects duplicate rowids and option names, and rejects indexed
+fixtures rather than producing stale secondary indexes. It does not implement
+b-tree balancing, index maintenance, AUTOINCREMENT `sqlite_sequence` writes,
+journaling, WAL, pointer-map updates, or arbitrary SQL execution.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test btree01.test pageropt.test
+```
+
+Result on 2026-05-23: 5 Tcl script/permutation runs, 0 errors out of 539 tests
+in 00:01.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` `fillInCell()` documents table leaf row payload headers,
+  minimum four-byte local cells, local payload sizing, overflow page pointer
+  placement, and overflow payload chunk writes.
+- `src/btree.c` `sqlite3BtreeInsert()` documents rowid table insert behavior,
+  duplicate overwrite boundaries, and the point where balancing is required
+  for overfull pages.
+- `test/insert.test` covers row persistence through INSERT, while
+  `test/btree01.test` keeps b-tree insert/balancing regressions in scope and
+  `test/pageropt.test` keeps freelist-backed overflow reuse in scope.
+
+The native PHP tests now cover an appended-overflow insert plan, a reusable
+freelist-overflow insert plan, page-image application followed by native
+`wp_options` reads, and rejection of duplicate/stale-index plans. The new
+`examples/wordpress-generated-option-insert-plan.php` script exposes the
+preflight flow for WordPress fixture generation or repair tooling without
+requiring the PHP SQLite extension.
+
+## Focused Native Mapping: Bounded wp_options Replacement Page Images
+
+This slice adds `SQLiteDatabase::planWordPressOptionReplace()` for the bounded
+WordPress repair case where an index-free `wp_options` table root is a single
+table leaf page. The helper rewrites one existing option row in place by
+`option_name`, preserves rowid order, rejects missing or duplicate option
+names, rejects indexed fixtures to avoid stale secondary indexes, rejects
+replacement payloads that still need overflow pages in this slice, and returns
+obsolete overflow pages through the existing `freePage2`-style
+`planPageFreeList()` machinery.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test btree01.test pageropt.test
+```
+
+Result on 2026-05-23: 5 Tcl script/permutation runs, 0 errors out of 491 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/update.test` keeps row rewrite semantics in scope for ordinary UPDATE
+  statements.
+- `test/btree01.test` exercises UPDATE statements that move rows across large
+  overflow payload boundaries.
+- `test/pageropt.test` documents the overflow-chain deletion/free-list reuse
+  boundary, including the case where an old overflow page becomes a freelist
+  trunk and later allocation can reuse the freed chain.
+
+The native PHP tests now cover large-to-small `wp_options` replacement where
+the old overflow chain becomes freelist metadata, page-image application
+followed by native option reads, and guardrails for missing, duplicate,
+indexed, and too-large replacement plans. The new
+`examples/wordpress-replace-obsolete-overflow-option.php` script shows the
+repair workflow end to end without requiring the PHP SQLite extension.
+
 ## Root Harness Coordination
 
 Before starting the root harness for this lane run,
@@ -2395,3 +2565,86 @@ php tools/run-tests.php
 ```
 
 Result on 2026-05-23: 183 test files, 18644 assertions, 0 failures.
+
+For the freelist allocation mutation slice on 2026-05-23, the focused lane
+test passed but the root harness was not started. The required preflight check
+returned an active root run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 467834 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 467834
+# 467834 claude 03:19 php tools/run-tests.php
+```
+
+Per lane instructions, no duplicate root harness was launched. The root result
+for this slice is pending supervisor/integrator acceptance of the active run.
+
+For the bounded wp_options insert page-image slice on 2026-05-23, the focused
+lane test, focused upstream runner, and WordPress example passed. The direct
+libsqlite harness reported 163 tests, 1068 assertions, and 0 failures. The
+WordPress generated-option insert example ran successfully and reported a
+two-page overflow insert plan. Root harness coordination is recorded in the
+lane status for this slice.
+
+Before starting the root harness for this slice,
+`pgrep -af '^php tools/run-tests\.php( |$)'` returned no active process. This
+worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 183 test files, 19126 assertions, 0 failures.
+
+After adding the final invalid-root guard for this slice, the focused lane
+test was re-run and passed with 163 tests, 1069 assertions, and 0 failures.
+The WordPress generated-option insert example was also re-run successfully.
+The required post-change root preflight then found active root harness
+processes, so this worker did not start a duplicate:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 702741 php tools/run-tests.php
+# 702753 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 702741,702753
+# 702741 claude 00:10 php tools/run-tests.php
+# 702753 claude 00:08 php tools/run-tests.php
+```
+
+The earlier 19126-assertion root pass predates the final guard, so the
+post-change root result is pending for the supervisor/integrator.
+
+For the freelist free mutation slice on 2026-05-23, the focused lane test,
+focused upstream runner, and WordPress example passed, but the root harness was
+not started. The required preflight check returned an active root run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 618249 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 618249
+# 618249 claude 00:15 php tools/run-tests.php
+```
+
+Per lane instructions, no duplicate root harness was launched. The root result
+for this slice is pending supervisor/integrator acceptance of the active run.
+
+For the bounded wp_options replacement page-image slice on 2026-05-23, the
+focused upstream runner passed `update.test`, `btree01.test`, and
+`pageropt.test` with 0 errors out of 491 tests. The direct libsqlite harness
+passed 165 tests with 1082 assertions and 0 failures, and
+`examples/wordpress-replace-obsolete-overflow-option.php` ran successfully.
+Before starting the root harness, the required preflight returned no active
+process:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+This worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 184 test files, 19365 assertions, 0 failures.

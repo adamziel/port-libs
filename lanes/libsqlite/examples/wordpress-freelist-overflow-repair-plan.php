@@ -66,7 +66,8 @@ $optionPayload = SQLiteRecord::encode([
 $localPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($optionPayload), $usableSize);
 $overflowPayload = substr($optionPayload, $localPayloadLength);
 $requiredOverflowPages = SQLiteOverflowPage::requiredPageCount(strlen($overflowPayload), $pageSize, $usableSize);
-$chosenPages = $preDatabase->freelistAllocationOrder($requiredOverflowPages);
+$allocationPlan = $preDatabase->planPageAllocation($requiredOverflowPages, false);
+$chosenPages = $allocationPlan->allocatedPageNumbers;
 if (count($chosenPages) !== 2) {
     throw new RuntimeException('This example fixture expects an option value that uses exactly two reusable overflow pages.');
 }
@@ -78,12 +79,14 @@ $postPages = [];
 for ($pageNumber = 1; $pageNumber <= 7; $pageNumber++) {
     $postPages[$pageNumber] = $emptyPage;
 }
-$postPages[1] = $schemaPage($makeFirstPage(7, 5, 2));
+$postPages[1] = $allocationPlan->firstPage;
 $postPages[2] = SQLiteTableLeafPage::assemble([$optionCell], $pageSize, 0, null, $usableSize);
+foreach ($allocationPlan->updatedFreelistPages as $pageNumber => $page) {
+    $postPages[$pageNumber] = $page;
+}
 foreach ($overflowPages as $pageNumber => $page) {
     $postPages[$pageNumber] = $page;
 }
-$postPages[5] = SQLiteFreelistTrunkPage::assemble(null, [7], $pageSize, $usableSize);
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
 $option = $postDatabase->wordpressOptions()[0] ?? null;
@@ -94,6 +97,7 @@ echo json_encode([
         static fn (SQLiteFreelistTrunkPage $trunkPage): array => $trunkPage->toArray(),
         $preDatabase->freelistTrunkPages(),
     ),
+    'allocationPlan' => $allocationPlan->toArray(),
     'chosenOverflowPages' => $chosenPages,
     'overflowNextPointers' => array_map(
         static fn (string $page): int => unpack('N', substr($page, 0, 4))[1],
