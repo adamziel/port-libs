@@ -51,6 +51,31 @@ final class SQLiteJsonB
         return self::encodeElement($value, 0);
     }
 
+    public static function type(string $bytes, string $path = '$'): ?string
+    {
+        $root = self::validatedRootElement($bytes);
+        $element = self::locateElement($bytes, $root, self::parsePath($path));
+        if ($element === null) {
+            return null;
+        }
+
+        return self::typeName($element['type']);
+    }
+
+    public static function arrayLength(string $bytes, string $path = '$'): ?int
+    {
+        $root = self::validatedRootElement($bytes);
+        $element = self::locateElement($bytes, $root, self::parsePath($path));
+        if ($element === null) {
+            return null;
+        }
+        if ($element['type'] !== self::ARRAY) {
+            return 0;
+        }
+
+        return self::countArrayElements($bytes, $element['payloadOffset'], self::payloadEnd($element));
+    }
+
     public static function remove(string $bytes, string ...$paths): ?string
     {
         $value = self::decodeForEdit($bytes);
@@ -158,6 +183,178 @@ final class SQLiteJsonB
         }
 
         return self::jsonObjectIsEmpty($target) ? new \stdClass() : $target;
+    }
+
+    /**
+     * @return array{type:int,payloadOffset:int,payloadLength:int}
+     */
+    private static function validatedRootElement(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \InvalidArgumentException('SQLite JSONB value is empty');
+        }
+
+        [, $next] = self::parseElement($bytes, 0, 0);
+        if ($next !== strlen($bytes)) {
+            throw new \InvalidArgumentException('SQLite JSONB value has trailing bytes');
+        }
+
+        return self::elementAt($bytes, 0);
+    }
+
+    /**
+     * @param array{type:int,payloadOffset:int,payloadLength:int} $root
+     * @param list<array<string, mixed>> $segments
+     * @return null|array{type:int,payloadOffset:int,payloadLength:int}
+     */
+    private static function locateElement(string $bytes, array $root, array $segments): ?array
+    {
+        $element = $root;
+        foreach ($segments as $segment) {
+            if (($segment['type'] ?? null) === 'member') {
+                $name = $segment['name'] ?? null;
+                if (!is_string($name) || $element['type'] !== self::OBJECT) {
+                    return null;
+                }
+
+                $element = self::objectMemberElement($bytes, $element, $name);
+                if ($element === null) {
+                    return null;
+                }
+
+                continue;
+            }
+
+            if ($element['type'] !== self::ARRAY) {
+                return null;
+            }
+
+            $count = self::countArrayElements($bytes, $element['payloadOffset'], self::payloadEnd($element));
+            $arrayIndex = self::pathArrayIndex($segment, $count);
+            if ($arrayIndex === null) {
+                return null;
+            }
+
+            $element = self::arrayElementAt($bytes, $element, $arrayIndex);
+            if ($element === null) {
+                return null;
+            }
+        }
+
+        return $element;
+    }
+
+    /**
+     * @param array{type:int,payloadOffset:int,payloadLength:int} $object
+     * @return null|array{type:int,payloadOffset:int,payloadLength:int}
+     */
+    private static function objectMemberElement(string $bytes, array $object, string $name): ?array
+    {
+        $offset = $object['payloadOffset'];
+        $end = self::payloadEnd($object);
+        while ($offset < $end) {
+            [$keyType] = self::readHeader($bytes, $offset);
+            if ($keyType < self::TEXT || $keyType > self::TEXTRAW) {
+                throw new \InvalidArgumentException('SQLite JSONB object label is not text');
+            }
+
+            [$key, $valueOffset] = self::parseElement($bytes, $offset, 0);
+            if (!is_string($key)) {
+                throw new \InvalidArgumentException('SQLite JSONB object label decoded to a non-string value');
+            }
+            if ($valueOffset >= $end) {
+                throw new \InvalidArgumentException('SQLite JSONB object has an unmatched label');
+            }
+
+            $value = self::elementAt($bytes, $valueOffset);
+            if ($key === $name) {
+                return $value;
+            }
+
+            $offset = self::payloadEnd($value);
+        }
+        if ($offset !== $end) {
+            throw new \InvalidArgumentException('SQLite JSONB object payload is malformed');
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{type:int,payloadOffset:int,payloadLength:int} $array
+     * @return null|array{type:int,payloadOffset:int,payloadLength:int}
+     */
+    private static function arrayElementAt(string $bytes, array $array, int $index): ?array
+    {
+        $offset = $array['payloadOffset'];
+        $end = self::payloadEnd($array);
+        $current = 0;
+        while ($offset < $end) {
+            $element = self::elementAt($bytes, $offset);
+            if ($current === $index) {
+                return $element;
+            }
+
+            $offset = self::payloadEnd($element);
+            $current++;
+        }
+        if ($offset !== $end) {
+            throw new \InvalidArgumentException('SQLite JSONB array payload is malformed');
+        }
+
+        return null;
+    }
+
+    private static function countArrayElements(string $bytes, int $offset, int $end): int
+    {
+        $count = 0;
+        while ($offset < $end) {
+            $element = self::elementAt($bytes, $offset);
+            $offset = self::payloadEnd($element);
+            $count++;
+        }
+        if ($offset !== $end) {
+            throw new \InvalidArgumentException('SQLite JSONB array payload is malformed');
+        }
+
+        return $count;
+    }
+
+    /**
+     * @return array{type:int,payloadOffset:int,payloadLength:int}
+     */
+    private static function elementAt(string $bytes, int $offset): array
+    {
+        [$type, $payloadOffset, $payloadLength] = self::readHeader($bytes, $offset);
+
+        return [
+            'type' => $type,
+            'payloadOffset' => $payloadOffset,
+            'payloadLength' => $payloadLength,
+        ];
+    }
+
+    /**
+     * @param array{type:int,payloadOffset:int,payloadLength:int} $element
+     */
+    private static function payloadEnd(array $element): int
+    {
+        return $element['payloadOffset'] + $element['payloadLength'];
+    }
+
+    private static function typeName(int $type): string
+    {
+        return match ($type) {
+            self::NULL => 'null',
+            self::TRUE => 'true',
+            self::FALSE => 'false',
+            self::INT, self::INT5 => 'integer',
+            self::FLOAT, self::FLOAT5 => 'real',
+            self::TEXT, self::TEXTJ, self::TEXT5, self::TEXTRAW => 'text',
+            self::ARRAY => 'array',
+            self::OBJECT => 'object',
+            default => throw new \InvalidArgumentException("Unsupported SQLite JSONB element type: {$type}"),
+        };
     }
 
     private static function isJsonObject(mixed $value): bool

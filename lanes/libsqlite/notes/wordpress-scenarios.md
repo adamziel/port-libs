@@ -571,6 +571,13 @@ entry before an existing option-array item or append postmeta migration keys
 while preserving SQLite's array-index, reverse-index, missing-path, and
 non-array no-op boundaries.
 
+`examples/wordpress-jsonb-inspect-option-arrays.php` checks SQLite JSONB
+option/meta fixture paths with `json_type` and `json_array_length` semantics.
+This maps WordPress import and migration preflight workflows that need to
+confirm option migration queues or postmeta key lists are present arrays, while
+distinguishing missing paths from existing scalar or object targets before
+array insertion, append, or reorder steps.
+
 `examples/wordpress-jsonb-patch-option-field.php` applies SQLite-style
 RFC-7396 merge patches to strict JSON, supported SQLite JSON5, or SQLite JSONB
 option-value fixtures and prints the resulting JSONB bytes. This maps

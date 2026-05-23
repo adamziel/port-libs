@@ -1861,6 +1861,45 @@ WordPress recovery or fixture-generation tooling insert migration queue
 entries into JSON/JSON5/JSONB option or meta arrays without requiring the
 SQLite extension.
 
+## Focused Native Mapping: JSONB Type And Array Length Inspection
+
+This slice maps SQLite-style `json_type()` and `json_array_length()` behavior
+over existing SQLite JSONB bytes. It uses the existing JSON path parser, returns
+SQLite type names for root and path targets, reports `null` for missing paths,
+and preserves the distinction between a missing path and an existing non-array
+target, where `json_array_length()` returns `0`.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json102.test jsonb01.test
+```
+
+Result on 2026-05-23: 2 Tcl scripts, 0 errors out of 356 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json102.test` covers `json_array_length()` and JSONB `json_type()`
+  behavior for root arrays, root objects, array path targets, scalar path
+  targets, and missing paths.
+- `test/jsonb01.test` keeps malformed JSONB rejection boundaries in scope.
+
+Additional focused upstream SQL probes confirmed `json_type()` returns `true`
+for a JSONB boolean path, `json_array_length()` returns `2` for a WordPress
+`optionMigrations` JSONB array, returns `0` for an existing text
+`legacyMode` target, and returns SQL `NULL` for a missing `postMetaQueue`.
+
+The native PHP tests now cover `SQLiteJsonB::type()` and
+`SQLiteJsonB::arrayLength()` for root and path-based object, array, text,
+integer, real, true, false, and null targets; missing paths; invalid paths; and
+non-array targets. The new
+`examples/wordpress-jsonb-inspect-option-arrays.php` script lets WordPress
+import or migration preflight tooling check JSONB option/meta arrays before
+array insertion, append, or reorder steps without requiring the SQLite
+extension.
+
 ## Focused Native Mapping: JSONB Merge Patch
 
 This slice maps a bounded `jsonb_patch()`/`json_patch()` family for native

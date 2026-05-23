@@ -1799,6 +1799,86 @@ return [
         $t->same('652d3965393939', bin2hex(SQLiteJsonB::encode(-INF)));
         $t->same('00', bin2hex(SQLiteJsonB::encode(NAN)));
     },
+    'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
+        $jsonb = SQLiteJsonB::encode([
+            'object' => ['nested' => 1],
+            'array' => [2, 3],
+            'text' => 'channel',
+            'integer' => 7,
+            'real' => 3.5,
+            'true' => true,
+            'false' => false,
+            'null' => null,
+        ]);
+
+        $t->same('object', SQLiteJsonB::type($jsonb));
+        $t->same('object', SQLiteJsonB::type($jsonb, '$.object'));
+        $t->same('array', SQLiteJsonB::type($jsonb, '$.array'));
+        $t->same('text', SQLiteJsonB::type($jsonb, '$.text'));
+        $t->same('integer', SQLiteJsonB::type($jsonb, '$.integer'));
+        $t->same('real', SQLiteJsonB::type($jsonb, '$.real'));
+        $t->same('true', SQLiteJsonB::type($jsonb, '$.true'));
+        $t->same('false', SQLiteJsonB::type($jsonb, '$.false'));
+        $t->same('null', SQLiteJsonB::type($jsonb, '$.null'));
+        $t->same(null, SQLiteJsonB::type($jsonb, '$.missing'));
+        $t->same(null, SQLiteJsonB::type($jsonb, '$.array[9]'));
+        $t->same(null, SQLiteJsonB::type($jsonb, '$.text[0]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::type($jsonb, '$.array[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::type($jsonb, '$[0'));
+    },
+    'inspects focused sqlite jsonb array lengths at root and paths' => static function (TestRunner $t): void {
+        $array = SQLiteJsonB::encode([1, 2, ['nested' => [3, 4]]]);
+        $object = SQLiteJsonB::encode([
+            'array' => [1, 2, 3],
+            'empty' => [],
+            'object' => ['nested' => true],
+            'text' => 'not-array',
+            'integer' => 7,
+            'real' => 3.5,
+            'true' => true,
+            'false' => false,
+            'null' => null,
+        ]);
+
+        $t->same(3, SQLiteJsonB::arrayLength($array));
+        $t->same(2, SQLiteJsonB::arrayLength($array, '$[2].nested'));
+        $t->same(0, SQLiteJsonB::arrayLength($object));
+        $t->same(3, SQLiteJsonB::arrayLength($object, '$.array'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.empty'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.object'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.text'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.integer'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.real'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.true'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.false'));
+        $t->same(0, SQLiteJsonB::arrayLength($object, '$.null'));
+        $t->same(null, SQLiteJsonB::arrayLength($object, '$.missing'));
+        $t->same(null, SQLiteJsonB::arrayLength($object, '$.array[#]'));
+        $t->same(null, SQLiteJsonB::arrayLength($object, '$.text[0]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayLength($object, '$.array[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::arrayLength($object, 'array'));
+    },
+    'inspects sqlite jsonb wordpress option and meta arrays for import preflight' => static function (TestRunner $t): void {
+        $settings = SQLiteJsonB::encode([
+            'optionMigrations' => [
+                ['name' => 'core', 'status' => 'done'],
+                ['name' => 'cache', 'status' => 'queued'],
+            ],
+            'metaKeys' => ['_legacy_flag', '_generated_css'],
+            'legacyMode' => 'skip',
+        ]);
+
+        $t->same('array', SQLiteJsonB::type($settings, '$.optionMigrations'));
+        $t->same(2, SQLiteJsonB::arrayLength($settings, '$.optionMigrations'));
+        $t->same('object', SQLiteJsonB::type($settings, '$.optionMigrations[0]'));
+        $t->same(0, SQLiteJsonB::arrayLength($settings, '$.optionMigrations[0]'));
+        $t->same('array', SQLiteJsonB::type($settings, '$.metaKeys'));
+        $t->same(2, SQLiteJsonB::arrayLength($settings, '$.metaKeys'));
+        $t->same('text', SQLiteJsonB::type($settings, '$.legacyMode'));
+        $t->same(0, SQLiteJsonB::arrayLength($settings, '$.legacyMode'));
+        $t->same(null, SQLiteJsonB::type($settings, '$.postMetaQueue'));
+        $t->same(null, SQLiteJsonB::arrayLength($settings, '$.postMetaQueue'));
+    },
     'removes focused sqlite jsonb object members and array elements' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode(['a' => 5, 'b' => ['x' => 10, 'y' => 11], 'c' => [1, 2, 3, 4]]);
         $decode = static function (?string $bytes): mixed {
