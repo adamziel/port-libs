@@ -581,9 +581,22 @@ github.com/syncthing/syncthing/lib/model 0.093s`; this is not full upstream
 runner parity. The WordPress example now shows a partially downloaded media
 temporary file preserving an already-correct block, copying an unchanged local
 block, and requesting only the changed media block.
+The pullBlock retry slice now maps focused upstream `pullBlock` behavior from
+`lib/model/folder_sendrecv.go`: candidate peers are selected by least-busy
+device activity, each candidate is tried once and removed after an error or
+invalid response, activity is incremented only while the request callback is
+active, returned plaintext bytes must match the requested block length and
+SHA-256 hash, all-zero blocks skip network requests, and receive-encrypted
+folders trust opaque encrypted hash-token responses without local SHA-256
+verification. This slice is backed by static targeted reads of upstream
+`pullBlock`, `verifyBuffer`, `deviceActivity.using/done`, `RequestGlobal`, and
+the zero-block/receive-encrypted branches rather than a new upstream runner.
+The WordPress example `wordpress-block-pull-retry.php` shows a stale CDN peer
+failing validation before an editor laptop supplies verified media bytes, with
+both peer activity counters returning to zero after the request attempts.
 
 ## Next Task
 
-Connect PullWorkPlan output to real Request scheduling and temporary-file
-write/finalization accounting, then broaden upstream `folder_sendrecv`
-unavailable-peer or receive-encrypted puller behavior.
+Connect successful pullBlock results to temporary-file writes, final close, and
+database update accounting, then broaden upstream `folder_sendrecv`
+unavailable-peer and receive-encrypted puller behavior.
