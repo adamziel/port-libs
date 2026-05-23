@@ -4745,6 +4745,10 @@ final class TypeScriptModuleLowerer
             return true;
         }
 
+        if (preg_match('/^(?:export\s+(?:default\s+)?)?(?:async\s+)?function\b/', $trimmed) === 1) {
+            return true;
+        }
+
         return preg_match('/^export\s+(?:\*|\{[\s\S]*?\}\s+from\b)/', $trimmed) === 1;
     }
 

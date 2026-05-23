@@ -275,6 +275,25 @@ TS,
         $t->true(!str_contains($lowered, 'export const settings'));
         $t->true(!str_contains($lowered, 'export class PreviewRegistration'));
     },
+    'keeps upstream function declarations outside top level using helper scopes' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+using a: Disposable = b;
+export function foo1() { return [a, c] }
+export default function fooDefault() { return [a, c, fooDefault] }
+function helper() { return [a, c, helper] }
+using c: Disposable = d;
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->true(strpos($lowered, 'export function foo1()') < strpos($lowered, 'var __knownSymbol'));
+        $t->true(strpos($lowered, 'export default function fooDefault()') < strpos($lowered, 'var __knownSymbol'));
+        $t->true(strpos($lowered, 'function helper()') < strpos($lowered, 'var __knownSymbol'));
+        $t->contains("try {\n  var a = __using(_stack, b);\n  var c = __using(_stack, d);\n}", $lowered);
+        $t->true(!str_contains($lowered, "try {\n  export function"));
+        $t->true(!str_contains($lowered, "try {\n  function helper"));
+    },
     'lowers upstream block scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'if (nested) { using x: Disposable = y; bar(x); }',
@@ -1249,6 +1268,21 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains("export {\n  PreviewRegistration\n};", $lowered);
         $t->true(strpos($lowered, '__callDispose(_stack, _error, _hasError);') < strpos($lowered, "export {\n  settings"));
         $t->true(!str_contains($lowered, "try {\n  export "));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress exported using asset functions without trapping exports' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-export-function.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->true(strpos($lowered, 'import metadata from "./block.json" with { type: "json" };') < strpos($lowered, 'var __knownSymbol'));
+        $t->true(strpos($lowered, 'export function registerPreviewBlock()') < strpos($lowered, 'var __knownSymbol'));
+        $t->contains('viewScript: previewAsset.url,', $lowered);
+        $t->contains('var previewAsset = __using(_stack, acquirePreviewAsset(metadata.viewScript));', $lowered);
+        $t->contains('__callDispose(_stack, _error, _hasError);', $lowered);
+        $t->true(strpos($lowered, 'export function registerPreviewBlock()') < strpos($lowered, 'var previewAsset = __using'));
+        $t->true(!str_contains($lowered, "try {\n  export function"));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
