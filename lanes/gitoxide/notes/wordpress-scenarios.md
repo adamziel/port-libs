@@ -148,7 +148,7 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## WordPress Blob Merge Example
 
-`examples/wordpress-blob-merge.php` line-merges independent WordPress metadata edits, auto-resolves an overlapping `theme.json` layout decision with the local deployment side, union-merges block stabilization notes with Gitoxide's no-trailing-newline separator behavior, emits zealous-diff3 conflict markers that keep shared changed layout/spacing decisions outside the markers while preserving the full ancestor section, suppresses the upstream blank-line false conflict for a block-spacing cleanup, emits Gitoxide-shaped conflict markers for mixed CRLF/LF block content, and emits diff3 conflict markers for unresolved `theme.json` color changes. This models the content-merge layer needed before tree conflicts can be resolved into merged blobs.
+`examples/wordpress-blob-merge.php` line-merges independent WordPress metadata edits, auto-resolves an overlapping `theme.json` layout decision with the local deployment side, union-merges block stabilization notes with Gitoxide's no-trailing-newline separator behavior, emits zealous-diff3 conflict markers that keep shared changed layout/spacing decisions outside the markers while preserving the full ancestor section, suppresses the upstream blank-line false conflict for a block-spacing cleanup, emits Gitoxide-shaped conflict markers for mixed CRLF/LF block content, keeps shared changed block-refactor lines outside a focused partial-match conflict, and emits diff3 conflict markers for unresolved `theme.json` color changes. This models the content-merge layer needed before tree conflicts can be resolved into merged blobs.
 
 ## WordPress Recursive Tree Merge Example
 

@@ -53,6 +53,15 @@ $mixedLineEndings = BlobMerge::mergeText(
     'ours/post.html',
     'theirs/post.html',
 );
+$sharedBlockRefactor = BlobMerge::mergeText(
+    $fixture['sharedBlockRefactor']['base'],
+    $fixture['sharedBlockRefactor']['ours'],
+    $fixture['sharedBlockRefactor']['theirs'],
+    BlobMerge::STYLE_MERGE,
+    'base/post.html',
+    'ours/post.html',
+    'theirs/post.html',
+);
 
 echo 'metadata=' . $metadata->resolution . "\n";
 echo 'metadata-content=' . str_replace("\n", '|', trim($metadata->content)) . "\n";
@@ -68,3 +77,5 @@ echo 'spacing-ambiguity=' . $spacingAmbiguity->resolution . "\n";
 echo 'spacing-ambiguity-content=' . str_replace("\n", '|', $spacingAmbiguity->content) . "\n";
 echo 'mixed-line-endings=' . $mixedLineEndings->resolution . "\n";
 echo 'mixed-line-endings-content=' . str_replace(["\r", "\n"], ['\\r', '|'], $mixedLineEndings->content) . "\n";
+echo 'shared-block-refactor=' . $sharedBlockRefactor->resolution . "\n";
+echo 'shared-block-refactor-content=' . str_replace("\n", '|', trim($sharedBlockRefactor->content)) . "\n";

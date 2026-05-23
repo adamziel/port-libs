@@ -133,6 +133,21 @@ return [
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $diff3->resolution);
         $t->same("1\r\n<<<<<<< {$oursLabel}\r\n2\n4\r\n||||||| {$baseLabel}\r\n2\r\n3\r\n=======\r\n2\n5\r\n>>>>>>> {$theirsLabel}\r\n", $diff3->content);
     },
+    'text merge maps upstream partial match baseline' => static function (TestRunner $t): void {
+        $result = BlobMerge::mergeText(
+            "0\n1\n2\n3\n4\n5\n",
+            "0\nX1\nX2\nX3\nX4\n5\n",
+            "0\nX1\n2\nX3\nX4\n5\n",
+            BlobMerge::STYLE_MERGE,
+            'partial-match/base.blob',
+            'partial-match/ours.blob',
+            'partial-match/theirs.blob',
+        );
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $result->resolution);
+        $t->same(1, $result->conflictCount);
+        $t->same("0\nX1\n<<<<<<< partial-match/ours.blob\nX2\n=======\n2\n>>>>>>> partial-match/theirs.blob\nX3\nX4\n5\n", $result->content);
+    },
     'text merge auto resolves conflicts with ours theirs and newline-separated union' => static function (TestRunner $t): void {
         $ours = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_OURS);
         $theirs = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_THEIRS);
@@ -208,6 +223,15 @@ return [
             'ours/post.html',
             'theirs/post.html',
         );
+        $sharedBlockRefactor = BlobMerge::mergeText(
+            $fixture['sharedBlockRefactor']['base'],
+            $fixture['sharedBlockRefactor']['ours'],
+            $fixture['sharedBlockRefactor']['theirs'],
+            BlobMerge::STYLE_MERGE,
+            'base/post.html',
+            'ours/post.html',
+            'theirs/post.html',
+        );
 
         $t->true($metadata->isClean());
         $t->same($fixture['metadata']['expected'], $metadata->content);
@@ -224,5 +248,7 @@ return [
         $t->same($fixture['spacingAmbiguity']['expected'], $spacingAmbiguity->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $mixedLineEndings->resolution);
         $t->same($fixture['mixedLineEndings']['expected'], $mixedLineEndings->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $sharedBlockRefactor->resolution);
+        $t->same($fixture['sharedBlockRefactor']['expected'], $sharedBlockRefactor->content);
     },
 ];

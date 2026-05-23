@@ -38,6 +38,12 @@ return [
         'theirs' => "<!-- wp:paragraph -->\r\n<!-- wp:group -->\n<!-- wp:spacer -->",
         'expected' => "<!-- wp:paragraph -->\r\n<!-- wp:group -->\n<<<<<<< ours/post.html\n<!-- wp:heading -->\n=======\n<!-- wp:spacer -->\n>>>>>>> theirs/post.html\n",
     ],
+    'sharedBlockRefactor' => [
+        'base' => "<!-- wp:group -->\n<!-- wp:paragraph -->\nBase copy\n<!-- /wp:paragraph -->\n<!-- /wp:group -->\n",
+        'ours' => "<!-- wp:group {\"className\":\"featured\"} -->\n<!-- wp:heading -->\nShared headline\n<!-- /wp:heading -->\n<!-- /wp:group -->\n",
+        'theirs' => "<!-- wp:group {\"className\":\"featured\"} -->\n<!-- wp:paragraph -->\nShared headline\n<!-- /wp:heading -->\n<!-- /wp:group -->\n",
+        'expected' => "<!-- wp:group {\"className\":\"featured\"} -->\n<<<<<<< ours/post.html\n<!-- wp:heading -->\n=======\n<!-- wp:paragraph -->\n>>>>>>> theirs/post.html\nShared headline\n<!-- /wp:heading -->\n<!-- /wp:group -->\n",
+    ],
     'theme' => [
         'base' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"base\"\n  }\n}\n",
         'ours' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"blue\"\n  }\n}\n",

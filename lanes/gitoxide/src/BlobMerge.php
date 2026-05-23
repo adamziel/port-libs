@@ -102,16 +102,36 @@ final class BlobMerge
                 continue;
             }
 
+            $ourConflictHunks = [];
+            $theirConflictHunks = [];
             $start = min($ourHunk['start'], $theirHunk['start']);
             $end = max($ourHunk['end'], $theirHunk['end']);
+            do {
+                $changed = false;
+                while ($ourIndex < count($ourHunks) && self::hunkTouchesRange($ourHunks[$ourIndex], $start, $end)) {
+                    $hunk = $ourHunks[$ourIndex];
+                    $ourConflictHunks[] = $hunk;
+                    $start = min($start, $hunk['start']);
+                    $end = max($end, $hunk['end']);
+                    $ourIndex++;
+                    $changed = true;
+                }
+                while ($theirIndex < count($theirHunks) && self::hunkTouchesRange($theirHunks[$theirIndex], $start, $end)) {
+                    $hunk = $theirHunks[$theirIndex];
+                    $theirConflictHunks[] = $hunk;
+                    $start = min($start, $hunk['start']);
+                    $end = max($end, $hunk['end']);
+                    $theirIndex++;
+                    $changed = true;
+                }
+            } while ($changed);
+
             self::appendBase($merged, $baseLines, $basePosition, $start);
-            $ourLines = self::applyHunksInRange($baseLines, [$ourHunk], $start, $end);
-            $theirLines = self::applyHunksInRange($baseLines, [$theirHunk], $start, $end);
+            $ourLines = self::applyHunksInRange($baseLines, $ourConflictHunks, $start, $end);
+            $theirLines = self::applyHunksInRange($baseLines, $theirConflictHunks, $start, $end);
             if ($style === self::STYLE_OURS || $style === self::STYLE_THEIRS) {
                 array_push($merged, ...($style === self::STYLE_OURS ? $ourLines : $theirLines));
                 $basePosition = $end;
-                $ourIndex++;
-                $theirIndex++;
                 $autoResolvedConflicts++;
                 continue;
             }
@@ -132,8 +152,6 @@ final class BlobMerge
                     array_push($merged, ...$contracted['suffix']);
                 }
                 $basePosition = $end;
-                $ourIndex++;
-                $theirIndex++;
                 if ($contracted['left'] !== [] || $contracted['right'] !== []) {
                     $autoResolvedConflicts++;
                 }
@@ -167,8 +185,6 @@ final class BlobMerge
             if ($ourConflictLines === [] && $theirConflictLines === []) {
                 array_push($merged, ...$suffixLines);
                 $basePosition = $end;
-                $ourIndex++;
-                $theirIndex++;
                 continue;
             }
 
@@ -188,8 +204,6 @@ final class BlobMerge
             $merged[] = str_repeat('>', $markerSize) . ' ' . $theirsLabel . $conflictNewline;
             array_push($merged, ...$suffixLines);
             $basePosition = $end;
-            $ourIndex++;
-            $theirIndex++;
             $conflicts++;
         }
 
@@ -352,6 +366,14 @@ final class BlobMerge
     private static function hunkComesBefore(array $left, array $right): bool
     {
         return $left['end'] < $right['start'];
+    }
+
+    /**
+     * @param array{start:int,end:int,replacement:list<string>} $hunk
+     */
+    private static function hunkTouchesRange(array $hunk, int $start, int $end): bool
+    {
+        return $hunk['end'] >= $start && $hunk['start'] <= $end;
     }
 
     /**
