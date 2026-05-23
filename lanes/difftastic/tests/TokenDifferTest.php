@@ -3104,6 +3104,31 @@ return [
         $t->contains('string:type', $encoded);
         $t->contains('boolean:type', $encoded);
     },
+    'json display renderer maps upstream tag captures as type highlights' => static function (TestRunner $t): void {
+        $before = "export const Edit = () => null;\n";
+        $after = "export const Edit = () => <PanelBody title=\"Modern\" />;\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/tsx_tag_highlight.tsx',
+            'TSX',
+            ['language' => 'tsx'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('TSX', $decoded['language']);
+        $t->contains('PanelBody:type', $encoded);
+        $t->contains('"Modern":string', $encoded);
+    },
     'json display renderer maps upstream tree sitter error highlight variant' => static function (TestRunner $t): void {
         $before = "const settings = { title: \"Card\" };\n";
         $after = "const settings = { title: \"Card\" }};\n";
@@ -3148,6 +3173,19 @@ return [
         $t->same([['start' => 34, 'end' => 35, 'style' => '35']], $spansByLine[0] ?? []);
         $t->true(in_array(['start' => 34, 'end' => 35, 'style' => '35'], $lineSpans, true), 'Tree-sitter-error spans should use upstream purple ANSI styling.');
         $t->contains("\033[35m}\033[0m", $rendered);
+    },
+    'ansi highlighter maps upstream css keywords and html tags' => static function (TestRunner $t): void {
+        $highlighter = new AnsiSyntaxHighlighter();
+        $css = '@media (min-width: 600px) { .wp-block { color: red !important; } }';
+        $html = '<section class="wp-block"><h2>Title</h2></section>';
+
+        $cssSpans = $highlighter->spansForLine($css, ['language' => 'css']);
+        $htmlSpans = $highlighter->spansForLine($html, ['language' => 'html']);
+
+        $t->true(in_array(['start' => 1, 'end' => 6, 'style' => '1'], $cssSpans, true), 'CSS at-keywords should follow upstream keyword-style capture handling.');
+        $t->true(in_array(['start' => 52, 'end' => 61, 'style' => '1'], $cssSpans, true), 'CSS !important should follow upstream keyword-style capture handling.');
+        $t->true(in_array(['start' => 1, 'end' => 8, 'style' => '1'], $htmlSpans, true), 'HTML tag names should follow upstream tag-as-type capture handling.');
+        $t->true(in_array(['start' => 27, 'end' => 29, 'style' => '1'], $htmlSpans, true), 'Nested HTML tag names should also be styled as type captures.');
     },
     'wordpress parser error ansi command honors syntax highlight control' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";
@@ -3386,6 +3424,32 @@ return [
         $t->contains('string:type', $encoded);
         $t->contains('number:type', $encoded);
         $t->contains('boolean:type', $encoded);
+    },
+    'wordpress tsx tag highlight display exposes component tags as types' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tsx-tag-highlight-before.tsx');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tsx-tag-highlight-after.tsx');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/src/edit.tsx',
+            'TSX',
+            ['language' => 'tsx'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/src/edit.tsx', $decoded['path']);
+        $t->contains('PanelBody:type', $encoded);
+        $t->contains('TextControl:type', $encoded);
+        $t->contains('"Modern card":string', $encoded);
     },
     'wordpress block editor json display can expose parser error spans when fallback budget allows' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";

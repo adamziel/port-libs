@@ -242,6 +242,8 @@ TypeScript module metadata mode now maps dynamic `import()` option objects for b
 
 Compact JSON display now maps upstream `src/display/json.rs` keyword/type highlight variants for common language atoms. The WordPress TypeScript metadata example emits `keyword` spans for inserted `type` and `const` declarations and `type` spans for primitive `string`, `number`, and `boolean` annotations, so a block-review UI can style code semantics without reparsing the file in JavaScript.
 
+Parser-specific syntax highlighting now maps a narrow upstream `tree_highlights` slice for markup tags and CSS keyword contexts. The WordPress TSX tag-highlight example emits inserted `PanelBody` and `TextControl` component tags as `type` spans in compact JSON, while ANSI display bolds HTML tag names and CSS `@media` / `!important` keyword contexts when syntax highlighting is enabled.
+
 Compact JSON display now also maps upstream `src/display/json.rs` `tree_sitter_error` highlight output for parser-error atoms. The WordPress parser-error display example compares block registration JavaScript with an extra `}` and, when the parse-error budget allows structural display, exposes that delimiter as a `tree_sitter_error` span for editor review tools instead of treating it as ordinary punctuation.
 
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
@@ -333,8 +335,9 @@ php lanes/difftastic/examples/wordpress-syntax-highlight-control-command.php
 php lanes/difftastic/examples/wordpress-parser-error-ansi-command.php
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
+php lanes/difftastic/examples/wordpress-tsx-tag-highlight-display.php
 ```
 
 ## Next Task
 
-Map deeper parser-specific syntax styling for CSS/HTML/TSX tokens, then decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata.
+Map broader parser-specific syntax styling categories such as attributes, properties, and booleans without disturbing fallback text expectations, then decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata.

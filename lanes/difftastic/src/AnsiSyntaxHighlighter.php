@@ -8,6 +8,7 @@ final class AnsiSyntaxHighlighter
 {
     public function __construct(
         private readonly TokenDiffer $differ = new TokenDiffer(),
+        private readonly SyntaxHighlightClassifier $highlightClassifier = new SyntaxHighlightClassifier(),
     ) {
     }
 
@@ -30,7 +31,7 @@ final class AnsiSyntaxHighlighter
                 continue;
             }
 
-            $style = $this->styleForToken($token, $background, $options);
+            $style = $this->styleForToken($line, $token, $background, $options);
             if ($style === null || $token->end <= $token->start) {
                 continue;
             }
@@ -209,95 +210,12 @@ final class AnsiSyntaxHighlighter
     /**
      * @param array{language?: string} $options
      */
-    private function styleForToken(Token $token, string $background, array $options): ?string
+    private function styleForToken(string $line, Token $token, string $background, array $options): ?string
     {
-        if ($token->kind === 'comment') {
-            return $background === 'dark' ? '3;94' : '3;34';
-        }
-
-        if ($token->kind === 'string') {
-            return $background === 'dark' ? '95' : '35';
-        }
-
-        if ($token->kind === 'identifier' && $this->isKeywordOrType($token->text, $options)) {
-            return '1';
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array{language?: string} $options
-     */
-    private function isKeywordOrType(string $text, array $options): bool
-    {
-        $language = strtolower((string) ($options['language'] ?? ''));
-        $lower = strtolower($text);
-
-        return in_array($lower, $this->languageKeywords($language), true)
-            || in_array($lower, $this->languageTypes($language), true);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function languageKeywords(string $language): array
-    {
-        return match ($language) {
-            'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx' => [
-                'as', 'assert', 'async', 'await', 'break', 'case', 'catch', 'class',
-                'const', 'default', 'delete', 'do', 'else', 'export', 'extends',
-                'finally', 'for', 'from', 'function', 'if', 'import', 'in',
-                'instanceof', 'let', 'new', 'of', 'return', 'static', 'switch',
-                'throw', 'try', 'type', 'typeof', 'var', 'while', 'with', 'yield',
-            ],
-            'php', 'hack', 'hh' => [
-                'case', 'catch', 'class', 'declare', 'default', 'else', 'extends',
-                'finally', 'for', 'foreach', 'function', 'if', 'implements',
-                'interface', 'match', 'namespace', 'new', 'private', 'protected',
-                'public', 'return', 'static', 'switch', 'throw', 'trait', 'try',
-                'use', 'while', 'yield',
-            ],
-            'python', 'py' => [
-                'and', 'as', 'assert', 'async', 'await', 'break', 'class',
-                'continue', 'def', 'del', 'elif', 'else', 'except', 'finally',
-                'for', 'from', 'if', 'import', 'in', 'is', 'lambda', 'not', 'or',
-                'pass', 'raise', 'return', 'try', 'while', 'with', 'yield',
-            ],
-            'rust', 'rs' => [
-                'async', 'await', 'const', 'crate', 'else', 'enum', 'extern',
-                'fn', 'for', 'if', 'impl', 'let', 'loop', 'match', 'mod', 'mut',
-                'pub', 'return', 'self', 'static', 'struct', 'super', 'trait',
-                'type', 'unsafe', 'use', 'where', 'while',
-            ],
-            default => [],
-        };
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function languageTypes(string $language): array
-    {
-        return match ($language) {
-            'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx' => [
-                'any', 'array', 'bigint', 'boolean', 'never', 'number', 'object',
-                'promise', 'record', 'string', 'symbol', 'unknown', 'void',
-            ],
-            'php', 'hack', 'hh' => [
-                'array', 'bool', 'callable', 'float', 'int', 'iterable', 'mixed',
-                'never', 'object', 'parent', 'self', 'string', 'void',
-            ],
-            'python', 'py' => [
-                'bool', 'bytes', 'dict', 'float', 'int', 'list', 'none', 'set',
-                'str', 'tuple',
-            ],
-            'rust', 'rs' => [
-                'bool', 'char', 'f32', 'f64', 'i8', 'i16', 'i32', 'i64', 'i128',
-                'isize', 'str', 'u8', 'u16', 'u32', 'u64', 'u128', 'usize',
-            ],
-            default => [],
-        };
+        return $this->highlightClassifier->ansiStyleForHighlight(
+            $this->highlightClassifier->highlightForToken($line, $token, $options),
+            $background,
+        );
     }
 
     private function ansi(string $text, string $style): string
