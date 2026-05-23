@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-23 12:17:08 UTC",
-    "sourceCommit": "f8bd46e4f4734ef9a2eca92317f7cdf10d9c9efd",
-    "sourceCommitShort": "f8bd46e4f473",
-    "sourceBranch": "dashboard-publish-20260523T121640Z",
-    "dashboardCommit": "9c2eb69a5c89a4834b388a9e541c5822382279c4",
-    "dashboardCommitShort": "9c2eb69a5c89",
-    "averageProgressPercent": "84.4",
+    "generated": "2026-05-23 12:31:37 UTC",
+    "sourceCommit": "3a6ee91f0f775ee04b86e40cf603b7b81b8604bb",
+    "sourceCommitShort": "3a6ee91f0f77",
+    "sourceBranch": "main",
+    "dashboardCommit": "3a6ee91f0f775ee04b86e40cf603b7b81b8604bb",
+    "dashboardCommitShort": "3a6ee91f0f77",
+    "averageProgressPercent": "84.8",
     "lanes": [
         {
             "library": "difftastic",
@@ -179,20 +179,20 @@
         },
         {
             "library": "Readability/content rewrite engine",
-            "progressPercent": "81.0",
-            "suite": "cloned-static-inventory-plus-runner-evidence-and-eighty...",
-            "benchmark": "cloned-static-inventory-plus-runner-evidence-and-eighty...",
+            "progressPercent": "85.0",
+            "suite": "cloned-static-inventory-plus-runner-evidence-and-ninety...",
+            "benchmark": "cloned-static-inventory-plus-runner-evidence-and-ninety...",
             "denominator": "1984",
-            "mapped": "1458",
-            "coverage": "1458 / 1984",
-            "php": "138 pass / 0 fail",
+            "mapped": "1563",
+            "coverage": "1563 / 1984",
+            "php": "145 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream npm runner eviden...",
             "audit": "verified 2026-05-23: focused readability...",
-            "currentWork": "Native Mozilla `tmz-1` fixture mapping copies Mozilla source/expected/metadata, preserves...",
-            "nextTarget": "Map another remaining small upstream fixture with current text parity but no local fixtur...",
+            "currentWork": "Native Mozilla `lifehacker-post-comment-load` fixture mapping copies Mozilla source/expec...",
+            "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
-            "commit": "6c135b8"
+            "commit": "uncommi"
         },
         {
             "library": "syncthing",
