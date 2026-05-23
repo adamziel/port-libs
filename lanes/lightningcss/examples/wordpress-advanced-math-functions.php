@@ -12,6 +12,7 @@ $css = <<<'CSS'
   margin-block-start: calc(1px * hypot(3, 4));
   padding-block: calc(1rem * pow(2, 2));
   translate: 0 calc(10px * sign(-1vw));
+  width: calc(100% + 10px * sign(1%));
 }
 CSS;
 

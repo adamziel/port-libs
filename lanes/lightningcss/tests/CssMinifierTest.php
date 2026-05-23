@@ -277,11 +277,13 @@ CSS;
         $t->same('.foo{width:1px}', $minifier->minify('.foo { width: calc(1px * log(10, 10)) }'));
         $t->same('.foo{width:1px}', $minifier->minify('.foo { width: calc(1px * exp(0)) }'));
         $t->same('.foo{width:1px}', $minifier->minify('.foo { width: calc(1px * log(e)) }'));
+        $t->same('.foo{width:0}', $minifier->minify('.foo { width: calc(1px * (e - exp(1))) }'));
         $t->same('.foo{width:7.38906px}', $minifier->minify('.foo { width: calc(1px * exp(log(1) + exp(0) * 2)) }'));
         $t->same('.foo{width:1px}', $minifier->minify('.foo { width: abs(1px) }'));
         $t->same('.foo{width:1px}', $minifier->minify('.foo { width: abs(-1px) }'));
         $t->same('.foo{width:abs(1%)}', $minifier->minify('.foo { width: abs(1%) }'));
         $t->same('.foo{width:-10px}', $minifier->minify('.foo { width: calc(10px * sign(-1vw)) }'));
+        $t->same('.foo{width:calc(10px * sign(1%))}', $minifier->minify('.foo { width: calc(10px * sign(1%)) }'));
     },
     'css minifier maps upstream nested math functions inside calc' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1090,11 +1092,12 @@ CSS;
   margin-block-start: calc(1px * hypot(3, 4));
   padding-block: calc(1rem * pow(2, 2));
   translate: 0 calc(10px * sign(-1vw));
+  width: calc(100% + 10px * sign(1%));
 }
 CSS;
 
         $t->same(
-            '.wp-block-cover.is-style-depth{outline-offset:4px;margin-block-start:5px;padding-block:4rem;translate:0 -10px}',
+            '.wp-block-cover.is-style-depth{outline-offset:4px;margin-block-start:5px;padding-block:4rem;translate:0 -10px;width:calc(100% + 10px * sign(1%))}',
             (new CssMinifier())->minify($css)
         );
     },

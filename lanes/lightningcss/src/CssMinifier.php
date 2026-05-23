@@ -5700,7 +5700,7 @@ final class CssMinifier
             $linear = $this->parseLinearMathArgument($inner);
 
             return $linear === null
-                ? 'calc(' . $this->compactMathFallback($inner) . ')'
+                ? 'calc(' . $this->compactCalcFallback($inner) . ')'
                 : $this->serializeLinearCalc($linear);
         }
 
@@ -6042,6 +6042,10 @@ final class CssMinifier
             return 'exp(' . $normalized[0] . ')';
         }
 
+        if (abs($result - M_E) < 0.0000001) {
+            return 'e';
+        }
+
         return $this->serializeComputedMathNumberWithUnit($result, '');
     }
 
@@ -6315,6 +6319,18 @@ final class CssMinifier
         $value = preg_replace('/\s*([*\/])\s*/', '$1', $value) ?? $value;
 
         return $value;
+    }
+
+    private function compactCalcFallback(string $value): string
+    {
+        if (preg_match('/\bsign\([^)]*%/', $value) === 1) {
+            $value = preg_replace('/\s*,\s*/', ',', trim($value)) ?? trim($value);
+            $value = preg_replace('/\s*([*\/])\s*/', ' $1 ', $value) ?? $value;
+
+            return preg_replace('/\s+/', ' ', $value) ?? $value;
+        }
+
+        return $this->compactMathFallback($value);
     }
 
     private function foldSimpleLengthCalcs(string $value): string
