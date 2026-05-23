@@ -552,6 +552,13 @@ tooling to use that index intentionally while ordinary built-in lookup paths
 continue to reject unsupported collations instead of returning misleading
 results.
 
+`examples/wordpress-custom-collation-option-name-range.php` reads a bounded
+`wp_options(option_name COLLATE X)` name range with a supplied comparator. This
+maps plugin recovery indexes whose option-name ordering treats case,
+underscores, or other slug separators differently from SQLite's built-in
+`BINARY`/`NOCASE`/`RTRIM` collations, while still requiring an explicit
+collation match and a comparator that returns an integer.
+
 ## Next Task
 
 Port SQLite index b-tree comparison features that are still outside the current
@@ -562,5 +569,5 @@ named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
 mutation at `[#]`, broader JSONB output/edit behavior beyond the current
 value encoder, and full JSON5 numeric/string edge parity; custom collation
-coverage beyond explicit first-column `option_name` point recovery; and
+coverage beyond explicit first-column `option_name` point/range recovery; and
 composite planner shapes outside equality-prefix plus one range column.

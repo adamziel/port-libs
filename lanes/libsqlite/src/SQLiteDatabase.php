@@ -779,6 +779,76 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForColumnRangeWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        mixed $lowerInclusive = null,
+        mixed $upperBound = null,
+    ): ?array {
+        if ($collationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite custom-collation index range lookup requires at least one bound');
+        }
+
+        $autoIndexFirstColumns = null;
+        $autoIndexOrdinal = 0;
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql !== null) {
+                $firstColumn = SQLiteCreateIndex::firstColumn($record->sql);
+                if (
+                    $firstColumn !== null
+                    && strcasecmp($firstColumn->columnName, $columnName) === 0
+                    && strcasecmp($firstColumn->collation, $collationName) === 0
+                ) {
+                    if (
+                        $firstColumn->partial
+                        && (
+                            $firstColumn->partialPredicate === null
+                            || !self::lowerExpressionRangeImpliesPartialPredicate(
+                                $firstColumn->partialPredicate,
+                                $columnName,
+                            )
+                        )
+                    ) {
+                        continue;
+                    }
+
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
+            }
+            if ($record->sql === null && self::isAutomaticIndex($record, $tableName)) {
+                if ($autoIndexFirstColumns === null) {
+                    $autoIndexFirstColumns = $this->automaticIndexFirstColumnsForTable($tableName);
+                }
+                $firstColumn = $autoIndexFirstColumns[$autoIndexOrdinal] ?? null;
+                $autoIndexOrdinal++;
+                if (
+                    $firstColumn !== null
+                    && strcasecmp($firstColumn->columnName, $columnName) === 0
+                    && strcasecmp($firstColumn->collation, $collationName) === 0
+                ) {
+                    return [
+                        'rootPage' => $record->rootPage,
+                        'collation' => $firstColumn->collation,
+                        'descending' => $firstColumn->descending,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<mixed> $values
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
@@ -1807,6 +1877,73 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
             }
             if (self::compareSQLiteScalarWithCustomTextCollation($record->values[0], $optionName, $compare) !== 0) {
+                continue;
+            }
+
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            }
+
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameRangeWithCollation(
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        string $collationName,
+        callable $compare,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForColumnRangeWithCollation(
+            'wp_options',
+            'option_name',
+            $collationName,
+            $lowerInclusive,
+            $upperBound,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options option_name range index with collation {$collationName} is not present");
+        }
+
+        if ($lowerInclusive !== null && $upperBound !== null) {
+            $boundaryComparison = self::compareSQLiteScalarWithCustomTextCollation($lowerInclusive, $upperBound, $compare);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
+            $record = $indexCell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
+            }
+            if (!self::customFirstValueIsInRange($record->values[0], $lowerInclusive, $upperBound, $upperInclusive, $compare)) {
                 continue;
             }
 
@@ -4181,6 +4318,32 @@ final class SQLiteDatabase
         }
         if ($upperBound !== null) {
             $upperComparison = self::compareSQLiteScalar($value, $upperBound, $collation);
+            if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param callable(string, string): int $compare
+     */
+    private static function customFirstValueIsInRange(
+        mixed $value,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        bool $upperInclusive,
+        callable $compare,
+    ): bool {
+        if (($lowerInclusive !== null || $upperBound !== null) && $value === null) {
+            return false;
+        }
+        if ($lowerInclusive !== null && self::compareSQLiteScalarWithCustomTextCollation($value, $lowerInclusive, $compare) < 0) {
+            return false;
+        }
+        if ($upperBound !== null) {
+            $upperComparison = self::compareSQLiteScalarWithCustomTextCollation($value, $upperBound, $compare);
             if ($upperComparison > 0 || ($upperComparison === 0 && !$upperInclusive)) {
                 return false;
             }

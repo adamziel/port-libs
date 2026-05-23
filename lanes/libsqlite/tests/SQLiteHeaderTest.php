@@ -927,6 +927,57 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameWithCollation('siteurl', 'NO_SUCH', $wpcase));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameWithCollation('siteurl', 'WPCASE', static fn (): string => '0'));
     },
+    'uses supplied custom collation callback for wordpress option_name range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_slug_name', 'wp_options', 3, 'CREATE INDEX wp_options_slug_name ON wp_options(option_name COLLATE WPSLUG) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'Cache_Alpha', 'alpha-payload', 'no'], 1),
+            $schemaCell([null, 'cache-beta', 'beta-payload', 'no'], 2),
+            $schemaCell([null, 'cache_delta', 'delta-payload', 'no'], 3),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['Cache_Alpha', 1]),
+            $indexCell(['cache-beta', 2]),
+            $indexCell(['cache_delta', 3]),
+            $indexCell(['siteurl', 4]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+        $asciiLower = static function (string $value): string {
+            $bytes = $value;
+            $length = strlen($bytes);
+            for ($i = 0; $i < $length; $i++) {
+                $ord = ord($bytes[$i]);
+                if ($ord >= 0x41 && $ord <= 0x5a) {
+                    $bytes[$i] = chr($ord + 0x20);
+                }
+            }
+
+            return $bytes;
+        };
+        $wpslug = static function (string $left, string $right) use ($asciiLower): int {
+            return strcmp(str_replace('_', '-', $asciiLower($left)), str_replace('_', '-', $asciiLower($right)));
+        };
+
+        $options = $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'WPSLUG', $wpslug);
+        $limited = $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'wpslug', $wpslug, 1);
+        $exclusiveEqual = $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-beta', 'cache-beta', 'WPSLUG', $wpslug);
+        $inclusiveEqual = $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-beta', 'cache-beta', 'WPSLUG', $wpslug, null, true);
+        $inverted = $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-z', 'cache-a', 'WPSLUG', $wpslug);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRange('cache-a', 'cache-c'));
+        $t->same(['Cache_Alpha', 'cache-beta'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['alpha-payload', 'beta-payload'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['Cache_Alpha'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $exclusiveEqual);
+        $t->same(['cache-beta'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusiveEqual));
+        $t->same([], $inverted);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-a', 'cache-c', '', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithCollation(null, null, 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
+    },
     'uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

@@ -1718,12 +1718,18 @@ Focused upstream fixture boundary:
 - `test/collate4.test` verifies that index usability depends on matching the
   comparison collation with the index collation.
 
-The native PHP test now covers a WordPress-shaped
-`wp_options(option_name COLLATE WPCASE)` index. The ordinary
-`wordpressOptionByIndexedName()` path still throws for the unsupported
-collation, while `wordpressOptionsByIndexedNameWithCollation()` accepts a PHP
-case-folding comparator, returns all rows equal under that callback, rejects
-missing collation names, and rejects callbacks that do not return an integer.
-The new `examples/wordpress-custom-collation-option-lookup.php` script maps
+The native PHP tests now cover WordPress-shaped
+`wp_options(option_name COLLATE WPCASE)` and
+`wp_options(option_name COLLATE WPSLUG) WHERE option_name IS NOT NULL`
+indexes. The ordinary built-in lookup paths still throw for unsupported
+collations, while `wordpressOptionsByIndexedNameWithCollation()` accepts a PHP
+case-folding comparator and returns all rows equal under that callback.
+`wordpressOptionsByIndexedNameRangeWithCollation()` now applies a supplied PHP
+comparator to lower/upper option-name range bounds, handles open/exclusive or
+inclusive upper bounds, rejects inverted ranges, validates callback return
+types, and allows only the collation-safe `IS NOT NULL` partial-index form for
+custom-collation range scans. The
+`examples/wordpress-custom-collation-option-lookup.php` and
+`examples/wordpress-custom-collation-option-name-range.php` scripts map
 custom-collation option recovery on hosts where the PHP SQLite extension is
 unavailable.
