@@ -3,7 +3,7 @@
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane
 status files needed to check status drift, bridge/shell-out usage in PHP files,
-and recent Git history through observed `HEAD` `5fb8ea2`.
+and recent Git history through observed `HEAD` `f7578b6`.
 
 I did not edit lane implementation files, launch agents or tmux sessions, or
 push. The only intended writes from this pass are this audit and the
@@ -38,11 +38,11 @@ audit-status/next-intervention text in `progress.md`.
      manifests/status files, `porting.html`, `porting-summary.json`,
      supervisor scripts, and audit/progress files.
    - Evidence: current `HEAD` advanced during this audit from `fa4c928` through
-     `364b6a0`, `556abbf`, `3b8f371`, `eeb84d0`, `8d04998`, and `5fb8ea2`.
-     The latest tracked-dirty sample reports `61` modified tracked files and
-     the unstaged `git diff --shortstat` reports
-     `59 files changed, 8162 insertions(+), 254 deletions(-)`. Full
-     `git status --short` currently has `301` entries. The required root harness
+     `364b6a0`, `556abbf`, `3b8f371`, `eeb84d0`, `8d04998`, `5fb8ea2`,
+     `92d2839`, `bb25d30`, `c8de659`, and `f7578b6`. The latest tracked-dirty
+     sample reports `40` modified tracked files and `git diff --shortstat`
+     reports `40 files changed, 7831 insertions(+), 194 deletions(-)`. Full
+     `git status --short` currently has `275` entries. The required root harness
      passed on the final rerun before the last observed `HEAD` movement, but
      that only proves the dirty aggregate executed at that point; it does not
      identify which lane batches are accepted or reviewable.
@@ -182,8 +182,8 @@ final rerun exit status: 0
 171 test files, 15984 assertions, 0 failures
 ```
 
-The final rerun completed before later observed `HEAD` movement to `5fb8ea2`;
-no post-`5fb8ea2` root rerun was performed because the tree continued moving.
+The final rerun completed before later observed `HEAD` movement to `f7578b6`;
+no post-`f7578b6` root rerun was performed because the tree continued moving.
 
 ## Recommended Next Intervention
 
