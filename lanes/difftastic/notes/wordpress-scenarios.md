@@ -70,7 +70,29 @@ Native command status now maps upstream `--check-only` and `--exit-code` behavio
 
 The WordPress check-only example applies that to a block metadata gate for `wp-content/plugins/acme-card/block.json`. A plugin review or CI surface can ask for a fast native status, show the path/language header plus `Has syntactic changes.`, and decide whether to fail the gate from the returned exit code without invoking the Rust binary.
 
+Native language listing now maps upstream `--list-languages` behavior from `tests/cli.rs`, `src/options.rs`, `src/main.rs`, and `src/parse/guess_language.rs`. The PHP runner emits override rows before built-in languages, keeps upstream display names and globs such as `TOML` / `*.toml`, accepts case-insensitive language names, accepts the special `text` override, and reports bad-argument status for unknown override languages.
+
+The WordPress list-languages example applies that to plugin/theme review configuration. It shows how a PHP review surface can expose overrides for `*.blade.php`, generated `*.asset.php`, and `.wp-env` JSON files alongside the native built-in language table.
+
+Language detection now applies the same override list before built-in globs, Emacs mode headers, shebangs, Hack/PHP and Objective-C header checks, and XML header detection. The first matching override wins, and `text` intentionally routes a file through plain-text review.
+
+The WordPress language-override directory example applies that to generated block asset metadata and Blade templates. `build/index.asset.php` is reviewed as Text rather than PHP, while `templates/card.blade.php` is reviewed as HTML, so a plugin/theme review UI can make configured language choices once and use them for both catalog display and directory JSON output.
+
+Language override command parsing now also maps upstream `DFT_OVERRIDE` plus `DFT_OVERRIDE_1` through `DFT_OVERRIDE_9` aggregation, adjacent same-language grouping, and invalid-override bad-argument behavior. The WordPress env language-override command example passes a caller-supplied environment array with `DFT_OVERRIDE=*.asset.php:text` and `DFT_OVERRIDE_1=*.blade.php:HTML`, proving configured language choices reach file and directory byte review without reading live process environment values.
+
+Display option command parsing now maps upstream `DFT_DISPLAY`, `DFT_CONTEXT`, `DFT_TAB_WIDTH`, and `DFT_WIDTH` environment-style configuration from `src/options.rs`. Invalid numeric values return bad-argument status before review, and explicit PHP options override caller-provided environment values like CLI arguments override environment variables upstream.
+
+The WordPress env display-options command example applies that to tabbed `block.json` review. A caller-provided environment array selects `side-by-side-show-both`, zero context, two-space tab expansion, and a narrow width so changed `title`, `viewScriptModule`, and `supports.html` metadata are wrapped deterministically without inspecting the live process environment.
+
+Command flag parsing now maps upstream `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` environment-style configuration from `src/options.rs`, `src/main.rs`, and `src/display/style.rs`. Invalid values return bad-argument status before review, and explicit PHP options override caller-provided environment values.
+
+The WordPress env CI-flags command example applies that to a block render callback gate. A caller-provided environment array requests check-only output, exit-code behavior, comment ignoring, and unchanged-output policy so the escaping API change is reported while comment-only churn remains filtered.
+
 Inline binary display now maps upstream `tests/cli.rs` `binary_changed` / `binary_override` and the binary branch in `src/main.rs`. The WordPress binary asset example applies this to `wp-content/plugins/acme-card/assets/logo.png`, showing a path/language header plus `Binary file modified` size metadata for changed plugin media instead of attempting a misleading text diff.
+
+Binary override globs now map upstream `src/options.rs` `--override-binary` and `src/files.rs` `guess_content` precedence before text heuristics. The WordPress binary-override directory example applies this to generated `build/index.min.js` assets, returning a `Binary changed` JSON envelope without text chunks even though the bytes are valid UTF-8 JavaScript.
+
+Binary override command parsing now also maps upstream `DFT_OVERRIDE_BINARY` plus `DFT_OVERRIDE_BINARY_1` through `DFT_OVERRIDE_BINARY_9` aggregation and invalid-glob bad-argument behavior. The WordPress env binary-override command example passes a caller-supplied environment array with `DFT_OVERRIDE_BINARY_1=*.min.js`, proving generated block assets can be reviewed as binary from command configuration without reading live process environment values.
 
 Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
 
@@ -234,7 +256,11 @@ php lanes/difftastic/examples/wordpress-readme-inline-diff.php
 php lanes/difftastic/examples/wordpress-git-rename-inline-diff.php
 php lanes/difftastic/examples/wordpress-git-common-path-inline-diff.php
 php lanes/difftastic/examples/wordpress-check-only-command.php
+php lanes/difftastic/examples/wordpress-list-languages-command.php
+php lanes/difftastic/examples/wordpress-language-override-directory-diff.php
+php lanes/difftastic/examples/wordpress-env-language-overrides-command.php
 php lanes/difftastic/examples/wordpress-binary-asset-inline-diff.php
+php lanes/difftastic/examples/wordpress-binary-override-directory-diff.php
 php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
 php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -282,8 +308,10 @@ php lanes/difftastic/examples/wordpress-utf16-wxr-display.php
 php lanes/difftastic/examples/wordpress-legacy-encoding-display.php
 php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php
+php lanes/difftastic/examples/wordpress-env-display-options-command.php
+php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 ```
 
 ## Next Task
 
-Map `--list-languages` CLI behavior from `tests/cli.rs` `list_languages`, including override entries and language/glob display.
+Map upstream command resource limit environment values such as `DFT_BYTE_LIMIT`, `DFT_GRAPH_LIMIT`, and `DFT_PARSE_ERROR_LIMIT` into command-runner parsing while preserving caller-provided environment isolation.

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PortLibs\Difftastic;
 
+use InvalidArgumentException;
+
 final class FileContentDecoder
 {
     private const WINDOWS_1252_C1_MAP = [
@@ -36,8 +38,15 @@ final class FileContentDecoder
         0x9f => 0x0178,
     ];
 
-    public function guessTextContent(string $bytes): ?string
+    /**
+     * @param list<string> $binaryOverrideGlobs
+     */
+    public function guessTextContent(string $bytes, ?string $path = null, array $binaryOverrideGlobs = []): ?string
     {
+        if ($path !== null && $this->matchesBinaryOverride($path, $binaryOverrideGlobs)) {
+            return null;
+        }
+
         if ($this->hasCommonBinarySignature($bytes)) {
             return null;
         }
@@ -58,9 +67,31 @@ final class FileContentDecoder
         return $this->decodeWindows1252Text($bytes);
     }
 
-    public function isText(string $bytes): bool
+    /**
+     * @param list<string> $binaryOverrideGlobs
+     */
+    public function isText(string $bytes, ?string $path = null, array $binaryOverrideGlobs = []): bool
     {
-        return $this->guessTextContent($bytes) !== null;
+        return $this->guessTextContent($bytes, $path, $binaryOverrideGlobs) !== null;
+    }
+
+    /**
+     * @param list<string> $binaryOverrideGlobs
+     */
+    public function matchesBinaryOverride(string $path, array $binaryOverrideGlobs): bool
+    {
+        $normalizedPath = str_replace('\\', '/', $path);
+        foreach ($binaryOverrideGlobs as $glob) {
+            $normalizedGlob = str_replace('\\', '/', $glob);
+            if (!$this->isValidGlob($normalizedGlob)) {
+                throw new InvalidArgumentException("Invalid glob syntax '{$glob}'");
+            }
+            if (fnmatch($normalizedGlob, $normalizedPath)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isValidUtf8(string $bytes): bool
@@ -153,6 +184,11 @@ final class FileContentDecoder
         }
 
         return null;
+    }
+
+    private function isValidGlob(string $glob): bool
+    {
+        return substr_count($glob, '[') === substr_count($glob, ']');
     }
 
     private function decodeWindows1252Text(string $bytes): ?string

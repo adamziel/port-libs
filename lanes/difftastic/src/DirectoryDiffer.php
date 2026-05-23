@@ -10,11 +10,12 @@ final class DirectoryDiffer
 {
     public function __construct(
         private readonly JsonDiffRenderer $jsonRenderer = new JsonDiffRenderer(),
+        private readonly LanguageCatalog $languageCatalog = new LanguageCatalog(),
     ) {
     }
 
     /**
-     * @param array{printUnchanged?: bool, sortPaths?: bool, fileOptions?: array<string, mixed>} $options
+     * @param array{printUnchanged?: bool, sortPaths?: bool, languageOverrides?: list<string>, binaryOverrides?: list<string>, fileOptions?: array<string, mixed>} $options
      * @return list<array<string, mixed>>
      */
     public function diffDirectories(string $lhsDirectory, string $rhsDirectory, array $options = []): array
@@ -31,15 +32,24 @@ final class DirectoryDiffer
         foreach ($paths as $relativePath) {
             $lhsPath = $this->joinPath($lhsDirectory, $relativePath);
             $rhsPath = $this->joinPath($rhsDirectory, $relativePath);
-            $language = $this->languageForPath($relativePath);
+            $lhsBytes = $this->readFileOrEmpty($lhsPath);
+            $rhsBytes = $this->readFileOrEmpty($rhsPath);
+            $language = $this->languageCatalog->languageForPath(
+                $relativePath,
+                is_file($rhsPath) ? $rhsBytes : '',
+                $options['languageOverrides'] ?? [],
+            );
             $fileOptions = $options['fileOptions'] ?? [];
             if (!isset($fileOptions['language'])) {
                 $fileOptions['language'] = $language['option'];
             }
+            if (isset($options['binaryOverrides']) && !isset($fileOptions['binaryOverrides'])) {
+                $fileOptions['binaryOverrides'] = $options['binaryOverrides'];
+            }
 
             $file = $this->jsonRenderer->fileBytesDiff(
-                $this->readFileOrEmpty($lhsPath),
-                $this->readFileOrEmpty($rhsPath),
+                $lhsBytes,
+                $rhsBytes,
                 $relativePath,
                 $language['display'],
                 $fileOptions,
@@ -54,7 +64,7 @@ final class DirectoryDiffer
     }
 
     /**
-     * @param array{printUnchanged?: bool, sortPaths?: bool, fileOptions?: array<string, mixed>} $options
+     * @param array{printUnchanged?: bool, sortPaths?: bool, languageOverrides?: list<string>, binaryOverrides?: list<string>, fileOptions?: array<string, mixed>} $options
      */
     public function renderJsonDirectoryDiff(string $lhsDirectory, string $rhsDirectory, array $options = []): string
     {
@@ -194,35 +204,4 @@ final class DirectoryDiffer
         return $bytes === false ? '' : $bytes;
     }
 
-    /**
-     * @return array{display: string, option: string}
-     */
-    private function languageForPath(string $path): array
-    {
-        $basename = strtolower(basename($path));
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-
-        return match ($basename) {
-            'makefile' => ['display' => 'Make', 'option' => 'make'],
-            default => match ($extension) {
-                'c', 'h' => ['display' => 'C', 'option' => 'c'],
-                'clj' => ['display' => 'Clojure', 'option' => 'clojure'],
-                'css' => ['display' => 'CSS', 'option' => 'css'],
-                'html', 'htm' => ['display' => 'HTML', 'option' => 'html'],
-                'js', 'mjs', 'cjs' => ['display' => 'JavaScript', 'option' => 'javascript'],
-                'json' => ['display' => 'JSON', 'option' => 'json'],
-                'jsx' => ['display' => 'JSX', 'option' => 'jsx'],
-                'md', 'txt' => ['display' => 'Text', 'option' => 'text'],
-                'php' => ['display' => 'PHP', 'option' => 'php'],
-                'py' => ['display' => 'Python', 'option' => 'python'],
-                'rs' => ['display' => 'Rust', 'option' => 'rust'],
-                'scss' => ['display' => 'SCSS', 'option' => 'scss'],
-                'ts' => ['display' => 'TypeScript', 'option' => 'typescript'],
-                'tsx' => ['display' => 'TSX', 'option' => 'tsx'],
-                'xml' => ['display' => 'XML', 'option' => 'xml'],
-                'yaml', 'yml' => ['display' => 'YAML', 'option' => 'yaml'],
-                default => ['display' => 'Text', 'option' => 'text'],
-            },
-        };
-    }
 }

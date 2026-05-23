@@ -24,9 +24,10 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The upstream graph-limit fallback boundary is inspected through `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `dijkstra::mark_syntax`, `ExceededGraphLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
 - The upstream UTF-16 text/binary boundary is inspected through `src/files.rs` `has_utf16_byte_order_mark`, `u16_from_bytes`, and `guess_content`, plus `sample_files/utf16_1.py` / `sample_files/utf16_2.py`.
 - The upstream mostly-valid UTF-8 text/binary boundary is inspected through `src/files.rs` `guess_content` and the `tests/cli.rs` `slightly_invalid_utf8` CLI test, which keeps content with at most two invalid UTF-8/null characters as text before considering Windows-1252 fallback.
-- The upstream binary display boundary is inspected through `tests/cli.rs` `binary_changed` and `binary_override`, `src/main.rs` binary inline messages, `src/display/json.rs` binary status envelope handling, and `src/files.rs` binary content detection.
+- The upstream binary display and override boundary is inspected through `tests/cli.rs` `binary_changed` and `binary_override`, `src/options.rs` `--override-binary` parsing, `src/main.rs` binary inline messages, `src/display/json.rs` binary status envelope handling, and `src/files.rs` `guess_content` override precedence plus binary content detection.
 - The upstream Git external-diff metadata boundary is inspected through `tests/cli.rs` `git_style_arguments_rename` and `git_style_arguments_new_file`, `src/options.rs` 7-argument and 9-argument parsing plus `.` mode handling, `src/main.rs` rename/permission `extra_info` composition, and `src/display/style.rs` first-hunk header extra-info rendering.
 - The upstream check-only and exit-code boundary is inspected through `tests/cli.rs` `has_changes_default_exit_code`, `has_changes_requested_exit_code`, `check_only`, and `check_only_text_file`, plus `src/main.rs` `check_only_text`, `print_diff_result`, and `EXIT_FOUND_CHANGES` handling.
+- The upstream list-languages boundary is inspected through `tests/cli.rs` `list_languages`, `src/options.rs` `--list-languages` and `parse_overrides_or_die`, `src/main.rs` `Mode::ListLanguages` output, and `src/parse/guess_language.rs` `Language::iter`, `language_name`, `language_globs`, and case-insensitive `language_override_from_name`.
 - The upstream strip-CR boundary is inspected through `src/options.rs` `--strip-cr` / `DFT_STRIP_CR`, `src/main.rs` `strip_cr` preprocessing for two-file and conflict-file diffs, and `src/lines.rs` CRLF splitting behavior.
 - The upstream trailing EOF line boundary is inspected through `src/lines.rs` `split_on_newlines` tests, which keep a trailing empty line for text ending in `\n`, plus `sample_files/repeated_line_no_eol_*.txt`.
 - The upstream Makefile text-atom boundary is inspected through `tests/cli.rs` `makefile_text_as_atom`, the `src/parse/tree_sitter_parser.rs` `Make` configuration, and `sample_files/cli_tests/makefile_1.mk` / `sample_files/cli_tests/makefile_2.mk`.
@@ -99,6 +100,16 @@ It failed before compilation because the local Cargo cache cannot resolve crates
 - The WordPress Git common-path example applies that slice to release-root comparisons of `wp-content/plugins/acme-card/block.json`, keeping the stable repository suffix in the inline header rather than checkout-specific `/srv/releases/...` roots.
 - `tests/cli.rs` `has_changes_default_exit_code`, `has_changes_requested_exit_code`, `check_only`, and `check_only_text_file` are mapped through a native `DiffCommandRunner`. The PHP port now returns exit `0` for ordinary changed diffs unless `exitCode` is requested, returns exit `1` for reportable changes when requested, prints `Has syntactic changes.` for supported-language check-only diffs, prints `Has changes.` for plain text check-only diffs, and suppresses unchanged check-only output when `printUnchanged` is disabled.
 - The WordPress check-only command example applies that slice to `wp-content/plugins/acme-card/block.json`, giving a native CI/review gate that reports a syntactic block metadata change and exposes the would-be exit code without shelling out to upstream difftastic.
+- `tests/cli.rs` `list_languages`, `src/options.rs`, `src/main.rs`, and `src/parse/guess_language.rs` are mapped through a native language catalog and `DiffCommandRunner::runListLanguages()`. The PHP port prints override rows before built-in languages, accepts case-insensitive language names plus the special `text` override, returns bad-argument status for unknown languages, and emits upstream display names/globs such as `TOML` with `*.toml Cargo.lock Gopkg.lock Pipfile pdm.lock poetry.lock uv.lock`.
+- The WordPress list-languages command example applies that slice to block/plugin review configuration by adding overrides for `*.blade.php`, `*.asset.php`, and `.wp-env` JSON files before the built-in language/glob table.
+- `src/parse/guess_language.rs` `guess`, its 12 focused unit tests, and the `src/options.rs` override documentation are now mapped for language detection. Native PHP applies the first matching file-name override before Emacs mode headers, shebangs, built-in globs, Hack/PHP and Objective-C header heuristics, and XML headers; a `text` override deliberately returns the plain-text path.
+- The WordPress language-override directory fixture applies that slice to generated `build/index.asset.php` review as Text and Blade template review as HTML, proving the printed override catalog is also honored by file detection and directory JSON output.
+- Targeted upstream `src/options.rs` language override environment aggregation is now mapped in the native command runner. Caller-supplied `DFT_OVERRIDE` and `DFT_OVERRIDE_1` through `DFT_OVERRIDE_9` values are appended to explicit language overrides, adjacent same-language overrides are grouped for list output, invalid globs and unknown languages return exit 2 before review, and parsed overrides are routed into JSON file-byte and directory-byte review calls without reading the live process environment.
+- The WordPress env language-override command example applies that command-runner slice to the generated asset metadata and Blade template fixtures. `DFT_OVERRIDE=*.asset.php:text` and `DFT_OVERRIDE_1=*.blade.php:HTML` route `build/index.asset.php` to Text and `templates/card.blade.php` to HTML through a caller-provided environment array.
+- Targeted upstream `src/options.rs` display option parsing is now mapped for command-runner review: caller-supplied `DFT_DISPLAY`, `DFT_CONTEXT`, `DFT_TAB_WIDTH`, and `DFT_WIDTH` values are parsed from an explicit environment array, invalid numeric values return exit 2 before review, and explicit PHP options take precedence over environment-style configuration like upstream CLI arguments.
+- The WordPress env display-options command example applies that slice to tabbed `block.json` review. `DFT_DISPLAY=side-by-side-show-both`, `DFT_CONTEXT=0`, `DFT_TAB_WIDTH=2`, and `DFT_WIDTH=44` produce deterministic wrapped side-by-side block metadata output without reading live process environment values.
+- Targeted upstream `src/options.rs`, `src/main.rs`, and `src/display/style.rs` command environment flag parsing is now mapped in the native command runner. Caller-supplied `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` values are parsed before review, invalid values return exit 2, and explicit PHP options take precedence over environment-style configuration.
+- The WordPress env CI-flags command example applies that slice to a block render callback review. Caller-provided check-only, exit-code, ignore-comments, and skip-unchanged values report the escaping API change while filtering comment churn and without reading the live process environment.
 - `tests/cli.rs` `directory_arguments` is mapped through targeted `src/main.rs` `diff_directories` and `src/files.rs` `relative_paths_in_either` reads. The PHP port walks both directories, uses relative per-file display paths, treats one-sided files as created/deleted via missing-as-empty bytes, excludes unchanged files by default, and can opt into unchanged JSON entries.
 - `sample_files/dir_1/foo.js` / `sample_files/dir_2/foo.js`, `sample_files/dir_1/only_in_1.c`, and `sample_files/dir_2/only_in_2.rs`: copied locally and mapped through native directory JSON output. The common changed JavaScript file stays under `foo.js`, while one-sided C/Rust files report `deleted` and `created` statuses under `only_in_1.c` and `only_in_2.rs`.
 - `tests/cli.rs` `walk_hidden_items` is mapped through targeted `src/files.rs` `WalkBuilder.hidden(false)` and `.git` directory filtering. The PHP walker includes `.hidden.txt` and `.hidden/doc.txt`, preserves no-final-newline dotfile changes, and still excludes `.git/config` internals from review output.
@@ -156,8 +167,12 @@ It failed before compilation because the local Cargo cache cannot resolve crates
 - Targeted `src/files.rs` mostly-valid UTF-8 decoding and `tests/cli.rs` `slightly_invalid_utf8` are mapped with a bounded local hex fixture containing one invalid byte. The PHP port now returns text with `U+FFFD` replacement before trying Windows-1252, matching upstream's `String::from_utf8_lossy` boundary for files that are almost valid UTF-8.
 - The WordPress slightly-invalid WXR fixture applies that decoding to export XML bytes with one corrupt byte, keeping `Legacy` to `Modern` title changes and inserted `_wp_page_template` metadata reviewable as XML chunks rather than binary output or Windows-1252 punctuation.
 - `tests/cli.rs` `binary_changed` and `binary_override` are mapped through native inline binary display. The PHP renderer now emits `Binary file added`, `Binary file removed`, and `Binary file modified` summaries with byte sizes, and JSON byte display can be forced onto the upstream-style `Binary` envelope without fabricating text chunks.
+- Targeted upstream `src/options.rs` `--override-binary` and `src/files.rs` `guess_content` precedence are mapped for native byte decoding. A matching glob such as `*.js` now forces otherwise valid UTF-8 source bytes to a `Binary` JSON status envelope before UTF-8, UTF-16, mostly-valid UTF-8, or Windows-1252 heuristics run.
+- Targeted upstream `src/options.rs` binary override environment aggregation is mapped in the native command runner. Caller-supplied `DFT_OVERRIDE_BINARY` and `DFT_OVERRIDE_BINARY_1` through `DFT_OVERRIDE_BINARY_9` values are appended to explicit override globs, invalid glob syntax returns exit 2 with `Invalid glob syntax ...` and `Glob parsing error: ...`, and parsed globs are routed into JSON file-byte and directory-byte review calls without reading the live process environment.
 - Targeted `src/files.rs` binary content detection is mapped for common non-text signatures such as PNG, gzip, JPEG, ZIP, and DEX before mostly-valid UTF-8 fallback. This keeps PNG-like bytes with one invalid leading byte from being decoded as lossy review text.
 - The WordPress binary asset example applies that display slice to `wp-content/plugins/acme-card/assets/logo.png`, reporting changed plugin media bytes with an inline path/language header and binary modification summary.
+- The WordPress binary-override directory example applies the override slice to generated block `build/index.min.js` assets. The directory JSON review reports the generated minified JavaScript as `Binary changed` with no text chunks when `*.min.js` is configured as a binary override.
+- The WordPress env binary-override command example applies the command-runner aggregation slice to the same generated asset directory. The fixture uses `DFT_OVERRIDE_BINARY_1=*.min.js` in a caller-provided environment array, proving the command surface routes environment-style configuration into byte-level directory JSON review.
 - `sample_files/css_1.css` / `sample_files/css_2.css`: copied locally and mapped through CSS selector-block alignment plus declaration property signatures. Reordered stable selectors such as `.bar` remain matched, while `.foo1` gets a focused `color: green` declaration addition, `.baz` property values update in place, `.another` keeps the `margin-left` property aligned, and the new `p` rule is reported as a rule insertion.
 - `sample_files/tailwind_1.css` / `sample_files/tailwind_2.css`: copied locally and mapped through CSS at-rule item signatures. The changed `@apply rounded-md ...` utility list is retained as a focused update under `select` instead of delete/add churn around the upstream tree-sitter ERROR-shaped atom.
 - `sample_files/simple_1.scss` / `sample_files/simple_2.scss`: copied locally and mapped through SCSS mixin selector/header matching plus nested declaration alignment. The changed mixin default argument, nested `border`, `font-size`, `.primary` border, and `.disabled` opacity edits are reported without replacing the whole `@mixin buttons(...)` body.
@@ -194,9 +209,9 @@ Mapped native behavior:
 - Token byte spans are now preserved by the tokenizer and used to project paired multiline string/comment/YAML block-scalar atom word diffs back to zero-based line/column spans. This maps the upstream `multiline_string_*.ml` and `multiline_string_eof_*.yml` samples plus WordPress PHP render doc-comment and plugin workflow YAML changes.
 - File bytes now map the upstream `src/files.rs` Windows-1252 fallback branch. The PHP decoder keeps valid UTF-8 and UTF-16-BOM handling first, then conservatively accepts printable Windows-1252/Latin-1 text with high bytes so legacy encoded WordPress readme/export bytes produce normal text chunks instead of binary status.
 - File bytes now also map the upstream mostly-valid UTF-8 branch. One or two invalid UTF-8/null characters are decoded with replacement characters before Windows-1252 fallback, so slightly corrupted source/export text stays readable and does not silently become Latin-1 punctuation.
-- Common binary signatures now stop the lossy UTF-8 path before display, and inline binary output maps upstream added/removed/modified status messages for binary-vs-binary and binary-vs-empty inputs.
+- Common binary signatures now stop the lossy UTF-8 path before display, explicit and environment-style binary override globs stop text decoding before all content heuristics, invalid binary override globs return upstream-style bad-argument output through the command runner, and inline binary output maps upstream added/removed/modified status messages for binary-vs-binary and binary-vs-empty inputs.
 
-The focused PHP lane test now passes 169 tests and 882 assertions, including the mapped upstream XML sample, upstream added-line, insert-blank, align-footer, changes-at-end, text hunk grouping, big-text-hunk dense insertion, many-newlines created-file status, repeated-line-no-EOL text samples, targeted upstream Makefile text-atom CLI fixture, targeted upstream tab display source helpers plus tab text/C samples, targeted upstream side-by-side context-window behavior from `src/options.rs`, `src/display/context.rs`, `src/display/hunks.rs`, `src/display/side_by_side.rs`, and `sample_files/context_*.rs`, targeted upstream side-by-side single-column created/deleted display from `src/options.rs` and `src/display/side_by_side.rs`, targeted upstream side-by-side novel color behavior from `src/display/side_by_side.rs` and `src/display/style.rs`, targeted upstream inline display behavior from `src/display/inline.rs` and `src/display/style.rs`, targeted upstream Git external-diff rename/new-file metadata from `tests/cli.rs`, `src/options.rs`, `src/main.rs`, and `src/display/style.rs`, targeted upstream Git path-display and unmerged-status behavior from `tests/cli.rs`, `src/options.rs`, `src/main.rs`, and `sample_files/dir_*/clojure.clj`, targeted upstream check-only and exit-code behavior from `tests/cli.rs`, `src/main.rs`, and `src/exit_codes.rs`, targeted upstream directory argument and hidden-item walking behavior from `tests/cli.rs`, `src/files.rs`, and `src/main.rs`, targeted upstream long-line display-width wrapping from `src/display/style.rs` and `sample_files/long_line_*.txt` metadata, targeted upstream huge_cpp byte-limit/performance metadata from `src/diff/lcs_diff.rs` and `sample_files/huge_cpp_*.cpp` sizes/hash, targeted upstream emoji/combining/CJK display-width wrapping from `src/display/style.rs`, targeted upstream trailing EOF line splitting from `src/lines.rs`, upstream UTF-16 Python sample, upstream multibyte Python display sample, upstream Windows-1252/windows1251 text sample, targeted upstream mostly-valid UTF-8 decoding from `src/files.rs` plus `tests/cli.rs`, targeted upstream strip-CR preprocessing from `src/options.rs`/`src/main.rs`/`src/lines.rs`, upstream Python if indentation sample, targeted upstream Python def/function directory excerpt, targeted upstream Python nested-def directory excerpt, targeted Python compound `elif`/`else`/`try`/`except`/`finally` clause handling, targeted Python trailing-comma tuple exception, CSS sample, upstream tailwind CSS sample, upstream simple SCSS sample, upstream JavaScript simple sample, upstream larger JavaScript named-callback sample, targeted upstream load JavaScript function-scope excerpt, upstream TypeScript type-literal sample, targeted TypeScript module import/export declaration slice, targeted TypeScript default import/namespace/re-export source-change slice, targeted TypeScript export-star/namespace re-export/import-attribute slice, dynamic TypeScript import attribute metadata slice, upstream JSX sample, upstream TSX whitespace sample, upstream HTML style `@media` CSS extraction, full upstream HTML style sub-language sample, full upstream HTML indexed style-block sample, full upstream HTML script sub-language sample, full upstream HTML raw-text de-duplication sample, nested slider Rust sample, nested slider Emacs Lisp sample, upstream change-outer Emacs Lisp sample, upstream strings Emacs Lisp excerpt, upstream Hack sample, upstream string-subwords Emacs Lisp sample, upstream comments Rust sample, upstream multiline string OCaml sample, upstream multiline string EOF YAML sample, upstream trailling-newline YAML sample, upstream YAML sample, targeted JSON display keyword/type/tree_sitter_error highlight behavior from `src/display/json.rs`, targeted parse-error fallback behavior, targeted byte-limit fallback behavior, targeted graph-limit fallback behavior, targeted slider Rust excerpt, WordPress check-only block metadata gate, WordPress plugin directory JSON review, and the existing WordPress display/syntax scenarios.
+The focused PHP lane test now passes 191 tests and 1018 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, WordPress tabbed block metadata display configuration, and command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -204,7 +219,21 @@ Before the required root test runner, this lane checked for an active root harne
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-No active root harness was found, so this lane ran `php tools/run-tests.php`. The aggregate root run is green: 183 test files, 18,832 assertions, and 0 failures. The difftastic-focused test file remains green with 169 tests, 882 assertions, and 0 failures via a direct `TestRunner` invocation.
+No active root harness was found, so this lane ran the aggregate root harness. A captured rerun remained red outside this lane:
+
+```text
+php tools/run-tests.php
+FAIL wordpress ssh feature check example resolves approved wrapper without launch (lanes/gitoxide/tests/ReceivePackTransportTest.php)
+187 test files, 20198 assertions, 1 failures
+```
+
+The difftastic-focused test file is green with 191 tests, 1018 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The prior aggregate root result was red due to the unrelated Gitoxide SSH wrapper scenario above; see the latest lane status for the current root-gate sample.
+
+A later final root-gate sample found another active root harness, so this lane did not start any further duplicate root run:
+
+```text
+1241221 claude Sat May 23 06:32:15 2026 php tools/run-tests.php
+```
 
 The touched WordPress examples also run:
 
@@ -221,8 +250,45 @@ WordPress plugin metadata gate
 Has syntactic changes.
 
 exit_code=1
+php lanes/difftastic/examples/wordpress-list-languages-command.php
+HTML (from override)
+ *.blade.php
+PHP (from override)
+ *.asset.php
+JSON (from override)
+ *.wp-env.json
+...
+exit_code=0
+php lanes/difftastic/examples/wordpress-language-override-directory-diff.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo count($decoded) . " files\n"; foreach ($decoded as $file) { echo $file["path"] . " " . $file["language"] . " " . $file["status"] . "\n"; }'
+2 files
+build/index.asset.php Text changed
+templates/card.blade.php HTML changed
+php lanes/difftastic/examples/wordpress-env-language-overrides-command.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo count($decoded) . " files\n"; foreach ($decoded as $file) { echo $file["path"] . " " . $file["language"] . " " . $file["status"] . "\n"; }'
+2 files
+build/index.asset.php Text changed
+templates/card.blade.php HTML changed
+php lanes/difftastic/examples/wordpress-binary-override-directory-diff.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo count($decoded) . " files\n"; foreach ($decoded as $file) { echo $file["path"] . " " . $file["language"] . " " . $file["status"] . "\n"; }'
+1 files
+wp-content/plugins/acme-card/build/index.min.js Binary changed
+php lanes/difftastic/examples/wordpress-env-binary-overrides-command.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo count($decoded) . " files\n"; foreach ($decoded as $file) { echo $file["path"] . " " . $file["language"] . " " . $file["status"] . "\n"; }'
+1 files
+wp-content/plugins/acme-card/build/index.min.js Binary changed
+php lanes/difftastic/examples/wordpress-env-display-options-command.php | sed -n '1,8p'
+3   "title": "Card",   3   "title": "Editori
+.                      . al Card",
+.                      4   "viewScriptModule
+.                      . ": "file:./view.js"
+.                      . ,
+4   "supports": {      5   "supports": {
+5     "html": false    6     "html": true
+exit_code=1
+php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
+wp-content/plugins/acme-card/src/render.php --- PHP
+Has syntactic changes.
+
+exit_code=1
 ```
 
 ## Next Task
 
-Map `--list-languages` CLI behavior from `tests/cli.rs` `list_languages`, including override entries and language/glob display.
+Map upstream command resource limit environment values such as `DFT_BYTE_LIMIT`, `DFT_GRAPH_LIMIT`, and `DFT_PARSE_ERROR_LIMIT` into command-runner parsing while preserving caller-provided environment isolation.

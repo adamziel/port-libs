@@ -9,6 +9,7 @@ use PortLibs\Difftastic\DirectoryDiffer;
 use PortLibs\Difftastic\GitExternalDiffMetadata;
 use PortLibs\Difftastic\InlineDiffRenderer;
 use PortLibs\Difftastic\JsonDiffRenderer;
+use PortLibs\Difftastic\LanguageCatalog;
 use PortLibs\Difftastic\SideBySideDiffRenderer;
 use PortLibs\Difftastic\TokenDiffer;
 
@@ -1205,6 +1206,58 @@ return [
         $t->same(null, GitExternalDiffMetadata::unmergedPathMessage($arguments, []));
         $t->same(null, GitExternalDiffMetadata::unmergedPathMessage(['left.js', 'right.js'], ['GIT_EXEC_PATH' => '/usr/lib/git-core']));
     },
+    'maps upstream list languages cli output' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runListLanguages();
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->contains("TOML\n *.toml Cargo.lock Gopkg.lock Pipfile pdm.lock poetry.lock uv.lock\n", $result['stdout']);
+        $t->contains("HTML\n *.html *.htm *.xhtml\n", $result['stdout']);
+        $t->contains("Make\n *.mak *.d *.make *.makefile *.mk", $result['stdout']);
+        $t->true(strpos($result['stdout'], "Ada\n *.ada") < strpos($result['stdout'], "TOML\n *.toml"), 'Built-in language rows should follow upstream enum order.');
+    },
+    'maps upstream list languages override rows before builtins' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runListLanguages([
+            '*.blade.php:HTML',
+            '*.asset.php:text',
+            '*.wp-env.json:json',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->contains("HTML (from override)\n *.blade.php\nText (from override)\n *.asset.php\nJSON (from override)\n *.wp-env.json\nAda\n", $result['stdout']);
+        $t->true(strpos($result['stdout'], 'JSON (from override)') < strpos($result['stdout'], "JSON\n *.json"), 'Override rows should be printed before built-in language rows.');
+    },
+    'rejects invalid list languages overrides like upstream cli parsing' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runListLanguages(['*.twig:Twig']);
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->contains("No such language 'Twig'", $result['stderr']);
+        $t->contains('See --list-languages for the names of all languages available.', $result['stderr']);
+    },
+    'maps upstream language override precedence during file detection' => static function (TestRunner $t): void {
+        $catalog = new LanguageCatalog();
+
+        $overriddenGlob = $catalog->languageForPath('src/theme.el', '', ['*.el:CSS']);
+        $firstMatchWins = $catalog->languageForPath('build/block.js', 'const block = true;', [
+            '*.js:text',
+            '*.js:JSON',
+        ]);
+        $overrideBeforeShebang = $catalog->languageForPath('bin/wp-migrate.js', "#!/usr/bin/env python\nprint('wp')\n", [
+            '*.js:Text',
+        ]);
+        $shebang = $catalog->languageForPath('bin/wp-migrate', "#!/usr/bin/env python\nprint('wp')\n");
+        $emacsMode = $catalog->languageForPath('bin/wp-migrate', "# -*-python-*-\nprint('wp')\n");
+        $xmlHeader = $catalog->languageForPath('export.wxr', "<?xml version=\"1.0\"?>\n<rss />\n");
+
+        $t->same(['display' => 'CSS', 'option' => 'css', 'override' => true], $overriddenGlob);
+        $t->same(['display' => 'Text', 'option' => 'text', 'override' => true], $firstMatchWins);
+        $t->same(['display' => 'Text', 'option' => 'text', 'override' => true], $overrideBeforeShebang);
+        $t->same(['display' => 'Python', 'option' => 'python', 'override' => false], $shebang);
+        $t->same(['display' => 'Python', 'option' => 'python', 'override' => false], $emacsMode);
+        $t->same(['display' => 'XML', 'option' => 'xml', 'override' => false], $xmlHeader);
+    },
     'maps upstream check only and exit code cli behavior' => static function (TestRunner $t): void {
         $before = "const React = require('react');\nconsole.log('hello world');\n";
         $after = "import React, {useState} from 'react';\nconsole.log('hello world');\n";
@@ -1246,6 +1299,156 @@ return [
         $t->same(DiffCommandRunner::EXIT_SUCCESS, $checkOnlyUnchanged['exitCode']);
         $t->contains('No syntactic changes.', $checkOnlyUnchanged['stdout']);
         $t->same('', $skippedUnchanged['stdout']);
+    },
+    'maps upstream display option environment aggregation' => static function (TestRunner $t): void {
+        $parsed = (new DiffCommandRunner())->parseDisplayOptions([], [
+            'DFT_DISPLAY' => 'side-by-side-show-both',
+            'DFT_CONTEXT' => '0',
+            'DFT_TAB_WIDTH' => '2',
+            'DFT_WIDTH' => '44',
+        ]);
+        $overridden = (new DiffCommandRunner())->parseDisplayOptions([
+            'display' => 'inline',
+            'contextLines' => 1,
+        ], [
+            'DFT_DISPLAY' => 'side-by-side',
+            'DFT_CONTEXT' => '0',
+            'DFT_TAB_WIDTH' => '4',
+            'DFT_WIDTH' => '72',
+        ]);
+
+        $t->same([], $parsed['errors']);
+        $t->same('side-by-side-show-both', $parsed['options']['display']);
+        $t->same(0, $parsed['options']['contextLines']);
+        $t->same(2, $parsed['options']['tabWidth']);
+        $t->same(44, $parsed['options']['terminalWidth']);
+        $t->same([], $overridden['errors']);
+        $t->same('inline', $overridden['options']['display']);
+        $t->same(1, $overridden['options']['contextLines']);
+        $t->same(4, $overridden['options']['tabWidth']);
+    },
+    'maps upstream command display environment into side by side output' => static function (TestRunner $t): void {
+        $before = "stable 1\nstable 2\nlabel:\told\nstable 4\n";
+        $after = "stable 1\nstable 2\nlabel:\tnew\nstable 4\n";
+        $result = (new DiffCommandRunner())->runTextDiff($before, $after, 'sample_files/tab_1.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_DISPLAY' => 'side-by-side',
+            'DFT_CONTEXT' => '0',
+            'DFT_TAB_WIDTH' => '2',
+            'DFT_WIDTH' => '34',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->contains('label:  old', $result['stdout']);
+        $t->contains('label:  new', $result['stdout']);
+        $t->true(!str_contains($result['stdout'], "\t"), 'DFT_TAB_WIDTH should be routed into display tab expansion.');
+        $t->true(!str_contains($result['stdout'], 'stable 1'), 'DFT_CONTEXT=0 should omit distant stable lines before the changed row.');
+        $t->true(!str_contains($result['stdout'], 'stable 4'), 'DFT_CONTEXT=0 should omit distant stable lines after the changed row.');
+    },
+    'rejects invalid display option environment before review' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runTextDiff('old', 'new', 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_WIDTH' => 'wide',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->same(false, $result['hasChanges']);
+        $t->contains("Invalid value 'wide' for DFT_WIDTH", $result['stderr']);
+    },
+    'maps upstream command boolean environment aggregation' => static function (TestRunner $t): void {
+        $runner = new DiffCommandRunner();
+        $before = "<?php\n// Legacy render path.\nreturn esc_html(\$title);\n";
+        $commentOnly = "<?php\n// Modern render path.\nreturn esc_html(\$title);\n";
+        $changed = "<?php\n// Modern render path.\nreturn wp_kses_post(\$title);\n";
+
+        $unchangedAfterCommentFilter = $runner->runTextDiff($before, $commentOnly, 'src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_CHECK_ONLY' => 'true',
+            'DFT_EXIT_CODE' => '1',
+            'DFT_SKIP_UNCHANGED' => 'yes',
+            'DFT_IGNORE_COMMENTS' => 'on',
+        ]);
+        $changedWithExitCode = $runner->runTextDiff($before, $changed, 'src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_CHECK_ONLY' => 'true',
+            'DFT_EXIT_CODE' => '1',
+            'DFT_SKIP_UNCHANGED' => 'yes',
+            'DFT_IGNORE_COMMENTS' => 'on',
+        ]);
+        $stripCrOff = $runner->runTextDiff("line\r\n", "line\n", 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_CHECK_ONLY' => 'true',
+            'DFT_STRIP_CR' => 'off',
+        ]);
+        $stripCrOn = $runner->runTextDiff("line\r\n", "line\n", 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_CHECK_ONLY' => 'true',
+            'DFT_SKIP_UNCHANGED' => 'true',
+            'DFT_STRIP_CR' => 'on',
+        ]);
+        $parsed = $runner->parseCommandOptions([
+            'exitCode' => false,
+            'stripCr' => false,
+        ], [
+            'DFT_EXIT_CODE' => 'true',
+            'DFT_STRIP_CR' => 'on',
+            'DFT_COLOR' => 'always',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $unchangedAfterCommentFilter['exitCode']);
+        $t->same(false, $unchangedAfterCommentFilter['hasChanges']);
+        $t->same('', $unchangedAfterCommentFilter['stdout']);
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $changedWithExitCode['exitCode']);
+        $t->same(true, $changedWithExitCode['hasChanges']);
+        $t->contains('Has syntactic changes.', $changedWithExitCode['stdout']);
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $stripCrOff['exitCode']);
+        $t->contains('Has changes.', $stripCrOff['stdout']);
+        $t->same('', $stripCrOn['stdout']);
+        $t->same([], $parsed['errors']);
+        $t->same(false, $parsed['options']['exitCode']);
+        $t->same(false, $parsed['options']['stripCr']);
+        $t->same(true, $parsed['options']['useColor']);
+    },
+    'rejects invalid command boolean environment before review' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runTextDiff('old', 'new', 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_CHECK_ONLY' => 'sometimes',
+            'DFT_STRIP_CR' => 'maybe',
+            'DFT_COLOR' => 'rainbow',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->same(false, $result['hasChanges']);
+        $t->contains("Invalid value 'sometimes' for DFT_CHECK_ONLY", $result['stderr']);
+        $t->contains("Invalid value 'maybe' for DFT_STRIP_CR", $result['stderr']);
+        $t->contains("Invalid value 'rainbow' for DFT_COLOR", $result['stderr']);
+    },
+    'wordpress command env ci flags report escaping changes only' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-render-callback-before.php');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-render-callback-after.php');
+        $result = (new DiffCommandRunner())->runTextDiff($before, $after, 'wp-content/plugins/acme-card/src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_CHECK_ONLY' => 'true',
+            'DFT_EXIT_CODE' => 'true',
+            'DFT_IGNORE_COMMENTS' => 'true',
+            'DFT_SKIP_UNCHANGED' => 'false',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same(true, $result['hasChanges']);
+        $t->contains('wp-content/plugins/acme-card/src/render.php --- PHP', $result['stdout']);
+        $t->contains('Has syntactic changes.', $result['stdout']);
     },
     'maps upstream directory arguments with relative created and deleted paths' => static function (TestRunner $t): void {
         $fixtures = dirname(__DIR__) . '/fixtures';
@@ -1376,6 +1579,156 @@ return [
         $t->contains('../../mu-plugins/acme-cache', $json);
         $t->contains('viewScriptModule', $json);
     },
+    'wordpress directory diff applies language overrides before builtin globs' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $files = (new DirectoryDiffer())->diffDirectories(
+            $fixtures . '/wordpress-language-override-before',
+            $fixtures . '/wordpress-language-override-after',
+            [
+                'sortPaths' => true,
+                'languageOverrides' => [
+                    '*.asset.php:text',
+                    '*.blade.php:HTML',
+                ],
+            ],
+        );
+        $byPath = [];
+        foreach ($files as $file) {
+            $byPath[$file['path']] = $file;
+        }
+        $json = json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same('Text', $byPath['build/index.asset.php']['language']);
+        $t->same('HTML', $byPath['templates/card.blade.php']['language']);
+        $t->contains('wp-i18n', $json);
+        $t->contains('modern', $json);
+        $t->contains('description', $json);
+    },
+    'maps upstream language override environment aggregation' => static function (TestRunner $t): void {
+        $parsed = (new DiffCommandRunner())->parseLanguageOverrides([
+            '*.blade.php:HTML',
+            '*.template.php:HTML',
+        ], [
+            'DFT_OVERRIDE' => '*.asset.php:text',
+            'DFT_OVERRIDE_1' => '*.wp-env.json:JSON',
+            'DFT_OVERRIDE_9' => '*.tsx:TypeScript TSX',
+            'DFT_OVERRIDE_10' => '*.ignored:CSS',
+        ]);
+
+        $t->same([], $parsed['errors']);
+        $t->same([
+            [
+                'name' => 'HTML',
+                'option' => 'html',
+                'globs' => ['*.blade.php', '*.template.php'],
+                'override' => true,
+            ],
+            [
+                'name' => 'Text',
+                'option' => 'text',
+                'globs' => ['*.asset.php'],
+                'override' => true,
+            ],
+            [
+                'name' => 'JSON',
+                'option' => 'json',
+                'globs' => ['*.wp-env.json'],
+                'override' => true,
+            ],
+            [
+                'name' => 'TypeScript TSX',
+                'option' => 'tsx',
+                'globs' => ['*.tsx'],
+                'override' => true,
+            ],
+        ], $parsed['rows']);
+    },
+    'maps upstream list languages environment override rows before builtins' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runListLanguages([], [], [
+            'DFT_OVERRIDE' => '*.asset.php:text',
+            'DFT_OVERRIDE_1' => '*.blade.php:HTML',
+            'DFT_OVERRIDE_10' => '*.ignored:CSS',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->contains("Text (from override)\n *.asset.php\nHTML (from override)\n *.blade.php\nAda\n", $result['stdout']);
+        $t->true(!str_contains($result['stdout'], '*.ignored'), 'Only DFT_OVERRIDE_1 through DFT_OVERRIDE_9 should be aggregated.');
+    },
+    'rejects invalid language override environment before directory review' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $invalidGlob = (new DiffCommandRunner())->runJsonDirectoryDiff(
+            $fixtures . '/wordpress-language-override-before',
+            $fixtures . '/wordpress-language-override-after',
+            ['sortPaths' => true],
+            ['DFT_OVERRIDE' => '*.blade.php[:HTML'],
+        );
+        $result = (new DiffCommandRunner())->runJsonDirectoryDiff(
+            $fixtures . '/wordpress-language-override-before',
+            $fixtures . '/wordpress-language-override-after',
+            ['sortPaths' => true],
+            ['DFT_OVERRIDE' => '*.blade.php:Twig'],
+        );
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $invalidGlob['exitCode']);
+        $t->same('', $invalidGlob['stdout']);
+        $t->same([], $invalidGlob['files']);
+        $t->contains("Invalid glob syntax '*.blade.php['", $invalidGlob['stderr']);
+        $t->contains('Glob parsing error: unclosed character class', $invalidGlob['stderr']);
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->same(false, $result['hasChanges']);
+        $t->same([], $result['files']);
+        $t->contains("No such language 'Twig'", $result['stderr']);
+        $t->contains('See --list-languages for the names of all languages available.', $result['stderr']);
+    },
+    'maps upstream language override environment into file byte review' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runJsonFileBytesDiff(
+            "<?php return ['dependencies' => ['wp-blocks']];\n",
+            "<?php return ['dependencies' => ['wp-blocks', 'wp-i18n']];\n",
+            'build/index.asset.php',
+            'PHP',
+            ['exitCode' => true],
+            ['DFT_OVERRIDE' => '*.asset.php:text'],
+        );
+        $decoded = json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->same('build/index.asset.php', $decoded['path']);
+        $t->same('Text', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']), 'Text override should route file-byte review through text display chunks.');
+    },
+    'wordpress command env language overrides route into directory review' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $result = (new DiffCommandRunner())->runJsonDirectoryDiff(
+            $fixtures . '/wordpress-language-override-before',
+            $fixtures . '/wordpress-language-override-after',
+            [
+                'sortPaths' => true,
+                'exitCode' => true,
+            ],
+            [
+                'DFT_OVERRIDE' => '*.asset.php:text',
+                'DFT_OVERRIDE_1' => '*.blade.php:HTML',
+            ],
+        );
+        $decoded = json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
+        $byPath = [];
+        foreach ($decoded as $file) {
+            $byPath[$file['path']] = $file;
+        }
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->same(true, $result['hasChanges']);
+        $t->same($decoded, $result['files']);
+        $t->same('Text', $byPath['build/index.asset.php']['language']);
+        $t->same('HTML', $byPath['templates/card.blade.php']['language']);
+        $t->contains('wp-i18n', $result['stdout']);
+        $t->contains('modern', $result['stdout']);
+    },
     'wordpress check only command reports block metadata gate status' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
@@ -1398,6 +1751,29 @@ return [
         $t->contains('Has syntactic changes.', $changed['stdout']);
         $t->same(DiffCommandRunner::EXIT_SUCCESS, $unchanged['exitCode']);
         $t->same('', $unchanged['stdout']);
+    },
+    'wordpress command env display options wrap tabbed block metadata' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tabbed-block-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tabbed-block-json-after.json');
+        $result = (new DiffCommandRunner())->runTextDiff($before, $after, 'wp-content/plugins/acme-card/block.json', 'JSON', [
+            'language' => 'json',
+            'exitCode' => true,
+        ], [
+            'DFT_DISPLAY' => 'side-by-side-show-both',
+            'DFT_CONTEXT' => '0',
+            'DFT_TAB_WIDTH' => '2',
+            'DFT_WIDTH' => '44',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->contains('"title": "Card",', $result['stdout']);
+        $t->contains('"title": "Editori', $result['stdout']);
+        $t->contains('al Card",', $result['stdout']);
+        $t->contains('"viewScriptModule', $result['stdout']);
+        $t->contains('file:./view.js', $result['stdout']);
+        $t->true(!str_contains($result['stdout'], "\t"), 'Environment-sourced tab width should make tabbed block metadata deterministic.');
+        $t->true(!str_contains($result['stdout'], '"apiVersion"'), 'Context zero should keep unchanged block metadata headers out of the command display.');
     },
     'wordpress git backed common path inline display keeps repository suffix' => static function (TestRunner $t): void {
         $before = "{\n  \"apiVersion\": 3,\n  \"name\": \"acme/card\",\n  \"title\": \"Legacy Card\",\n  \"supports\": {\n    \"html\": false\n  }\n}\n";
@@ -1444,6 +1820,98 @@ return [
         $t->contains('Binary file modified (old: 23 B, new: 23 B).', $display);
         $t->same(['language' => 'Binary', 'path' => 'sample_files/simple_1.js', 'status' => 'changed'], $decoded);
     },
+    'maps upstream binary override globs before text heuristics' => static function (TestRunner $t): void {
+        $before = "console.log('legacy');\n";
+        $after = "console.log('modern');\n";
+        $decoder = new FileContentDecoder();
+        $normal = (new JsonDiffRenderer())->fileBytesDiff(
+            $before,
+            $after,
+            'sample_files/simple_1.js',
+            'JavaScript',
+            ['language' => 'javascript'],
+        );
+        $forced = (new JsonDiffRenderer())->fileBytesDiff(
+            $before,
+            $after,
+            'sample_files/simple_1.js',
+            'JavaScript',
+            [
+                'language' => 'javascript',
+                'binaryOverrides' => ['*.js'],
+            ],
+        );
+
+        $t->same("console.log('legacy');\n", $decoder->guessTextContent($before, 'sample_files/simple_1.js'));
+        $t->same(null, $decoder->guessTextContent($before, 'sample_files/simple_1.js', ['*.js']));
+        $t->same('JavaScript', $normal['language']);
+        $t->same('changed', $normal['status']);
+        $t->true(isset($normal['chunks']), 'Without an override, valid UTF-8 JavaScript should still be decoded as text.');
+        $t->same(['language' => 'Binary', 'path' => 'sample_files/simple_1.js', 'status' => 'changed'], $forced);
+    },
+    'maps upstream binary override environment aggregation' => static function (TestRunner $t): void {
+        $runner = new DiffCommandRunner();
+        $parsed = $runner->parseBinaryOverrides(['*.zip'], [
+            'DFT_OVERRIDE_BINARY' => '*.gz',
+            'DFT_OVERRIDE_BINARY_1' => '*.min.js',
+            'DFT_OVERRIDE_BINARY_2' => 'vendor/*.pickle',
+            'DFT_OVERRIDE_BINARY_9' => 'legacy/*.dat',
+            'DFT_OVERRIDE_BINARY_10' => '*.ignored',
+        ]);
+
+        $t->same([
+            '*.zip',
+            '*.gz',
+            '*.min.js',
+            'vendor/*.pickle',
+            'legacy/*.dat',
+        ], $parsed['globs']);
+        $t->same([], $parsed['errors']);
+    },
+    'rejects invalid binary override globs like upstream command parsing' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runJsonFileBytesDiff(
+            "console.log('legacy');\n",
+            "console.log('modern');\n",
+            'sample_files/simple_1.js',
+            'JavaScript',
+            [],
+            ['DFT_OVERRIDE_BINARY' => '*.js['],
+        );
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->same(false, $result['hasChanges']);
+        $t->same(null, $result['file']);
+        $t->contains("Invalid glob syntax '*.js['", $result['stderr']);
+        $t->contains('Glob parsing error: unclosed character class', $result['stderr']);
+    },
+    'wordpress command env binary overrides route into directory byte review' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $result = (new DiffCommandRunner())->runJsonDirectoryDiff(
+            $fixtures . '/wordpress-binary-override-before',
+            $fixtures . '/wordpress-binary-override-after',
+            [
+                'sortPaths' => true,
+                'exitCode' => true,
+            ],
+            [
+                'DFT_OVERRIDE_BINARY' => '*.png',
+                'DFT_OVERRIDE_BINARY_1' => '*.min.js',
+            ],
+        );
+
+        $decoded = json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->same(true, $result['hasChanges']);
+        $t->same($decoded, $result['files']);
+        $t->same(1, count($decoded));
+        $t->same('wp-content/plugins/acme-card/build/index.min.js', $decoded[0]['path']);
+        $t->same('Binary', $decoded[0]['language']);
+        $t->same('changed', $decoded[0]['status']);
+        $t->true(!isset($decoded[0]['chunks']), 'Environment-sourced binary overrides should reach byte-level directory review.');
+    },
     'wordpress binary asset inline display reports modified plugin media' => static function (TestRunner $t): void {
         $pngHeader = "\x89PNG\r\n\x1a\n";
         $before = $pngHeader . str_repeat("\0", 16) . 'legacy-logo-bytes';
@@ -1456,6 +1924,22 @@ return [
         $t->contains('wp-content/plugins/acme-card/assets/logo.png --- Binary', $display);
         $t->contains('Binary asset changed during block branding update.', $display);
         $t->contains('Binary file modified', $display);
+    },
+    'wordpress directory diff can force generated assets to binary via override glob' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $files = (new DirectoryDiffer())->diffDirectories(
+            $fixtures . '/wordpress-binary-override-before',
+            $fixtures . '/wordpress-binary-override-after',
+            [
+                'binaryOverrides' => ['*.min.js'],
+            ],
+        );
+
+        $t->same(1, count($files));
+        $t->same('wp-content/plugins/acme-card/build/index.min.js', $files[0]['path']);
+        $t->same('Binary', $files[0]['language']);
+        $t->same('changed', $files[0]['status']);
+        $t->true(!isset($files[0]['chunks']), 'Generated minified assets forced to binary should render as a status envelope, not text chunks.');
     },
     'wordpress readme inline display keeps path header and compact context' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
