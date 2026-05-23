@@ -126,6 +126,12 @@ The `../examples/wordpress-listp-batched-manifest.php` example maps upstream `fs
 
 The `../examples/wordpress-list-filter-sort.php` example maps upstream `fs/list.filterAndSortDir` behavior for direct provider listings. It publishes only WXR, SQL, and upload-directory entries from a `site-backups` listing, prunes cache/debug entries through object and directory callbacks, ignores nested provider leaks that do not belong in the direct directory result, and sorts the remaining entries in rclone Remote order.
 
+The `../examples/wordpress-sorter-backup-manifest.php` example maps upstream `fs/list.Sorter` behavior for restore-manifest publication. It applies a caller key function so SQL appears first, primary WXR before supplemental WXR, and upload files/directories afterward; it also exercises cutoff mode and sorted callback delivery without shelling out to rclone.
+
+The `../examples/wordpress-dirsortedfn-restore-manifest.php` example maps upstream `fs/list.DirSortedFn` integration over paged provider listings. It filters direct `site-backups` entries from multiple ListP-style pages, uses a restore-order key function through `ListSorter`, drops cache/debug paths, and treats a cache `.rclone-ignore` marker as an exclude-if-present page short-circuit.
+
+The `../examples/wordpress-dirsorted-restore-manifest.php` example maps upstream `fs/list.DirSorted` over a provider `List` fallback. It returns direct provider entries as objects, counts the raw listing before filters, applies whole-directory exclude-if-present behavior for a cache marker, and publishes a restore-priority WordPress manifest without requiring a backend `ListP` implementation.
+
 ## Next Task
 
-Map `fs/list.Sorter` identity and key-function ordering behavior, then decide whether an in-memory-only sorter is enough or a bounded external-sort error surface is worth porting.
+Map `fs/walk` recursive listing integration over `DirSorted`/`ListR` fallback, including max-depth traversal, excluded-directory pruning, and provider callback error propagation.
