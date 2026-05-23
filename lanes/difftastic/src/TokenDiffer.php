@@ -638,9 +638,6 @@ final class TokenDiffer
         if ($lines === false) {
             return [$source];
         }
-        if ($source !== '' && preg_match('/(?:\r\n|\n|\r)$/', $source) === 1 && end($lines) === '') {
-            array_pop($lines);
-        }
 
         return $lines;
     }

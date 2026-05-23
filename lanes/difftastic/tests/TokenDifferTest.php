@@ -646,6 +646,47 @@ return [
         $t->same(1, $decoded['chunks'][0][0]['lhs']['line_number']);
         $t->same([], $decoded['chunks'][0][0]['lhs']['changes']);
     },
+    'maps upstream split on newlines trailing eof behavior' => static function (TestRunner $t): void {
+        $changes = (new TokenDiffer())->diffSyntaxLists('abc', "abc\n", ['language' => 'text']);
+
+        $t->same([['op' => '+', 'path' => '$text.line[1]', 'text' => '']], $changes);
+    },
+    'maps upstream repeated line no eol sample as an eof insertion' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-repeated-line-no-eol-1.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-repeated-line-no-eol-2.hex')));
+        $changes = (new TokenDiffer())->diffSyntaxLists((string) $before, (string) $after, ['language' => 'text']);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            (string) $before,
+            (string) $after,
+            'sample_files/repeated_line_no_eol.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same([['op' => '+', 'path' => '$text.line[1]', 'text' => 'abc']], $changes);
+        $t->same('changed', $decoded['status']);
+        $t->same([[0, 0], [null, 1]], $decoded['aligned_lines']);
+        $t->same(1, $decoded['chunks'][0][0]['rhs']['line_number']);
+        $t->same([['start' => 0, 'end' => 3, 'content' => 'abc', 'highlight' => 'normal']], $decoded['chunks'][0][0]['rhs']['changes']);
+    },
+    'wordpress import log no eol display preserves appended final line' => static function (TestRunner $t): void {
+        $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-log-no-eol-before.hex')));
+        $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-log-no-eol-after.hex')));
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            (string) $before,
+            (string) $after,
+            'wp-content/uploads/migration/import.log',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->same('wp-content/uploads/migration/import.log', $decoded['path']);
+        $t->same([[0, 0], [null, 1]], $decoded['aligned_lines']);
+        $t->same(1, $decoded['chunks'][0][0]['rhs']['line_number']);
+        $t->same('Imported', $decoded['chunks'][0][0]['rhs']['changes'][0]['content']);
+        $t->same('normal', $decoded['chunks'][0][0]['rhs']['changes'][0]['highlight']);
+    },
     'recurses into nested wordpress registration arrays' => static function (TestRunner $t): void {
         $before = "register_block_type('demo/card', ['supports' => ['html' => false, 'align' => ['wide']], 'render_callback' => 'old_card']);";
         $after = "register_block_type('demo/card', ['supports' => ['html' => true, 'align' => ['wide', 'full']], 'render_callback' => 'old_card']);";
