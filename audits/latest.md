@@ -2,7 +2,7 @@
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, recent Git
-history through `006c18a5`, current dirty-tree status, process/test state, and
+history through `e25e391e`, current dirty-tree status, process/test state, and
 PHP shell-out usage in `lanes/`, `tools`, and `scripts`.
 
 I did not edit lane implementation files, launch agents or tmux sessions, or
@@ -22,10 +22,10 @@ explicitly temporary fixture or oracle evidence.
      assertions, and `0` failures.
    - Audit judgment: the result is useful evidence, but not an accepted
      baseline. `HEAD` moved during the audit from the prior audit state
-     `91b9704a` to `006c18a5`, and the newest commit changed the root test
-     runner itself (`Teach run-tests focused path selection`). Immediately
-     after this audit's green run, another `php tools/run-tests.php` process
-     was active. Capture the next baseline only from a quiesced tree.
+     `91b9704a` through `006c18a5` to `e25e391e`; the intermediate commit
+     changed the root test runner itself, and the final mixed commit included
+     this audit/progress update together with esbuild and libsqlite lane files.
+     Capture the next baseline only from a quiesced tree.
 
 2. **High - active agents still exceed the documented cap and contradict the status surface.**
    - Paths: `progress.md:25`, `progress.md:31`-`42`, `.tmux-team/tmp/*`,
@@ -36,9 +36,10 @@ explicitly temporary fixture or oracle evidence.
      state, deliberate integration, and periodic repo-wide verification.
    - Evidence: `progress.md` still says the launch target is two
      implementation lanes plus one auditor, and the Active Lanes table still
-     reports stopped sessions. Current process sampling showed at least 20
-     `scripts/run-tmux-agent.sh` sessions, including lane workers, auditor,
-     integrator, focused test, capacity, and runner agents.
+     reports stopped sessions. Process sampling during this audit showed at
+     least 20 `scripts/run-tmux-agent.sh` sessions; the final sample still had
+     at least 16 active agent wrappers, including lane workers, auditor,
+     integrator, and capacity agents.
    - Audit judgment: the supervisor surface cannot be used to accept work
      until active writers are frozen or explicitly reconciled.
 
@@ -53,9 +54,9 @@ explicitly temporary fixture or oracle evidence.
    - Requirement at risk: `goal.md:29`, `goal.md:36`, `goal.md:48`, and
      `goal.md:49` require small reviewable slices, correct integration,
      cleanup of accidental unrelated changes, and repo-wide verification.
-   - Evidence: final status sampling reported `690` `git status --short`
-     entries, `104` tracked changed files, and `104 files changed, 17445
-     insertions(+), 570 deletions(-)` in `git diff --shortstat`.
+   - Evidence: final status sampling reported `684` `git status --short`
+     entries, `94` tracked changed files, and `94 files changed, 16768
+     insertions(+), 537 deletions(-)` in `git diff --shortstat`.
    - Audit judgment: even with a green root harness, this is not a reviewable
      integration checkpoint. Accept or reject dirty lane batches one lane at a
      time before publishing dashboard/status.
@@ -68,14 +69,14 @@ explicitly temporary fixture or oracle evidence.
      work, blocker, and commit.
    - Evidence: the dashboard still advertises generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`, while current
-     `HEAD` is `006c18a5`. The table combines benchmark source and denominator
+     `HEAD` is `e25e391e`. The table combines benchmark source and denominator
      under `Benchmark`, and combines PHP pass/fail with mapped count under
      `Mapped`, instead of using the separate columns required by `goal.md:45`.
    - Evidence: current manifest mapped counts disagree with the page:
-     difftastic `174` vs `160`, Dolt `262` vs `242`, esbuild `168` vs `164`,
-     Gitoxide `1439` vs `1432`, libsqlite `163` vs `149`, LightningCSS `811`
+     difftastic `174` vs `160`, Dolt `271` vs `242`, esbuild `169` vs `164`,
+     Gitoxide `1439` vs `1432`, libsqlite `165` vs `149`, LightningCSS `816`
      vs `773`, markerPDF `166` vs `159`, Pandoc `481` vs `426`, rclone `312`
-     vs `291`, Readability `1085` vs `1031`, and Syncthing `246` vs `235`.
+     vs `291`, Readability `1085` vs `1031`, and Syncthing `250` vs `235`.
    - Audit judgment: the dashboard is an old publication snapshot, not the
      source of truth for current lane state.
 
@@ -162,6 +163,7 @@ single accepted snapshot.
 Recent commits reviewed:
 
 ```text
+e25e391e Port esbuild private static assign semantics
 006c18a5 Teach run-tests focused path selection
 91b9704a Refresh independent audit status
 49e2068b Port esbuild TS decorator and static field slices
