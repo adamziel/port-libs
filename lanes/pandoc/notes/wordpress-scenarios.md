@@ -156,6 +156,14 @@ Markdown-sensitive punctuation tokens from imported HTML stay literal on the
 HTML-reader path. This prevents legacy source snippets like `*`, `_`, `[`, `]`,
 `#`, or comparison operators from turning into Markdown markup while still
 escaping them safely for WordPress output.
+The bounded HTML-reader Links slice is now represented too: explicit HTML
+anchors preserve href/title metadata, empty links remain empty placeholders,
+reference-looking text stays literal, and code contexts do not autolink.
+The bounded HTML-reader Images slice is now represented too: HTML `<img>` nodes
+become native image inline nodes with source/title/alt metadata, standalone
+image-only paragraphs keep Pandoc's paragraph-image AST shape, and WordPress
+output promotes those standalone images into image blocks while preserving
+inline images inside paragraph copy.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -399,6 +407,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   reader content instead of Markdown references. Bare source text immediately
   followed by a `<p>` or `<blockquote>` starts its own paragraph, matching the
   upstream Links fixture's mixed HTML flow shape.
+- HTML reader image imports render standalone image-only paragraphs as core
+  WordPress image blocks with preserved `src`, `alt`, `title`, and caption
+  text, while inline `<img>` nodes remain inside normal paragraph copy for
+  reviewer context. This maps the upstream HTML-reader Images fixture without
+  invoking Pandoc or treating imported HTML as Markdown image syntax.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -451,6 +464,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader Images slice from `test/html-reader.html/native`,
-starting with standalone `<img>` paragraphs, inline image spans, alt/title
-metadata, and WordPress image block output.
+Map the next bounded HTML-reader Footnotes slice from
+`test/html-reader.html/native`, starting with note/back-reference anchors and
+paragraph/code continuation shapes.

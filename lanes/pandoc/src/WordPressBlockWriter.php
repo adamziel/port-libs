@@ -29,9 +29,7 @@ final class WordPressBlockWriter
                     . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
                     . "\n" . '<!-- /wp:heading -->';
             } elseif ($node->type === 'paragraph') {
-                $blocks[] = '<!-- wp:paragraph -->'
-                    . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
-                    . "\n" . '<!-- /wp:paragraph -->';
+                $blocks[] = $this->renderParagraphBlock($node);
             } elseif ($node->type === 'plain') {
                 $blocks[] = '<!-- wp:paragraph -->'
                     . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
@@ -71,6 +69,21 @@ final class WordPressBlockWriter
         $this->footnotes = $previousFootnotes;
 
         return $output;
+    }
+
+    private function renderParagraphBlock(AstNode $node): string
+    {
+        if (count($node->children) === 1 && $node->children[0]->type === 'image') {
+            return $this->renderFigureBlock(new AstNode(
+                'figure',
+                ['caption' => (string) $node->children[0]->attr('alt', '')],
+                [$node->children[0]]
+            ));
+        }
+
+        return '<!-- wp:paragraph -->'
+            . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+            . "\n" . '<!-- /wp:paragraph -->';
     }
 
     /**

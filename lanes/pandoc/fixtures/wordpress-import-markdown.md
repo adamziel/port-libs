@@ -219,6 +219,10 @@ HTML reader literal punctuation import:
 HTML reader source contact (importer [at] example.test)<p><a href="">Empty legacy link placeholder</a>.</p>
 <p>Auto-links should not occur here: <code>&lt;https://example.test/import&gt;</code></p>
 
+<h2>HTML reader image import</h2>
+<p><img src="https://example.test/uploads/html-legacy-frame.jpg" title="Legacy frame title" alt="Legacy frame"></p>
+<p>Inline HTML media <img src="https://example.test/uploads/html-inline-icon.jpg" alt="inline icon"> stays inside reviewer copy.</p>
+
 Empty import audit table:
 
 <table>

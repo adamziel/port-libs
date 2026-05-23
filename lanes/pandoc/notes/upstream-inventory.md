@@ -263,6 +263,17 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `<http://example.com/>` stays literal, one `BlockQuote`, one `BulletList`,
   and the closing `HorizontalRule`. The bounded PHP mapping now keeps the same
   HTML-reader path without invoking Markdown reference or autolink parsing.
+- `test/html-reader.html` Images slice inspected in this run: upstream lines
+  431-435 cover the `Images` heading, a source-credit paragraph, one
+  standalone `<img>` paragraph with `src`, `title`, and `alt`, one inline
+  `<img>` paragraph with `src` and `alt`, and a self-closing `<hr />`
+  separator.
+- `test/html-reader.native` Images rendered native AST slice inspected in this
+  run: upstream lines 1688-1728 show one `Header`, two `Para` nodes with
+  ordinary text, two `Image` nodes, and one closing `HorizontalRule`. The
+  bounded PHP mapping keeps HTML `<img>` nodes on the HTML-reader path as
+  image inline AST nodes instead of re-parsing them through Markdown image
+  syntax.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -586,11 +597,21 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   HTML entities decode once, comparison characters stay ordinary text,
   Markdown-sensitive punctuation tokens remain literal, and the final
   self-closing `<hr />` remains a `horizontal_rule` node.
+- The HTML-reader Links shape from `test/html-reader.html` is now mapped for a
+  narrow HTML reader slice: explicit anchors preserve href/title metadata,
+  empty hrefs stay empty, reference-looking text stays literal, code contexts
+  do not autolink, and mixed bare-text-plus-block-tag flow is split before
+  block parsing so it stays on the native HTML-reader path.
+- The HTML-reader Images shape from `test/html-reader.html` is now mapped for a
+  narrow HTML reader slice: `<img>` becomes an `image` inline node with
+  `src`/`title`/`alt` metadata, standalone image-only paragraphs retain
+  Pandoc's paragraph-image AST shape, and inline image paragraphs keep the
+  image between ordinary text nodes.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 136 behavior tests, 1,192 assertions, and 0 failures after this slice. The
+with 140 behavior tests, 1,276 assertions, and 0 failures after this slice. The
 required repo-wide `php tools/run-tests.php` command was run after this slice
-and passed with 157 test files, 14,315 assertions, and 0 failures.
+and passed with 161 test files, 14,699 assertions, and 0 failures.

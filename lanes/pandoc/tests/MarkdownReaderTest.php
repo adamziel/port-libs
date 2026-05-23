@@ -478,6 +478,35 @@ return [
         $t->same(' icon.', $document->children[3]->children[2]->attr('text'));
         $t->same('horizontal_rule', $document->children[4]->type);
     },
+    'maps upstream html reader images as paragraph image inlines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<h1>Images</h1>',
+            '<p>From "Voyage dans la Lune" by Georges Melies (1902):</p>',
+            '<p><img src="lalune.jpg" title="Voyage dans la Lune" alt="lalune"></p>',
+            '<p>Here is a movie <img src="movie.jpg" alt="movie"> icon.</p>',
+            '<hr />',
+        ]));
+        $standaloneImageParagraph = $document->children[2];
+        $standaloneImage = $standaloneImageParagraph->children[0];
+        $inlineParagraph = $document->children[3];
+        $inlineImage = $inlineParagraph->children[1];
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('images', $document->children[0]->attr('id'));
+        $t->same('From "Voyage dans la Lune" by Georges Melies (1902):', $document->children[1]->attr('text'));
+        $t->same('paragraph', $standaloneImageParagraph->type);
+        $t->same('image', $standaloneImage->type);
+        $t->same('lalune', $standaloneImage->attr('alt'));
+        $t->same('lalune.jpg', $standaloneImage->attr('url'));
+        $t->same('Voyage dans la Lune', $standaloneImage->attr('title'));
+        $t->same('lalune', $standaloneImage->children[0]->attr('text'));
+        $t->same('Here is a movie ', $inlineParagraph->children[0]->attr('text'));
+        $t->same('image', $inlineImage->type);
+        $t->same('movie', $inlineImage->attr('alt'));
+        $t->same('movie.jpg', $inlineImage->attr('url'));
+        $t->same(' icon.', $inlineParagraph->children[2]->attr('text'));
+        $t->same('horizontal_rule', $document->children[4]->type);
+    },
     'maps upstream testsuite footnote references inline notes quotes and lists' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '# Footnotes',
@@ -3710,6 +3739,37 @@ XML;
         $t->contains('<p>HTML reader source contact (importer [at] example.test)</p>', $blocks);
         $t->contains('<p><a href="">Empty legacy link placeholder</a>.</p>', $blocks);
         $t->contains('<p>Auto-links should not occur here: <code>&lt;https://example.test/import&gt;</code></p>', $blocks);
+    },
+    'writes wordpress html reader image imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $imageHeading = null;
+        $standaloneImageParagraph = null;
+        $inlineImageParagraph = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'HTML reader image import') {
+                $imageHeading = $node;
+                $standaloneImageParagraph = $document->children[$index + 1] ?? null;
+                $inlineImageParagraph = $document->children[$index + 2] ?? null;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($imageHeading !== null, 'HTML reader image heading should stay on the native HTML path');
+        $t->true($standaloneImageParagraph instanceof AstNode && $standaloneImageParagraph->type === 'paragraph', 'HTML reader standalone image stays a Pandoc-style paragraph image');
+        $t->true($inlineImageParagraph instanceof AstNode && $inlineImageParagraph->type === 'paragraph', 'HTML reader inline image stays inside paragraph text');
+        $t->same('html-reader-image-import', $imageHeading->attr('id'));
+        $t->same('image', $standaloneImageParagraph->children[0]->type);
+        $t->same('https://example.test/uploads/html-legacy-frame.jpg', $standaloneImageParagraph->children[0]->attr('url'));
+        $t->same('Legacy frame title', $standaloneImageParagraph->children[0]->attr('title'));
+        $t->same('Legacy frame', $standaloneImageParagraph->children[0]->attr('alt'));
+        $t->same('Inline HTML media ', $inlineImageParagraph->children[0]->attr('text'));
+        $t->same('image', $inlineImageParagraph->children[1]->type);
+        $t->same('inline icon', $inlineImageParagraph->children[1]->attr('alt'));
+        $t->contains('<h2 id="html-reader-image-import">HTML reader image import</h2>', $blocks);
+        $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/html-legacy-frame.jpg" alt="Legacy frame" title="Legacy frame title"/><figcaption>Legacy frame</figcaption></figure>', $blocks);
+        $t->contains('<p>Inline HTML media <img src="https://example.test/uploads/html-inline-icon.jpg" alt="inline icon"/> stays inside reviewer copy.</p>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

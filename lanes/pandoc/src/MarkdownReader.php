@@ -2574,11 +2574,31 @@ final class MarkdownReader
                 'title' => $node->getAttribute('title'),
             ], $children)];
         }
+        if ($name === 'img') {
+            return [$this->buildHtmlImageNode($node)];
+        }
         if ($name === 'br') {
             return [new AstNode('linebreak')];
         }
 
         return $children;
+    }
+
+    private function buildHtmlImageNode(\DOMElement $image): AstNode
+    {
+        $alt = $image->getAttribute('alt');
+        $attrs = [
+            'url' => $image->getAttribute('src'),
+            'alt' => $alt,
+        ];
+        $title = $image->getAttribute('title');
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $children = $alt === '' ? [] : [new AstNode('text', ['text' => $alt])];
+
+        return new AstNode('image', $attrs, $children);
     }
 
     private function htmlElementHasSmallCapsStyle(\DOMElement $element): bool
