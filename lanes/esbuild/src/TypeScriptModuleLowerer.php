@@ -4766,7 +4766,7 @@ final class TypeScriptModuleLowerer
     private function rewriteTopLevelUsingHelperLocalExport(string $line): ?array
     {
         $trimmed = trim($line);
-        if (preg_match('/^export\s+(?:var|let|const)\s+([\s\S]*?);?$/', $trimmed, $match) === 1) {
+        if (preg_match('/^export\s+(?:var|let|const)\s*([\s\S]*?);?$/', $trimmed, $match) === 1) {
             $declarations = rtrim($match[1]);
             $names = $this->exportedVariableNames($declarations);
             if ($names === []) {
@@ -4800,17 +4800,224 @@ final class TypeScriptModuleLowerer
      */
     private function exportedVariableNames(string $declarations): array
     {
-        $names = [];
-        foreach ($this->splitTopLevelCommaExpression($declarations) as $declaration) {
-            $assignment = $this->topLevelDelimiterOffset($declaration, '=');
-            $binding = trim($assignment === null ? $declaration : substr($declaration, 0, $assignment));
-            if (preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $binding) !== 1) {
-                return [];
-            }
-            $names[] = $binding;
+        $tokens = (new JsLexer())->tokenize($declarations);
+        if ($tokens === []) {
+            return [];
         }
 
-        return $names;
+        $names = [];
+        $cursor = 0;
+        $end = count($tokens) - 1;
+
+        while ($cursor <= $end) {
+            [$declarationNames, $cursor] = $this->exportedBindingNamesAt($tokens, $cursor, $end);
+            if ($declarationNames === []) {
+                return [];
+            }
+            foreach ($declarationNames as $name) {
+                $names[] = $name;
+            }
+
+            $cursor = $this->skipExportedVariableInitializer($tokens, $cursor, $end);
+            if ($cursor > $end) {
+                break;
+            }
+            $cursor++;
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param list<Token> $tokens
+     * @return array{0:list<string>, 1:int}
+     */
+    private function exportedBindingNamesAt(array $tokens, int $start, int $end): array
+    {
+        $token = $tokens[$start] ?? null;
+        if ($token === null) {
+            return [[], $start + 1];
+        }
+
+        if ($token->kind === 'identifier') {
+            return [[$token->text], $start + 1];
+        }
+
+        if ($token->text === '[') {
+            return $this->exportedArrayBindingNamesAt($tokens, $start, $end);
+        }
+
+        if ($token->text === '{') {
+            return $this->exportedObjectBindingNamesAt($tokens, $start, $end);
+        }
+
+        return [[], $start + 1];
+    }
+
+    /**
+     * @param list<Token> $tokens
+     * @return array{0:list<string>, 1:int}
+     */
+    private function exportedArrayBindingNamesAt(array $tokens, int $open, int $end): array
+    {
+        $close = min($this->matchingExportedBindingPunctuator($tokens, $open, '[', ']'), $end);
+        $names = [];
+        $cursor = $open + 1;
+
+        while ($cursor < $close) {
+            if (($tokens[$cursor] ?? null)?->text === ',') {
+                $cursor++;
+                continue;
+            }
+
+            if (($tokens[$cursor] ?? null)?->text === '.'
+                && ($tokens[$cursor + 1] ?? null)?->text === '.'
+                && ($tokens[$cursor + 2] ?? null)?->text === '.'
+            ) {
+                $cursor += 3;
+            }
+
+            [$elementNames, $cursor] = $this->exportedBindingNamesAt($tokens, $cursor, $close);
+            foreach ($elementNames as $name) {
+                $names[] = $name;
+            }
+
+            if (($tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->skipExportedBindingInitializer($tokens, $cursor + 1, $close);
+            }
+        }
+
+        return [$names, $close + 1];
+    }
+
+    /**
+     * @param list<Token> $tokens
+     * @return array{0:list<string>, 1:int}
+     */
+    private function exportedObjectBindingNamesAt(array $tokens, int $open, int $end): array
+    {
+        $close = min($this->matchingExportedBindingPunctuator($tokens, $open, '{', '}'), $end);
+        $names = [];
+        $cursor = $open + 1;
+
+        while ($cursor < $close) {
+            if (($tokens[$cursor] ?? null)?->text === ',') {
+                $cursor++;
+                continue;
+            }
+
+            if (($tokens[$cursor] ?? null)?->text === '.'
+                && ($tokens[$cursor + 1] ?? null)?->text === '.'
+                && ($tokens[$cursor + 2] ?? null)?->text === '.'
+            ) {
+                [$restNames, $cursor] = $this->exportedBindingNamesAt($tokens, $cursor + 3, $close);
+                foreach ($restNames as $name) {
+                    $names[] = $name;
+                }
+                continue;
+            }
+
+            if (($tokens[$cursor] ?? null)?->text === '[') {
+                $cursor = $this->matchingExportedBindingPunctuator($tokens, $cursor, '[', ']') + 1;
+                if (($tokens[$cursor] ?? null)?->text === ':') {
+                    [$valueNames, $cursor] = $this->exportedBindingNamesAt($tokens, $cursor + 1, $close);
+                    foreach ($valueNames as $name) {
+                        $names[] = $name;
+                    }
+                    if (($tokens[$cursor] ?? null)?->text === '=') {
+                        $cursor = $this->skipExportedBindingInitializer($tokens, $cursor + 1, $close);
+                    }
+                }
+                continue;
+            }
+
+            $property = $tokens[$cursor] ?? null;
+            if ($property === null) {
+                break;
+            }
+
+            if (($tokens[$cursor + 1] ?? null)?->text === ':') {
+                [$valueNames, $cursor] = $this->exportedBindingNamesAt($tokens, $cursor + 2, $close);
+                foreach ($valueNames as $name) {
+                    $names[] = $name;
+                }
+            } else {
+                if ($property->kind === 'identifier') {
+                    $names[] = $property->text;
+                }
+                $cursor++;
+            }
+
+            if (($tokens[$cursor] ?? null)?->text === '=') {
+                $cursor = $this->skipExportedBindingInitializer($tokens, $cursor + 1, $close);
+            }
+        }
+
+        return [$names, $close + 1];
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function skipExportedBindingInitializer(array $tokens, int $start, int $patternClose): int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $patternClose; $i++) {
+            $text = $tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $patternClose;
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function skipExportedVariableInitializer(array $tokens, int $start, int $end): int
+    {
+        $depth = 0;
+        for ($i = $start; $i <= $end; $i++) {
+            $text = $tokens[$i]->text;
+            if ($depth === 0 && $text === ',') {
+                return $i;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+            } elseif (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+            }
+        }
+
+        return $end + 1;
+    }
+
+    /**
+     * @param list<Token> $tokens
+     */
+    private function matchingExportedBindingPunctuator(array $tokens, int $openIndex, string $open, string $close): int
+    {
+        $depth = 0;
+        $count = count($tokens);
+        for ($i = $openIndex; $i < $count; $i++) {
+            $text = $tokens[$i]->text;
+            if ($text === $open) {
+                $depth++;
+            } elseif ($text === $close) {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('Unterminated TypeScript export binding pattern');
     }
 
     /**
