@@ -1566,3 +1566,39 @@ settings are still rejected during indexed row verification. The new
 `examples/wordpress-json5-option-value.php` script documents the recovery path
 for indexed JSON5-style plugin/theme settings on hosts without the SQLite
 extension.
+
+## Focused Native Mapping: Escaped JSON Path Labels
+
+This slice keeps the bounded JSON expression-index lookup API but broadens path
+matching to SQLite's escaped object-label behavior. The native reader now
+decodes JSON5-style quoted path labels such as `$."plugin\x5cenabled"`,
+supports bare path labels containing embedded double quotes such as
+`$.A"Key`, and normalizes `->`/`->>` string RHS label escapes such as
+`a\x62c` before matching the expression index against caller-supplied paths.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json502.test
+```
+
+Result: 1 Tcl script, 0 errors out of 13 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json502.test` verifies escaped JSON labels, `->`/`->>` RHS path-label
+  escapes such as `a\x62c`, quoted path labels containing backslash escapes,
+  and bare path labels containing embedded double quotes.
+
+The native PHP tests now cover parsing `json_extract(option_value,
+'$."a\x62c"')`, `json_extract(option_value,'$.A"Key')`,
+`option_value ->> 'a\x62c'`, and `option_value -> 'a\x62c'` expression-index
+metadata. A WordPress-shaped fixture reads plugin setting rows through
+expression indexes over keys named `abc`, `A"Key`, and `plugin\enabled`,
+including path equivalence between escaped quoted labels and bare embedded
+quote labels. The new
+`examples/wordpress-json-escaped-label-option-value.php` script documents this
+recovery path for plugin/theme settings whose JSON keys come from escaped or
+external identifiers.

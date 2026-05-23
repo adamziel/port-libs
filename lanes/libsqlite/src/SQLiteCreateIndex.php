@@ -840,11 +840,17 @@ final class SQLiteCreateIndex
         if (preg_match('/^\[(?:\d+|#|#-\d+)\]$/', $operand) === 1) {
             return '$' . $operand;
         }
-        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $operand) === 1) {
-            return '$.' . $operand;
+
+        $member = SQLiteJsonPath::decodeBareMember($operand);
+        if ($member === null) {
+            return null;
         }
 
-        $quoted = json_encode($operand, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $member) === 1) {
+            return '$.' . $member;
+        }
+
+        $quoted = json_encode($member, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if (!is_string($quoted)) {
             return null;
         }

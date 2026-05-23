@@ -5236,8 +5236,8 @@ final class SQLiteDatabase
                 $end = self::jsonPathQuotedMemberEnd($path, $offset);
                 $literal = substr($path, $offset, $end - $offset + 1);
                 try {
-                    $member = json_decode($literal, true, 512, JSON_THROW_ON_ERROR);
-                } catch (\JsonException $exception) {
+                    $member = SQLiteJson5Parser::decode($literal);
+                } catch (\InvalidArgumentException $exception) {
                     throw new \InvalidArgumentException('SQLite json_extract expression index quoted path member is invalid', 0, $exception);
                 }
                 if (!is_string($member)) {
@@ -5251,14 +5251,22 @@ final class SQLiteDatabase
                 continue;
             }
 
-            if (!preg_match('/[A-Za-z_][A-Za-z0-9_]*/A', substr($path, $offset), $matches)) {
-                throw new \InvalidArgumentException('SQLite json_extract expression index path member is outside the supported subset');
+            $end = $offset;
+            while ($end < $length && $path[$end] !== '.' && $path[$end] !== '[') {
+                $end++;
+            }
+            if ($end === $offset) {
+                throw new \InvalidArgumentException('SQLite json_extract expression index path has an empty object member');
+            }
+            $member = SQLiteJsonPath::decodeBareMember(substr($path, $offset, $end - $offset));
+            if ($member === null) {
+                throw new \InvalidArgumentException('SQLite json_extract expression index path member escape is invalid');
             }
             $segments[] = [
                 'kind' => 'member',
-                'value' => $matches[0],
+                'value' => $member,
             ];
-            $offset += strlen($matches[0]);
+            $offset = $end;
         }
 
         return $segments;

@@ -194,6 +194,13 @@ native recovery tools can resolve `json_extract(option_value,
 expression indexes, distinguish arrays from object labels, treat `[#]` as
 not-found for extraction, and reject malformed reverse path forms until broader
 JSON mutation behavior is ported.
+SQLite JSON path object-label escaping now matches the focused `json502.test`
+boundary. Recovery tools can use expression indexes whose path labels contain
+embedded quotes, JSON5-style hex escapes, or backslashes, including
+`json_extract(option_value,'$.A"Key')`,
+`json_extract(option_value,'$."plugin\x5cenabled"')`, and `option_value ->>
+'a\x62c'`. This maps plugin/theme settings exports whose option JSON keys were
+generated from external identifiers rather than plain PHP array keys.
 Composite `wp_options(autoload, option_name)` indexes can now serve the common
 SQLite equality-prefix plus range shape: `autoload='no'` constrains the first
 indexed column while bounded `option_name` comparisons scan only matching
@@ -416,6 +423,11 @@ as unquoted keys, single-quoted strings, comments, extra whitespace, or
 trailing commas. This maps recovery of manually edited plugin/theme settings
 without requiring the SQLite extension.
 
+`examples/wordpress-json-escaped-label-option-value.php` documents indexed
+scalar lookups for JSON object labels that require SQLite path escaping, such
+as embedded quotes, `\xNN` label escapes, or backslash-containing plugin
+settings keys.
+
 `examples/wordpress-json-array-option-value.php` reads a WordPress-oriented
 SQLite database file, resolves a first-term
 `wp_options(json_extract(option_value,'$.rules[0].enabled'))`-style expression
@@ -501,7 +513,7 @@ slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `trim/ltrim/rtrim(column[, literal characters])` point lookups, literal-start
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and the
 named `json_extract(column,path)`, `column ->> path`, and `column -> path`
-JSON scalar/fragment buckets; JSON `->` IN-list/range lookups; broader JSON
-path/value semantics such as JSON mutation at `[#]`, JSONB, and JSON5; custom
-collations; and composite-key ranges beyond one equality prefix plus one range
-column.
+JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
+mutation at `[#]`, JSONB input decoding, and full JSON5 numeric/string edge
+parity; custom collations; and composite-key ranges beyond one equality prefix
+plus one range column.
