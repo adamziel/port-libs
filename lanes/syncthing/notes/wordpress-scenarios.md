@@ -728,8 +728,22 @@ sorted by path, and a pull is in sync only when no items changed and no pull
 errors were promoted. `wordpress-folder-errors.php` shows a failed Playground
 media pull surfacing as a persistent WordPress media folder error while keeping
 the temporary file for retry.
+The pull-scanner slice now maps upstream `pullScannerRoutine` around the
+scan-channel close boundary: finalization and deletion scan paths are collected
+while pulling is still active, duplicate paths collapse into one pending scan
+candidate, file and directory candidates remain classified for native PHP
+bookkeeping, no scan callback fires before the pull scanner closes, close emits
+one post-pull scan batch, repeat close attempts are idempotent, and a failed
+`performFinish` path such as `file modified but not rescanned` still queues the
+media file for a deferred scan. This is backed by static targeted reads of
+`lib/model/folder_sendrecv.go` around `pullScannerRoutine`, `finisherRoutine`,
+`performFinish`, `scanIfItemChanged`, `checkToBeDeleted`, and
+`deleteDirOnDiskHandleChildren`, not full upstream runner parity.
+`wordpress-post-pull-scan-scheduler.php` shows a local-first WordPress media
+edit and stale Playground export folder remaining unscheduled while the pull is
+open, then being emitted as one de-duplicated post-pull scan batch.
 
 ## Next Task
 
-Target pullScannerRoutine scan aggregation and deferred post-pull scan
-scheduling for files and directories queued during finalization/deletion.
+Target handleDir/handleSymlink directory and symlink update lifecycle, including
+ItemStarted/ItemFinished payloads and dbUpdate scheduling boundaries.

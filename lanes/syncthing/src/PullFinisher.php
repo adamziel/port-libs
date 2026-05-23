@@ -38,6 +38,7 @@ final class PullFinisher
         private readonly bool $receiveEncryptedFolder = false,
         private readonly mixed $itemFinished = null,
         private readonly ?FolderErrorTracker $folderErrors = null,
+        private readonly ?PullScanner $pullScanner = null,
     ) {
         if ($this->itemFinished !== null && !is_callable($this->itemFinished)) {
             throw new \InvalidArgumentException('ItemFinished callback must be callable or null');
@@ -60,6 +61,7 @@ final class PullFinisher
 
         $file = $state->file;
         $this->queue->done($file->name);
+        $this->pullScanner?->queueFinalization($finalization);
 
         $error = $finalization->error;
         if ($error === null && $finalization->finalized && $finalization->dbUpdateType !== '' && $this->dbUpdater !== null) {
