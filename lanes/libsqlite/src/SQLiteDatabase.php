@@ -5044,7 +5044,11 @@ final class SQLiteDatabase
         try {
             $value = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
-            throw new \InvalidArgumentException('SQLite json_extract expression index value is not valid strict JSON', 0, $exception);
+            try {
+                $value = SQLiteJson5Parser::decode($json);
+            } catch (\InvalidArgumentException $json5Exception) {
+                throw new \InvalidArgumentException('SQLite json_extract expression index value is not valid strict JSON or supported JSON5', 0, $json5Exception);
+            }
         }
 
         foreach ($segments as $segment) {

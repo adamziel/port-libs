@@ -1374,6 +1374,51 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', new stdClass()));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', true, -1));
     },
+    'uses json5 json_extract expression indexes for wordpress plugin option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $json5Settings = "{enabled: true, mode: 'dark', /* import note */ rules: [{enabled:false}, {enabled:true,},],}";
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_enabled', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_enabled ON wp_options(json_extract(option_value, \'$.enabled\')) WHERE option_value IS NOT NULL'], 2),
+            $schemaCell(['index', 'wp_options_last_rule_enabled', 'wp_options', 4, 'CREATE INDEX wp_options_last_rule_enabled ON wp_options(json_extract(option_value, \'$.rules[#-1].enabled\')) WHERE option_value IS NOT NULL'], 3),
+        ], 1024, 100, $makeFirstPage(1024, 4));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_json5_settings', $json5Settings, 'no'], 1),
+            $schemaCell([null, 'plugin_strict_settings', '{"enabled":false,"rules":[]}', 'no'], 2),
+        ], 1024);
+        $page3 = $indexLeafPage([
+            $indexCell([0, 2]),
+            $indexCell([1, 1]),
+        ], 1024);
+        $page4 = $indexLeafPage([
+            $indexCell([null, 2]),
+            $indexCell([1, 1]),
+        ], 1024);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+
+        $enabled = $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', true);
+        $lastRuleEnabled = $database->wordpressOptionsByIndexedJsonOptionValue('$.rules[#-1].enabled', true);
+
+        $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.enabled', true));
+        $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.rules[#-1].enabled', true));
+        $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $lastRuleEnabled));
+        $t->same([$json5Settings], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $enabled));
+    },
+    'rejects malformed json5 while verifying wordpress json expression indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_plugin_enabled', 'wp_options', 3, 'CREATE INDEX wp_options_plugin_enabled ON wp_options(json_extract(option_value, \'$.enabled\')) WHERE option_value IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_broken_settings', '{enabled:true,,}', 'no'], 1),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell([1, 1]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', true));
+    },
     'uses json_extract expression index for wordpress plugin settings array paths' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

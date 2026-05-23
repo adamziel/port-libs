@@ -145,7 +145,7 @@ families such as version counters or plugin migration markers through
 `CAST(option_value AS INTEGER) >= 100 AND < 60000`, while still using SQLite's
 text-prefix integer cast rules and avoiding unrelated index branches.
 First-term `json_extract(option_value,'$.key')` expression indexes are now
-parsed for exact scalar lookups over strict JSON option values. Recovery and
+parsed for exact scalar lookups over strict JSON or supported JSON5 option values. Recovery and
 audit tools can find plugin/theme settings such as `{"enabled":true}` through
 the stored JSON expression key, with SQLite-style boolean scalars mapped to
 `1`/`0`, without treating the expression index as a normal `option_value`
@@ -161,11 +161,17 @@ inclusive upper bounds. Recovery and audit tools can inspect numeric priority
 bands or text status bands inside strict-JSON plugin settings through
 `json_extract(option_value,'$.key')` without scanning every option row, while
 still excluding JSON null or missing-path keys from bounded comparisons.
+JSON expression row verification now falls back to a bounded SQLite JSON5
+parser when strict JSON decoding fails. Recovery tools can read manually
+edited plugin settings such as `{enabled: true, mode: 'dark', /* note */
+rules: [{enabled:false}, {enabled:true,},],}` through stored JSON expression
+indexes, while malformed JSON5 such as duplicate commas is still rejected
+instead of trusting an index payload blindly.
 SQLite `option_value ->> 'key'` expression indexes are now accepted for the
 same simple JSON object-member lookup family. This maps plugin/theme settings
 databases that use the JSON text-operator shorthand instead of
 `json_extract(...)`: recovery tools can still request `$.enabled`, resolve the
-arrow expression index, and verify the strict JSON scalar before returning
+arrow expression index, and verify the strict JSON or supported JSON5 scalar before returning
 matching `wp_options` rows.
 SQLite `option_value -> 'key'` expression indexes are now accepted as a
 separate JSON-fragment lookup family. This maps plugin/theme settings
@@ -400,9 +406,15 @@ scanning every `wp_options` row.
 `examples/wordpress-json-option-value.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(json_extract(option_value,'$.key'))` expression index, and returns
-options whose strict JSON scalar value matches a requested path/value pair.
+options whose strict JSON or supported JSON5 scalar value matches a requested path/value pair.
 This maps plugin/theme settings recovery such as indexed enabled flags without
 requiring the PHP SQLite extension or a full table scan.
+
+`examples/wordpress-json5-option-value.php` documents the same indexed scalar
+lookup for option rows whose JSON text uses SQLite JSON5 input features such
+as unquoted keys, single-quoted strings, comments, extra whitespace, or
+trailing commas. This maps recovery of manually edited plugin/theme settings
+without requiring the SQLite extension.
 
 `examples/wordpress-json-array-option-value.php` reads a WordPress-oriented
 SQLite database file, resolves a first-term

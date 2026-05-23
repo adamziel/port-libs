@@ -1525,3 +1525,44 @@ asks for `siteurl`. The new
 `examples/wordpress-trimmed-option-name.php` script maps recovery of
 whitespace-damaged option names without requiring the PHP SQLite extension or a
 full table scan.
+
+## Focused Native Mapping: JSON5 Indexed Option Reads
+
+This slice keeps the existing expression-index lookup boundary but broadens row
+verification from strict RFC-8259 JSON to SQLite's JSON5 input subset. The
+native reader now falls back to a bounded JSON5 parser when `json_decode()`
+rejects an `option_value`: unquoted object keys, single-quoted strings,
+single trailing commas, C-style comments, JSON5 whitespace, hexadecimal and
+signed numeric forms, `Infinity`, and `NaN` are decoded for
+`json_extract(...)`, `->>`, and `->` expression-index verification. Malformed
+JSON5 still rejects the row instead of silently trusting the index payload.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json501.test json502.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 198 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json501.test` covers JSON5 unquoted IdentifierName object keys,
+  trailing object/array commas, single-quoted strings, comments, additional
+  whitespace, hex/signed/Infinity/NaN numeric forms, and malformed comma
+  rejection.
+- `test/json502.test` covers JSON5 nested objects with trailing commas,
+  malformed object labels, escaped label names, and JSON path label escaping.
+
+The native PHP tests cover WordPress-shaped `wp_options` rows whose
+`option_value` contains JSON5-style plugin settings with unquoted keys,
+single-quoted text, comments, and trailing commas, then read those rows through
+`json_extract(option_value,'$.enabled')` and
+`json_extract(option_value,'$.rules[#-1].enabled')` expression indexes. A
+separate malformed JSON5 fixture verifies that corrupt manually edited plugin
+settings are still rejected during indexed row verification. The new
+`examples/wordpress-json5-option-value.php` script documents the recovery path
+for indexed JSON5-style plugin/theme settings on hosts without the SQLite
+extension.
