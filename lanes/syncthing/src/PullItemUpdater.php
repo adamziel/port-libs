@@ -56,6 +56,8 @@ final class PullItemUpdater
         private readonly ?int $conflictTimestamp = null,
         private readonly ?IgnoreMatcher $ignoreMatcher = null,
         private readonly bool $receiveOnlyFolder = false,
+        private readonly bool $receiveEncryptedFolder = false,
+        private readonly string $directorySeparator = DIRECTORY_SEPARATOR,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -560,13 +562,52 @@ final class PullItemUpdater
         if (!$this->ignorePerms && !$file->noPermissions && !@chmod($path, $file->permissions & 0777)) {
             return $this->fail($file->name, 'shortcut file (setting permissions): chmod failed');
         }
+        $dbFile = $file;
+        if ($this->receiveEncryptedFolder) {
+            $trailerSize = $this->rewriteEncryptionTrailer($path, $file);
+            $dbFile = $file->withSize($file->size + $trailerSize);
+        }
+
         if ($file->modifiedS > 0 && !@touch($path, $file->modifiedS)) {
             return $this->fail($file->name, 'shortcut file (setting metadata): chtimes failed');
         }
 
-        $this->scheduleDbUpdate($file, PullDbUpdater::DB_UPDATE_SHORTCUT_FILE);
+        $this->scheduleDbUpdate($dbFile, PullDbUpdater::DB_UPDATE_SHORTCUT_FILE);
 
         return null;
+    }
+
+    private function rewriteEncryptionTrailer(string $path, FileInfo $file): int
+    {
+        $trailer = ReceiveEncrypted::encryptionTrailer($file, $this->directorySeparator);
+        $handle = @fopen($path, 'r+b');
+        if ($handle === false) {
+            throw new \RuntimeException('writing encrypted file trailer: open failed');
+        }
+
+        try {
+            if (fseek($handle, $file->size) !== 0) {
+                throw new \RuntimeException('writing encrypted file trailer: seek failed');
+            }
+
+            $remaining = $trailer;
+            while ($remaining !== '') {
+                $written = fwrite($handle, $remaining);
+                if ($written === false || $written === 0) {
+                    throw new \RuntimeException('writing encrypted file trailer: write failed');
+                }
+                $remaining = substr($remaining, $written);
+            }
+
+            $finalSize = $file->size + strlen($trailer);
+            if (!ftruncate($handle, $finalSize)) {
+                throw new \RuntimeException('writing encrypted file trailer: truncate failed');
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return strlen($trailer);
     }
 
     private function renameFileShortcutError(

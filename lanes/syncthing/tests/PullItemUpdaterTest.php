@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use PortLibs\Syncthing\BlockList;
+use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\IgnoreMatcher;
 use PortLibs\Syncthing\PullDbUpdater;
 use PortLibs\Syncthing\PullItemUpdater;
+use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\VersionVector;
 
 return [
@@ -506,6 +509,203 @@ return [
             syncthing_item_rm($root);
         }
     },
+    'shortcutFile rewrites receive-encrypted FileInfo trailer before shortcut database update' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $plainName = 'wp-content/uploads/private/2026/member-export.bin';
+            $plainBytes = str_repeat('private wordpress export ', 32);
+            $blockList = new BlockList();
+            $plainBlocks = $blockList->fromBytes($plainBytes, strlen($plainBytes));
+            $folderKey = EncryptionKey::folderKeyFromPassword('wordpress-private-media', 'member media secret');
+            $fileKey = ReceiveEncrypted::fileKey($plainName, $folderKey);
+
+            $oldPlain = new FileInfo(
+                name: $plainName,
+                modifiedS: 1_700_005_300,
+                version: VersionVector::fromCounters([101 => 82]),
+                size: strlen($plainBytes),
+                blocksHash: $blockList->hashBlocks($plainBlocks),
+                type: FileInfo::TYPE_FILE,
+                permissions: 0644,
+                rawBlockSize: strlen($plainBytes),
+                sequence: 82,
+                blocks: $plainBlocks,
+                modifiedBy: 101,
+            );
+            $newPlain = new FileInfo(
+                name: $plainName,
+                modifiedS: 1_700_005_400,
+                version: VersionVector::fromCounters([202 => 83]),
+                size: strlen($plainBytes),
+                blocksHash: $blockList->hashBlocks($plainBlocks),
+                type: FileInfo::TYPE_FILE,
+                permissions: 0644,
+                rawBlockSize: strlen($plainBytes),
+                sequence: 83,
+                blocks: $plainBlocks,
+                modifiedBy: 202,
+            );
+
+            $oldEncrypted = ReceiveEncrypted::encryptFileInfo($oldPlain, $folderKey, str_repeat("\1", ReceiveEncrypted::NONCE_SIZE));
+            $newEncrypted = ReceiveEncrypted::encryptFileInfo($newPlain, $folderKey, str_repeat("\2", ReceiveEncrypted::NONCE_SIZE));
+            $encryptedData = ReceiveEncrypted::encryptBytes(
+                $plainBytes . str_repeat('P', ReceiveEncrypted::MIN_PADDED_SIZE - strlen($plainBytes)),
+                $fileKey,
+                str_repeat("\3", ReceiveEncrypted::NONCE_SIZE),
+            );
+            $oldFinalized = ReceiveEncrypted::finalizeEncryptedFile($encryptedData, $oldEncrypted);
+            $encryptedPath = syncthing_item_path($root, $newEncrypted->name);
+            if (!is_dir(dirname($encryptedPath)) && !mkdir(dirname($encryptedPath), 0777, true) && !is_dir(dirname($encryptedPath))) {
+                throw new RuntimeException('Failed to create encrypted fixture directory');
+            }
+            file_put_contents($encryptedPath, $oldFinalized['bytes']);
+            touch($encryptedPath, $oldEncrypted->modifiedS);
+
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-private-media', receiveEncryptedFolder: true);
+            $remaining = $updater->processMetadataShortcuts([$newEncrypted], [$oldFinalized['file']]);
+            $rewritten = (string) file_get_contents($encryptedPath);
+            $extracted = ReceiveEncrypted::extractEncryptionTrailer($rewritten);
+            $trailerSize = $extracted['trailerSize'];
+
+            $t->same([], $remaining);
+            $t->same($encryptedData, $extracted['data']);
+            $t->same($newEncrypted->name, $extracted['file']->name);
+            $t->same($newEncrypted->encryptedPayload, $extracted['file']->encryptedPayload);
+            $t->same($newEncrypted->size, $extracted['file']->size);
+            $t->same($newEncrypted->size + $trailerSize, filesize($encryptedPath));
+            $t->same($newEncrypted->size + $trailerSize, $updater->dbUpdates()[0]['file']->size);
+            $t->same($newEncrypted->encryptedPayload, $updater->dbUpdates()[0]['file']->encryptedPayload);
+            $t->same(PullDbUpdater::DB_UPDATE_SHORTCUT_FILE, $updater->dbUpdates()[0]['type']);
+            $t->same(1_234_567_890, filemtime($encryptedPath));
+            $t->same([], $updater->pullErrors());
+            $t->same('metadata', $updater->itemFinishedEvents()[0]['action']);
+
+            $db = new PullDbUpdater(folderId: 'wordpress-private-media', folderLabel: 'Private Media');
+            foreach ($updater->dbUpdates() as $update) {
+                $db->append($update['file'], $update['type']);
+            }
+            $t->same(1, $db->close());
+            $t->same([dirname($newEncrypted->name)], $db->fsyncedDirectories());
+            $t->same([], $db->receivedFiles());
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'shortcutFile keeps receive-encrypted trailer write failure retryable without database update' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $fixture = syncthing_item_receive_encrypted_fixture(
+                plainName: 'wp-content/uploads/private/2026/member-retry.bin',
+                plainBytes: str_repeat('retryable private media bytes ', 8),
+                oldVersion: [101 => 90],
+                newVersion: [202 => 91],
+            );
+            $encryptedPath = syncthing_item_path($root, $fixture['newEncrypted']->name);
+            if (!is_dir(dirname($encryptedPath)) && !mkdir(dirname($encryptedPath), 0777, true) && !is_dir(dirname($encryptedPath))) {
+                throw new RuntimeException('Failed to create encrypted retry fixture directory');
+            }
+            file_put_contents($encryptedPath, $fixture['oldFinalized']['bytes']);
+            chmod($encryptedPath, 0444);
+
+            try {
+                $updater = new PullItemUpdater(
+                    $root,
+                    folderId: 'wordpress-private-media',
+                    ignorePerms: true,
+                    receiveEncryptedFolder: true,
+                );
+                $remaining = $updater->processMetadataShortcuts(
+                    [$fixture['newEncrypted']],
+                    [$fixture['oldFinalized']['file']],
+                );
+
+                $t->same([], $remaining);
+                $t->same($fixture['oldFinalized']['bytes'], file_get_contents($encryptedPath));
+                $t->same([], $updater->dbUpdates());
+                $t->same([
+                    [
+                        'path' => $fixture['newEncrypted']->name,
+                        'error' => 'writing encrypted file trailer: open failed',
+                    ],
+                ], $updater->pullErrors());
+                $t->same('metadata', $updater->itemFinishedEvents()[0]['action']);
+                $t->same('writing encrypted file trailer: open failed', $updater->itemFinishedEvents()[0]['error']);
+            } finally {
+                @chmod($encryptedPath, 0644);
+            }
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'processMetadataShortcuts does not create synthetic receive-encrypted parents after shortcut failure' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $fixture = syncthing_item_receive_encrypted_fixture(
+                plainName: str_repeat('private-section/', 10) . 'member-export.bin',
+                plainBytes: str_repeat('private missing parent bytes ', 6),
+                oldVersion: [101 => 92],
+                newVersion: [202 => 93],
+            );
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-private-media', receiveEncryptedFolder: true);
+
+            $remaining = $updater->processMetadataShortcuts(
+                [$fixture['newEncrypted']],
+                [$fixture['oldFinalized']['file']],
+            );
+
+            $t->contains(ReceiveEncrypted::ENCRYPTED_DIR_EXTENSION . '/', $fixture['newEncrypted']->name);
+            $t->same([], $remaining);
+            $t->same([], $updater->dbUpdates());
+            $t->true(!file_exists(syncthing_item_path($root, $fixture['newEncrypted']->name)));
+            $t->true(!is_dir(dirname(syncthing_item_path($root, $fixture['newEncrypted']->name))));
+            $t->same([
+                [
+                    'path' => $fixture['newEncrypted']->name,
+                    'error' => 'shortcut file (setting metadata): file is not a regular file',
+                ],
+            ], $updater->pullErrors());
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'shortcutFile truncates stale receive-encrypted trailer bytes before shortcut database update' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $fixture = syncthing_item_receive_encrypted_fixture(
+                plainName: 'wp-content/uploads/private/2026/member-stale-trailer.bin',
+                plainBytes: str_repeat('private stale trailer bytes ', 7),
+                oldVersion: [101 => 1, 102 => 2, 103 => 3, 104 => 4, 105 => 5, 106 => 6, 107 => 7, 108 => 8],
+                newVersion: [202 => 94],
+            );
+            $newTrailerSize = strlen(ReceiveEncrypted::encryptionTrailer($fixture['newEncrypted']));
+            $encryptedPath = syncthing_item_path($root, $fixture['newEncrypted']->name);
+            if (!is_dir(dirname($encryptedPath)) && !mkdir(dirname($encryptedPath), 0777, true) && !is_dir(dirname($encryptedPath))) {
+                throw new RuntimeException('Failed to create encrypted stale-trailer fixture directory');
+            }
+            file_put_contents($encryptedPath, $fixture['oldFinalized']['bytes']);
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-private-media', receiveEncryptedFolder: true);
+
+            $remaining = $updater->processMetadataShortcuts(
+                [$fixture['newEncrypted']],
+                [$fixture['oldFinalized']['file']],
+            );
+            $rewritten = (string) file_get_contents($encryptedPath);
+            $extracted = ReceiveEncrypted::extractEncryptionTrailer($rewritten);
+
+            $t->true($fixture['oldFinalized']['trailerSize'] > $newTrailerSize);
+            $t->same([], $remaining);
+            $t->same($fixture['encryptedData'], $extracted['data']);
+            $t->same($newTrailerSize, $extracted['trailerSize']);
+            $t->same($fixture['newEncrypted']->encryptedPayload, $extracted['file']->encryptedPayload);
+            $t->same($fixture['newEncrypted']->size + $newTrailerSize, filesize($encryptedPath));
+            $t->true(strlen($fixture['oldFinalized']['bytes']) > filesize($encryptedPath));
+            $t->same($fixture['newEncrypted']->size + $newTrailerSize, $updater->dbUpdates()[0]['file']->size);
+            $t->same(PullDbUpdater::DB_UPDATE_SHORTCUT_FILE, $updater->dbUpdates()[0]['type']);
+            $t->same([], $updater->pullErrors());
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
     'processRenameShortcuts renames same-block source tombstone into target' => static function (TestRunner $t): void {
         $root = syncthing_item_root();
         try {
@@ -672,6 +872,82 @@ function syncthing_item_file_info(
         rawBlockSize: max(1, strlen($bytes)),
         modifiedBy: array_key_first($version) ?? 0,
     );
+}
+
+/**
+ * @param array<int, int> $oldVersion
+ * @param array<int, int> $newVersion
+ *
+ * @return array{
+ *     folderKey:string,
+ *     fileKey:string,
+ *     plainName:string,
+ *     plainBytes:string,
+ *     oldEncrypted:FileInfo,
+ *     newEncrypted:FileInfo,
+ *     encryptedData:string,
+ *     oldFinalized:array{bytes:string, file:FileInfo, trailerSize:int}
+ * }
+ */
+function syncthing_item_receive_encrypted_fixture(
+    string $plainName,
+    string $plainBytes,
+    array $oldVersion,
+    array $newVersion,
+    int $oldModified = 1_700_005_300,
+    int $newModified = 1_700_005_400,
+    int $oldSequence = 82,
+    int $newSequence = 83,
+): array {
+    $blockList = new BlockList();
+    $plainBlocks = $blockList->fromBytes($plainBytes, max(1, strlen($plainBytes)));
+    $blocksHash = $blockList->hashBlocks($plainBlocks);
+    $folderKey = EncryptionKey::folderKeyFromPassword('wordpress-private-media', 'member media secret');
+    $fileKey = ReceiveEncrypted::fileKey($plainName, $folderKey);
+
+    $oldPlain = new FileInfo(
+        name: $plainName,
+        modifiedS: $oldModified,
+        version: VersionVector::fromCounters($oldVersion),
+        size: strlen($plainBytes),
+        blocksHash: $blocksHash,
+        permissions: 0644,
+        rawBlockSize: max(1, strlen($plainBytes)),
+        sequence: $oldSequence,
+        blocks: $plainBlocks,
+        modifiedBy: array_key_first($oldVersion) ?? 0,
+    );
+    $newPlain = new FileInfo(
+        name: $plainName,
+        modifiedS: $newModified,
+        version: VersionVector::fromCounters($newVersion),
+        size: strlen($plainBytes),
+        blocksHash: $blocksHash,
+        permissions: 0644,
+        rawBlockSize: max(1, strlen($plainBytes)),
+        sequence: $newSequence,
+        blocks: $plainBlocks,
+        modifiedBy: array_key_first($newVersion) ?? 0,
+    );
+
+    $oldEncrypted = ReceiveEncrypted::encryptFileInfo($oldPlain, $folderKey, str_repeat("\1", ReceiveEncrypted::NONCE_SIZE));
+    $newEncrypted = ReceiveEncrypted::encryptFileInfo($newPlain, $folderKey, str_repeat("\2", ReceiveEncrypted::NONCE_SIZE));
+    $encryptedData = ReceiveEncrypted::encryptBytes(
+        str_pad($plainBytes, max(strlen($plainBytes), ReceiveEncrypted::MIN_PADDED_SIZE), 'P'),
+        $fileKey,
+        str_repeat("\3", ReceiveEncrypted::NONCE_SIZE),
+    );
+
+    return [
+        'folderKey' => $folderKey,
+        'fileKey' => $fileKey,
+        'plainName' => $plainName,
+        'plainBytes' => $plainBytes,
+        'oldEncrypted' => $oldEncrypted,
+        'newEncrypted' => $newEncrypted,
+        'encryptedData' => $encryptedData,
+        'oldFinalized' => ReceiveEncrypted::finalizeEncryptedFile($encryptedData, $oldEncrypted),
+    ];
 }
 
 function syncthing_item_deleted(string $name, VersionVector $version, int $modifiedBy = 202): FileInfo

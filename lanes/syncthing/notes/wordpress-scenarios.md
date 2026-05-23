@@ -812,9 +812,61 @@ targeted reads of `lib/model/folder_sendrecv.go` around `processNeeded`,
 found for this exact branch. `wordpress-metadata-shortcut.php` shows an existing
 WordPress media item receiving a permissions/mtime-only update while a different
 needed file remains queued for full pull work.
+The receive-encrypted metadata-shortcut slice now maps the upstream
+`shortcutFile` branch for receive-encrypted folders: after a same-block
+metadata-only update, native PHP rewrites the encrypted FileInfo trailer at the
+encrypted data-size boundary, truncates any previous trailer, expands the local
+database FileInfo size by the new trailer length before scheduling
+`dbUpdateShortcutFile`, preserves the encrypted data bytes, and still suppresses
+`ReceivedFile` notifications because no content was transferred. This is backed
+by targeted reads of `lib/model/folder_sendrecv.go` around `shortcutFile` and
+`lib/model/sharedpullerstate.go` around `writeEncryptionTrailer`; no direct
+upstream package test was found for this exact branch.
+`wordpress-receive-encrypted-metadata-shortcut.php` shows an untrusted private
+media folder updating only encrypted metadata while the local finalized file's
+trailer and DB size are refreshed without re-downloading the encrypted block.
+The receive-encrypted metadata shortcut retry slice now maps adjacent upstream
+failure boundaries around `shortcutFile` and `writeEncryptionTrailer`: native
+PHP opens the finalized encrypted file in existing-file read/write mode like
+upstream `OpenFile` without create, trailer write failures leave the old
+finalized bytes and database state untouched while recording a retryable pull
+error, missing synthetic `.syncthing-enc` parent paths do not create placeholder
+directories or files, and stale longer trailer bytes are truncated when the new
+trailer is successfully committed. This is backed by targeted reads of
+`lib/model/folder_sendrecv.go:1252-1319` and
+`lib/model/sharedpullerstate.go:365-410`; no direct upstream package test was
+found for this exact branch. `wordpress-receive-encrypted-shortcut-retry.php`
+shows a private WordPress media export where a read-only finalized encrypted
+file keeps the old trailer, emits a pull error, and avoids `dbUpdateShortcutFile`
+until a later retry can rewrite the metadata trailer.
+The bounded pull-iteration retry slice now maps upstream `pull`,
+`pullerIteration`, and `newPullError` behavior: a pull clears old persistent
+pull errors, each iteration starts with a fresh `tempPullErrors` map, the loop
+continues while an iteration changed at least one item and stops after either a
+zero-change iteration or three changed iterations, and only the final
+iteration's temporary errors are promoted to a `FolderErrors` event. This is
+backed by targeted reads of `lib/model/folder_sendrecv.go:184-235`,
+`lib/model/folder_sendrecv.go:240-260`, and
+`lib/model/folder_sendrecv.go:1896-1916`; no direct upstream package test was
+found for this exact branch. `wordpress-receive-encrypted-retry-loop.php` shows
+a private WordPress media metadata pull where a transient trailer-write error is
+cleared before the next bounded iteration succeeds, so no persistent folder
+error is emitted.
+
+## Test Run Notes
+
+On 2026-05-23, the focused Syncthing lane suite passed 37 files, 242 tests, and
+1945 assertions with 0 failures. `FolderErrorTrackerTest.php` alone passed 1
+file, 7 tests, and 43 assertions; `PullItemUpdaterTest.php` passed 1 file, 22
+tests, and 163 assertions. `wordpress-receive-encrypted-metadata-shortcut.php`,
+`wordpress-receive-encrypted-shortcut-retry.php`, and
+`wordpress-receive-encrypted-retry-loop.php` ran successfully. Before starting a
+root harness, this worker ran `pgrep -af '^php tools/run-tests\.php( |$)'` and
+found no active root process, then ran `php tools/run-tests.php`; the root
+harness passed 183 test files, 18901 assertions, and 0 failures.
 
 ## Next Task
 
-Target the receive-encrypted `shortcutFile` branch that rewrites the encrypted
-FileInfo trailer and adjusts advertised size before scheduling
-`dbUpdateShortcutFile`.
+Map platform metadata application/failure for `shortcutFile` and
+`performFinish`, including ownership/xattr error paths and any focused upstream
+`TestCopyOwner`-adjacent evidence that can be run cheaply.

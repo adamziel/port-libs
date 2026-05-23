@@ -6,6 +6,7 @@ use PortLibs\Syncthing\ActiveDownload;
 use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\FolderErrorTracker;
+use PortLibs\Syncthing\PullIterationRunner;
 use PortLibs\Syncthing\ProgressEmitter;
 use PortLibs\Syncthing\PullFinisher;
 use PortLibs\Syncthing\PullJobQueue;
@@ -150,6 +151,93 @@ return [
         } finally {
             syncthing_folder_error_rm($root);
         }
+    },
+    'pull iteration runner clears transient errors before retry success' => static function (TestRunner $t): void {
+        $tracker = new FolderErrorTracker('wordpress-private-media');
+        $runner = new PullIterationRunner($tracker);
+        $sawClearedSecondIteration = false;
+
+        $result = $runner->run(static function (int $try, FolderErrorTracker $errors) use (&$sawClearedSecondIteration): int {
+            if ($try === 1) {
+                $errors->newPullError(
+                    'wp-content/uploads/private/2026/member-retry.bin',
+                    'writing encrypted file trailer: open failed',
+                );
+
+                return 1;
+            }
+
+            $sawClearedSecondIteration = $errors->tempPullErrors() === [];
+
+            return 0;
+        });
+
+        $t->true($result->success);
+        $t->true($sawClearedSecondIteration);
+        $t->same([], $result->errors);
+        $t->same(null, $result->folderErrorsEvent);
+        $t->same([
+            ['try' => 1, 'changed' => 1, 'tempPullErrors' => 1],
+            ['try' => 2, 'changed' => 0, 'tempPullErrors' => 0],
+        ], $runner->iterationSummaries());
+    },
+    'pull iteration runner promotes only final iteration errors' => static function (TestRunner $t): void {
+        $logged = [];
+        $tracker = new FolderErrorTracker(
+            'wordpress-private-media',
+            static function (string $type, array $data) use (&$logged): void {
+                $logged[] = [$type, $data];
+            },
+        );
+        $runner = new PullIterationRunner($tracker);
+
+        $result = $runner->run(static function (int $try, FolderErrorTracker $errors): int {
+            if ($try === 1) {
+                $errors->newPullError('wp-content/uploads/private/2026/old-failure.bin', 'stale peer hash');
+
+                return 1;
+            }
+
+            $errors->newPullError('wp-content/uploads/private/2026/final-failure.bin', 'no connected device has the required version');
+
+            return 0;
+        });
+
+        $t->true(!$result->success);
+        $t->same(1, $result->promotedPullErrors);
+        $t->same([
+            [
+                'path' => 'wp-content/uploads/private/2026/final-failure.bin',
+                'error' => 'syncing: no connected device has the required version',
+            ],
+        ], $result->errors);
+        $t->same('FolderErrors', $result->folderErrorsEvent['type'] ?? null);
+        $t->same([[$result->folderErrorsEvent['type'], $result->folderErrorsEvent['data']]], $logged);
+        $t->same([
+            ['try' => 1, 'changed' => 1, 'tempPullErrors' => 1],
+            ['try' => 2, 'changed' => 0, 'tempPullErrors' => 1],
+        ], $runner->iterationSummaries());
+    },
+    'pull iteration runner stops after upstream maximum changed iterations' => static function (TestRunner $t): void {
+        $tracker = new FolderErrorTracker('wordpress-media');
+        $runner = new PullIterationRunner($tracker);
+        $tries = [];
+
+        $result = $runner->run(static function (int $try, FolderErrorTracker $errors) use (&$tries): int {
+            $tries[] = $try;
+
+            return 1;
+        });
+
+        $t->true(!$result->success);
+        $t->same([1, 2, 3], $tries);
+        $t->same([], $result->errors);
+        $t->same(null, $result->folderErrorsEvent);
+        $t->same([
+            ['try' => 1, 'changed' => 1, 'tempPullErrors' => 0],
+            ['try' => 2, 'changed' => 1, 'tempPullErrors' => 0],
+            ['try' => 3, 'changed' => 1, 'tempPullErrors' => 0],
+        ], $runner->iterationSummaries());
     },
 ];
 
