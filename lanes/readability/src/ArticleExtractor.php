@@ -162,6 +162,7 @@ final class ArticleExtractor
             $this->removePlatformArticleChrome($best);
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeInteractiveArticleChrome($best);
+            $this->removeNytCollectionChrome($best);
             $this->removeDuplicateTitleHeader($best, $title);
             $this->removeSectionScaffoldHeadings($best);
             $this->removeLeadingBylineActionBar($best);
@@ -379,6 +380,10 @@ final class ArticleExtractor
         $tag = strtolower($element->tagName);
         $html = trim($dom->saveHTML($element) ?: '');
         if ($html === '') {
+            return;
+        }
+
+        if ($tag === 'nav') {
             return;
         }
 
@@ -1630,6 +1635,122 @@ final class ArticleExtractor
         foreach ($remove as $node) {
             $node->parentNode?->removeChild($node);
         }
+    }
+
+    private function removeNytCollectionChrome(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        if (($xpath->query('.//*[@id="collection-highlights-container"]', $scope)?->length ?? 0) === 0) {
+            return;
+        }
+
+        $remove = [];
+        foreach ($xpath->query('.//*[@id="stream-panel"]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " supplemental ") or @id="mktg-wrapper" or (starts-with(@id, "mid") and contains(@id, "-wrapper"))]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[@id="collection-highlights-container"]', $scope) ?: [] as $container) {
+            if (!$container instanceof \DOMElement) {
+                continue;
+            }
+
+            $seenPrimaryHighlights = false;
+            foreach ($this->elementChildren($container) as $child) {
+                if (strtolower($child->tagName) !== 'div') {
+                    continue;
+                }
+
+                if (!$seenPrimaryHighlights) {
+                    $seenPrimaryHighlights = true;
+                    continue;
+                }
+
+                $remove[] = $child;
+            }
+
+            $firstHighlightArticle = $xpath->query('./div[1]/ol/li[1]/article', $container)?->item(0);
+            if ($firstHighlightArticle instanceof \DOMElement) {
+                $this->keepOnlyDirectFigureChildren($firstHighlightArticle);
+            }
+        }
+
+        $bandIndex = 0;
+        foreach ($xpath->query('.//section[contains(concat(" ", normalize-space(@class), " "), " 5-band ") or contains(concat(" ", normalize-space(@class), " "), " 5-band-intl-opinion ")]', $scope) ?: [] as $section) {
+            if (!$section instanceof \DOMElement) {
+                continue;
+            }
+
+            $bandIndex++;
+            $keepArticleIndex = $this->nytCollectionBandArticleIndexToKeep($xpath, $section, $bandIndex);
+            $articleIndex = 0;
+            foreach ($xpath->query('./ol//article', $section) ?: [] as $article) {
+                if (!$article instanceof \DOMElement) {
+                    continue;
+                }
+
+                $articleIndex++;
+                if ($keepArticleIndex !== null && $articleIndex === $keepArticleIndex) {
+                    continue;
+                }
+
+                $this->keepOnlyDirectFigureChildren($article);
+            }
+        }
+
+        foreach (array_reverse($this->uniqueElements($remove)) as $node) {
+            if ($node !== $scope && $node->parentNode instanceof \DOMNode) {
+                $node->parentNode->removeChild($node);
+            }
+        }
+    }
+
+    private function nytCollectionBandArticleIndexToKeep(\DOMXPath $xpath, \DOMElement $section, int $bandIndex): ?int
+    {
+        if ($this->hasClassToken($section, '5-band-intl-opinion')) {
+            return null;
+        }
+
+        $heading = $this->normalizeWhitespace($xpath->query('./header//h2[1]', $section)?->item(0)?->textContent ?? '');
+
+        return match ($heading) {
+            'Especial' => 1,
+            'El brote de Coronavirus' => 2,
+            'Estados Unidos' => 5,
+            default => $bandIndex === 1 ? 1 : null,
+        };
+    }
+
+    private function keepOnlyDirectFigureChildren(\DOMElement $article): void
+    {
+        foreach ($this->elementChildren($article) as $child) {
+            if (strtolower($child->tagName) === 'figure') {
+                continue;
+            }
+
+            $child->parentNode?->removeChild($child);
+        }
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     * @return list<\DOMElement>
+     */
+    private function uniqueElements(array $elements): array
+    {
+        $unique = [];
+        foreach ($elements as $element) {
+            $unique[spl_object_id($element)] = $element;
+        }
+
+        return array_values($unique);
     }
 
     private function removeLeadingBylineActionBar(\DOMElement $scope): void
@@ -3233,6 +3354,21 @@ final class ArticleExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function elementChildren(\DOMElement $element): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
     }
 
     private function lastElementChild(\DOMElement $element): ?\DOMElement

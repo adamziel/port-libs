@@ -839,6 +839,45 @@ return [
         $t->same(false, str_contains($article->contentHtml, 'data-testid="share-tools"'), 'NYT share toolbars should not survive article cleanup');
         $t->same(false, str_contains($article->text, 'Advertisement'), 'NYT bottom ad slug should not enter article text');
     },
+    'maps Mozilla nytimes-5 section front with collection card pruning' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/nytimes-5';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h2')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
+        );
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h3')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h3')),
+        );
+        $t->same(count($attributeValues($expected, '//figure')), count($attributeValues($article->contentHtml, '//figure')));
+        $t->same(count($attributeValues($expected, '//article')), count($attributeValues($article->contentHtml, '//article')));
+        $t->same(count($attributeValues($expected, '//section')), count($attributeValues($article->contentHtml, '//section')));
+        $t->same(count($attributeValues($expected, '//ol')), count($attributeValues($article->contentHtml, '//ol')));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->contains('El día que renuncié a los Beatles', $article->text);
+        $t->contains('El auge y la caída de Elizabeth Holmes', $blocks);
+        $t->same(false, str_contains($article->text, 'La muerte cambió mi vida'), 'secondary highlight rail should not enter section-front extraction');
+        $t->same(false, str_contains($article->text, 'Elogio de la pereza'), 'latest-stream cards should not enter section-front extraction');
+        $t->same(false, str_contains($blocks, 'Lo más reciente'), 'section-front tab navigation should not become WordPress block output');
+        $t->same(false, str_contains($article->text, 'Advertisement'), 'NYT collection ad wrappers should not enter article text');
+    },
     'maps Mozilla telegraph fixture with text sections and publisher media chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/telegraph';
         $source = (string) file_get_contents($fixture . '/source.html');
