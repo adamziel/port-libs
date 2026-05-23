@@ -121,13 +121,14 @@ void dumpEntries(std::ostream &out, lmdb::txn &txn) {
 } // namespace
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        std::cerr << "usage: upstream-lmdb-cursor-fixture <source-db-dir> <proof-db-dir>\n";
+    if (argc != 4) {
+        std::cerr << "usage: upstream-lmdb-cursor-fixture <source-db-dir> <proof-db-dir> <merge-gc-db-dir>\n";
         return 2;
     }
 
     const std::string sourceDir = argv[1];
     const std::string proofDir = argv[2];
+    const std::string mergeGcDir = argv[3];
 
     const std::string binaryKey = std::string("wp_options:serialized-") + static_cast<char>(0xff);
     const std::string binaryValue = std::string("autoload") + '\0' + static_cast<char>(0xff)
@@ -139,12 +140,16 @@ int main(int argc, char **argv) {
 
     auto sourceEnv = openEnv(sourceDir);
     auto proofEnv = openEnv(proofDir);
+    auto mergeGcEnv = openEnv(mergeGcDir);
 
     quadrable::Proof binaryProof;
+    quadrable::Proof plainProof;
     std::string masterRoot;
     std::string masterRootHex;
     std::string previewRootHex;
     std::string delegatedRootHex;
+    std::string mergeGcRootHex;
+    quadrable::Quadrable::GCStats mergeGcStats;
 
     auto sourceTxn = lmdb::txn::begin(sourceEnv, nullptr, 0);
     quadrable::Quadrable source;
@@ -158,6 +163,7 @@ int main(int argc, char **argv) {
     masterRoot = source.root(sourceTxn);
     masterRootHex = hex(masterRoot);
     binaryProof = source.exportProof(sourceTxn, {binaryKey, "wp_posts:404"});
+    plainProof = source.exportProof(sourceTxn, {"wp_options:plain"});
 
     source.fork(sourceTxn, "2");
     put(source, sourceTxn, "wp_posts:2", previewValue);
@@ -180,13 +186,25 @@ int main(int argc, char **argv) {
     delegatedRootHex = hex(proofDb.root(proofTxn));
     proofState.put(proofTxn, "currHead", std::string("binary-proof"));
 
+    auto mergeGcTxn = lmdb::txn::begin(mergeGcEnv, nullptr, 0);
+    quadrable::Quadrable mergeGcDb;
+    mergeGcDb.trackKeys = true;
+    mergeGcDb.init(mergeGcTxn);
+    auto mergeGcState = lmdb::dbi::open(mergeGcTxn, "quadrable_quadb_state", MDB_CREATE);
+
+    mergeGcDb.checkout("merge-gc-proof");
+    mergeGcDb.importProof(mergeGcTxn, binaryProof, masterRoot);
+    mergeGcDb.mergeProof(mergeGcTxn, plainProof);
+    mergeGcRootHex = hex(mergeGcDb.root(mergeGcTxn));
+    mergeGcState.put(mergeGcTxn, "currHead", std::string("merge-gc-proof"));
+
     std::cout << "{\n";
     std::cout << "  \"upstream\": {\n";
     std::cout << "    \"repo\": \"hoytech/quadrable\",\n";
     std::cout << "    \"commit\": \"4f44437dc9b951a91986ad69e2856938387be614\",\n";
     std::cout << "    \"source\": \"lanes/quadrable/notes/upstream-lmdb-cursor-fixture.cpp\"\n";
     std::cout << "  },\n";
-    std::cout << "  \"scenario\": \"WordPress binary tracked key/value rows, string-sorted numeric heads, and proof-backed delegated update raw LMDB cursor bytes\",\n";
+    std::cout << "  \"scenario\": \"WordPress binary tracked key/value rows, string-sorted numeric heads, proof-backed delegated updates, and mergeProof plus quadb gc raw LMDB cursor bytes\",\n";
     std::cout << "  \"binaryFixture\": {\n";
     std::cout << "    \"keyHex\": ";
     jsonString(std::cout, hex(binaryKey));
@@ -217,9 +235,37 @@ int main(int argc, char **argv) {
     std::cout << ",\n";
     dumpEntries(std::cout, proofTxn);
     std::cout << "\n";
+    std::cout << "  },\n";
+    std::cout << "  \"mergeGcProofHead\": {\n";
+    std::cout << "    \"sourceRootHex\": ";
+    jsonString(std::cout, masterRootHex);
+    std::cout << ",\n";
+    std::cout << "    \"rootHex\": ";
+    jsonString(std::cout, mergeGcRootHex);
+    std::cout << ",\n";
+    std::cout << "    \"beforeGc\": {\n";
+    dumpEntries(std::cout, mergeGcTxn);
+    std::cout << "\n";
+    std::cout << "    },\n";
+
+    {
+        quadrable::Quadrable::GarbageCollector gc(mergeGcDb);
+        gc.markAllHeads(mergeGcTxn);
+        if (mergeGcDb.isDetachedHead()) gc.markTree(mergeGcTxn, mergeGcDb.getHeadNodeId(mergeGcTxn));
+        mergeGcStats = gc.sweep(mergeGcTxn);
+        gc.deleteNodes(mergeGcTxn);
+    }
+
+    std::cout << "    \"gc\": {\"total\": " << mergeGcStats.total
+        << ", \"garbage\": " << mergeGcStats.garbage << "},\n";
+    std::cout << "    \"afterGc\": {\n";
+    dumpEntries(std::cout, mergeGcTxn);
+    std::cout << "\n";
+    std::cout << "    }\n";
     std::cout << "  }\n";
     std::cout << "}\n";
 
+    mergeGcTxn.commit();
     proofTxn.commit();
     sourceTxn.commit();
 

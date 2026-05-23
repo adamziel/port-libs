@@ -1298,6 +1298,7 @@ final class QuadbStore
         $proofHex = bin2hex($encodedProof);
         $state['proofs'][] = $proofHex;
         $state['proofStoragePruned'] = false;
+        unset($state['proofStoragePrunedProjection']);
         $state['events'][] = [
             'type' => 'proof',
             'rootHash' => $rootBeforeMerge,
@@ -1706,6 +1707,18 @@ final class QuadbStore
         array &$eventProjectionCache
     ): int {
         if (($state['proofStoragePruned'] ?? false) === true) {
+            if (isset($state['proofStoragePrunedProjection']) && is_array($state['proofStoragePrunedProjection'])) {
+                return $this->applyPrunedPartialProjectionLmdbNodes(
+                    $state['proofStoragePrunedProjection'],
+                    $leaves,
+                    $leafKeys,
+                    $branches,
+                    $nextLeafNodeId,
+                    $nextInteriorNodeId,
+                    $projectedNodes
+                );
+            }
+
             return $this->projectPartialTreeLmdbNodes(
                 $this->partialTreeFromState($state),
                 $leaves,
@@ -1975,6 +1988,96 @@ final class QuadbStore
     }
 
     /**
+     * Re-applies the exact projected LMDB node ids that survived an upstream-
+     * shaped GC pass. Upstream deletes garbage records in place, so retained
+     * proof nodes keep their original integer LMDB keys after `quadb gc`.
+     *
+     * @param array<string, mixed> $projection
+     * @param array<int, string> $leaves
+     * @param array<int, string> $leafKeys
+     * @param array<int, string> $branches
+     * @param array<int, array<string, mixed>> $projectedNodes
+     */
+    private function applyPrunedPartialProjectionLmdbNodes(
+        array $projection,
+        array &$leaves,
+        array &$leafKeys,
+        array &$branches,
+        int &$nextLeafNodeId,
+        int &$nextInteriorNodeId,
+        array &$projectedNodes
+    ): int {
+        $rootNodeId = self::parseNonNegativeNodeId($projection['rootNodeId'] ?? 0, 'pruned proof root node id');
+        $nodes = $projection['nodes'] ?? [];
+        if (!is_array($nodes)) {
+            throw new \RuntimeException('pruned proof projection nodes are malformed');
+        }
+
+        ksort($nodes, SORT_NUMERIC);
+        foreach ($nodes as $nodeIdRaw => $encodedNode) {
+            $nodeId = self::parseNonNegativeNodeId($nodeIdRaw, 'pruned proof node id');
+            if (!is_array($encodedNode)) {
+                throw new \RuntimeException('pruned proof projection node is malformed');
+            }
+
+            $leafKey = null;
+            $record = self::decodePrunedProjectedNode($encodedNode, $leafKey);
+            if (($record['type'] ?? null) === 'leaf' || ($record['type'] ?? null) === 'witnessLeaf') {
+                if ($nodeId >= TrackedNodeStore::FIRST_INTERIOR_NODE_ID) {
+                    throw new \RuntimeException('pruned proof leaf node id is outside the leaf id range');
+                }
+
+                $raw = self::encodeLmdbPartialLeafNode($record);
+                if (isset($leaves[$nodeId]) && $leaves[$nodeId] !== $raw) {
+                    throw new \RuntimeException('pruned proof projection collides with an existing leaf node id');
+                }
+                $leaves[$nodeId] = $raw;
+                if ($leafKey !== null && $this->trackKeys) {
+                    if (isset($leafKeys[$nodeId]) && $leafKeys[$nodeId] !== $leafKey) {
+                        throw new \RuntimeException('pruned proof projection collides with an existing tracked key id');
+                    }
+                    $leafKeys[$nodeId] = $leafKey;
+                }
+            } elseif (($record['type'] ?? null) === 'witness') {
+                if ($nodeId < TrackedNodeStore::FIRST_INTERIOR_NODE_ID) {
+                    throw new \RuntimeException('pruned proof witness node id is outside the interior id range');
+                }
+
+                $raw = self::encodeLmdbWitnessNode($record);
+                if (isset($branches[$nodeId]) && $branches[$nodeId] !== $raw) {
+                    throw new \RuntimeException('pruned proof projection collides with an existing witness node id');
+                }
+                $branches[$nodeId] = $raw;
+            } elseif (($record['type'] ?? null) === 'branch') {
+                if ($nodeId < TrackedNodeStore::FIRST_INTERIOR_NODE_ID) {
+                    throw new \RuntimeException('pruned proof branch node id is outside the interior id range');
+                }
+
+                $raw = self::encodeLmdbBranchNode($record);
+                if (isset($branches[$nodeId]) && $branches[$nodeId] !== $raw) {
+                    throw new \RuntimeException('pruned proof projection collides with an existing branch node id');
+                }
+                $branches[$nodeId] = $raw;
+            } else {
+                throw new \RuntimeException('unrecognized pruned proof projection node type');
+            }
+
+            if (isset($projectedNodes[$nodeId]) && $projectedNodes[$nodeId] !== $record) {
+                throw new \RuntimeException('pruned proof projection collides with an existing projected node');
+            }
+            $projectedNodes[$nodeId] = $record;
+        }
+
+        ksort($leaves, SORT_NUMERIC);
+        ksort($leafKeys, SORT_NUMERIC);
+        ksort($branches, SORT_NUMERIC);
+        $nextLeafNodeId = max($nextLeafNodeId, self::nextLmdbLeafNodeId($leaves));
+        $nextInteriorNodeId = max($nextInteriorNodeId, self::nextLmdbInteriorNodeId($branches));
+
+        return $rootNodeId;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $projectedNodes
      * @param array<int, string> $branches
      */
@@ -2094,6 +2197,8 @@ final class QuadbStore
         $partialProjectionRoots = [];
         $partialEventProjectionCache = [];
         $markedRoots = [];
+        $partialHeadRootNodeIds = [];
+        $partialDetachedRootNodeId = null;
 
         $projectState = function (array $state) use (
             &$leaves,
@@ -2127,12 +2232,15 @@ final class QuadbStore
             return $partialProjectionRoots[$stateKey];
         };
 
-        foreach ($this->partialProofHeads as $state) {
-            $markedRoots[] = $projectState($state);
+        foreach ($this->partialProofHeads as $head => $state) {
+            $rootNodeId = $projectState($state);
+            $partialHeadRootNodeIds[(string) $head] = $rootNodeId;
+            $markedRoots[] = $rootNodeId;
         }
 
         if ($this->partialDetachedHead !== null) {
             $detachedRoot = $projectState($this->partialDetachedHead);
+            $partialDetachedRootNodeId = $detachedRoot;
             if ($this->currentHead === null) {
                 $markedRoots[] = $detachedRoot;
             }
@@ -2152,7 +2260,12 @@ final class QuadbStore
         }
 
         if ($garbage > 0) {
-            $this->markPartialProofStoragePruned();
+            $this->markPartialProofStoragePruned(
+                $projectedNodes,
+                $leafKeys,
+                $partialHeadRootNodeIds,
+                $partialDetachedRootNodeId
+            );
         }
 
         return [
@@ -2182,15 +2295,61 @@ final class QuadbStore
         }
     }
 
-    private function markPartialProofStoragePruned(): void
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     * @param array<int, string> $leafKeys
+     * @param array<string, int> $partialHeadRootNodeIds
+     */
+    private function markPartialProofStoragePruned(
+        array $projectedNodes,
+        array $leafKeys,
+        array $partialHeadRootNodeIds,
+        ?int $partialDetachedRootNodeId
+    ): void
     {
         foreach ($this->partialProofHeads as $head => $state) {
             $state['proofStoragePruned'] = true;
+            $state['proofStoragePrunedProjection'] = $this->prunedPartialProjection(
+                $partialHeadRootNodeIds[(string) $head] ?? 0,
+                $projectedNodes,
+                $leafKeys
+            );
             $this->partialProofHeads[$head] = $state;
         }
         if ($this->partialDetachedHead !== null) {
             $this->partialDetachedHead['proofStoragePruned'] = true;
+            $this->partialDetachedHead['proofStoragePrunedProjection'] = $this->prunedPartialProjection(
+                $partialDetachedRootNodeId ?? 0,
+                $projectedNodes,
+                $leafKeys
+            );
         }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     * @param array<int, string> $leafKeys
+     *
+     * @return array{rootNodeId: int, nodes: array<string, array<string, mixed>>}
+     */
+    private function prunedPartialProjection(int $rootNodeId, array $projectedNodes, array $leafKeys): array
+    {
+        $marked = [];
+        $this->markProjectedNodeReachable($rootNodeId, $projectedNodes, $marked);
+
+        $nodes = [];
+        foreach (array_keys($marked) as $nodeId) {
+            $nodes[(string) $nodeId] = self::encodePrunedProjectedNode(
+                $projectedNodes[$nodeId],
+                $leafKeys[$nodeId] ?? null
+            );
+        }
+        ksort($nodes, SORT_NUMERIC);
+
+        return [
+            'rootNodeId' => $rootNodeId,
+            'nodes' => $nodes,
+        ];
     }
 
     /**
@@ -2322,6 +2481,7 @@ final class QuadbStore
 
         $state['rootHash'] = $partial->rootHash();
         $state['proofStoragePruned'] = false;
+        unset($state['proofStoragePrunedProjection']);
         $update = [
             'delete' => $delete,
             'keyHash' => $keyHash,
@@ -2360,6 +2520,7 @@ final class QuadbStore
 
         $state['rootHash'] = $partial->rootHash();
         $state['proofStoragePruned'] = false;
+        unset($state['proofStoragePrunedProjection']);
         foreach ($updates as $keyHash => $update) {
             $record = [
                 'delete' => $update['delete'],
@@ -2547,12 +2708,23 @@ final class QuadbStore
             $proofStoragePruned = $state['proofStoragePruned'];
         }
 
+        $proofStoragePrunedProjection = null;
+        if (array_key_exists('proofStoragePrunedProjection', $state)
+            && $state['proofStoragePrunedProjection'] !== null
+        ) {
+            $proofStoragePrunedProjection = self::parsePrunedProofProjection(
+                $state['proofStoragePrunedProjection'],
+                $label
+            );
+        }
+
         return [
             'rootHash' => $state['rootHash'],
             'proofRootHash' => $proofRootHash,
             'storageId' => $storageId,
             'storageOrdinal' => $storageOrdinal,
             'proofStoragePruned' => $proofStoragePruned,
+            'proofStoragePrunedProjection' => $proofStoragePrunedProjection,
             'proofs' => $proofs,
             'updates' => $updates,
             'events' => $events,
@@ -2646,6 +2818,157 @@ final class QuadbStore
         }
 
         return $parsedUpdate;
+    }
+
+    /**
+     * @return array{rootNodeId: int, nodes: array<string, array<string, mixed>>}
+     */
+    private static function parsePrunedProofProjection(mixed $projection, string $label): array
+    {
+        if (!is_array($projection) || !isset($projection['rootNodeId'], $projection['nodes']) || !is_array($projection['nodes'])) {
+            throw new \InvalidArgumentException($label . ' has malformed pruned proof projection');
+        }
+
+        $nodes = [];
+        foreach ($projection['nodes'] as $nodeId => $node) {
+            self::parseNonNegativeNodeId($nodeId, $label . ' pruned proof node id');
+            if (!is_array($node)) {
+                throw new \InvalidArgumentException($label . ' has malformed pruned proof node');
+            }
+
+            $leafKey = null;
+            self::decodePrunedProjectedNode($node, $leafKey);
+            $nodes[(string) $nodeId] = $node;
+        }
+        ksort($nodes, SORT_NUMERIC);
+
+        return [
+            'rootNodeId' => self::parseNonNegativeNodeId(
+                $projection['rootNodeId'],
+                $label . ' pruned proof root node id'
+            ),
+            'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private static function decodePrunedProjectedNode(array $node, ?string &$leafKey = null): array
+    {
+        if (!isset($node['type']) || !is_string($node['type'])) {
+            throw new \InvalidArgumentException('pruned proof node type is malformed');
+        }
+
+        $leafKey = null;
+        if (array_key_exists('leafKeyHex', $node)) {
+            $leafKey = self::decodeEvenHexBytes($node['leafKeyHex'], 'pruned proof tracked key');
+        }
+
+        if ($node['type'] === 'leaf') {
+            return [
+                'type' => 'leaf',
+                'hash' => self::parseHashHexValue($node['hash'] ?? null, 'pruned proof leaf hash'),
+                'keyHash' => self::parseHashHexValue($node['keyHash'] ?? null, 'pruned proof leaf key hash'),
+                'value' => self::decodeEvenHexBytes($node['valueHex'] ?? null, 'pruned proof leaf value'),
+                'key' => $leafKey,
+            ];
+        }
+
+        if ($node['type'] === 'witnessLeaf') {
+            return [
+                'type' => 'witnessLeaf',
+                'hash' => self::parseHashHexValue($node['hash'] ?? null, 'pruned proof witness leaf hash'),
+                'keyHash' => self::parseHashHexValue($node['keyHash'] ?? null, 'pruned proof witness leaf key hash'),
+                'valueHash' => self::parseHashHexValue($node['valueHash'] ?? null, 'pruned proof witness leaf value hash'),
+                'key' => $leafKey,
+            ];
+        }
+
+        if ($node['type'] === 'witness') {
+            return [
+                'type' => 'witness',
+                'hash' => self::parseHashHexValue($node['hash'] ?? null, 'pruned proof witness hash'),
+            ];
+        }
+
+        if ($node['type'] === 'branch') {
+            return [
+                'type' => 'branch',
+                'leftNodeId' => self::parseNonNegativeNodeId($node['leftNodeId'] ?? null, 'pruned proof branch left id'),
+                'rightNodeId' => self::parseNonNegativeNodeId($node['rightNodeId'] ?? null, 'pruned proof branch right id'),
+                'hash' => self::parseHashHexValue($node['hash'] ?? null, 'pruned proof branch hash'),
+            ];
+        }
+
+        throw new \InvalidArgumentException('unrecognized pruned proof node type');
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private static function encodePrunedProjectedNode(array $node, ?string $leafKey): array
+    {
+        if (($node['type'] ?? null) === 'leaf') {
+            $encoded = [
+                'type' => 'leaf',
+                'hash' => (string) $node['hash'],
+                'keyHash' => (string) $node['keyHash'],
+                'valueHex' => bin2hex((string) $node['value']),
+            ];
+        } elseif (($node['type'] ?? null) === 'witnessLeaf') {
+            $encoded = [
+                'type' => 'witnessLeaf',
+                'hash' => (string) $node['hash'],
+                'keyHash' => (string) $node['keyHash'],
+                'valueHash' => (string) $node['valueHash'],
+            ];
+        } elseif (($node['type'] ?? null) === 'witness') {
+            return [
+                'type' => 'witness',
+                'hash' => (string) $node['hash'],
+            ];
+        } elseif (($node['type'] ?? null) === 'branch') {
+            return [
+                'type' => 'branch',
+                'leftNodeId' => (int) $node['leftNodeId'],
+                'rightNodeId' => (int) $node['rightNodeId'],
+                'hash' => (string) $node['hash'],
+            ];
+        } else {
+            throw new \RuntimeException('unrecognized pruned proof projection node type');
+        }
+
+        if ($leafKey !== null) {
+            $encoded['leafKeyHex'] = bin2hex($leafKey);
+        }
+
+        return $encoded;
+    }
+
+    private static function parseHashHexValue(mixed $value, string $label): string
+    {
+        if (!is_string($value) || !preg_match('/^[0-9a-f]{64}$/', $value)) {
+            throw new \InvalidArgumentException($label . ' must be lowercase 32-byte hex');
+        }
+
+        return $value;
+    }
+
+    private static function decodeEvenHexBytes(mixed $value, string $label): string
+    {
+        if (!is_string($value) || strlen($value) % 2 !== 0 || !preg_match('/^[0-9a-f]*$/', $value)) {
+            throw new \InvalidArgumentException($label . ' must be lowercase byte hex');
+        }
+
+        $decoded = hex2bin($value);
+        if ($decoded === false) {
+            throw new \InvalidArgumentException($label . ' must be lowercase byte hex');
+        }
+
+        return $decoded;
     }
 
     /**

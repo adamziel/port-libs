@@ -47,6 +47,13 @@ $nodeCount = static function (array $lmdb): int {
     return count($lmdb['quadrable_nodesLeaf']) + count($lmdb['quadrable_nodesInterior']);
 };
 
+$rawEntryKeyHexes = static function (array $entries): array {
+    return array_map(
+        static fn (array $entry): string => bin2hex($entry['key']),
+        $entries
+    );
+};
+
 try {
     $source = QuadbStore::init($sourceDir);
     $source->importLines(
@@ -67,8 +74,12 @@ try {
     $target->mergeProofHex($postProofHex);
 
     $before = $target->lmdbBucketSnapshot();
+    $beforeRaw = $target->lmdbRawEntrySnapshot();
     $gcOutput = rtrim($target->garbageCollectText(), "\r\n");
     $after = $target->lmdbBucketSnapshot();
+    $afterRaw = $target->lmdbRawEntrySnapshot();
+    $beforeInteriorKeys = $rawEntryKeyHexes($beforeRaw['quadrable_nodesInterior']);
+    $afterInteriorKeys = $rawEntryKeyHexes($afterRaw['quadrable_nodesInterior']);
 
     echo json_encode([
         'scenario' => 'merge delegated WordPress proofs and sweep retained proof-import nodes with quadb gc',
@@ -89,6 +100,14 @@ try {
             'projectedRawNodeBytes' => $rawNodeBytes($after),
             'currentHeadStatsBytes' => $target->stats()['numBytes'],
             'retainedImportsSwept' => $nodeCount($after) < $nodeCount($before),
+        ],
+        'rawCursorBackupManifest' => [
+            'beforeGcInteriorKeyHexes' => $beforeInteriorKeys,
+            'afterGcInteriorKeyHexes' => $afterInteriorKeys,
+            'survivingInteriorKeysPreserved' => array_values(array_intersect(
+                $beforeInteriorKeys,
+                $afterInteriorKeys
+            )) === $afterInteriorKeys,
         ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {

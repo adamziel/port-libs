@@ -1279,15 +1279,17 @@ return [
     'native quadb store matches upstream LMDB cursor oracle for binary proof heads' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $proofDir = quadrableQuadbTempDir();
+        $mergeGcDir = quadrableQuadbTempDir();
 
         try {
             $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-cursor-oracle.json';
             $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
             if (!is_array($oracle)
-                || !isset($oracle['binaryFixture'], $oracle['fullHead'], $oracle['proofHead'])
+                || !isset($oracle['binaryFixture'], $oracle['fullHead'], $oracle['proofHead'], $oracle['mergeGcProofHead'])
                 || !is_array($oracle['binaryFixture'])
                 || !is_array($oracle['fullHead'])
                 || !is_array($oracle['proofHead'])
+                || !is_array($oracle['mergeGcProofHead'])
             ) {
                 throw new RuntimeException('malformed upstream LMDB cursor oracle fixture');
             }
@@ -1302,6 +1304,7 @@ return [
             $repo->put($binaryKey, $binaryValue);
             $masterRoot = $repo->tree()->rootHash();
             $proofHex = $repo->exportProofHex([$binaryKey, 'wp_posts:404'], Proof::ENCODING_FULL_KEYS);
+            $plainProofHex = $repo->exportProofHex(['wp_options:plain'], Proof::ENCODING_FULL_KEYS);
 
             $repo->fork('2');
             $repo->put('wp_posts:2', $previewValue);
@@ -1319,9 +1322,42 @@ return [
 
             $t->same($oracle['proofHead']['rootHex'], $proofRepo->status()['rootHash']);
             $t->same($oracle['proofHead']['entries'], quadrableQuadbRawSnapshotHex($proofRepo->lmdbRawEntrySnapshot()));
+
+            $mergeGcOracle = $oracle['mergeGcProofHead'];
+            if (!isset($mergeGcOracle['sourceRootHex'], $mergeGcOracle['rootHex'], $mergeGcOracle['beforeGc'], $mergeGcOracle['afterGc'], $mergeGcOracle['gc'])
+                || !is_array($mergeGcOracle['beforeGc'])
+                || !is_array($mergeGcOracle['afterGc'])
+                || !is_array($mergeGcOracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream merge/gc LMDB cursor oracle fixture');
+            }
+
+            $mergeRepo = QuadbStore::init($mergeGcDir);
+            $mergeRepo->checkout('merge-gc-proof');
+            $t->same($mergeGcOracle['sourceRootHex'], $masterRoot);
+            $mergeRepo->importProofHex($proofHex, $masterRoot);
+            $t->same($mergeGcOracle['rootHex'], $mergeRepo->mergeProofHex($plainProofHex));
+            $t->same(
+                $mergeGcOracle['beforeGc']['entries'],
+                quadrableQuadbRawSnapshotHex($mergeRepo->lmdbRawEntrySnapshot())
+            );
+
+            $t->same(
+                'Collected ' . $mergeGcOracle['gc']['garbage'] . '/' . $mergeGcOracle['gc']['total'] . " nodes\n",
+                $mergeRepo->garbageCollectText()
+            );
+            $t->same(
+                $mergeGcOracle['afterGc']['entries'],
+                quadrableQuadbRawSnapshotHex($mergeRepo->lmdbRawEntrySnapshot())
+            );
+            $t->same(
+                $mergeGcOracle['afterGc']['entries'],
+                quadrableQuadbRawSnapshotHex(QuadbStore::open($mergeGcDir)->lmdbRawEntrySnapshot())
+            );
         } finally {
             quadrableQuadbRemoveDir($dir);
             quadrableQuadbRemoveDir($proofDir);
+            quadrableQuadbRemoveDir($mergeGcDir);
         }
     },
     'native quadb store preserves numeric head names as LMDB string keys' => static function (TestRunner $t): void {
