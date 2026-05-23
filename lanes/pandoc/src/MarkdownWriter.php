@@ -52,12 +52,67 @@ final class MarkdownWriter
                 continue;
             }
 
-            $marker = $ordered ? ($start + $index) . '. ' : '- ';
+            $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : '- ';
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             $index++;
         }
 
         return $lines;
+    }
+
+    private function orderedListMarker(AstNode $node, int $number): string
+    {
+        $number = max(1, $number);
+        $style = (string) $node->attr('style', 'decimal');
+        $delimiter = (string) $node->attr('delimiter', 'period');
+        $label = match ($style) {
+            'lower_alpha' => chr(ord('a') + (($number - 1) % 26)),
+            'upper_alpha' => chr(ord('A') + (($number - 1) % 26)),
+            'lower_roman' => strtolower($this->romanNumeral($number)),
+            'upper_roman' => $this->romanNumeral($number),
+            default => (string) $number,
+        };
+
+        $marker = match ($delimiter) {
+            'one_paren' => $label . ')',
+            'two_parens' => '(' . $label . ')',
+            default => $label . '.',
+        };
+
+        if (strlen($marker) < 3) {
+            $marker .= str_repeat(' ', 3 - strlen($marker));
+        }
+
+        return $marker . ' ';
+    }
+
+    private function romanNumeral(int $number): string
+    {
+        $number = max(1, $number);
+        $map = [
+            1000 => 'M',
+            900 => 'CM',
+            500 => 'D',
+            400 => 'CD',
+            100 => 'C',
+            90 => 'XC',
+            50 => 'L',
+            40 => 'XL',
+            10 => 'X',
+            9 => 'IX',
+            5 => 'V',
+            4 => 'IV',
+            1 => 'I',
+        ];
+        $roman = '';
+        foreach ($map as $value => $glyph) {
+            while ($number >= $value) {
+                $roman .= $glyph;
+                $number -= $value;
+            }
+        }
+
+        return $roman;
     }
 
     /**

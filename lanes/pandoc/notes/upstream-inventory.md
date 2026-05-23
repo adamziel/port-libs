@@ -273,8 +273,14 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   covering Pandoc's HTML writer output for simple task lists, nested task
   lists, mixed task/plain bullet lists, ordered task items, loose task items,
   plus separate LaTeX and Markdown round-trip examples. The bounded PHP slice
-  maps the three HTML task-list examples and leaves the LaTeX and Markdown
-  round-trip examples as future writer-specific work.
+  maps the three HTML task-list examples plus the LaTeX and Markdown
+  writer-specific examples.
+- `src/Text/Pandoc/Writers/Markdown.hs` and `src/Text/Pandoc/Shared.hs`
+  ordered-list writer path inspected in this run: Pandoc enables fancy list
+  enumerators for Markdown, calls `orderedListMarkers`, preserves
+  Decimal/DefaultStyle, upper/lower alpha, upper/lower roman, Period,
+  OneParen, and TwoParens attributes, and pads markers shorter than three
+  characters before hanging item content at the default tab stop.
 - `test/html-reader.html` table section inspected in this run: 366 HTML lines
   from the upstream HTML reader fixture covering table head/body/foot sections,
   omitted section tags, row headers, colspan, rowspan, two tables with multiple
@@ -668,6 +674,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   checked task markers as `- [ ]` and `- [x]`, while native LaTeX output uses
   Pandoc's task labels `\item[$\square$]` and `\item[$\boxtimes$]` for loose
   task-list items.
+- Markdown writer fancy ordered-list marker generation is now mapped from
+  `Text.Pandoc.Writers.Markdown` and `Text.Pandoc.Shared`: native Markdown
+  output emits `(2)`/`(3)`, `iv.`/`v.`, `A.`/`I.`, `(6)`, `c)`, default
+  autonumbered decimal markers, and Pandoc-style short-marker padding for
+  reviewer handoff lists.
 - Definition-list cases from `Tests.Readers.Markdown`: no blank space,
   blank space before the first definition, lazy continuation lines, indented
   continuation paragraphs, blank space before the second definition, first-line

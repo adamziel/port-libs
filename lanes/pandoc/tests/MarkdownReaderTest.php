@@ -2207,6 +2207,41 @@ MD;
             '\end{itemize}',
         ]), (new LatexWriter())->write($latexTaskList));
     },
+    'maps upstream markdown writer fancy ordered list markers' => static function (TestRunner $t): void {
+        $writer = new MarkdownWriter();
+        $reader = new MarkdownReader();
+        $nested = $reader->read("A.  Upper Alpha\n    I.  Upper Roman.\n        (6) Decimal start with 6\n            c)  Lower alpha with paren");
+        $twoParens = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 2, 'style' => 'decimal', 'delimiter' => 'two_parens'], [
+                new AstNode('list_item', ['text' => 'begins with 2', 'number' => 2], [
+                    new AstNode('text', ['text' => 'begins with 2']),
+                ]),
+                new AstNode('list_item', ['text' => 'and now 3', 'number' => 3], [
+                    new AstNode('text', ['text' => 'and now 3']),
+                ]),
+            ]),
+        ]);
+        $roman = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 4, 'style' => 'lower_roman', 'delimiter' => 'period'], [
+                new AstNode('list_item', ['text' => 'roman checkpoint', 'number' => 4], [
+                    new AstNode('text', ['text' => 'roman checkpoint']),
+                ]),
+                new AstNode('list_item', ['text' => 'publish handoff', 'number' => 5], [
+                    new AstNode('text', ['text' => 'publish handoff']),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            'A.  Upper Alpha',
+            '  I.  Upper Roman.',
+            '    (6) Decimal start with 6',
+            '      c)  Lower alpha with paren',
+        ]), $writer->write($nested));
+        $t->same("(2) begins with 2\n(3) and now 3", $writer->write($twoParens));
+        $t->same("iv. roman checkpoint\nv.  publish handoff", $writer->write($roman));
+        $t->same("1.  Autonumber.\n2.  More.\n  1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
+    },
     'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '-     code',

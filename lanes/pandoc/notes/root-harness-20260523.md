@@ -84,3 +84,21 @@
 - Final root harness run passed:
   - `php tools/run-tests.php`
   - Result: 204 test files, 23,553 assertions, 0 failures
+
+## Markdown Writer Fancy Ordered-List Marker Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,238 assertions, 0 failures
+- Required duplicate-root gate:
+  - `pgrep -af '^php tools/run-tests\.php( |$)'`
+  - First sample found focused lane PID `2835754`, command `php tools/run-tests.php lanes/syncthing/tests`.
+  - Immediate exact-root sample found PID `2836374`, owner `claude`, PPID `2836373`, elapsed `00:07`, state `R`, command `php tools/run-tests.php`.
+  - Later sample found exact-root PID `2858105`, owner `claude`, PPID `2833947`, elapsed `00:24`, state `R`, command `php tools/run-tests.php`.
+- This lane did not start a duplicate root harness while those processes were active.
+- A final duplicate-root gate was clear, so this lane worker ran the root harness once:
+  - `php tools/run-tests.php`
+  - Result: 205 test files, 23,807 assertions, 0 failures

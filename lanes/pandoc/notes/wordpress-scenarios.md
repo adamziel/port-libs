@@ -776,6 +776,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   writer paths for reviewer handoff documents: unchecked/checked WordPress
   review tasks round-trip as Markdown `- [ ]`/`- [x]` markers and as Pandoc's
   LaTeX square/boxtimes item labels without invoking the upstream binary.
+- Native Markdown reviewer handoff exports now preserve Pandoc fancy ordered
+  list markers too: source-ID queues can leave WordPress review as `(2)`,
+  roman `iv.`, alpha `A.`/`c)`, and default autonumbered Markdown lists with
+  Pandoc-style marker spacing instead of flattening every ordered list to
+  decimal periods.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -785,6 +790,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded upstream writer slice, preferably Markdown writer coverage
-for non-task ordered-list marker styles or another small command fixture not yet
-represented in the manifest.
+Map another bounded upstream writer slice, preferably Markdown writer
+reference-link/footnote placement from `Tests.Writers.Markdown` or another
+small command fixture not yet represented in the manifest.
