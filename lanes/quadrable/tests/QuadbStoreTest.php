@@ -1276,6 +1276,54 @@ return [
             quadrableQuadbRemoveDir($proofDir);
         }
     },
+    'native quadb store matches upstream LMDB cursor oracle for binary proof heads' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $proofDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-cursor-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset($oracle['binaryFixture'], $oracle['fullHead'], $oracle['proofHead'])
+                || !is_array($oracle['binaryFixture'])
+                || !is_array($oracle['fullHead'])
+                || !is_array($oracle['proofHead'])
+            ) {
+                throw new RuntimeException('malformed upstream LMDB cursor oracle fixture');
+            }
+
+            $binaryKey = quadrableQuadbOracleBytes($oracle['binaryFixture']['keyHex']);
+            $binaryValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['valueHex']);
+            $previewValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['previewValueHex']);
+            $delegatedValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['delegatedValueHex']);
+
+            $repo = QuadbStore::init($dir);
+            $repo->put('wp_options:plain', 'plain');
+            $repo->put($binaryKey, $binaryValue);
+            $masterRoot = $repo->tree()->rootHash();
+            $proofHex = $repo->exportProofHex([$binaryKey, 'wp_posts:404'], Proof::ENCODING_FULL_KEYS);
+
+            $repo->fork('2');
+            $repo->put('wp_posts:2', $previewValue);
+            $repo->fork('10', 'master');
+            $repo->fork('a-preview', '2');
+
+            $t->same($oracle['fullHead']['rootHex'], $repo->tree()->rootHash());
+            $t->same($oracle['fullHead']['entries'], quadrableQuadbRawSnapshotHex($repo->lmdbRawEntrySnapshot()));
+
+            $proofRepo = QuadbStore::init($proofDir);
+            $proofRepo->checkout('binary-proof');
+            $t->same($oracle['proofHead']['sourceRootHex'], $masterRoot);
+            $proofRepo->importProofHex($proofHex, $masterRoot);
+            $proofRepo->put($binaryKey, $delegatedValue);
+
+            $t->same($oracle['proofHead']['rootHex'], $proofRepo->status()['rootHash']);
+            $t->same($oracle['proofHead']['entries'], quadrableQuadbRawSnapshotHex($proofRepo->lmdbRawEntrySnapshot()));
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($proofDir);
+        }
+    },
     'native quadb store preserves numeric head names as LMDB string keys' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $proofDir = quadrableQuadbTempDir();
@@ -1811,6 +1859,47 @@ function quadrableQuadbRawEntriesByKeyHex(array $entries): array
     }
 
     return $indexed;
+}
+
+function quadrableQuadbOracleBytes(mixed $hex): string
+{
+    if (!is_string($hex) || !preg_match('/^(?:[0-9a-f]{2})*$/', $hex)) {
+        throw new RuntimeException('malformed upstream oracle byte hex');
+    }
+
+    $bytes = hex2bin($hex);
+    if ($bytes === false) {
+        throw new RuntimeException('malformed upstream oracle byte hex');
+    }
+
+    return $bytes;
+}
+
+/**
+ * @param array<string, list<array{key: string, value: string}>> $snapshot
+ *
+ * @return array<string, list<array{keyHex: string, valueHex: string}>>
+ */
+function quadrableQuadbRawSnapshotHex(array $snapshot): array
+{
+    $out = [];
+    foreach ([
+        'quadrable_head',
+        'quadrable_nodesLeaf',
+        'quadrable_nodesInterior',
+        'quadrable_key',
+        'quadrable_quadb_state',
+    ] as $bucket) {
+        $out[$bucket] = [];
+        foreach ($snapshot[$bucket] ?? [] as $entry) {
+            $out[$bucket][] = [
+                'keyHex' => bin2hex($entry['key']),
+                'valueHex' => bin2hex($entry['value']),
+            ];
+        }
+    }
+
+    return $out;
 }
 
 /**
