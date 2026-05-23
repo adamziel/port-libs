@@ -12,7 +12,7 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
         "total": 3532,
-        "mapped": 736,
+        "mapped": 756,
         "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted 3,332 src/lib.rs helper invocations from pristine git show output, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, counted 45 Rust #[test] attributes outside src/lib.rs and tests/test_cssom.rs, and counted 81 top-level Node uvu test(...) calls with ripgrep. This run rechecked the upstream cache at the same commit with targeted git show reads because the working cache contains local WASM compatibility edits.",
         "inventory": {
             "behaviorChecks": 3532,
@@ -95,6 +95,31 @@
                     "minify_test font: normal normal 500 medium/normal Charcoal omits default normal components",
                     "minify_test font: normal normal 400 medium Charcoal preserves the explicit numeric 400 weight",
                     "minify_test font: normal normal 500 medium/10px Charcoal preserves non-default line-height"
+                ]
+            },
+            "focusedFontFaceMinifierInventory": {
+                "path": "src/lib.rs",
+                "test": "test_font_face",
+                "mappedCases": 20,
+                "newlyMappedThisRun": [
+                    "minify_test @font-face src/font-family/font-weight/font-style block serializes URL source, unquoted family, numeric bold weight, and italic style",
+                    "minify_test @font-face src url(test.woff) preserves a safe unquoted URL",
+                    "minify_test @font-face src local(\"Test\") and local(\"Foo Bar\") serialize unquoted local names",
+                    "minify_test @font-face src url(\"test.woff\") format(woff) serializes as url(test.woff)format(\"woff\")",
+                    "minify_test comma-separated src URLs normalize each source URL and quote collection/truetype format descriptors",
+                    "minify_test src URL format(opentype) tech(features-aat) serializes without descriptor whitespace",
+                    "minify_test src tech(features-opentype, color-sbix) and multi-tech lists trim descriptor commas",
+                    "minify_test src tech(color-SVG) lowercases the technology token",
+                    "minify_test invalid tech-before-format ordering preserves token spacing while normalizing URL and tech whitespace",
+                    "minify_test src local(\"\") url(\"test.woff\") preserves empty local() as a string and normalizes the URL",
+                    "minify_test unicode-range u+26 uppercases the range prefix",
+                    "minify_test unicode-range U+0025-00FF trims redundant endpoint zeros",
+                    "minify_test unicode-range U+400-4FF compacts to U+4??",
+                    "minify_test unicode-range list U+0025-00FF, U+4?? trims list whitespace",
+                    "minify_test unicode-range multi-script list preserves explicit A5/CJK/Katakana/full-width ranges",
+                    "minify_test unicode-range U+0000-FFFF compacts to U+????",
+                    "minify_test unicode-range U+100000-10FFFF compacts to U+10????",
+                    "minify_test unicode-range U+1e1e? uppercases hex wildcard ranges"
                 ]
             },
             "focusedNestingTransformerInventory": {

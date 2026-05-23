@@ -139,6 +139,65 @@ return [
         $t->same('.foo{font:400 medium Charcoal}', $minifier->minify('.foo { font: normal normal 400 medium Charcoal; }'));
         $t->same('.foo{font:500 medium/10px Charcoal}', $minifier->minify('.foo { font: normal normal 500 medium/10px Charcoal; }'));
     },
+    'css minifier maps upstream font-face src descriptors and unicode ranges' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@font-face{src:url(test.woff);font-family:Helvetica;font-weight:700;font-style:italic}',
+            $minifier->minify(
+                '@font-face { src: url("test.woff"); font-family: "Helvetica"; font-weight: bold; font-style: italic; }'
+            )
+        );
+        $t->same('@font-face{src:url(test.woff)}', $minifier->minify('@font-face {src: url(test.woff);}'));
+        $t->same('@font-face{src:local(Test)}', $minifier->minify('@font-face {src: local("Test");}'));
+        $t->same('@font-face{src:local(Foo Bar)}', $minifier->minify('@font-face {src: local("Foo Bar");}'));
+        $t->same(
+            '@font-face{src:url(test.woff)format("woff")}',
+            $minifier->minify('@font-face {src: url("test.woff") format(woff);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.ttc)format("collection"),url(test.ttf)format("truetype")}',
+            $minifier->minify('@font-face {src: url("test.ttc") format(collection), url(test.ttf) format(truetype);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.otf)format("opentype")tech(features-aat)}',
+            $minifier->minify('@font-face {src: url("test.otf") format(opentype) tech(features-aat);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.woff)format("woff")tech(features-opentype,color-sbix)}',
+            $minifier->minify('@font-face {src: url("test.woff") format(woff) tech(features-opentype, color-sbix);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.woff)format("woff")tech(incremental,color-svg,features-graphite,features-aat)}',
+            $minifier->minify('@font-face {src: url("test.woff")   format(woff)    tech(incremental, color-svg, features-graphite, features-aat);}')
+        );
+        $t->same(
+            '@font-face{src:url(foo.ttf)tech(color-svg)}',
+            $minifier->minify('@font-face {src: url("foo.ttf") tech(color-SVG);}')
+        );
+        $t->same(
+            '@font-face{src:url(foo.ttf) tech(palettes color-colrv0 variations) format(opentype)}',
+            $minifier->minify('@font-face {src: url("foo.ttf") tech(palettes  color-colrv0  variations) format(opentype);}')
+        );
+        $t->same(
+            '@font-face{src:local("") url(test.woff)}',
+            $minifier->minify('@font-face {src: local("") url("test.woff");}')
+        );
+        $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: u+26;}'));
+        $t->same('@font-face{unicode-range:U+25-FF}', $minifier->minify('@font-face {unicode-range: U+0025-00FF;}'));
+        $t->same('@font-face{unicode-range:U+4??}', $minifier->minify('@font-face {unicode-range: U+400-4FF;}'));
+        $t->same(
+            '@font-face{unicode-range:U+25-FF,U+4??}',
+            $minifier->minify('@font-face {unicode-range: U+0025-00FF, U+4??;}')
+        );
+        $t->same(
+            '@font-face{unicode-range:U+A5,U+4E00-9FFF,U+30??,U+FF00-FF9F}',
+            $minifier->minify('@font-face {unicode-range: U+A5, U+4E00-9FFF, U+30??, U+FF00-FF9F;}')
+        );
+        $t->same('@font-face{unicode-range:U+????}', $minifier->minify('@font-face {unicode-range: U+0000-FFFF;}'));
+        $t->same('@font-face{unicode-range:U+10????}', $minifier->minify('@font-face {unicode-range: U+100000-10FFFF;}'));
+        $t->same('@font-face{unicode-range:U+1E1E?}', $minifier->minify('@font-face {unicode-range: U+1e1e?;}'));
+    },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1307,7 +1366,7 @@ CSS;
 CSS;
 
         $t->same(
-            '.wp-block-post-title{font-family:Inter,Helvetica Neue,sans-serif;font-stretch:125%}@font-face{font-family:"revert";src:url("./fonts/revert.woff2") format("woff2")}',
+            '.wp-block-post-title{font-family:Inter,Helvetica Neue,sans-serif;font-stretch:125%}@font-face{font-family:"revert";src:url(./fonts/revert.woff2)format("woff2")}',
             (new CssMinifier())->minify($css)
         );
     },

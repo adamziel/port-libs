@@ -1414,6 +1414,8 @@ final class CssMinifier
             'font-stretch' => $this->minifyFontStretchValue($value),
             'font-variant-caps' => strtolower(trim($value)),
             'font-weight' => $this->minifyFontWeightValue($value),
+            'src' => $this->minifyFontFaceSrcValue($value),
+            'unicode-range' => $this->minifyUnicodeRangeValue($value),
             default => $value,
         };
     }
@@ -1725,6 +1727,186 @@ final class CssMinifier
         }
 
         return implode(' ', $tokens);
+    }
+
+    private function minifyFontFaceSrcValue(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $part): string => $this->minifyFontFaceSrcPart($part),
+            $this->splitTopLevel($value, ',')
+        ));
+    }
+
+    private function minifyFontFaceSrcPart(string $part): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($part));
+        if ($tokens === []) {
+            return trim($part);
+        }
+
+        $sawTech = false;
+        $invalidDescriptorOrder = false;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if (str_starts_with($lower, 'tech(')) {
+                $sawTech = true;
+            } elseif (str_starts_with($lower, 'format(') && $sawTech) {
+                $invalidDescriptorOrder = true;
+                break;
+            }
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $normalized[] = $this->minifyFontFaceSrcToken($token, !$invalidDescriptorOrder);
+        }
+
+        if ($invalidDescriptorOrder) {
+            return implode(' ', $normalized);
+        }
+
+        $output = '';
+        foreach ($normalized as $index => $token) {
+            $type = $this->fontFaceSrcTokenType($tokens[$index]);
+            if ($output !== '' && $type === 'source') {
+                $output .= ' ';
+            }
+            $output .= $token;
+        }
+
+        return $output;
+    }
+
+    private function minifyFontFaceSrcToken(string $token, bool $strictDescriptorOrder): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(/i', $token) === 1) {
+            return $this->normalizeCssUrlToken($token, false);
+        }
+        if (preg_match('/^local\((.*)\)$/is', $token, $matches) === 1) {
+            return 'local(' . $this->minifyFontFaceLocalName($matches[1]) . ')';
+        }
+        if ($strictDescriptorOrder && preg_match('/^format\((.*)\)$/is', $token, $matches) === 1) {
+            return 'format(' . $this->normalizeCssStringToken('"' . strtolower($this->cssStringTokenValue(trim($matches[1]))) . '"') . ')';
+        }
+        if (preg_match('/^tech\((.*)\)$/is', $token, $matches) === 1) {
+            return 'tech(' . $this->minifyFontFaceTechList($matches[1]) . ')';
+        }
+
+        return $token;
+    }
+
+    private function minifyFontFaceLocalName(string $name): string
+    {
+        $name = trim($name);
+        if ($this->isQuotedStringToken($name)) {
+            $value = $this->cssStringTokenValue($name);
+            if ($value === '') {
+                return '""';
+            }
+
+            return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $name) ?? $name);
+    }
+
+    private function minifyFontFaceTechList(string $value): string
+    {
+        if (str_contains($value, ',')) {
+            return implode(',', array_map(
+                static fn (string $part): string => strtolower(trim($part)),
+                $this->splitTopLevel($value, ',')
+            ));
+        }
+
+        return implode(' ', array_map(
+            static fn (string $part): string => strtolower($part),
+            $this->splitWhitespaceTopLevel($value)
+        ));
+    }
+
+    private function fontFaceSrcTokenType(string $token): string
+    {
+        return preg_match('/^(?:url|local)\(/i', trim($token)) === 1 ? 'source' : 'descriptor';
+    }
+
+    private function minifyUnicodeRangeValue(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $part): string => $this->minifyUnicodeRangePart($part),
+            $this->splitTopLevel($value, ',')
+        ));
+    }
+
+    private function minifyUnicodeRangePart(string $part): string
+    {
+        $part = trim($part);
+        if (preg_match('/^u\+([0-9a-f?]{1,6})(?:-([0-9a-f]{1,6}))?$/i', $part, $matches) !== 1) {
+            return $part;
+        }
+
+        $start = strtoupper($matches[1]);
+        $end = isset($matches[2]) ? strtoupper($matches[2]) : null;
+        if ($end === null) {
+            if (str_contains($start, '?')) {
+                return 'U+' . $this->trimUnicodeWildcardPrefix($start);
+            }
+
+            return 'U+' . $this->trimUnicodeCodepoint($start);
+        }
+
+        $wildcard = $this->unicodeRangeWildcard($start, $end);
+        if ($wildcard !== null) {
+            return 'U+' . $wildcard;
+        }
+
+        return 'U+' . $this->trimUnicodeCodepoint($start) . '-' . $this->trimUnicodeCodepoint($end);
+    }
+
+    private function unicodeRangeWildcard(string $start, string $end): ?string
+    {
+        $width = max(strlen($start), strlen($end));
+        $start = str_pad($start, $width, '0', STR_PAD_LEFT);
+        $end = str_pad($end, $width, '0', STR_PAD_LEFT);
+
+        $prefixLength = 0;
+        while (
+            $prefixLength < $width
+            && $start[$prefixLength] === $end[$prefixLength]
+        ) {
+            $prefixLength++;
+        }
+
+        $startSuffix = substr($start, $prefixLength);
+        $endSuffix = substr($end, $prefixLength);
+        if ($startSuffix === '' || !preg_match('/^0+$/', $startSuffix) || !preg_match('/^F+$/', $endSuffix)) {
+            return null;
+        }
+
+        $prefix = ltrim(substr($start, 0, $prefixLength), '0');
+
+        return $this->trimUnicodeWildcardPrefix($prefix . str_repeat('?', strlen($startSuffix)));
+    }
+
+    private function trimUnicodeCodepoint(string $codepoint): string
+    {
+        $trimmed = ltrim(strtoupper($codepoint), '0');
+
+        return $trimmed === '' ? '0' : $trimmed;
+    }
+
+    private function trimUnicodeWildcardPrefix(string $range): string
+    {
+        $range = strtoupper($range);
+        $firstQuestion = strpos($range, '?');
+        if ($firstQuestion === false) {
+            return $this->trimUnicodeCodepoint($range);
+        }
+
+        $prefix = ltrim(substr($range, 0, $firstQuestion), '0');
+
+        return $prefix . substr($range, $firstQuestion);
     }
 
     private function canSerializeUnquotedFontFamily(string $family): bool
