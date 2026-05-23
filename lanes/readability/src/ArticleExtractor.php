@@ -1888,6 +1888,7 @@ final class ArticleExtractor
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $scope = $this->collapseSingleParagraphDivs($scope);
+        $this->removeLinkHeavyFigureChrome($scope);
         $this->removeEmptyParagraphs($scope);
         $this->removeEmptyHeadings($scope);
         $this->removeBreaksBeforeParagraphs($scope);
@@ -2436,6 +2437,33 @@ final class ArticleExtractor
         } while ($changed);
 
         return $scope;
+    }
+
+    private function removeLinkHeavyFigureChrome(\DOMElement $scope): void
+    {
+        $remove = [];
+        foreach ($scope->getElementsByTagName('div') as $node) {
+            if (!$node instanceof \DOMElement || !$this->hasAncestorTag($node, ['FIGCAPTION'])) {
+                continue;
+            }
+
+            if ($this->hasMediaPayload($node) || $this->contentClassWeight($node) >= 25) {
+                continue;
+            }
+
+            $text = $this->normalizeWhitespace($node->textContent);
+            if ($text === '' || mb_strlen($text) > 80) {
+                continue;
+            }
+
+            if ($this->linkDensity($node) > 0.2) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
     }
 
     private function wrapPhrasingContentInDivs(\DOMElement $scope): void

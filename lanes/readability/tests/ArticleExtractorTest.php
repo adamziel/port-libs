@@ -616,6 +616,34 @@ return [
         $t->same(false, str_contains($article->text, 'Kommentare lesen'), 'article footer chrome should not survive single-article promotion');
         $t->same(false, str_contains($article->text, '08.04.2015 12:46'), 'leading source timestamp chrome should not survive article cleanup');
     },
+    'maps Mozilla ars-1 fixture by removing figure credit-only caption chrome' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/ars-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//figcaption/@class'), $attributeValues($article->contentHtml, '//figcaption/@class'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//figcaption')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//figcaption')),
+        );
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(false, str_contains($article->contentHtml, 'caption-credit'), 'credit-only caption wrapper should be removed like upstream conditional cleanup');
+        $t->same(false, str_contains($article->contentHtml, 'caption-link'), 'credit-only caption link should be removed');
+        $t->same(false, str_contains($article->text, 'Kevin'), 'credit-only caption text should not enter imported article text');
+    },
     'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
             . '<h1>Caption Class Import</h1>'
@@ -633,6 +661,27 @@ return [
         $t->contains('class="wp-caption aligncenter"', $blocks);
         $t->same(false, str_contains($article->contentHtml, 'theme-frame'), 'source theme figure class should not be preserved');
         $t->same(false, str_contains($article->contentHtml, 'legacy-caption'), 'source theme caption class should not be preserved');
+    },
+    'removes WordPress image credit-only caption wrappers before block output' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Credit Caption Import"></head><body><article>'
+            . '<h1>Credit Caption Import</h1>'
+            . '<p>' . str_repeat('A WordPress import should keep editorial media while dropping source-only photo credit links from captions. ', 3) . '</p>'
+            . '<figure class="wp-caption source-frame"><img src="/uploads/server-crash.jpg" alt="Imported media"><figcaption class="wp-caption-text"><div class="caption-credit"><a class="caption-link" href="https://source.example/credit">Source Photographer</a></div></figcaption></figure>'
+            . '<p>' . str_repeat('The resulting blocks remain focused on portable article copy and reviewable media. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, null, false, ['wp-caption', 'wp-caption-text']);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Credit Caption Import', $article->title);
+        $t->contains('<figure class="wp-caption">', $article->contentHtml);
+        $t->contains('<figcaption class="wp-caption-text"></figcaption>', $article->contentHtml);
+        $t->contains('/uploads/server-crash.jpg', $blocks);
+        $t->same(false, str_contains($article->contentHtml, 'caption-credit'), 'source credit wrapper should be removed');
+        $t->same(false, str_contains($article->contentHtml, 'caption-link'), 'source credit link class should be removed');
+        $t->same(false, str_contains($article->text, 'Source Photographer'), 'source credit text should not become article text');
+        $t->same(false, str_contains($blocks, 'Source Photographer'), 'source credit text should not become a WordPress block');
     },
     'collapses single paragraph div wrappers like upstream scoring cleanup' => static function (TestRunner $t) use ($elementChildTags): void {
         $html = '<html><head><title>Quote Cleanup</title></head><body><article>'
