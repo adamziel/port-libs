@@ -132,8 +132,6 @@ final class FileInfoScanner
         }
 
         $size = (int) $stat['size'];
-        $blocks = [];
-        $blocksHash = '';
         $currentBlockSize = $currentFile !== null && $currentFile->type === FileInfo::TYPE_FILE
             ? $currentFile->blockSize()
             : null;
@@ -159,33 +157,7 @@ final class FileInfoScanner
             return null;
         }
 
-        if ($hashBlocks) {
-            $bytes = file_get_contents($path);
-            if (!is_string($bytes)) {
-                throw new \RuntimeException('read failed for ' . $name);
-            }
-            $blocks = $this->blockList->fromBytes($bytes, $rawBlockSize);
-            $blocksHash = $this->blockList->hashBlocks($blocks);
-        }
-
-        return new FileInfo(
-            name: $name,
-            modifiedS: $modifiedS,
-            size: $size,
-            blocksHash: $blocksHash,
-            type: FileInfo::TYPE_FILE,
-            localFlags: $this->localFlags,
-            permissions: $permissions,
-            noPermissions: $this->ignorePerms,
-            rawBlockSize: $rawBlockSize,
-            previousBlocksHash: $previousBlocksHash,
-            blocks: $blocks,
-            unixOwnerName: $platform['unixOwnerName'],
-            unixGroupName: $platform['unixGroupName'],
-            unixUid: $platform['unixUid'],
-            unixGid: $platform['unixGid'],
-            xattrs: $platform['xattrs'],
-        );
+        return $hashBlocks ? $this->hashScannedFile($info) : $info;
     }
 
     private function assertScanInputs(string $name, ?int $blockSize, ?FileInfo $currentFile): void
@@ -213,6 +185,7 @@ final class FileInfoScanner
 
     /**
      * @param list<string> $subs
+     * @param null|callable(FolderScanProgress): void $progressLogger
      * @return list<FileInfo>
      */
     public function walk(
@@ -221,7 +194,20 @@ final class FileInfoScanner
         bool $hashBlocks = false,
         ?int $blockSize = null,
         iterable $currentFiles = [],
+        ?callable $progressLogger = null,
+        string $folder = '',
     ): array {
+        if ($hashBlocks && $progressLogger !== null) {
+            return $this->walkWithHashProgress(
+                $subs,
+                $ignoreMatcher,
+                $blockSize,
+                $currentFiles,
+                \Closure::fromCallable($progressLogger),
+                $folder,
+            );
+        }
+
         $results = [];
         $seen = [];
         $subs = $subs === [] ? [''] : $subs;
@@ -249,6 +235,89 @@ final class FileInfoScanner
         }
 
         return $results;
+    }
+
+    /**
+     * @param list<string> $subs
+     * @return list<FileInfo>
+     */
+    private function walkWithHashProgress(
+        array $subs,
+        ?IgnoreMatcher $ignoreMatcher,
+        ?int $blockSize,
+        iterable $currentFiles,
+        \Closure $progressLogger,
+        string $folder,
+    ): array {
+        $results = $this->walk($subs, $ignoreMatcher, false, $blockSize, $currentFiles);
+        $fileIndexes = [];
+        $total = 1;
+        foreach ($results as $index => $file) {
+            if ($file->type !== FileInfo::TYPE_FILE) {
+                continue;
+            }
+
+            $fileIndexes[] = $index;
+            $total += $file->size;
+        }
+
+        if ($fileIndexes === []) {
+            return $results;
+        }
+
+        $current = 0;
+        foreach ($fileIndexes as $index) {
+            $hashed = $this->hashScannedFile($results[$index]);
+            $results[$index] = $hashed;
+            $current += $hashed->size;
+            $progressLogger(new FolderScanProgress($folder, $current, $total));
+        }
+
+        return $results;
+    }
+
+    private function hashScannedFile(FileInfo $info): FileInfo
+    {
+        if ($info->type !== FileInfo::TYPE_FILE) {
+            throw new \LogicException('Only regular files can be block hashed');
+        }
+
+        $bytes = file_get_contents($this->absolutePath($info->name));
+        if (!is_string($bytes)) {
+            throw new \RuntimeException('read failed for ' . $info->name);
+        }
+
+        $blocks = $this->blockList->fromBytes($bytes, $info->rawBlockSize);
+        $size = 0;
+        foreach ($blocks as $block) {
+            $size += $block->size;
+        }
+
+        return new FileInfo(
+            name: $info->name,
+            modifiedS: $info->modifiedS,
+            modifiedNs: $info->modifiedNs,
+            version: $info->version,
+            deleted: $info->deleted,
+            localFlags: $info->localFlags,
+            size: $size,
+            blocksHash: $this->blockList->hashBlocks($blocks),
+            previousBlocksHash: $info->previousBlocksHash,
+            type: $info->type,
+            permissions: $info->permissions,
+            noPermissions: $info->noPermissions,
+            rawBlockSize: $info->rawBlockSize,
+            sequence: $info->sequence,
+            symlinkTarget: $info->symlinkTarget,
+            blocks: $blocks,
+            unixOwnerName: $info->unixOwnerName,
+            unixGroupName: $info->unixGroupName,
+            unixUid: $info->unixUid,
+            unixGid: $info->unixGid,
+            modifiedBy: $info->modifiedBy,
+            encryptedPayload: $info->encryptedPayload,
+            xattrs: $info->xattrs,
+        );
     }
 
     /**

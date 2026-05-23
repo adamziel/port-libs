@@ -6,6 +6,7 @@ use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\FileInfoComparison;
 use PortLibs\Syncthing\FileInfoScanner;
+use PortLibs\Syncthing\FolderScanProgress;
 use PortLibs\Syncthing\IgnoreMatcher;
 
 return [
@@ -253,6 +254,83 @@ return [
             $t->same(['foo'], array_map(static fn (FileInfo $file): string => $file->name, $slashSub));
             $t->same(hash('sha256', 'scanned '), $slashSub[0]->blocks[0]->hashHex);
             $t->same(22, $slashSub[0]->size);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk emits upstream FolderScanProgress byte totals while hashing' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/hero.jpg', 'abcdefgh');
+            syncthing_scanner_write($root, $dir . '/thumb.jpg', '12345');
+            syncthing_scanner_write($root, $dir . '/empty.jpg', '');
+
+            $progress = [];
+            $scanner = new FileInfoScanner($root);
+            $files = $scanner->walk(
+                [$dir],
+                hashBlocks: true,
+                blockSize: 4,
+                progressLogger: static function (FolderScanProgress $event) use (&$progress): void {
+                    $progress[] = $event;
+                },
+                folder: 'wordpress-media',
+            );
+
+            $t->same([
+                $dir,
+                $dir . '/empty.jpg',
+                $dir . '/hero.jpg',
+                $dir . '/thumb.jpg',
+            ], array_map(static fn (FileInfo $file): string => $file->name, $files));
+            $t->same(BlockList::EMPTY_FILE_HASH_HEX, $files[1]->blocks[0]->hashHex);
+            $t->same(hash('sha256', 'abcd'), $files[2]->blocks[0]->hashHex);
+            $t->same(hash('sha256', '1234'), $files[3]->blocks[0]->hashHex);
+            $t->same([
+                ['folder' => 'wordpress-media', 'current' => 0, 'total' => 14, 'rate' => 0.0],
+                ['folder' => 'wordpress-media', 'current' => 8, 'total' => 14, 'rate' => 0.0],
+                ['folder' => 'wordpress-media', 'current' => 13, 'total' => 14, 'rate' => 0.0],
+            ], array_map(static fn (FolderScanProgress $event): array => $event->toArray(), $progress));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk suppresses scan progress when no hashing work is queued' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/already-indexed.jpg';
+            syncthing_scanner_write($root, $name, 'stable indexed media');
+
+            $scanner = new FileInfoScanner($root);
+            $current = $scanner->walk([$name], hashBlocks: true, blockSize: 8)[0];
+
+            $unchangedProgress = [];
+            $unchanged = $scanner->walk(
+                [$name],
+                hashBlocks: true,
+                blockSize: 8,
+                currentFiles: [$current],
+                progressLogger: static function (FolderScanProgress $event) use (&$unchangedProgress): void {
+                    $unchangedProgress[] = $event;
+                },
+                folder: 'wordpress-media',
+            );
+
+            $metadataOnlyProgress = [];
+            $metadataOnly = $scanner->walk(
+                [$name],
+                progressLogger: static function (FolderScanProgress $event) use (&$metadataOnlyProgress): void {
+                    $metadataOnlyProgress[] = $event;
+                },
+                folder: 'wordpress-media',
+            );
+
+            $t->same([], $unchanged);
+            $t->same([], $unchangedProgress);
+            $t->same(1, count($metadataOnly));
+            $t->same([], $metadataOnlyProgress);
+            $t->throws(InvalidArgumentException::class, static fn () => new FolderScanProgress('wordpress-media', -1, 1));
         } finally {
             syncthing_scanner_rm($root);
         }

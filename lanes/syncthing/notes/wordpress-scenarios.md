@@ -974,6 +974,14 @@ refuses to replace an existing normalized sibling. The WordPress example
 `wordpress-scanner-normalization.php` shows a decomposed upload filename from a
 Mac-style export being rejected by strict scanning, then normalized on disk and
 hashed under the NFC Syncthing wire name.
+The scanner progress slice now maps the upstream `ProgressTickIntervalS`,
+`newByteCounter`, `Blocks`, and `FolderScanProgress` boundaries: native PHP
+buffers changed regular files before hashing so the progress denominator is
+`1 + bytes-to-hash`, emits folder/current/total/rate payloads as hashing
+advances, preserves the existing walk order for directories and files, and
+emits no progress for unchanged or metadata-only walks. The WordPress example
+`wordpress-scanner-progress-events.php` shows a media-library scan reporting
+Syncthing-style progress totals while producing hashed `FileInfo` entries.
 
 ## Test Run Notes
 
@@ -1069,8 +1077,22 @@ and `normalizedPathExists=true`. The required pre-root
 `pgrep -af '^php tools/run-tests\.php( |$)'` check returned no active root
 harness, so this worker ran `php tools/run-tests.php`; it passed 193 test
 files, 21102 assertions, and 0 failures.
+For the scanner progress batch, focused upstream
+`go test ./lib/scanner -run '^TestVerify$|^TestWalk$' -count=1` passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/scanner 0.010s`. The focused lane test
+`php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed
+1 file, 97 assertions, and 0 failures; the full lane run
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2099
+assertions, and 0 failures; and
+`php lanes/syncthing/examples/wordpress-scanner-progress-events.php` ran
+successfully, reporting FolderScanProgress-style totals `0/14`, `8/14`, and
+`13/14` while hashing changed WordPress media files.
+The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+returned no active root harness, so this worker ran `php tools/run-tests.php`;
+it passed 196 test files, 21368 assertions, and 0 failures.
 
 ## Next Task
 
-Map upstream scanner scan progress event boundaries or platform-specific
-permission equivalence beyond the current POSIX-style slice.
+Map platform-specific permission equivalence beyond the current POSIX-style
+slice or extend scanner progress toward cancellation/error event boundaries.
