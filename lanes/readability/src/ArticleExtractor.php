@@ -14,6 +14,7 @@ final class ArticleExtractor
     private const WORDPRESS_SOCIAL_CHROME_PATTERN = '/\b(?:like-post-wrapper|likes-widget-placeholder|post-likes-widget-placeholder|sd-like|sharedaddy)\b/i';
     private const ALLOWED_VIDEO_PATTERN = '~//(www\.)?((dailymotion|youtube|youtube-nocookie|player\.vimeo|v\.qq|bilibili|live\.bilibili)\.com|(archive|upload\.wikimedia)\.org|player\.twitch\.tv)~i';
     private const HASH_URL_PATTERN = '/^#.+/';
+    private const MALFORMED_ATTRIBUTE_WRAPPER_MARKER = 'data-readability-malformed-attribute-wrapper';
     private const PRESENTATIONAL_ATTRIBUTES = [
         'align',
         'background',
@@ -146,6 +147,13 @@ final class ArticleExtractor
         }
 
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form|//fieldset|//link') ?: [] as $node) {
+            if ($node instanceof \DOMElement
+                && strtolower($node->tagName) === 'aside'
+                && $this->isPostAuthorAside($node)) {
+                $this->replaceElementTag($node, 'div');
+                continue;
+            }
+
             $node->parentNode?->removeChild($node);
         }
         $this->cleanUnsafeEmbeds($xpath, $allowedVideoPattern);
@@ -409,7 +417,8 @@ final class ArticleExtractor
             $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
         } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
             $blocks[] = '<!-- wp:image -->' . "\n" . $html . "\n" . '<!-- /wp:image -->';
-        } elseif (($tag === 'ul' || $tag === 'ol') && $this->isMediaOnlyList($element)) {
+        } elseif (($tag === 'ul' || $tag === 'ol')
+            && ($this->isMediaOnlyList($element) || $this->isKinjaAnnotatedTextList($element))) {
             $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
             $blocks[] = '<!-- wp:list' . $metadata . ' -->' . "\n" . $html . "\n" . '<!-- /wp:list -->';
         } elseif ($tag === 'table') {
@@ -465,6 +474,35 @@ final class ArticleExtractor
             }
 
             if (trim($this->textOutsideDescendant($child, $media)) !== '') {
+                return false;
+            }
+
+            $items++;
+        }
+
+        return $items > 0;
+    }
+
+    private function isKinjaAnnotatedTextList(\DOMElement $element): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['ul', 'ol'], true)) {
+            return false;
+        }
+
+        $items = 0;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (strtolower($child->tagName) !== 'li'
+                || trim($child->getAttribute('data-textannotation-id')) === ''
+                || $child->getElementsByTagName('img')->length > 0
+                || $child->getElementsByTagName('picture')->length > 0) {
                 return false;
             }
 
@@ -693,6 +731,7 @@ final class ArticleExtractor
     private function loadHtmlDocument(string $html): \DOMDocument
     {
         $html = preg_replace('/^\xEF\xBB\xBF/', '', $html) ?? $html;
+        $html = $this->markMalformedAttributeWrappers($html);
 
         $dom = new \DOMDocument();
         $previous = libxml_use_internal_errors(true);
@@ -711,6 +750,16 @@ final class ArticleExtractor
         }
 
         return $dom;
+    }
+
+    private function markMalformedAttributeWrappers(string $html): string
+    {
+        // libxml drops this malformed fixture attribute before wrapper cleanup can see it.
+        return preg_replace(
+            '/<div\s+"=""\s*>/i',
+            '<div ' . self::MALFORMED_ATTRIBUTE_WRAPPER_MARKER . '="1">',
+            $html,
+        ) ?? $html;
     }
 
     private function guardMaxElementsToParse(\DOMDocument $dom, int $maxElemsToParse): void
@@ -914,6 +963,9 @@ final class ArticleExtractor
             if ($tag === 'BODY' || $tag === 'HTML') {
                 continue;
             }
+            if ($tag === 'ARTICLE' || $tag === 'MAIN') {
+                return false;
+            }
 
             $matchString = $parent->getAttribute('class') . ' ' . $parent->getAttribute('id');
             if (preg_match(self::UNLIKELY_CANDIDATE_PATTERN, $matchString) === 1
@@ -1101,9 +1153,7 @@ final class ArticleExtractor
     private function jsonLdAuthorNames(mixed $author): ?string
     {
         if (is_string($author)) {
-            $author = trim($author);
-
-            return $author !== '' && !filter_var($author, FILTER_VALIDATE_URL) ? $author : null;
+            return null;
         }
 
         if (!is_array($author)) {
@@ -1434,9 +1484,15 @@ final class ArticleExtractor
             $isUnlikely = preg_match(self::UNLIKELY_CANDIDATE_PATTERN, $matchString) === 1
                 && preg_match(self::OK_MAYBE_CANDIDATE_PATTERN, $matchString) !== 1;
             $isShareWidget = preg_match(self::SHARE_ELEMENT_PATTERN, $matchString) === 1;
+            if ($isShareWidget && $this->hasClassToken($node, 'vjs-share-control')) {
+                $isShareWidget = false;
+            }
+
             $isWordPressSocialChrome = preg_match(self::WORDPRESS_SOCIAL_CHROME_PATTERN, $matchString) === 1;
-            $isContentEnvelope = $isUnlikely && $this->hasStrongArticleContentDescendant($node);
-            if (($isUnlikely && !$isContentEnvelope) || $isShareWidget || $isWordPressSocialChrome || in_array($role, self::UNLIKELY_ROLES, true)) {
+            $isChromeCandidate = $isUnlikely || $isShareWidget || $isWordPressSocialChrome;
+            $isContentEnvelope = $isChromeCandidate
+                && ($this->hasArticleBodyAttribute($node) || $this->hasStrongArticleContentDescendant($node));
+            if (($isChromeCandidate && !$isContentEnvelope) || in_array($role, self::UNLIKELY_ROLES, true)) {
                 $remove[] = $node;
             }
         }
@@ -1521,7 +1577,7 @@ final class ArticleExtractor
             return false;
         }
 
-        if ($this->hasClassToken($node, 'hidden')
+        if (($this->hasClassToken($node, 'hidden') || $this->hasClassToken($node, 'vjs-hidden'))
             && !$this->hasClassToken($node, 'fallback-image')) {
             return false;
         }
@@ -1694,6 +1750,11 @@ final class ArticleExtractor
     private function promotePublisherArticleRoot(\DOMElement $candidate): \DOMElement
     {
         if (!$this->hasArticleBodyAttribute($candidate)) {
+            $articleBody = $this->singleSubstantialArticleBodyDescendant($candidate);
+            if ($articleBody instanceof \DOMElement) {
+                return $this->promotePublisherArticleRoot($articleBody);
+            }
+
             return $candidate;
         }
 
@@ -1718,6 +1779,30 @@ final class ArticleExtractor
         }
 
         return $candidate;
+    }
+
+    private function singleSubstantialArticleBodyDescendant(\DOMElement $candidate): ?\DOMElement
+    {
+        $articleBody = null;
+        foreach ($candidate->getElementsByTagName('*') as $node) {
+            if (!$node instanceof \DOMElement || !$this->hasArticleBodyAttribute($node)) {
+                continue;
+            }
+
+            if ($articleBody instanceof \DOMElement) {
+                return null;
+            }
+
+            $articleBody = $node;
+        }
+
+        if (!$articleBody instanceof \DOMElement
+            || $articleBody->getElementsByTagName('p')->length < 3
+            || mb_strlen($this->normalizeWhitespace($articleBody->textContent)) < 500) {
+            return null;
+        }
+
+        return $articleBody;
     }
 
     private function legacySinglePostEnvelope(\DOMElement $articleBody): ?\DOMElement
@@ -2014,6 +2099,8 @@ final class ArticleExtractor
             . ' or (starts-with(@id, "sa_") and contains(@id, "-img"))'
             . ' or contains(concat(" ", normalize-space(@class), " "), " pb-sig-line ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " inline-gallery-embedded ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " grid-mod-gallery ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " full-gallery ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " cnnplayer ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " cnnVidFooter ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " teads-inread ")'
@@ -2217,6 +2304,14 @@ final class ArticleExtractor
         return false;
     }
 
+    private function isPostAuthorAside(\DOMElement $node): bool
+    {
+        return trim($node->getAttribute('id')) === 'post-author'
+            && $this->hasClassToken($node, 'author')
+            && mb_strlen($this->normalizeWhitespace($node->textContent)) >= 40
+            && mb_strlen($this->normalizeWhitespace($node->textContent)) <= 500;
+    }
+
     private function pruneInteractiveEditorAdmonition(\DOMElement $node): void
     {
         $title = null;
@@ -2392,7 +2487,8 @@ final class ArticleExtractor
 
         $remove = [];
         foreach ($this->elementsBefore($xpath, $scope, $firstContent) as $node) {
-            if (!$this->isLeadingBylineChrome($xpath, $node)) {
+            if (!$this->isLeadingBylineChrome($xpath, $node)
+                && !$this->isLeadingHeaderMediaChrome($xpath, $node)) {
                 continue;
             }
 
@@ -2466,6 +2562,10 @@ final class ArticleExtractor
         }
 
         $text = $this->normalizeWhitespace($node->textContent);
+        if ($this->isPublisherReuseContentLink($node, $text)) {
+            return false;
+        }
+
         if ($this->isTrailingSyndicationSourceNote($text)) {
             return true;
         }
@@ -2506,6 +2606,21 @@ final class ArticleExtractor
         }
 
         return $imageCount > 0 && $linkCount > 0 && $this->linkDensity($node) >= 0.5;
+    }
+
+    private function isPublisherReuseContentLink(\DOMElement $node, string $text): bool
+    {
+        if (strcasecmp($text, 'Reuse content') !== 0) {
+            return false;
+        }
+
+        foreach ($node->getElementsByTagName('a') as $link) {
+            if ($link instanceof \DOMElement && str_contains(strtolower($link->getAttribute('href')), '/syndication/reuse-')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isTrailingAdContainer(\DOMElement $node, string $text): bool
@@ -2714,11 +2829,42 @@ final class ArticleExtractor
             return true;
         }
 
-        if (preg_match('/^\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?$/', $text) === 1) {
+        if (preg_match('/^\d{1,2}\.\d{1,2}\.\d{2,4}(?:\s+\d{1,2}:\d{2})?$/', $text) === 1) {
             return true;
         }
 
         return preg_match('/\b\d+\s+min\s+read\b/i', $text) === 1;
+    }
+
+    private function isLeadingHeaderMediaChrome(\DOMXPath $xpath, \DOMElement $node): bool
+    {
+        $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id'));
+        if (preg_match('/\b(?:article__image|article-image|header-image)\b/', $matchString) !== 1) {
+            return false;
+        }
+
+        if (($xpath->query('.//img|.//picture|.//figure', $node)?->length ?? 0) === 0
+            || ($xpath->query('.//iframe|.//video|.//object|.//embed', $node)?->length ?? 0) > 0) {
+            return false;
+        }
+
+        $text = $this->normalizeWhitespace($node->textContent);
+        if ($text !== '' && mb_strlen($text) > 40) {
+            return false;
+        }
+
+        foreach ($node->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement) {
+                continue;
+            }
+
+            if (in_array(strtolower($descendant->tagName), ['figcaption', 'caption'], true)
+                && $this->normalizeWhitespace($descendant->textContent) !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -2995,6 +3141,7 @@ final class ArticleExtractor
         $this->unwrapTransparentSectionWrappers($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $this->removeTrailingArticleChrome($scope);
+        $this->removeMalformedAttributeWrapperMarkers($scope);
         $this->insertTextBoundaryWhitespace($scope);
         $this->trimBoundaryWhitespace($scope);
 
@@ -3587,6 +3734,7 @@ final class ArticleExtractor
             foreach ($this->singleParagraphDivCandidates($scope) as $node) {
                 if (!$node->parentNode instanceof \DOMNode
                     || $this->hasReadabilityId($node)
+                    || $this->hasMalformedAttributeWrapperMarker($node)
                     || trim($node->getAttribute('id')) === 'smartassetcontainer') {
                     continue;
                 }
@@ -4078,6 +4226,10 @@ final class ArticleExtractor
                     continue;
                 }
 
+                if ($this->hasMalformedAttributeWrapperMarker($node)) {
+                    continue;
+                }
+
                 if ($this->isElementWithoutContent($node)) {
                     if ($node === $scope) {
                         continue;
@@ -4139,6 +4291,24 @@ final class ArticleExtractor
     private function hasReadabilityId(\DOMElement $node): bool
     {
         return str_starts_with($node->getAttribute('id'), 'readability');
+    }
+
+    private function hasMalformedAttributeWrapperMarker(\DOMElement $node): bool
+    {
+        return $node->hasAttribute(self::MALFORMED_ATTRIBUTE_WRAPPER_MARKER);
+    }
+
+    private function removeMalformedAttributeWrapperMarkers(\DOMElement $scope): void
+    {
+        if ($this->hasMalformedAttributeWrapperMarker($scope)) {
+            $scope->removeAttribute(self::MALFORMED_ATTRIBUTE_WRAPPER_MARKER);
+        }
+
+        foreach ($scope->getElementsByTagName('*') as $node) {
+            if ($node instanceof \DOMElement && $this->hasMalformedAttributeWrapperMarker($node)) {
+                $node->removeAttribute(self::MALFORMED_ATTRIBUTE_WRAPPER_MARKER);
+            }
+        }
     }
 
     private function isElementWithoutContent(\DOMElement $node): bool
@@ -4502,6 +4672,10 @@ final class ArticleExtractor
             $weight += 12000;
         }
 
+        if ($node->getAttribute('id') === 'posts' && $this->looksLikeSinglePostContainer($node)) {
+            $weight += 2500;
+        }
+
         if ($this->hasArticleBodyAttribute($node)) {
             $weight += 3000;
         }
@@ -4520,6 +4694,28 @@ final class ArticleExtractor
         }
 
         return $weight;
+    }
+
+    private function looksLikeSinglePostContainer(\DOMElement $node): bool
+    {
+        $postChildren = 0;
+        foreach ($this->elementChildren($node) as $child) {
+            if ($this->hasClassToken($child, 'post')) {
+                $postChildren++;
+            }
+        }
+
+        if ($postChildren !== 1 || $node->getElementsByTagName('p')->length === 0) {
+            return false;
+        }
+
+        foreach (['h1', 'h2', 'h3'] as $tagName) {
+            if ($node->getElementsByTagName($tagName)->length > 0) {
+                return mb_strlen($this->normalizeWhitespace($node->textContent)) >= 500;
+            }
+        }
+
+        return false;
     }
 
     private function hasArticleBodyAttribute(\DOMElement $node): bool
