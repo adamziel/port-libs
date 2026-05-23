@@ -508,76 +508,27 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options replacement planning requires a table root page separate from sqlite_schema');
         }
 
-        $tablePage = $this->page($tableRootPage);
-        $tableHeader = SQLiteBTreePageHeader::parsePage(
-            $tablePage,
-            $this->header->pageSize,
-            $tableRootPage === 1 ? 100 : 0,
-        );
-        if ($tableHeader->pageType !== 'table-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options replacement planning currently requires a single table leaf root page');
-        }
-
         $usableSize = $this->usablePageSize();
+        $targetLeaf = $this->writableWordPressOptionTableLeafForReplacement($tableRootPage, $optionName, $usableSize);
         $replacementIndexes = $this->supportedWordPressOptionIndexesForReplacement();
-        $existingCells = [];
-        $matchedRowId = null;
-        $matchedAutoload = null;
-        $replacementAutoload = null;
+        $existingCells = $targetLeaf['entries'];
+        $matchedRowId = $targetLeaf['rowid'];
+        $matchedAutoload = $targetLeaf['autoload'];
+        $replacementAutoload = $autoload ?? $matchedAutoload;
         $replacementLocalPayloadLength = 0;
         $replacementOverflowPayload = '';
         $overflowPageNumbers = [];
-        $obsoleteOverflowPageNumbers = [];
-        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
-        foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $usableSize, $overflowReader) as $cell) {
-            $row = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
-            $option = SQLiteWordPressOption::fromTableRow($row);
-            if ($option->optionName !== $optionName) {
-                $existingCells[] = [
-                    'rowid' => $cell->rowId,
-                    'cell' => substr($tablePage, $cell->offset, $cell->bytesRead),
-                ];
-                continue;
-            }
-
-            if ($matchedRowId !== null) {
-                throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not unique");
-            }
-
-            $values = $row->values();
-            $matchedAutoload = $option->autoload;
-            $replacementAutoload = $autoload ?? $option->autoload;
-            $values[0] = $values[0] ?? null;
-            $values[1] = $optionName;
-            $values[2] = $optionValue;
-            if (array_key_exists(3, $values) || $replacementAutoload !== null) {
-                $values[3] = $replacementAutoload;
-            }
-
-            $payload = SQLiteRecord::encode(array_values($values), $this->header->textEncoding);
-            $replacementLocalPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
-            $replacementOverflowPayload = substr($payload, $replacementLocalPayloadLength);
-
-            if ($cell->firstOverflowPage !== null) {
-                $obsoleteOverflowPageNumbers = $this->overflowPageNumbers(
-                    $cell->firstOverflowPage,
-                    $cell->payloadLength - $cell->localPayloadLength,
-                );
-            }
-
-            $matchedRowId = $cell->rowId;
-            $existingCells[] = [
-                'rowid' => $cell->rowId,
-                'cell' => [
-                    'rowid' => $cell->rowId,
-                    'payload' => $payload,
-                ],
-            ];
+        $obsoleteOverflowPageNumbers = $targetLeaf['obsoleteOverflowPageNumbers'];
+        $values = $targetLeaf['values'];
+        $values[0] = $values[0] ?? null;
+        $values[1] = $optionName;
+        $values[2] = $optionValue;
+        if (array_key_exists(3, $values) || $replacementAutoload !== null) {
+            $values[3] = $replacementAutoload;
         }
-
-        if ($matchedRowId === null) {
-            throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not present");
-        }
+        $payload = SQLiteRecord::encode(array_values($values), $this->header->textEncoding);
+        $replacementLocalPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+        $replacementOverflowPayload = substr($payload, $replacementLocalPayloadLength);
 
         $allocationPlan = null;
         if ($replacementOverflowPayload !== '') {
@@ -591,10 +542,10 @@ final class SQLiteDatabase
         }
 
         foreach ($existingCells as $index => $entry) {
-            if (is_array($entry['cell'])) {
+            if ($entry['rowid'] === $matchedRowId) {
                 $existingCells[$index]['cell'] = SQLiteTableLeafCell::encode(
-                    $entry['cell']['rowid'],
-                    $entry['cell']['payload'],
+                    $matchedRowId,
+                    $payload,
                     $usableSize,
                     $overflowPageNumbers[0] ?? null,
                 );
@@ -615,11 +566,11 @@ final class SQLiteDatabase
         foreach ($freePlan?->pageImages() ?? [] as $pageNumber => $page) {
             $pageImages[$pageNumber] = $page;
         }
-        $pageImages[$tableRootPage] = SQLiteTableLeafPage::assemble(
+        $pageImages[$targetLeaf['pageNumber']] = SQLiteTableLeafPage::assemble(
             array_map(static fn (array $entry): string => $entry['cell'], $existingCells),
             $this->header->pageSize,
-            $tableRootPage === 1 ? 100 : 0,
-            $tablePage,
+            $targetLeaf['headerOffset'],
+            $targetLeaf['page'],
             $usableSize,
         );
         if ($replacementOverflowPayload !== '') {
@@ -663,6 +614,131 @@ final class SQLiteDatabase
             $replacementLocalPayloadLength,
             $databasePageCount,
             $pageImages,
+        );
+    }
+
+    /**
+     * @return array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>}
+     */
+    private function writableWordPressOptionTableLeafForReplacement(
+        int $rootPage,
+        string $optionName,
+        int $usableSize,
+    ): array {
+        $visited = [];
+        $target = null;
+        $this->collectWritableWordPressOptionTableLeafForReplacement(
+            $rootPage,
+            $optionName,
+            $usableSize,
+            $visited,
+            $target,
+        );
+
+        if ($target === null) {
+            throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not present");
+        }
+
+        return $target;
+    }
+
+    /**
+     * @param array<int, true> $visited
+     * @param null|array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>} $target
+     */
+    private function collectWritableWordPressOptionTableLeafForReplacement(
+        int $pageNumber,
+        string $optionName,
+        int $usableSize,
+        array &$visited,
+        ?array &$target,
+    ): void {
+        if (isset($visited[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite wp_options replacement planning reached table page {$pageNumber} more than once");
+        }
+        $visited[$pageNumber] = true;
+
+        $page = $this->page($pageNumber);
+        $headerOffset = $pageNumber === 1 ? 100 : 0;
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $headerOffset,
+        );
+
+        if ($header->pageType === 'table-leaf') {
+            $entries = [];
+            $matched = null;
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader) as $cell) {
+                $entries[] = [
+                    'rowid' => $cell->rowId,
+                    'cell' => substr($page, $cell->offset, $cell->bytesRead),
+                ];
+
+                $row = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+                $option = SQLiteWordPressOption::fromTableRow($row);
+                if ($option->optionName !== $optionName) {
+                    continue;
+                }
+                if ($matched !== null || $target !== null) {
+                    throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not unique");
+                }
+
+                $obsoleteOverflowPageNumbers = [];
+                if ($cell->firstOverflowPage !== null) {
+                    $obsoleteOverflowPageNumbers = $this->overflowPageNumbers(
+                        $cell->firstOverflowPage,
+                        $cell->payloadLength - $cell->localPayloadLength,
+                    );
+                }
+
+                $matched = [
+                    'rowid' => $cell->rowId,
+                    'autoload' => $option->autoload,
+                    'values' => $row->values(),
+                    'obsoleteOverflowPageNumbers' => $obsoleteOverflowPageNumbers,
+                ];
+            }
+
+            if ($matched !== null) {
+                $target = [
+                    'pageNumber' => $pageNumber,
+                    'page' => $page,
+                    'headerOffset' => $headerOffset,
+                    'entries' => $entries,
+                    'rowid' => $matched['rowid'],
+                    'autoload' => $matched['autoload'],
+                    'values' => $matched['values'],
+                    'obsoleteOverflowPageNumbers' => $matched['obsoleteOverflowPageNumbers'],
+                ];
+            }
+
+            return;
+        }
+
+        if ($header->pageType !== 'table-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not a table b-tree page");
+        }
+        if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+            throw new \InvalidArgumentException("SQLite table interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $interiorCell) {
+            $this->collectWritableWordPressOptionTableLeafForReplacement(
+                $interiorCell->leftChildPage,
+                $optionName,
+                $usableSize,
+                $visited,
+                $target,
+            );
+        }
+        $this->collectWritableWordPressOptionTableLeafForReplacement(
+            $header->rightMostPointer,
+            $optionName,
+            $usableSize,
+            $visited,
+            $target,
         );
     }
 
@@ -1773,6 +1849,47 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteTableRow>
      */
+    public function tableRowsByRowIdRange(
+        int $rootPageNumber,
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite table rowid range limit cannot be negative');
+        }
+        if ($limit === 0 || self::rowIdRangeIsEmpty($lowerInclusive, $upperBound, $upperInclusive)) {
+            return [];
+        }
+
+        $visited = [];
+        $cells = [];
+        $this->collectTableLeafCellsByRowIdRange(
+            $rootPageNumber,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $visited,
+            $cells,
+            $limit,
+            false,
+            null,
+            false,
+            null,
+        );
+
+        $rows = [];
+        foreach ($cells as $cell) {
+            $rows[] = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<SQLiteTableRow>
+     */
     public function tableRowsByName(string $tableName, ?int $limit = null): array
     {
         $rootPage = $this->tableRootPage($tableName);
@@ -1781,6 +1898,30 @@ final class SQLiteDatabase
         }
 
         return $this->tableRows($rootPage, $limit);
+    }
+
+    /**
+     * @return list<SQLiteTableRow>
+     */
+    public function tableRowsByRowIdRangeByName(
+        string $tableName,
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        $rootPage = $this->tableRootPage($tableName);
+        if ($rootPage === null) {
+            return [];
+        }
+
+        return $this->tableRowsByRowIdRange(
+            $rootPage,
+            $lowerInclusive,
+            $upperBound,
+            $limit,
+            $upperInclusive,
+        );
     }
 
     /**
@@ -3671,6 +3812,38 @@ final class SQLiteDatabase
 
         $options = [];
         foreach ($this->tableRowsByName('wp_options', $limit) as $row) {
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByRowIdRange(
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options rowid range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $options = [];
+        foreach (
+            $this->tableRowsByRowIdRangeByName(
+                'wp_options',
+                $lowerInclusive,
+                $upperBound,
+                $limit,
+                $upperInclusive,
+            ) as $row
+        ) {
             $options[] = SQLiteWordPressOption::fromTableRow($row);
         }
 
@@ -5703,6 +5876,166 @@ final class SQLiteDatabase
             }
         }
         $this->collectTableLeafCells($header->rightMostPointer, $visited, $cells, $limit);
+    }
+
+    /**
+     * @param array<int, true> $visited
+     * @param list<SQLiteTableLeafCell> $cells
+     */
+    private function collectTableLeafCellsByRowIdRange(
+        int $pageNumber,
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        bool $upperInclusive,
+        array &$visited,
+        array &$cells,
+        ?int $limit,
+        bool $hasIntervalLowerExclusive,
+        ?int $intervalLowerExclusive,
+        bool $hasIntervalUpperInclusive,
+        ?int $intervalUpperInclusive,
+    ): void {
+        if ($limit !== null && count($cells) >= $limit) {
+            return;
+        }
+        if (
+            !self::rowIdRangeIntersectsInterval(
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $hasIntervalLowerExclusive,
+                $intervalLowerExclusive,
+                $hasIntervalUpperInclusive,
+                $intervalUpperInclusive,
+            )
+        ) {
+            return;
+        }
+        if (isset($visited[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite table b-tree rowid range traversal reached page {$pageNumber} more than once");
+        }
+        $visited[$pageNumber] = true;
+
+        $page = $this->page($pageNumber);
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $pageNumber === 1 ? 100 : 0,
+        );
+
+        if ($header->pageType === 'table-leaf') {
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+                if ($limit !== null && count($cells) >= $limit) {
+                    return;
+                }
+                if (self::rowIdIsInRange($cell->rowId, $lowerInclusive, $upperBound, $upperInclusive)) {
+                    $cells[] = $cell;
+                }
+            }
+
+            return;
+        }
+        if ($header->pageType !== 'table-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not a table b-tree page");
+        }
+        if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+            throw new \InvalidArgumentException("SQLite table interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        $hasPrevious = false;
+        $previousKey = null;
+        foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $interiorCell) {
+            $this->collectTableLeafCellsByRowIdRange(
+                $interiorCell->leftChildPage,
+                $lowerInclusive,
+                $upperBound,
+                $upperInclusive,
+                $visited,
+                $cells,
+                $limit,
+                $hasPrevious,
+                $previousKey,
+                true,
+                $interiorCell->key,
+            );
+            if ($limit !== null && count($cells) >= $limit) {
+                return;
+            }
+            $hasPrevious = true;
+            $previousKey = $interiorCell->key;
+        }
+        $this->collectTableLeafCellsByRowIdRange(
+            $header->rightMostPointer,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $visited,
+            $cells,
+            $limit,
+            $hasPrevious,
+            $previousKey,
+            false,
+            null,
+        );
+    }
+
+    private static function rowIdRangeIsEmpty(?int $lowerInclusive, ?int $upperBound, bool $upperInclusive): bool
+    {
+        return $lowerInclusive !== null
+            && $upperBound !== null
+            && ($lowerInclusive > $upperBound || ($lowerInclusive === $upperBound && !$upperInclusive));
+    }
+
+    private static function rowIdIsInRange(
+        int $rowId,
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        bool $upperInclusive,
+    ): bool {
+        if ($lowerInclusive !== null && $rowId < $lowerInclusive) {
+            return false;
+        }
+        if ($upperBound === null) {
+            return true;
+        }
+        if ($rowId > $upperBound) {
+            return false;
+        }
+
+        return $upperInclusive || $rowId !== $upperBound;
+    }
+
+    private static function rowIdRangeIntersectsInterval(
+        ?int $lowerInclusive,
+        ?int $upperBound,
+        bool $upperInclusive,
+        bool $hasIntervalLowerExclusive,
+        ?int $intervalLowerExclusive,
+        bool $hasIntervalUpperInclusive,
+        ?int $intervalUpperInclusive,
+    ): bool {
+        if (self::rowIdRangeIsEmpty($lowerInclusive, $upperBound, $upperInclusive)) {
+            return false;
+        }
+        if (
+            $upperBound !== null
+            && $hasIntervalLowerExclusive
+            && $intervalLowerExclusive !== null
+            && $upperBound <= $intervalLowerExclusive
+        ) {
+            return false;
+        }
+        if (
+            $lowerInclusive !== null
+            && $hasIntervalUpperInclusive
+            && $intervalUpperInclusive !== null
+            && $lowerInclusive > $intervalUpperInclusive
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

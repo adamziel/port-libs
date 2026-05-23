@@ -17,7 +17,12 @@ decodes bounded table rows and maps the standard
 `wp_options` row shape into `option_id`, `option_name`, `option_value`, and
 `autoload` fields without using the PHP SQLite extension. Large
 `option_value` records that spill from a table leaf cell into SQLite overflow
-pages are now reassembled through the native page reader. Overflow-page
+pages are now reassembled through the native page reader. Rowid-bounded
+`wp_options` reads can now scan `option_id` bands across table-interior pages,
+honor inclusive/exclusive upper bounds and limits, and prune unrelated damaged
+branches before reading leaf cells, which maps resumable WordPress option
+imports and partial database recovery when no `option_name` index is usable.
+Overflow-page
 fixtures can also be assembled with caller-supplied non-contiguous page
 numbers and reserved-byte usable sizes, mapping repair/preflight workflows
 where reusable freelist pages become a new large `wp_options.option_value`
@@ -61,6 +66,12 @@ index shapes, unsafe partial predicates, expression indexes, unsupported
 automatic indexes, non-root parent-page splits, source-leaf rebalancing, or
 index-overflow cases beyond bounded root growth instead of leaving stale
 secondary indexes behind.
+Replacement planning can now also locate a target `wp_options` row below a
+table-interior root, rewrite only the table leaf that contains the option, and
+leave the interior table page unchanged when the replacement cell fits within
+the existing leaf. This maps larger WordPress SQLite images where repair tools
+need to update a single option in a multi-page table before the lane supports
+general table-leaf splits, rebalancing, journaling, or WAL.
 Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
@@ -862,6 +873,15 @@ replaced option is reachable through
 `wordpressOptionByIndexedAutoloadAndName('no', $optionName)`. This maps larger
 WordPress repair flows that disable autoload for a heavy option while keeping
 a preload-oriented composite index consistent through a same-depth leaf split.
+
+`examples/wordpress-multipage-table-option-replacement-plan.php` starts from
+a `wp_options` table whose root is a table-interior page over two table leaf
+pages. It asks `planWordPressOptionReplace()` to rewrite the `blogname`
+option in the right leaf, applies the returned page image, and verifies that
+only page 4 changed while the page-2 table root remains `table-interior`. This
+maps larger WordPress SQLite fallback/repair tools that need to change a
+single option below an interior table root without the SQLite extension and
+before full pager/journal support exists.
 
 `examples/wordpress-replace-obsolete-overflow-option.php` starts from a
 large `wp_options` value stored across overflow pages, asks

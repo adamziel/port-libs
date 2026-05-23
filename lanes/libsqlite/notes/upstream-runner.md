@@ -128,6 +128,39 @@ The native PHP tests now cover local-payload length calculation, single-page
 overflow reads, multi-page chained overflow reads, and premature overflow-chain
 termination for WordPress-shaped `wp_options` rows.
 
+## Focused Native Mapping: Rowid Range Table Traversal
+
+This slice maps bounded rowid table b-tree traversal used by SQLite rowid
+lookups and range scans. The native reader now exposes rowid lower/upper bounds
+for table roots, plus a WordPress-shaped `wp_options` helper that can read
+option rows by `option_id` band without requiring a secondary index. Interior
+table-page child intervals are used to avoid unrelated branches before reading
+leaf cells.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  rowid.test btree01.test where.test
+```
+
+Result: 8 Tcl script/permutation runs, 0 errors out of 790 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/rowid.test` covers rowid lookup names, rowid comparisons, and rowid
+  table behavior.
+- `test/btree01.test` exercises table b-tree insert/search boundaries through
+  the SQLite b-tree test harness.
+- `test/where.test` covers lower/upper range constraints and inclusive/exclusive
+  bound behavior used by native rowid-range filtering.
+
+The native PHP tests now cover multi-page `wp_options` rowid-range reads,
+inclusive and exclusive upper bounds, open-ended bounds, row limits, empty
+ranges, and branch pruning around an out-of-range damaged right-most table
+branch.
+
 ## Focused Native Mapping: Index B-Tree Option Lookup
 
 The current PHP slice also maps SQLite index b-tree cell layout from
@@ -2703,6 +2736,32 @@ ps -o pid,user,etime,cmd -p 926388
 Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
+
+## Focused Native Mapping: Multi-Page Table Replacement Planning
+
+For the bounded multi-page table-root replacement slice on 2026-05-23, the
+focused upstream runner passed `update.test`, `btree01.test`, and
+`rowid.test` with 0 errors out of 747 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test btree01.test rowid.test
+```
+
+This maps UPDATE row rewrite behavior, rowid lookup/comparison semantics, and
+table b-tree page/cell boundaries used by the native bounded
+`wp_options` replacement planner when the target row lives in a table leaf
+below an interior table root. The native planner now traverses the table
+b-tree to locate the writable target leaf, rejects duplicate option names
+across leaves, rewrites only that leaf when no table-page split is needed, and
+keeps the interior table root unchanged.
+
+The direct libsqlite harness passed 188 PHP tests with 1282 assertions and 0
+failures. The new
+`examples/wordpress-multipage-table-option-replacement-plan.php` script ran
+successfully, reporting updated page `[4]`, an unchanged `table-interior`
+root at page 2, and a rewritten `blogname` option with `autoload='no'`.
 
 ## Focused Native Mapping: Automatic and Composite Parent-Root Index Splits
 
