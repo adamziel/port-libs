@@ -14,6 +14,18 @@ final class SQLiteTableInteriorCell
     ) {
     }
 
+    public static function encode(int $leftChildPage, int $key): string
+    {
+        if ($leftChildPage < 1) {
+            throw new \InvalidArgumentException('SQLite table interior cell child page must be positive');
+        }
+        if ($key < 0) {
+            throw new \InvalidArgumentException('SQLite table interior cell key encoding currently supports non-negative rowids only');
+        }
+
+        return pack('N', $leftChildPage) . SQLiteVarint::encode($key);
+    }
+
     public static function parse(string $page, int $offset): self
     {
         if ($offset < 0 || $offset + 4 > strlen($page)) {

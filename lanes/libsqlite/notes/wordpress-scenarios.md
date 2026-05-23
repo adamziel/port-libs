@@ -883,6 +883,16 @@ maps larger WordPress SQLite fallback/repair tools that need to change a
 single option below an interior table root without the SQLite extension and
 before full pager/journal support exists.
 
+`examples/wordpress-table-leaf-split-option-replacement-plan.php` starts from
+a `wp_options` table whose root is a table-interior page and whose left child
+leaf becomes too full after a larger `blogname` replacement. It asks
+`planWordPressOptionReplace()` for the rewrite, applies the returned
+header/root/old-leaf/new-leaf page images, and verifies that the root now has
+two separator cells while all option rows remain readable in rowid order. This
+maps WordPress repair tooling that must expand a stored option below a
+multi-page table root without the SQLite extension and without silently
+corrupting table b-tree separators.
+
 `examples/wordpress-replace-obsolete-overflow-option.php` starts from a
 large `wp_options` value stored across overflow pages, asks
 `planWordPressOptionReplace()` for a bounded same-row replacement, applies the
@@ -902,6 +912,6 @@ free-old update order.
 
 ## Next Task
 
-Extend replacement moves through parent-root split cases or add non-root
-parent split propagation before pointer-map/auto-vacuum, journaling, or WAL
-work.
+Extend replacement moves through index parent-root split cases or add non-root
+table/index parent split propagation before pointer-map/auto-vacuum,
+journaling, or WAL work.

@@ -2737,6 +2737,46 @@ Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
 
+## Focused Native Mapping: Table Leaf Split During Replacement
+
+For the bounded table-leaf split replacement slice on 2026-05-23, the focused
+upstream runner passed `update.test`, `insert.test`, `btree01.test`, and
+`rowid.test` with 0 errors out of 1070 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test insert.test btree01.test rowid.test
+```
+
+This maps UPDATE row rewrite behavior, rowid lookup/comparison boundaries, and
+SQLite b-tree balancing after a larger row payload no longer fits in its
+existing leaf. The native PHP slice now assembles table-interior pages and can
+rewrite a `wp_options` row below a table-interior root by splitting the target
+table leaf, allocating the new leaf page, and updating the root separator keys
+and right-most child pointer. The implementation remains intentionally bounded:
+non-root table parent split propagation and table-root leaf growth remain
+future slices.
+
+Focused lane verification passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1304 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-table-leaf-split-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,3,5]`, database page count `5`, root
+table separators `(leftChildPage=3,maxRowid=1)` and
+`(leftChildPage=5,maxRowid=3)`, right-most page `4`, and the rewritten
+`blogname` option with `autoload='no'`.
+
 ## Focused Native Mapping: Multi-Page Table Replacement Planning
 
 For the bounded multi-page table-root replacement slice on 2026-05-23, the

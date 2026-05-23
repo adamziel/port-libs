@@ -566,12 +566,12 @@ final class SQLiteDatabase
         foreach ($freePlan?->pageImages() ?? [] as $pageNumber => $page) {
             $pageImages[$pageNumber] = $page;
         }
-        $pageImages[$targetLeaf['pageNumber']] = SQLiteTableLeafPage::assemble(
-            array_map(static fn (array $entry): string => $entry['cell'], $existingCells),
-            $this->header->pageSize,
-            $targetLeaf['headerOffset'],
-            $targetLeaf['page'],
-            $usableSize,
+        $pageImages = $this->withAssembledWritableTableLeafPage(
+            $pageImages,
+            $tableRootPage,
+            $targetLeaf,
+            $existingCells,
+            $allowAppend,
         );
         if ($replacementOverflowPayload !== '') {
             foreach (
@@ -618,7 +618,7 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>}
+     * @return array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}}
      */
     private function writableWordPressOptionTableLeafForReplacement(
         int $rootPage,
@@ -633,6 +633,7 @@ final class SQLiteDatabase
             $usableSize,
             $visited,
             $target,
+            null,
         );
 
         if ($target === null) {
@@ -644,7 +645,8 @@ final class SQLiteDatabase
 
     /**
      * @param array<int, true> $visited
-     * @param null|array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>} $target
+     * @param null|array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}} $target
+     * @param null|array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int} $parentContext
      */
     private function collectWritableWordPressOptionTableLeafForReplacement(
         int $pageNumber,
@@ -652,6 +654,7 @@ final class SQLiteDatabase
         int $usableSize,
         array &$visited,
         ?array &$target,
+        ?array $parentContext,
     ): void {
         if (isset($visited[$pageNumber])) {
             throw new \InvalidArgumentException("SQLite wp_options replacement planning reached table page {$pageNumber} more than once");
@@ -711,6 +714,7 @@ final class SQLiteDatabase
                     'autoload' => $matched['autoload'],
                     'values' => $matched['values'],
                     'obsoleteOverflowPageNumbers' => $matched['obsoleteOverflowPageNumbers'],
+                    'parent' => $parentContext,
                 ];
             }
 
@@ -724,13 +728,21 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException("SQLite table interior page {$pageNumber} has an invalid right-most pointer");
         }
 
-        foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $interiorCell) {
+        $interiorCells = SQLiteTableInteriorCell::parsePageCells($page, $header);
+        foreach ($interiorCells as $cellIndex => $interiorCell) {
             $this->collectWritableWordPressOptionTableLeafForReplacement(
                 $interiorCell->leftChildPage,
                 $optionName,
                 $usableSize,
                 $visited,
                 $target,
+                [
+                    'pageNumber' => $pageNumber,
+                    'page' => $page,
+                    'header' => $header,
+                    'headerOffset' => $headerOffset,
+                    'childIndex' => $cellIndex,
+                ],
             );
         }
         $this->collectWritableWordPressOptionTableLeafForReplacement(
@@ -739,7 +751,267 @@ final class SQLiteDatabase
             $usableSize,
             $visited,
             $target,
+            [
+                'pageNumber' => $pageNumber,
+                'page' => $page,
+                'header' => $header,
+                'headerOffset' => $headerOffset,
+                'childIndex' => count($interiorCells),
+            ],
         );
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}} $leaf
+     * @param list<array{rowid:int,cell:string}> $entries
+     * @return array<int, string>
+     */
+    private function withAssembledWritableTableLeafPage(
+        array $pageImages,
+        int $rootPage,
+        array $leaf,
+        array $entries,
+        bool $allowAppend,
+    ): array {
+        try {
+            $pageImages[$leaf['pageNumber']] = $this->assembleWritableTableLeafPage(
+                $entries,
+                $leaf['headerOffset'],
+                $leaf['page'],
+            );
+
+            return $pageImages;
+        } catch (\InvalidArgumentException $exception) {
+            if (!str_contains($exception->getMessage(), 'split table leaf pages')) {
+                throw $exception;
+            }
+        }
+
+        return $this->withSplitWritableTableLeafPage($pageImages, $rootPage, $leaf, $entries, $allowAppend);
+    }
+
+    /**
+     * @param list<array{rowid:int,cell:string}> $entries
+     */
+    private function assembleWritableTableLeafPage(array $entries, int $headerOffset, string $basePage): string
+    {
+        try {
+            return SQLiteTableLeafPage::assemble(
+                array_map(static fn (array $entry): string => $entry['cell'], $entries),
+                $this->header->pageSize,
+                $headerOffset,
+                $basePage,
+                $this->usablePageSize(),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), 'overlap')) {
+                throw new \InvalidArgumentException(
+                    'SQLite wp_options table replacement planning does not yet split table leaf pages',
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array{pageNumber:int,page:string,headerOffset:int,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}} $leaf
+     * @param list<array{rowid:int,cell:string}> $entries
+     * @return array<int, string>
+     */
+    private function withSplitWritableTableLeafPage(
+        array $pageImages,
+        int $rootPage,
+        array $leaf,
+        array $entries,
+        bool $allowAppend,
+    ): array {
+        $parent = $leaf['parent'];
+        if ($parent === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning does not yet grow table leaf root pages');
+        }
+        if ($parent['pageNumber'] !== $rootPage) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning does not yet split non-root table parent pages');
+        }
+        if ($parent['header']->pageType !== 'table-interior') {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning can split only children of table interior pages');
+        }
+
+        [$leftEntries, $rightEntries] = $this->partitionWritableTableLeafEntriesForSplit(
+            $entries,
+            $leaf['headerOffset'],
+            $leaf['page'],
+        );
+        $leftMaxRowId = $leftEntries[count($leftEntries) - 1]['rowid'];
+
+        $workingDatabase = $this->withPageImages($pageImages);
+        $allocationPlan = $workingDatabase->planPageAllocation(1, $allowAppend);
+        foreach ($allocationPlan->pageImages() as $pageNumber => $page) {
+            $pageImages[$pageNumber] = $page;
+        }
+        $newLeafPageNumber = $allocationPlan->allocatedPageNumbers[0] ?? null;
+        if ($newLeafPageNumber === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning could not allocate a split table leaf page');
+        }
+
+        $pageImages[$leaf['pageNumber']] = SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $leftEntries),
+            $this->header->pageSize,
+            $leaf['headerOffset'],
+            $leaf['page'],
+            $this->usablePageSize(),
+        );
+        $pageImages[$newLeafPageNumber] = SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $rightEntries),
+            $this->header->pageSize,
+            0,
+            str_repeat("\0", $this->header->pageSize),
+            $this->usablePageSize(),
+        );
+        $pageImages[$parent['pageNumber']] = $this->assembleWritableTableInteriorParentAfterLeafSplit(
+            $parent,
+            $leaf['pageNumber'],
+            $newLeafPageNumber,
+            $leftMaxRowId,
+        );
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @param list<array{rowid:int,cell:string}> $entries
+     * @return array{0:non-empty-list<array{rowid:int,cell:string}>,1:non-empty-list<array{rowid:int,cell:string}>}
+     */
+    private function partitionWritableTableLeafEntriesForSplit(array $entries, int $headerOffset, string $basePage): array
+    {
+        $entryCount = count($entries);
+        if ($entryCount < 2) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split fewer than two table rows');
+        }
+
+        $best = null;
+        $bestScore = null;
+        for ($dividerIndex = 1; $dividerIndex <= $entryCount - 1; $dividerIndex++) {
+            $leftEntries = array_slice($entries, 0, $dividerIndex);
+            $rightEntries = array_slice($entries, $dividerIndex);
+
+            try {
+                SQLiteTableLeafPage::assemble(
+                    array_map(static fn (array $entry): string => $entry['cell'], $leftEntries),
+                    $this->header->pageSize,
+                    $headerOffset,
+                    $basePage,
+                    $this->usablePageSize(),
+                );
+                SQLiteTableLeafPage::assemble(
+                    array_map(static fn (array $entry): string => $entry['cell'], $rightEntries),
+                    $this->header->pageSize,
+                    0,
+                    str_repeat("\0", $this->header->pageSize),
+                    $this->usablePageSize(),
+                );
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            $score = abs(count($leftEntries) - count($rightEntries));
+            if ($bestScore === null || $score < $bestScore) {
+                $best = [$leftEntries, $rightEntries];
+                $bestScore = $score;
+            }
+        }
+
+        if ($best === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split these table rows within page capacity');
+        }
+
+        return $best;
+    }
+
+    /**
+     * @param array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int} $parent
+     */
+    private function assembleWritableTableInteriorParentAfterLeafSplit(
+        array $parent,
+        int $oldLeafPageNumber,
+        int $newLeafPageNumber,
+        int $leftMaxRowId,
+    ): string {
+        $header = $parent['header'];
+        if ($header->pageType !== 'table-interior' || $header->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning requires a table interior parent page');
+        }
+
+        $parentCells = SQLiteTableInteriorCell::parsePageCells($parent['page'], $header);
+        $childIndex = $parent['childIndex'];
+        if ($childIndex < 0 || $childIndex > count($parentCells)) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning found an invalid parent child slot');
+        }
+        if ($childIndex === count($parentCells)) {
+            if ($header->rightMostPointer !== $oldLeafPageNumber) {
+                throw new \InvalidArgumentException('SQLite wp_options table replacement planning parent right-most pointer does not match the split leaf');
+            }
+        } elseif ($parentCells[$childIndex]->leftChildPage !== $oldLeafPageNumber) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning parent child pointer does not match the split leaf');
+        }
+
+        $entries = [];
+        foreach ($parentCells as $index => $cell) {
+            if ($index === $childIndex) {
+                $entries[] = [
+                    'leftChild' => $oldLeafPageNumber,
+                    'key' => $leftMaxRowId,
+                ];
+                $entries[] = [
+                    'leftChild' => $newLeafPageNumber,
+                    'key' => $cell->key,
+                ];
+                continue;
+            }
+
+            $entries[] = [
+                'leftChild' => $cell->leftChildPage,
+                'key' => $cell->key,
+            ];
+        }
+
+        $rightMostPointer = $header->rightMostPointer;
+        if ($childIndex === count($parentCells)) {
+            $entries[] = [
+                'leftChild' => $oldLeafPageNumber,
+                'key' => $leftMaxRowId,
+            ];
+            $rightMostPointer = $newLeafPageNumber;
+        }
+
+        try {
+            return SQLiteTableInteriorPage::assemble(
+                array_map(
+                    static fn (array $entry): string => SQLiteTableInteriorCell::encode($entry['leftChild'], $entry['key']),
+                    $entries,
+                ),
+                $rightMostPointer,
+                $this->header->pageSize,
+                $parent['headerOffset'],
+                $parent['page'],
+                $this->usablePageSize(),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), 'overlap')) {
+                throw new \InvalidArgumentException(
+                    'SQLite wp_options table replacement planning does not yet split parent table pages',
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
     }
 
     /**
