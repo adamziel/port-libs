@@ -35,6 +35,14 @@ $head = $store->update(
     ReferenceTarget::symbolic($fixture['headTarget']),
     ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
 );
+$prepared = $store->prepareLooseUpdateTransaction([
+    'refs/heads/review/plugin-b/content' => ReferenceTarget::object($fixture['reviewCommit']),
+    'refs/heads/review/plugin-b/assets' => ReferenceTarget::object($fixture['productionCommit']),
+]);
+$preparedHadLocks = is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-b/content.lock')
+    && is_file($dir . '/' . $prefix . 'refs/heads/review/plugin-b/assets.lock');
+$preparedRollbackEdits = $prepared->rollback();
+$preparedRollbackCleaned = !is_dir($dir . '/' . $prefix . 'refs/heads/review/plugin-b');
 
 return [
     'namespace' => $fixture['namespace'],
@@ -45,5 +53,8 @@ return [
     'physicalHead' => file_get_contents($physicalHead),
     'reviewRefStillExists' => $store->tryFind($fixture['reviewRef']) !== null,
     'headDirectoryRecovered' => is_file($physicalHead) && !is_dir($physicalHead . '/interrupted-deploy'),
+    'preparedRollbackEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedRollbackEdits),
+    'preparedRollbackHadLocks' => $preparedHadLocks,
+    'preparedRollbackCleaned' => $preparedRollbackCleaned,
     'wordpressUse' => $fixture['wordpressUse'],
 ];

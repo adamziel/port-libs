@@ -48,6 +48,61 @@ final class ReferenceStore
         return $this->loose;
     }
 
+    /**
+     * Prepare loose-reference update lock files that can be rolled back without
+     * committing the reference writes.
+     *
+     * @param array<string, ReferenceTarget> $updates
+     */
+    public function prepareLooseUpdateTransaction(array $updates, string $algorithm = 'sha1'): PreparedReferenceTransaction
+    {
+        $locks = [];
+
+        try {
+            foreach ($updates as $name => $target) {
+                if (!$target instanceof ReferenceTarget) {
+                    throw new \InvalidArgumentException('Prepared reference updates must be keyed by name and contain ReferenceTarget values');
+                }
+
+                $physicalName = $this->physicalName((string) $name);
+                $physicalTarget = $this->physicalTarget($target);
+                $existing = $this->tryFindPhysical($physicalName, $algorithm);
+                $targetPath = $this->referencePath($physicalName);
+                $lockPath = $targetPath . '.lock';
+
+                if (is_file($lockPath) || is_dir($lockPath)) {
+                    throw new \RuntimeException("A lock could not be obtained for reference \"{$this->storeRelativeName($physicalName)}\"");
+                }
+
+                $directory = dirname($lockPath);
+                if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                    throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                }
+
+                if (file_put_contents($lockPath, $physicalTarget->storageBytes(), LOCK_EX) === false) {
+                    throw new \RuntimeException("Unable to write prepared reference lock: {$physicalName}");
+                }
+
+                $locks[] = [
+                    'lockPath' => $lockPath,
+                    'edit' => ReferenceTransactionEdit::update(
+                        $this->storeRelativeName($physicalName),
+                        $this->storeRelativeTarget($existing?->target),
+                        $this->storeRelativeTarget($physicalTarget),
+                        ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+                        true,
+                    ),
+                ];
+            }
+        } catch (\Throwable $throwable) {
+            (new PreparedReferenceTransaction($this->gitDirectory, $locks))->rollback();
+
+            throw $throwable;
+        }
+
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks);
+    }
+
     public function update(
         string $name,
         ReferenceTarget $target,
@@ -862,6 +917,13 @@ final class ReferenceStore
     private function packedRefsPath(): string
     {
         return rtrim($this->gitDirectory, '/\\') . '/packed-refs';
+    }
+
+    private function referencePath(string $physicalName): string
+    {
+        ReferenceName::assertValid($physicalName);
+
+        return rtrim($this->gitDirectory, '/\\') . '/' . $physicalName;
     }
 
     private function deleteEmptyParents(string $directory, string $boundary): void

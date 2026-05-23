@@ -578,6 +578,50 @@ return [
         $t->same(null, $plainStore->tryFind('HEAD'));
         $t->same($prefix . 'HEAD', $plainStore->find($prefix . 'HEAD')->name);
     },
+    'prepared reference transaction rollback removes intermediate lock directories' => static function (TestRunner $t) use ($old, $new): void {
+        foreach ([true, false] as $explicitRollback) {
+            $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-rollback-' . bin2hex(random_bytes(4));
+            $store = new ReferenceStore($dir);
+            $transaction = $store->prepareLooseUpdateTransaction([
+                'refs/heads/a/b/ref' => ReferenceTarget::object($old),
+                'refs/heads/a/c/ref' => ReferenceTarget::object($new),
+            ]);
+
+            $t->same(true, is_dir($dir . '/refs/heads/a/b'));
+            $t->same(true, is_dir($dir . '/refs/heads/a/c'));
+            $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/a/b/ref.lock'));
+
+            if ($explicitRollback) {
+                $edits = $transaction->rollback();
+                $t->same(['refs/heads/a/b/ref', 'refs/heads/a/c/ref'], array_map(static fn ($edit): string => $edit->name, $edits));
+            } else {
+                unset($transaction);
+            }
+
+            $t->same(false, is_dir($dir . '/refs/heads/a/b'));
+            $t->same(false, is_dir($dir . '/refs/heads/a/c'));
+            $t->same(false, is_dir($dir . '/refs'), 'rollback prunes the empty refs directory like upstream gix-ref');
+        }
+    },
+    'prepared reference transaction lock collision rolls back already prepared locks' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-collision-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $heldLock = $dir . '/refs/heads/a/b/ref.lock';
+        mkdir(dirname($heldLock), 0777, true);
+        file_put_contents($heldLock, 'held by another transaction');
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->prepareLooseUpdateTransaction([
+                'refs/heads/a/c/ref' => ReferenceTarget::object($old),
+                'refs/heads/a/b/ref' => ReferenceTarget::object($new),
+            ]),
+        );
+
+        $t->same(true, is_file($heldLock));
+        $t->same(false, is_file($dir . '/refs/heads/a/c/ref.lock'));
+        $t->same(false, is_dir($dir . '/refs/heads/a/c'));
+    },
     'reference store recovers empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-empty-dir-blocker-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -623,6 +667,9 @@ return [
         $t->same($fixture['expectedPhysicalHead'], $summary['physicalHead']);
         $t->same(false, $summary['reviewRefStillExists']);
         $t->same($fixture['expectedHeadDirectoryRecovered'], $summary['headDirectoryRecovered']);
+        $t->same($fixture['expectedPreparedRollbackEditNames'], $summary['preparedRollbackEditNames']);
+        $t->same($fixture['expectedPreparedRollbackHadLocks'], $summary['preparedRollbackHadLocks']);
+        $t->same($fixture['expectedPreparedRollbackCleaned'], $summary['preparedRollbackCleaned']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';
