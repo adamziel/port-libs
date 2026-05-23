@@ -1625,14 +1625,30 @@ Result: 2 Tcl scripts, 0 errors out of 356 tests in 00:00.
 Focused upstream fixture boundary:
 
 - `test/json102.test` covers JSONB input for `json_extract(...)`,
-  `jsonb_extract(...)`, and JSON type traversal, including the canonical JSONB
-  blob for `{"a":[2,3.5,true,false,null,"x"]}`.
+  `jsonb_extract(...)`, JSONB-producing functions such as `jsonb(...)` and
+  `jsonb_array(...)`, and JSON type traversal, including a valid JSONB blob
+  for `{"a":[2,3.5,true,false,null,"x"]}`.
 - `test/jsonb01.test` covers JSONB-specific malformed-input handling.
 
+Targeted upstream SQL probe:
+
+```sh
+./.upstream-cache/libsqlite-build-port-libsqlite/testfixture <<'TCL'
+sqlite3 db :memory:
+puts [db one {SELECT hex(jsonb('{"a":[2,3.5,true,false,null,"x"]}'))}]
+TCL
+```
+
+Result: `CC0E1761BB133235332E350102001778`, matching SQLite's generated
+minimal JSONB header/payload form for the focused object/array/scalar fixture.
+
 The native PHP tests decode the upstream JSONB fixture
-`x'cc0f1761cb0b133235332e350102001778'`, reject a malformed JSONB blob, and
-read a WordPress-shaped `wp_options` row whose `option_value` is a JSONB BLOB
-through both `json_extract(option_value,'$.a[5]')` and
-`option_value -> '$.a'` expression indexes. The new
-`examples/wordpress-jsonb-option-value.php` script documents this recovery path
-for plugin settings stored by SQLite JSONB functions.
+`x'cc0f1761cb0b133235332e350102001778'`, generate the upstream-probed minimal
+JSONB bytes `x'cc0e1761bb133235332e350102001778'` from a PHP value, reject a
+malformed JSONB blob, and read a WordPress-shaped `wp_options` row whose
+`option_value` is a native-generated JSONB BLOB through both
+`json_extract(option_value,'$.a[5]')` and `option_value -> '$.a'` expression
+indexes. The new `examples/wordpress-jsonb-option-fixture.php` script prepares
+WordPress-oriented JSONB option-value fixture bytes, while
+`examples/wordpress-jsonb-option-value.php` documents recovery for plugin
+settings stored by SQLite JSONB functions.

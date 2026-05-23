@@ -1438,16 +1438,19 @@ return [
         if (!is_string($jsonb)) {
             throw new RuntimeException('Fixture JSONB hex is invalid');
         }
+        $encoded = SQLiteJsonB::encode(['a' => [2, 3.5, true, false, null, 'x']]);
+        $quoted = SQLiteJsonB::encode(['quote' => 'a"b', 'slash' => 'c\\d']);
 
         $t->true(SQLiteJsonB::isJsonB($jsonb));
         $t->same(['a' => [2, 3.5, true, false, null, 'x']], SQLiteJsonB::decode($jsonb));
+        $t->same('cc0e1761bb133235332e350102001778', bin2hex($encoded));
+        $t->same(['a' => [2, 3.5, true, false, null, 'x']], SQLiteJsonB::decode($encoded));
+        $t->same(['quote' => 'a"b', 'slash' => 'c\\d'], SQLiteJsonB::decode($quoted));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::decode("\x8c\xe6\xff\xff\xff\x17\x13\x33"));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::encode(INF));
     },
     'uses jsonb option_value blobs through wordpress json expression indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $blobValue): void {
-        $jsonbSettings = hex2bin('cc0f1761cb0b133235332e350102001778');
-        if (!is_string($jsonbSettings)) {
-            throw new RuntimeException('Fixture JSONB hex is invalid');
-        }
+        $jsonbSettings = SQLiteJsonB::encode(['a' => [2, 3.5, true, false, null, 'x']]);
 
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value blob, autoload text)'], 1),
@@ -1470,6 +1473,7 @@ return [
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.a[5]', 'x'));
         $t->same(4, $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$.a', [2, 3.5, true, false, null, 'x']));
+        $t->same('cc0e1761bb133235332e350102001778', bin2hex($jsonbSettings));
         $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $scalar));
         $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $fragment));
         $t->same($jsonbSettings, $scalar[0]->optionValue);

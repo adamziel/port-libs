@@ -491,6 +491,12 @@ record is a SQLite JSONB BLOB. This maps plugin/theme settings databases that
 were populated by SQLite JSONB functions while still running on hosts without
 the PHP SQLite extension.
 
+`examples/wordpress-jsonb-option-fixture.php` encodes strict JSON or supported
+SQLite JSON5 settings text into native SQLite JSONB bytes for WordPress
+`wp_options.option_value` BLOB fixtures. This maps recovery tests and import
+preflight tools that need JSONB-shaped plugin settings without shelling out to
+SQLite.
+
 `examples/wordpress-trimmed-option-name.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(trim(option_name))`/`ltrim`/`rtrim` expression index, and returns
@@ -522,6 +528,6 @@ slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and the
 named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
-mutation at `[#]`, JSONB output/generation/mutation, and full JSON5 numeric/string edge
-parity; custom collations; and composite-key ranges beyond one equality prefix
-plus one range column.
+mutation at `[#]`, broader JSONB output/edit behavior beyond the current
+value encoder, and full JSON5 numeric/string edge parity; custom collations;
+and composite-key ranges beyond one equality prefix plus one range column.

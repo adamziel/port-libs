@@ -46,6 +46,106 @@ final class SQLiteJsonB
         return $value;
     }
 
+    public static function encode(mixed $value): string
+    {
+        return self::encodeElement($value, 0);
+    }
+
+    private static function encodeElement(mixed $value, int $depth): string
+    {
+        if ($depth > self::MAX_DEPTH) {
+            throw new \InvalidArgumentException('SQLite JSONB value exceeds the maximum nesting depth');
+        }
+
+        if ($value === null) {
+            return chr(self::NULL);
+        }
+        if ($value === true) {
+            return chr(self::TRUE);
+        }
+        if ($value === false) {
+            return chr(self::FALSE);
+        }
+        if (is_int($value)) {
+            return self::encodeNode(self::INT, (string) $value);
+        }
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                throw new \InvalidArgumentException('SQLite JSONB encoder cannot encode non-finite floats');
+            }
+
+            $payload = json_encode($value, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+            if (!is_string($payload) || preg_match('/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/', $payload) !== 1) {
+                throw new \InvalidArgumentException('SQLite JSONB encoder could not format a JSON float literal');
+            }
+
+            return self::encodeNode(self::FLOAT, $payload);
+        }
+        if (is_string($value)) {
+            $type = self::textPayloadIsJsonSafe($value) ? self::TEXT : self::TEXTRAW;
+
+            return self::encodeNode($type, $value);
+        }
+        if (is_array($value)) {
+            $payload = '';
+            if (array_is_list($value)) {
+                foreach ($value as $element) {
+                    $payload .= self::encodeElement($element, $depth + 1);
+                }
+
+                return self::encodeNode(self::ARRAY, $payload);
+            }
+
+            foreach ($value as $key => $element) {
+                $payload .= self::encodeElement((string) $key, $depth + 1);
+                $payload .= self::encodeElement($element, $depth + 1);
+            }
+
+            return self::encodeNode(self::OBJECT, $payload);
+        }
+
+        throw new \InvalidArgumentException('SQLite JSONB encoder supports only null, booleans, numbers, strings, arrays, and objects represented as associative arrays');
+    }
+
+    private static function encodeNode(int $type, string $payload): string
+    {
+        return self::encodeHeader($type, strlen($payload)) . $payload;
+    }
+
+    private static function encodeHeader(int $type, int $payloadLength): string
+    {
+        if ($payloadLength < 0) {
+            throw new \InvalidArgumentException('SQLite JSONB payload length cannot be negative');
+        }
+        if ($payloadLength <= 11) {
+            return chr(($payloadLength << 4) | $type);
+        }
+        if ($payloadLength <= 0xff) {
+            return chr(0xc0 | $type) . chr($payloadLength);
+        }
+        if ($payloadLength <= 0xffff) {
+            return chr(0xd0 | $type) . pack('n', $payloadLength);
+        }
+        if ($payloadLength <= 0xffffffff) {
+            return chr(0xe0 | $type) . pack('N', $payloadLength);
+        }
+
+        throw new \InvalidArgumentException('SQLite JSONB payload exceeds this native PHP slice');
+    }
+
+    private static function textPayloadIsJsonSafe(string $payload): bool
+    {
+        $length = strlen($payload);
+        for ($i = 0; $i < $length; $i++) {
+            $byte = ord($payload[$i]);
+            if ($byte <= 0x1f || $byte === 0x22 || $byte === 0x5c) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @return array{0:mixed,1:int}
      */
