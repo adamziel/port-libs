@@ -213,6 +213,12 @@ HTML reader literal punctuation import:
 <p>4 &lt; 5 and 6 &gt; 5 stay text for reviewer copy.</p>
 <p>Escapes stay literal: \ ` * _ { } [ ] ( ) &gt; # . ! + -.</p>
 
+<h2>HTML reader link import</h2>
+<p>Review <a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit &amp; verify">source edit link</a> and <a href="">empty migration placeholder</a>.</p>
+<p>Reference-like text [legacy-source] stays literal while <a href="https://example.test/import?post=42&amp;stage=links">audit link</a> stays linked.</p>
+HTML reader source contact (importer [at] example.test)<p><a href="">Empty legacy link placeholder</a>.</p>
+<p>Auto-links should not occur here: <code>&lt;https://example.test/import&gt;</code></p>
+
 Empty import audit table:
 
 <table>

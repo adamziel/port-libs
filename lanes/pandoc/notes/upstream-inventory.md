@@ -251,6 +251,18 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `HorizontalRule`. Unlike the Markdown-reader Special Characters section, the
   HTML reader gets already-decoded text from the HTML parser and does not treat
   `*`, `_`, `[`, `]`, `#`, or other punctuation tokens as Markdown syntax.
+- `test/html-reader.html` Links slice inspected in this run: upstream lines
+  389-430 cover the `Links` heading, explicit link paragraphs with href/title
+  metadata, an empty href, reference-shaped link text that is already HTML,
+  ampersand-bearing href/title/text cases, explicit autolink-looking anchors,
+  link-looking code spans and code blocks, and mixed HTML flow lines where bare
+  text is immediately followed by `<p>` or `<blockquote>`.
+- `test/html-reader.native` Links rendered native AST slice inspected in this
+  run: upstream lines 1386-1687 show four headers, 24 `Link` nodes, two
+  link-free e-mail-text paragraphs, two code contexts where
+  `<http://example.com/>` stays literal, one `BlockQuote`, one `BulletList`,
+  and the closing `HorizontalRule`. The bounded PHP mapping now keeps the same
+  HTML-reader path without invoking Markdown reference or autolink parsing.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header

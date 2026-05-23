@@ -1853,6 +1853,102 @@ HTML);
         $t->same(false, str_contains($blocks, '<em></em>'));
         $t->same(false, str_contains($blocks, '<strong></strong>'));
     },
+    'maps upstream html reader links explicit reference ampersand and code contexts' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<h1>Links</h1>
+<h2>Explicit</h2>
+<p>Just a <a href="/url/">URL</a>.</p>
+<p><a href="/url/" title="title">URL and title</a>.</p>
+<p><a href="/url/" title="title preceded by two spaces">URL and title</a>.</p>
+<p><a href="/url/" title="title preceded by a tab">URL and title</a>.</p>
+<p><a href="/url/" title="title with &quot;quotes&quot; in it">URL and title</a></p>
+<p><a href="/url/" title="title with single quotes">URL and title</a></p>
+Email link (nobody [at] nowhere.net)<p><a href="">Empty</a>.</p>
+<h2>Reference</h2>
+<p>Foo <a href="/url/">bar</a>.</p>
+<p>Foo <a href="/url/">bar</a>.</p>
+<p>Foo <a href="/url/">bar</a>.</p>
+<p>With <a href="/url/">embedded [brackets]</a>.</p>
+<p><a href="/url/">b</a> by itself should be a link.</p>
+<p>Indented <a href="/url">once</a>.</p>
+<p>Indented <a href="/url">twice</a>.</p>
+<p>Indented <a href="/url">thrice</a>.</p>
+<p>This should [not] be a link.</p>
+<pre><code>[not]: /url
+</code></pre>
+<p>Foo <a href="/url/" title="Title with &quot;quotes&quot; inside">bar</a>.</p>
+<p>Foo <a href="/url/" title="Title with &quot;quote&quot; inside">biz</a>.</p>
+<h2>With ampersands</h2>
+<p>Here's a <a href="http://example.com/?foo=1&amp;bar=2">link with an ampersand in the URL</a>.</p>
+<p>Here's a link with an amersand in the link text: <a href="http://att.com/" title="AT&T">AT&amp;T</a>.</p>
+<p>Here's an <a href="/script?foo=1&amp;bar=2">inline link</a>.</p>
+<p>Here's an <a href="/script?foo=1&amp;bar=2">inline link in pointy braces</a>.</p>
+<h2>Autolinks</h2>
+<p>With an ampersand: <a href="http://example.com/?foo=1&amp;bar=2">http://example.com/?foo=1&amp;bar=2</a></p>
+<ul>
+<li>In a list?</li>
+<li><a href="http://example.com/">http://example.com/</a></li>
+<li>It should.</li>
+</ul>
+An e-mail address: nobody [at] nowhere.net<blockquote>
+<p>Blockquoted: <a href="http://example.com/">http://example.com/</a></p>
+</blockquote>
+<p>Auto-links should not occur here: <code>&lt;http://example.com/&gt;</code></p>
+<pre><code>or here: &lt;http://example.com/&gt;
+</code></pre>
+<hr />
+HTML);
+        $justUrl = $document->children[2];
+        $titleWithQuotes = $document->children[6]->children[0];
+        $emailText = $document->children[8];
+        $emptyLink = $document->children[9]->children[0];
+        $embeddedReferenceText = $document->children[14]->children[1];
+        $notReference = $document->children[19];
+        $referenceCodeBlock = $document->children[20];
+        $referenceTitle = $document->children[21]->children[1];
+        $ampersandUrl = $document->children[24]->children[1];
+        $ampersandText = $document->children[25]->children[1];
+        $autolinkParagraph = $document->children[29]->children[1];
+        $listAutolink = $document->children[30]->children[1]->children[0];
+        $emailBeforeQuote = $document->children[31];
+        $quoteLink = $document->children[32]->children[0]->children[1];
+        $codeSpanParagraph = $document->children[33];
+        $codeBlock = $document->children[34];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(36, count($document->children));
+        $t->same('links', $document->children[0]->attr('id'));
+        $t->same('explicit', $document->children[1]->attr('id'));
+        $t->same('/url/', $justUrl->children[1]->attr('url'));
+        $t->same('title with "quotes" in it', $titleWithQuotes->attr('title'));
+        $t->same('Email link (nobody [at] nowhere.net)', $emailText->children[0]->attr('text'));
+        $t->same('', $emptyLink->attr('url'));
+        $t->same('reference', $document->children[10]->attr('id'));
+        $t->same('embedded [brackets]', $embeddedReferenceText->children[0]->attr('text'));
+        $t->same('This should [not] be a link.', $notReference->children[0]->attr('text'));
+        $t->same('code_block', $referenceCodeBlock->type);
+        $t->same('[not]: /url', $referenceCodeBlock->attr('text'));
+        $t->same('Title with "quotes" inside', $referenceTitle->attr('title'));
+        $t->same('with-ampersands', $document->children[23]->attr('id'));
+        $t->same('http://example.com/?foo=1&bar=2', $ampersandUrl->attr('url'));
+        $t->same('AT&T', $ampersandText->children[0]->attr('text'));
+        $t->same('AT&T', $ampersandText->attr('title'));
+        $t->same('autolinks', $document->children[28]->attr('id'));
+        $t->same('http://example.com/?foo=1&bar=2', $autolinkParagraph->attr('url'));
+        $t->same('http://example.com/', $listAutolink->attr('url'));
+        $t->same('An e-mail address: nobody [at] nowhere.net', $emailBeforeQuote->children[0]->attr('text'));
+        $t->same('http://example.com/', $quoteLink->attr('url'));
+        $t->same('code', $codeSpanParagraph->children[1]->type);
+        $t->same('<http://example.com/>', $codeSpanParagraph->children[1]->attr('text'));
+        $t->same('or here: <http://example.com/>', $codeBlock->attr('text'));
+        $t->same('horizontal_rule', $document->children[35]->type);
+        $t->contains('<a href="/url/" title="title with &quot;quotes&quot; in it">URL and title</a>', $blocks);
+        $t->contains('<p>Email link (nobody [at] nowhere.net)</p>', $blocks);
+        $t->contains('<p><a href="">Empty</a>.</p>', $blocks);
+        $t->contains('<p>This should [not] be a link.</p>', $blocks);
+        $t->contains('<a href="http://att.com/" title="AT&amp;T">AT&amp;T</a>', $blocks);
+        $t->contains('<p>Auto-links should not occur here: <code>&lt;http://example.com/&gt;</code></p>', $blocks);
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -3568,6 +3664,52 @@ XML;
         $t->contains('<p>AT&amp;T import source decodes once and writes safely.</p>', $blocks);
         $t->contains('<p>4 &lt; 5 and 6 &gt; 5 stay text for reviewer copy.</p>', $blocks);
         $t->contains('<p>Escapes stay literal: \ ` * _ { } [ ] ( ) &gt; # . ! + -.</p>', $blocks);
+    },
+    'writes wordpress html reader link imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $linkHeading = null;
+        $reviewLinks = null;
+        $referenceLikeText = null;
+        $sourceContact = null;
+        $emptyLegacyLink = null;
+        $codeContext = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'HTML reader link import') {
+                $linkHeading = $node;
+                $reviewLinks = $document->children[$index + 1] ?? null;
+                $referenceLikeText = $document->children[$index + 2] ?? null;
+                $sourceContact = $document->children[$index + 3] ?? null;
+                $emptyLegacyLink = $document->children[$index + 4] ?? null;
+                $codeContext = $document->children[$index + 5] ?? null;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($linkHeading !== null, 'HTML reader link heading should stay on the native HTML path');
+        $t->true($reviewLinks instanceof AstNode && $reviewLinks->type === 'paragraph', 'HTML reader explicit links should stay in paragraph nodes');
+        $t->true($referenceLikeText instanceof AstNode && $referenceLikeText->type === 'paragraph', 'HTML reader reference-like text should not become Markdown links');
+        $t->true($sourceContact instanceof AstNode && $sourceContact->type === 'paragraph', 'HTML reader bare text before a block tag should become its own paragraph');
+        $t->true($emptyLegacyLink instanceof AstNode && $emptyLegacyLink->type === 'paragraph', 'HTML reader empty href paragraph should follow the bare text paragraph');
+        $t->true($codeContext instanceof AstNode && $codeContext->type === 'paragraph', 'HTML reader link-like code context should stay code');
+        $t->same('html-reader-link-import', $linkHeading->attr('id'));
+        $t->same('/wp-admin/post.php?post=42&action=edit', $reviewLinks->children[1]->attr('url'));
+        $t->same('Edit & verify', $reviewLinks->children[1]->attr('title'));
+        $t->same('', $reviewLinks->children[3]->attr('url'));
+        $t->same('Reference-like text [legacy-source] stays literal while ', $referenceLikeText->children[0]->attr('text'));
+        $t->same('https://example.test/import?post=42&stage=links', $referenceLikeText->children[1]->attr('url'));
+        $t->same('HTML reader source contact (importer [at] example.test)', $sourceContact->children[0]->attr('text'));
+        $t->same('', $emptyLegacyLink->children[0]->attr('url'));
+        $t->same('code', $codeContext->children[1]->type);
+        $t->same('<https://example.test/import>', $codeContext->children[1]->attr('text'));
+        $t->contains('<h2 id="html-reader-link-import">HTML reader link import</h2>', $blocks);
+        $t->contains('<a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit &amp; verify">source edit link</a>', $blocks);
+        $t->contains('<a href="">empty migration placeholder</a>', $blocks);
+        $t->contains('<p>Reference-like text [legacy-source] stays literal while <a href="https://example.test/import?post=42&amp;stage=links">audit link</a> stays linked.</p>', $blocks);
+        $t->contains('<p>HTML reader source contact (importer [at] example.test)</p>', $blocks);
+        $t->contains('<p><a href="">Empty legacy link placeholder</a>.</p>', $blocks);
+        $t->contains('<p>Auto-links should not occur here: <code>&lt;https://example.test/import&gt;</code></p>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

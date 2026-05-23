@@ -393,6 +393,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   list, and separator markup: Unicode source text, decoded `AT&amp;T` entities,
   comparison operators, and punctuation tokens such as `*`, `_`, `[`, `]`, and
   `#` stay literal instead of becoming Markdown syntax.
+- HTML reader link imports render as WordPress-safe paragraph links while
+  preserving empty `href` placeholders, decoded title entities, ampersand URLs,
+  and reference-looking source text such as `[legacy-source]` as literal HTML
+  reader content instead of Markdown references. Bare source text immediately
+  followed by a `<p>` or `<blockquote>` starts its own paragraph, matching the
+  upstream Links fixture's mixed HTML flow shape.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -445,6 +451,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader Links slice from `test/html-reader.html/native`,
-starting with explicit links, empty href links, HTML title entities, and
-reference-like link text that should stay on the HTML-reader path.
+Map the next bounded HTML-reader Images slice from `test/html-reader.html/native`,
+starting with standalone `<img>` paragraphs, inline image spans, alt/title
+metadata, and WordPress image block output.

@@ -23,6 +23,7 @@ final class MarkdownReader
         $previousReferenceLinks = $this->referenceLinks;
         $previousFootnoteDefinitions = $this->footnoteDefinitions;
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
+        $lines = $this->splitMixedHtmlFlowLines($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
 
@@ -235,6 +236,65 @@ final class MarkdownReader
         }
 
         return [$content, $references, $footnotes];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function splitMixedHtmlFlowLines(array $lines): array
+    {
+        $normalized = [];
+        $fenceChar = null;
+        $fenceLength = 0;
+
+        foreach ($lines as $line) {
+            if ($fenceChar !== null) {
+                $normalized[] = $line;
+                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
+                    $fenceChar = null;
+                    $fenceLength = 0;
+                }
+                continue;
+            }
+
+            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
+                $fenceChar = $fence[1][0];
+                $fenceLength = strlen($fence[1]);
+                $normalized[] = $line;
+                continue;
+            }
+
+            array_push($normalized, ...$this->splitMixedHtmlFlowLine($line));
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitMixedHtmlFlowLine(string $line): array
+    {
+        if ($this->countIndentColumns($line) > 3) {
+            return [$line];
+        }
+
+        if (preg_match('/^[ \t]*</', $line) === 1) {
+            return [$line];
+        }
+
+        if (preg_match('/^([ \t]*[^<\r\n]*\S[^<\r\n]*)(<(?:p|blockquote|h[1-6]|ul|ol|dl|pre|table|div|hr)\b.*)$/i', $line, $m) !== 1) {
+            return [$line];
+        }
+
+        $prefix = trim($m[1]);
+        $suffix = $m[2];
+        if ($prefix === '') {
+            return [$line];
+        }
+
+        return ['<p>' . $prefix . '</p>', $suffix];
     }
 
     private function normalizeReferenceLabel(string $label): string
