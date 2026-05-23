@@ -1,52 +1,58 @@
 # Independent Audit - 2026-05-23
 
-Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files where needed to validate dashboard/status drift, bridge/shell-out usage, and recent Git history through audit-sampled `HEAD` `2e16477` (`Stamp pandoc footnote lane status`). During this audit, `HEAD` advanced from initially observed `ea74f78` through `203f97f`, `32114c1`, `6e1a108`, `6b37511`, `2100b41`, `06f028d`, `baea8a3`, `b4a8d6f`, audit commit `2ed1c68`, `4978a39`, `d26771a`, `e78a8cf`, `1607ff7`, `0be5c07`, `980fbba`, `e6fb3a5`, `40a6772`, `919744e`, `eadbd0d`, `938d8d3`, `a532be9`, and `2e16477`; additional commits continued landing during finalization. I did not edit lane implementation files, launch agents or tmux sessions, or push.
+Scope reviewed: `goal.md`, `progress.md`, `porting.html`, `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status files needed to validate dashboard/status drift, bridge/shell-out usage, and recent Git history through audit-sampled `HEAD` `eeec618` (`Stamp markerPDF finalizer code status`). I did not edit lane implementation files, launch agents or tmux sessions, or push.
 
-Current audit boundary: the checkout is still a dirty moving aggregate, not a clean integration checkpoint. Excluding this audit/progress update, the last non-audit status sample reported `224` `git status --short` entries, `39` tracked modified files, and `git diff --shortstat` reported `39 files changed, 6245 insertions(+), 205 deletions(-)`. Direct root PHP harness runs changed from red to green to red while concurrent lane/status changes landed; an immediate full diagnostic rerun after the latest red run passed, then additional commits landed. This remains evidence of an unstable integration boundary rather than an accepted checkpoint.
+Current audit boundary: this is still a dirty, moving checkout rather than an accepted integration snapshot. During this audit, `HEAD` moved from `6b5a4c8`/`92cef32` through `3c22585` to `eeec618` while tests and audit notes were being collected. Latest sampled status reported `230` `git status --short` entries, `34` tracked modified entries, and `git diff --shortstat` reported `34 files changed, 6190 insertions(+), 286 deletions(-)`. Dirty tracked files include lane implementations/tests plus dashboard artifacts: `lanes/esbuild/src/TypeScriptModuleLowerer.php`, `lanes/esbuild/tests/TypeScriptModuleLowererTest.php`, `lanes/gitoxide/src/BlobMerge.php`, `lanes/gitoxide/tests/BlobMergeTest.php`, `lanes/quadrable/src/QuadbStore.php`, `lanes/readability/src/ArticleExtractor.php`, `porting.html`, `porting-summary.json`, and `progress.md`.
 
 ## Findings
 
-1. **Critical - the repository is still a moving dirty aggregate, so green root output is not yet a reviewable integration checkpoint.**
-   - Paths: `.tmux-team/prompts/dashboard-updater.md`, `audits/integration-status.md`, `lanes/dolt/src/PatchFunctionCall.php`, `lanes/esbuild/src/TypeScriptModuleLowerer.php`, `lanes/gitoxide/src/BlobMerge.php`, `lanes/libsqlite/src/SQLiteDatabase.php`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/quadrable/src/QuadbStore.php`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/lane-status.json`, `porting.html`, `porting-summary.json`, `progress.md`.
-   - Evidence: `HEAD` moved multiple times during the audit, and root harness evidence changed from red (`161` files / `14658` assertions / `2` failures) to green (`162` files / `14841` assertions / `0` failures), then red again (`162` files / `14837` assertions / `2` failures), with an immediate diagnostic rerun later reporting green (`162` files / `14874` assertions / `0` failures`). Outside this audit/progress update, there are still 39 tracked modified files and 224 total status entries, including multiple lane implementation files, status files, dashboard artifacts, and untracked evidence/example files.
-   - Goal requirement at risk: `goal.md:29` requires small reviewable slices with passing tests; `goal.md:48` requires verified finished agent work to be committed and cleaned up; `goal.md:49` requires honest repo-wide verification.
-   - Audit judgment: do not accept the aggregate as one batch. Freeze or explicitly coordinate writers, then accept/reject one lane batch at a time from a stable root rerun.
+1. **Critical - the required root PHP harness is red at the latest sampled head.**
+   - Paths: `lanes/esbuild/tests/TypeScriptModuleLowererTest.php:1476`, `lanes/esbuild/src/TypeScriptModuleLowerer.php`, `lanes/esbuild/lane-status.json:10`-`13`.
+   - Evidence: the latest required run at `HEAD` `eeec618` exited `1` with `163 test files, 15015 assertions, 1 failures`. The failing case is `lowers wordpress local using asset controller without trapping exports`; it expected `var PreviewBlockController = class _PreviewBlockController {` but the output serialized `class _PreviewBlockController{...}` without the expected space. `lanes/esbuild/lane-status.json` still claims esbuild lane PHP is green and says the root blocker is unrelated Quadrable failures.
+   - Goal requirement at risk: `goal.md:29` requires small reviewable slices with passing tests; `goal.md:48` requires finished work to be verified before integration; `goal.md:49` requires repo-wide failures to be recorded honestly; `goal.md:52` requires every lane to have passing PHP tests.
+   - Audit judgment: do not integrate or publish the current aggregate. Fix or reject the dirty esbuild TypeScript lowering batch first, then rerun the exact root harness from a quiesced tree.
 
-2. **High - `porting.html` and `porting-summary.json` are stale and materially disagree with current manifests and lane statuses.**
-   - Paths: `porting.html:30`, `porting.html:32`, `porting.html:53`-`64`, `porting-summary.json:2`, `porting-summary.json:3`, `porting-summary.json:57`-`64`, `porting-summary.json:91`-`98`, `porting-summary.json:125`-`139`, `porting-summary.json:159`-`183`.
-   - Evidence: the dashboard still says `Average progress: 14.3%` and `Generated: 2026-05-22 15:40:20 UTC`. It renders esbuild as `8%`, `16 / 2,567 mapped`, and `16 pass`, while current esbuild status/manifest say `40%`, `128` mapped, and `128` PHP behavior tests (`lanes/esbuild/lane-status.json:4`-`7`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:14`-`15`). It renders rclone as `9%`, `20 / 327 mapped`, and `20 pass`, while current rclone status/manifest say `58%`, `206` mapped/pass (`lanes/rclone/lane-status.json:4`-`7`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:14`-`15`). It renders Pandoc as `10%` while current lane status says `57%`, and Quadrable still shows an old failed-C++ blocker even though its manifest says `make -r test` passes.
-   - Goal requirement at risk: `goal.md:3` and `goal.md:45` require current dashboard tracking of denominator, mapped tests, PHP pass/fail, phase, audit, current work, blocker, and commit; `goal.md:52` requires visible progress in `porting.html`.
-   - Audit judgment: regenerate dashboard artifacts only after the supervisor selects an accepted green snapshot.
+2. **Critical - the repository is still a moving dirty aggregate, so test results are not stable integration evidence.**
+   - Paths: `progress.md`, `audits/latest.md`, `.tmux-team/prompts/dashboard-updater.md`, `lanes/*/lane-status.json`, `porting.html`, `porting-summary.json`.
+   - Evidence: while this audit ran, `HEAD` advanced from the initially observed rclone/syncthing state through LightningCSS, Pandoc, Syncthing, and markerPDF commits. Earlier same-audit root runs failed with `9` Gitoxide merge failures at `92cef32`; the latest run failed with `1` esbuild failure at `eeec618`. Status also changed from `31` to `34` tracked modified files during the audit. Several files are staged or dirty outside this audit, so an audit-only commit would be unsafe unless the supervisor first freezes writers and isolates the audit files.
+   - Goal requirement at risk: `goal.md:29` requires small reviewable slices; `goal.md:48` requires verification, cleanup, and commit of finished slices; `goal.md:49` requires periodic repo-wide checks to be recorded honestly.
+   - Audit judgment: treat every green/red root result collected during this run as diagnostic for a moving tree, not as an accepted checkpoint.
 
-3. **High - `progress.md` still presents stale active-lane estimates and tasks.**
-   - Paths: `progress.md:31`-`42`, `progress.md:233`, `progress.md:238`.
-   - Evidence: the Active Lanes table still shows Gitoxide `66%`, LightningCSS `14%`, markerPDF `10%`, libsqlite `12%`, Readability `12%`, Quadrable `8%`, Syncthing `8%`, rclone `9%`, Dolt `5%`, and esbuild `8%`. Current lane statuses are much higher for many lanes, for example Gitoxide `91%`, LightningCSS `55%`, markerPDF `49%`, libsqlite `57%`, Readability `47%`, Quadrable `64%`, Syncthing `56%`, rclone `58%`, Pandoc `57%`, Dolt `41%`, and esbuild `40%`.
+3. **High - `porting.html` and `porting-summary.json` are stale and materially disagree with manifests/status.**
+   - Paths: `porting.html:30`-`32`, `porting.html:53`-`64`, `porting-summary.json`.
+   - Evidence: the dashboard still shows `Average progress: 14.3%` and `Generated: 2026-05-22 15:40:20 UTC`. It renders LightningCSS as `14.0%`, `141 pass`, and `78 / 312 mapped`, while current LightningCSS status/manifest report `57%`, `688` PHP assertions, and a `3,532` behavior-check denominator. It renders Pandoc as `10.0%` and `19 / 1979 mapped`, while current status/manifest report `59%` and `328` mapped checks. It still renders Quadrable with an old failed-C++ blocker even though the manifest now says `make -r test` passes all 34 upstream scenarios.
+   - Goal requirement at risk: `goal.md:3` and `goal.md:45` require current dashboard tracking of denominator, mapped tests, PHP pass/fail, phase, audit, current work, blocker, and commit; `goal.md:52` requires visible current progress in `porting.html`.
+   - Audit judgment: regenerate dashboard artifacts only after the red root suite is fixed and the supervisor chooses an accepted green snapshot.
+
+4. **High - `progress.md` still presents stale active-lane estimates and tasks.**
+   - Paths: `progress.md:29`-`42`, `progress.md:230`-`238`.
+   - Evidence: the Active Lanes table still lists Gitoxide `66%`, LightningCSS `14%`, markerPDF `10%`, libsqlite `12%`, Pandoc `10%`, Syncthing `8%`, rclone `9%`, Dolt `5%`, and esbuild `8%`, while current lane statuses report much larger bounded slices such as Gitoxide `91%`, LightningCSS `57%`, Pandoc `59%`, Syncthing `58%`, rclone `60%`, and Quadrable `65%`. This audit updates only the audit status/next intervention; the table remains stale until a stable snapshot exists.
    - Goal requirement at risk: `goal.md:44` requires `progress.md` to include current active lanes, blockers, owner/session, next task per lane, and percentage estimates.
-   - Audit judgment: update only the latest audit/next-intervention text now; defer full table refresh until dirty lane batches are accepted or rejected.
+   - Audit judgment: defer the full table refresh until after the root suite is green and lane batches are accepted or rejected one at a time.
 
-4. **High - lane status and manifest root-test claims are stale against observed root-run evidence.**
-   - Paths: `lanes/esbuild/lane-status.json:10`-`13`, `lanes/rclone/lane-status.json:10`-`13`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:200`, `lanes/readability/lane-status.json:5`, `lanes/readability/lane-status.json:10`-`12`, `lanes/quadrable/lane-status.json:10`-`13`, `lanes/gitoxide/lane-status.json:10`-`13`.
-   - Evidence: esbuild status still says the root suite failed because a Dolt example was missing; rclone status says the root suite failed in esbuild; readability manifest/status says the root suite failed in esbuild; quadrable status still says root was red from an older rclone failure; Gitoxide cites an older `160` file / `14582` assertion root run. This audit observed both red and green root harness runs after those stamps, including a direct `162` file / `14837` assertion / `2` failure run followed by a full rerun that reported `162` files / `14874` assertions / `0` failures.
-   - Goal requirement at risk: `goal.md:31` requires precise blockers; `goal.md:44`-`45` require current blocker/audit/latest-commit status; `goal.md:48` requires verified committed slices.
-   - Audit judgment: root-test status should be centralized or stamped from one accepted run, not copied as stale prose across lane files.
+5. **High - lane status files copy stale root-test claims and blockers.**
+   - Paths: `lanes/esbuild/lane-status.json:10`-`13`, `lanes/lightningcss/lane-status.json:10`-`13`, `lanes/pandoc/lane-status.json:10`-`13`, `lanes/markerpdf/lane-status.json:10`-`13`, `lanes/syncthing/lane-status.json:10`-`13`, `lanes/gitoxide/lane-status.json:10`-`13`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:18`.
+   - Evidence: multiple lanes claim `php tools/run-tests.php` passes with older counts such as `163 test files, 14952 assertions, 0 failures`, `163 files, 14919 assertions, 0 failures`, or `163 test files, 14966 assertions, 0 failures`. The latest audit run is red with `163 test files, 15015 assertions, 1 failures`. Esbuild status is particularly misleading because the current failure is in esbuild, while its blocker still says root is blocked by unrelated Quadrable failures.
+   - Goal requirement at risk: `goal.md:31` requires precise blockers; `goal.md:45` requires current audit/blocker/commit fields; `goal.md:49` requires failures to be recorded honestly.
+   - Audit judgment: root-test status should be centralized or stamped from one accepted run, not copied as optimistic prose across lane files while the shared checkout is dirty.
 
-5. **High - upstream denominator and mapped-count units remain inconsistent across manifests.**
-   - Paths: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:14`-`15`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:14`-`15`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:14`-`15`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:14`-`15`, `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:14`-`16`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14`-`18`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:14`-`17`, `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:14`-`18`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:14`-`16`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json:14`-`16`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:14`-`16`.
-   - Evidence: Difftastic counts inspected behavior artifacts; Dolt mixes executable files, BATS cases, Go tests, and fixtures; esbuild counts upstream test entry points; Gitoxide counts upstream files; LightningCSS counts behavior checks/helper invocations; markerPDF counts repository paths plus benchmark pairs and supplied-boundary semantics; Pandoc counts files/artifacts; Quadrable maps tracked paths/C++ scenarios; rclone counts Go test files; Readability counts Mocha tests while `mapped` is local assertions; Syncthing counts Go test/benchmark entry points.
-   - Goal requirement at risk: `goal.md:25` requires real upstream benchmark denominators; `goal.md:35`-`38` require meaningful fixture parity and upstream tests as source of truth; `goal.md:45` requires comparable dashboard denominator/mapped fields.
+6. **High - upstream denominator and mapped-count units remain inconsistent across manifests.**
+   - Paths: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`.
+   - Evidence: Difftastic counts inspected behavior artifacts; Dolt mixes executable files, Go tests, BATS cases, benchmarks, fixtures, and local patched-copy BATS evidence; esbuild counts upstream test entry points; Gitoxide counts upstream files plus targeted static inventories; LightningCSS counts helper invocations/behavior checks; markerPDF counts repository paths plus two benchmark pairs and supplied-boundary semantics; Pandoc counts files/artifacts while `mapped` is focused checks; Readability counts upstream Mocha tests while mapped/native progress is local assertions; Syncthing counts Go test/benchmark entry points plus focused static/probe evidence.
+   - Goal requirement at risk: `goal.md:25` requires a real upstream benchmark denominator; `goal.md:35`-`38` require meaningful fixture parity and upstream tests as source of truth; `goal.md:45` requires comparable dashboard denominator/mapped fields.
    - Audit judgment: split schema fields into upstream files/artifacts, executable upstream tests, upstream behavior cases, mapped upstream cases, native PHP behavior tests, assertions, failures, full-runner parity, bounded-runner evidence, and static inventory.
 
-6. **Medium - markerPDF still risks counting supplied model-boundary scaffolding as native extraction progress.**
-   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14`-`18`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:430`-`445`, `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:448`-`449`.
-   - Evidence: the manifest records `0 committed Python unit test files found`, only `2` actual CI benchmark PDF/reference pairs, and extensive supplied boundaries: Surya layout/OCR, Texify, pdftext/pypdfium, tabled recognition, image rendering, FastAPI/Uvicorn/requests, callback-driven conversion/server paths, PIL drawing, and model loading. Much of the large current slice validates plans or supplied outputs rather than native PDF-to-structured-content extraction.
-   - Goal requirement at risk: `goal.md:1` and `goal.md:30` forbid counting bridge/shell-out/generated-oracle work as native progress; `goal.md:35` requires meaningful fixture parity beyond passing local tests.
-   - Audit judgment: keep markerPDF progress conservative until document-level native extraction parity expands against the acquired benchmark pairs.
-
-7. **Medium - high progress percentages obscure missing full upstream runner parity.**
-   - Paths: `lanes/gitoxide/lane-status.json:4`-`12`, `lanes/rclone/lane-status.json:4`-`12`, `lanes/syncthing/lane-status.json:4`-`12`, `lanes/pandoc/lane-status.json:4`-`12`, `lanes/markerpdf/lane-status.json:4`-`12`.
-   - Evidence: Gitoxide is marked `91%` while full Cargo workspace tests remain unexecuted; rclone is `58%` with live provider/mount/Docker/fstest provider parity excluded; Syncthing is `56%` with full `go test ./...` unexecuted; Pandoc is `57%` with no Haskell upstream runner; markerPDF is `49%` with no full benchmark/model runner. These are useful bounded slices, but the percentages can read like port maturity.
+7. **Medium - high percentages can be mistaken for upstream parity.**
+   - Paths: `lanes/gitoxide/lane-status.json`, `lanes/pandoc/lane-status.json`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/markerpdf/lane-status.json`.
+   - Evidence: Gitoxide is at `91%` while full Cargo workspace tests remain unexecuted; Pandoc is at `59%` with no Haskell upstream runner parity; rclone has a strong bounded 299-package runner but excludes provider integration, mount/FUSE, Docker-backed serve/docker, and full provider fstest parity; Syncthing uses focused package runners/static reads rather than full `go test ./...`; markerPDF is at `50%` while the full benchmark/model pipeline remains unexecuted.
    - Goal requirement at risk: `goal.md:35` says passing tests are not enough; `goal.md:37` says upstream tests are the source of truth; `goal.md:40` requires hard features to be marked as blockers or future slices.
-   - Audit judgment: progress percentages should be displayed with a parity class so bounded/static evidence cannot be mistaken for upstream parity.
+   - Audit judgment: show a parity class beside each percentage so bounded/static evidence cannot read as port maturity.
+
+8. **Medium - markerPDF still risks counting supplied model-boundary scaffolding as native extraction progress.**
+   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/markerpdf/src/ConversionFinalizer.php`, `lanes/markerpdf/tests/ConversionFinalizerTest.php`.
+   - Evidence: markerPDF has useful native post-processing, scoring, debug, and conversion-finalization work, but its upstream pipeline depends on heavy model/PDF dependencies and several slices stop at supplied OCR/layout/table/debug-render/model outputs. The manifest maps only `2` actual CI benchmark PDF/reference pairs plus `4` surrogate pairs; current dirty/committed finalizer work is not a substitute for broader native document-level extraction parity against those real benchmark pairs.
+   - Goal requirement at risk: `goal.md:1` and `goal.md:30` forbid counting bridge/shell-out/generated-oracle work as native implementation progress; `goal.md:35` requires meaningful fixture parity beyond local scaffolding tests.
+   - Audit judgment: keep markerPDF progress conservative until native document-level extraction parity broadens against acquired benchmark pairs.
 
 ## Bridge / Shell-Out Check
 
@@ -68,21 +74,22 @@ No lane implementation process-execution bridge calls were found. The remaining 
 
 Required command: `php tools/run-tests.php`
 
-Direct required runs during this audit:
+Latest exact result for this audit, run at `HEAD` `eeec618`:
 
 ```text
-Earlier direct run exit status: 1
-161 test files, 14658 assertions, 2 failures
-
-Latest direct run exit status: 1
-162 test files, 14837 assertions, 2 failures
-
-Immediate diagnostic rerun exit status: 0
-162 test files, 14874 assertions, 0 failures
+exit status: 1
+FAIL lowers wordpress local using asset controller without trapping exports (lanes/esbuild/tests/TypeScriptModuleLowererTest.php)
+163 test files, 15015 assertions, 1 failures
 ```
 
-Diagnostic follow-up after the first red run filtered failure names and reported `161 test files, 14661 assertions, 2 failures` in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php`; a focused rerun of that esbuild test file later passed with `541` assertions and `0` failures, and later direct root reruns passed. After `HEAD` advanced to Difftastic work, a direct rerun failed with `2` failures, but an immediate full rerun used to narrow failures reported `0` failures, so those latest failures were not reproducible in the follow-up command. Additional commits landed after that verification. One green run emitted repeated PHP warnings from `lanes/rclone/src/MemoryProvider.php:778` about missing `closeError`; treat those warnings as a follow-up quality issue.
+Earlier same-audit diagnostic result before later commits landed:
+
+```text
+exit status: 1
+9 Gitoxide merge failures in BlobMergeTest.php and TreeMergeTest.php
+163 test files, 14894 assertions, 9 failures
+```
 
 ## Recommended Next Intervention
 
-Freeze or explicitly coordinate active writers. From the current dirty set, pick one lane batch at a time, verify it in isolation, run the root harness from a stable tree, then commit or reject that lane before moving to the next. After the first accepted green snapshot, regenerate `progress.md`, `porting.html`, `porting-summary.json`, and lane status files from the same state, clearing stale root-test strings and pending/prose latest-commit fields. Normalize the manifest/status schema so upstream denominator units, mapped upstream cases, native tests/checks/assertions, failures, runner parity, and latest accepted commit are separate values.
+Freeze or explicitly coordinate active writers. Fix or reject the dirty esbuild TypeScriptModuleLowerer batch first because it is the current root harness blocker, then rerun `php tools/run-tests.php` from a stable tree. After the first accepted green snapshot, commit or reject the remaining dirty lane batches one at a time, regenerate `progress.md`, `porting.html`, `porting-summary.json`, and lane statuses from that same snapshot, clear stale root-test strings and pending/prose latest-commit fields, and normalize dashboard/status fields for upstream denominator units, mapped upstream cases, native tests/checks/assertions, failures, runner parity, and latest accepted commit.
