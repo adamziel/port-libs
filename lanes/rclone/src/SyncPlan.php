@@ -257,6 +257,586 @@ final class SyncPlan
     }
 
     /**
+     * Model operations.Cat over listed provider objects.
+     *
+     * Upstream appends the separator after every emitted object, including the
+     * final one. A negative offset is resolved against the known object size.
+     *
+     * @param array{listed: int, opened: int, bytes: int, separators: int, discard: bool}|null $stats
+     */
+    public function cat(
+        MemoryProvider $provider,
+        string $prefix = '',
+        int $offset = 0,
+        int $count = -1,
+        string $separator = '',
+        ?FilterRuleSet $filter = null,
+        bool $discard = false,
+        ?array &$stats = null,
+    ): string {
+        $output = '';
+        $listed = 0;
+        $opened = 0;
+        $bytes = 0;
+        $separators = 0;
+
+        foreach ($provider->list($prefix) as $info) {
+            if ($filter !== null && !$filter->includes($info->path)) {
+                continue;
+            }
+
+            $listed++;
+            $start = $offset;
+            if ($start < 0 && $info->size >= 0) {
+                $start += $info->size;
+            }
+            if ($start < 0) {
+                $start = 0;
+            }
+            $length = $count >= 0 ? $count : null;
+
+            $chunk = $this->readProviderObject($provider, $info->path, $start, $length);
+            $opened++;
+            $bytes += strlen($chunk);
+            if (!$discard) {
+                $output .= $chunk;
+            }
+
+            if ($separator !== '') {
+                $separators++;
+                if (!$discard) {
+                    $output .= $separator;
+                }
+            }
+        }
+
+        $stats = [
+            'listed' => $listed,
+            'opened' => $opened,
+            'bytes' => $bytes,
+            'separators' => $separators,
+            'discard' => $discard,
+        ];
+
+        return $discard ? '' : $output;
+    }
+
+    /**
+     * Model cmd/cat flag resolution for head, tail, offset, count, discard,
+     * and separator before delegating to operations.Cat.
+     *
+     * @param array{listed: int, opened: int, bytes: int, separators: int, discard: bool}|null $stats
+     */
+    public function catCommand(
+        MemoryProvider $provider,
+        string $prefix = '',
+        int $head = 0,
+        int $tail = 0,
+        int $offset = 0,
+        int $count = -1,
+        string $separator = '',
+        ?FilterRuleSet $filter = null,
+        bool $discard = false,
+        ?array &$stats = null,
+    ): string {
+        $usedOffset = $offset !== 0 || $count >= 0;
+        $usedHead = $head > 0;
+        $usedTail = $tail > 0;
+        if (($usedHead && $usedTail) || ($usedHead && $usedOffset) || ($usedTail && $usedOffset)) {
+            throw new \RuntimeException('Can only use one of  --head, --tail or --offset with --count');
+        }
+
+        if ($usedHead) {
+            $offset = 0;
+            $count = $head;
+        }
+        if ($usedTail) {
+            $offset = -$tail;
+            $count = -1;
+        }
+
+        return $this->cat($provider, $prefix, $offset, $count, $separator, $filter, $discard, $stats);
+    }
+
+    /**
+     * Model operations.Rcat for unknown-size stdin uploads.
+     *
+     * @param string|resource|object $input
+     * @param array<string, string> $metadata
+     * @param array{path: string, sizeHint: int, bytesRead: int, uploadMode: string, smallUpload: bool, checksumType: string, checksumIgnored: bool}|null $stats
+     */
+    public function rcat(
+        MemoryProvider $target,
+        string $path,
+        mixed $input,
+        \DateTimeInterface|string|null $modTime = null,
+        array $metadata = [],
+        int $streamingUploadCutoff = 256 * 1024,
+        bool $ignoreChecksum = false,
+        ?array &$stats = null,
+    ): ObjectInfo {
+        return $this->rcatSize(
+            $target,
+            $path,
+            $input,
+            -1,
+            $modTime,
+            $metadata,
+            $streamingUploadCutoff,
+            $ignoreChecksum,
+            $stats,
+        );
+    }
+
+    /**
+     * Model operations.RcatSize: known sizes use Put, unknown sizes delegate
+     * to Rcat's small-buffer-or-streaming decision.
+     *
+     * @param string|resource|object $input
+     * @param array<string, string> $metadata
+     * @param array{path: string, sizeHint: int, bytesRead: int, uploadMode: string, smallUpload: bool, checksumType: string, checksumIgnored: bool}|null $stats
+     */
+    public function rcatSize(
+        MemoryProvider $target,
+        string $path,
+        mixed $input,
+        int $size,
+        \DateTimeInterface|string|null $modTime = null,
+        array $metadata = [],
+        int $streamingUploadCutoff = 256 * 1024,
+        bool $ignoreChecksum = false,
+        ?array &$stats = null,
+    ): ObjectInfo {
+        $bytes = $this->readUploadInput($input);
+        $hashType = $ignoreChecksum ? HashType::NONE : $target->supportedHashes()->getOne();
+        $hashes = $hashType === HashType::NONE ? [] : MultiHasher::hashBytes($bytes, new HashSet($hashType));
+
+        if ($size >= 0) {
+            $stats = [
+                'path' => $path,
+                'sizeHint' => $size,
+                'bytesRead' => strlen($bytes),
+                'uploadMode' => 'put',
+                'smallUpload' => true,
+                'checksumType' => HashType::NONE,
+                'checksumIgnored' => $ignoreChecksum,
+            ];
+
+            return $target->put($path, $bytes, [
+                'modTime' => $modTime,
+                'metadata' => $metadata,
+            ]);
+        }
+
+        $smallUpload = $streamingUploadCutoff > 0 && strlen($bytes) < $streamingUploadCutoff;
+        $uploadMode = $smallUpload ? 'put' : 'putStream';
+        $options = [
+            'modTime' => $modTime,
+            'metadata' => $metadata,
+            'hashes' => $hashes,
+        ];
+        $object = $smallUpload
+            ? $target->put($path, $bytes, $options)
+            : $target->putStream($path, $bytes, $options);
+
+        $stats = [
+            'path' => $path,
+            'sizeHint' => -1,
+            'bytesRead' => strlen($bytes),
+            'uploadMode' => $uploadMode,
+            'smallUpload' => $smallUpload,
+            'checksumType' => $hashType,
+            'checksumIgnored' => $ignoreChecksum,
+        ];
+
+        return $object;
+    }
+
+    /**
+     * Model operations.CopyURL with a local response fixture instead of live
+     * HTTP. The response array represents the completed HTTP request after
+     * redirects; callers can assert request headers through the stats output.
+     *
+     * @param array{
+     *     url: string,
+     *     finalUrl?: string,
+     *     status?: int,
+     *     statusText?: string,
+     *     headers?: array<string, string>,
+     *     body?: string|resource|object,
+     *     contentLength?: int,
+     *     onRequest?: callable(array<string, string>): void
+     * } $response
+     * @param array<string, string> $downloadHeaders
+     * @param array<string, mixed>|null $stats
+     */
+    public function copyUrl(
+        MemoryProvider $target,
+        string $dstFileName,
+        array $response,
+        bool $autoFilename = false,
+        bool $headerFilename = false,
+        bool $noClobber = false,
+        array $downloadHeaders = [],
+        int $streamingUploadCutoff = 256 * 1024,
+        ?array &$stats = null,
+    ): ObjectInfo {
+        $source = $this->resolveCopyUrlSource($dstFileName, $response, $autoFilename, $headerFilename, $downloadHeaders);
+        if ($noClobber && $target->pathExists($source['dstFileName'])) {
+            $this->closeCopyUrlBody($source['body']);
+            $stats = $source['stats'] + [
+                'noClobber' => true,
+                'uploadMode' => null,
+                'skipped' => true,
+            ];
+            throw new \RuntimeException('CopyURL failed: file already exist');
+        }
+
+        $uploadStats = null;
+        $object = $this->rcatSize(
+            $target,
+            $source['dstFileName'],
+            $source['body'],
+            $source['contentLength'],
+            $source['modTime'],
+            [],
+            $streamingUploadCutoff,
+            false,
+            $uploadStats,
+        );
+
+        $stats = $source['stats'] + [
+            'noClobber' => $noClobber,
+            'uploadMode' => $uploadStats['uploadMode'] ?? null,
+            'bytesRead' => $uploadStats['bytesRead'] ?? $object->size,
+            'skipped' => false,
+        ];
+
+        return $object;
+    }
+
+    /**
+     * Model operations.CopyURLToWriter.
+     *
+     * @param array{
+     *     url: string,
+     *     finalUrl?: string,
+     *     status?: int,
+     *     statusText?: string,
+     *     headers?: array<string, string>,
+     *     body?: string|resource|object,
+     *     contentLength?: int,
+     *     onRequest?: callable(array<string, string>): void
+     * } $response
+     * @param array<string, string> $downloadHeaders
+     * @param array<string, mixed>|null $stats
+     */
+    public function copyUrlToWriter(array $response, array $downloadHeaders = [], ?array &$stats = null): string
+    {
+        $source = $this->resolveCopyUrlSource('', $response, false, false, $downloadHeaders);
+        $output = $this->readUploadInput($source['body']);
+        $stats = $source['stats'] + [
+            'bytesRead' => strlen($output),
+            'stdout' => true,
+        ];
+
+        return $output;
+    }
+
+    /**
+     * Model cmd/copyurl single-URL flag resolution.
+     *
+     * @param array{
+     *     url: string,
+     *     finalUrl?: string,
+     *     status?: int,
+     *     statusText?: string,
+     *     headers?: array<string, string>,
+     *     body?: string|resource|object,
+     *     contentLength?: int,
+     *     onRequest?: callable(array<string, string>): void
+     * } $response
+     * @param array{
+     *     autoFilename?: bool,
+     *     headerFilename?: bool,
+     *     printFilename?: bool,
+     *     stdout?: bool,
+     *     noClobber?: bool,
+     *     downloadHeaders?: array<string, string>,
+     *     streamingUploadCutoff?: int
+     * } $options
+     * @return array{object: ?ObjectInfo, stdout: string, printedFilename: ?string, stats: array<string, mixed>}
+     */
+    public function copyUrlCommand(
+        MemoryProvider $target,
+        array $response,
+        ?string $destination = null,
+        array $options = [],
+    ): array {
+        $stdout = (bool) ($options['stdout'] ?? false) || $destination === '-';
+        if (!$stdout && ($destination === null || $destination === '')) {
+            throw new \RuntimeException('need 2 arguments if not using --stdout');
+        }
+
+        $downloadHeaders = $options['downloadHeaders'] ?? [];
+        if ($stdout) {
+            $stats = null;
+            $output = $this->copyUrlToWriter($response, $downloadHeaders, $stats);
+
+            return [
+                'object' => null,
+                'stdout' => $output,
+                'printedFilename' => null,
+                'stats' => $stats,
+            ];
+        }
+
+        $autoFilename = (bool) ($options['autoFilename'] ?? false);
+        $headerFilename = (bool) ($options['headerFilename'] ?? false);
+        $dstFileName = self::normalizePath($destination);
+        $filenameSource = 'argument';
+        if ($autoFilename) {
+            $resolved = $this->copyUrlResolvedFilename('', $response, true, $headerFilename);
+            $dstFileName = self::joinPath($dstFileName, $resolved['dstFileName']);
+            $filenameSource = $resolved['source'];
+        }
+
+        $stats = null;
+        $object = $this->copyUrl(
+            $target,
+            $dstFileName,
+            $response,
+            false,
+            false,
+            (bool) ($options['noClobber'] ?? false),
+            $downloadHeaders,
+            (int) ($options['streamingUploadCutoff'] ?? 256 * 1024),
+            $stats,
+        );
+        $stats['autoFilename'] = $autoFilename;
+        $stats['headerFilename'] = $headerFilename;
+        $stats['filenameSource'] = $filenameSource;
+
+        return [
+            'object' => $object,
+            'stdout' => '',
+            'printedFilename' => (bool) ($options['printFilename'] ?? false) ? $object->path : null,
+            'stats' => $stats,
+        ];
+    }
+
+    /**
+     * Model `copyurl --urls` CSV processing. Missing filenames use the same
+     * auto-filename path as upstream, while per-row errors are aggregated.
+     *
+     * @param array<string, array<string, mixed>> $responsesByUrl
+     * @param array{headerFilename?: bool, noClobber?: bool, downloadHeaders?: array<string, string>, stdout?: bool, printFilename?: bool} $options
+     * @return array{objects: list<ObjectInfo>, errors: list<string>, stats: list<array<string, mixed>>}
+     */
+    public function copyUrlsCsvCommand(
+        MemoryProvider $target,
+        string $csv,
+        array $responsesByUrl,
+        string $destinationPrefix = '',
+        array $options = [],
+    ): array {
+        if ((bool) ($options['stdout'] ?? false)) {
+            throw new \RuntimeException("can't use --stdout with --urls");
+        }
+        if ((bool) ($options['printFilename'] ?? false)) {
+            throw new \RuntimeException("can't use --print-filename with --urls");
+        }
+
+        $objects = [];
+        $errors = [];
+        $allStats = [];
+        foreach ($this->parseCopyUrlCsv($csv) as $row) {
+            if ($row === []) {
+                continue;
+            }
+
+            $url = $row[0];
+            $filename = $row[1] ?? '';
+            $response = $responsesByUrl[$url] ?? ['url' => $url, 'status' => 404, 'statusText' => '404 Not Found', 'body' => ''];
+            try {
+                if ($filename === '') {
+                    $command = $this->copyUrlCommand(
+                        $target,
+                        $response,
+                        $destinationPrefix,
+                        [
+                            'autoFilename' => true,
+                            'headerFilename' => (bool) ($options['headerFilename'] ?? false),
+                            'noClobber' => (bool) ($options['noClobber'] ?? false),
+                            'downloadHeaders' => $options['downloadHeaders'] ?? [],
+                        ],
+                    );
+                    $objects[] = $command['object'];
+                    $allStats[] = $command['stats'];
+                    continue;
+                }
+
+                $stats = null;
+                $objects[] = $this->copyUrl(
+                    $target,
+                    self::joinPath($destinationPrefix, $filename),
+                    $response,
+                    false,
+                    false,
+                    (bool) ($options['noClobber'] ?? false),
+                    $options['downloadHeaders'] ?? [],
+                    stats: $stats,
+                );
+                $allStats[] = $stats;
+            } catch (\RuntimeException $throwable) {
+                $errors[] = sprintf('failed to copy URL "%s": %s', $url, $throwable->getMessage());
+            }
+        }
+
+        if ($errors !== []) {
+            throw new \RuntimeException('not all URLs copied successfully: ' . implode('; ', $errors));
+        }
+
+        return [
+            'objects' => $objects,
+            'errors' => [],
+            'stats' => $allStats,
+        ];
+    }
+
+    /**
+     * Model cmd/touch flag resolution before delegating to Touch.
+     *
+     * @param array{
+     *     timestamp?: string|null,
+     *     localTime?: bool,
+     *     noCreate?: bool,
+     *     recursive?: bool,
+     *     dryRun?: bool,
+     *     metadataSet?: array<string, scalar|null>,
+     *     filter?: FilterRuleSet|null,
+     *     now?: \DateTimeInterface|string|null
+     * } $options
+     * @param array<string, mixed>|null $stats
+     * @return array{created: ?ObjectInfo, touched: list<ObjectInfo>, skipped: bool, directory: bool, time: string}
+     */
+    public function touchCommand(
+        MemoryProvider $provider,
+        string $remote,
+        array $options = [],
+        ?array &$stats = null,
+    ): array {
+        $time = $this->touchTimeFromOptions(
+            $options['timestamp'] ?? null,
+            (bool) ($options['localTime'] ?? false),
+            $options['now'] ?? null,
+        );
+
+        return $this->touch(
+            $provider,
+            $remote,
+            $time,
+            (bool) ($options['noCreate'] ?? false),
+            (bool) ($options['recursive'] ?? false),
+            (bool) ($options['dryRun'] ?? false),
+            $this->normalizeTouchMetadata($options['metadataSet'] ?? []),
+            $options['filter'] ?? null,
+            $stats,
+        );
+    }
+
+    /**
+     * Model cmd/touch and operations.TouchDir for one in-memory provider.
+     *
+     * Missing paths create empty files unless --no-create or --recursive is
+     * active. Existing directories touch listed files only; non-recursive mode
+     * touches direct child files while recursive mode walks the whole subtree.
+     * Directory per-object SetModTime failures are counted and logged by
+     * upstream without aborting the walk, so this method records them in stats
+     * and keeps processing later objects.
+     *
+     * @param array<string, string> $metadata
+     * @param array<string, mixed>|null $stats
+     * @return array{created: ?ObjectInfo, touched: list<ObjectInfo>, skipped: bool, directory: bool, time: string}
+     */
+    public function touch(
+        MemoryProvider $provider,
+        string $remote,
+        \DateTimeInterface|string|null $time = null,
+        bool $noCreate = false,
+        bool $recursive = false,
+        bool $dryRun = false,
+        array $metadata = [],
+        ?FilterRuleSet $filter = null,
+        ?array &$stats = null,
+    ): array {
+        $this->initTouchStats($stats);
+        $remote = self::normalizePath($remote);
+        $touchTime = $this->normalizeTouchTime($time ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
+        $stats['remote'] = $remote;
+        $stats['time'] = $touchTime;
+        $stats['recursive'] = $recursive;
+
+        if ($remote !== '') {
+            $object = $this->optionalInfo($provider, $remote);
+            if ($object !== null) {
+                return $this->touchOneObject($provider, $object, $touchTime, $dryRun, $stats);
+            }
+        }
+
+        if ($remote === '' || $this->directoryExists($provider, $remote)) {
+            $stats['directory'] = true;
+            $touched = $this->touchDirectory($provider, $remote, $touchTime, $recursive, $dryRun, $filter, $stats);
+
+            return [
+                'created' => null,
+                'touched' => $touched,
+                'skipped' => false,
+                'directory' => true,
+                'time' => $touchTime,
+            ];
+        }
+
+        if ($noCreate || $recursive) {
+            $stats['notCreated']++;
+
+            return [
+                'created' => null,
+                'touched' => [],
+                'skipped' => true,
+                'directory' => false,
+                'time' => $touchTime,
+            ];
+        }
+
+        if ($dryRun) {
+            $stats['dryRunSkipped']++;
+
+            return [
+                'created' => null,
+                'touched' => [],
+                'skipped' => true,
+                'directory' => false,
+                'time' => $touchTime,
+            ];
+        }
+
+        $created = $provider->put($remote, '', [
+            'modTime' => $touchTime,
+            'metadata' => $metadata,
+        ]);
+        $stats['created']++;
+
+        return [
+            'created' => $created,
+            'touched' => [],
+            'skipped' => false,
+            'directory' => false,
+            'time' => $touchTime,
+        ];
+    }
+
+    /**
      * Model operations.SetTier/ListFn over listed provider objects.
      *
      * @return list<ObjectInfo>
@@ -2399,6 +2979,233 @@ final class SyncPlan
     }
 
     /**
+     * Model operations.Delete and the cmd/delete command boundary.
+     *
+     * Upstream lists objects through ListFn, so include/exclude and object
+     * filters are applied before DeleteFiles sees anything. DeleteFiles then
+     * accounts every attempted object delete before dry-run/provider removal,
+     * keeps processing ordinary per-object failures, and reports an aggregate
+     * `failed to delete N files` error after the listed objects are drained.
+     *
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param array{listed?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunObjectSkipped?: int, deletedDirs?: int, dryRunSkipped?: int}|null $stats
+     * @return array{deleted: list<ObjectInfo>, prunedDirectories: list<ObjectInfo>}
+     */
+    public function deleteContents(
+        MemoryProvider $provider,
+        ?FilterRuleSet $filter = null,
+        ?callable $includeObject = null,
+        bool $dryRun = false,
+        bool $rmdirs = false,
+        ?int $maxDelete = null,
+        ?int $maxDeleteSize = null,
+        ?array &$stats = null,
+    ): array {
+        $this->initDeleteStats($stats);
+        $objects = $this->listDeleteObjects($provider, $filter, $includeObject, $stats);
+        $deleted = $this->deleteListedFiles(
+            $provider,
+            $objects,
+            $dryRun,
+            $maxDelete,
+            $maxDeleteSize,
+            $stats,
+        );
+
+        $prunedDirectories = [];
+        if ($rmdirs) {
+            $prunedDirectories = $this->removeEmptyDirectories(
+                $provider,
+                '',
+                true,
+                $filter,
+                -1,
+                $dryRun,
+                $stats,
+            );
+        }
+
+        return [
+            'deleted' => $deleted,
+            'prunedDirectories' => $prunedDirectories,
+        ];
+    }
+
+    /**
+     * Model operations.TryRmdir.
+     *
+     * Upstream accounts a deleted-directory attempt before checking dry-run.
+     * TryRmdir returns provider errors without counting them; Rmdir is the
+     * wrapper that turns those failures into counted errors.
+     *
+     * @param array{deletedDirs?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int}|null $stats
+     */
+    public function tryRemoveDirectory(
+        MemoryProvider $provider,
+        string $dir = '',
+        bool $dryRun = false,
+        ?array &$stats = null,
+    ): ?ObjectInfo {
+        $this->initRmdirStats($stats);
+        $stats['deletedDirs']++;
+
+        if ($dryRun) {
+            $stats['dryRunSkipped']++;
+
+            return null;
+        }
+
+        return $provider->rmdir($dir);
+    }
+
+    /**
+     * Model operations.Rmdir.
+     *
+     * @param array{deletedDirs?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int}|null $stats
+     */
+    public function removeDirectory(
+        MemoryProvider $provider,
+        string $dir = '',
+        bool $dryRun = false,
+        ?array &$stats = null,
+    ): ?ObjectInfo {
+        try {
+            return $this->tryRemoveDirectory($provider, $dir, $dryRun, $stats);
+        } catch (\RuntimeException $throwable) {
+            $this->recordRmdirError($stats, $throwable);
+            throw $throwable;
+        }
+    }
+
+    /**
+     * Model operations.Purge direct-provider and fallback behavior.
+     *
+     * Direct provider purge increments the deleted-directory counter once,
+     * then dry-run can stop before any provider call. If a direct provider
+     * returns ErrorCantPurge, upstream falls back to DeleteFiles plus Rmdirs;
+     * other provider errors stay fatal and are counted once.
+     *
+     * @param array{deletedDirs?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int, dryRunObjectSkipped?: int, directPurgeAttempts?: int}|null $stats
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>, usedDirectPurge: bool, usedFallback: bool, directError: ?string}
+     */
+    public function purge(
+        MemoryProvider $provider,
+        string $dir = '',
+        bool $dryRun = false,
+        ?array &$stats = null,
+    ): array {
+        $this->initPurgeStats($stats);
+        $directError = null;
+
+        if ($provider->supportsDirectPurge()) {
+            $stats['directPurgeAttempts']++;
+            $stats['deletedDirs']++;
+
+            if ($dryRun) {
+                $stats['dryRunSkipped']++;
+
+                return [
+                    'objects' => [],
+                    'directories' => [],
+                    'usedDirectPurge' => true,
+                    'usedFallback' => false,
+                    'directError' => null,
+                ];
+            }
+
+            try {
+                $purged = $provider->purge($dir);
+
+                return [
+                    'objects' => $purged['objects'],
+                    'directories' => $purged['directories'],
+                    'usedDirectPurge' => true,
+                    'usedFallback' => false,
+                    'directError' => null,
+                ];
+            } catch (\RuntimeException $throwable) {
+                if (!MemoryProvider::isCantPurgeException($throwable)) {
+                    $this->recordPurgeError($stats, $throwable);
+                    throw $throwable;
+                }
+
+                $directError = $throwable->getMessage();
+            }
+        }
+
+        $errorsBeforeFallback = $stats['errors'];
+        try {
+            $fallback = $this->fallbackPurge($provider, $dir, $dryRun, $stats);
+        } catch (\RuntimeException $throwable) {
+            if ($stats['errors'] === $errorsBeforeFallback) {
+                $this->recordPurgeError($stats, $throwable);
+            }
+            throw $throwable;
+        }
+
+        return [
+            'objects' => $fallback['objects'],
+            'directories' => $fallback['directories'],
+            'usedDirectPurge' => false,
+            'usedFallback' => true,
+            'directError' => $directError,
+        ];
+    }
+
+    /**
+     * Model operations.CleanUp and cmd/cleanup.
+     *
+     * Upstream checks the optional CleanUp feature before honoring dry-run.
+     * A dry-run against a supported remote skips the provider call; unsupported
+     * remotes still return the upstream-shaped cleanup unsupported error.
+     *
+     * @param array{cleanupCalls?: int, dryRunSkipped?: int, cleanedObjects?: int, cleanedDirectories?: int, errors?: int, lastError?: ?string}|null $stats
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>, dryRun: bool, providerCalled: bool}
+     */
+    public function cleanUp(
+        MemoryProvider $provider,
+        bool $dryRun = false,
+        ?array &$stats = null,
+    ): array {
+        $this->initCleanUpStats($stats);
+
+        if (!$provider->supportsCleanUp()) {
+            $throwable = new \RuntimeException(MemoryProvider::ERROR_CANT_CLEANUP);
+            $this->recordCleanUpError($stats, $throwable);
+            throw $throwable;
+        }
+
+        if ($dryRun) {
+            $stats['dryRunSkipped']++;
+
+            return [
+                'objects' => [],
+                'directories' => [],
+                'dryRun' => true,
+                'providerCalled' => false,
+            ];
+        }
+
+        $stats['cleanupCalls']++;
+        try {
+            $cleaned = $provider->cleanUp();
+        } catch (\RuntimeException $throwable) {
+            $this->recordCleanUpError($stats, $throwable);
+            throw $throwable;
+        }
+
+        $stats['cleanedObjects'] += count($cleaned['objects']);
+        $stats['cleanedDirectories'] += count($cleaned['directories']);
+
+        return [
+            'objects' => $cleaned['objects'],
+            'directories' => $cleaned['directories'],
+            'dryRun' => false,
+            'providerCalled' => true,
+        ];
+    }
+
+    /**
      * Model syncCopyMove.deleteEmptyDirectories for destination-only dirs.
      *
      * Upstream records directories that are missing from the source during the
@@ -2439,6 +3246,8 @@ final class SyncPlan
         bool $leaveRoot = false,
         ?FilterRuleSet $filter = null,
         int $maxDepth = -1,
+        bool $dryRun = false,
+        ?array &$rmdirStats = null,
     ): array {
         $dir = self::normalizePath($dir);
         $provider->directoryInfo($dir);
@@ -2498,8 +3307,12 @@ final class SyncPlan
             sort($paths, SORT_STRING);
             foreach ($paths as $path) {
                 try {
-                    $removed[] = $provider->rmdir($path);
+                    $removedInfo = $this->tryRemoveDirectory($provider, $path, $dryRun, $rmdirStats);
+                    if ($removedInfo !== null) {
+                        $removed[] = $removedInfo;
+                    }
                 } catch (\RuntimeException $throwable) {
+                    $this->recordRmdirError($rmdirStats, $throwable);
                     $errorCount++;
                     $lastError = $throwable;
                 }
@@ -3046,6 +3859,140 @@ final class SyncPlan
     }
 
     /**
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param array{listed?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunObjectSkipped?: int}|null $stats
+     * @return list<ObjectInfo>
+     */
+    private function listDeleteObjects(
+        MemoryProvider $provider,
+        ?FilterRuleSet $filter,
+        ?callable $includeObject,
+        ?array &$stats,
+    ): array {
+        $this->initDeleteStats($stats);
+        $objects = [];
+        foreach ($provider->list() as $object) {
+            $stats['listed']++;
+            if ($filter !== null && !$filter->includes($object->path)) {
+                continue;
+            }
+            if ($includeObject !== null && !(bool) $includeObject($object)) {
+                continue;
+            }
+
+            $objects[] = $object;
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param list<ObjectInfo> $objects
+     * @param array{listed?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunObjectSkipped?: int}|null $stats
+     * @return list<ObjectInfo>
+     */
+    private function deleteListedFiles(
+        MemoryProvider $provider,
+        array $objects,
+        bool $dryRun,
+        ?int $maxDelete,
+        ?int $maxDeleteSize,
+        ?array &$stats,
+    ): array {
+        $deleted = [];
+        $errors = 0;
+        foreach ($objects as $object) {
+            try {
+                $deletedInfo = $this->deleteListedFile(
+                    $provider,
+                    $object,
+                    $dryRun,
+                    $maxDelete,
+                    $maxDeleteSize,
+                    $stats,
+                );
+                if ($deletedInfo !== null) {
+                    $deleted[] = $deletedInfo;
+                }
+            } catch (\RuntimeException $throwable) {
+                $errors++;
+                $this->recordDeleteError($stats, $throwable);
+                if ($this->isFatalDeleteError($throwable)) {
+                    break;
+                }
+            }
+        }
+
+        if ($errors > 0) {
+            throw new \RuntimeException(sprintf('failed to delete %d files', $errors));
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * @param array{listed?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunObjectSkipped?: int}|null $stats
+     */
+    private function deleteListedFile(
+        MemoryProvider $provider,
+        ObjectInfo $object,
+        bool $dryRun,
+        ?int $maxDelete,
+        ?int $maxDeleteSize,
+        ?array &$stats,
+    ): ?ObjectInfo {
+        $this->initDeleteStats($stats);
+        $deleteSize = max(0, $object->size);
+        $this->assertDeleteWithinLimits($stats['deletes'], $stats['deleteBytes'], $deleteSize, $maxDelete, $maxDeleteSize);
+        $stats['deletes']++;
+        $stats['deleteBytes'] += $deleteSize;
+
+        if ($dryRun) {
+            $stats['dryRunObjectSkipped']++;
+
+            return null;
+        }
+
+        return $provider->deleteListedObject($object);
+    }
+
+    /**
+     * @param array{listed?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunObjectSkipped?: int}|null $stats
+     */
+    private function initDeleteStats(?array &$stats): void
+    {
+        if ($stats === null) {
+            $stats = [];
+        }
+        $stats += [
+            'listed' => 0,
+            'deletes' => 0,
+            'deleteBytes' => 0,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunObjectSkipped' => 0,
+        ];
+    }
+
+    /**
+     * @param array{listed?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunObjectSkipped?: int}|null $stats
+     */
+    private function recordDeleteError(?array &$stats, \Throwable $throwable): void
+    {
+        $this->initDeleteStats($stats);
+        $stats['errors']++;
+        $stats['lastError'] = $throwable->getMessage();
+    }
+
+    private function isFatalDeleteError(\Throwable $throwable): bool
+    {
+        return in_array($throwable->getMessage(), [
+            '--max-delete threshold reached',
+            '--max-delete-size threshold reached',
+        ], true);
+    }
+
+    /**
      * @param array<string, true> $seen
      */
     private function skipMarchDuplicateObject(string $path, array &$seen, bool $ignoreCaseSync): bool
@@ -3065,6 +4012,302 @@ final class SyncPlan
         $path = self::normalizePath($path);
 
         return function_exists('mb_strtolower') ? mb_strtolower($path, 'UTF-8') : strtolower($path);
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     * @param array<string, string> $downloadHeaders
+     * @return array{
+     *     dstFileName: string,
+     *     body: mixed,
+     *     contentLength: int,
+     *     modTime: ?string,
+     *     stats: array<string, mixed>
+     * }
+     */
+    private function resolveCopyUrlSource(
+        string $dstFileName,
+        array $response,
+        bool $autoFilename,
+        bool $headerFilename,
+        array $downloadHeaders,
+    ): array {
+        $requestHeaders = $this->normalizeHttpHeaders($downloadHeaders);
+        if (is_callable($response['onRequest'] ?? null)) {
+            $response['onRequest']($requestHeaders);
+        }
+
+        $status = (int) ($response['status'] ?? 200);
+        $statusText = $this->copyUrlStatusText($response, $status);
+        if ($status < 200 || $status >= 300) {
+            $this->closeCopyUrlBody($response['body'] ?? null);
+            throw new \RuntimeException('CopyURL failed: ' . $statusText);
+        }
+
+        $resolved = $this->copyUrlResolvedFilename($dstFileName, $response, $autoFilename, $headerFilename);
+        $body = $response['body'] ?? '';
+        $contentLength = array_key_exists('contentLength', $response)
+            ? (int) $response['contentLength']
+            : (is_string($body) ? strlen($body) : -1);
+        $modTime = $this->copyUrlLastModified($response);
+
+        return [
+            'dstFileName' => $resolved['dstFileName'],
+            'body' => $body,
+            'contentLength' => $contentLength,
+            'modTime' => $modTime,
+            'stats' => [
+                'url' => (string) ($response['url'] ?? ''),
+                'finalUrl' => (string) ($response['finalUrl'] ?? ($response['url'] ?? '')),
+                'status' => $status,
+                'statusText' => $statusText,
+                'requestHeaders' => $requestHeaders,
+                'downloadHeadersSent' => count($requestHeaders),
+                'autoFilename' => $autoFilename,
+                'headerFilename' => $headerFilename,
+                'filenameSource' => $resolved['source'],
+                'path' => $resolved['dstFileName'],
+                'contentLength' => $contentLength,
+                'modTime' => $modTime,
+                'modTimeFromHeader' => $modTime !== null,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     * @return array{dstFileName: string, source: string}
+     */
+    private function copyUrlResolvedFilename(
+        string $dstFileName,
+        array $response,
+        bool $autoFilename,
+        bool $headerFilename,
+    ): array {
+        if (!$autoFilename) {
+            return [
+                'dstFileName' => self::normalizePath($dstFileName),
+                'source' => 'argument',
+            ];
+        }
+
+        if ($headerFilename) {
+            $filename = $this->copyUrlContentDispositionFilename($response);
+            if ($filename === null) {
+                throw new \RuntimeException('CopyURL failed: filename not found in the Content-Disposition header');
+            }
+
+            return [
+                'dstFileName' => $filename,
+                'source' => 'content-disposition',
+            ];
+        }
+
+        $url = (string) ($response['finalUrl'] ?? ($response['url'] ?? ''));
+        $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
+        $filename = self::pathBase(rawurldecode($path));
+        if ($filename === '' || $filename === '.' || $filename === '/') {
+            throw new \RuntimeException("CopyURL failed: file name wasn't found in url");
+        }
+
+        return [
+            'dstFileName' => $filename,
+            'source' => 'url',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function copyUrlContentDispositionFilename(array $response): ?string
+    {
+        $header = $this->httpHeader($response['headers'] ?? [], 'Content-Disposition');
+        if ($header === null || $header === '') {
+            return null;
+        }
+
+        $filename = null;
+        if (preg_match('/(?:^|;)\s*filename\*\s*=\s*("[^"]*"|[^;]*)/i', $header, $match) === 1) {
+            $filename = trim($match[1], " \t\n\r\0\x0B\"");
+            $parts = explode("''", $filename, 2);
+            if (count($parts) === 2) {
+                $filename = rawurldecode($parts[1]);
+            }
+        } elseif (preg_match('/(?:^|;)\s*filename\s*=\s*("[^"]*"|[^;]*)/i', $header, $match) === 1) {
+            $filename = trim($match[1], " \t\n\r\0\x0B\"");
+        }
+
+        if ($filename === null || $filename === '') {
+            return null;
+        }
+
+        $filename = self::pathBase(str_replace('\\', '/', $filename));
+
+        return $filename === '' || $filename === '.' || $filename === '/' ? null : $filename;
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function copyUrlLastModified(array $response): ?string
+    {
+        $lastModified = $this->httpHeader($response['headers'] ?? [], 'Last-Modified');
+        if ($lastModified === null || $lastModified === '') {
+            return null;
+        }
+
+        try {
+            return (new \DateTimeImmutable($lastModified))
+                ->setTimezone(new \DateTimeZone('UTC'))
+                ->format('Y-m-d\TH:i:s\Z');
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function copyUrlStatusText(array $response, int $status): string
+    {
+        if (isset($response['statusText']) && $response['statusText'] !== '') {
+            return (string) $response['statusText'];
+        }
+
+        return $status . ' ' . match ($status) {
+            200 => 'OK',
+            201 => 'Created',
+            204 => 'No Content',
+            301 => 'Moved Permanently',
+            302 => 'Found',
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            500 => 'Internal Server Error',
+            502 => 'Bad Gateway',
+            503 => 'Service Unavailable',
+            default => 'Status',
+        };
+    }
+
+    /**
+     * @param mixed $body
+     */
+    private function closeCopyUrlBody(mixed $body): void
+    {
+        if (is_object($body) && method_exists($body, 'close')) {
+            $body->close();
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $headers
+     */
+    private function httpHeader(array $headers, string $name): ?string
+    {
+        foreach ($headers as $key => $value) {
+            if (strcasecmp((string) $key, $name) === 0) {
+                return is_array($value) ? (string) reset($value) : (string) $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $headers
+     * @return array<string, string>
+     */
+    private function normalizeHttpHeaders(array $headers): array
+    {
+        $normalized = [];
+        foreach ($headers as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $normalized[(string) $key] = (string) $value;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function parseCopyUrlCsv(string $csv): array
+    {
+        $rows = [];
+        foreach (preg_split('/\R/', $csv) ?: [] as $line) {
+            if ($line === '') {
+                $rows[] = [];
+                continue;
+            }
+            $rows[] = array_map(static fn (string $field): string => $field, str_getcsv($line));
+        }
+
+        return $rows;
+    }
+
+    private function readProviderObject(MemoryProvider $provider, string $path, int $offset, ?int $length): string
+    {
+        $reader = $provider->openReader($path, $offset, $length);
+        $bytes = '';
+
+        try {
+            while (true) {
+                $chunk = $reader->read(64 * 1024);
+                if ($chunk === '') {
+                    break;
+                }
+                $bytes .= $chunk;
+            }
+        } finally {
+            if (method_exists($reader, 'close')) {
+                $reader->close();
+            }
+        }
+
+        return $bytes;
+    }
+
+    private function readUploadInput(mixed $input): string
+    {
+        if (is_string($input)) {
+            return $input;
+        }
+
+        if (is_resource($input)) {
+            $bytes = stream_get_contents($input);
+            if ($bytes === false) {
+                throw new \RuntimeException('failed to read upload input');
+            }
+
+            return $bytes;
+        }
+
+        if (!is_object($input) || !method_exists($input, 'read')) {
+            throw new \InvalidArgumentException('upload input must be a string, resource, or object with read()');
+        }
+
+        $bytes = '';
+        try {
+            while (true) {
+                $chunk = $input->read(64 * 1024);
+                if (!is_string($chunk)) {
+                    throw new \RuntimeException('upload input read() must return a string');
+                }
+                if ($chunk === '') {
+                    break;
+                }
+                $bytes .= $chunk;
+            }
+        } finally {
+            if (method_exists($input, 'close')) {
+                $input->close();
+            }
+        }
+
+        return $bytes;
     }
 
     private function downloadComparison(MemoryProvider $source, MemoryProvider $target, string $path): ReaderComparisonResult
@@ -3110,6 +4353,375 @@ final class SyncPlan
         } catch (\RuntimeException) {
             return false;
         }
+    }
+
+    /**
+     * @param array<string, mixed>|null $stats
+     */
+    private function initTouchStats(?array &$stats): void
+    {
+        if ($stats === null) {
+            $stats = [];
+        }
+        $stats += [
+            'remote' => '',
+            'time' => null,
+            'recursive' => false,
+            'directory' => false,
+            'listed' => 0,
+            'touched' => 0,
+            'created' => 0,
+            'notCreated' => 0,
+            'dryRunSkipped' => 0,
+            'errors' => 0,
+            'lastError' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $stats
+     * @return array{created: ?ObjectInfo, touched: list<ObjectInfo>, skipped: bool, directory: bool, time: string}
+     */
+    private function touchOneObject(
+        MemoryProvider $provider,
+        ObjectInfo $object,
+        string $time,
+        bool $dryRun,
+        ?array &$stats,
+    ): array {
+        if ($dryRun) {
+            $stats['dryRunSkipped']++;
+
+            return [
+                'created' => null,
+                'touched' => [],
+                'skipped' => true,
+                'directory' => false,
+                'time' => $time,
+            ];
+        }
+
+        try {
+            $touched = $provider->setListedObjectModTime($object, $time);
+        } catch (\RuntimeException $throwable) {
+            $error = new \RuntimeException('failed to touch: ' . $throwable->getMessage(), 0, $throwable);
+            $this->recordTouchError($stats, $error);
+            throw $error;
+        }
+
+        $stats['touched']++;
+
+        return [
+            'created' => null,
+            'touched' => [$touched],
+            'skipped' => false,
+            'directory' => false,
+            'time' => $time,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $stats
+     * @return list<ObjectInfo>
+     */
+    private function touchDirectory(
+        MemoryProvider $provider,
+        string $remote,
+        string $time,
+        bool $recursive,
+        bool $dryRun,
+        ?FilterRuleSet $filter,
+        ?array &$stats,
+    ): array {
+        $walk = $provider->walk($remote, $recursive ? -1 : 1, true, false);
+        $touched = [];
+
+        foreach ($walk['objects'] as $object) {
+            if ($filter !== null && !$filter->includes($object->path)) {
+                continue;
+            }
+
+            $stats['listed']++;
+            if ($dryRun) {
+                $stats['dryRunSkipped']++;
+                continue;
+            }
+
+            try {
+                $touched[] = $provider->setListedObjectModTime($object, $time);
+                $stats['touched']++;
+            } catch (\RuntimeException $throwable) {
+                $this->recordTouchError(
+                    $stats,
+                    new \RuntimeException('failed to touch: ' . $throwable->getMessage(), 0, $throwable),
+                );
+            }
+        }
+
+        return $touched;
+    }
+
+    /**
+     * @param array<string, mixed>|null $stats
+     */
+    private function recordTouchError(?array &$stats, \Throwable $throwable): void
+    {
+        $this->initTouchStats($stats);
+        $stats['errors']++;
+        $stats['lastError'] = $throwable->getMessage();
+    }
+
+    private function touchTimeFromOptions(
+        ?string $timestamp,
+        bool $localTime,
+        \DateTimeInterface|string|null $now,
+    ): string {
+        if ($timestamp !== null && $timestamp !== '') {
+            try {
+                return $this->parseTouchTimestamp($timestamp, $localTime);
+            } catch (\InvalidArgumentException $throwable) {
+                throw new \RuntimeException('failed to parse timestamp argument: ' . $throwable->getMessage(), 0, $throwable);
+            }
+        }
+
+        return $this->normalizeTouchTime($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
+    }
+
+    private function parseTouchTimestamp(string $timestamp, bool $localTime): string
+    {
+        if (preg_match('/^\d{6}$/', $timestamp) === 1) {
+            $year = (int) substr($timestamp, 0, 2);
+            $year += $year >= 69 ? 1900 : 2000;
+            $month = (int) substr($timestamp, 2, 2);
+            $day = (int) substr($timestamp, 4, 2);
+            if (!checkdate($month, $day, $year)) {
+                throw new \InvalidArgumentException('invalid YYMMDD timestamp');
+            }
+
+            return $this->normalizeTouchTimeFromParts($year, $month, $day, 0, 0, 0, '', $localTime);
+        }
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?$/', $timestamp, $match) !== 1) {
+            throw new \InvalidArgumentException('invalid timestamp layout');
+        }
+
+        $year = (int) $match[1];
+        $month = (int) $match[2];
+        $day = (int) $match[3];
+        $hour = (int) $match[4];
+        $minute = (int) $match[5];
+        $second = (int) $match[6];
+        if (
+            !checkdate($month, $day, $year)
+            || $hour > 23
+            || $minute > 59
+            || $second > 59
+        ) {
+            throw new \InvalidArgumentException('invalid timestamp value');
+        }
+
+        return $this->normalizeTouchTimeFromParts(
+            $year,
+            $month,
+            $day,
+            $hour,
+            $minute,
+            $second,
+            $match[7] ?? '',
+            $localTime,
+        );
+    }
+
+    private function normalizeTouchTimeFromParts(
+        int $year,
+        int $month,
+        int $day,
+        int $hour,
+        int $minute,
+        int $second,
+        string $fraction,
+        bool $localTime,
+    ): string {
+        if (!$localTime) {
+            return sprintf(
+                '%04d-%02d-%02dT%02d:%02d:%02d%sZ',
+                $year,
+                $month,
+                $day,
+                $hour,
+                $minute,
+                $second,
+                $fraction,
+            );
+        }
+
+        $micros = substr(str_pad(ltrim($fraction, '.'), 6, '0'), 0, 6);
+        $date = \DateTimeImmutable::createFromFormat(
+            '!Y-m-d H:i:s.u',
+            sprintf('%04d-%02d-%02d %02d:%02d:%02d.%s', $year, $month, $day, $hour, $minute, $second, $micros),
+            new \DateTimeZone(date_default_timezone_get()),
+        );
+        if (!$date instanceof \DateTimeImmutable) {
+            throw new \InvalidArgumentException('invalid local timestamp value');
+        }
+
+        return $this->normalizeTouchTime($date);
+    }
+
+    private function normalizeTouchTime(\DateTimeInterface|string $time): string
+    {
+        if (is_string($time)) {
+            if ($time === '') {
+                throw new \InvalidArgumentException('touch time cannot be empty');
+            }
+
+            return $time;
+        }
+
+        $date = \DateTimeImmutable::createFromInterface($time)
+            ->setTimezone(new \DateTimeZone('UTC'));
+        $base = $date->format('Y-m-d\TH:i:s');
+        $micros = $date->format('u');
+
+        return $micros === '000000'
+            ? $base . 'Z'
+            : $base . '.' . rtrim($micros, '0') . 'Z';
+    }
+
+    /**
+     * @param array<string, scalar|null> $metadata
+     * @return array<string, string>
+     */
+    private function normalizeTouchMetadata(array $metadata): array
+    {
+        $normalized = [];
+        foreach ($metadata as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+            $normalized[(string) $key] = (string) $value;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array{deletedDirs?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int}|null $stats
+     */
+    private function initRmdirStats(?array &$stats): void
+    {
+        if ($stats === null) {
+            $stats = [];
+        }
+        $stats += [
+            'deletedDirs' => 0,
+            'errors' => 0,
+            'lastError' => null,
+            'dryRunSkipped' => 0,
+        ];
+    }
+
+    /**
+     * @param array{deletedDirs?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int}|null $stats
+     */
+    private function recordRmdirError(?array &$stats, \Throwable $throwable): void
+    {
+        $this->initRmdirStats($stats);
+        $stats['errors']++;
+        $stats['lastError'] = $throwable->getMessage();
+    }
+
+    /**
+     * @param array{deletedDirs?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int, dryRunObjectSkipped?: int, directPurgeAttempts?: int}|null $stats
+     */
+    private function initPurgeStats(?array &$stats): void
+    {
+        $this->initRmdirStats($stats);
+        $stats += [
+            'deletes' => 0,
+            'deleteBytes' => 0,
+            'dryRunObjectSkipped' => 0,
+            'directPurgeAttempts' => 0,
+        ];
+    }
+
+    /**
+     * @param array{deletedDirs?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int, dryRunObjectSkipped?: int, directPurgeAttempts?: int}|null $stats
+     */
+    private function recordPurgeError(?array &$stats, \Throwable $throwable): void
+    {
+        $this->initPurgeStats($stats);
+        $stats['errors']++;
+        $stats['lastError'] = $throwable->getMessage();
+    }
+
+    /**
+     * @param array{cleanupCalls?: int, dryRunSkipped?: int, cleanedObjects?: int, cleanedDirectories?: int, errors?: int, lastError?: ?string}|null $stats
+     */
+    private function initCleanUpStats(?array &$stats): void
+    {
+        if ($stats === null) {
+            $stats = [];
+        }
+        $stats += [
+            'cleanupCalls' => 0,
+            'dryRunSkipped' => 0,
+            'cleanedObjects' => 0,
+            'cleanedDirectories' => 0,
+            'errors' => 0,
+            'lastError' => null,
+        ];
+    }
+
+    /**
+     * @param array{cleanupCalls?: int, dryRunSkipped?: int, cleanedObjects?: int, cleanedDirectories?: int, errors?: int, lastError?: ?string}|null $stats
+     */
+    private function recordCleanUpError(?array &$stats, \Throwable $throwable): void
+    {
+        $this->initCleanUpStats($stats);
+        $stats['errors']++;
+        $stats['lastError'] = $throwable->getMessage();
+    }
+
+    /**
+     * @param array{deletedDirs?: int, deletes?: int, deleteBytes?: int, errors?: int, lastError?: ?string, dryRunSkipped?: int, dryRunObjectSkipped?: int, directPurgeAttempts?: int}|null $stats
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>}
+     */
+    private function fallbackPurge(
+        MemoryProvider $provider,
+        string $dir,
+        bool $dryRun,
+        ?array &$stats,
+    ): array {
+        $dir = self::normalizePath($dir);
+        $objects = $provider->walk($dir, -1, true, false)['objects'];
+        $deletedObjects = [];
+
+        foreach ($objects as $object) {
+            $stats['deletes']++;
+            $stats['deleteBytes'] += max(0, $object->size);
+            if ($dryRun) {
+                $stats['dryRunObjectSkipped']++;
+                continue;
+            }
+
+            $deletedObjects[] = $provider->deleteListedObject($object);
+        }
+
+        $removedDirectories = $this->removeEmptyDirectories(
+            $provider,
+            $dir,
+            false,
+            null,
+            -1,
+            $dryRun,
+            $stats,
+        );
+
+        return [
+            'objects' => $deletedObjects,
+            'directories' => $removedDirectories,
+        ];
     }
 
     private function applyDirectoryUpdate(MemoryProvider $target, ObjectInfo $sourceDir, bool $setDirMetadata): ObjectInfo
@@ -3666,6 +5278,20 @@ final class SyncPlan
     private static function normalizePath(string $path): string
     {
         return trim(preg_replace('#/+#', '/', $path) ?? $path, '/');
+    }
+
+    private static function joinPath(string ...$segments): string
+    {
+        $joined = '';
+        foreach ($segments as $segment) {
+            $segment = self::normalizePath($segment);
+            if ($segment === '') {
+                continue;
+            }
+            $joined = $joined === '' ? $segment : $joined . '/' . $segment;
+        }
+
+        return $joined;
     }
 
     private static function pathUnderPrefix(string $path, string $prefix): bool

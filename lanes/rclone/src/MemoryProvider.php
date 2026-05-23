@@ -10,6 +10,8 @@ final class MemoryProvider
     public const ERROR_CANT_COPY = "can't copy object - incompatible remotes";
     public const ERROR_CANT_DIR_MOVE = "can't move directory - incompatible remotes";
     public const ERROR_DIR_EXISTS = "can't copy directory - destination already exists";
+    public const ERROR_CANT_PURGE = "can't purge directory";
+    public const ERROR_CANT_CLEANUP = "memory provider doesn't support cleanup";
 
     /**
      * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}>
@@ -60,6 +62,28 @@ final class MemoryProvider
      */
     private array $publicLinks = [];
 
+    /**
+     * @var array<string, \Throwable>
+     */
+    private array $deleteErrors = [];
+
+    /**
+     * @var array<string, \Throwable>
+     */
+    private array $setModTimeErrors = [];
+
+    /**
+     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}>
+     */
+    private array $trashObjects = [];
+
+    /**
+     * @var array<string, array{modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string}>
+     */
+    private array $trashDirectories = [];
+
+    private int $cleanUpCalls = 0;
+
     private readonly HashSet $supportedHashes;
     private readonly bool $serverSideMove;
     private readonly bool $serverSideCopy;
@@ -79,6 +103,10 @@ final class MemoryProvider
         ?string $serverSideDirMoveError = null,
         private readonly bool $setTier = true,
         private readonly bool $getTier = true,
+        private readonly bool $directPurge = true,
+        private readonly ?string $directPurgeError = null,
+        private readonly bool $cleanUp = false,
+        private readonly ?string $cleanUpError = null,
     )
     {
         $this->supportedHashes = $supportedHashes === null
@@ -246,6 +274,16 @@ final class MemoryProvider
         return $this->getTier;
     }
 
+    public function supportsDirectPurge(): bool
+    {
+        return $this->directPurge;
+    }
+
+    public function supportsCleanUp(): bool
+    {
+        return $this->cleanUp;
+    }
+
     public function get(string $path): string
     {
         return $this->entry($path)['bytes'];
@@ -305,6 +343,7 @@ final class MemoryProvider
     {
         $path = $this->canonicalPath($path);
         $info = $this->info($path);
+        $this->throwDeleteError($path);
         $this->forget($path);
 
         return $info;
@@ -313,6 +352,7 @@ final class MemoryProvider
     public function deleteListedObject(ObjectInfo $info): ObjectInfo
     {
         if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            $this->throwDeleteError($this->duplicateObjects[$info->providerKey]['path']);
             $deleted = $this->duplicateInfo($info->providerKey);
             unset($this->duplicateObjects[$info->providerKey]);
 
@@ -320,6 +360,62 @@ final class MemoryProvider
         }
 
         return $this->delete($info->path);
+    }
+
+    public function setDeleteError(string $path, \Throwable|string|null $error): void
+    {
+        $path = $this->normalize($path);
+        if ($error === null) {
+            unset($this->deleteErrors[$path]);
+
+            return;
+        }
+
+        $this->deleteErrors[$path] = $this->normalizeThrowable($error);
+    }
+
+    public function setModTimeError(string $path, \Throwable|string|null $error): void
+    {
+        $path = $this->normalize($path);
+        if ($error === null) {
+            unset($this->setModTimeErrors[$path]);
+
+            return;
+        }
+
+        $this->setModTimeErrors[$path] = $this->normalizeThrowable($error);
+    }
+
+    /**
+     * Add a provider-side trash or old-version object. Cleanup candidates are
+     * hidden from ordinary List/Get calls, matching remotes where `cleanup`
+     * clears backend trash outside the visible tree.
+     *
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>, closeError?: \Throwable|string|null} $options
+     */
+    public function putTrashedObject(string $path, string $bytes, array $options = []): ObjectInfo
+    {
+        $path = $this->normalize($path);
+        $this->trashObjects[$path] = $this->objectEntry($bytes, $options);
+
+        return $this->trashObjectInfo($path);
+    }
+
+    /**
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null} $options
+     */
+    public function mkdirTrashedDirectory(string $path, array $options = []): ObjectInfo
+    {
+        $path = $this->normalize($path);
+        $this->trashDirectories[$path] = [
+            'modTime' => $this->normalizeModTime($options['modTime'] ?? null),
+            'mimeType' => $options['mimeType'] ?? null,
+            'metadata' => $options['metadata'] ?? [],
+            'id' => $options['id'] ?? null,
+            'parentId' => $options['parentId'] ?? null,
+        ];
+
+        return $this->trashDirectoryInfo($path);
     }
 
     public function renameListedObject(ObjectInfo $info, string $targetPath): ObjectInfo
@@ -685,6 +781,11 @@ final class MemoryProvider
      */
     public function purge(string $dir = ''): array
     {
+        if (!$this->directPurge) {
+            throw new \RuntimeException(self::ERROR_CANT_PURGE);
+        }
+        $this->throwConfiguredError($this->directPurgeError);
+
         $dir = $this->canonicalDirectoryPath($dir);
         if (!$this->directoryExists($dir)) {
             throw new \RuntimeException("Directory not found: {$dir}");
@@ -718,6 +819,70 @@ final class MemoryProvider
             'objects' => $objects,
             'directories' => $directories,
         ];
+    }
+
+    /**
+     * Model fs.CleanUpper. The feature empties provider trash or old versions
+     * without touching the ordinary visible listing.
+     *
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>}
+     */
+    public function cleanUp(): array
+    {
+        if (!$this->cleanUp) {
+            throw new \RuntimeException(self::ERROR_CANT_CLEANUP);
+        }
+        $this->cleanUpCalls++;
+        $this->throwConfiguredError($this->cleanUpError);
+
+        $objects = $this->trashedObjects();
+        $directories = $this->trashedDirectories();
+        usort(
+            $directories,
+            static fn (ObjectInfo $a, ObjectInfo $b): int => self::pathDepth($b->path) <=> self::pathDepth($a->path)
+                ?: $b->path <=> $a->path,
+        );
+
+        $this->trashObjects = [];
+        $this->trashDirectories = [];
+
+        return [
+            'objects' => $objects,
+            'directories' => $directories,
+        ];
+    }
+
+    public function cleanUpCalls(): int
+    {
+        return $this->cleanUpCalls;
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    public function trashedObjects(): array
+    {
+        $objects = [];
+        foreach (array_keys($this->trashObjects) as $path) {
+            $objects[] = $this->trashObjectInfo($path);
+        }
+        usort($objects, static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path);
+
+        return $objects;
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    public function trashedDirectories(): array
+    {
+        $directories = [];
+        foreach (array_keys($this->trashDirectories) as $path) {
+            $directories[] = $this->trashDirectoryInfo($path);
+        }
+        usort($directories, static fn (ObjectInfo $a, ObjectInfo $b): int => $a->path <=> $b->path);
+
+        return $directories;
     }
 
     /**
@@ -1041,6 +1206,19 @@ final class MemoryProvider
         return $this->setObjectTier($info->path, $tier);
     }
 
+    public function setListedObjectModTime(ObjectInfo $info, \DateTimeInterface|string|null $modTime): ObjectInfo
+    {
+        if ($info->providerKey !== null && isset($this->duplicateObjects[$info->providerKey])) {
+            $path = $this->duplicateObjects[$info->providerKey]['path'];
+            $this->throwSetModTimeError($path);
+            $this->duplicateObjects[$info->providerKey]['entry']['modTime'] = $this->normalizeModTime($modTime);
+
+            return $this->duplicateInfo($info->providerKey);
+        }
+
+        return $this->setModTime($info->path, $modTime);
+    }
+
     public function getObjectTier(string $path): string
     {
         if (!$this->getTier) {
@@ -1101,6 +1279,8 @@ final class MemoryProvider
     public function setModTime(string $path, \DateTimeInterface|string|null $modTime): ObjectInfo
     {
         $path = $this->canonicalPath($path);
+        $this->entry($path);
+        $this->throwSetModTimeError($path);
         $this->objects[$path]['modTime'] = $this->normalizeModTime($modTime);
 
         return $this->info($path);
@@ -1421,6 +1601,53 @@ final class MemoryProvider
         );
     }
 
+    private function trashObjectInfo(string $path): ObjectInfo
+    {
+        if (!isset($this->trashObjects[$path])) {
+            throw new \RuntimeException("Trash object not found: {$path}");
+        }
+
+        $entry = $this->trashObjects[$path];
+        $bytes = $entry['bytes'];
+
+        return new ObjectInfo(
+            $path,
+            $entry['unknownSize'] ? -1 : strlen($bytes),
+            hash('sha256', $bytes),
+            $entry['modTime'],
+            $entry['mimeType'],
+            $entry['metadata'],
+            $entry['id'],
+            $entry['tier'],
+            $entry['hashes'],
+            'trash:' . $path,
+            $entry['parentId'],
+        );
+    }
+
+    private function trashDirectoryInfo(string $path): ObjectInfo
+    {
+        if (!isset($this->trashDirectories[$path])) {
+            throw new \RuntimeException("Trash directory not found: {$path}");
+        }
+
+        $entry = $this->trashDirectories[$path];
+
+        return new ObjectInfo(
+            $path,
+            -1,
+            '',
+            $entry['modTime'],
+            $entry['mimeType'],
+            $entry['metadata'],
+            $entry['id'],
+            null,
+            [],
+            'trash-dir:' . $path,
+            $entry['parentId'],
+        );
+    }
+
     private function duplicateDirectoryInfo(string $key): ObjectInfo
     {
         if (!isset($this->duplicateDirectories[$key])) {
@@ -1724,6 +1951,22 @@ final class MemoryProvider
         }
     }
 
+    private function throwDeleteError(string $path): void
+    {
+        $path = $this->canonicalPath($path);
+        if (isset($this->deleteErrors[$path])) {
+            throw $this->deleteErrors[$path];
+        }
+    }
+
+    private function throwSetModTimeError(string $path): void
+    {
+        $path = $this->canonicalPath($path);
+        if (isset($this->setModTimeErrors[$path])) {
+            throw $this->setModTimeErrors[$path];
+        }
+    }
+
     public static function isCantMoveException(\Throwable $throwable): bool
     {
         return $throwable->getMessage() === self::ERROR_CANT_MOVE;
@@ -1737,6 +1980,11 @@ final class MemoryProvider
     public static function isCantDirMoveException(\Throwable $throwable): bool
     {
         return $throwable->getMessage() === self::ERROR_CANT_DIR_MOVE;
+    }
+
+    public static function isCantPurgeException(\Throwable $throwable): bool
+    {
+        return $throwable->getMessage() === self::ERROR_CANT_PURGE;
     }
 
     public static function isDirExistsException(\Throwable $throwable): bool
