@@ -401,7 +401,7 @@ final class ArticleExtractor
 
     private function canFlattenBlockContainer(\DOMElement $element): bool
     {
-        if (!in_array(strtolower($element->tagName), ['article', 'div', 'main', 'section'], true)) {
+        if (!in_array(strtolower($element->tagName), ['article', 'div', 'header', 'main', 'section'], true)) {
             return false;
         }
 
@@ -427,7 +427,7 @@ final class ArticleExtractor
     private function isWordPressBlockElement(\DOMElement $element): bool
     {
         return preg_match('/^h[1-6]$/', strtolower($element->tagName)) === 1
-            || in_array(strtolower($element->tagName), ['article', 'blockquote', 'div', 'figure', 'hr', 'img', 'ol', 'p', 'pre', 'section', 'table', 'ul'], true);
+            || in_array(strtolower($element->tagName), ['article', 'blockquote', 'div', 'figure', 'header', 'hr', 'img', 'ol', 'p', 'pre', 'section', 'table', 'ul'], true);
     }
 
     /**
@@ -1106,12 +1106,14 @@ final class ArticleExtractor
 
     private function fixLazyImages(\DOMXPath $xpath): void
     {
-        foreach ($xpath->query('//img') ?: [] as $node) {
+        foreach ($xpath->query('//img|//picture|//figure') ?: [] as $node) {
             if (!$node instanceof \DOMElement) {
                 continue;
             }
 
-            $this->removeTinyDataUriPlaceholder($node);
+            if (strtolower($node->tagName) === 'img') {
+                $this->removeTinyDataUriPlaceholder($node);
+            }
 
             $class = strtolower($node->getAttribute('class'));
             $hasUsableSource = $this->hasLoadedImageSource($node) && !str_contains($class, 'lazy');
@@ -1127,15 +1129,39 @@ final class ArticleExtractor
 
                 $value = trim($attribute->value);
                 if ($this->looksLikeSrcset($value)) {
-                    $this->setImageAttribute($node, 'srcset', $value);
+                    $this->setLazyImageSourceAttribute($node, 'srcset', $value);
                     continue;
                 }
 
                 if ($this->looksLikeImageUrl($value)) {
-                    $this->setImageAttribute($node, 'src', $value);
+                    $this->setLazyImageSourceAttribute($node, 'src', $value);
                 }
             }
         }
+    }
+
+    private function setLazyImageSourceAttribute(\DOMElement $node, string $attribute, string $value): void
+    {
+        $tagName = strtolower($node->tagName);
+        if ($tagName === 'img' || $tagName === 'picture') {
+            $this->setImageAttribute($node, $attribute, $value);
+            return;
+        }
+
+        if ($tagName !== 'figure'
+            || $node->getElementsByTagName('img')->length > 0
+            || $node->getElementsByTagName('picture')->length > 0) {
+            return;
+        }
+
+        $document = $node->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return;
+        }
+
+        $image = $document->createElement('img');
+        $image->setAttribute($attribute, $value);
+        $node->appendChild($image);
     }
 
     private function removeTinyDataUriPlaceholder(\DOMElement $image): void
@@ -1661,6 +1687,10 @@ final class ArticleExtractor
             return true;
         }
 
+        if (strcasecmp($text, 'Advertisement') === 0) {
+            return true;
+        }
+
         if (mb_strlen($text) > 180) {
             return false;
         }
@@ -1676,7 +1706,7 @@ final class ArticleExtractor
             return true;
         }
 
-        return $imageCount > 0 && $this->linkDensity($node) >= 0.5 && ($linkCount >= 2 || $imageCount >= 2);
+        return $imageCount > 0 && $linkCount > 0 && $this->linkDensity($node) >= 0.5;
     }
 
     private function isTrailingSyndicationSourceNote(string $text): bool
@@ -2047,6 +2077,7 @@ final class ArticleExtractor
         }
         $this->unwrapTransparentSectionWrappers($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
+        $this->removeTrailingArticleChrome($scope);
         $this->insertTextBoundaryWhitespace($scope);
         $this->trimBoundaryWhitespace($scope);
 

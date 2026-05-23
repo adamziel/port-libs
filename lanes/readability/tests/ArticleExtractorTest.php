@@ -771,6 +771,40 @@ return [
         $t->same(false, str_contains($article->contentHtml, 'story-ad'), 'hidden NYT story ad containers should be removed');
         $t->same(false, str_contains($article->text, 'Justice Department Toughened Approach'), 'related story rail should not enter imported article text');
     },
+    'maps Mozilla nytimes-3 fixture with figure itemid lazy images and related-card cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/nytimes-3';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(['story'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/article/@id'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//figure/@itemid'), $attributeValues($article->contentHtml, '//figure/@itemid'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//figcaption')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//figcaption')),
+            'NYT captions and credit text should survive the figure itemid lazy-image repair',
+        );
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(count($attributeValues($expected, '//h2')), count($attributeValues($article->contentHtml, '//h2')));
+        $t->same(7, substr_count($blocks, '<!-- wp:image -->'), 'NYT fixture figures should serialize as image blocks after itemid source repair');
+        $t->contains('Workers learning how to fix water main breaks', $blocks);
+        $t->same(false, str_contains($article->text, 'Advertisement'), 'NYT bottom ad slug should not enter article text');
+        $t->same(false, str_contains($article->text, 'Why Are New York City’s Streets Always Under Construction?'), 'related interactive card should not enter article text');
+        $t->same(false, str_contains($article->contentHtml, 'nyc101-01-videoLarge'), 'related-card image should not survive as migrated media');
+    },
     'maps Mozilla telegraph fixture with text sections and publisher media chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/telegraph';
         $source = (string) file_get_contents($fixture . '/source.html');
