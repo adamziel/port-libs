@@ -1500,7 +1500,311 @@ Verification for this batch:
   `php tools/run-tests.php`; it passed 204 files, 23532 assertions, and 0
   failures.
 
+## 2026-05-23 Folder Scan Service Persistence
+
+Targeted upstream reads covered `lib/model/model.go` `ScanFolders`,
+`ScanFolder`, and `ScanFolderSubdirs`, `lib/model/folder.go` `Scan`,
+`doInSync`, `scanSubdirs`, `newScanBatch`, `Flush`, `CurrentFiler`, and
+`clearScanErrors`, plus upstream tests `TestIssue3804`, `TestIssue3829`, and
+`TestFolderAPIErrors`. Focused upstream evidence passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/model 0.046s`.
+
+Native PHP now adds `FolderScanService`, `FolderScanCheckpointStore`, and
+`FolderScanCheckpointSnapshot`. The service wraps `FileInfoScanner` with a
+folder-scoped checkpoint store, resumes cancelled scans with the checkpoint's
+current files and resume subs, refreshes a bounded TTL on every successful
+publish, expires stale snapshots before reuse, and rejects stale writes through
+revision-based conflict checks. The WordPress example
+`wordpress-folder-scan-service.php` shows a media scan cancelled after one
+hashed upload, resumed by a later request, and exposed as a route payload with
+revision, update time, expiry, attempts, completed paths, and merged progress
+events.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanCheckpointConflictException.php`
+  passed.
+- `php -l lanes/syncthing/src/FolderScanCheckpointSnapshot.php` passed.
+- `php -l lanes/syncthing/src/FolderScanCheckpointStore.php` passed.
+- `php -l lanes/syncthing/src/FolderScanService.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanServiceTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-service.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanServiceTest.php`
+  passed 1 file, 36 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php lanes/syncthing/tests/FolderScanEventCollectorTest.php lanes/syncthing/tests/FolderScanCheckpointTest.php lanes/syncthing/tests/FolderScanServiceTest.php`
+  passed 4 files, 250 assertions, and 0 failures.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.046s`.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 42 files, 2252
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-service.php` ran
+  successfully and reported a cancelled revision 1 status plus a completed
+  revision 2 status with refreshed expiry.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned active root harness PID `2836374`; owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 2836374` showed
+  `2836374 claude 2836373 00:07 R php tools/run-tests.php`. No duplicate root
+  run was started; root result remains pending for the supervisor/integrator.
+
+## 2026-05-23 WordPress Option Checkpoint Store
+
+Targeted upstream evidence reused the model scan API boundary for synchronous
+folder scan publication: `ScanFolders`, `ScanFolder`, `ScanFolderSubdirs`,
+folder `Scan`, `doInSync`, `scanSubdirs`, scan batch flush/update boundaries,
+`CurrentFiler`, and `clearScanErrors`, plus upstream tests `TestIssue3804`,
+`TestIssue3829`, and `TestFolderAPIErrors`. Refreshed focused upstream evidence
+passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/model 0.032s`.
+
+Native PHP now adds `FolderScanCheckpointRepository` and
+`WordPressOptionCheckpointStore`. `FolderScanService` accepts the repository
+interface, so the same scan publish path can use the existing in-memory store or
+a WordPress option-style store. The option store persists schema-versioned
+checkpoint snapshots, preserves full `FileInfo` resume metadata, deletes expired
+options before reuse, hashes unsafe or long folder IDs into stable option names,
+and can use an optional compare-and-swap callback to turn concurrent writes into
+`FolderScanCheckpointConflictException`. The WordPress example
+`wordpress-folder-scan-option-store.php` shows a media scan cancelled after one
+hashed upload, reloaded by a later request through option storage, and resumed as
+a revision-2 REST-style status payload.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanCheckpointRepository.php` passed.
+- `php -l lanes/syncthing/src/FolderScanCheckpointStore.php` passed.
+- `php -l lanes/syncthing/src/FolderScanService.php` passed.
+- `php -l lanes/syncthing/src/WordPressOptionCheckpointStore.php` passed.
+- `php -l lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-option-store.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php`
+  passed 1 file, 23 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanServiceTest.php lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php`
+  passed 2 files, 59 assertions, and 0 failures.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.032s`.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 43 files, 2275
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-option-store.php` ran
+  successfully and reported option storage with stored revision 2.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active exact root harness, so this worker ran
+  `php tools/run-tests.php`; it passed 207 files, 23945 assertions, and 0
+  failures.
+
+## 2026-05-23 SQLite Checkpoint Store
+
+Targeted upstream evidence reused the synchronous model scan publication
+boundary and refreshed it in the hydrated local-capacity worktree:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+passed with `ok github.com/syncthing/syncthing/lib/model 0.033s`. A bounded
+SQLite DB runner also passed:
+`go test ./internal/db/sqlite -run '^(TestBasics|TestNeed)$' -count=1` with
+`ok github.com/syncthing/syncthing/internal/db/sqlite 0.042s`. This is focused
+package evidence for the scan API and durable database boundary, not full
+`go test ./...` parity.
+
+Native PHP now adds `FolderScanCheckpointPayloadCodec` and
+`SqliteCheckpointStore`. The SQLite store persists checkpoint snapshots as
+schema-versioned JSON, keeps revision/update/expiry as row columns, deletes
+expired rows before reuse, rejects stale revisions with
+`FolderScanCheckpointConflictException`, lists unexpired folder snapshots in a
+stable order, and reopens the same checkpoint database across PHP requests.
+`wordpress-folder-scan-sqlite-store.php` shows a local-first WordPress media
+scan cancelled after one hashed upload, then resumed by a later request through
+a file-backed SQLite checkpoint database.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanCheckpointPayloadCodec.php` passed.
+- `php -l lanes/syncthing/src/SqliteCheckpointStore.php` passed.
+- `php -l lanes/syncthing/tests/SqliteCheckpointStoreTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-sqlite-store.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/SqliteCheckpointStoreTest.php`
+  passed 1 file, 24 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanServiceTest.php lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php lanes/syncthing/tests/SqliteCheckpointStoreTest.php`
+  passed 3 files, 83 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-sqlite-store.php` ran
+  successfully and reported stored revision 2 from the SQLite row.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.033s`.
+- `go test ./internal/db/sqlite -run '^(TestBasics|TestNeed)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/internal/db/sqlite 0.042s`.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 44 files, 2299
+  assertions, and 0 failures.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned active root harness PIDs `2992314` and `2992617`. Owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 2992314,2992617` showed
+  `2992314 claude 2984797 00:24 Rs php tools/run-tests.php` and
+  `2992617 claude 2992616 00:11 S php tools/run-tests.php`. No duplicate root
+  run was started; root result remains pending for the supervisor/integrator.
+
+## 2026-05-23 Multi-Folder Scan Scheduler
+
+Targeted upstream evidence covered `model.ScanFolders`, `ScanFolder`,
+`ScanFolderSubdirs`, folder `Scan`, and `doInSync` from `lib/model/model.go`
+and `lib/model/folder.go`: Syncthing captures the configured folder IDs, scans
+each folder through the same synchronous runner boundary, records only folders
+that return errors in the aggregate map, and rejects paused or missing folders
+before invoking the folder runner. Refreshed focused upstream runner evidence:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+passed with `ok github.com/syncthing/syncthing/lib/model 0.039s`. Full
+`go test ./...` remains unexecuted for the recorded blob-filter/cache/budget
+reasons.
+
+Native PHP now adds `FolderScanScheduler` and `FolderScanSchedulerResult`.
+The scheduler registers multiple `FolderScanService` instances, scans every
+registered folder while collecting per-folder errors, preserves paused/missing
+folder boundaries, forwards slash-normalized and empty subdir scans, and lets
+each folder service keep its own checkpoint revision, expiry, and stale-publish
+conflict behavior. `wordpress-multi-folder-scan-scheduler.php` shows a REST
+payload for local-first WordPress media and content folders where the first scan
+publishes both folders and a later scan reports a paused content folder while
+still refreshing the media checkpoint.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanScheduler.php` passed.
+- `php -l lanes/syncthing/src/FolderScanSchedulerResult.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-multi-folder-scan-scheduler.php`
+  passed.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.039s`.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanSchedulerTest.php`
+  passed 1 file, 35 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanSchedulerTest.php lanes/syncthing/tests/FolderScanServiceTest.php lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php lanes/syncthing/tests/SqliteCheckpointStoreTest.php`
+  passed 4 files, 118 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-multi-folder-scan-scheduler.php` ran
+  successfully and reported a two-folder REST payload with one paused-folder
+  error on the second scan.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 45 files, 2334
+  assertions, and 0 failures.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned active root harness PIDs `3056982` and `3057590`. Owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 3056982,3057590` showed
+  `3056982 claude 2996694 00:22 Rs php tools/run-tests.php` and
+  `3057590 claude 2989965 00:20 Ss php tools/run-tests.php`. No duplicate root
+  run was started; root result remains pending for the supervisor/integrator.
+- A later pre-root check returned no active exact root harness, so this worker
+  ran `php tools/run-tests.php`. The exact root run exited 1 with 213 files,
+  23462 assertions, and 192 failures in the moving aggregate. A follow-up
+  failure-header capture rerun exited 1 with 213 files, 24502 assertions, and
+  5 failures, all in `lanes/rclone/tests/OneDriveListRTest.php`. The focused
+  Rclone file then passed on its own with 1 file, 25 assertions, and 0 failures.
+  A later exact root sample exited 1 with 213 files, 24565 assertions, and 1
+  failure. The final root sample exited 0 with 213 files, 24572 assertions, and
+  0 failures.
+
+## 2026-05-23 Folder Scan API Coordinator
+
+Targeted upstream evidence covered `lib/api/api.go` `postDBScan`, which maps a
+non-empty `folder` query to `ScanFolderSubdirs(folder, subs)` and falls back to
+`ScanFolders()` when no folder is supplied; `lib/rc/rc.go` `Rescan` and
+`RescanSubs`, which send `folder` plus repeated `sub` query values; and
+`lib/model/model.go` `ScanFolders`/`ScanFolderSubdirs`, which collect
+per-folder errors and reject paused/missing folders before invoking the folder
+runner. Refreshed focused upstream evidence passed in the hydrated local
+worktree:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/model 0.039s`. Full
+`go test ./...` remains unexecuted for the recorded blob-filter/cache/budget
+reasons.
+
+Native PHP now adds `FolderScanApiCoordinator` and `FolderScanApiResponse`.
+The coordinator accepts WordPress REST-style payloads for all-folder scans,
+single-folder scans with `sub`/`subs`/`subdirs`, and selected folder maps,
+normalizes subdir inputs using the scanner-compatible slash/dot/traversal
+rules, rejects unknown folder IDs before scanning, preserves per-folder paused
+errors as HTTP-style partial responses, and recursively redacts absolute local
+paths from status payloads before returning them to a REST route.
+`wordpress-folder-scan-api-coordinator.php` shows a media/content scan request
+where a paused content folder returns a 207 partial response while the media
+checkpoint still publishes.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanApiCoordinator.php` passed.
+- `php -l lanes/syncthing/src/FolderScanApiResponse.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanApiCoordinatorTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-api-coordinator.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanApiCoordinatorTest.php`
+  passed 1 file, 32 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanApiCoordinatorTest.php lanes/syncthing/tests/FolderScanSchedulerTest.php lanes/syncthing/tests/FolderScanServiceTest.php lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php lanes/syncthing/tests/SqliteCheckpointStoreTest.php lanes/syncthing/tests/FileInfoScannerTest.php lanes/syncthing/tests/FolderScanCheckpointTest.php lanes/syncthing/tests/FolderScanEventCollectorTest.php`
+  passed 8 files, 364 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-api-coordinator.php` ran
+  successfully and reported a 207 partial REST payload with one paused-folder
+  error.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 46 files, 2366
+  assertions, and 0 failures.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.039s`.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned active root harness PID `3225311`. Owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 3225311` showed
+  `3225311 claude 3225310 00:28 R php tools/run-tests.php`. No duplicate root
+  run was started; root result remains pending for the supervisor/integrator.
+
+## 2026-05-23 Folder Scan API Request Queue
+
+Targeted upstream evidence for this slice extends the scan API coordinator
+mapping with `lib/model/folder.go`'s one-buffered scan scheduling boundaries:
+`ScheduleScan` and `SchedulePull` enqueue one notification while the folder is
+busy, and exported `Scan` runs through the synchronous `doInSync` folder runner
+before scanning subdirectories. The queue also reuses the existing upstream
+evidence for `postDBScan`, `Rescan`/`RescanSubs`, `ScanFolders`,
+`ScanFolderSubdirs`, `TestIssue3804`, `TestIssue3829`,
+`TestFolderAPIErrors`, and `TestPausedFolders`. Refreshed focused upstream
+evidence passed in the hydrated local worktree:
+`go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/model 0.041s`. Full
+`go test ./...` remains unexecuted for the recorded blob-filter/cache/budget
+reasons.
+
+Native PHP now adds `FolderScanApiRequestQueue`. It accepts WordPress REST-style
+scan payloads, uses `FolderScanApiCoordinator` request normalization for the
+accepted request surface, coalesces matching pending or running folder/subdir
+requests, bounds pending work, exposes pending/running/completed status, records
+the completed coordinator response, and invokes the coordinator only after a
+queued request is explicitly started. `wordpress-folder-scan-api-queue.php`
+shows duplicate media/content scan requests coalescing into one queued worker
+item before publishing both checkpoints.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanApiCoordinator.php` passed.
+- `php -l lanes/syncthing/src/FolderScanApiRequestQueue.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanApiRequestQueueTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-api-queue.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanApiRequestQueueTest.php`
+  passed 1 file, 43 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanApiRequestQueueTest.php lanes/syncthing/tests/FolderScanApiCoordinatorTest.php lanes/syncthing/tests/FolderScanSchedulerTest.php lanes/syncthing/tests/FolderScanServiceTest.php lanes/syncthing/tests/FolderScanCheckpointTest.php lanes/syncthing/tests/WordPressOptionCheckpointStoreTest.php lanes/syncthing/tests/SqliteCheckpointStoreTest.php`
+  passed 7 files, 226 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-api-queue.php` ran
+  successfully and reported queued, coalesced, running, and completed REST-style
+  statuses.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 47 files, 2409
+  assertions, and 0 failures.
+- `go test ./lib/model -run '^(TestIssue3804|TestIssue3829|TestFolderAPIErrors|TestPausedFolders)$' -count=1`
+  passed with `ok github.com/syncthing/syncthing/lib/model 0.041s`.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active exact root harness. `php tools/run-tests.php` then briefly
+  waited on the root lock instead of running concurrently and completed with
+  217 files, 25059 assertions, and 0 failures. A later post-run exact sample
+  observed another active root harness PID `3310538`; owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 3310538` showed
+  `3310538 claude 3226739 00:11 Rs php tools/run-tests.php`, so this lane did
+  not start any further root run. A later exact sample observed root PID
+  `3311713`; owner evidence showed
+  `3311713 claude 3311710 00:23 R php tools/run-tests.php`.
+
 ## Next Task
 
-Persist `FolderScanCheckpoint` snapshots through a bounded folder-scan service,
-including expiry/cleanup and conflict-safe storage update semantics.
+Map Syncthing delayed scan scheduling (`DelayScan` / next rescan timing) for
+WordPress REST scan requests, including accepted delay payloads, scheduled
+status reporting, and checkpoint interaction.
